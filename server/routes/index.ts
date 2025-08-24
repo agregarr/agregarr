@@ -11,6 +11,7 @@ import { mapProductionCompany } from '@server/models/Movie';
 import { mapNetwork } from '@server/models/Tv';
 import settingsRoutes from '@server/routes/settings';
 import { appDataPath, appDataStatus } from '@server/utils/appDataVolume';
+import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
 import authRoutes from './auth';
@@ -40,9 +41,9 @@ router.use(checkUser);
 
 router.get('/status', (_req, res) => {
   return res.status(200).json({
-    version: '1.0',
+    version: getAppVersion(),
     status: 'ok',
-    commitTag: 'agregarr-main',
+    commitTag: getCommitTag(),
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
     appData: appDataStatus(),
     appDataPath: appDataPath(),

@@ -16,49 +16,32 @@ export class OverseerrCollectionService {
   private isExternalMode = false;
 
   constructor() {
-    this.initializeClient();
+    // Don't initialize client in constructor - use lazy initialization like TautulliCollectionSync
+    this.isExternalMode = true; // Always external mode
   }
 
   /**
-   * Initialize the Overseerr API client based on current settings
+   * Get Overseerr API client with lazy initialization using current settings
+   * Similar to TautulliCollectionSync.getTautulliClient()
    */
-  private initializeClient(): void {
-    const settings = getSettings().load(); // Explicitly load settings from file
+  private getOverseerrClient(): OverseerrAPI | null {
+    const settings = getSettings(); // Get current settings every time
 
-    // Initialize Overseerr client based on configuration
-
-    // Always use external Overseerr mode (decoupled architecture)
-    if (
-      settings.overseerr &&
-      settings.overseerr.hostname &&
-      settings.overseerr.apiKey
-    ) {
-      this.overseerrClient = new OverseerrAPI(settings.overseerr);
-      this.isExternalMode = true;
-      // External Overseerr configured successfully - only log failures
-    } else {
-      logger.error(
-        'OverseerrCollectionService: External Overseerr not configured! Please configure hostname and API key.',
-        {
-          label: 'Collections',
-          currentConfig: {
-            hostname: settings.overseerr?.hostname || 'Missing',
-            port: settings.overseerr?.port || 'Not specified',
-            apiKey: settings.overseerr?.apiKey ? 'Present' : 'Missing',
-          },
-        }
-      );
-      // Still set to external mode but without client - will cause errors that remind user to configure
-      this.isExternalMode = true;
-      this.overseerrClient = null;
+    // Check if Overseerr is configured
+    if (!settings.overseerr?.hostname || !settings.overseerr?.apiKey) {
+      return null; // Not configured
     }
+
+    // Create fresh client with current settings (don't cache)
+    return new OverseerrAPI(settings.overseerr);
   }
 
   /**
    * Get admin user from external Overseerr
    */
   async getAdminUser(): Promise<OverseerrUser | null> {
-    if (!this.overseerrClient) {
+    const client = this.getOverseerrClient();
+    if (!client) {
       logger.error('External Overseerr client not configured', {
         label: 'OverseerrCollectionService',
       });
@@ -66,7 +49,7 @@ export class OverseerrCollectionService {
     }
 
     try {
-      return await this.overseerrClient.getAdminUser();
+      return await client.getAdminUser();
     } catch (error) {
       logger.error('Failed to get admin user from external Overseerr', {
         label: 'OverseerrCollectionService',
@@ -80,7 +63,8 @@ export class OverseerrCollectionService {
    * Get all users with Plex IDs from external Overseerr
    */
   async getUsersWithPlexIds(): Promise<OverseerrUser[]> {
-    if (!this.overseerrClient) {
+    const client = this.getOverseerrClient();
+    if (!client) {
       logger.error('External Overseerr client not configured', {
         label: 'OverseerrCollectionService',
       });
@@ -89,7 +73,7 @@ export class OverseerrCollectionService {
 
     try {
       // Get all users and filter those with Plex IDs
-      const response = await this.overseerrClient.getUsers({ take: 1000 });
+      const response = await client.getUsers({ take: 1000 });
       return response.results.filter((user) => user.plexId);
     } catch (error) {
       logger.error('Failed to get users from external Overseerr', {
@@ -104,7 +88,8 @@ export class OverseerrCollectionService {
    * Get all media requests from external Overseerr for collection processing
    */
   async getCollectionRequests(): Promise<OverseerrMediaRequest[]> {
-    if (!this.overseerrClient) {
+    const client = this.getOverseerrClient();
+    if (!client) {
       logger.error('External Overseerr client not configured', {
         label: 'OverseerrCollectionService',
       });
@@ -113,7 +98,7 @@ export class OverseerrCollectionService {
 
     try {
       // Get all requests from external Overseerr - let Plex be the source of truth for availability
-      const response = await this.overseerrClient.getRequests({
+      const response = await client.getRequests({
         filter: 'all',
         take: 5000, // Get enough to cover all users' needs
         sort: 'modified', // Try modified sort to get newest first
@@ -152,11 +137,12 @@ export class OverseerrCollectionService {
    * Test connection to external Overseerr
    */
   async testConnection(): Promise<{ success: boolean; version?: string }> {
-    if (!this.overseerrClient) {
+    const client = this.getOverseerrClient();
+    if (!client) {
       return { success: false };
     }
 
-    return await this.overseerrClient.testConnection();
+    return await client.testConnection();
   }
 
   /**
@@ -206,7 +192,8 @@ export class OverseerrCollectionService {
     applicationUrl?: string;
     applicationTitle?: string;
   } | null> {
-    if (!this.overseerrClient) {
+    const client = this.getOverseerrClient();
+    if (!client) {
       logger.error('External Overseerr client not configured', {
         label: 'OverseerrCollectionService',
       });
@@ -214,7 +201,7 @@ export class OverseerrCollectionService {
     }
 
     try {
-      return await this.overseerrClient.getMainSettings();
+      return await client.getMainSettings();
     } catch (error) {
       logger.error('Failed to get Overseerr settings', {
         label: 'OverseerrCollectionService',
@@ -290,10 +277,10 @@ export class OverseerrCollectionService {
   }
 
   /**
-   * Reinitialize the client when settings change
+   * Reinitialize the client when settings change - no longer needed with lazy initialization
    */
   reinitialize(): void {
-    this.initializeClient();
+    // No-op: Client is now created fresh on each request with current settings
   }
 }
 
