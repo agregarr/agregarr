@@ -1,0 +1,1648 @@
+import PlexAPI from '@server/api/plexapi';
+import { getRepository } from '@server/datasource';
+import { User } from '@server/entity/User';
+import type { PlexCollection } from '@server/lib/collections/core/types';
+import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
+import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
+import collectionsSync from '@server/lib/collectionsSync';
+import type { CollectionConfig } from '@server/lib/settings';
+import { getSettings } from '@server/lib/settings';
+import logger from '@server/logger';
+import { isAuthenticated } from '@server/middleware/auth';
+import { Router } from 'express';
+
+// Plex label can be either a string or an object with a tag property
+type PlexLabel = string | { tag: string };
+
+// Extract label text safely
+function getLabelText(label: PlexLabel): string {
+  return typeof label === 'string'
+    ? label
+    : typeof label === 'object' && label && 'tag' in label
+    ? label.tag
+    : '';
+}
+
+/**
+ * Simple in-memory rate limiter for external URL fetching
+ */
+class RateLimiter {
+  private requests: Map<string, number[]> = new Map();
+  private readonly maxRequests = 10; // Max requests per window
+  private readonly windowMs = 60000; // 1 minute window
+
+  isAllowed(identifier: string): boolean {
+    const now = Date.now();
+    const requests = this.requests.get(identifier) || [];
+
+    // Remove requests outside the window
+    const validRequests = requests.filter((time) => now - time < this.windowMs);
+
+    if (validRequests.length >= this.maxRequests) {
+      return false;
+    }
+
+    // Add current request
+    validRequests.push(now);
+    this.requests.set(identifier, validRequests);
+
+    return true;
+  }
+}
+
+const rateLimiter = new RateLimiter();
+
+/**
+ * Validate and sanitize external URLs for security
+ */
+function validateExternalUrl(
+  url: string,
+  type: string
+): { isValid: boolean; error?: string; sanitizedUrl?: string } {
+  try {
+    const urlObj = new URL(url);
+
+    // Only allow HTTPS URLs for security
+    if (urlObj.protocol !== 'https:') {
+      return { isValid: false, error: 'Only HTTPS URLs are allowed' };
+    }
+
+    // Validate allowed domains based on collection type
+    const allowedDomains = {
+      trakt: ['trakt.tv'],
+      tmdb: ['www.themoviedb.org', 'themoviedb.org'],
+      imdb: ['www.imdb.com', 'imdb.com'],
+      letterboxd: ['letterboxd.com', 'www.letterboxd.com'],
+    };
+
+    const validDomains = allowedDomains[type as keyof typeof allowedDomains];
+    if (!validDomains || !validDomains.includes(urlObj.hostname)) {
+      return {
+        isValid: false,
+        error: `Invalid domain for ${type} collection. Allowed domains: ${validDomains?.join(
+          ', '
+        )}`,
+      };
+    }
+
+    // Validate URL patterns for each service
+    switch (type) {
+      case 'trakt':
+        if (!urlObj.pathname.match(/^\/users\/[^/]+\/lists\/[^/?]+\/?$/)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname',
+          };
+        }
+        break;
+      case 'tmdb':
+        if (!urlObj.pathname.match(/^\/collection\/\d+\/?$/)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid TMDb collection URL format. Expected: https://www.themoviedb.org/collection/123456',
+          };
+        }
+        break;
+      case 'imdb':
+        if (!urlObj.pathname.match(/^\/list\/ls\d+\/?$/)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid IMDb list URL format. Expected: https://www.imdb.com/list/ls123456789',
+          };
+        }
+        break;
+      case 'letterboxd':
+        if (!urlObj.pathname.match(/^\/[^/]+\/list\/[^/?]+\/?$/)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid Letterboxd list URL format. Expected: https://letterboxd.com/username/list/listname',
+          };
+        }
+        break;
+      default:
+        return { isValid: false, error: 'Unsupported collection type' };
+    }
+
+    // Sanitize URL by removing unnecessary query parameters and fragments
+    const sanitizedUrl = `${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}`;
+
+    return { isValid: true, sanitizedUrl };
+  } catch (error) {
+    return { isValid: false, error: 'Invalid URL format' };
+  }
+}
+
+const collectionsRoutes = Router();
+
+/**
+ * GET /api/v1/collections
+ * Get collection configurations
+ */
+collectionsRoutes.get('/', (_req, res) => {
+  const settings = getSettings();
+  return res.status(200).json({
+    collectionConfigs: settings.plex.collectionConfigs || [],
+  });
+});
+
+/**
+ * PUT /api/v1/collections/:id/settings
+ * Update individual collection settings
+ */
+collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = getSettings();
+
+    // Find the existing collection config
+    const configs = settings.plex.collectionConfigs || [];
+    const existingConfigIndex = configs.findIndex((c) => c.id === id);
+
+    if (existingConfigIndex === -1) {
+      return res.status(404).json({
+        error: 'Collection not found',
+        message: `Collection with id "${id}" not found`,
+      });
+    }
+
+    const existingConfig = configs[existingConfigIndex];
+
+    // Process template to generate actual collection name (same logic as create endpoint)
+    // Get library to determine media type
+    const libraries = settings.plex.libraries || [];
+    const library = libraries.find(
+      (lib) => lib.key === (req.body.libraryId || existingConfig.libraryId)
+    );
+    const libraryMediaType: 'movie' | 'tv' =
+      library && library.type === 'show' ? 'tv' : 'movie';
+
+    const context = {
+      ...templateEngine.getDefaultContext(),
+      mediaType: libraryMediaType,
+      days: req.body.customDays || existingConfig.customDays,
+      customdays: req.body.customDays || existingConfig.customDays,
+      statType: req.body.tautulliStatType || existingConfig.tautulliStatType,
+      subtype: req.body.subtype || existingConfig.subtype,
+    };
+    let processedName = templateEngine.processTemplate(
+      req.body.template ||
+        req.body.name ||
+        existingConfig.template ||
+        existingConfig.name ||
+        '',
+      context
+    );
+
+    // For Overseerr user collections, keep {username} and {nickname} as literals
+    if (
+      (req.body.type || existingConfig.type) === 'overseerr' &&
+      (req.body.subtype || existingConfig.subtype) === 'users'
+    ) {
+      const defaultContext = templateEngine.getDefaultContext();
+      if (defaultContext.username) {
+        processedName = processedName.replace(
+          new RegExp(defaultContext.username, 'g'),
+          '{username}'
+        );
+      }
+      if (defaultContext.nickname) {
+        processedName = processedName.replace(
+          new RegExp(defaultContext.nickname, 'g'),
+          '{nickname}'
+        );
+      }
+    }
+
+    // Merge settings while preserving computed fields
+    const updatedConfig = {
+      ...existingConfig, // Preserve all existing fields including computed ones
+      ...req.body, // Apply user changes
+      name: processedName, // Use processed template name
+      // Ensure computed fields stay computed:
+      id: existingConfig.id, // ID never changes
+      isActive: existingConfig.isActive, // Preserve sync service's isActive calculation
+    };
+
+    // Update the config in place
+    configs[existingConfigIndex] = updatedConfig;
+    settings.plex.collectionConfigs = configs;
+    settings.save();
+
+    logger.info('Individual collection config updated successfully', {
+      label: 'Collections API',
+      configId: id,
+      configName: updatedConfig.name,
+    });
+
+    // Auto-reorder after visibility changes to assign proper sort orders
+    const { autoReorderLibrary } = await import('@server/routes/reorder');
+    try {
+      const libraryId = Array.isArray(updatedConfig.libraryId)
+        ? updatedConfig.libraryId[0]
+        : updatedConfig.libraryId;
+      await autoReorderLibrary(libraryId, 'home');
+      await autoReorderLibrary(libraryId, 'library');
+      logger.debug(
+        `Auto-reordering completed after collection settings update for library ${libraryId}`,
+        {
+          label: 'Collections API - Auto Reorder',
+        }
+      );
+    } catch (error) {
+      logger.warn('Failed to auto-reorder after collection settings update', {
+        label: 'Collections API - Auto Reorder',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Don't fail the settings update if reordering fails
+    }
+
+    return res.status(200).json({
+      collectionConfig: updatedConfig,
+      message: 'Collection settings updated successfully',
+    });
+  } catch (error) {
+    logger.error('Failed to update individual collection settings', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+      configId: req.params.id,
+    });
+
+    return res.status(500).json({
+      error: 'Failed to update collection settings',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/v1/collections/cleanup-missing
+ * Remove all collection configs where missing: true
+ */
+collectionsRoutes.delete(
+  '/cleanup-missing',
+  isAuthenticated(),
+  async (req, res) => {
+    try {
+      const settings = getSettings();
+      let cleanupCount = 0;
+
+      // Remove missing collections
+      const filteredCollections = (
+        settings.plex.collectionConfigs || []
+      ).filter((config) => {
+        const shouldRemove = config.missing === true;
+        if (shouldRemove) {
+          cleanupCount++;
+          logger.info(`Cleaning up missing collection: ${config.name}`, {
+            label: 'Collections API - Cleanup',
+            configId: config.id,
+            ratingKey: config.collectionRatingKey,
+          });
+        }
+        return !shouldRemove;
+      });
+
+      // Remove missing hubs
+      const filteredHubs = (settings.plex.hubConfigs || []).filter((config) => {
+        const shouldRemove = config.missing === true;
+        if (shouldRemove) {
+          cleanupCount++;
+          logger.info(`Cleaning up missing hub: ${config.name}`, {
+            label: 'Collections API - Cleanup',
+            configId: config.id,
+            hubIdentifier: config.hubIdentifier,
+          });
+        }
+        return !shouldRemove;
+      });
+
+      // Remove missing pre-existing collections
+      const filteredPreExisting = (
+        settings.plex.preExistingCollectionConfigs || []
+      ).filter((config) => {
+        const shouldRemove = config.missing === true;
+        if (shouldRemove) {
+          cleanupCount++;
+          logger.info(
+            `Cleaning up missing pre-existing collection: ${config.name}`,
+            {
+              label: 'Collections API - Cleanup',
+              configId: config.id,
+              ratingKey: config.collectionRatingKey,
+            }
+          );
+        }
+        return !shouldRemove;
+      });
+
+      // Update settings with filtered configs
+      settings.plex.collectionConfigs = filteredCollections;
+      settings.plex.hubConfigs = filteredHubs;
+      settings.plex.preExistingCollectionConfigs = filteredPreExisting;
+
+      logger.info(
+        `Cleanup complete: ${cleanupCount} missing collection configurations removed`,
+        {
+          label: 'Collections API - Cleanup',
+        }
+      );
+
+      return res.status(200).json({
+        message: `${cleanupCount} missing collection configuration${
+          cleanupCount !== 1 ? 's' : ''
+        } removed successfully`,
+        cleanupCount,
+      });
+    } catch (error) {
+      logger.error('Failed to cleanup missing collections', {
+        label: 'Collections API - Cleanup',
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return res.status(500).json({
+        error: 'Failed to cleanup missing collections',
+      });
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/collections/:id
+ * Delete individual collection and recalculate sort orders
+ */
+collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = getSettings();
+
+    // Find the collection config to delete
+    const configs = settings.plex.collectionConfigs || [];
+    const configToDelete = configs.find((c) => c.id === id);
+
+    if (!configToDelete) {
+      return res.status(404).json({
+        error: 'Collection not found',
+        message: `Collection with id "${id}" not found`,
+      });
+    }
+
+    // Check if this is a linked collection - if so, delete all linked configs
+    const configsToDelete = [];
+    if (configToDelete.isLinked && configToDelete.linkId) {
+      // Find all configs with the same linkId
+      const linkedConfigs = configs.filter(
+        (c) => c.linkId === configToDelete.linkId && c.isLinked
+      );
+      configsToDelete.push(...linkedConfigs);
+    } else {
+      configsToDelete.push(configToDelete);
+    }
+
+    // Remove the configs
+    const deletedConfigIds = configsToDelete.map((c) => c.id);
+    const remainingConfigs = configs.filter(
+      (c) => !deletedConfigIds.includes(c.id)
+    );
+
+    // Recalculate sort orders for remaining configs by library
+    const configsByLibrary = new Map<string, CollectionConfig[]>();
+    remainingConfigs.forEach((config) => {
+      if (!configsByLibrary.has(config.libraryId)) {
+        configsByLibrary.set(config.libraryId, []);
+      }
+      configsByLibrary.get(config.libraryId)?.push(config);
+    });
+
+    // Update sort orders for each library
+    configsByLibrary.forEach((libraryConfigs) => {
+      // Sort by current sortOrderHome to maintain relative order
+      libraryConfigs.sort(
+        (a, b) => (a.sortOrderHome || 0) - (b.sortOrderHome || 0)
+      );
+
+      // Reassign sequential sort orders
+      libraryConfigs.forEach((config, index) => {
+        // Safe type assertion since we're updating readonly fields
+        const mutableConfig = config as {
+          sortOrderHome?: number;
+          sortOrderLibrary?: number;
+        };
+        mutableConfig.sortOrderHome = index;
+        mutableConfig.sortOrderLibrary = index;
+      });
+    });
+
+    // Flatten back to single array
+    const reorderedConfigs = Array.from(configsByLibrary.values()).flat();
+
+    // Save updated configs
+    settings.plex.collectionConfigs = reorderedConfigs;
+    settings.save();
+
+    // If this was the last collection config, trigger cleanup to remove all agregarr collections
+    if (reorderedConfigs.length === 0) {
+      logger.info(
+        'Last collection config deleted - triggering cleanup of all agregarr collections',
+        {
+          label: 'Collections API',
+        }
+      );
+
+      try {
+        const collectionsSync = await import('@server/lib/collectionsSync');
+        await collectionsSync.default.cleanupCollections();
+        logger.info('Cleanup completed after last collection deletion', {
+          label: 'Collections API',
+        });
+      } catch (error) {
+        logger.warn('Failed to cleanup collections after deletion', {
+          label: 'Collections API',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    logger.info('Collection(s) deleted successfully', {
+      label: 'Collections API',
+      deletedCount: configsToDelete.length,
+      deletedConfigs: configsToDelete.map((c) => ({
+        id: c.id,
+        name: c.name,
+        libraryId: c.libraryId,
+      })),
+      remainingCount: reorderedConfigs.length,
+    });
+
+    // Auto-reorder collections in affected libraries to fill gaps
+    const affectedLibraries = [
+      ...new Set(
+        configsToDelete.map((c) => {
+          return Array.isArray(c.libraryId) ? c.libraryId[0] : c.libraryId;
+        })
+      ),
+    ];
+
+    const { autoReorderLibrary } = await import('@server/routes/reorder');
+    for (const libraryId of affectedLibraries) {
+      try {
+        // Auto-reorder both home and library contexts to fill gaps
+        await autoReorderLibrary(libraryId, 'home');
+        await autoReorderLibrary(libraryId, 'library');
+        logger.debug(
+          `Auto-reordering completed after deletion for library ${libraryId}`,
+          {
+            label: 'Collections API - Auto Reorder',
+          }
+        );
+      } catch (error) {
+        logger.warn('Failed to auto-reorder after collection deletion', {
+          label: 'Collections API - Auto Reorder',
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Don't fail the deletion if reordering fails
+      }
+    }
+
+    return res.status(200).json({
+      message: `${configsToDelete.length} collection(s) deleted successfully`,
+      deletedConfigs: configsToDelete.map((c) => ({ id: c.id, name: c.name })),
+    });
+  } catch (error) {
+    logger.error('Failed to delete collection', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+      configId: req.params.id,
+    });
+
+    return res.status(500).json({
+      error: 'Failed to delete collection',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/collections/create
+ * Create a new collection (supports multiple libraries)
+ */
+collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
+  try {
+    const settings = getSettings();
+    const { IdGenerator } = await import('@server/utils/idGenerator');
+
+    // Extract libraryIds from request - support both single libraryId and multiple libraryIds
+    const libraryIds = req.body.libraryIds
+      ? Array.isArray(req.body.libraryIds)
+        ? req.body.libraryIds
+        : [req.body.libraryIds]
+      : req.body.libraryId
+      ? [req.body.libraryId]
+      : [];
+
+    if (libraryIds.length === 0) {
+      return res.status(400).json({
+        error: 'Library selection required',
+        message: 'Either libraryId or libraryIds must be provided',
+      });
+    }
+
+    // Get libraries for proper media type detection
+    const libraries = settings.plex.libraries || [];
+    const existingConfigs = settings.plex.collectionConfigs || [];
+    const createdConfigs = [];
+
+    // Generate linkId for multi-library collections
+    const linkId = libraryIds.length > 1 ? getNextLinkId(existingConfigs) : 0;
+
+    // Create individual configs for each selected library
+    for (const libraryId of libraryIds) {
+      const library = libraries.find((lib) => lib.key === libraryId);
+      if (!library) {
+        logger.warn('Library not found for collection creation', {
+          label: 'Collections API',
+          libraryId,
+          availableLibraries: libraries.map((l) => ({
+            key: l.key,
+            name: l.name,
+          })),
+        });
+        continue; // Skip missing libraries instead of failing completely
+      }
+
+      // Determine proper media type based on library type
+      const libraryMediaType: 'movie' | 'tv' =
+        library.type === 'show' ? 'tv' : 'movie';
+
+      // Process template to generate actual collection name for this library
+      const context = {
+        ...templateEngine.getDefaultContext(),
+        mediaType: libraryMediaType,
+        days: req.body.customDays,
+        customdays: req.body.customDays,
+        statType: req.body.tautulliStatType,
+        subtype: req.body.subtype,
+      };
+      let processedName = templateEngine.processTemplate(
+        req.body.template || req.body.name || '',
+        context
+      );
+
+      // For Overseerr user collections, keep {username} and {nickname} as literals
+      if (req.body.type === 'overseerr' && req.body.subtype === 'users') {
+        const defaultContext = templateEngine.getDefaultContext();
+        if (defaultContext.username) {
+          processedName = processedName.replace(
+            new RegExp(defaultContext.username, 'g'),
+            '{username}'
+          );
+        }
+        if (defaultContext.nickname) {
+          processedName = processedName.replace(
+            new RegExp(defaultContext.nickname, 'g'),
+            '{nickname}'
+          );
+        }
+      }
+
+      // Create time restriction evaluation
+      const timeRestrictionResult =
+        TimeRestrictionUtils.evaluateTimeRestriction(req.body.timeRestriction);
+
+      // Create individual config for this library
+      const newConfig = {
+        ...req.body,
+        id: IdGenerator.generateId(),
+        libraryId,
+        libraryName: library.name,
+        name: processedName,
+        mediaType: libraryMediaType,
+        isActive: timeRestrictionResult.isActive,
+        isLinked: libraryIds.length > 1,
+        linkId: linkId,
+        isLibraryPromoted: true, // All new Agregarr collections start in promoted section
+        // Remove multi-library fields that don't belong in individual configs
+        libraryIds: undefined,
+        libraryNames: undefined,
+      };
+
+      createdConfigs.push(newConfig);
+    }
+
+    if (createdConfigs.length === 0) {
+      return res.status(400).json({
+        error: 'No valid libraries found',
+        message: 'None of the specified libraries could be found',
+      });
+    }
+
+    // Add all created configs to settings
+    const configs = settings.plex.collectionConfigs || [];
+    configs.push(...createdConfigs);
+    settings.plex.collectionConfigs = configs;
+    settings.save();
+
+    const configSummary = createdConfigs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      libraryId: c.libraryId,
+      libraryName: c.libraryName,
+      isLinked: c.isLinked,
+      linkId: c.linkId,
+    }));
+
+    logger.info('Collection configs created successfully', {
+      label: 'Collections API',
+      configCount: createdConfigs.length,
+      isMultiLibrary: libraryIds.length > 1,
+      linkId: linkId || 'none',
+      configs: configSummary,
+    });
+
+    // Auto-reorder collections in each affected library to assign proper sort orders
+    // New collections will be placed at the top (position 0) and existing ones shifted
+    const { autoReorderLibrary } = await import('@server/routes/reorder');
+    for (const libraryId of libraryIds) {
+      try {
+        // Auto-reorder both home and library contexts
+        await autoReorderLibrary(libraryId, 'home');
+        await autoReorderLibrary(libraryId, 'library');
+        logger.debug(`Auto-reordering completed for library ${libraryId}`, {
+          label: 'Collections API - Auto Reorder',
+        });
+      } catch (error) {
+        logger.warn('Failed to auto-reorder after collection creation', {
+          label: 'Collections API - Auto Reorder',
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Don't fail the creation if reordering fails
+      }
+    }
+
+    return res.status(201).json({
+      collectionConfigs: createdConfigs,
+      message: `${createdConfigs.length} collection config${
+        createdConfigs.length === 1 ? '' : 's'
+      } created successfully`,
+    });
+  } catch (error) {
+    logger.error('Failed to create collection', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to create collection',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * Helper function to find the next available link ID across ALL collection types
+ */
+function getNextLinkId(configs: CollectionConfig[]): number {
+  const settings = getSettings();
+
+  // Collect all existing link IDs from ALL collection types
+  const allExistingLinkIds: number[] = [];
+
+  // 1. Check Agregarr-created collections
+  const agregarrConfigs = configs || [];
+  agregarrConfigs.forEach((config) => {
+    if (config.linkId && config.linkId >= 1) {
+      allExistingLinkIds.push(config.linkId);
+    }
+  });
+
+  // 2. Check default Plex hubs
+  const hubConfigs = settings.plex.hubConfigs || [];
+  hubConfigs.forEach((hub) => {
+    if (hub.linkId && hub.linkId >= 1) {
+      allExistingLinkIds.push(hub.linkId);
+    }
+  });
+
+  // 3. Check pre-existing collections
+  const preExistingConfigs = settings.plex.preExistingCollectionConfigs || [];
+  preExistingConfigs.forEach((preExisting) => {
+    if (preExisting.linkId && preExisting.linkId >= 1) {
+      allExistingLinkIds.push(preExisting.linkId);
+    }
+  });
+
+  // Remove duplicates and sort
+  const uniqueLinkIds = [...new Set(allExistingLinkIds)].sort((a, b) => a - b);
+
+  // If no existing link IDs, start with 1
+  if (uniqueLinkIds.length === 0) {
+    return 1;
+  }
+
+  // Find the highest existing link ID and return the next one
+  const maxLinkId = Math.max(...uniqueLinkIds);
+  return maxLinkId + 1;
+}
+
+// Legacy bulk save endpoint removed - use specific endpoints instead:
+// - POST /api/v1/collections/create for new collections
+// - PUT /api/v1/collections/{id}/settings for updates
+
+/**
+ * GET /api/v1/collections/sync
+ * Get collections sync status (simplified - no detailed progress)
+ */
+collectionsRoutes.get('/sync', (_req, res) => {
+  return res.status(200).json({
+    running: collectionsSync.running,
+    message: collectionsSync.running
+      ? 'Collections sync in progress'
+      : 'Not running',
+  });
+});
+
+/**
+ * POST /api/v1/collections/sync
+ * Start a collection sync in the background (fire-and-forget)
+ */
+collectionsRoutes.post('/sync', isAuthenticated(), async (req, res) => {
+  try {
+    const settings = getSettings();
+
+    // The sync job will check if there are collections to process
+
+    if (!settings.plex.ip || !settings.plex.port) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Plex server settings are not configured',
+      });
+    }
+
+    // Get admin user for Plex token
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOne({
+      where: { id: 1 },
+      select: { id: true, plexToken: true },
+    });
+
+    if (!admin?.plexToken) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Admin Plex token not found',
+      });
+    }
+
+    // Initialize Plex client for quick connection test
+    const plexClient = new PlexAPI({
+      plexToken: admin.plexToken,
+      plexSettings: settings.plex,
+    });
+
+    // Test connection
+    const statusResult = await plexClient.getStatus();
+    if (!statusResult) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Could not connect to Plex server',
+      });
+    }
+
+    // Start collection sync in background with proper error handling
+    setImmediate(async () => {
+      try {
+        await collectionsSync.run();
+      } catch (error) {
+        logger.error('Background collections sync failed:', error);
+      }
+    });
+
+    logger.info('Manual Plex collections sync started in background');
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Collections sync started in background',
+    });
+  } catch (error) {
+    logger.error('Error starting collections sync:', error);
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while starting collections sync',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/collections/fetch-title
+ * Fetch title from external collection URL
+ */
+collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
+  try {
+    const { url, type } = req.body;
+
+    if (!url || !type) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'URL and type are required',
+      });
+    }
+
+    // Check rate limiting (per user)
+    const userId = req.user?.id?.toString() || req.ip || 'anonymous';
+    if (!rateLimiter.isAllowed(userId)) {
+      return res.status(429).json({
+        status: 'error',
+        message: 'Too many requests. Please wait before trying again.',
+      });
+    }
+
+    // Validate and sanitize the URL
+    const validation = validateExternalUrl(url, type);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        status: 'error',
+        message: validation.error,
+      });
+    }
+
+    if (!validation.sanitizedUrl) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'URL sanitization failed',
+      });
+    }
+    const sanitizedUrl = validation.sanitizedUrl;
+
+    let title: string | null = null;
+    let mediaType: 'movie' | 'tv' | 'both' | null = null;
+
+    switch (type) {
+      case 'trakt': {
+        const TraktAPI = (await import('@server/api/trakt')).default;
+        const settings = getSettings();
+
+        if (!settings.trakt.apiKey) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Trakt API key not configured',
+          });
+        }
+
+        const traktClient = new TraktAPI(settings.trakt.apiKey);
+
+        // Use the existing getCustomList method to fetch list info and detect media type
+        try {
+          const listData = await traktClient.getCustomList(sanitizedUrl, 10); // Get more items to analyze media type
+          if (listData && listData.length >= 0) {
+            // Extract the list name from the URL since Trakt API doesn't return list metadata
+            const urlMatch = sanitizedUrl.match(
+              /trakt\.tv\/users\/[^/]+\/lists\/([^/?]+)/
+            );
+            if (urlMatch) {
+              // Convert slug to readable title (replace hyphens with spaces, capitalize)
+              title = urlMatch[1]
+                .replace(/-/g, ' ')
+                .replace(/\b\w/g, (l: string) => l.toUpperCase());
+            }
+
+            // Analyze media type from the list content
+            if (listData.length > 0) {
+              const hasMovies = listData.some(
+                (item) => item.type === 'movie' || item.movie
+              );
+              const hasShows = listData.some(
+                (item) => item.type === 'show' || item.show
+              );
+
+              if (hasMovies && hasShows) {
+                mediaType = 'both';
+              } else if (hasMovies) {
+                mediaType = 'movie';
+              } else if (hasShows) {
+                mediaType = 'tv';
+              }
+            }
+          }
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Invalid Trakt list URL or list not accessible',
+          });
+        }
+        break;
+      }
+
+      case 'tmdb': {
+        const TheMovieDb = (await import('@server/api/themoviedb')).default;
+        const tmdbClient = new TheMovieDb();
+
+        try {
+          const urlMatch = sanitizedUrl.match(
+            /themoviedb\.org\/collection\/(\d+)/
+          );
+          if (!urlMatch) {
+            return res.status(400).json({
+              status: 'error',
+              message: 'Invalid TMDb collection URL format',
+            });
+          }
+
+          const collectionId = parseInt(urlMatch[1]);
+          const collection = await tmdbClient.getCollection({ collectionId });
+          title = collection.name;
+          mediaType = 'movie'; // TMDb collections are always movies
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Invalid TMDb collection ID or collection not found',
+          });
+        }
+        break;
+      }
+
+      case 'imdb': {
+        // For IMDb, we'll need to scrape the title from the page
+        const axios = (await import('axios')).default;
+
+        try {
+          const urlMatch = sanitizedUrl.match(/imdb\.com\/list\/(ls\d+)/);
+          if (!urlMatch) {
+            return res.status(400).json({
+              status: 'error',
+              message: 'Invalid IMDb list URL format',
+            });
+          }
+
+          const response = await axios.get(sanitizedUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+            timeout: 10000,
+          });
+
+          // Extract title from HTML
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            title = titleMatch[1].replace(' - IMDb', '').trim();
+          }
+
+          // Try to detect media type from the page content by analyzing list items
+          const htmlContent = response.data;
+
+          // Try multiple approaches to find list items
+          let listItemMatches = htmlContent.match(
+            /<li[^>]*class="[^"]*ipc-metadata-list-summary-item[^"]*"[^>]*>.*?<\/li>/gs
+          );
+
+          // If the first pattern doesn't work, try alternative patterns
+          if (!listItemMatches) {
+            listItemMatches =
+              htmlContent.match(
+                /<div[^>]*class="[^"]*titleColumn[^"]*"[^>]*>.*?<\/div>/gs
+              ) ||
+              htmlContent.match(
+                /<div[^>]*class="[^"]*list[^"]*item[^"]*"[^>]*>.*?<\/div>/gs
+              ) ||
+              [];
+          }
+
+          let movieCount = 0;
+          let tvCount = 0;
+
+          // Analyze the first 10 items to determine media type
+          listItemMatches.slice(0, 10).forEach((item: string) => {
+            // Look for title type indicators in the structured data or metadata
+            const lowerItem = item.toLowerCase();
+
+            // Check for movie indicators
+            if (
+              lowerItem.includes('titletype-movie') ||
+              lowerItem.includes('feature') ||
+              lowerItem.includes('film') ||
+              lowerItem.includes('"@type":"movie"') ||
+              lowerItem.includes('(movie)') ||
+              lowerItem.includes('feature film') ||
+              lowerItem.includes('short film')
+            ) {
+              movieCount++;
+            }
+
+            // Check for TV indicators
+            if (
+              lowerItem.includes('titletype-tv') ||
+              lowerItem.includes('tv series') ||
+              lowerItem.includes('tv episode') ||
+              lowerItem.includes('tv mini-series') ||
+              lowerItem.includes('tv movie') ||
+              lowerItem.includes('"@type":"tvseries"') ||
+              lowerItem.includes('"@type":"episode"') ||
+              lowerItem.includes('(tv series)') ||
+              lowerItem.includes('(tv episode)') ||
+              lowerItem.includes('television')
+            ) {
+              tvCount++;
+            }
+          });
+
+          // Determine media type based on what we found
+          if (movieCount > 0 && tvCount === 0) {
+            mediaType = 'movie';
+          } else if (tvCount > 0 && movieCount === 0) {
+            mediaType = 'tv';
+          } else if (movieCount > 0 && tvCount > 0) {
+            mediaType = 'both';
+          } else {
+            // Fallback: try to detect from page title or description
+            const lowerContent = htmlContent.toLowerCase();
+            if (
+              lowerContent.includes('movie list') ||
+              lowerContent.includes('film list')
+            ) {
+              mediaType = 'movie';
+            } else if (
+              lowerContent.includes('tv list') ||
+              lowerContent.includes('television list') ||
+              lowerContent.includes('series list')
+            ) {
+              mediaType = 'tv';
+            } else {
+              mediaType = 'both'; // Default when we can't determine
+            }
+          }
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Could not fetch IMDb list title',
+          });
+        }
+        break;
+      }
+
+      case 'letterboxd': {
+        // For Letterboxd, we'll need to scrape the title from the page
+        const axios = (await import('axios')).default;
+
+        try {
+          const urlMatch = sanitizedUrl.match(
+            /letterboxd\.com\/([^/]+)\/list\/([^/?]+)/
+          );
+          if (!urlMatch) {
+            return res.status(400).json({
+              status: 'error',
+              message: 'Invalid Letterboxd list URL format',
+            });
+          }
+
+          const response = await axios.get(sanitizedUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+            timeout: 10000,
+          });
+
+          // Extract title from HTML
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            title = titleMatch[1]
+              .replace(' • Letterboxd', '')
+              .replace(' - Letterboxd', '')
+              .trim();
+          }
+
+          // For Letterboxd, assume movies by default since it's primarily a film platform
+          mediaType = 'movie';
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Could not fetch Letterboxd list title',
+          });
+        }
+        break;
+      }
+
+      default:
+        return res.status(400).json({
+          status: 'error',
+          message: 'Unsupported collection type',
+        });
+    }
+
+    if (!title) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Could not extract title from URL',
+      });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      title: title,
+      mediaType: mediaType,
+    });
+  } catch (error) {
+    logger.error('Error fetching collection title', {
+      label: 'Collections API',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error while fetching title',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/collections/preview-template
+ * Preview a collection template with given context
+ */
+collectionsRoutes.post(
+  '/preview-template',
+  isAuthenticated(),
+  async (req, res) => {
+    try {
+      const { template, mediaType, type, subtype, customDays } = req.body;
+
+      if (!template) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Template is required',
+        });
+      }
+
+      if (!mediaType || !['movie', 'tv'].includes(mediaType)) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Valid mediaType (movie or tv) is required',
+        });
+      }
+
+      // Create appropriate context based on collection type
+      let context;
+      switch (type) {
+        case 'trakt':
+          context = templateEngine.createTraktContext(mediaType, subtype || '');
+          break;
+        case 'tmdb':
+          context = templateEngine.createTmdbContext(mediaType, subtype || '');
+          break;
+        case 'imdb':
+          context = templateEngine.createImdbContext(mediaType, subtype || '');
+          break;
+        case 'letterboxd':
+          context = templateEngine.createLetterboxdContext(
+            mediaType,
+            subtype || ''
+          );
+          break;
+        case 'tautulli':
+          context = templateEngine.createTautulliContext(
+            mediaType,
+            customDays || 30,
+            'plays',
+            subtype || ''
+          );
+          break;
+        case 'overseerr':
+          context = templateEngine.createGlobalContext(mediaType);
+          break;
+        default:
+          context = templateEngine.createGlobalContext(mediaType);
+      }
+
+      // Process the template
+      const preview = templateEngine.processTemplate(template, context);
+
+      return res.status(200).json({
+        status: 'success',
+        preview: preview,
+      });
+    } catch (error) {
+      logger.error('Error previewing template', {
+        label: 'Collections API',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      return res.status(500).json({
+        status: 'error',
+        message: 'Internal server error while previewing template',
+      });
+    }
+  }
+);
+
+/**
+ * Upload a poster image for collections
+ * POST /api/v1/collections/poster
+ */
+collectionsRoutes.post('/poster', isAuthenticated(), async (req, res) => {
+  try {
+    const multer = (await import('multer')).default;
+    const { savePosterFile, validatePosterBuffer, initializePosterStorage } =
+      await import('@server/lib/posterStorage');
+
+    // Initialize storage directory
+    initializePosterStorage();
+
+    // Configure multer for memory storage with strict security
+    const upload = multer({
+      storage: multer.memoryStorage(),
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+        files: 1,
+        fieldSize: 10 * 1024 * 1024, // 10MB field size limit
+        fieldNameSize: 100, // Limit field name size
+        fields: 1, // Only allow one field
+        parts: 1, // Only allow one part
+      },
+      fileFilter: (req, file, callback) => {
+        // Strict validation - only allow specific mime types
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+        // Additional security: check file extension matches mime type
+        const fileExt = file.originalname?.toLowerCase().split('.').pop();
+        const expectedExts: Record<string, string[]> = {
+          'image/jpeg': ['jpg', 'jpeg'],
+          'image/png': ['png'],
+          'image/webp': ['webp'],
+        };
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return callback(
+            new Error(
+              'Invalid file type. Only JPEG, PNG, and WebP are allowed.'
+            )
+          );
+        }
+
+        if (fileExt && !expectedExts[file.mimetype]?.includes(fileExt)) {
+          return callback(
+            new Error('File extension does not match file type.')
+          );
+        }
+
+        callback(null, true);
+      },
+    }).single('poster');
+
+    // Handle file upload with proper error handling
+    upload(req, res, async (err) => {
+      if (err) {
+        logger.error('Poster upload error:', err);
+
+        // Handle specific multer errors
+        const multerError = err as Error & { code?: string };
+        const errorCode = multerError.code;
+        const errorMessage = multerError.message;
+
+        if (errorCode === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: 'File too large. Maximum size is 10MB.',
+          });
+        } else if (errorCode === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({
+            error: 'Unexpected field name. Use "poster" as the field name.',
+          });
+        } else if (errorMessage) {
+          return res.status(400).json({
+            error: errorMessage,
+          });
+        } else {
+          return res.status(400).json({
+            error: 'File upload failed',
+          });
+        }
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      try {
+        // Validate the uploaded file
+        validatePosterBuffer(req.file.buffer, req.file.mimetype);
+
+        // Save the poster file
+        const filename = await savePosterFile(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname
+        );
+
+        const { getPosterUrl } = await import('@server/lib/posterStorage');
+
+        return res.status(200).json({
+          filename,
+          url: getPosterUrl(filename),
+        });
+      } catch (error) {
+        logger.error('Error processing poster upload:', error);
+        return res.status(400).json({
+          error:
+            error instanceof Error ? error.message : 'Failed to process poster',
+        });
+      }
+    });
+  } catch (error) {
+    logger.error('Poster upload route error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * Serve poster images
+ * GET /api/v1/collections/poster/:filename
+ */
+collectionsRoutes.get('/poster/:filename', async (req, res) => {
+  // Note: No authentication required for serving images - they're already uploaded by admins
+  // and filenames are UUIDs making them hard to guess
+  try {
+    const { filename } = req.params;
+    const { getPosterPath, posterExists } = await import(
+      '@server/lib/posterStorage'
+    );
+
+    // Security validation is now handled by posterExists and getPosterPath
+    if (!posterExists(filename)) {
+      return res.status(404).json({ error: 'Poster not found' });
+    }
+
+    const posterPath = getPosterPath(filename);
+
+    // Determine content type from file extension
+    const extension = filename.toLowerCase().split('.').pop();
+    let contentType = 'image/jpeg'; // default
+    if (extension === 'png') {
+      contentType = 'image/png';
+    } else if (extension === 'webp') {
+      contentType = 'image/webp';
+    }
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+
+    // Stream the file
+    const fs = await import('fs');
+    const stream = fs.createReadStream(posterPath);
+    stream.pipe(res);
+
+    stream.on('error', (error) => {
+      logger.error('Error streaming poster file:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to serve poster' });
+      }
+    });
+  } catch (error) {
+    logger.error('Error serving poster:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * Delete a poster image
+ * DELETE /api/v1/collections/poster/:filename
+ */
+collectionsRoutes.delete('/poster/:filename', async (req, res) => {
+  if (!req.user) {
+    return res.status(403).json({ error: 'Authentication required' });
+  }
+  // Permission system removed - all authenticated users can manage collections
+
+  try {
+    const { filename } = req.params;
+    const { deletePosterFile, posterExists } = await import(
+      '@server/lib/posterStorage'
+    );
+
+    // Security validation is now handled by posterExists and deletePosterFile
+    if (!posterExists(filename)) {
+      return res.status(404).json({ error: 'Poster not found' });
+    }
+
+    await deletePosterFile(filename);
+
+    return res.status(200).json({ message: 'Poster deleted successfully' });
+  } catch (error) {
+    logger.error('Error deleting poster:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/v1/collections/preexisting - Get pre-existing Plex collections (non-Overseerr)
+collectionsRoutes.get('/preexisting', isAuthenticated(), async (_req, res) => {
+  try {
+    const settings = getSettings().load();
+
+    if (!settings.plex.ip || !settings.plex.port) {
+      return res.status(400).json({
+        error: 'Plex server not configured',
+      });
+    }
+
+    // Get admin user for Plex token
+    const userRepository = getRepository(User);
+    const adminUser = await userRepository.findOne({
+      where: { id: 1 },
+      select: ['id', 'plexToken'],
+    });
+
+    if (!adminUser?.plexToken) {
+      return res.status(400).json({
+        error: 'No Plex token found for admin user',
+      });
+    }
+
+    const plexClient = new PlexAPI({
+      plexToken: adminUser.plexToken,
+      plexSettings: settings.plex,
+    });
+
+    // Test connection
+    const statusResult = await plexClient.getStatus();
+    if (!statusResult) {
+      return res.status(500).json({
+        error: 'Unable to connect to Plex server',
+      });
+    }
+
+    // Get all collections from Plex
+    const allCollections = await plexClient.getAllCollections();
+
+    // Filter out collections that have Overseerr labels (case insensitive)
+    const preExistingCollections = allCollections.filter(
+      (collection: PlexCollection) => {
+        // Collections WITHOUT Overseerr labels are pre-existing
+        return !(
+          Array.isArray(collection.labels) &&
+          collection.labels.some((label: PlexLabel) =>
+            getLabelText(label).toLowerCase().startsWith('agregarr')
+          )
+        );
+      }
+    );
+
+    logger.info(
+      `Found ${preExistingCollections.length} pre-existing Plex collections`,
+      {
+        label: 'Collections API',
+        totalCollections: allCollections.length,
+        preExistingCount: preExistingCollections.length,
+      }
+    );
+
+    return res.status(200).json({
+      collections: preExistingCollections.map((collection: PlexCollection) => ({
+        id: collection.ratingKey,
+        name: collection.title,
+        summary: collection.summary || '',
+        libraryId: collection.librarySectionID,
+        libraryTitle: collection.librarySectionTitle,
+        itemCount: collection.childCount || 0,
+        thumb: collection.thumb || '',
+        art: collection.art || '',
+        guid: collection.guid || '',
+        updatedAt: collection.updatedAt,
+        addedAt: collection.addedAt,
+        labels: collection.labels || [],
+      })),
+    });
+  } catch (error) {
+    logger.error('Failed to fetch pre-existing collections', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to fetch pre-existing collections',
+    });
+  }
+});
+
+/**
+ * PATCH /api/v1/collections/:id/promote
+ * Promote a collection from A-Z section to promoted section
+ */
+collectionsRoutes.patch('/:id/promote', isAuthenticated(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+
+    // Find the collection to promote
+    const configIndex = collectionConfigs.findIndex(
+      (config) => config.id === id
+    );
+    if (configIndex === -1) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    const config = collectionConfigs[configIndex];
+
+    // Check if already promoted
+    if (config.isLibraryPromoted) {
+      return res
+        .status(400)
+        .json({ error: 'Collection is already in promoted section' });
+    }
+
+    // Find the next available sortOrderLibrary for this library
+    const sameLibraryConfigs = collectionConfigs.filter(
+      (c) => c.libraryId === config.libraryId && c.isLibraryPromoted === true
+    );
+    const maxSortOrder =
+      sameLibraryConfigs.length > 0
+        ? Math.max(...sameLibraryConfigs.map((c) => c.sortOrderLibrary || 0))
+        : 0;
+
+    // Update the collection to promoted status
+    collectionConfigs[configIndex] = {
+      ...config,
+      isLibraryPromoted: true,
+      sortOrderLibrary: maxSortOrder + 1,
+    };
+
+    // Save settings
+    settings.plex.collectionConfigs = collectionConfigs;
+    settings.save();
+
+    logger.info(`Promoted collection ${config.name} to promoted section`, {
+      label: 'Collections API',
+      collectionId: id,
+      newSortOrderLibrary: maxSortOrder + 1,
+    });
+
+    return res.json({ success: true, config: collectionConfigs[configIndex] });
+  } catch (error) {
+    logger.error(`Failed to promote collection ${req.params.id}`, {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({ error: 'Failed to promote collection' });
+  }
+});
+
+/**
+ * PATCH /api/v1/collections/:id/demote
+ * Demote a collection from promoted section to A-Z section
+ */
+collectionsRoutes.patch('/:id/demote', isAuthenticated(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+
+    // Find the collection to demote
+    const configIndex = collectionConfigs.findIndex(
+      (config) => config.id === id
+    );
+    if (configIndex === -1) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    const config = collectionConfigs[configIndex];
+
+    // Check if already in A-Z section
+    if (!config.isLibraryPromoted) {
+      return res
+        .status(400)
+        .json({ error: 'Collection is already in A-Z section' });
+    }
+
+    // Update the collection to A-Z status
+    collectionConfigs[configIndex] = {
+      ...config,
+      isLibraryPromoted: false,
+      sortOrderLibrary: 0, // A-Z collections have sortOrderLibrary: 0
+    };
+
+    // Save settings
+    settings.plex.collectionConfigs = collectionConfigs;
+    settings.save();
+
+    logger.info(`Demoted collection ${config.name} to A-Z section`, {
+      label: 'Collections API',
+      collectionId: id,
+    });
+
+    return res.json({ success: true, config: collectionConfigs[configIndex] });
+  } catch (error) {
+    logger.error(`Failed to demote collection ${req.params.id}`, {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({ error: 'Failed to demote collection' });
+  }
+});
+
+export default collectionsRoutes;

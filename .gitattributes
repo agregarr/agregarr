@@ -1,0 +1,47 @@
+* text eol=lf
+
+#
+## These files are binary and should be left untouched
+#
+
+# (binary is a macro for -text -diff)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mov binary
+*.mp4 binary
+*.mp3 binary
+*.flv binary
+*.fla binary
+*.swf binary
+*.gz binary
+*.zip binary
+*.7z binary
+*.ttf binary
+*.eot binary
+*.woff binary
+*.pyc binary
+*.pdf binary
+
+#
+## Theses files/directories should be excluded from git archives
+#
+
+.husky export-ignore
+.vscode export-ignore
+docs export-ignore
+
+.git* export-ignore
+*ignore export-ignore
+*.md export-ignore
+
+.all-contributorsrc export-ignore
+.editorconfig export-ignore
+Dockerfile.local export-ignore
+docker-compose.yml export-ignore
+stylelint.config.js export-ignore
+
+public/os_logo_filled.png export-ignore
+public/preview.jpg export-ignore

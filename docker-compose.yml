@@ -1,0 +1,12 @@
+version: '3'
+services:
+  agregarr:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    ports:
+      - 7171:7171
+    volumes:
+      - .:/app:rw,cached
+      - /app/node_modules
+      - /app/.next

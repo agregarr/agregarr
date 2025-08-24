@@ -1,0 +1,567 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    min-height: calc(100% + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      calc(4rem + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+  }
+
+  @media (min-width: 640px) {
+    html {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
+  body {
+    @apply bg-stone-900;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  code {
+    @apply rounded-md bg-stone-800 px-2 py-1;
+  }
+
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+}
+
+@layer components {
+  .searchbar {
+    padding-top: env(safe-area-inset-top);
+    height: calc(4rem + env(safe-area-inset-top));
+  }
+
+  .sidebar {
+    @apply border-r border-stone-700;
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    background: linear-gradient(180deg, rgba(41, 37, 36, 1) 0%, #1c1917 100%);
+  }
+
+  .slideover {
+    padding-top: calc(0.75rem + env(safe-area-inset-top)) !important;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-top)) !important;
+  }
+
+  .sidebar-close-button {
+    top: env(safe-area-inset-top);
+  }
+
+  .plex-button {
+    @apply flex w-full justify-center rounded-md border border-transparent bg-orange-600 px-4 py-2 text-center text-sm font-medium text-white transition duration-150 ease-in-out disabled:opacity-50;
+  }
+
+  .plex-button:hover {
+    @apply bg-orange-500;
+  }
+
+  ul.cards-vertical,
+  ul.cards-horizontal {
+    @apply grid gap-4;
+  }
+
+  ul.cards-vertical {
+    grid-template-columns: repeat(auto-fill, minmax(9.375rem, 1fr));
+  }
+
+  ul.cards-horizontal {
+    grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  }
+
+  .provider-icons {
+    grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr));
+  }
+
+  .slider-header {
+    @apply relative mt-6 mb-4 flex;
+  }
+
+  .slider-title {
+    @apply inline-flex items-center text-xl font-bold leading-7 text-slate-300 sm:truncate sm:text-2xl sm:leading-9;
+  }
+
+  a.slider-title {
+    @apply transition duration-300 hover:text-white;
+  }
+
+  a.slider-title svg {
+    @apply ml-2 h-6 w-6;
+  }
+
+  .media-page {
+    @apply relative -mx-4 bg-cover bg-center px-4;
+    margin-top: calc(-4rem - env(safe-area-inset-top));
+    padding-top: calc(4rem + env(safe-area-inset-top));
+  }
+
+  .media-page-bg-image {
+    @apply absolute inset-0 h-full w-full;
+    z-index: -10;
+  }
+
+  .media-header {
+    @apply flex flex-col items-center pt-4 xl:flex-row xl:items-end;
+  }
+
+  .media-poster {
+    @apply w-32 overflow-hidden rounded shadow md:w-44 md:rounded-lg md:shadow-2xl xl:mr-4 xl:w-52;
+  }
+
+  .media-status {
+    @apply mb-2 space-x-2;
+  }
+
+  .media-title {
+    @apply mt-4 flex flex-1 flex-col text-center text-white xl:mr-4 xl:mt-0 xl:text-left;
+  }
+
+  .media-title > h1 {
+    @apply text-2xl font-bold xl:text-4xl;
+  }
+
+  h1 .media-year {
+    @apply text-2xl;
+  }
+
+  .media-attributes {
+    @apply mt-1 flex flex-wrap items-center justify-center space-x-1 text-xs text-gray-300 sm:text-sm xl:mt-0 xl:justify-start xl:text-base;
+  }
+
+  .media-attributes a {
+    @apply transition duration-300 hover:text-white hover:underline;
+  }
+
+  .media-actions {
+    @apply relative mt-4 flex flex-shrink-0 flex-wrap items-center justify-center sm:flex-nowrap sm:justify-end xl:mt-0;
+  }
+
+  .media-actions > * {
+    @apply mb-3 sm:mb-0;
+  }
+
+  .media-overview {
+    @apply flex flex-col pt-8 pb-4 text-white lg:flex-row;
+  }
+
+  .media-overview-left {
+    @apply flex-1 lg:mr-8;
+  }
+
+  .tagline {
+    @apply mb-4 text-xl italic text-slate-400 lg:text-2xl;
+  }
+
+  .media-overview h2 {
+    @apply text-xl font-bold text-slate-300 sm:text-2xl;
+  }
+
+  .media-overview p {
+    @apply pt-2 text-sm text-slate-400 sm:text-base;
+  }
+
+  ul.media-crew {
+    @apply mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3;
+  }
+
+  ul.media-crew > li {
+    @apply col-span-1 flex flex-col font-bold text-slate-300;
+  }
+
+  a.crew-name,
+  .media-fact-value a,
+  .media-fact-value button {
+    @apply font-normal text-slate-400 transition duration-300 hover:text-slate-100 hover:underline;
+  }
+
+  .media-overview-right {
+    @apply mt-8 w-full lg:mt-0 lg:w-80;
+  }
+
+  .media-facts {
+    @apply rounded-lg border border-slate-700 bg-slate-900 text-sm font-bold text-slate-300 shadow;
+  }
+
+  .media-fact {
+    @apply flex justify-between border-b border-slate-700 px-4 py-2 last:border-b-0;
+  }
+
+  .media-fact-value {
+    @apply ml-2 text-right text-sm font-normal text-slate-400;
+  }
+
+  .media-ratings {
+    @apply flex items-center justify-center space-x-5 border-b border-slate-700 px-4 py-2 font-medium last:border-b-0;
+  }
+
+  .media-rating {
+    @apply flex items-center space-x-1;
+  }
+
+  .error-message {
+    @apply relative top-0 bottom-0 left-0 right-0 flex h-screen flex-col items-center justify-center text-center text-slate-300;
+  }
+
+  .heading {
+    @apply text-2xl font-bold leading-8 text-slate-100;
+  }
+
+  .description {
+    @apply mt-1 max-w-4xl text-sm leading-5 text-slate-400;
+  }
+
+  img.avatar-sm {
+    @apply mr-1 h-5 w-5 scale-100 transform-gpu rounded-full transition duration-300 group-hover:scale-105;
+  }
+
+  .card-field {
+    @apply flex items-center truncate py-0.5 text-sm sm:py-1;
+  }
+
+  .card-field-name {
+    @apply mr-2 font-bold;
+  }
+
+  .card-field a {
+    @apply transition duration-300 hover:text-white hover:underline;
+  }
+
+  .section {
+    @apply mt-6 mb-10 text-white;
+  }
+
+  .form-row {
+    @apply mb-4;
+  }
+
+  .text-label {
+    @apply mb-1 block text-sm font-medium text-white;
+  }
+
+  .form-input-area {
+    @apply space-y-1;
+  }
+
+  .form-input-field {
+    @apply flex w-full;
+  }
+
+  .label-tip {
+    @apply mt-1 text-xs text-gray-400;
+  }
+
+  .label-required {
+    @apply ml-1 text-red-400;
+  }
+
+  .actions {
+    @apply mt-8 border-t border-slate-700 pt-5 text-white;
+  }
+
+  label,
+  .group-label {
+    @apply mb-1 block text-sm font-bold leading-5 text-slate-400;
+  }
+
+  label.checkbox-label {
+    @apply sm:mt-1;
+  }
+
+  label a {
+    @apply text-slate-100 transition duration-300 hover:text-white hover:underline;
+  }
+
+  .label-required {
+    @apply ml-1 text-red-500;
+  }
+
+  .label-tip {
+    @apply block font-medium text-slate-500;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    @apply disabled:cursor-not-allowed;
+  }
+
+  input[type='checkbox'] {
+    @apply h-6 w-6 rounded-md text-orange-600 transition duration-150 ease-in-out;
+  }
+
+  input[type='text'],
+  input[type='password'],
+  select,
+  textarea {
+    @apply block w-full min-w-0 flex-1 rounded-md border border-slate-500 bg-slate-700 text-white transition duration-150 ease-in-out sm:text-sm sm:leading-5;
+  }
+
+  input.rounded-l-only,
+  select.rounded-l-only,
+  textarea.rounded-l-only {
+    @apply rounded-r-none;
+  }
+
+  input.rounded-r-only,
+  select.rounded-r-only,
+  textarea.rounded-r-only {
+    @apply rounded-l-none;
+  }
+
+  input.short {
+    @apply w-20;
+  }
+
+  select.short {
+    @apply w-min;
+  }
+
+  button > span {
+    @apply whitespace-nowrap;
+  }
+
+  button.input-action {
+    @apply relative -ml-px inline-flex items-center border border-slate-500 bg-orange-600 bg-opacity-80 px-3 py-2 text-sm font-medium leading-5 text-white transition duration-150 ease-in-out last:rounded-r-md hover:bg-opacity-100 active:bg-slate-100 active:text-slate-700 sm:px-3.5;
+  }
+
+  .button-md svg,
+  button.input-action svg,
+  .plex-button svg {
+    @apply ml-2 mr-2 h-5 w-5 first:ml-0 last:mr-0;
+  }
+
+  .button-sm svg {
+    @apply ml-1.5 mr-1.5 h-4 w-4 first:ml-0 last:mr-0;
+  }
+
+  svg.icon-md {
+    @apply h-5 w-5;
+  }
+
+  svg.icon-sm {
+    @apply h-4 w-4;
+  }
+
+  .protocol {
+    @apply inline-flex cursor-default items-center rounded-l-md border border-r-0 border-slate-500 bg-slate-600 px-3 text-slate-100 sm:text-sm;
+  }
+
+  .error {
+    @apply mt-2 text-sm text-red-500;
+  }
+
+  .form-group {
+    @apply mt-6 text-white;
+  }
+
+  .toast {
+    width: 360px;
+  }
+
+  .react-select-container {
+    @apply w-full;
+  }
+
+  .react-select-container .react-select__control {
+    @apply rounded-md border border-slate-500 bg-slate-700 text-white hover:border-slate-500;
+  }
+
+  .react-select-container-dark .react-select__control {
+    @apply border border-slate-700 bg-slate-800;
+  }
+
+  .react-select-container .react-select__control--is-focused {
+    @apply rounded-md border border-slate-500 bg-slate-700 text-white shadow;
+  }
+
+  .react-select-container-dark .react-select__control--is-focused {
+    @apply border-slate-600 bg-slate-800;
+  }
+
+  .react-select-container .react-select__menu {
+    @apply bg-slate-700 text-slate-300;
+  }
+
+  .react-select-container-dark .react-select__menu {
+    @apply bg-slate-800;
+  }
+
+  .react-select-container .react-select__option--is-focused {
+    @apply bg-slate-600 text-white;
+  }
+
+  .react-select-container-dark .react-select__option--is-focused {
+    @apply bg-slate-700;
+  }
+
+  .react-select-container .react-select__indicator-separator {
+    @apply bg-slate-500;
+  }
+
+  .react-select-container .react-select__indicator {
+    @apply text-slate-500;
+  }
+
+  .react-select-container .react-select__placeholder {
+    @apply text-slate-400;
+  }
+
+  .react-select-container .react-select__multi-value {
+    @apply rounded-md border border-slate-500 bg-slate-800;
+  }
+
+  .react-select-container .react-select__multi-value__label {
+    @apply text-white;
+  }
+
+  .react-select-container .react-select__multi-value__remove {
+    @apply cursor-pointer rounded-r-md hover:bg-red-700 hover:text-red-100;
+  }
+
+  .react-select-container .react-select__input {
+    @apply border-none text-base shadow-sm ring-0;
+  }
+
+  .react-select-container .react-select__input input:focus {
+    @apply border-none;
+    box-shadow: none;
+  }
+
+  .react-select-container .react-select__input-container {
+    @apply text-white;
+  }
+
+  .react-select-container .react-select__single-value {
+    @apply text-sm text-slate-100;
+  }
+
+  .react-select-container .react-select__placeholder {
+    @apply text-sm text-slate-500;
+  }
+
+  .datepicker-wrapper > button {
+    @apply top-0;
+  }
+
+  .datepicker-wrapper > div {
+    @apply fixed left-0 right-0 w-full px-4 md:w-auto;
+  }
+
+  .datepicker-wrapper > div > div:nth-child(2) > div {
+    @apply !flex-col;
+  }
+
+  .datepicker-wrapper > div > div:nth-child(2) > div > div > div {
+    @apply !w-full !min-w-full;
+  }
+
+  .datepicker-wrapper > div > div:first-child {
+    @apply hidden;
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    @apply rounded-full border-0 bg-orange-500;
+    pointer-events: all;
+    width: 16px;
+    height: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  input[type='range']::-moz-range-thumb {
+    @apply rounded-full border-0 bg-orange-500;
+    pointer-events: all;
+    width: 16px;
+    height: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+@layer utilities {
+  .absolute-top-shift {
+    top: calc(-4rem - env(safe-area-inset-top));
+  }
+
+  .absolute-bottom-shift {
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-shift-edit-menu {
+    bottom: calc(54px + env(safe-area-inset-bottom));
+  }
+
+  .padding-bottom-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .min-h-screen-shift {
+    min-height: calc(100vh + env(safe-area-inset-top));
+  }
+
+  /* Used for animating height */
+  .extra-max-height {
+    max-height: 100rem;
+  }
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .hide-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .text-agregarr {
+    @apply bg-gradient-to-br from-orange-400 to-orange-600 bg-clip-text text-transparent;
+  }
+
+  @media all and (display-mode: browser) {
+    .pwa-only {
+      @apply hidden;
+    }
+  }
+
+  .extra-bottom-space {
+    height: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  /* Border pulse animation for discovery button */
+  @keyframes border-pulse {
+    0%,
+    100% {
+      border-color: rgb(194 65 12); /* orange-700 */
+      border-opacity: 1;
+    }
+    50% {
+      border-color: rgb(249 115 22); /* orange-500 */
+      border-opacity: 0.75;
+    }
+  }
+}
+
+.ptr--ptr {
+  box-shadow: initial !important;
+  position: absolute !important;
+  z-index: 30 !important;
+}
+
+.ptr--refresh {
+  overflow: visible !important;
+  z-index: 30 !important;
+}
+
+.ptr--pull {
+  z-index: 30 !important;
+}
+
+.ptr--box {
+  margin-bottom: -13px !important;
+}
