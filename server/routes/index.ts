@@ -1,4 +1,5 @@
 // PushoverAPI removed - notification system not needed
+import GithubAPI from '@server/api/github';
 import TheMovieDb from '@server/api/themoviedb';
 import type {
   TmdbMovieResult,
@@ -12,6 +13,7 @@ import { mapNetwork } from '@server/models/Tv';
 import settingsRoutes from '@server/routes/settings';
 import { appDataPath, appDataStatus } from '@server/utils/appDataVolume';
 import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
+import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
 import authRoutes from './auth';
@@ -39,14 +41,51 @@ const router = Router();
 
 router.use(checkUser);
 
-router.get('/status', (_req, res) => {
+router.get('/status', async (_req, res) => {
+  const githubApi = new GithubAPI();
+
+  const currentVersion = getAppVersion();
+  const commitTag = getCommitTag();
+  let updateAvailable = false;
+  let commitsBehind = 0;
+
+  if (currentVersion.startsWith('develop-') && commitTag !== 'local') {
+    const commits = await githubApi.getAgregarrCommits();
+
+    if (commits.length) {
+      const filteredCommits = commits.filter(
+        (commit) => !commit.commit.message.includes('[skip ci]')
+      );
+      if (filteredCommits[0].sha !== commitTag) {
+        updateAvailable = true;
+      }
+
+      const commitIndex = filteredCommits.findIndex(
+        (commit) => commit.sha === commitTag
+      );
+
+      if (updateAvailable) {
+        commitsBehind = commitIndex;
+      }
+    }
+  } else if (commitTag !== 'local') {
+    const releases = await githubApi.getAgregarrReleases();
+
+    if (releases.length) {
+      const latestVersion = releases[0];
+
+      if (!latestVersion.name.includes(currentVersion)) {
+        updateAvailable = true;
+      }
+    }
+  }
+
   return res.status(200).json({
     version: getAppVersion(),
-    status: 'ok',
     commitTag: getCommitTag(),
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    appData: appDataStatus(),
-    appDataPath: appDataPath(),
+    updateAvailable,
+    commitsBehind,
+    restartRequired: restartFlag.isSet(),
   });
 });
 

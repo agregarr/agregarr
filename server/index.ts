@@ -6,6 +6,7 @@ import { startJobs } from '@server/job/schedule';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import routes from '@server/routes';
+import restartFlag from '@server/utils/restartFlag';
 // imageproxy removed - not needed for collections-only app
 import { getAppVersion } from '@server/utils/appVersion';
 import { getClientIp } from '@supercharge/request-ip';
@@ -43,6 +44,9 @@ app
 
     // Load Settings
     const settings = getSettings().load();
+
+    // Initialize RestartFlag with current settings
+    restartFlag.initializeSettings(settings.main);
 
     // Initialize sync status for existing collections (one-time migration)
     settings.initializeSyncStatusForExistingCollections();
