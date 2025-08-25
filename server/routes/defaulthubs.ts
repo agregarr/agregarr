@@ -36,6 +36,11 @@ defaultHubsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
   try {
     const updatedConfig = defaultHubConfigService.updateSettings(id, req.body);
 
+    // Mark hub as needing sync due to modification
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    settings.markCollectionModified(id, 'hub');
+
     // Auto-reorder after visibility changes to assign proper sort orders
     const { autoReorderLibrary } = await import('@server/routes/reorder');
     try {
@@ -96,6 +101,13 @@ defaultHubsRoutes.post('/discover', isAuthenticated(), async (req, res) => {
     }
 
     const discoveredConfigs = defaultHubConfigService.saveConfigs(hubConfigs);
+
+    // Mark all newly discovered hubs as needing sync
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    discoveredConfigs.forEach((config) => {
+      settings.markCollectionModified(config.id, 'hub');
+    });
 
     res.status(200).json({
       hubConfigs: discoveredConfigs,
@@ -176,6 +188,13 @@ defaultHubsRoutes.post('/append', isAuthenticated(), async (req, res) => {
     }
 
     const appendedConfigs = defaultHubConfigService.appendConfigs(hubConfigs);
+
+    // Mark all newly appended hubs as needing sync
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    appendedConfigs.forEach((config) => {
+      settings.markCollectionModified(config.id, 'hub');
+    });
 
     res.status(200).json({
       hubConfigs: appendedConfigs,

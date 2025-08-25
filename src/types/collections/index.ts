@@ -28,6 +28,10 @@ export interface PlexHubConfig {
   isActive: boolean; // Whether hub is currently active (computed from time restrictions)
   collectionType: CollectionType;
   missing?: boolean; // True if hub no longer exists in Plex
+  // Sync status tracking fields
+  lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
+  lastModifiedAt?: string; // ISO string timestamp when config was last modified
+  needsSync?: boolean; // true if modified since last sync
   isLinked?: boolean; // True if hub is actively linked to other hubs (set by backend linking logic)
   linkId?: number; // Group ID for linked hubs (set by backend linking logic)
   isUnlinked?: boolean; // True if this hub was deliberately unlinked and should not be grouped with siblings
@@ -76,6 +80,10 @@ export interface PreExistingCollectionConfig {
   // Simplified categorization system (consistent with PlexHubConfig)
   collectionType: CollectionType;
   missing?: boolean; // True if collection no longer exists in Plex
+  // Sync status tracking fields
+  lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
+  lastModifiedAt?: string; // ISO string timestamp when config was last modified
+  needsSync?: boolean; // true if modified since last sync
   isLinked?: boolean; // True if collection is actively linked to other collections (set by backend linking logic)
   linkId?: number; // Group ID for linked collections (set by backend linking logic)
   isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
@@ -133,6 +141,10 @@ export interface CollectionFormConfig {
   };
   readonly isActive: boolean; // Whether collection is currently active (time restrictions met) - computed by backend
   readonly missing?: boolean; // True if collection no longer exists in Plex
+  // Sync status tracking fields
+  readonly lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
+  readonly lastModifiedAt?: string; // ISO string timestamp when config was last modified
+  readonly needsSync?: boolean; // true if modified since last sync
   readonly maxItems?: number; // Optional for hubs/pre-existing
   readonly mediaType?: MediaType;
   readonly libraryId: string; // Selected library ID - each config is for exactly one library

@@ -12,11 +12,40 @@ class CollectionsSync {
   private cancelled = false;
   private cleanupService = new CollectionCleanupService();
 
+  // Progress tracking
+  private currentStage = '';
+  private totalCollections = 0;
+  private processedCollections = 0;
+
   public get status() {
     return {
       running: this.running,
       cancelled: this.cancelled,
+      currentStage: this.currentStage,
+      totalCollections: this.totalCollections,
+      processedCollections: this.processedCollections,
+      progress:
+        this.totalCollections > 0
+          ? Math.round(
+              (this.processedCollections / this.totalCollections) * 100
+            )
+          : 0,
     };
+  }
+
+  public setStage(stage: string, total = 0, processed = 0): void {
+    this.currentStage = stage;
+    this.totalCollections = total;
+    this.processedCollections = processed;
+    logger.debug(
+      `Sync stage: ${stage}${total > 0 ? ` (${processed}/${total})` : ''}`,
+      {
+        label: 'Collections Sync',
+        stage,
+        total,
+        processed,
+      }
+    );
   }
 
   public cancel(): void {
@@ -124,36 +153,12 @@ class CollectionsSync {
   }
 
   public async run(): Promise<void> {
+    // Set running state immediately for UI feedback
+    this.running = true;
+    this.cancelled = false;
+    this.setStage('Starting sync...');
+
     const settings = getSettings();
-
-    // Check collection configs and process any that exist
-
-    if (this.running) {
-      logger.info(
-        'Collections sync already running - cancelling current sync and starting fresh',
-        {
-          label: 'Collections Sync',
-        }
-      );
-
-      // Cancel current sync and wait a moment for it to finish current user
-      this.cancel();
-
-      // Wait for current sync to finish gracefully
-      let waitCount = 0;
-      while (this.running && waitCount < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        waitCount++;
-      }
-
-      if (this.running) {
-        logger.warn('Previous sync did not stop gracefully, forcing restart', {
-          label: 'Collections Sync',
-        });
-        this.running = false;
-        this.cancelled = false;
-      }
-    }
 
     // Validate Plex configuration
     if (!settings.plex.ip || !settings.plex.machineId) {
@@ -181,13 +186,11 @@ class CollectionsSync {
       return;
     }
 
-    this.running = true;
-    this.cancelled = false;
-
     const startTime = Date.now();
 
     try {
       // Initialize Plex client
+      this.setStage('Connecting to Plex server...');
       const plexClient = await this.getPlexClient();
 
       // Test connection
@@ -197,27 +200,54 @@ class CollectionsSync {
       }
 
       // Refresh external service data for template variables
+      this.setStage('Refreshing external data...');
       await this.refreshExternalData(plexClient);
+
+      // Get collection count for progress tracking - only count actual agregarr collections
+      const settings = getSettings();
+      const agregarrCollections = settings.plex.collectionConfigs || [];
+      this.setStage('Processing collections...', agregarrCollections.length, 0);
 
       // Perform the sync operations using our new service
       const syncResult = await collectionSyncService.syncAllConfigurations(
-        plexClient
+        plexClient,
+        (processed: number, currentAction?: string) => {
+          if (currentAction) {
+            // Show detailed action for current collection
+            this.setStage(currentAction, agregarrCollections.length, processed);
+          } else {
+            // Show general progress
+            this.setStage(
+              'Processing collections...',
+              agregarrCollections.length,
+              processed
+            );
+          }
+        }
       );
 
       // Sync hub visibility settings
+      this.setStage('Syncing hub visibility settings...');
       const { HubSyncService } = await import(
         './collections/plex/HubSyncService'
       );
       const hubSyncService = new HubSyncService();
-      await hubSyncService.syncHubVisibility(plexClient);
+      await hubSyncService.syncHubVisibility(plexClient, (stage: string) => {
+        this.setStage(stage);
+      });
 
       // Sync pre-existing collection sortTitles based on promotion status
+      this.setStage('Updating collection sort titles...');
       await hubSyncService.syncPreExistingCollectionSortTitles(plexClient);
 
       // Sync unified ordering (collections + hubs)
-      await hubSyncService.syncUnifiedOrdering(plexClient);
+      this.setStage('Applying collection ordering to Plex...');
+      await hubSyncService.syncUnifiedOrdering(plexClient, (stage: string) => {
+        this.setStage(stage);
+      });
 
       // Clean up orphaned collections after sync completes
+      this.setStage('Cleaning up orphaned collections...');
       logger.info('Starting post-sync cleanup of orphaned collections', {
         label: 'Collections Sync',
       });
@@ -283,14 +313,25 @@ class CollectionsSync {
         duration: `${Math.round(duration / 1000)}s`,
         durationMs: duration,
       });
+
+      // Mark global sync as completed successfully
+      this.setStage('Sync completed successfully');
+      settings.setGlobalSyncComplete();
     } catch (error) {
       const errorMessage = extractErrorMessage(error);
       logger.error(`Collections sync failed: ${errorMessage}.`, {
         label: 'Collections Sync',
       });
+
+      // Mark global sync error
+      settings.setGlobalSyncError(errorMessage);
     } finally {
       this.running = false;
       this.cancelled = false;
+      // Reset progress tracking
+      this.currentStage = '';
+      this.totalCollections = 0;
+      this.processedCollections = 0;
     }
   }
 

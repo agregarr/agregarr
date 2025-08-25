@@ -37,7 +37,10 @@ export class HubSyncService {
   /**
    * Sync Plex hub visibility settings to match our configuration
    */
-  public async syncHubVisibility(plexClient: PlexAPI): Promise<void> {
+  public async syncHubVisibility(
+    plexClient: PlexAPI,
+    onProgress?: (stage: string) => void
+  ): Promise<void> {
     if (this.cancelled) return;
 
     try {
@@ -53,6 +56,7 @@ export class HubSyncService {
         collectionConfigs.length === 0 &&
         preExistingCollectionConfigs.length === 0
       ) {
+        onProgress?.('No collections to sync - skipping hub visibility');
         logger.info(
           'No hub, collection, or pre-existing collection configurations found, skipping hub sync',
           {
@@ -63,15 +67,23 @@ export class HubSyncService {
       }
 
       // Starting hub visibility sync
+      onProgress?.(`Syncing visibility for ${hubConfigs.length} hubs...`);
 
       // Group hub configs by library for efficient processing
       const hubConfigsByLibrary = this.groupHubConfigsByLibrary(hubConfigs);
+
+      let processedLibraries = 0;
+      const totalLibraries = hubConfigsByLibrary.size;
 
       // Process hub configs for each library
       for (const [libraryId, libraryHubConfigs] of hubConfigsByLibrary) {
         if (this.cancelled) return;
 
         try {
+          processedLibraries++;
+          onProgress?.(
+            `Syncing library ${processedLibraries}/${totalLibraries} hubs...`
+          );
           await this.syncLibraryHubs(plexClient, libraryId, libraryHubConfigs);
         } catch (error) {
           logger.error(
@@ -88,13 +100,23 @@ export class HubSyncService {
       }
 
       // Process collection configs that have rating keys
-      await this.syncLibraryCollections(plexClient, collectionConfigs);
+      if (collectionConfigs.length > 0) {
+        onProgress?.(
+          `Syncing visibility for ${collectionConfigs.length} collections...`
+        );
+        await this.syncLibraryCollections(plexClient, collectionConfigs);
+      }
 
       // Process pre-existing collection configs that have rating keys
-      await this.syncPreExistingCollections(
-        plexClient,
-        preExistingCollectionConfigs
-      );
+      if (preExistingCollectionConfigs.length > 0) {
+        onProgress?.(
+          `Syncing visibility for ${preExistingCollectionConfigs.length} pre-existing collections...`
+        );
+        await this.syncPreExistingCollections(
+          plexClient,
+          preExistingCollectionConfigs
+        );
+      }
 
       // Hub visibility sync completed silently
     } catch (error) {
@@ -112,7 +134,10 @@ export class HubSyncService {
   /**
    * Sync unified ordering for collections and hubs together
    */
-  public async syncUnifiedOrdering(plexClient: PlexAPI): Promise<void> {
+  public async syncUnifiedOrdering(
+    plexClient: PlexAPI,
+    onProgress?: (stage: string) => void
+  ): Promise<void> {
     if (this.cancelled) return;
 
     try {
@@ -134,6 +159,7 @@ export class HubSyncService {
       });
 
       // Build unified ordering items for each library
+      onProgress?.('Building collection ordering list...');
       const orderingItemsByLibrary = new Map<string, OrderingItem[]>();
 
       // Add collection configs to ordering
@@ -150,7 +176,13 @@ export class HubSyncService {
       );
 
       // Apply unified ordering to each library
-      await this.applyOrderingToLibraries(plexClient, orderingItemsByLibrary);
+      const libraryCount = orderingItemsByLibrary.size;
+      onProgress?.(`Applying ordering to ${libraryCount} libraries...`);
+      await this.applyOrderingToLibraries(
+        plexClient,
+        orderingItemsByLibrary,
+        onProgress
+      );
 
       // Unified ordering sync completed
     } catch (error) {
@@ -220,6 +252,10 @@ export class HubSyncService {
           hubConfig.hubIdentifier,
           plexVisibility
         );
+
+        // Mark hub as successfully synced
+        const settings = getSettings();
+        settings.markCollectionSynced(hubConfig.id, 'hub');
       } catch (error) {
         logger.error(
           `Failed to update visibility for hub ${
@@ -322,6 +358,9 @@ export class HubSyncService {
           hubIdentifier,
           plexVisibility
         );
+
+        // Note: Collection sync status is already handled in CollectionSyncService
+        // This is just visibility sync, so we don't update sync status here
       } catch (error) {
         logger.error(
           `Failed to update visibility for collection ${
@@ -395,6 +434,10 @@ export class HubSyncService {
           hubIdentifier,
           plexVisibility
         );
+
+        // Mark pre-existing collection as successfully synced
+        const settings = getSettings();
+        settings.markCollectionSynced(preExistingConfig.id, 'preExisting');
       } catch (error) {
         logger.error(
           `Failed to update visibility for pre-existing collection ${
@@ -580,14 +623,24 @@ export class HubSyncService {
    */
   private async applyOrderingToLibraries(
     plexClient: PlexAPI,
-    orderingItemsByLibrary: Map<string, OrderingItem[]>
+    orderingItemsByLibrary: Map<string, OrderingItem[]>,
+    onProgress?: (stage: string) => void
   ): Promise<void> {
+    let processedLibraries = 0;
+    const totalLibraries = Array.from(orderingItemsByLibrary.values()).filter(
+      (items) => items.length > 0
+    ).length;
+
     for (const [libraryId, orderingItems] of orderingItemsByLibrary) {
       if (orderingItems.length === 0) {
         continue;
       }
 
       try {
+        processedLibraries++;
+        onProgress?.(
+          `Ordering library ${processedLibraries}/${totalLibraries} collections...`
+        );
         // Get all available hubs from Plex for this library to include inactive ones
         const allPlexHubs = await plexClient.getHubManagement(libraryId);
         const availableHubs = allPlexHubs.MediaContainer.Hub;

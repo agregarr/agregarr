@@ -44,6 +44,9 @@ app
     // Load Settings
     const settings = getSettings().load();
 
+    // Initialize sync status for existing collections (one-time migration)
+    settings.initializeSyncStatusForExistingCollections();
+
     // Initialize poster storage directory
     try {
       const { initializePosterStorage } = await import(

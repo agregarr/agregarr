@@ -37,6 +37,10 @@ export interface CollectionConfig {
   };
   readonly isActive: boolean; // Whether collection is currently active (time restrictions met)
   readonly missing?: boolean; // True if collection no longer exists in Plex
+  // Sync status tracking fields
+  readonly lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
+  readonly lastModifiedAt?: string; // ISO string timestamp when config was last modified
+  readonly needsSync?: boolean; // true if modified since last sync
   readonly maxItems: number;
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
   readonly libraryId: string; // Library ID this collection belongs to
@@ -122,6 +126,10 @@ export interface PlexHubConfig {
   };
   isActive: boolean; // Whether hub is currently active (computed from time restrictions)
   missing?: boolean; // True if hub no longer exists in Plex
+  // Sync status tracking fields
+  lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
+  lastModifiedAt?: string; // ISO string timestamp when config was last modified
+  needsSync?: boolean; // true if modified since last sync
   // Simplified categorization system
   collectionType: CollectionType;
   isLinked?: boolean; // True if hub is actively linked to other hubs (set by backend linking logic)
@@ -173,6 +181,10 @@ export interface PreExistingCollectionConfig {
   };
   isActive: boolean; // Whether collection is currently active (computed from time restrictions)
   missing?: boolean; // True if collection no longer exists in Plex
+  // Sync status tracking fields
+  lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
+  lastModifiedAt?: string; // ISO string timestamp when config was last modified
+  needsSync?: boolean; // true if modified since last sync
   // Simplified categorization system (consistent with PlexHubConfig)
   collectionType: CollectionType;
   isLinked?: boolean; // True if collection is actively linked to other collections (set by backend linking logic)
@@ -293,6 +305,9 @@ export interface MainSettings {
   trustProxy: boolean;
   locale: string;
   nextConfigId?: number; // Next sequential ID for collection configs (starts at 10000)
+  // Global sync status tracking
+  lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
+  globalSyncError?: string; // Last sync error message if any (master error)
   // External service data for template variables
   adminUsername?: string; // Admin's Plex username
   adminNickname?: string; // Admin's Plex title/display name
@@ -576,6 +591,198 @@ class Settings {
     if (applicationTitle) {
       this.data.main.externalApplicationTitle = applicationTitle;
     }
+    this.save();
+  }
+
+  /**
+   * Collection Sync Status Tracking Methods
+   */
+
+  /**
+   * Mark a collection as modified (needs sync)
+   */
+  public markCollectionModified(
+    collectionId: string,
+    collectionType: 'collection' | 'hub' | 'preExisting'
+  ): void {
+    const now = new Date().toISOString();
+
+    // Find and update the appropriate collection
+    switch (collectionType) {
+      case 'collection':
+        if (this.data.plex.collectionConfigs) {
+          const config = this.data.plex.collectionConfigs.find(
+            (c) => c.id === collectionId
+          );
+          if (config) {
+            Object.assign(config, { needsSync: true, lastModifiedAt: now });
+          }
+        }
+        break;
+
+      case 'hub':
+        if (this.data.plex.hubConfigs) {
+          const config = this.data.plex.hubConfigs.find(
+            (c) => c.id === collectionId
+          );
+          if (config) {
+            config.needsSync = true;
+            config.lastModifiedAt = now;
+          }
+        }
+        break;
+
+      case 'preExisting':
+        if (this.data.plex.preExistingCollectionConfigs) {
+          const config = this.data.plex.preExistingCollectionConfigs.find(
+            (c) => c.id === collectionId
+          );
+          if (config) {
+            config.needsSync = true;
+            config.lastModifiedAt = now;
+          }
+        }
+        break;
+    }
+
+    this.save();
+  }
+
+  /**
+   * Mark a collection as successfully synced
+   */
+  public markCollectionSynced(
+    collectionId: string,
+    collectionType: 'collection' | 'hub' | 'preExisting'
+  ): void {
+    const now = new Date().toISOString();
+
+    // Find and update the appropriate collection
+    switch (collectionType) {
+      case 'collection':
+        if (this.data.plex.collectionConfigs) {
+          const config = this.data.plex.collectionConfigs.find(
+            (c) => c.id === collectionId
+          );
+          if (config) {
+            Object.assign(config, { needsSync: false, lastSyncedAt: now });
+          }
+        }
+        break;
+
+      case 'hub':
+        if (this.data.plex.hubConfigs) {
+          const config = this.data.plex.hubConfigs.find(
+            (c) => c.id === collectionId
+          );
+          if (config) {
+            config.needsSync = false;
+            config.lastSyncedAt = now;
+          }
+        }
+        break;
+
+      case 'preExisting':
+        if (this.data.plex.preExistingCollectionConfigs) {
+          const config = this.data.plex.preExistingCollectionConfigs.find(
+            (c) => c.id === collectionId
+          );
+          if (config) {
+            config.needsSync = false;
+            config.lastSyncedAt = now;
+          }
+        }
+        break;
+    }
+
+    this.save();
+  }
+
+  /**
+   * Set global sync error message
+   */
+  public setGlobalSyncError(error: string): void {
+    this.data.main.globalSyncError = error;
+    this.save();
+  }
+
+  /**
+   * Mark global sync as completed successfully
+   */
+  public setGlobalSyncComplete(): void {
+    this.data.main.lastGlobalSyncAt = new Date().toISOString();
+    this.data.main.globalSyncError = undefined; // Clear any previous errors
+    this.save();
+  }
+
+  /**
+   * Get global sync status for UI display
+   */
+  public getGlobalSyncStatus(): {
+    lastGlobalSyncAt?: string;
+    globalSyncError?: string;
+    collectionsNeedingSync: number;
+  } {
+    let collectionsNeedingSync = 0;
+
+    // Count collections that need sync
+    if (this.data.plex.collectionConfigs) {
+      collectionsNeedingSync += this.data.plex.collectionConfigs.filter(
+        (c) => 'needsSync' in c && (c as { needsSync?: boolean }).needsSync
+      ).length;
+    }
+    if (this.data.plex.hubConfigs) {
+      collectionsNeedingSync += this.data.plex.hubConfigs.filter(
+        (c) => c.needsSync
+      ).length;
+    }
+    if (this.data.plex.preExistingCollectionConfigs) {
+      collectionsNeedingSync +=
+        this.data.plex.preExistingCollectionConfigs.filter(
+          (c) => c.needsSync
+        ).length;
+    }
+
+    return {
+      lastGlobalSyncAt: this.data.main.lastGlobalSyncAt,
+      globalSyncError: this.data.main.globalSyncError,
+      collectionsNeedingSync,
+    };
+  }
+
+  /**
+   * Initialize sync status for existing collections (migration helper)
+   */
+  public initializeSyncStatusForExistingCollections(): void {
+    const now = new Date().toISOString();
+
+    // Initialize sync status for existing collections
+    if (this.data.plex.collectionConfigs) {
+      this.data.plex.collectionConfigs.forEach((config) => {
+        if (!('needsSync' in config)) {
+          Object.assign(config, { needsSync: true, lastModifiedAt: now });
+        }
+      });
+    }
+
+    if (this.data.plex.hubConfigs) {
+      this.data.plex.hubConfigs.forEach((config) => {
+        if (config.needsSync === undefined) {
+          config.needsSync = true;
+          config.lastModifiedAt = now;
+        }
+      });
+    }
+
+    if (this.data.plex.preExistingCollectionConfigs) {
+      this.data.plex.preExistingCollectionConfigs.forEach((config) => {
+        if (config.needsSync === undefined) {
+          config.needsSync = true;
+          config.lastModifiedAt = now;
+        }
+      });
+    }
+
     this.save();
   }
 }

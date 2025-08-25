@@ -447,6 +447,23 @@ components:
           type: boolean
           description: "True if collection no longer exists in Plex"
           example: false
+        lastSyncedAt:
+          type: string
+          format: date-time
+          description: "ISO timestamp of last successful sync to Plex"
+          example: "2024-01-15T10:30:00.000Z"
+          nullable: true
+        lastModifiedAt:
+          type: string
+          format: date-time
+          description: "ISO timestamp when config was last modified"
+          example: "2024-01-15T09:15:00.000Z"
+          nullable: true
+        needsSync:
+          type: boolean
+          description: "True if collection has been modified and needs to be synced to Plex"
+          example: false
+          nullable: true
       required:
         - id
         - name
@@ -1033,6 +1050,23 @@ components:
           type: boolean
           description: "True if hub no longer exists in Plex"
           example: false
+        lastSyncedAt:
+          type: string
+          format: date-time
+          description: "ISO timestamp of last successful sync to Plex"
+          example: "2024-01-15T10:30:00.000Z"
+          nullable: true
+        lastModifiedAt:
+          type: string
+          format: date-time
+          description: "ISO timestamp when config was last modified"
+          example: "2024-01-15T09:15:00.000Z"
+          nullable: true
+        needsSync:
+          type: boolean
+          description: "True if hub has been modified and needs to be synced to Plex"
+          example: false
+          nullable: true
       required:
         - id
         - hubIdentifier
@@ -1343,6 +1377,23 @@ components:
           type: boolean
           description: "True if collection no longer exists in Plex"
           example: false
+        lastSyncedAt:
+          type: string
+          format: date-time
+          description: "ISO timestamp of last successful sync to Plex"
+          example: "2024-01-15T10:30:00.000Z"
+          nullable: true
+        lastModifiedAt:
+          type: string
+          format: date-time
+          description: "ISO timestamp when config was last modified"
+          example: "2024-01-15T09:15:00.000Z"
+          nullable: true
+        needsSync:
+          type: boolean
+          description: "True if collection has been modified and needs to be synced to Plex"
+          example: false
+          nullable: true
       required:
         - id
         - collectionRatingKey
@@ -3556,6 +3607,54 @@ paths:
           description: Bad request - missing configuration or connection issue
         '500':
           description: Failed to start collection sync
+  /collections/sync/status:
+    get:
+      summary: Get detailed collections sync status
+      description: Returns detailed sync status including current stage, progress, and global sync information.
+      tags:
+        - collection
+      responses:
+        '200':
+          description: Detailed sync status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    description: Whether a sync is currently running
+                    example: true
+                  currentStage:
+                    type: string
+                    description: Current stage of the sync process
+                    example: "Processing collections..."
+                  totalCollections:
+                    type: integer
+                    description: Total number of collections to process
+                    example: 15
+                  processedCollections:
+                    type: integer
+                    description: Number of collections processed so far
+                    example: 8
+                  progress:
+                    type: integer
+                    description: Sync progress percentage (0-100)
+                    example: 53
+                  lastGlobalSyncAt:
+                    type: string
+                    format: date-time
+                    description: ISO timestamp of last successful global sync
+                    example: "2024-01-15T10:30:00.000Z"
+                  globalSyncError:
+                    type: string
+                    nullable: true
+                    description: Last global sync error message, if any
+                    example: null
+                  collectionsNeedingSync:
+                    type: integer
+                    description: Number of collections that need to be synced
+                    example: 7
   /collections/preview-template:
     post:
       summary: Preview a collection template

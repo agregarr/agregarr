@@ -73,7 +73,8 @@ export class CollectionSyncService {
    * This replaces the 84-line switch statement with clean, maintainable code
    */
   public async syncAllConfigurations(
-    plexClient: PlexAPI
+    plexClient: PlexAPI,
+    onProgress?: (processed: number, currentCollectionName?: string) => void
   ): Promise<SyncResult & { processedCollectionKeys: Set<string> }> {
     const settings = getSettings();
     const collectionConfigs = settings.plex.collectionConfigs || [];
@@ -105,6 +106,7 @@ export class CollectionSyncService {
       );
 
       try {
+        onProgress?.(0, 'Applying Overseerr user restrictions...');
         await this.applyPreSyncUserRestrictions(
           hasUsersConfig,
           hasServerOwnerConfig
@@ -131,6 +133,7 @@ export class CollectionSyncService {
       );
 
       try {
+        onProgress?.(0, 'Cleaning up user filter labels...');
         await this.cleanupUserFilterLabels();
         logger.info('User filter labels cleanup completed successfully', {
           label: 'Collection Sync Service',
@@ -148,6 +151,7 @@ export class CollectionSyncService {
 
     // OPTIMIZATION: Pre-fetch all library content and Overseerr requests once at the start of sync
     // This eliminates repeated API calls across all collection sources
+    onProgress?.(0, 'Pre-fetching library content...');
     logger.info('Pre-fetching all library content for sync optimization', {
       label: 'Collection Sync Service',
     });
@@ -164,6 +168,7 @@ export class CollectionSyncService {
     );
 
     // Pre-fetch Overseerr requests cache
+    onProgress?.(0, 'Pre-fetching Overseerr requests...');
     const overseerrRequestsCache = await this.prefetchOverseerrRequests();
 
     // Initialize the global sync cache service for use across all sync operations
@@ -178,6 +183,7 @@ export class CollectionSyncService {
     let totalCreated = 0;
     let totalUpdated = 0;
     const processedCollectionKeys = new Set<string>();
+    let processedCount = 0;
 
     // Process each collection config directly
     for (const config of collectionConfigs) {
@@ -186,6 +192,9 @@ export class CollectionSyncService {
       try {
         let created = 0;
         let updated = 0;
+
+        // Report collection processing start
+        onProgress?.(processedCount, `Processing "${config.name}"...`);
 
         // Get the sync service for this config type and process it
         const syncService = await this.createSyncService(config.type);
@@ -212,12 +221,23 @@ export class CollectionSyncService {
             }
           );
         }
+
+        // Mark collection as successfully synced
+        settings.markCollectionSynced(config.id, 'collection');
+
+        // Update progress count
+        processedCount++;
+        onProgress?.(processedCount);
       } catch (error) {
         logger.error(`Failed to process collection ${config.name}: ${error}`, {
           label: 'Collection Sync Service',
           configId: config.id,
           error: error instanceof Error ? error.message : String(error),
         });
+
+        // Still increment counter to avoid getting stuck
+        processedCount++;
+        onProgress?.(processedCount);
       }
     }
 

@@ -1,4 +1,5 @@
 import CollectionConfigForm from '@app/components/Collections/Forms/CollectionConfigForm';
+import GlobalSyncStatus from '@app/components/Collections/GlobalSyncStatus';
 import LibraryCollectionGroup from '@app/components/Collections/Views/Library/LibraryCollectionGroup';
 import Button from '@app/components/Common/Button';
 import { useCollectionReordering } from '@app/hooks/collections/useCollectionReordering';
@@ -109,6 +110,10 @@ const CollectionSettings = ({
 
   // Sync state
   const [syncing, setSyncing] = useState(false);
+  const [syncStarting, setSyncStarting] = useState(false);
+  const [refreshSyncStatus, setRefreshSyncStatus] = useState<
+    (() => void) | null
+  >(null);
 
   // Local state for immediate UI updates during drag operations - each uses its own native type
   const [localCollectionConfigs, setLocalCollectionConfigs] = useState<
@@ -734,17 +739,27 @@ const CollectionSettings = ({
 
   const syncCollections = async () => {
     setSyncing(true);
+    setSyncStarting(true);
     try {
       await axios.post('/api/v1/collections/sync');
+
+      // Immediately refresh sync status to see backend changes
+      if (refreshSyncStatus && typeof refreshSyncStatus === 'function') {
+        refreshSyncStatus();
+      }
+
       addToast('Collections sync started successfully!', {
         autoDismiss: true,
         appearance: 'success',
       });
+      // Clear starting state after a short delay to allow real status to come through
+      setTimeout(() => setSyncStarting(false), 2000);
     } catch (error) {
       addToast('Failed to start collections sync. Please try again.', {
         autoDismiss: true,
         appearance: 'error',
       });
+      setSyncStarting(false);
     } finally {
       setSyncing(false);
     }
@@ -2251,7 +2266,11 @@ const CollectionSettings = ({
           )}
         </div>
         {(localCollectionConfigs.length > 0 || localHubConfigs.length > 0) && (
-          <div>
+          <div className="flex items-center space-x-4">
+            <GlobalSyncStatus
+              isStarting={syncStarting}
+              onSyncStart={(refreshFn) => setRefreshSyncStatus(() => refreshFn)}
+            />
             <Button
               buttonType="primary"
               onClick={syncCollections}
@@ -2522,7 +2541,11 @@ const CollectionSettings = ({
 
       {/* Bottom Sync Button */}
       {(localCollectionConfigs.length > 0 || localHubConfigs.length > 0) && (
-        <div className="mt-8 flex justify-end">
+        <div className="mt-8 flex items-center justify-end space-x-4">
+          <GlobalSyncStatus
+            isStarting={syncStarting}
+            onSyncStart={(refreshFn) => setRefreshSyncStatus(() => refreshFn)}
+          />
           <Button
             buttonType="primary"
             onClick={syncCollections}

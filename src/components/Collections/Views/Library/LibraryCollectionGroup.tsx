@@ -27,6 +27,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  ArrowPathIcon,
   Bars3Icon,
   CheckIcon,
   ExclamationTriangleIcon,
@@ -154,8 +155,8 @@ const SortableItem = ({
   const isLinked = Boolean(config.isLinked);
   const isUnlinked = Boolean(config.isUnlinked);
 
-  // Helper component for diagonal split icons
-  const DiagonalSplitIcon = ({
+  // Helper component for horizontal split icons
+  const HorizontalSplitIcon = ({
     Icon,
     activeState,
     inactiveState,
@@ -173,12 +174,12 @@ const SortableItem = ({
           inactiveState ? 'text-gray-400' : 'text-gray-600 opacity-30'
         }`}
       />
-      {/* Top-left triangle mask for active state */}
+      {/* Top half mask for active state */}
       <div className="absolute inset-0 isolate overflow-hidden">
         <div
           className="absolute inset-0 bg-stone-900"
           style={{
-            clipPath: 'polygon(0 0, 100% 0, 0 100%)',
+            clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%)',
           }}
         />
         <Icon
@@ -186,7 +187,7 @@ const SortableItem = ({
             activeState ? 'text-gray-400' : 'text-gray-600 opacity-30'
           }`}
           style={{
-            clipPath: 'polygon(0 0, 100% 0, 0 100%)',
+            clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%)',
           }}
         />
       </div>
@@ -240,7 +241,7 @@ const SortableItem = ({
           }
         >
           {hasTimeRestriction ? (
-            <DiagonalSplitIcon
+            <HorizontalSplitIcon
               Icon={HomeStarIcon}
               activeState={Boolean(activeVisibility.serverOwnerHome)}
               inactiveState={Boolean(inactiveVisibility.serverOwnerHome)}
@@ -269,7 +270,7 @@ const SortableItem = ({
           }
         >
           {hasTimeRestriction ? (
-            <DiagonalSplitIcon
+            <HorizontalSplitIcon
               Icon={ThreeHomesIcon}
               activeState={Boolean(activeVisibility.usersHome)}
               inactiveState={Boolean(inactiveVisibility.usersHome)}
@@ -302,7 +303,7 @@ const SortableItem = ({
           }
         >
           {hasTimeRestriction ? (
-            <DiagonalSplitIcon
+            <HorizontalSplitIcon
               Icon={LibraryBookmarkIcon}
               activeState={Boolean(activeVisibility.libraryRecommended)}
               inactiveState={Boolean(inactiveVisibility.libraryRecommended)}
@@ -422,12 +423,7 @@ const SortableItem = ({
 
           {/* Enhanced Badges - native type implementation */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Collection Type Badge */}
-            {isCollection && (
-              <Badge badgeType="primary" className="text-xs">
-                Agregarr
-              </Badge>
-            )}
+            {/* Collection Type Badge - Removed for Agregarr collections */}
             {isHub && (
               <Badge badgeType="default" className="text-xs">
                 Plex Default
@@ -439,22 +435,149 @@ const SortableItem = ({
               </Badge>
             )}
 
-            {/* Source & Subtype Badge (for regular collections only) */}
+            {/* Enhanced Source & Subtype Badge (for regular collections only) */}
             {isCollection && (config as CollectionFormConfig).type && (
               <Badge badgeType="primary" className="!bg-opacity-60">
-                {(config as CollectionFormConfig).type === 'trakt'
-                  ? 'Trakt'
-                  : (config as CollectionFormConfig).type === 'tmdb'
-                  ? 'TMDb'
-                  : (config as CollectionFormConfig).type === 'imdb'
-                  ? 'IMDb'
-                  : (config as CollectionFormConfig).type === 'letterboxd'
-                  ? 'Letterboxd'
-                  : (config as CollectionFormConfig).type === 'tautulli'
-                  ? 'Tautulli'
-                  : (config as CollectionFormConfig).type === 'overseerr'
-                  ? 'Overseerr'
-                  : (config as CollectionFormConfig).type}
+                {(() => {
+                  const collection = config as CollectionFormConfig;
+                  const getSubtypeLabel = (
+                    type: string,
+                    subtype?: string
+                  ): string => {
+                    if (!subtype) return '';
+
+                    switch (type) {
+                      case 'trakt':
+                        switch (subtype) {
+                          case 'trending':
+                            return 'Trending';
+                          case 'popular':
+                            return 'Popular';
+                          case 'played':
+                            return 'Most Played';
+                          case 'watched':
+                            return 'Most Watched';
+                          case 'collected':
+                            return 'Most Collected';
+                          case 'favorited':
+                            return 'Most Favorited';
+                          case 'boxoffice':
+                            return 'Box Office';
+                          case 'custom':
+                            return 'Custom List';
+                          case 'watched_daily':
+                            return 'Watched Daily';
+                          case 'watched_weekly':
+                            return 'Watched Weekly';
+                          case 'watched_monthly':
+                            return 'Watched Monthly';
+                          case 'watched_all':
+                            return 'Most Watched All Time';
+                          case 'played_daily':
+                            return 'Played Daily';
+                          case 'played_weekly':
+                            return 'Played Weekly';
+                          case 'played_monthly':
+                            return 'Played Monthly';
+                          case 'played_all':
+                            return 'Most Played All Time';
+                          case 'collected_daily':
+                            return 'Collected Daily';
+                          case 'collected_weekly':
+                            return 'Collected Weekly';
+                          case 'collected_monthly':
+                            return 'Collected Monthly';
+                          case 'collected_all':
+                            return 'Most Collected All Time';
+                          default:
+                            return subtype
+                              .replace(/_/g, ' ')
+                              .replace(/\b\w/g, (l) => l.toUpperCase());
+                        }
+                      case 'tmdb':
+                        switch (subtype) {
+                          case 'trending_day':
+                            return 'Trending Today';
+                          case 'trending_week':
+                            return 'Trending This Week';
+                          case 'popular':
+                            return 'Popular';
+                          case 'top_rated':
+                            return 'Top Rated';
+                          case 'custom':
+                            return 'Custom Collection';
+                          default:
+                            return subtype;
+                        }
+                      case 'imdb':
+                        switch (subtype) {
+                          case 'top_250':
+                            return 'Top 250';
+                          case 'popular':
+                            return 'Popular';
+                          case 'most_popular':
+                            return 'Most Popular';
+                          case 'custom':
+                            return 'Custom List';
+                          default:
+                            return subtype;
+                        }
+                      case 'overseerr':
+                        switch (subtype) {
+                          case 'users':
+                            return 'Individual Users';
+                          case 'server_owner':
+                            return 'Server Owner';
+                          case 'global':
+                            return 'All Requests';
+                          default:
+                            return subtype;
+                        }
+                      case 'tautulli':
+                        switch (subtype) {
+                          case 'most_popular_plays':
+                            return 'Most Popular (Plays)';
+                          case 'most_popular_duration':
+                            return 'Most Popular (Duration)';
+                          default:
+                            return subtype;
+                        }
+                      case 'letterboxd':
+                        switch (subtype) {
+                          case 'custom':
+                            return 'Custom List';
+                          default:
+                            return subtype;
+                        }
+                      default:
+                        return subtype;
+                    }
+                  };
+
+                  const typeLabel =
+                    collection.type === 'trakt'
+                      ? 'Trakt'
+                      : collection.type === 'tmdb'
+                      ? 'TMDb'
+                      : collection.type === 'imdb'
+                      ? 'IMDb'
+                      : collection.type === 'letterboxd'
+                      ? 'Letterboxd'
+                      : collection.type === 'tautulli'
+                      ? 'Tautulli'
+                      : collection.type === 'overseerr'
+                      ? 'Overseerr'
+                      : collection.type || '';
+
+                  const subtypeLabel = getSubtypeLabel(
+                    collection.type || '',
+                    collection.subtype
+                  );
+
+                  return subtypeLabel
+                    ? `${typeLabel} - ${subtypeLabel}`
+                    : typeLabel;
+                })()}
               </Badge>
             )}
 
@@ -486,12 +609,22 @@ const SortableItem = ({
                 </Badge>
               ))}
 
+            {/* Missing Items Badge - Shows when grab missing is enabled for collections */}
+            {isCollection &&
+              (() => {
+                const collection = config as CollectionFormConfig;
+                const hasGrabMissing =
+                  collection.searchMissingMovies || collection.searchMissingTV;
+                return hasGrabMissing ? (
+                  <Badge badgeType="default" className="!bg-opacity-30">
+                    Grab Missing Items
+                  </Badge>
+                ) : null;
+              })()}
+
             {/* Time Restrictions Badge */}
             {config.timeRestriction && !config.timeRestriction.alwaysActive && (
-              <Badge
-                badgeType="warning"
-                className="!bg-amber-600/20 text-xs !text-amber-300"
-              >
+              <Badge badgeType="default" className="!bg-opacity-30">
                 Time Restrictions Set
               </Badge>
             )}
@@ -508,19 +641,30 @@ const SortableItem = ({
               configType === 'hub' ? 'hub' : 'collection'
             } no longer exists in Plex`}
           >
-            <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />
+            <ExclamationTriangleIcon className="h-6 w-6 text-red-500" />
           </div>
         )}
 
         {/* Visibility icons */}
         {getVisibilityIcons(config.visibilityConfig, config.timeRestriction)}
 
-        {/* Active/Inactive Status - fixed width for consistent spacing */}
+        {/* Sync Status - Three-state system */}
         <div className="flex w-12 justify-center">
-          {config.isActive ? (
-            <CheckIcon className="h-4 w-4 text-gray-400" title="Active" />
+          {config.needsSync ? (
+            <ArrowPathIcon
+              className="h-4 w-4 text-red-400"
+              title="Needs Sync - Collection has been modified and needs to be synced to Plex"
+            />
+          ) : config.isActive ? (
+            <CheckIcon
+              className="h-4 w-4 text-gray-400"
+              title="Synced and Active - Collection is up to date and currently active"
+            />
           ) : (
-            <XMarkIcon className="h-4 w-4 text-gray-400" title="Inactive" />
+            <XMarkIcon
+              className="h-4 w-4 text-gray-400"
+              title="Inactive - Collection is disabled by time restrictions"
+            />
           )}
         </div>
 

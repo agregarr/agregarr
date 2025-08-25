@@ -39,6 +39,11 @@ preExistingRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       req.body
     );
 
+    // Mark pre-existing collection as needing sync due to modification
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    settings.markCollectionModified(id, 'preExisting');
+
     // Auto-reorder after visibility changes to assign proper sort orders
     const { autoReorderLibrary } = await import('@server/routes/reorder');
     try {
@@ -107,6 +112,13 @@ preExistingRoutes.post('/discover', isAuthenticated(), async (req, res) => {
     const discoveredConfigs = preExistingCollectionConfigService.saveConfigs(
       preExistingCollectionConfigs
     );
+
+    // Mark all newly discovered pre-existing collections as needing sync
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    discoveredConfigs.forEach((config) => {
+      settings.markCollectionModified(config.id, 'preExisting');
+    });
 
     res.status(200).json({
       preExistingCollectionConfigs: discoveredConfigs,
@@ -190,6 +202,13 @@ preExistingRoutes.post('/append', isAuthenticated(), async (req, res) => {
       preExistingCollectionConfigs
     );
 
+    // Mark all newly appended pre-existing collections as needing sync
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    appendedConfigs.forEach((config) => {
+      settings.markCollectionModified(config.id, 'preExisting');
+    });
+
     res.status(200).json({
       preExistingCollectionConfigs: appendedConfigs,
       message: 'Pre-existing collection configurations appended successfully',
@@ -248,6 +267,11 @@ preExistingRoutes.patch('/:id/promote', isAuthenticated(), async (req, res) => {
       sortOrderLibrary: maxSortOrder + 1,
     });
 
+    // Mark pre-existing collection as needing sync due to promotion
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    settings.markCollectionModified(id, 'preExisting');
+
     logger.info(
       `Promoted pre-existing collection ${config.name} to promoted section`,
       {
@@ -301,6 +325,11 @@ preExistingRoutes.patch('/:id/demote', isAuthenticated(), async (req, res) => {
       isLibraryPromoted: false,
       sortOrderLibrary: 0, // A-Z collections have sortOrderLibrary: 0
     });
+
+    // Mark pre-existing collection as needing sync due to demotion
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    settings.markCollectionModified(id, 'preExisting');
 
     logger.info(
       `Demoted pre-existing collection ${config.name} to A-Z section`,

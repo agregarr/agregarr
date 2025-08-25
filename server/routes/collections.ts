@@ -232,6 +232,9 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     settings.plex.collectionConfigs = configs;
     settings.save();
 
+    // Mark collection as needing sync due to modification
+    settings.markCollectionModified(id, 'collection');
+
     logger.info('Individual collection config updated successfully', {
       label: 'Collections API',
       configId: id,
@@ -646,6 +649,11 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
     settings.plex.collectionConfigs = configs;
     settings.save();
 
+    // Mark all newly created collections as needing sync
+    createdConfigs.forEach((config) => {
+      settings.markCollectionModified(config.id, 'collection');
+    });
+
     const configSummary = createdConfigs.map((c) => ({
       id: c.id,
       name: c.name,
@@ -767,58 +775,50 @@ collectionsRoutes.get('/sync', (_req, res) => {
 });
 
 /**
+ * GET /api/v1/collections/sync/status
+ * Get global collection sync status including last sync time and error information
+ */
+collectionsRoutes.get('/sync/status', async (_req, res) => {
+  const settings = getSettings();
+  const globalSyncStatus = settings.getGlobalSyncStatus();
+  const syncStatus = collectionsSync.status;
+
+  // Get next sync time from scheduled job
+  let nextSyncAt: string | undefined;
+  try {
+    const { scheduledJobs } = await import('@server/job/schedule');
+    const syncJob = scheduledJobs.find(
+      (job) => job.id === 'plex-collections-sync'
+    );
+    if (syncJob?.job?.nextInvocation) {
+      nextSyncAt = syncJob.job.nextInvocation().toISOString();
+    }
+  } catch (error) {
+    // If we can't get next sync time, just omit it
+  }
+
+  return res.status(200).json({
+    running: syncStatus.running,
+    currentStage: syncStatus.currentStage,
+    totalCollections: syncStatus.totalCollections,
+    processedCollections: syncStatus.processedCollections,
+    progress: syncStatus.progress,
+    lastGlobalSyncAt: globalSyncStatus.lastGlobalSyncAt,
+    globalSyncError: globalSyncStatus.globalSyncError,
+    collectionsNeedingSync: globalSyncStatus.collectionsNeedingSync,
+    nextSyncAt,
+  });
+});
+
+/**
  * POST /api/v1/collections/sync
  * Start a collection sync in the background (fire-and-forget)
  */
 collectionsRoutes.post('/sync', isAuthenticated(), async (req, res) => {
   try {
-    const settings = getSettings();
-
-    // The sync job will check if there are collections to process
-
-    if (!settings.plex.ip || !settings.plex.port) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Plex server settings are not configured',
-      });
-    }
-
-    // Get admin user for Plex token
-    const userRepository = getRepository(User);
-    const admin = await userRepository.findOne({
-      where: { id: 1 },
-      select: { id: true, plexToken: true },
-    });
-
-    if (!admin?.plexToken) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Admin Plex token not found',
-      });
-    }
-
-    // Initialize Plex client for quick connection test
-    const plexClient = new PlexAPI({
-      plexToken: admin.plexToken,
-      plexSettings: settings.plex,
-    });
-
-    // Test connection
-    const statusResult = await plexClient.getStatus();
-    if (!statusResult) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Could not connect to Plex server',
-      });
-    }
-
-    // Start collection sync in background with proper error handling
-    setImmediate(async () => {
-      try {
-        await collectionsSync.run();
-      } catch (error) {
-        logger.error('Background collections sync failed:', error);
-      }
+    // Start collection sync immediately in background with proper error handling
+    collectionsSync.run().catch((error) => {
+      logger.error('Background collections sync failed:', error);
     });
 
     logger.info('Manual Plex collections sync started in background');
