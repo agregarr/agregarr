@@ -51,6 +51,7 @@ interface TimeRestrictionsSectionProps {
   ) => void;
   isEnhancedForm?: boolean;
   isDefaultPlexHub?: boolean;
+  isPreExisting?: boolean;
 }
 
 const TimeRestrictionsSection = ({
@@ -58,6 +59,7 @@ const TimeRestrictionsSection = ({
   setFieldValue,
   isEnhancedForm = false,
   isDefaultPlexHub = false,
+  isPreExisting = false,
 }: TimeRestrictionsSectionProps) => {
   const intl = useIntl();
 
@@ -184,8 +186,8 @@ const TimeRestrictionsSection = ({
         </label>
       </div>
 
-      {/* Remove from Plex option - only show when not always active */}
-      {!timeRestriction.alwaysActive && (
+      {/* Remove from Plex option - only show when not always active AND not a hub/pre-existing collection */}
+      {!timeRestriction.alwaysActive && !isDefaultPlexHub && !isPreExisting && (
         <div className="form-input-field mt-2">
           <label className="inline-flex items-center">
             <input

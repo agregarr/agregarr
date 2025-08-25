@@ -1,5 +1,6 @@
 import type PlexAPI from '@server/api/plexapi';
 import { extractErrorMessage } from '@server/lib/collections/core/CollectionUtilities';
+import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import type {
   CollectionConfig,
   PlexHubConfig,
@@ -244,8 +245,20 @@ export class HubSyncService {
       }
 
       try {
-        // Convert our visibility config to Plex format
-        const plexVisibility = this.convertToPlexVisibility(hubConfig);
+        // Evaluate time restrictions and get effective visibility config
+        const effectiveVisibilityConfig = this.evaluateAndUpdateTimeRestriction(
+          hubConfig,
+          'hub'
+        );
+
+        // Convert effective visibility config to Plex format
+        const plexVisibility = {
+          promotedToOwnHome:
+            effectiveVisibilityConfig?.serverOwnerHome || false,
+          promotedToSharedHome: effectiveVisibilityConfig?.usersHome || false,
+          promotedToRecommended:
+            effectiveVisibilityConfig?.libraryRecommended || false,
+        };
 
         await plexClient.updateHubVisibility(
           libraryId,
@@ -281,14 +294,6 @@ export class HubSyncService {
       promotedToSharedHome: hubConfig.visibilityConfig?.usersHome || false,
       promotedToRecommended:
         hubConfig.visibilityConfig?.libraryRecommended || false,
-      homeVisibility:
-        hubConfig.visibilityConfig?.usersHome ||
-        hubConfig.visibilityConfig?.serverOwnerHome
-          ? 'all'
-          : 'none',
-      recommendationsVisibility: hubConfig.visibilityConfig?.libraryRecommended
-        ? 'all'
-        : 'none',
     };
   }
 
@@ -305,15 +310,6 @@ export class HubSyncService {
         collectionConfig.visibilityConfig?.usersHome || false,
       promotedToRecommended:
         collectionConfig.visibilityConfig?.libraryRecommended || false,
-      homeVisibility:
-        collectionConfig.visibilityConfig?.usersHome ||
-        collectionConfig.visibilityConfig?.serverOwnerHome
-          ? 'all'
-          : 'none',
-      recommendationsVisibility: collectionConfig.visibilityConfig
-        ?.libraryRecommended
-        ? 'all'
-        : 'none',
     };
   }
 
@@ -410,23 +406,19 @@ export class HubSyncService {
       }
 
       try {
-        // Convert pre-existing collection visibility config to Plex format
+        // Evaluate time restrictions and get effective visibility config
+        const effectiveVisibilityConfig = this.evaluateAndUpdateTimeRestriction(
+          preExistingConfig,
+          'preExisting'
+        );
+
+        // Convert effective visibility config to Plex format
         const plexVisibility = {
           promotedToOwnHome:
-            preExistingConfig.visibilityConfig?.serverOwnerHome || false,
-          promotedToSharedHome:
-            preExistingConfig.visibilityConfig?.usersHome || false,
+            effectiveVisibilityConfig?.serverOwnerHome || false,
+          promotedToSharedHome: effectiveVisibilityConfig?.usersHome || false,
           promotedToRecommended:
-            preExistingConfig.visibilityConfig?.libraryRecommended || false,
-          homeVisibility:
-            preExistingConfig.visibilityConfig?.usersHome ||
-            preExistingConfig.visibilityConfig?.serverOwnerHome
-              ? 'all'
-              : 'none',
-          recommendationsVisibility: preExistingConfig.visibilityConfig
-            ?.libraryRecommended
-            ? 'all'
-            : 'none',
+            effectiveVisibilityConfig?.libraryRecommended || false,
         };
 
         await plexClient.updateHubVisibility(
@@ -788,6 +780,114 @@ export class HubSyncService {
         )}`,
         {
           label: 'Hub Sync Service',
+          error: extractErrorMessage(error),
+        }
+      );
+    }
+  }
+
+  /**
+   * Evaluate time restrictions and update isActive status for hubs/pre-existing collections
+   * Returns the effective visibility config to use (main or inactive)
+   */
+  private evaluateAndUpdateTimeRestriction<
+    T extends PlexHubConfig | PreExistingCollectionConfig
+  >(config: T, configType: 'hub' | 'preExisting'): T['visibilityConfig'] {
+    // Evaluate time restrictions
+    const timeRestrictionResult = TimeRestrictionUtils.evaluateTimeRestriction(
+      config.timeRestriction
+    );
+
+    // Update isActive status if it has changed
+    if (config.isActive !== timeRestrictionResult.isActive) {
+      this.updateConfigActiveStatus(
+        config.id,
+        timeRestrictionResult.isActive,
+        configType
+      );
+    }
+
+    // For hubs and pre-existing collections, removeFromPlexWhenInactive is always false (safety)
+    // They can only use visibility changes, never deletion
+    if (!timeRestrictionResult.isActive) {
+      // Collection is inactive - use inactive visibility settings
+      const inactiveVisibilityConfig = config.timeRestriction
+        ?.inactiveVisibilityConfig ?? {
+        usersHome: false,
+        serverOwnerHome: false,
+        libraryRecommended: true, // Default: still appears in library tab when inactive
+      };
+
+      logger.debug(
+        `Using inactive visibility settings for ${configType}: ${config.name} - time restriction not met (${timeRestrictionResult.reason})`,
+        {
+          label: 'Hub Sync Service',
+          configType,
+          configId: config.id,
+          reason: timeRestrictionResult.reason,
+          nextActivation: timeRestrictionResult.nextActivation,
+          inactiveVisibility: inactiveVisibilityConfig,
+        }
+      );
+
+      return inactiveVisibilityConfig;
+    } else {
+      // Collection is active - use normal visibility settings
+      return config.visibilityConfig;
+    }
+  }
+
+  /**
+   * Update isActive status for hub or pre-existing collection config
+   */
+  private updateConfigActiveStatus(
+    configId: string,
+    isActive: boolean,
+    configType: 'hub' | 'preExisting'
+  ): void {
+    try {
+      const settings = getSettings();
+
+      if (configType === 'hub') {
+        const hubConfigs = settings.plex.hubConfigs || [];
+        const configIndex = hubConfigs.findIndex((c) => c.id === configId);
+        if (configIndex !== -1) {
+          hubConfigs[configIndex] = { ...hubConfigs[configIndex], isActive };
+          settings.plex.hubConfigs = hubConfigs;
+        }
+      } else if (configType === 'preExisting') {
+        const preExistingConfigs =
+          settings.plex.preExistingCollectionConfigs || [];
+        const configIndex = preExistingConfigs.findIndex(
+          (c) => c.id === configId
+        );
+        if (configIndex !== -1) {
+          preExistingConfigs[configIndex] = {
+            ...preExistingConfigs[configIndex],
+            isActive,
+          };
+          settings.plex.preExistingCollectionConfigs = preExistingConfigs;
+        }
+      }
+
+      settings.save();
+
+      logger.debug(
+        `Updated ${configType} isActive status: ${configId} -> ${isActive}`,
+        {
+          label: 'Hub Sync Service',
+          configType,
+          configId,
+          isActive,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Failed to update ${configType} isActive status for ${configId}`,
+        {
+          label: 'Hub Sync Service',
+          configType,
+          configId,
           error: extractErrorMessage(error),
         }
       );

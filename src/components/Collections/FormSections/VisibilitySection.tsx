@@ -35,6 +35,7 @@ interface VisibilitySectionProps {
 const VisibilitySection = ({
   values,
   setFieldValue,
+  isDefaultPlexHub = false,
   fieldPrefix = 'visibilityConfig',
   restrictToLibraryOnly = false,
   restrictToServerOwnerOnly = false,
@@ -166,8 +167,17 @@ const VisibilitySection = ({
         !visibilityConfig?.serverOwnerHome &&
         !visibilityConfig?.libraryRecommended && (
           <div className="mt-3 rounded border border-orange-500/20 bg-orange-500/10 p-2 text-xs text-orange-300">
-            ⚠️ No visibility options selected. Collection will only appear in
-            library tab.
+            {isDefaultPlexHub ? (
+              <>
+                ⚠️ No visibility options selected. Hub will be completely
+                hidden.
+              </>
+            ) : (
+              <>
+                ⚠️ No visibility options selected. Collection will only appear
+                in library tab.
+              </>
+            )}
           </div>
         )}
     </div>

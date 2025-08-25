@@ -1795,7 +1795,7 @@ const CollectionFormConfigForm = ({
                                 values={typedValues as CollectionFormConfig}
                                 setFieldValue={setFieldValue}
                                 isEnhancedForm={false}
-                                isDefaultPlexHub={false}
+                                isDefaultPlexHub={isHub}
                                 restrictToLibraryOnly={
                                   values.type === 'overseerr' &&
                                   values.subtype === 'users'
@@ -1874,6 +1874,7 @@ const CollectionFormConfigForm = ({
                                 setFieldValue={setFieldValue}
                                 isEnhancedForm={false}
                                 isDefaultPlexHub={isHub}
+                                isPreExisting={isPreExisting}
                               />
                             </div>
                           </div>
@@ -1933,6 +1934,7 @@ const CollectionFormConfigForm = ({
                               setFieldValue={setFieldValue}
                               isEnhancedForm={false}
                               isDefaultPlexHub={isHub}
+                              isPreExisting={isPreExisting}
                             />
                           </div>
                         </div>
