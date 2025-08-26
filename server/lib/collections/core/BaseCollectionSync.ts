@@ -1106,6 +1106,67 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }
   }
 
+  /**
+   * Clear the stored rating key from a collection config
+   * Used when collections are deleted from Plex due to time restrictions
+   */
+  private clearCollectionRatingKey(
+    configId: string,
+    deletedRatingKey: string
+  ): void {
+    try {
+      const settings = getSettings();
+      const collectionConfigs = settings.plex.collectionConfigs || [];
+      const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
+
+      if (configIndex !== -1) {
+        const config = collectionConfigs[configIndex];
+
+        // Only clear if the rating key matches (safety check)
+        if (config.collectionRatingKey === deletedRatingKey) {
+          collectionConfigs[configIndex] = {
+            ...config,
+            collectionRatingKey: undefined,
+          };
+          settings.plex.collectionConfigs = collectionConfigs;
+          settings.save();
+
+          logger.debug(
+            `Cleared rating key for time-restricted collection: ${config.name}`,
+            {
+              label: `${this.source} Collections`,
+              configId,
+              clearedRatingKey: deletedRatingKey,
+            }
+          );
+        } else {
+          logger.warn(
+            `Rating key mismatch when clearing - expected ${config.collectionRatingKey}, got ${deletedRatingKey}`,
+            {
+              label: `${this.source} Collections`,
+              configId,
+              expectedRatingKey: config.collectionRatingKey,
+              providedRatingKey: deletedRatingKey,
+            }
+          );
+        }
+      } else {
+        logger.warn(`Config ${configId} not found when clearing rating key`, {
+          label: `${this.source} Collections`,
+          configId,
+          deletedRatingKey,
+        });
+      }
+    } catch (error) {
+      logger.error(`Failed to clear rating key for config ${configId}`, {
+        label: `${this.source} Collections`,
+        configId,
+        deletedRatingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   // Abstract methods that must be implemented by subclasses
 
   /**
@@ -1264,6 +1325,9 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
 
           // Remove the collection from Plex
           await plexClient.deleteCollection(collection.ratingKey);
+
+          // Clear the stored rating key from config to prevent "missing" status
+          this.clearCollectionRatingKey(config.id, collection.ratingKey);
 
           // Mark as processed to avoid conflicts
           if (processedCollectionKeys) {
