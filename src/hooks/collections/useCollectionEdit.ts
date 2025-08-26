@@ -154,7 +154,7 @@ export const useCollectionEdit = () => {
                   : hubConfig.mediaType === 'tv'
                   ? 'tv'
                   : 'both',
-              sortOrderHome: hubConfig.sortOrderHome || 0,
+              sortOrderHome: hubConfig.sortOrderHome || 1,
               sortOrderLibrary: hubConfig.sortOrderLibrary,
               visibilityConfig: hubConfig.visibilityConfig,
               isDefaultPlexHub: hubConfig.isDefaultPlexHub,

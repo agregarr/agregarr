@@ -265,6 +265,7 @@ preExistingRoutes.patch('/:id/promote', isAuthenticated(), async (req, res) => {
     const finalConfig = preExistingCollectionConfigService.updateSettings(id, {
       isLibraryPromoted: true,
       sortOrderLibrary: maxSortOrder + 1,
+      everLibraryPromoted: true, // Mark as ever promoted when promoting
     });
 
     // Mark pre-existing collection as needing sync due to promotion
@@ -320,10 +321,11 @@ preExistingRoutes.patch('/:id/demote', isAuthenticated(), async (req, res) => {
         .json({ error: 'Collection is already in A-Z section' });
     }
 
-    // Update in service
+    // Update in service - Keep everLibraryPromoted: true when demoting
     const finalConfig = preExistingCollectionConfigService.updateSettings(id, {
       isLibraryPromoted: false,
       sortOrderLibrary: 0, // A-Z collections have sortOrderLibrary: 0
+      // Note: everLibraryPromoted stays true when demoting - will be reset to false during sync after sortTitle cleanup
     });
 
     // Mark pre-existing collection as needing sync due to demotion

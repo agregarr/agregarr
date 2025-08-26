@@ -534,8 +534,8 @@ const CollectionSettings = ({
       maxItems: 30,
       libraryId: '', // Start with no selection to show "Select Libraries..."
       libraryName: '',
-      sortOrderHome: 0, // Default to top of home screen
-      sortOrderLibrary: 0, // Default to top of library tab
+      sortOrderHome: 1, // Default positioned item (0 is void)
+      sortOrderLibrary: 1, // Default promoted section (0 is A-Z)
       customDays: 30, // Default for Tautulli collections
       tautulliStatType: 'plays', // Default stat type
       searchMissingMovies: false,

@@ -424,7 +424,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
     configsByLibrary.forEach((libraryConfigs) => {
       // Sort by current sortOrderHome to maintain relative order
       libraryConfigs.sort(
-        (a, b) => (a.sortOrderHome || 0) - (b.sortOrderHome || 0)
+        (a, b) => (a.sortOrderHome || 1) - (b.sortOrderHome || 1)
       );
 
       // Reassign sequential sort orders
@@ -590,8 +590,18 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         statType: req.body.tautulliStatType,
         subtype: req.body.subtype,
       };
+      // For custom templates, choose the appropriate template based on library type
+      let templateToProcess = req.body.template || req.body.name || '';
+      if (req.body.template === 'custom') {
+        if (libraryMediaType === 'movie' && req.body.customMovieTemplate) {
+          templateToProcess = req.body.customMovieTemplate;
+        } else if (libraryMediaType === 'tv' && req.body.customTVTemplate) {
+          templateToProcess = req.body.customTVTemplate;
+        }
+      }
+
       let processedName = templateEngine.processTemplate(
-        req.body.template || req.body.name || '',
+        templateToProcess,
         context
       );
 
@@ -628,6 +638,7 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         isLinked: libraryIds.length > 1,
         linkId: linkId,
         isLibraryPromoted: true, // All new Agregarr collections start in promoted section
+        everLibraryPromoted: true, // New collections start promoted, so mark as ever promoted
         // Remove multi-library fields that don't belong in individual configs
         libraryIds: undefined,
         libraryNames: undefined,

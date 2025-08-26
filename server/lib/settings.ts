@@ -45,12 +45,13 @@ export interface CollectionConfig {
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
   readonly libraryId: string; // Library ID this collection belongs to
   readonly libraryName: string; // Library name for display
-  readonly sortOrderHome?: number; // Order for Plex home screen (creation time based)
+  readonly sortOrderHome?: number; // Order for Plex home screen (1+ for positioned items, 0 for void/unpositioned)
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
   readonly isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
+  everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   readonly collectionRatingKey?: string; // Plex collection rating key (when created)
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
@@ -116,7 +117,7 @@ export interface PlexHubConfig {
   libraryId: string; // Library ID this hub belongs to
   libraryName: string; // Library display name
   mediaType: 'movie' | 'tv'; // Media type (hubs are always single type)
-  sortOrderHome: number; // Position on Plex home screen
+  sortOrderHome: number; // Position on Plex home screen (1+ for positioned items, 0 for void)
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
   visibilityConfig: {
@@ -135,6 +136,7 @@ export interface PlexHubConfig {
   isLinked?: boolean; // True if hub is actively linked to other hubs (set by backend linking logic)
   linkId?: number; // Group ID for linked hubs (set by backend linking logic)
   isUnlinked?: boolean; // True if this hub was deliberately unlinked and should not be grouped with siblings
+  everLibraryPromoted?: boolean; // True if this hub has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   // Time restriction settings - all hub types can have time restrictions
   timeRestriction?: {
     readonly alwaysActive: boolean; // If true, hub is always active (default)
@@ -171,7 +173,7 @@ export interface PreExistingCollectionConfig {
   libraryName: string; // Library display name
   mediaType: 'movie' | 'tv'; // Media type based on library type
   titleSort?: string; // Plex sortTitle field for alphabetical ordering
-  sortOrderHome: number; // Position on Plex home screen
+  sortOrderHome: number; // Position on Plex home screen (1+ for positioned items, 0 for void)
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
   visibilityConfig: {
@@ -190,6 +192,7 @@ export interface PreExistingCollectionConfig {
   isLinked?: boolean; // True if collection is actively linked to other collections (set by backend linking logic)
   linkId?: number; // Group ID for linked collections (set by backend linking logic)
   isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
+  everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)

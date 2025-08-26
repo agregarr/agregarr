@@ -200,17 +200,32 @@ async function handleManualReordering(
     // Strip metadata and add sort order
     const { configType, ...originalConfig } = item;
 
-    // Calculate sort order with special handling for promoted collections in Library context
+    // Apply correct sort order logic based on context and collection type
     let sortOrder = index;
-    if (
-      sortOrderField === 'sortOrderLibrary' &&
-      originalConfig.isLibraryPromoted
-    ) {
-      // Promoted collections in Library context need to start from 1, not 0
+
+    // For Library context, respect the A-Z vs Promoted section design
+    if (sortOrderField === 'sortOrderLibrary') {
+      if (originalConfig.isLibraryPromoted === false) {
+        sortOrder = 0; // A-Z section always gets 0
+      } else {
+        sortOrder = index + 1; // Promoted section starts from 1
+      }
+    } else {
+      // For Home/Recommended contexts, start from 1 (0 is void value)
       sortOrder = index + 1;
     }
 
     const updatedConfig = { ...originalConfig, [sortOrderField]: sortOrder };
+
+    // Set everLibraryPromoted: true when a collection is assigned to the promoted library section
+    if (
+      sortOrderField === 'sortOrderLibrary' &&
+      originalConfig.isLibraryPromoted === true &&
+      sortOrder > 0 &&
+      configType === 'collection'
+    ) {
+      updatedConfig.everLibraryPromoted = true;
+    }
 
     // Use type guards to ensure config matches declared type
     if (configType === 'collection' && isCollectionConfig(updatedConfig)) {
@@ -464,11 +479,41 @@ async function performAutoReordering(
     return (aSortOrder as number) - (bSortOrder as number);
   });
 
-  // Assign sequential sort orders (0, 1, 2, 3...)
-  const updatedItems = allLibraryItems.map((item, index) => ({
-    ...item,
-    [sortOrderField]: index,
-  }));
+  // Assign sequential sort orders with proper A-Z vs Promoted section logic
+  const updatedItems = allLibraryItems.map((item, index) => {
+    let newSortOrder = index;
+
+    // For Library context, respect the A-Z vs Promoted section design:
+    // - A-Z section (isLibraryPromoted: false) → sortOrderLibrary: 0
+    // - Promoted section (isLibraryPromoted: true) → sortOrderLibrary: 1, 2, 3...
+    if (sortOrderField === 'sortOrderLibrary') {
+      if (item.isLibraryPromoted === false) {
+        newSortOrder = 0; // A-Z section always gets 0
+      } else {
+        newSortOrder = index + 1; // Promoted section starts from 1
+      }
+    } else {
+      // For Home/Recommended contexts, start from 1 (0 is void value)
+      newSortOrder = index + 1;
+    }
+
+    const updatedItem = {
+      ...item,
+      [sortOrderField]: newSortOrder,
+    };
+
+    // Set everLibraryPromoted: true when a collection is assigned to the promoted library section
+    if (
+      sortOrderField === 'sortOrderLibrary' &&
+      item.isLibraryPromoted === true &&
+      newSortOrder > 0 &&
+      item.configType === 'collection'
+    ) {
+      updatedItem.everLibraryPromoted = true;
+    }
+
+    return updatedItem;
+  });
 
   // Apply updates back to their respective services
   let totalUpdated = 0;

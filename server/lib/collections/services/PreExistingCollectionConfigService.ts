@@ -67,7 +67,7 @@ export class PreExistingCollectionConfigService {
           libraryId: newConfig.libraryId,
           libraryName: newConfig.libraryName,
           mediaType: newConfig.mediaType,
-          sortOrderHome: newConfig.sortOrderHome || 0,
+          sortOrderHome: newConfig.sortOrderHome || 1,
           sortOrderLibrary: newConfig.sortOrderLibrary || 0,
           isLibraryPromoted:
             newConfig.isLibraryPromoted ??
@@ -210,7 +210,7 @@ export class PreExistingCollectionConfigService {
           libraryId: config.libraryId,
           libraryName: config.libraryName,
           mediaType: config.mediaType,
-          sortOrderHome: config.sortOrderHome || 0,
+          sortOrderHome: config.sortOrderHome || 1,
           sortOrderLibrary: config.sortOrderLibrary || 0,
           isLibraryPromoted:
             config.isLibraryPromoted ??

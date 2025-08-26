@@ -441,8 +441,14 @@ export function createHubConfigFromDiscovery(
     libraryName: library.title,
     mediaType,
     sortOrderLibrary: sortOrder.library,
-    sortOrderHome: sortOrder.home,
+    sortOrderHome:
+      hubData.promotedToSharedHome ||
+      hubData.promotedToOwnHome ||
+      hubData.promotedToRecommended
+        ? sortOrder.home
+        : 0, // 0 for void if not visible on any home/recommended screen
     isLibraryPromoted: false, // Hubs start in A-Z section (though they use different ordering logic)
+    everLibraryPromoted: false, // Default: false for all discovered hubs
     collectionType: categorization.collectionType,
     visibilityConfig: {
       usersHome: hubData.promotedToSharedHome || false,
@@ -490,8 +496,14 @@ export function createPreExistingConfigFromDiscovery(
     mediaType: detectedMediaType,
     titleSort: collectionData.titleSort, // Preserve titleSort for alphabetical sorting
     sortOrderLibrary: 0, // All discovered collections start in A-Z section with sortOrderLibrary: 0
-    sortOrderHome: sortOrder.home,
+    sortOrderHome:
+      collectionData.promotedToSharedHome ||
+      collectionData.promotedToOwnHome ||
+      collectionData.promotedToRecommended
+        ? sortOrder.home
+        : 0, // 0 for void if not visible on any home/recommended screen
     isLibraryPromoted: false, // All discovered collections start in A-Z section
+    everLibraryPromoted: false, // Default: false for all discovered collections
     collectionType: CollectionType.PRE_EXISTING,
     visibilityConfig: {
       usersHome: collectionData.promotedToSharedHome || false,

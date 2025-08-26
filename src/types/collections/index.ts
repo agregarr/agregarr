@@ -35,6 +35,7 @@ export interface PlexHubConfig {
   isLinked?: boolean; // True if hub is actively linked to other hubs (set by backend linking logic)
   linkId?: number; // Group ID for linked hubs (set by backend linking logic)
   isUnlinked?: boolean; // True if this hub was deliberately unlinked and should not be grouped with siblings
+  everLibraryPromoted?: boolean; // True if this hub has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   // Time restriction settings - all hub types can have time restrictions
   timeRestriction?: {
     alwaysActive: boolean; // If true, hub is always active (default)
@@ -87,6 +88,7 @@ export interface PreExistingCollectionConfig {
   isLinked?: boolean; // True if collection is actively linked to other collections (set by backend linking logic)
   linkId?: number; // Group ID for linked collections (set by backend linking logic)
   isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
+  everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   // Time restriction settings
   timeRestriction?: {
     alwaysActive: boolean; // If true, collection is always active (default)
@@ -217,6 +219,7 @@ export interface CollectionFormConfig {
   // Backend properties (from PlexHubConfig) - Present on hub configs from API
   readonly collectionType?: CollectionType; // Simplified categorization system
   readonly isUnlinked?: boolean; // True if this hub was deliberately unlinked
+  everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
 
   // Hub-specific properties (present when config represents a hub)
   readonly hubIdentifier?: string; // Plex hub identifier (e.g., "movie.recentlyadded")

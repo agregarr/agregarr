@@ -3221,7 +3221,7 @@ components:
   securitySchemes:
     cookieAuth:
       type: apiKey
-      name: connect.sid
+      name: agregarr.sid
       in: cookie
     apiKey:
       type: apiKey

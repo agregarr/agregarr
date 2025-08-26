@@ -473,7 +473,7 @@ export class HubSyncService {
             type: 'collection',
             libraryId,
             collectionRatingKey: ratingKeyForLibrary,
-            sortOrder: config.sortOrderHome || 0,
+            sortOrder: config.sortOrderHome || 1,
           });
         }
       }
@@ -494,7 +494,7 @@ export class HubSyncService {
     for (const [libraryId, libraryHubConfigs] of hubConfigsByLibrary) {
       // Sort hub configs by their sortOrderHome (this is our UI order for home/recommended)
       const sortedHubConfigs = [...libraryHubConfigs].sort(
-        (a, b) => (a.sortOrderHome || 0) - (b.sortOrderHome || 0)
+        (a, b) => (a.sortOrderHome || 1) - (b.sortOrderHome || 1)
       );
 
       // Add hubs to ordering in UI order
@@ -522,7 +522,7 @@ export class HubSyncService {
               type: 'hub',
               libraryId: hubConfig.libraryId,
               hubIdentifier: hubConfig.hubIdentifier,
-              sortOrder: hubConfig.sortOrderHome || 0,
+              sortOrder: hubConfig.sortOrderHome || 1,
             });
           } else {
             logger.warn(
@@ -559,7 +559,7 @@ export class HubSyncService {
     for (const [libraryId, libraryConfigs] of configsByLibrary) {
       // Sort configs by their sortOrderHome (this is our UI order for home/recommended)
       const sortedConfigs = [...libraryConfigs].sort(
-        (a, b) => (a.sortOrderHome || 0) - (b.sortOrderHome || 0)
+        (a, b) => (a.sortOrderHome || 1) - (b.sortOrderHome || 1)
       );
 
       // Add pre-existing collections to ordering in UI order
@@ -586,7 +586,7 @@ export class HubSyncService {
             type: 'collection',
             libraryId: config.libraryId,
             collectionRatingKey: config.collectionRatingKey,
-            sortOrder: config.sortOrderHome || 0,
+            sortOrder: config.sortOrderHome || 1,
           });
         });
       }
@@ -710,15 +710,17 @@ export class HubSyncService {
           continue;
         }
 
-        // Only update sortTitle if sortOrderLibrary is defined
-        if (config.sortOrderLibrary === undefined) {
+        // Only update sortTitle if everLibraryPromoted is not explicitly false
+        if (config.everLibraryPromoted === false) {
+          // If everLibraryPromoted is explicitly false: DO NOT touch sortTitle at all
           continue;
         }
 
         let sortTitle: string;
+        const updateConfig: Partial<PreExistingCollectionConfig> = {};
 
         if (config.isLibraryPromoted && config.sortOrderLibrary > 0) {
-          // Promoted pre-existing collections get exclamation marks
+          // Promoted: Set exclamation marks
           const sameLibraryConfigs = preExistingConfigs.filter(
             (c) =>
               c.libraryId === config.libraryId &&
@@ -738,8 +740,10 @@ export class HubSyncService {
             sortTitle = `!!${config.name}`;
           }
         } else {
-          // A-Z pre-existing collections use natural title for alphabetical sorting
+          // Demoted: Reset to natural title and mark as cleaned
           sortTitle = config.name;
+          // After reset, set everLibraryPromoted back to false
+          updateConfig.everLibraryPromoted = false;
         }
 
         try {
@@ -747,6 +751,11 @@ export class HubSyncService {
             config.collectionRatingKey,
             sortTitle
           );
+
+          // Update config if everLibraryPromoted needs to be reset
+          if (updateConfig.everLibraryPromoted !== undefined) {
+            this.updatePreExistingConfigField(config.id, updateConfig);
+          }
 
           logger.debug(
             `Updated sortTitle for pre-existing collection ${config.name}: ${sortTitle}`,
@@ -887,6 +896,50 @@ export class HubSyncService {
         {
           label: 'Hub Sync Service',
           configType,
+          configId,
+          error: extractErrorMessage(error),
+        }
+      );
+    }
+  }
+
+  /**
+   * Update specific fields of a pre-existing collection config
+   */
+  private updatePreExistingConfigField(
+    configId: string,
+    updateConfig: Partial<PreExistingCollectionConfig>
+  ): void {
+    try {
+      const settings = getSettings();
+      const preExistingConfigs =
+        settings.plex.preExistingCollectionConfigs || [];
+      const configIndex = preExistingConfigs.findIndex(
+        (c) => c.id === configId
+      );
+
+      if (configIndex !== -1) {
+        preExistingConfigs[configIndex] = {
+          ...preExistingConfigs[configIndex],
+          ...updateConfig,
+        };
+        settings.plex.preExistingCollectionConfigs = preExistingConfigs;
+        settings.save();
+
+        logger.debug(
+          `Updated pre-existing collection config fields: ${configId}`,
+          {
+            label: 'Hub Sync Service',
+            configId,
+            updatedFields: Object.keys(updateConfig),
+          }
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to update pre-existing collection config fields for ${configId}`,
+        {
+          label: 'Hub Sync Service',
           configId,
           error: extractErrorMessage(error),
         }

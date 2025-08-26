@@ -47,11 +47,11 @@ export function groupConfigsByLibrary(
       let bSortOrder: number;
 
       if (activeTab === 'library') {
-        aSortOrder = a.sortOrderLibrary ?? 0;
-        bSortOrder = b.sortOrderLibrary ?? 0;
+        aSortOrder = a.sortOrderLibrary ?? 0; // Keep 0 for A-Z section
+        bSortOrder = b.sortOrderLibrary ?? 0; // Keep 0 for A-Z section
       } else {
-        aSortOrder = a.sortOrderHome ?? 0;
-        bSortOrder = b.sortOrderHome ?? 0;
+        aSortOrder = a.sortOrderHome ?? 1; // 1+ for positioned, 0 for void
+        bSortOrder = b.sortOrderHome ?? 1; // 1+ for positioned, 0 for void
       }
 
       return aSortOrder - bSortOrder;
@@ -112,8 +112,8 @@ export function normalizeConfigsForStorage(
   const normalized = configs.map((config) => ({
     ...config,
     // Ensure sort orders are properly set
-    sortOrderHome: config.sortOrderHome ?? 0,
-    sortOrderLibrary: config.sortOrderLibrary ?? 0,
+    sortOrderHome: config.sortOrderHome ?? 1, // 1+ for positioned, 0 for void
+    sortOrderLibrary: config.sortOrderLibrary ?? 0, // Keep 0 for A-Z section
   }));
 
   return normalized;

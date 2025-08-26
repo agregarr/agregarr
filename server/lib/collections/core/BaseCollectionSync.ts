@@ -938,14 +938,30 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       );
     }
 
-    // Update sort title if needed
-    if (sortOrderLibrary !== undefined) {
+    // Update sort title if needed - for Agregarr-created collections
+    // Find the config to check everLibraryPromoted status
+    const settings = getSettings();
+    const allConfigs = settings.plex.collectionConfigs || [];
+    const matchingConfig = allConfigs.find((config) => {
+      const configLibraryId = Array.isArray(config.libraryId)
+        ? config.libraryId[0]
+        : config.libraryId;
+      return (
+        configLibraryId === options.libraryKey &&
+        config.collectionRatingKey === collectionRatingKey
+      );
+    });
+
+    // Only update sortTitle if everLibraryPromoted is not explicitly false
+    if (
+      sortOrderLibrary !== undefined &&
+      matchingConfig?.everLibraryPromoted !== false
+    ) {
       let sortTitle: string;
+      const updateConfig: Partial<CollectionConfig> = {};
 
       if (isLibraryPromoted && sortOrderLibrary > 0) {
-        // Promoted collections get exclamation marks for manual positioning
-        const settings = getSettings();
-        const allConfigs = settings.plex.collectionConfigs || [];
+        // Promoted: Set exclamation marks
         const sameLibraryConfigs = allConfigs.filter((config) => {
           const configLibraryId = Array.isArray(config.libraryId)
             ? config.libraryId[0]
@@ -969,14 +985,21 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           sortTitle = `!!${collectionName}`;
         }
       } else {
-        // A-Z collections use natural title for alphabetical sorting
+        // Demoted: Reset to natural title and mark as cleaned
         sortTitle = collectionName;
+        // After reset, set everLibraryPromoted back to false
+        updateConfig.everLibraryPromoted = false;
       }
 
       await plexClient.updateCollectionSortTitle(
         collectionRatingKey,
         sortTitle
       );
+
+      // Update config if everLibraryPromoted needs to be reset
+      if (updateConfig.everLibraryPromoted !== undefined && matchingConfig) {
+        this.updateCollectionConfigField(matchingConfig.id, updateConfig);
+      }
     }
 
     // Update visibility settings
@@ -1042,6 +1065,44 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         isActive,
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+  }
+
+  /**
+   * Update specific fields of a collection config
+   */
+  private updateCollectionConfigField(
+    configId: string,
+    updateConfig: Partial<CollectionConfig>
+  ): void {
+    try {
+      const settings = getSettings();
+      const collectionConfigs = settings.plex.collectionConfigs || [];
+      const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
+
+      if (configIndex !== -1) {
+        collectionConfigs[configIndex] = {
+          ...collectionConfigs[configIndex],
+          ...updateConfig,
+        };
+        settings.plex.collectionConfigs = collectionConfigs;
+        settings.save();
+
+        logger.debug(`Updated collection config fields: ${configId}`, {
+          label: `${this.source} Collections`,
+          configId,
+          updatedFields: Object.keys(updateConfig),
+        });
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to update collection config fields for ${configId}`,
+        {
+          label: `${this.source} Collections`,
+          configId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   }
 
