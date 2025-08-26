@@ -217,7 +217,7 @@ const MissingItemsFeed: React.FC = () => {
               onClick={() => setActiveTab('movies')}
             >
               <FilmIcon className="mr-1 h-4 w-4" />
-              {intl.formatMessage(messages.movies)}
+              <span>{intl.formatMessage(messages.movies)}</span>
             </Button>
             <Button
               buttonSize="sm"
@@ -225,7 +225,7 @@ const MissingItemsFeed: React.FC = () => {
               onClick={() => setActiveTab('tv')}
             >
               <TvIcon className="mr-1 h-4 w-4" />
-              {intl.formatMessage(messages.tvShows)}
+              <span>{intl.formatMessage(messages.tvShows)}</span>
             </Button>
           </div>
         )}
