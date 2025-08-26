@@ -97,7 +97,7 @@ function validateExternalUrl(
         }
         break;
       case 'tmdb':
-        if (!urlObj.pathname.match(/^\/collection\/\d+\/?$/)) {
+        if (!urlObj.pathname.match(/^\/collection\/\d+/)) {
           return {
             isValid: false,
             error:

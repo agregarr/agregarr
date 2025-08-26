@@ -131,7 +131,7 @@ const CustomUrlSection = ({
     return (
       <div>
         <label
-          htmlFor="tmdbCustomCollectionUrl"
+          htmlFor="tmdbCustomListUrl"
           className="mb-2 block text-sm font-medium text-gray-300"
         >
           {intl.formatMessage(messages.customTmdbCollectionUrl)}{' '}
@@ -140,8 +140,8 @@ const CustomUrlSection = ({
         <div className="flex gap-2">
           <Field
             type="url"
-            id="tmdbCustomCollectionUrl"
-            name="tmdbCustomCollectionUrl"
+            id="tmdbCustomListUrl"
+            name="tmdbCustomListUrl"
             placeholder="https://www.themoviedb.org/collection/12345"
             className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
@@ -149,7 +149,7 @@ const CustomUrlSection = ({
             <button
               type="button"
               onClick={() => handleFetchTitle('tmdb')}
-              disabled={!values.tmdbCustomCollectionUrl || isLoadingTitle.tmdb}
+              disabled={!values.tmdbCustomListUrl || isLoadingTitle.tmdb}
               className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoadingTitle.tmdb
@@ -159,7 +159,7 @@ const CustomUrlSection = ({
           )}
         </div>
         <ErrorMessage
-          name="tmdbCustomCollectionUrl"
+          name="tmdbCustomListUrl"
           component="div"
           className="mt-1 text-sm text-red-500"
         />
