@@ -32,14 +32,20 @@ router.post('/test', async (req, res, next) => {
     }
 
     // After successful connection, fetch and store Overseerr settings for template variables
+    // This is critical data but we don't fail the test if it can't be fetched
+    let templateDataSuccess = false;
+    let templateDataMessage = '';
+
     try {
       const overseerrSettings = await overseerrClient.getMainSettings();
       if (overseerrSettings) {
-        const settings = getSettings();
-        settings.updateExternalOverseerrInfo(
+        const globalSettings = getSettings();
+        globalSettings.updateExternalOverseerrInfo(
           overseerrSettings.applicationUrl,
           overseerrSettings.applicationTitle
         );
+        templateDataSuccess = true;
+        templateDataMessage = `Template variables updated: ${overseerrSettings.applicationTitle}`;
         logger.info(
           'Stored external Overseerr settings for template variables',
           {
@@ -50,7 +56,11 @@ router.post('/test', async (req, res, next) => {
         );
       }
     } catch (settingsError) {
-      // Don't fail the connection test if we can't fetch settings
+      templateDataMessage = `Warning: Could not fetch template variables - ${
+        settingsError instanceof Error
+          ? settingsError.message
+          : String(settingsError)
+      }`;
       logger.warn('Failed to fetch Overseerr settings for template variables', {
         label: 'API',
         error:
@@ -63,6 +73,8 @@ router.post('/test', async (req, res, next) => {
     return res.status(200).json({
       success: true,
       version: result.version,
+      templateDataSuccess,
+      templateDataMessage,
     });
   } catch (e) {
     logger.error('Overseerr connection test failed', {

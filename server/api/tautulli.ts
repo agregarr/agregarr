@@ -211,11 +211,15 @@ class TautulliAPI {
   private axios: AxiosInstance;
 
   constructor(settings: TautulliSettings) {
+    // Use conditional port logic to match OverseerrAPI - only include port if specified
+    const protocol = settings.useSsl ? 'https' : 'http';
+    const port = settings.port ? `:${settings.port}` : '';
+    const urlBase = settings.urlBase ?? '';
+
     this.axios = axios.create({
-      baseURL: `${settings.useSsl ? 'https' : 'http'}://${settings.hostname}:${
-        settings.port
-      }${settings.urlBase ?? ''}`,
+      baseURL: `${protocol}://${settings.hostname}${port}${urlBase}`,
       params: { apikey: settings.apiKey },
+      timeout: 30000, // 30 second timeout to match OverseerrAPI
     });
   }
 

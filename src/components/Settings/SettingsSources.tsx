@@ -276,7 +276,30 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
               }
             } catch (e) {
               setTraktTestSuccess(false);
-              addToast(intl.formatMessage(messages.traktConnectionFailure), {
+
+              // Provide specific error details to help users diagnose connection issues
+              let errorMessage = intl.formatMessage(
+                messages.traktConnectionFailure
+              );
+              if (e.response?.status === 401) {
+                errorMessage +=
+                  ' - Invalid API key. Check your Trakt Client ID.';
+              } else if (e.response?.status) {
+                errorMessage += ` (HTTP ${e.response.status})`;
+              } else if (e.code === 'ECONNREFUSED') {
+                errorMessage +=
+                  ' - Connection refused. Check network connectivity.';
+              } else if (e.code === 'ENOTFOUND') {
+                errorMessage +=
+                  ' - Unable to reach Trakt API. Check network connectivity.';
+              } else if (e.code === 'ETIMEDOUT') {
+                errorMessage +=
+                  ' - Connection timeout. Check network connectivity.';
+              } else if (e.message) {
+                errorMessage += ` - ${e.message}`;
+              }
+
+              addToast(errorMessage, {
                 autoDismiss: true,
                 appearance: 'error',
               });
@@ -433,6 +456,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 setTestedOverseerrValues(
                   `${values.overseerrHostname}:${values.overseerrPort}:${values.overseerrApiKey}:${values.overseerrUseSsl}:${values.overseerrUrlBase}`
                 );
+
+                // Show success message for connection
                 addToast(
                   `${intl.formatMessage(
                     messages.overseerrConnectionSuccess
@@ -442,6 +467,16 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                     appearance: 'success',
                   }
                 );
+
+                // Show additional info about template data if available
+                if (response.data.templateDataMessage) {
+                  addToast(response.data.templateDataMessage, {
+                    autoDismiss: true,
+                    appearance: response.data.templateDataSuccess
+                      ? 'success'
+                      : 'warning',
+                  });
+                }
               } else {
                 setOverseerrTestSuccess(false);
                 addToast(
@@ -454,13 +489,29 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
               }
             } catch (e) {
               setOverseerrTestSuccess(false);
-              addToast(
-                intl.formatMessage(messages.overseerrConnectionFailure),
-                {
-                  autoDismiss: true,
-                  appearance: 'error',
-                }
+
+              // Provide specific error details to help users diagnose connection issues
+              let errorMessage = intl.formatMessage(
+                messages.overseerrConnectionFailure
               );
+              if (e.response?.status) {
+                errorMessage += ` (HTTP ${e.response.status})`;
+              } else if (e.code === 'ECONNREFUSED') {
+                errorMessage +=
+                  ' - Connection refused. Check hostname and port.';
+              } else if (e.code === 'ENOTFOUND') {
+                errorMessage += ' - Host not found. Check hostname.';
+              } else if (e.code === 'ETIMEDOUT') {
+                errorMessage +=
+                  ' - Connection timeout. Check network connectivity.';
+              } else if (e.message) {
+                errorMessage += ` - ${e.message}`;
+              }
+
+              addToast(errorMessage, {
+                autoDismiss: true,
+                appearance: 'error',
+              });
             } finally {
               setIsTesting(false);
             }
@@ -720,6 +771,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 setTestedTautulliValues(
                   `${values.tautulliHostname}:${values.tautulliPort}:${values.tautulliApiKey}:${values.tautulliUseSsl}:${values.tautulliUrlBase}`
                 );
+
+                // Show success message for connection
                 addToast(
                   `${intl.formatMessage(
                     messages.tautulliConnectionSuccess
@@ -729,6 +782,16 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                     appearance: 'success',
                   }
                 );
+
+                // Show version compatibility info if available
+                if (response.data.versionCheckMessage) {
+                  addToast(response.data.versionCheckMessage, {
+                    autoDismiss: true,
+                    appearance: response.data.versionCheckSuccess
+                      ? 'success'
+                      : 'warning',
+                  });
+                }
               } else {
                 setTautulliTestSuccess(false);
                 addToast(
@@ -741,7 +804,26 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
               }
             } catch (error) {
               setTautulliTestSuccess(false);
-              addToast(intl.formatMessage(messages.tautulliConnectionFailure), {
+
+              // Provide specific error details to help users diagnose connection issues
+              let errorMessage = intl.formatMessage(
+                messages.tautulliConnectionFailure
+              );
+              if (error.response?.status) {
+                errorMessage += ` (HTTP ${error.response.status})`;
+              } else if (error.code === 'ECONNREFUSED') {
+                errorMessage +=
+                  ' - Connection refused. Check hostname and port.';
+              } else if (error.code === 'ENOTFOUND') {
+                errorMessage += ' - Host not found. Check hostname.';
+              } else if (error.code === 'ETIMEDOUT') {
+                errorMessage +=
+                  ' - Connection timeout. Check network connectivity.';
+              } else if (error.message) {
+                errorMessage += ` - ${error.message}`;
+              }
+
+              addToast(errorMessage, {
                 autoDismiss: true,
                 appearance: 'error',
               });

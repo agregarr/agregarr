@@ -1,4 +1,3 @@
-import OverseerrAPI from '@server/api/overseerr';
 import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
@@ -282,33 +281,11 @@ settingsRoutes.get('/tautulli', (_req, res) => {
   res.status(200).json(settings.tautulli);
 });
 
-settingsRoutes.post('/tautulli', async (req, res, next) => {
+settingsRoutes.post('/tautulli', async (req, res) => {
   const settings = getSettings();
 
   Object.assign(settings.tautulli, req.body);
-
-  if (settings.tautulli.hostname) {
-    try {
-      const tautulliClient = new TautulliAPI(settings.tautulli);
-
-      const result = await tautulliClient.getInfo();
-
-      if (!semver.gte(semver.coerce(result?.tautulli_version) ?? '', '2.9.0')) {
-        throw new Error('Tautulli version not supported');
-      }
-
-      settings.save();
-    } catch (e) {
-      logger.error('Something went wrong testing Tautulli connection', {
-        label: 'API',
-        errorMessage: e.message,
-      });
-      return next({
-        status: 500,
-        message: 'Unable to connect to Tautulli.',
-      });
-    }
-  }
+  settings.save();
 
   return res.status(200).json(settings.tautulli);
 });
@@ -339,9 +316,26 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
       throw new Error('Unable to connect to Tautulli');
     }
 
+    // Check version compatibility but don't fail test if unsupported
+    let versionCheckSuccess = false;
+    let versionCheckMessage = '';
+
+    try {
+      if (!semver.gte(semver.coerce(result.tautulli_version) ?? '', '2.9.0')) {
+        versionCheckMessage = `Warning: Tautulli version ${result.tautulli_version} may not be fully supported. Minimum recommended: 2.9.0`;
+      } else {
+        versionCheckSuccess = true;
+        versionCheckMessage = `Version ${result.tautulli_version} is supported`;
+      }
+    } catch (versionError) {
+      versionCheckMessage = `Warning: Could not verify version compatibility - ${versionError.message}`;
+    }
+
     return res.status(200).json({
       success: true,
       version: result.tautulli_version,
+      versionCheckSuccess,
+      versionCheckMessage,
     });
   } catch (e) {
     logger.error('Tautulli connection test failed', {
@@ -409,33 +403,11 @@ settingsRoutes.get('/overseerr', (_req, res) => {
   res.status(200).json(settings.overseerr);
 });
 
-settingsRoutes.post('/overseerr', async (req, res, next) => {
+settingsRoutes.post('/overseerr', async (req, res) => {
   const settings = getSettings();
 
   Object.assign(settings.overseerr, req.body);
-
-  if (settings.overseerr.hostname) {
-    try {
-      const overseerrClient = new OverseerrAPI(settings.overseerr);
-
-      const result = await overseerrClient.testConnection();
-
-      if (!result.success) {
-        throw new Error('Unable to connect to Overseerr');
-      }
-
-      settings.save();
-    } catch (e) {
-      logger.error('Something went wrong testing Overseerr connection', {
-        label: 'API',
-        errorMessage: e.message,
-      });
-      return next({
-        status: 500,
-        message: 'Unable to connect to Overseerr.',
-      });
-    }
-  }
+  settings.save();
 
   return res.status(200).json(settings.overseerr);
 });
