@@ -119,7 +119,7 @@ app
         })
       );
       server.use((req, res, next) => {
-        res.cookie('XSRF-TOKEN', req.csrfToken(), {
+        res.cookie('AGREGARR-XSRF-TOKEN', req.csrfToken(), {
           sameSite: true,
           secure: !dev,
         });
@@ -132,6 +132,7 @@ app
     server.use(
       '/api',
       session({
+        name: 'agregarr.sid', // Unique cookie name to prevent conflicts with Overseerr
         secret: settings.clientId,
         resave: false,
         saveUninitialized: false,
