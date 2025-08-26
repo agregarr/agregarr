@@ -1375,7 +1375,8 @@ const CollectionFormConfigForm = ({
             // For custom templates, send the actual custom text as the template
             template:
               values.template === 'custom'
-                ? values.customMovieTemplate || values.customTVTemplate
+                ? (values as CollectionFormConfig).customMovieTemplate ||
+                  (values as CollectionFormConfig).customTVTemplate
                 : values.template,
             // Convert string numbers to integers
             customDays: values.customDays

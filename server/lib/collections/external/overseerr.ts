@@ -225,7 +225,7 @@ export class OverseerrCollectionService {
         // Only requests with media and user data
         if (!request.media || !request.requestedBy) return false;
 
-        // Exclude Trakt service users from Overseerr collections
+        // Exclude Agregarr service users from collections
         if (
           request.requestedBy &&
           typeof request.requestedBy === 'object' &&
@@ -234,8 +234,8 @@ export class OverseerrCollectionService {
           const email = (request.requestedBy as OverseerrUser).email;
           if (
             email &&
-            email.includes('@') &&
-            email.includes('traktcollections')
+            email.startsWith('donotchangeme@') &&
+            email.includes('agregarr')
           ) {
             return false;
           }
