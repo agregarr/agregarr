@@ -1609,7 +1609,10 @@ const CollectionFormConfigForm = ({
                                 (fetchedTitles.tmdb || config?.name)) ||
                               (values.type === 'imdb' &&
                                 values.subtype === 'custom' &&
-                                (fetchedTitles.imdb || config?.name)))
+                                (fetchedTitles.imdb || config?.name)) ||
+                              (values.type === 'letterboxd' &&
+                                values.subtype === 'custom' &&
+                                (fetchedTitles.letterboxd || config?.name)))
                         )}
                         filteredLibraries={(() => {
                           // Filter by detected media type for custom lists
