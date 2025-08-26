@@ -1372,6 +1372,11 @@ const CollectionFormConfigForm = ({
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
             name: generateCollectionName(values as CollectionFormConfig),
+            // For custom templates, send the actual custom text as the template
+            template:
+              values.template === 'custom'
+                ? values.customMovieTemplate || values.customTVTemplate
+                : values.template,
             // Convert string numbers to integers
             customDays: values.customDays
               ? parseInt(values.customDays.toString(), 10)
