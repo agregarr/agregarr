@@ -87,6 +87,170 @@ const CollectionFormConfigForm = ({
   const [unlinkConfirmState, setUnlinkConfirmState] = useState(false);
   const [linkConfirmState, setLinkConfirmState] = useState(false);
 
+  // Validation schema for collections, hubs, and pre-existing configs
+  const CollectionFormConfigSchema = Yup.object().shape({
+    // Only validate type/subtype for full collections, not hubs/pre-existing
+    type: Yup.string().when(['hubIdentifier', 'collectionType'], {
+      is: (hubIdentifier: string, collectionType: string) =>
+        !hubIdentifier &&
+        collectionType !== 'default_plex_hub' &&
+        collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
+      then: (schema) => schema.required('Collection type is required'),
+      otherwise: (schema) => schema,
+    }),
+    subtype: Yup.string().when(['hubIdentifier', 'collectionType'], {
+      is: (hubIdentifier: string, collectionType: string) =>
+        !hubIdentifier &&
+        collectionType !== 'default_plex_hub' &&
+        collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
+      then: (schema) => schema.required('Collection sub-type is required'),
+      otherwise: (schema) => schema,
+    }),
+
+    // Handle both libraryIds (collections) and libraryId (hubs/pre-existing)
+    libraryIds: Yup.array()
+      .of(Yup.string())
+      .when('libraryId', {
+        is: (libraryId: string) => !libraryId, // Only required if no single libraryId
+        then: (schema) =>
+          schema
+            .min(1, 'Please select at least one library')
+            .required('Please select at least one library'),
+        otherwise: (schema) => schema,
+      }),
+    libraryId: Yup.string(), // Allow single libraryId for hubs/pre-existing
+    // Template validation - only check when it exists
+    template: Yup.string().test(
+      'not-fetch-title',
+      'Please validate the URL first',
+      (value) => !value || value !== 'fetch-title'
+    ),
+
+    // Custom template validations - conditional based on selected libraries
+    customMovieTemplate: Yup.string().when(['template', 'libraryIds'], {
+      is: (template: string, libraryIds: string[]) => {
+        if (template !== 'custom') return false;
+        // Check if any selected library is a movie library
+        return libraryIds?.some((libraryId: string) => {
+          const library = libraries?.find((lib) => lib.key === libraryId);
+          return library?.type === 'movie';
+        });
+      },
+      then: (schema) => schema.required('Movie template is required'),
+      otherwise: (schema) => schema,
+    }),
+
+    customTVTemplate: Yup.string().when(['template', 'libraryIds'], {
+      is: (template: string, libraryIds: string[]) => {
+        if (template !== 'custom') return false;
+        // Check if any selected library is a TV library
+        return libraryIds?.some((libraryId: string) => {
+          const library = libraries?.find((lib) => lib.key === libraryId);
+          return library?.type === 'show';
+        });
+      },
+      then: (schema) => schema.required('TV template is required'),
+      otherwise: (schema) => schema,
+    }),
+
+    customDays: Yup.number().when('type', {
+      is: 'tautulli',
+      then: (schema) =>
+        schema
+          .required('Number of days is required')
+          .min(1, 'Must be at least 1 day')
+          .max(365, 'Cannot exceed 365 days'),
+      otherwise: (schema) => schema,
+    }),
+
+    traktCustomListUrl: Yup.string().when(['type', 'subtype'], {
+      is: (type: string, subtype: string) =>
+        type === 'trakt' && subtype === 'custom',
+      then: (schema) =>
+        schema
+          .required('Trakt list URL is required')
+          .matches(
+            /trakt\.tv\/users\/[^/]+\/lists\/[^/?]+/,
+            'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)'
+          ),
+      otherwise: (schema) => schema,
+    }),
+
+    tmdbCustomListUrl: Yup.string().when(['type', 'subtype'], {
+      is: (type: string, subtype: string) =>
+        type === 'tmdb' && subtype === 'custom',
+      then: (schema) =>
+        schema
+          .required('TMDb collection URL is required')
+          .matches(
+            /themoviedb\.org\/collection\/\d+/,
+            'Please enter a valid TMDb collection URL (e.g., https://www.themoviedb.org/collection/12345)'
+          ),
+      otherwise: (schema) => schema,
+    }),
+
+    imdbCustomListUrl: Yup.string().when(['type', 'subtype'], {
+      is: (type: string, subtype: string) =>
+        type === 'imdb' && subtype === 'custom',
+      then: (schema) =>
+        schema
+          .required('IMDb list URL is required')
+          .matches(
+            /imdb\.com\/list\/ls\d+/,
+            'Please enter a valid IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          ),
+      otherwise: (schema) => schema,
+    }),
+
+    letterboxdCustomListUrl: Yup.string().when(['type', 'subtype'], {
+      is: (type: string, subtype: string) =>
+        type === 'letterboxd' && subtype === 'custom',
+      then: (schema) =>
+        schema
+          .required('Letterboxd list URL is required')
+          .matches(
+            /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
+            'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
+          ),
+      otherwise: (schema) => schema,
+    }),
+
+    maxItems: Yup.number()
+      .min(1, 'Must be at least 1 item')
+      .max(1000, 'Cannot exceed 1000 items'),
+
+    maxSeasonsToRequest: Yup.number().when(
+      ['searchMissingTV', 'autoApproveTV'],
+      {
+        is: (searchMissingTV: boolean, autoApproveTV: boolean) =>
+          searchMissingTV && autoApproveTV,
+        then: (schema) =>
+          schema
+            .min(1, 'Must be at least 1 season')
+            .max(50, 'Cannot exceed 50 seasons'),
+        otherwise: (schema) => schema,
+      }
+    ),
+
+    // Visibility configuration - no validation required, any combination is valid
+    visibilityConfig: Yup.object().shape({
+      usersHome: Yup.boolean(),
+      serverOwnerHome: Yup.boolean(),
+      libraryRecommended: Yup.boolean(),
+    }),
+
+    // Time restriction validation
+    timeRestriction: Yup.object().shape({
+      alwaysActive: Yup.boolean(),
+      removeFromPlexWhenInactive: Yup.boolean(),
+      inactiveVisibilityConfig: Yup.object().shape({
+        usersHome: Yup.boolean(),
+        serverOwnerHome: Yup.boolean(),
+        libraryRecommended: Yup.boolean(),
+      }),
+    }),
+  });
+
   // Safety check for undefined config
   if (!config) {
     return null;
@@ -299,156 +463,6 @@ const CollectionFormConfigForm = ({
       setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
     }
   };
-
-  // Flexible validation schema for collections, hubs, and pre-existing configs
-  const CollectionFormConfigSchema = Yup.object().shape({
-    // Only validate type/subtype for full collections, not hubs/pre-existing
-    type: Yup.string().when(['hubIdentifier', 'collectionType'], {
-      is: (hubIdentifier: string, collectionType: string) =>
-        !hubIdentifier &&
-        collectionType !== 'default_plex_hub' &&
-        collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
-      then: (schema) => schema.required('Collection type is required'),
-      otherwise: (schema) => schema,
-    }),
-    subtype: Yup.string().when(['hubIdentifier', 'collectionType'], {
-      is: (hubIdentifier: string, collectionType: string) =>
-        !hubIdentifier &&
-        collectionType !== 'default_plex_hub' &&
-        collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
-      then: (schema) => schema.required('Collection sub-type is required'),
-      otherwise: (schema) => schema,
-    }),
-
-    // Handle both libraryIds (collections) and libraryId (hubs/pre-existing)
-    libraryIds: Yup.array()
-      .of(Yup.string())
-      .when('libraryId', {
-        is: (libraryId: string) => !libraryId, // Only required if no single libraryId
-        then: (schema) =>
-          schema
-            .min(1, 'Please select at least one library')
-            .required('Please select at least one library'),
-        otherwise: (schema) => schema,
-      }),
-    libraryId: Yup.string(), // Allow single libraryId for hubs/pre-existing
-    // Template validation - only check when it exists
-    template: Yup.string().test(
-      'not-fetch-title',
-      'Please validate the URL first',
-      (value) => !value || value !== 'fetch-title'
-    ),
-
-    // Custom template validations - simplified
-    customMovieTemplate: Yup.string().when('template', {
-      is: 'custom',
-      then: (schema) => schema.required('Movie template is required'),
-      otherwise: (schema) => schema,
-    }),
-
-    customTVTemplate: Yup.string().when('template', {
-      is: 'custom',
-      then: (schema) => schema.required('TV template is required'),
-      otherwise: (schema) => schema,
-    }),
-
-    customDays: Yup.number().when('type', {
-      is: 'tautulli',
-      then: (schema) =>
-        schema
-          .required('Number of days is required')
-          .min(1, 'Must be at least 1 day')
-          .max(365, 'Cannot exceed 365 days'),
-      otherwise: (schema) => schema,
-    }),
-
-    traktCustomListUrl: Yup.string().when(['type', 'subtype'], {
-      is: (type: string, subtype: string) =>
-        type === 'trakt' && subtype === 'custom',
-      then: (schema) =>
-        schema
-          .required('Trakt list URL is required')
-          .matches(
-            /trakt\.tv\/users\/[^/]+\/lists\/[^/?]+/,
-            'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)'
-          ),
-      otherwise: (schema) => schema,
-    }),
-
-    tmdbCustomListUrl: Yup.string().when(['type', 'subtype'], {
-      is: (type: string, subtype: string) =>
-        type === 'tmdb' && subtype === 'custom',
-      then: (schema) =>
-        schema
-          .required('TMDb collection URL is required')
-          .matches(
-            /themoviedb\.org\/collection\/\d+/,
-            'Please enter a valid TMDb collection URL (e.g., https://www.themoviedb.org/collection/12345)'
-          ),
-      otherwise: (schema) => schema,
-    }),
-
-    imdbCustomListUrl: Yup.string().when(['type', 'subtype'], {
-      is: (type: string, subtype: string) =>
-        type === 'imdb' && subtype === 'custom',
-      then: (schema) =>
-        schema
-          .required('IMDb list URL is required')
-          .matches(
-            /imdb\.com\/list\/ls\d+/,
-            'Please enter a valid IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
-          ),
-      otherwise: (schema) => schema,
-    }),
-
-    letterboxdCustomListUrl: Yup.string().when(['type', 'subtype'], {
-      is: (type: string, subtype: string) =>
-        type === 'letterboxd' && subtype === 'custom',
-      then: (schema) =>
-        schema
-          .required('Letterboxd list URL is required')
-          .matches(
-            /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
-            'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
-          ),
-      otherwise: (schema) => schema,
-    }),
-
-    maxItems: Yup.number()
-      .min(1, 'Must be at least 1 item')
-      .max(1000, 'Cannot exceed 1000 items'),
-
-    maxSeasonsToRequest: Yup.number().when(
-      ['searchMissingTV', 'autoApproveTV'],
-      {
-        is: (searchMissingTV: boolean, autoApproveTV: boolean) =>
-          searchMissingTV && autoApproveTV,
-        then: (schema) =>
-          schema
-            .min(1, 'Must be at least 1 season')
-            .max(50, 'Cannot exceed 50 seasons'),
-        otherwise: (schema) => schema,
-      }
-    ),
-
-    // Visibility configuration - no validation required, any combination is valid
-    visibilityConfig: Yup.object().shape({
-      usersHome: Yup.boolean(),
-      serverOwnerHome: Yup.boolean(),
-      libraryRecommended: Yup.boolean(),
-    }),
-
-    // Time restriction validation
-    timeRestriction: Yup.object().shape({
-      alwaysActive: Yup.boolean(),
-      removeFromPlexWhenInactive: Yup.boolean(),
-      inactiveVisibilityConfig: Yup.object().shape({
-        usersHome: Yup.boolean(),
-        serverOwnerHome: Yup.boolean(),
-        libraryRecommended: Yup.boolean(),
-      }),
-    }),
-  });
 
   // Template presets will be handled within the Formik form
   // Auto-adjustments will be handled via onChange handlers
