@@ -229,7 +229,7 @@
       ]
     ],
     "branches": [
-      "master"
+      "latest"
     ],
     "npmPublish": false,
     "publish": [

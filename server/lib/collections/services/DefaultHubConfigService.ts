@@ -109,6 +109,7 @@ export class DefaultHubConfigService {
   /**
    * Update settings for an individual default hub configuration
    * Preserves computed fields while allowing user changes
+   * If the hub is linked, updates all linked hub instances
    */
   public updateSettings(
     id: string,
@@ -123,32 +124,65 @@ export class DefaultHubConfigService {
 
     const existingConfig = configs[existingConfigIndex];
 
-    // Merge settings while preserving computed fields
-    const updatedConfig: PlexHubConfig = {
-      ...existingConfig, // Preserve all existing fields including computed ones
-      ...settings, // Apply user changes
-      // Ensure computed fields stay computed:
-      id: existingConfig.id, // ID never changes
-      isActive: existingConfig.isActive, // isActive is computed elsewhere
-      collectionType: existingConfig.collectionType, // Computed field
-      // Business logic fields can be changed by user:
-      isLinked: settings.isLinked ?? existingConfig.isLinked,
-      linkId: settings.linkId ?? existingConfig.linkId,
-    };
+    // Check if this is a linked hub - if so, update all linked configs
+    const configsToUpdate = [];
+    if (existingConfig.isLinked && existingConfig.linkId) {
+      // Find all configs with the same linkId
+      const linkedConfigs = configs.filter(
+        (c) => c.linkId === existingConfig.linkId && c.isLinked
+      );
+      configsToUpdate.push(...linkedConfigs);
+      logger.info(`Updating ${linkedConfigs.length} linked hub configs`, {
+        label: 'Default Hub Config Service',
+        linkId: existingConfig.linkId,
+        configIds: linkedConfigs.map((c) => c.id),
+      });
+    } else {
+      configsToUpdate.push(existingConfig);
+    }
 
-    // Update the config in place
-    configs[existingConfigIndex] = updatedConfig;
+    const updatedConfigs: PlexHubConfig[] = [];
+
+    // Process each config (could be just one, or multiple if linked)
+    for (const configToUpdate of configsToUpdate) {
+      const configIndex = configs.findIndex((c) => c.id === configToUpdate.id);
+
+      // Merge settings while preserving computed fields and library-specific fields
+      const updatedConfig: PlexHubConfig = {
+        ...configToUpdate, // Preserve all existing fields including computed ones
+        ...settings, // Apply user changes
+        // Ensure computed fields stay computed:
+        id: configToUpdate.id, // ID never changes
+        isActive: configToUpdate.isActive, // isActive is computed elsewhere
+        collectionType: configToUpdate.collectionType, // Computed field
+        // For linked collections, preserve library-specific fields
+        libraryId: configToUpdate.libraryId, // Don't change the library assignment
+        libraryName: configToUpdate.libraryName, // Don't change the library name
+        hubIdentifier: configToUpdate.hubIdentifier, // Don't change the hub identifier
+        mediaType: configToUpdate.mediaType, // Don't change the media type
+        // Business logic fields can be changed by user:
+        isLinked: settings.isLinked ?? configToUpdate.isLinked,
+        linkId: settings.linkId ?? configToUpdate.linkId,
+      };
+
+      // Update the config in place
+      configs[configIndex] = updatedConfig;
+      updatedConfigs.push(updatedConfig);
+    }
 
     // Save the updated configs
     this.saveExistingConfigs(configs);
 
-    logger.info('Individual default hub config updated successfully', {
+    logger.info('Hub config(s) updated successfully', {
       label: 'Default Hub Config Service',
-      configId: id,
-      configName: updatedConfig.name,
+      updatedCount: updatedConfigs.length,
+      configIds: updatedConfigs.map((c) => c.id),
+      configNames: updatedConfigs.map((c) => c.name),
+      isLinked: existingConfig.isLinked,
+      linkId: existingConfig.linkId || 'none',
     });
 
-    return updatedConfig;
+    return updatedConfigs[0]; // Return the primary config (the one that was edited)
   }
 
   /**

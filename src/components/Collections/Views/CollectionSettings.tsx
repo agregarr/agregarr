@@ -1436,81 +1436,13 @@ const CollectionSettings = ({
       let changedConfigs: CollectionFormConfig[] = [];
 
       if (existingIndex >= 0) {
-        // Update existing config
-        if (
-          collectionConfig.isLinked &&
-          collectionConfig.linkId &&
-          collectionConfig.libraryIds
-        ) {
-          // This is a linked collection update - update all linked configs with same type/subtype
-          updatedConfigs = [...localCollectionConfigs];
+        // Update existing config - backend will handle linked collection propagation
+        updatedConfigs = [...localCollectionConfigs];
+        updatedConfigs[existingIndex] = collectionConfig;
 
-          // Find all linked configs with same type/subtype and linkId
-          const linkedConfigs = updatedConfigs.filter(
-            (c) =>
-              c.type === collectionConfig.type &&
-              c.subtype === collectionConfig.subtype &&
-              c.linkId === collectionConfig.linkId &&
-              c.isLinked // Only linked configs
-          );
-
-          // Update all linked configs with new settings (except library-specific fields)
-          linkedConfigs.forEach((linkedConfig) => {
-            const index = updatedConfigs.findIndex(
-              (c) => c.id === linkedConfig.id
-            );
-            if (index >= 0) {
-              updatedConfigs[index] = {
-                ...linkedConfig,
-                // Update shared settings
-                template: collectionConfig.template,
-                customMovieTemplate: collectionConfig.customMovieTemplate,
-                customTVTemplate: collectionConfig.customTVTemplate,
-                visibilityConfig: collectionConfig.visibilityConfig,
-                maxItems: collectionConfig.maxItems,
-                mediaType: collectionConfig.mediaType,
-                customDays: collectionConfig.customDays,
-                tautulliStatType: collectionConfig.tautulliStatType,
-                downloadMode: collectionConfig.downloadMode,
-                searchMissingMovies: collectionConfig.searchMissingMovies,
-                searchMissingTV: collectionConfig.searchMissingTV,
-                autoApproveMovies: collectionConfig.autoApproveMovies,
-                autoApproveTV: collectionConfig.autoApproveTV,
-                maxSeasonsToRequest: collectionConfig.maxSeasonsToRequest,
-                maxPositionToProcess: collectionConfig.maxPositionToProcess,
-                traktCustomListUrl: collectionConfig.traktCustomListUrl,
-                tmdbCustomListUrl: collectionConfig.tmdbCustomListUrl,
-                imdbCustomListUrl: collectionConfig.imdbCustomListUrl,
-                letterboxdCustomListUrl:
-                  collectionConfig.letterboxdCustomListUrl,
-                reverseOrder: collectionConfig.reverseOrder,
-                randomizeOrder: collectionConfig.randomizeOrder,
-                timeRestriction: collectionConfig.timeRestriction,
-                customPoster: collectionConfig.customPoster,
-                isUnlinked: collectionConfig.isUnlinked,
-                // Keep library-specific fields unchanged
-                libraryId: linkedConfig.libraryId,
-                libraryName: linkedConfig.libraryName,
-                collectionRatingKey: linkedConfig.collectionRatingKey,
-              };
-            }
-          });
-
-          // Only send API calls for the linked configs that were actually changed
-          changedConfigs = linkedConfigs.map((linkedConfig) => {
-            const index = updatedConfigs.findIndex(
-              (c) => c.id === linkedConfig.id
-            );
-            return updatedConfigs[index];
-          });
-        } else {
-          // Regular single config update
-          updatedConfigs = [...localCollectionConfigs];
-          updatedConfigs[existingIndex] = collectionConfig;
-
-          // Only send API call for the single config that changed
-          changedConfigs = [collectionConfig];
-        }
+        // Always send API call for only the single config that changed
+        // Backend will automatically propagate changes to linked configs
+        changedConfigs = [collectionConfig];
       } else {
         // Add new config(s) - Use new simplified backend API
         try {
@@ -1570,13 +1502,15 @@ const CollectionSettings = ({
         }
       }
 
-      // Update local React state with all changes for UI
-      setLocalCollectionConfigs(updatedConfigs);
-
       // Only send API calls for collections that actually changed
       if (changedConfigs.length > 0) {
         await saveCollectionConfigs(changedConfigs);
+        // Refresh data from backend - this will pick up any linked collection changes
+        // that the backend automatically propagated
         revalidateAll();
+      } else {
+        // Update local React state if no API calls needed
+        setLocalCollectionConfigs(updatedConfigs);
       }
 
       setShowConfigForm(false);

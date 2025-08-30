@@ -1383,8 +1383,12 @@ const CollectionFormConfigForm = ({
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
             name: generateCollectionName(values as CollectionFormConfig),
-            // For custom templates, pass both custom templates and let backend choose
-            template: values.template,
+            // For custom templates, send the actual custom text as the template
+            template:
+              values.template === 'custom'
+                ? (values as CollectionFormConfig).customMovieTemplate ||
+                  (values as CollectionFormConfig).customTVTemplate
+                : values.template,
             customMovieTemplate:
               values.template === 'custom'
                 ? (values as CollectionFormConfig).customMovieTemplate
@@ -2072,6 +2076,16 @@ const CollectionFormConfigForm = ({
       (values.subtype === 'users' || values.subtype === 'server_owner')
     ) {
       return values.name || 'User Collection';
+    }
+
+    // Handle custom templates - use the actual custom template text, not "custom"
+    if (values.template === 'custom') {
+      // Use the first available custom template (movie or TV)
+      const customTemplate =
+        values.customMovieTemplate || values.customTVTemplate;
+      if (customTemplate) {
+        return customTemplate;
+      }
     }
 
     // Return the template as the name - backend will process it with proper library context

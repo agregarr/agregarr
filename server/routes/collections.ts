@@ -171,104 +171,152 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
 
     const existingConfig = configs[existingConfigIndex];
 
-    // Process template to generate actual collection name (same logic as create endpoint)
-    // Get library to determine media type
-    const libraries = settings.plex.libraries || [];
-    const library = libraries.find(
-      (lib) => lib.key === (req.body.libraryId || existingConfig.libraryId)
-    );
-    const libraryMediaType: 'movie' | 'tv' =
-      library && library.type === 'show' ? 'tv' : 'movie';
-
-    const context = {
-      ...templateEngine.getDefaultContext(),
-      mediaType: libraryMediaType,
-      days: req.body.customDays || existingConfig.customDays,
-      customdays: req.body.customDays || existingConfig.customDays,
-      statType: req.body.tautulliStatType || existingConfig.tautulliStatType,
-      subtype: req.body.subtype || existingConfig.subtype,
-    };
-    let processedName = templateEngine.processTemplate(
-      req.body.template ||
-        req.body.name ||
-        existingConfig.template ||
-        existingConfig.name ||
-        '',
-      context
-    );
-
-    // For Overseerr user collections, keep {username} and {nickname} as literals
-    if (
-      (req.body.type || existingConfig.type) === 'overseerr' &&
-      (req.body.subtype || existingConfig.subtype) === 'users'
-    ) {
-      const defaultContext = templateEngine.getDefaultContext();
-      if (defaultContext.username) {
-        processedName = processedName.replace(
-          new RegExp(defaultContext.username, 'g'),
-          '{username}'
-        );
-      }
-      if (defaultContext.nickname) {
-        processedName = processedName.replace(
-          new RegExp(defaultContext.nickname, 'g'),
-          '{nickname}'
-        );
-      }
+    // Check if this is a linked collection - if so, update all linked configs
+    const configsToUpdate = [];
+    if (existingConfig.isLinked && existingConfig.linkId) {
+      // Find all configs with the same linkId
+      const linkedConfigs = configs.filter(
+        (c) => c.linkId === existingConfig.linkId && c.isLinked
+      );
+      configsToUpdate.push(...linkedConfigs);
+      logger.info(
+        `Updating ${linkedConfigs.length} linked collection configs`,
+        {
+          label: 'Collections API',
+          linkId: existingConfig.linkId,
+          configIds: linkedConfigs.map((c) => c.id),
+        }
+      );
+    } else {
+      configsToUpdate.push(existingConfig);
     }
 
-    // Merge settings while preserving computed fields
-    const updatedConfig = {
-      ...existingConfig, // Preserve all existing fields including computed ones
-      ...req.body, // Apply user changes
-      name: processedName, // Use processed template name
-      // Ensure computed fields stay computed:
-      id: existingConfig.id, // ID never changes
-      isActive: existingConfig.isActive, // Preserve sync service's isActive calculation
-    };
+    // Get libraries for template processing
+    const libraries = settings.plex.libraries || [];
+    const updatedConfigs: CollectionConfig[] = [];
+    const affectedLibraryIds: string[] = [];
 
-    // Update the config in place
-    configs[existingConfigIndex] = updatedConfig;
+    // Process each config (could be just one, or multiple if linked)
+    for (const configToUpdate of configsToUpdate) {
+      const configIndex = configs.findIndex((c) => c.id === configToUpdate.id);
+
+      // Get library to determine media type for template processing
+      const library = libraries.find(
+        (lib) => lib.key === (req.body.libraryId || configToUpdate.libraryId)
+      );
+      const libraryMediaType: 'movie' | 'tv' =
+        library && library.type === 'show' ? 'tv' : 'movie';
+
+      const context = {
+        ...templateEngine.getDefaultContext(),
+        mediaType: libraryMediaType,
+        days: req.body.customDays || configToUpdate.customDays,
+        customdays: req.body.customDays || configToUpdate.customDays,
+        statType: req.body.tautulliStatType || configToUpdate.tautulliStatType,
+        subtype: req.body.subtype || configToUpdate.subtype,
+      };
+
+      let processedName = templateEngine.processTemplate(
+        req.body.template ||
+          req.body.name ||
+          configToUpdate.template ||
+          configToUpdate.name ||
+          '',
+        context
+      );
+
+      // For Overseerr user collections, keep {username} and {nickname} as literals
+      if (
+        (req.body.type || configToUpdate.type) === 'overseerr' &&
+        (req.body.subtype || configToUpdate.subtype) === 'users'
+      ) {
+        const defaultContext = templateEngine.getDefaultContext();
+        if (defaultContext.username) {
+          processedName = processedName.replace(
+            new RegExp(defaultContext.username, 'g'),
+            '{username}'
+          );
+        }
+        if (defaultContext.nickname) {
+          processedName = processedName.replace(
+            new RegExp(defaultContext.nickname, 'g'),
+            '{nickname}'
+          );
+        }
+      }
+
+      // Merge settings while preserving computed fields and library-specific fields
+      const updatedConfig: CollectionConfig = {
+        ...configToUpdate, // Preserve all existing fields including computed ones
+        ...req.body, // Apply user changes
+        name: processedName, // Use processed template name
+        // Ensure computed fields stay computed:
+        id: configToUpdate.id, // ID never changes
+        isActive: configToUpdate.isActive, // Preserve sync service's isActive calculation
+        // For linked collections, preserve library-specific fields
+        libraryId: configToUpdate.libraryId, // Don't change the library assignment
+        libraryName: configToUpdate.libraryName, // Don't change the library name
+      };
+
+      // Update the config in place
+      configs[configIndex] = updatedConfig;
+      updatedConfigs.push(updatedConfig);
+
+      // Track affected libraries for auto-reorder
+      const libraryId = Array.isArray(updatedConfig.libraryId)
+        ? updatedConfig.libraryId[0]
+        : updatedConfig.libraryId;
+      if (libraryId && !affectedLibraryIds.includes(libraryId)) {
+        affectedLibraryIds.push(libraryId);
+      }
+
+      // Mark collection as needing sync due to modification
+      settings.markCollectionModified(configToUpdate.id, 'collection');
+    }
+
     settings.plex.collectionConfigs = configs;
     settings.save();
 
-    // Mark collection as needing sync due to modification
-    settings.markCollectionModified(id, 'collection');
-
-    logger.info('Individual collection config updated successfully', {
+    logger.info('Collection config(s) updated successfully', {
       label: 'Collections API',
-      configId: id,
-      configName: updatedConfig.name,
+      updatedCount: updatedConfigs.length,
+      configIds: updatedConfigs.map((c) => c.id),
+      configNames: updatedConfigs.map((c) => c.name),
+      isLinked: existingConfig.isLinked,
+      linkId: existingConfig.linkId || 'none',
     });
 
     // Auto-reorder after visibility changes to assign proper sort orders
     const { autoReorderLibrary } = await import('@server/routes/reorder');
-    try {
-      const libraryId = Array.isArray(updatedConfig.libraryId)
-        ? updatedConfig.libraryId[0]
-        : updatedConfig.libraryId;
-      await autoReorderLibrary(libraryId, 'home');
-      await autoReorderLibrary(libraryId, 'library');
-      logger.debug(
-        `Auto-reordering completed after collection settings update for library ${libraryId}`,
-        {
+    for (const libraryId of affectedLibraryIds) {
+      try {
+        await autoReorderLibrary(libraryId, 'home');
+        await autoReorderLibrary(libraryId, 'library');
+        logger.debug(
+          `Auto-reordering completed after collection settings update for library ${libraryId}`,
+          {
+            label: 'Collections API - Auto Reorder',
+          }
+        );
+      } catch (error) {
+        logger.warn('Failed to auto-reorder after collection settings update', {
           label: 'Collections API - Auto Reorder',
-        }
-      );
-    } catch (error) {
-      logger.warn('Failed to auto-reorder after collection settings update', {
-        label: 'Collections API - Auto Reorder',
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Don't fail the settings update if reordering fails
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Don't fail the settings update if reordering fails
+      }
     }
 
     return res.status(200).json({
-      collectionConfig: updatedConfig,
-      message: 'Collection settings updated successfully',
+      collectionConfig: updatedConfigs[0], // Return the primary config (the one that was edited)
+      updatedConfigs: updatedConfigs, // Include all updated configs in response
+      message: `${updatedConfigs.length} collection config${
+        updatedConfigs.length === 1 ? '' : 's'
+      } updated successfully`,
     });
   } catch (error) {
-    logger.error('Failed to update individual collection settings', {
+    logger.error('Failed to update collection settings', {
       label: 'Collections API',
       error: error instanceof Error ? error.message : String(error),
       configId: req.params.id,

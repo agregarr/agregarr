@@ -133,6 +133,7 @@ export class PreExistingCollectionConfigService {
   /**
    * Update settings for an individual pre-existing collection configuration
    * Preserves computed fields while allowing user changes
+   * If the collection is linked, updates all linked collection instances
    */
   public updateSettings(
     id: string,
@@ -147,36 +148,69 @@ export class PreExistingCollectionConfigService {
 
     const existingConfig = configs[existingConfigIndex];
 
-    // Merge settings while preserving computed fields
-    const updatedConfig: PreExistingCollectionConfig = {
-      ...existingConfig, // Preserve all existing fields including computed ones
-      ...settings, // Apply user changes
-      // Ensure computed fields stay computed:
-      id: existingConfig.id, // ID never changes
-      isActive: existingConfig.isActive, // isActive is computed elsewhere
-      collectionType: existingConfig.collectionType, // Computed field
-      // Business logic fields can be changed by user:
-      isLinked: settings.isLinked ?? existingConfig.isLinked,
-      linkId: settings.linkId ?? existingConfig.linkId,
-      isUnlinked: settings.isUnlinked ?? existingConfig.isUnlinked,
-    };
+    // Check if this is a linked collection - if so, update all linked configs
+    const configsToUpdate = [];
+    if (existingConfig.isLinked && existingConfig.linkId) {
+      // Find all configs with the same linkId
+      const linkedConfigs = configs.filter(
+        (c) => c.linkId === existingConfig.linkId && c.isLinked
+      );
+      configsToUpdate.push(...linkedConfigs);
+      logger.info(
+        `Updating ${linkedConfigs.length} linked pre-existing collection configs`,
+        {
+          label: 'Pre-existing Collection Config Service',
+          linkId: existingConfig.linkId,
+          configIds: linkedConfigs.map((c) => c.id),
+        }
+      );
+    } else {
+      configsToUpdate.push(existingConfig);
+    }
 
-    // Update the config in place
-    configs[existingConfigIndex] = updatedConfig;
+    const updatedConfigs: PreExistingCollectionConfig[] = [];
+
+    // Process each config (could be just one, or multiple if linked)
+    for (const configToUpdate of configsToUpdate) {
+      const configIndex = configs.findIndex((c) => c.id === configToUpdate.id);
+
+      // Merge settings while preserving computed fields and library-specific fields
+      const updatedConfig: PreExistingCollectionConfig = {
+        ...configToUpdate, // Preserve all existing fields including computed ones
+        ...settings, // Apply user changes
+        // Ensure computed fields stay computed:
+        id: configToUpdate.id, // ID never changes
+        isActive: configToUpdate.isActive, // isActive is computed elsewhere
+        collectionType: configToUpdate.collectionType, // Computed field
+        // For linked collections, preserve library-specific fields
+        libraryId: configToUpdate.libraryId, // Don't change the library assignment
+        libraryName: configToUpdate.libraryName, // Don't change the library name
+        collectionRatingKey: configToUpdate.collectionRatingKey, // Don't change the Plex rating key
+        mediaType: configToUpdate.mediaType, // Don't change the media type
+        // Business logic fields can be changed by user:
+        isLinked: settings.isLinked ?? configToUpdate.isLinked,
+        linkId: settings.linkId ?? configToUpdate.linkId,
+        isUnlinked: settings.isUnlinked ?? configToUpdate.isUnlinked,
+      };
+
+      // Update the config in place
+      configs[configIndex] = updatedConfig;
+      updatedConfigs.push(updatedConfig);
+    }
 
     // Save the updated configs
     this.saveExistingConfigs(configs);
 
-    logger.info(
-      'Individual pre-existing collection config updated successfully',
-      {
-        label: 'Pre-existing Collection Config Service',
-        configId: id,
-        configName: updatedConfig.name,
-      }
-    );
+    logger.info('Pre-existing collection config(s) updated successfully', {
+      label: 'Pre-existing Collection Config Service',
+      updatedCount: updatedConfigs.length,
+      configIds: updatedConfigs.map((c) => c.id),
+      configNames: updatedConfigs.map((c) => c.name),
+      isLinked: existingConfig.isLinked,
+      linkId: existingConfig.linkId || 'none',
+    });
 
-    return updatedConfig;
+    return updatedConfigs[0]; // Return the primary config (the one that was edited)
   }
 
   /**
