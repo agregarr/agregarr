@@ -183,7 +183,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
     missingItems?: MissingItem[];
     stats?: FilteringStats;
   }> {
-    const minimumPlays = 3;
+    const minimumPlays = config.minimumPlays ?? 3;
     // If no config provided, accept all media types
     const mediaType = config ? getCollectionMediaType(config) : null;
 
