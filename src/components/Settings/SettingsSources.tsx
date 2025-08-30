@@ -59,7 +59,7 @@ const messages = defineMessages({
     'Configure your Trakt API key to enable Trakt-based collections with preset lists and custom list option.',
   traktApiKey: 'Trakt API Key',
   traktApiKeyTip:
-    'Get your API key from https://trakt.tv/oauth/applications/new and copy the Client ID.',
+    'Get your API key from https://trakt.tv/oauth/applications/new and copy the Client ID. Use "urn:ietf:wg:oauth:2.0:oob" as the redirect URI when creating the application.',
   toastTraktSettingsSuccess: 'Trakt settings saved successfully!',
   toastTraktSettingsFailure:
     'Something went wrong while saving Trakt settings.',
