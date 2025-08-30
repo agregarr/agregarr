@@ -191,6 +191,8 @@ export interface AutoRequestConfig {
   autoApproveTV: boolean;
   /** Maximum seasons to auto-approve for TV shows */
   maxSeasonsToRequest: number;
+  /** Limit each TV show to only the first X seasons */
+  seasonsPerShowLimit?: number;
 }
 
 /**

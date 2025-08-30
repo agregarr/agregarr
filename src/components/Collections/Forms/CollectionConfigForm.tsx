@@ -229,18 +229,23 @@ const CollectionFormConfigForm = ({
         otherwise: (schema) => schema.notRequired(),
       }),
 
-    maxSeasonsToRequest: Yup.number().when(
-      ['searchMissingTV', 'autoApproveTV'],
-      {
-        is: (searchMissingTV: boolean, autoApproveTV: boolean) =>
-          searchMissingTV && autoApproveTV,
-        then: (schema) =>
-          schema
-            .min(1, 'Must be at least 1 season')
-            .max(50, 'Cannot exceed 50 seasons'),
-        otherwise: (schema) => schema,
-      }
-    ),
+    maxSeasonsToRequest: Yup.number().when('searchMissingTV', {
+      is: (searchMissingTV: boolean) => searchMissingTV,
+      then: (schema) =>
+        schema
+          .min(1, 'Must be at least 1 season')
+          .max(50, 'Cannot exceed 50 seasons'),
+      otherwise: (schema) => schema,
+    }),
+
+    seasonsPerShowLimit: Yup.number().when('searchMissingTV', {
+      is: (searchMissingTV: boolean) => searchMissingTV,
+      then: (schema) =>
+        schema
+          .min(0, 'Must be 0 or greater (0 = all seasons)')
+          .max(50, 'Cannot exceed 50 seasons'),
+      otherwise: (schema) => schema,
+    }),
 
     // Visibility configuration - no validation required, any combination is valid
     visibilityConfig: Yup.object().shape({
@@ -1319,6 +1324,8 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).autoApproveTV ?? false,
           maxSeasonsToRequest:
             (config as CollectionFormConfig).maxSeasonsToRequest || 3,
+          seasonsPerShowLimit:
+            (config as CollectionFormConfig).seasonsPerShowLimit || 0,
           maxPositionToProcess:
             (config as CollectionFormConfig).maxPositionToProcess || 0,
           visibilityConfig: {
@@ -1409,6 +1416,9 @@ const CollectionFormConfigForm = ({
               : 50,
             maxSeasonsToRequest: values.maxSeasonsToRequest
               ? parseInt(values.maxSeasonsToRequest.toString(), 10)
+              : undefined,
+            seasonsPerShowLimit: values.seasonsPerShowLimit
+              ? parseInt(values.seasonsPerShowLimit.toString(), 10)
               : undefined,
             // Handle download settings based on enableGrabMissingItems
             downloadMode: values.enableGrabMissingItems
@@ -2047,6 +2057,7 @@ const CollectionFormConfigForm = ({
                             imdbCustomListUrl: 'IMDb List URL',
                             letterboxdCustomListUrl: 'Letterboxd List URL',
                             maxSeasonsToRequest: 'Max Seasons to Request',
+                            seasonsPerShowLimit: 'Seasons Per Show Limit',
                             timePeriod: 'Time Period',
                           };
 

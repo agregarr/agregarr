@@ -205,6 +205,7 @@ export interface CollectionFormConfig {
   readonly autoApproveMovies?: boolean; // Auto-approve movie requests
   readonly autoApproveTV?: boolean; // Auto-approve TV show requests
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval
+  readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL

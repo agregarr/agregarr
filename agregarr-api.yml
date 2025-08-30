@@ -318,6 +318,11 @@ components:
           description: "Max seasons for auto-approval (TV shows with more seasons require manual approval)"
           example: 5
           nullable: true
+        seasonsPerShowLimit:
+          type: integer
+          description: "Limit each TV show to only the first X seasons (0 = all seasons)"
+          example: 2
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)"
@@ -600,6 +605,11 @@ components:
           description: "Max seasons for auto-approval (TV shows with more seasons require manual approval)"
           example: 5
           nullable: true
+        seasonsPerShowLimit:
+          type: integer
+          description: "Limit each TV show to only the first X seasons (0 = all seasons)"
+          example: 2
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)"
@@ -849,6 +859,11 @@ components:
           type: integer
           description: "Max seasons for auto-approval (TV shows with more seasons require manual approval)"
           example: 5
+          nullable: true
+        seasonsPerShowLimit:
+          type: integer
+          description: "Limit each TV show to only the first X seasons (0 = all seasons)"
+          example: 2
           nullable: true
         traktCustomListUrl:
           type: string

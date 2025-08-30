@@ -315,6 +315,9 @@ const CollectionSettings = ({
           ...(collectionConfig.maxSeasonsToRequest !== undefined && {
             maxSeasonsToRequest: collectionConfig.maxSeasonsToRequest,
           }),
+          ...(collectionConfig.seasonsPerShowLimit !== undefined && {
+            seasonsPerShowLimit: collectionConfig.seasonsPerShowLimit,
+          }),
           ...(collectionConfig.maxPositionToProcess !== undefined && {
             maxPositionToProcess: collectionConfig.maxPositionToProcess,
           }),
@@ -469,6 +472,7 @@ const CollectionSettings = ({
           autoApproveMovies: config.autoApproveMovies,
           autoApproveTV: config.autoApproveTV,
           maxSeasonsToRequest: config.maxSeasonsToRequest,
+          seasonsPerShowLimit: config.seasonsPerShowLimit,
           traktCustomListUrl: config.traktCustomListUrl,
           tmdbCustomListUrl: config.tmdbCustomListUrl,
           imdbCustomListUrl: config.imdbCustomListUrl,
@@ -543,6 +547,7 @@ const CollectionSettings = ({
       autoApproveMovies: false,
       autoApproveTV: false,
       maxSeasonsToRequest: 3, // Default season limit
+      seasonsPerShowLimit: 0, // Default: all seasons
     };
     setEditingConfig(newConfig);
     setShowConfigForm(true);
@@ -1643,6 +1648,7 @@ const CollectionSettings = ({
               autoApproveMovies: masterConfig.autoApproveMovies,
               autoApproveTV: masterConfig.autoApproveTV,
               maxSeasonsToRequest: masterConfig.maxSeasonsToRequest,
+              seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
               maxPositionToProcess: masterConfig.maxPositionToProcess,
               timeRestriction: masterConfig.timeRestriction,
               traktCustomListUrl: masterConfig.traktCustomListUrl,

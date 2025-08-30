@@ -13,6 +13,9 @@ const messages = defineMessages({
   positionLimitHelp: '0 = no limit',
   tvSeasonLimit: 'Skip TV shows with more than this many seasons',
   tvSeasonLimitHelp: '0 = no limit',
+  seasonsPerShow: 'Seasons per TV show to download/request',
+  seasonsPerShowHelp:
+    'Limit each TV show to only the first X seasons (0 = all seasons)',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -216,6 +219,31 @@ const AutoRequestSection = ({
               )}
               <div className="label-tip mt-2">
                 {intl.formatMessage(messages.tvSeasonLimitHelp)}
+              </div>
+            </div>
+          )}
+
+          {/* Seasons Per Show Limit - only show when TV processing is enabled */}
+          {values.searchMissingTV && (
+            <div className="mb-6">
+              <div className="mb-2 text-sm font-medium text-gray-300">
+                {intl.formatMessage(messages.seasonsPerShow)}
+              </div>
+              <div className="form-input-field">
+                <Field
+                  type="text"
+                  inputMode="numeric"
+                  id="seasonsPerShowLimit"
+                  name="seasonsPerShowLimit"
+                  placeholder="0"
+                  className="short"
+                />
+              </div>
+              {errors.seasonsPerShowLimit && touched.seasonsPerShowLimit && (
+                <div className="error">{errors.seasonsPerShowLimit}</div>
+              )}
+              <div className="label-tip mt-2">
+                {intl.formatMessage(messages.seasonsPerShowHelp)}
               </div>
             </div>
           )}

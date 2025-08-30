@@ -123,14 +123,22 @@ const autoRequestValidations = {
   searchMissingTV: Yup.boolean(),
   autoApproveTV: Yup.boolean(),
 
-  maxSeasonsToRequest: Yup.number().when(['searchMissingTV', 'autoApproveTV'], {
-    is: (searchMissingTV: boolean, autoApproveTV: boolean) =>
-      searchMissingTV && autoApproveTV,
+  maxSeasonsToRequest: Yup.number().when('searchMissingTV', {
+    is: (searchMissingTV: boolean) => searchMissingTV,
     then: (schema) =>
       schema
         .min(1, 'Must be at least 1 season')
         .max(50, 'Cannot exceed 50 seasons')
-        .required('Max seasons is required when auto-requesting TV shows'),
+        .required('Max seasons is required when processing TV shows'),
+    otherwise: (schema) => schema,
+  }),
+
+  seasonsPerShowLimit: Yup.number().when('searchMissingTV', {
+    is: (searchMissingTV: boolean) => searchMissingTV,
+    then: (schema) =>
+      schema
+        .min(0, 'Must be 0 or greater (0 = all seasons)')
+        .max(50, 'Cannot exceed 50 seasons'),
     otherwise: (schema) => schema,
   }),
 

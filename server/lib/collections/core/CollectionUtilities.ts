@@ -751,6 +751,11 @@ export function validateDownloadModeConfig(config: CollectionConfig): {
     errors.push('Season limit must be at least 1 if specified');
   }
 
+  // Seasons per show limit validation
+  if (config.seasonsPerShowLimit && config.seasonsPerShowLimit < 1) {
+    errors.push('Seasons per show limit must be at least 1 if specified');
+  }
+
   // Mode-specific validations
   if (downloadMode === 'overseerr') {
     // Overseerr mode requires external Overseerr connection settings

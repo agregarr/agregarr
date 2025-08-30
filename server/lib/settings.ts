@@ -71,6 +71,7 @@ export interface CollectionConfig {
   readonly autoApproveMovies?: boolean; // Auto-approve/download movies
   readonly autoApproveTV?: boolean; // Auto-approve/download TV shows
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval/download (TV shows with more seasons require manual approval or are skipped)
+  readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)

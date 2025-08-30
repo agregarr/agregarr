@@ -194,11 +194,34 @@ export class AutoRequestService {
           // Create the actual request via Overseerr API
           const overseerrAPI = this.getOverseerrAPI();
 
-          // For TV shows, request all seasons (use 'all' string like the old working system)
+          // For TV shows, request seasons based on seasonsPerShowLimit
           let seasons: number[] | 'all' | undefined;
           if (item.mediaType === 'tv') {
-            // Use 'all' to request all available seasons (matches old working implementation)
-            seasons = 'all';
+            const seasonsLimit = config.seasonsPerShowLimit;
+
+            if (seasonsLimit && seasonsLimit > 0) {
+              // Request only the first X seasons
+              const seasonNumbers = [];
+              for (let i = 1; i <= seasonsLimit; i++) {
+                seasonNumbers.push(i);
+              }
+              seasons = seasonNumbers;
+
+              logger.debug(
+                `Limiting ${
+                  item.title
+                } to first ${seasonsLimit} seasons: [${seasonNumbers.join(
+                  ', '
+                )}]`,
+                {
+                  label: 'Auto Request Service',
+                  collection: config.name,
+                }
+              );
+            } else {
+              // Use 'all' to request all available seasons (matches old working implementation)
+              seasons = 'all';
+            }
           }
 
           const userIdToUse =

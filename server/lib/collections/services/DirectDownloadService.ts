@@ -385,7 +385,20 @@ export class DirectDownloadService {
     }
 
     const seasonCount = await this.getTvSeasonCount(item.tmdbId);
-    const seasonsToMonitor = Math.min(seasonCount, maxSeasons);
+    let seasonsToMonitor = Math.min(seasonCount, maxSeasons);
+
+    // Apply seasonsPerShowLimit if configured
+    if (config.seasonsPerShowLimit && config.seasonsPerShowLimit > 0) {
+      seasonsToMonitor = Math.min(seasonsToMonitor, config.seasonsPerShowLimit);
+
+      logger.debug(
+        `Limiting ${item.title} to first ${config.seasonsPerShowLimit} seasons (total seasons: ${seasonCount})`,
+        {
+          label: 'Direct Download Service',
+          collection: config.name,
+        }
+      );
+    }
 
     await sonarrAPI.addSeries({
       tvdbid: tvdbId,
