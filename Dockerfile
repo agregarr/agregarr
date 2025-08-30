@@ -1,4 +1,4 @@
-FROM node:18.18.2-alpine AS BUILD_IMAGE
+FROM node:18.18.2-alpine AS build_image
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ RUN yarn install --production --ignore-scripts --prefer-offline
 
 RUN rm -rf src server .next/cache
 
-RUN touch config/DOCKER
+RUN mkdir -p config && touch config/DOCKER
 
 RUN echo "{\"commitTag\": \"${COMMIT_TAG}\"}" > committag.json
 
@@ -41,7 +41,7 @@ WORKDIR /app
 RUN apk add --no-cache tzdata tini && rm -rf /tmp/*
 
 # copy from build image
-COPY --from=BUILD_IMAGE /app ./
+COPY --from=build_image /app ./
 
 ENTRYPOINT [ "/sbin/tini", "--" ]
 CMD [ "yarn", "start" ]

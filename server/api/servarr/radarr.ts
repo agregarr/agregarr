@@ -31,6 +31,13 @@ export interface RadarrMovie {
   tags: number[];
 }
 
+export interface RadarrExclusion {
+  id: number;
+  tmdbId: number;
+  movieTitle: string;
+  movieYear: number;
+}
+
 class RadarrAPI extends ServarrBase<{ movieId: number }> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
     super({ url, apiKey, cacheName: 'radarr', apiName: 'Radarr' });
@@ -214,6 +221,19 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
       );
     }
   }
+
+  public getExclusions = async (): Promise<RadarrExclusion[]> => {
+    try {
+      const response = await this.axios.get<RadarrExclusion[]>('/exclusions');
+      return response.data;
+    } catch (e) {
+      logger.error('Error retrieving exclusions from Radarr', {
+        label: 'Radarr API',
+        errorMessage: e.message,
+      });
+      throw new Error(`[Radarr] Failed to retrieve exclusions: ${e.message}`);
+    }
+  };
 }
 
 export default RadarrAPI;

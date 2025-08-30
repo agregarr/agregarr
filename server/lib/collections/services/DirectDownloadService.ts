@@ -126,6 +126,21 @@ export class DirectDownloadService {
             continue;
           }
 
+          // Check if item is excluded in *arr service
+          if (await this.isItemExcluded(item)) {
+            logger.debug(
+              `Skipping ${item.title}: Item is excluded in ${
+                item.mediaType === 'movie' ? 'Radarr' : 'Sonarr'
+              }`,
+              {
+                label: 'Direct Download Service',
+                collection: config.name,
+              }
+            );
+            skippedRequests++;
+            continue;
+          }
+
           // Check if already exists in *arr
           if (await this.checkAlreadyDownloaded(item)) {
             alreadyDownloadedCount++;
@@ -385,6 +400,36 @@ export class DirectDownloadService {
       seriesType: 'standard', // Default to standard series type
       searchNow: true, // Immediately start searching for episodes
     });
+  }
+
+  /**
+   * Check if an item is excluded in the appropriate *arr service
+   */
+  private async isItemExcluded(item: MissingItem): Promise<boolean> {
+    try {
+      if (item.mediaType === 'movie') {
+        const radarrAPI = this.getRadarrAPI();
+        const exclusions = await radarrAPI.getExclusions();
+        return exclusions.some((exclusion) => exclusion.tmdbId === item.tmdbId);
+      } else if (item.mediaType === 'tv') {
+        const sonarrAPI = this.getSonarrAPI();
+        const exclusions = await sonarrAPI.getExclusions();
+        const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+        return tvdbId
+          ? exclusions.some((exclusion) => exclusion.tvdbId === tvdbId)
+          : false;
+      }
+    } catch (error) {
+      logger.debug(
+        `Could not check exclusion status for ${item.title}: ${error}`,
+        {
+          label: 'Direct Download Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      // If we can't check exclusions, allow the item to be processed to avoid blocking legitimate downloads
+    }
+    return false;
   }
 
   /**

@@ -106,6 +106,12 @@ export interface LanguageProfile {
   name: string;
 }
 
+export interface SonarrExclusion {
+  id: number;
+  tvdbId: number;
+  title: string;
+}
+
 class SonarrAPI extends ServarrBase<{
   seriesId: number;
   episodeId: number;
@@ -317,6 +323,19 @@ class SonarrAPI extends ServarrBase<{
       );
     }
   }
+
+  public getExclusions = async (): Promise<SonarrExclusion[]> => {
+    try {
+      const response = await this.axios.get<SonarrExclusion[]>('/exclusions');
+      return response.data;
+    } catch (e) {
+      logger.error('Error retrieving exclusions from Sonarr', {
+        label: 'Sonarr API',
+        errorMessage: e.message,
+      });
+      throw new Error(`[Sonarr] Failed to retrieve exclusions: ${e.message}`);
+    }
+  };
 
   private buildSeasonList(
     seasons: number[],
