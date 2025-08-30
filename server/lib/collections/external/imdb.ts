@@ -1,5 +1,4 @@
 import type { ImdbListItem } from '@server/api/imdb';
-import ImdbAPI, { ImdbTopList } from '@server/api/imdb';
 import type PlexAPI from '@server/api/plexapi';
 import TmdbAPI from '@server/api/themoviedb';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
@@ -30,12 +29,10 @@ import logger from '@server/logger';
  * Uses web scraping since IMDb doesn't have a public API for lists.
  */
 export class ImdbCollectionSync extends BaseCollectionSync {
-  private imdbClient: ImdbAPI;
   private tmdbClient: TmdbAPI;
 
   constructor() {
     super('imdb');
-    this.imdbClient = new ImdbAPI();
     this.tmdbClient = new TmdbAPI();
   }
 
@@ -644,33 +641,8 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         return mediaType === 'tv' ? '/chart/toptv/' : '/chart/top/';
       case 'popular':
         return mediaType === 'tv' ? '/chart/tvmeter/' : '/chart/moviemeter/';
-      case 'most_popular':
-        return mediaType === 'tv' ? '/chart/tvpopular/' : '/chart/boxoffice/';
-      default:
-        throw this.createSyncError(
-          CollectionSyncErrorType.CONFIGURATION_ERROR,
-          `Unknown IMDb subtype: ${subtype}`
-        );
-    }
-  }
-
-  /**
-   * Get the appropriate IMDb list type based on config (kept for compatibility)
-   */
-  private getImdbListType(subtype: string, mediaType?: string): ImdbTopList {
-    switch (subtype) {
-      case 'top_250':
-        return mediaType === 'tv'
-          ? ImdbTopList.TOP_250_TV
-          : ImdbTopList.TOP_250_MOVIES;
-      case 'popular':
-        return mediaType === 'tv'
-          ? ImdbTopList.POPULAR_TV
-          : ImdbTopList.POPULAR_MOVIES;
-      case 'most_popular':
-        return mediaType === 'tv'
-          ? ImdbTopList.MOST_POPULAR_TV
-          : ImdbTopList.MOST_POPULAR_MOVIES;
+      case 'boxoffice':
+        return '/chart/boxoffice/';
       default:
         throw this.createSyncError(
           CollectionSyncErrorType.CONFIGURATION_ERROR,

@@ -129,9 +129,21 @@ const CollectionTypeSection = ({
         ];
       case 'imdb':
         return [
-          { value: 'top_250', label: 'Top 250' },
-          { value: 'popular', label: 'Popular' },
-          { value: 'most_popular', label: 'Most Popular' },
+          {
+            value: 'top_250',
+            label: 'Top 250',
+            description: 'Highest rated movies/TV shows on IMDb',
+          },
+          {
+            value: 'popular',
+            label: 'Popular (Meter)',
+            description: 'Most viewed by IMDb users based on page views',
+          },
+          {
+            value: 'boxoffice',
+            label: 'Box Office',
+            description: 'Top grossing movies at the box office (movies only)',
+          },
           { value: 'custom', label: 'Custom List' },
         ];
       case 'letterboxd':
@@ -206,6 +218,9 @@ const CollectionTypeSection = ({
 
               // Auto-set media type for movie-only collection types
               if (values.type === 'trakt' && newSubtype === 'boxoffice') {
+                setFieldValue('mediaType', 'movie');
+              }
+              if (values.type === 'imdb' && newSubtype === 'boxoffice') {
                 setFieldValue('mediaType', 'movie');
               }
 
