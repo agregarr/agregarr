@@ -13,16 +13,48 @@ const discoveryRoutes = Router();
 async function getPlexClient(): Promise<PlexAPI> {
   const admin = await getAdminUser();
   if (!admin?.plexToken) {
+    logger.error('No admin Plex token found for connection', {
+      label: 'Plex Connection',
+      adminExists: !!admin,
+    });
     throw new Error('No admin Plex token found');
   }
 
   const settings = await import('@server/lib/settings').then((m) =>
     m.getSettings()
   );
-  return new PlexAPI({
-    plexToken: admin.plexToken,
-    plexSettings: settings.plex,
+
+  const connectionUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+    settings.plex.ip
+  }:${settings.plex.port}`;
+
+  logger.debug('Establishing Plex connection', {
+    label: 'Plex Connection',
+    url: connectionUrl,
+    ssl: settings.plex.useSsl,
+    machineId: settings.plex.machineId?.substring(0, 8) + '...',
+    tokenLength: admin.plexToken.length,
   });
+
+  try {
+    const client = new PlexAPI({
+      plexToken: admin.plexToken,
+      plexSettings: settings.plex,
+    });
+
+    logger.debug('Plex client created successfully', {
+      label: 'Plex Connection',
+    });
+
+    return client;
+  } catch (error) {
+    logger.error('Failed to create Plex client', {
+      label: 'Plex Connection',
+      error: error instanceof Error ? error.message : String(error),
+      connectionUrl,
+    });
+    throw error;
+  }
 }
 
 /**
@@ -128,14 +160,50 @@ discoveryRoutes.get('/hubs/scan', isAuthenticated(), async (req, res) => {
 
     res.status(200).json(discoveryResult);
   } catch (error) {
+    // Get diagnostic context for better error reporting
+    const errorContext: {
+      errorType?: string;
+      errorCode?: string;
+      plexSettings?: {
+        ip: string;
+        port: number;
+        ssl: boolean;
+        hasToken: boolean;
+      };
+    } = {
+      errorType: error?.constructor?.name,
+      errorCode: (error as { code?: string })?.code,
+    };
+
+    // Try to get connection info for context
+    try {
+      const settings = await import('@server/lib/settings').then((m) =>
+        m.getSettings()
+      );
+      const admin = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      ).then((m) => m.getAdminUser());
+
+      errorContext.plexSettings = {
+        ip: settings.plex.ip,
+        port: settings.plex.port,
+        ssl: !!settings.plex.useSsl,
+        hasToken: !!(await admin)?.plexToken,
+      };
+    } catch {
+      // Don't fail if we can't get context
+    }
+
     logger.error('Failed to discover Plex hubs', {
       label: 'Discovery API',
       error: error instanceof Error ? error.message : String(error),
+      context: errorContext,
     });
 
     res.status(500).json({
       error: 'Failed to discover Plex hubs',
       message: error instanceof Error ? error.message : 'Unknown error',
+      context: errorContext,
     });
   }
 });

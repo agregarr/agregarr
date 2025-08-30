@@ -253,11 +253,29 @@ class PlexAPI {
   }
 
   public async getLibraries(): Promise<PlexLibrary[]> {
-    const response = await this.plexClient.query<PlexLibrariesResponse>(
-      '/library/sections'
-    );
+    logger.debug('Fetching Plex libraries', { label: 'Plex API' });
+    const startTime = Date.now();
 
-    return response.MediaContainer.Directory;
+    try {
+      const response = await this.plexClient.query<PlexLibrariesResponse>(
+        '/library/sections'
+      );
+
+      logger.debug('Plex libraries fetched successfully', {
+        label: 'Plex API',
+        libraryCount: response.MediaContainer.Directory?.length || 0,
+        responseTime: Date.now() - startTime,
+      });
+
+      return response.MediaContainer.Directory;
+    } catch (error) {
+      logger.error('Failed to fetch Plex libraries', {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        responseTime: Date.now() - startTime,
+      });
+      throw error;
+    }
   }
 
   public async syncLibraries(): Promise<void> {
@@ -357,10 +375,16 @@ class PlexAPI {
   }
 
   public async getAllCollections(): Promise<PlexCollection[]> {
+    logger.debug('Fetching all Plex collections', { label: 'Plex API' });
+    const startTime = Date.now();
     const allCollections: PlexCollection[] = [];
 
     try {
       const libraries = await this.getLibraries();
+      logger.debug('Processing collections across libraries', {
+        label: 'Plex API',
+        libraryCount: libraries.length,
+      });
 
       for (const library of libraries) {
         try {
@@ -404,6 +428,11 @@ class PlexAPI {
     }
 
     // Collections fetched from Plex
+    logger.debug('All collections fetched successfully', {
+      label: 'Plex API',
+      collectionCount: allCollections.length,
+      responseTime: Date.now() - startTime,
+    });
 
     // Return collections in Plex's natural order - don't force addedAt sorting
     return allCollections;
@@ -1487,10 +1516,27 @@ class PlexAPI {
   public async getHubManagement(
     sectionId: string
   ): Promise<PlexHubManagementResponse> {
+    logger.debug('Fetching hub management interface', {
+      label: 'Plex API',
+      sectionId,
+    });
+    const startTime = Date.now();
+
     try {
       const response = await this.plexClient.query(
         `/hubs/sections/${sectionId}/manage`
       );
+
+      const hubCount =
+        (response as PlexHubManagementResponse)?.MediaContainer?.Hub?.length ||
+        0;
+      logger.debug('Hub management interface fetched successfully', {
+        label: 'Plex API',
+        sectionId,
+        hubCount,
+        responseTime: Date.now() - startTime,
+      });
+
       return response as PlexHubManagementResponse;
     } catch (error) {
       logger.error(
@@ -1499,6 +1545,7 @@ class PlexAPI {
           label: 'Plex API',
           error: error instanceof Error ? error.message : String(error),
           sectionId,
+          responseTime: Date.now() - startTime,
         }
       );
       throw error;

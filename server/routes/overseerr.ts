@@ -6,6 +6,16 @@ import { Router } from 'express';
 const router = Router();
 
 router.post('/test', async (req, res, next) => {
+  const startTime = Date.now();
+
+  logger.debug('Overseerr connection test requested', {
+    label: 'Overseerr Connection',
+    hostname: req.body.hostname,
+    port: req.body.port,
+    useSsl: req.body.useSsl,
+    urlBase: req.body.urlBase,
+  });
+
   try {
     const { hostname, port, apiKey, useSsl, urlBase } = req.body;
 
@@ -23,6 +33,15 @@ router.post('/test', async (req, res, next) => {
       urlBase: urlBase || '',
       apiKey,
     };
+
+    const connectionUrl = `${settings.useSsl ? 'https' : 'http'}://${
+      settings.hostname
+    }:${settings.port}${settings.urlBase}`;
+    logger.debug('Testing Overseerr connection', {
+      label: 'Overseerr Connection',
+      url: connectionUrl,
+      apiKeyLength: apiKey.length,
+    });
 
     const overseerrClient = new OverseerrAPI(settings);
     const result = await overseerrClient.testConnection();
@@ -70,6 +89,13 @@ router.post('/test', async (req, res, next) => {
       });
     }
 
+    logger.info('Overseerr connection test successful', {
+      label: 'Overseerr Connection',
+      version: result.version,
+      responseTime: Date.now() - startTime,
+      templateDataSuccess,
+    });
+
     return res.status(200).json({
       success: true,
       version: result.version,
@@ -77,13 +103,28 @@ router.post('/test', async (req, res, next) => {
       templateDataMessage,
     });
   } catch (e) {
+    const connectionUrl = `${req.body.useSsl ? 'https' : 'http'}://${
+      req.body.hostname
+    }:${req.body.port}${req.body.urlBase || ''}`;
+
     logger.error('Overseerr connection test failed', {
-      label: 'API',
-      errorMessage: e.message,
+      label: 'Overseerr Connection',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      connectionUrl,
+      responseTime: Date.now() - startTime,
+      requestedSettings: {
+        hostname: req.body.hostname,
+        port: req.body.port,
+        ssl: req.body.useSsl,
+        urlBase: req.body.urlBase,
+      },
     });
+
     return next({
       status: 500,
-      message: 'Unable to connect to Overseerr.',
+      message: `Unable to connect to Overseerr at ${connectionUrl}: ${e.message}`,
     });
   }
 });

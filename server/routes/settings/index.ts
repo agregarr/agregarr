@@ -89,6 +89,14 @@ settingsRoutes.get('/plex', (_req, res) => {
 settingsRoutes.post('/plex', async (req, res, next) => {
   const userRepository = getRepository(User);
   const settings = getSettings();
+
+  logger.debug('Plex settings update requested', {
+    label: 'Plex Settings',
+    ip: req.body.ip,
+    port: req.body.port,
+    useSsl: req.body.useSsl,
+  });
+
   try {
     const admin = await userRepository.findOneOrFail({
       select: { id: true, plexToken: true },
@@ -96,6 +104,14 @@ settingsRoutes.post('/plex', async (req, res, next) => {
     });
 
     Object.assign(settings.plex, req.body);
+
+    const connectionUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+      settings.plex.ip
+    }:${settings.plex.port}`;
+    logger.debug('Testing Plex connection with new settings', {
+      label: 'Plex Settings',
+      url: connectionUrl,
+    });
 
     // Note: Collections sync is now handled by scheduled job (every 12 hours)
     // or manual "Save & Run" button - no auto-trigger on enable
@@ -113,6 +129,13 @@ settingsRoutes.post('/plex', async (req, res, next) => {
 
     settings.save();
 
+    logger.info('Plex settings updated successfully', {
+      label: 'Plex Settings',
+      serverName: result.MediaContainer.friendlyName,
+      machineId:
+        result.MediaContainer.machineIdentifier.substring(0, 8) + '...',
+    });
+
     // Collections sync now only triggered by:
     // 1. Scheduled job (every 12 hours) when collections are enabled
     // 2. Manual "Save & Run" button in UI
@@ -124,13 +147,26 @@ settingsRoutes.post('/plex', async (req, res, next) => {
 
     return res.status(200).json(response);
   } catch (e) {
-    logger.error('Something went wrong testing Plex connection', {
-      label: 'API',
-      errorMessage: e.message,
+    const connectionUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+      settings.plex.ip
+    }:${settings.plex.port}`;
+
+    logger.error('Failed to connect to Plex with new settings', {
+      label: 'Plex Settings',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      connectionUrl,
+      requestedSettings: {
+        ip: req.body.ip,
+        port: req.body.port,
+        ssl: req.body.useSsl,
+      },
     });
+
     return next({
       status: 500,
-      message: 'Unable to connect to Plex.',
+      message: `Unable to connect to Plex at ${connectionUrl}: ${e.message}`,
     });
   }
 
@@ -291,6 +327,16 @@ settingsRoutes.post('/tautulli', async (req, res) => {
 });
 
 settingsRoutes.post('/tautulli/test', async (req, res, next) => {
+  const startTime = Date.now();
+
+  logger.debug('Tautulli connection test requested', {
+    label: 'Tautulli Connection',
+    hostname: req.body.hostname,
+    port: req.body.port,
+    useSsl: req.body.useSsl,
+    urlBase: req.body.urlBase,
+  });
+
   try {
     const { hostname, port, apiKey, useSsl, urlBase } = req.body;
 
@@ -308,6 +354,15 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
       urlBase: urlBase || '',
       apiKey,
     };
+
+    const connectionUrl = `${settings.useSsl ? 'https' : 'http'}://${
+      settings.hostname
+    }:${settings.port}${settings.urlBase}`;
+    logger.debug('Testing Tautulli connection', {
+      label: 'Tautulli Connection',
+      url: connectionUrl,
+      apiKeyLength: apiKey.length,
+    });
 
     const tautulliClient = new TautulliAPI(settings);
     const result = await tautulliClient.getInfo();
@@ -331,6 +386,13 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
       versionCheckMessage = `Warning: Could not verify version compatibility - ${versionError.message}`;
     }
 
+    logger.info('Tautulli connection test successful', {
+      label: 'Tautulli Connection',
+      version: result.tautulli_version,
+      responseTime: Date.now() - startTime,
+      versionCheckSuccess,
+    });
+
     return res.status(200).json({
       success: true,
       version: result.tautulli_version,
@@ -338,13 +400,28 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
       versionCheckMessage,
     });
   } catch (e) {
+    const connectionUrl = `${req.body.useSsl ? 'https' : 'http'}://${
+      req.body.hostname
+    }:${req.body.port}${req.body.urlBase || ''}`;
+
     logger.error('Tautulli connection test failed', {
-      label: 'API',
-      errorMessage: e.message,
+      label: 'Tautulli Connection',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      connectionUrl,
+      responseTime: Date.now() - startTime,
+      requestedSettings: {
+        hostname: req.body.hostname,
+        port: req.body.port,
+        ssl: req.body.useSsl,
+        urlBase: req.body.urlBase,
+      },
     });
+
     return next({
       status: 500,
-      message: 'Unable to connect to Tautulli.',
+      message: `Unable to connect to Tautulli at ${connectionUrl}: ${e.message}`,
     });
   }
 });

@@ -58,7 +58,19 @@ export class DiscoveryService {
     plexClient: PlexAPI,
     updateSettings = false
   ): Promise<DiscoveryResult> {
+    logger.info('Starting hub discovery process', {
+      label: 'Hub Discovery',
+      updateSettings,
+    });
+    const startTime = Date.now();
+
     const libraries = await plexClient.getLibraries();
+    logger.info('Libraries loaded for discovery', {
+      label: 'Hub Discovery',
+      libraryCount: libraries.length,
+      libraryNames: libraries.map((l) => `${l.title} (${l.type})`),
+    });
+
     const discoveredHubConfigs: DiscoveredHubConfig[] = []; // Only built-in Plex hubs
     const discoveredPreExistingConfigs: DiscoveredPreExistingConfig[] = []; // Pre-existing collections
 
@@ -184,6 +196,15 @@ export class DiscoveryService {
         );
       }
     }
+
+    logger.info('Hub discovery process completed', {
+      label: 'Hub Discovery',
+      totalTime: Date.now() - startTime,
+      discoveredHubs: discoveredHubConfigs.length,
+      discoveredPreExisting: discoveredPreExistingConfigs.length,
+      totalCollections: allCollections.length,
+      settingsUpdated: updateSettings,
+    });
 
     return {
       success: true,
@@ -363,9 +384,22 @@ export class DiscoveryService {
     allCollections: PlexCollection[]
   ): Promise<void> {
     for (const library of libraries) {
+      logger.debug('Discovering hubs for library', {
+        label: 'Hub Discovery',
+        libraryName: library.title,
+        libraryId: library.key,
+        libraryType: library.type,
+      });
+
       try {
         const hubsResponse = await plexClient.getHubManagement(library.key);
         const hubs = hubsResponse.MediaContainer.Hub;
+
+        logger.debug('Hubs fetched for library', {
+          label: 'Hub Discovery',
+          libraryName: library.title,
+          hubCount: hubs?.length || 0,
+        });
 
         for (const [index, hub] of hubs.entries()) {
           const typedHub: {
