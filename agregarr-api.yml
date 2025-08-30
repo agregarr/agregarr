@@ -1761,6 +1761,10 @@ components:
         useSsl:
           type: boolean
           nullable: true
+        urlBase:
+          type: string
+          nullable: true
+          example: '/tautulli'
         apiKey:
           type: string
           nullable: true
@@ -4985,6 +4989,7 @@ paths:
                 - hostname
                 - port
                 - apiKey
+                - useSsl
       responses:
         '200':
           description: 'Connection test successful'
@@ -5132,6 +5137,7 @@ paths:
                 - hostname
                 - port
                 - apiKey
+                - useSsl
       responses:
         '200':
           description: 'Connection test successful'

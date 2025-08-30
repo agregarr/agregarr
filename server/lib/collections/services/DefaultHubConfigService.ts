@@ -235,6 +235,7 @@ export class DefaultHubConfigService {
    * Apply automatic linking logic to group hubs with the same base identifier
    * Hubs with the same base identifier (like "recentlyadded" from both "movie.recentlyadded" and "tv.recentlyadded")
    * across different libraries should be automatically linked so they can be configured together
+   * MODIFIED: Also checks visibility settings - hubs with different visibility are unlinked but retain linkId
    */
   private applyAutomaticLinking(hubConfigs: PlexHubConfig[]): PlexHubConfig[] {
     // Group hubs by their base identifier (without media type prefix)
@@ -253,28 +254,66 @@ export class DefaultHubConfigService {
 
     for (const [baseIdentifier, hubs] of hubGroups.entries()) {
       if (hubs.length > 1) {
-        // Multiple hubs with same base identifier - they should be linked
-        const linkId = nextLinkId++;
-
-        logger.debug(
-          `Auto-linking ${hubs.length} hubs with base identifier: ${baseIdentifier}`,
-          {
-            label: 'Default Hub Config Service',
-            baseIdentifier,
-            linkId,
-            hubIdentifiers: hubs.map((h) => h.hubIdentifier),
-            libraryIds: hubs.map((h) => h.libraryId),
-          }
+        // Multiple hubs with same base identifier - check if they have matching visibility
+        const firstHub = hubs[0];
+        const allHaveSameVisibility = hubs.every((hub) =>
+          this.areVisibilitySettingsEqual(
+            firstHub.visibilityConfig,
+            hub.visibilityConfig
+          )
         );
 
-        // Link all hubs in this group
-        hubs.forEach((hub) => {
-          resultConfigs.push({
-            ...hub,
-            isLinked: true,
-            linkId,
+        if (allHaveSameVisibility) {
+          // All hubs have same visibility - link them
+          const linkId = nextLinkId++;
+
+          logger.debug(
+            `Auto-linking ${hubs.length} hubs with base identifier: ${baseIdentifier}`,
+            {
+              label: 'Default Hub Config Service',
+              baseIdentifier,
+              linkId,
+              hubIdentifiers: hubs.map((h) => h.hubIdentifier),
+              libraryIds: hubs.map((h) => h.libraryId),
+              visibilityMatched: true,
+            }
+          );
+
+          // Link all hubs in this group
+          hubs.forEach((hub) => {
+            resultConfigs.push({
+              ...hub,
+              isLinked: true,
+              linkId,
+            });
           });
-        });
+        } else {
+          // Hubs have different visibility settings - break them out of the group
+          const linkId = nextLinkId++; // Generate linkId for the group
+
+          logger.debug(
+            `Breaking out ${hubs.length} hubs with base identifier: ${baseIdentifier} due to different visibility settings`,
+            {
+              label: 'Default Hub Config Service',
+              baseIdentifier,
+              linkId,
+              hubIdentifiers: hubs.map((h) => h.hubIdentifier),
+              libraryIds: hubs.map((h) => h.libraryId),
+              visibilityMatched: false,
+              visibilityConfigs: hubs.map((h) => h.visibilityConfig),
+            }
+          );
+
+          // Break out all hubs from the group - they belong to the same linkId but are individually unlinked
+          hubs.forEach((hub) => {
+            resultConfigs.push({
+              ...hub,
+              isLinked: false,
+              isUnlinked: true, // Explicitly broken out of the group due to visibility differences
+              linkId, // Same linkId so user can relink the whole group later
+            });
+          });
+        }
       } else {
         // Single hub - no linking needed
         resultConfigs.push({
@@ -286,6 +325,28 @@ export class DefaultHubConfigService {
     }
 
     return resultConfigs;
+  }
+
+  /**
+   * Compare two visibility configurations to see if they are identical
+   */
+  private areVisibilitySettingsEqual(
+    config1: {
+      usersHome: boolean;
+      serverOwnerHome: boolean;
+      libraryRecommended: boolean;
+    },
+    config2: {
+      usersHome: boolean;
+      serverOwnerHome: boolean;
+      libraryRecommended: boolean;
+    }
+  ): boolean {
+    return (
+      config1.usersHome === config2.usersHome &&
+      config1.serverOwnerHome === config2.serverOwnerHome &&
+      config1.libraryRecommended === config2.libraryRecommended
+    );
   }
 
   /**
