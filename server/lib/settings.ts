@@ -1,3 +1,4 @@
+import logger from '@server/logger';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { merge } from 'lodash';
@@ -52,6 +53,7 @@ export interface CollectionConfig {
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
   readonly isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
   everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
+  readonly isPromotedToHub?: boolean; // True if collection exists as a promotable hub in Plex (appears in hub management list)
   readonly collectionRatingKey?: string; // Plex collection rating key (when created)
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
@@ -137,6 +139,7 @@ export interface PlexHubConfig {
   linkId?: number; // Group ID for linked hubs (set by backend linking logic)
   isUnlinked?: boolean; // True if this hub was deliberately unlinked and should not be grouped with siblings
   everLibraryPromoted?: boolean; // True if this hub has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
+  isPromotedToHub?: boolean; // True if hub exists as a promotable item in Plex (appears in hub management list)
   // Time restriction settings - all hub types can have time restrictions
   timeRestriction?: {
     readonly alwaysActive: boolean; // If true, hub is always active (default)
@@ -193,6 +196,7 @@ export interface PreExistingCollectionConfig {
   linkId?: number; // Group ID for linked collections (set by backend linking logic)
   isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
   everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
+  isPromotedToHub?: boolean; // True if collection exists as a promotable hub in Plex (appears in hub management list)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -354,6 +358,7 @@ interface AllSettings {
   sonarr: SonarrSettings[];
   public: PublicSettings;
   jobs: Record<JobId, JobSettings>;
+  completedMigrations?: string[]; // Track completed migrations
 }
 
 const SETTINGS_PATH = process.env.CONFIG_DIRECTORY
@@ -787,6 +792,211 @@ class Settings {
     }
 
     this.save();
+  }
+
+  /**
+   * Migrate default hub configs for v1.0.4 ordering consistency
+   * - Default Plex hubs should have sortOrderLibrary = 0 (void) since they cannot appear in library tabs
+   * - Default Plex hubs should have sortOrderHome = 0 (void) if not visible on home/recommended screens
+   */
+  public migrateDefaultHubConfigsV104(): void {
+    const migrationId = 'default-hub-library-ordering-v1.0.4';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Check if migration already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    let fixedCount = 0;
+
+    // Fix hub configs
+    if (this.data.plex.hubConfigs) {
+      this.data.plex.hubConfigs = this.data.plex.hubConfigs.map((config) => {
+        if (config.collectionType === CollectionType.DEFAULT_PLEX_HUB) {
+          // Check if any fields need fixing
+          const hasInvalidLibrarySettings =
+            config.sortOrderLibrary > 0 ||
+            config.isLibraryPromoted === true ||
+            config.everLibraryPromoted === true;
+
+          // Check if sortOrderHome should be void (not visible on home/recommended screens)
+          const visibleOnHomeScreens =
+            config.visibilityConfig?.usersHome ||
+            config.visibilityConfig?.serverOwnerHome ||
+            config.visibilityConfig?.libraryRecommended;
+          const hasInvalidHomeOrdering =
+            !visibleOnHomeScreens && (config.sortOrderHome || 0) > 0;
+
+          if (hasInvalidLibrarySettings || hasInvalidHomeOrdering) {
+            fixedCount++;
+            return {
+              ...config,
+              sortOrderLibrary: 0, // Void for reordering (cannot appear in library tabs)
+              isLibraryPromoted: false, // Cannot be promoted in library tabs
+              everLibraryPromoted: false, // Reset promotion history
+              sortOrderHome: visibleOnHomeScreens ? config.sortOrderHome : 0, // Set to void if not visible
+            };
+          }
+        }
+        return config;
+      });
+    }
+
+    // Mark migration as completed and save
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+
+    if (fixedCount > 0) {
+      logger.info(
+        `v1.0.4 Migration: Fixed ${fixedCount} default hub configs for library ordering consistency`,
+        { label: 'Settings Migration' }
+      );
+    } else {
+      logger.debug('v1.0.4 Migration: No default hub configs required fixing', {
+        label: 'Settings Migration',
+      });
+    }
+  }
+
+  /**
+   * Migrate collections to set initial isPromotedToHub values for discovery compatibility
+   * Note: isPromotedToHub is now calculated dynamically, but we set initial values for pre-existing collections
+   */
+  public migratePromotionStatusV104(): void {
+    const migrationId = 'promotion-status-v1.0.4';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Check if migration already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    let fixedCount = 0;
+
+    // Fix hub configs - default hubs are always promoted
+    if (this.data.plex.hubConfigs) {
+      this.data.plex.hubConfigs = this.data.plex.hubConfigs.map((config) => {
+        // Only set if isPromotedToHub is undefined (not explicitly set)
+        if (config.isPromotedToHub === undefined) {
+          fixedCount++;
+          return {
+            ...config,
+            // Default hubs are always promoted (can't be deleted)
+            isPromotedToHub:
+              config.collectionType === CollectionType.DEFAULT_PLEX_HUB,
+          };
+        }
+
+        return config;
+      });
+    }
+
+    // Fix pre-existing collection configs - preserve discovery source
+    if (this.data.plex.preExistingCollectionConfigs) {
+      this.data.plex.preExistingCollectionConfigs =
+        this.data.plex.preExistingCollectionConfigs.map((config) => {
+          // Only set if isPromotedToHub is undefined (not explicitly set)
+          if (config.isPromotedToHub === undefined) {
+            // For pre-existing collections, default to false (collections API only)
+            // Will be set to true by discovery if found in hub management
+            fixedCount++;
+            return {
+              ...config,
+              isPromotedToHub: false,
+            };
+          }
+
+          return config;
+        });
+    }
+
+    // For Agregarr collections, isPromotedToHub is now calculated dynamically
+    // No migration needed - calculation handles all cases
+
+    // Mark migration as completed and save
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+
+    if (fixedCount > 0) {
+      logger.info(
+        `v1.0.4 Migration: Set initial isPromotedToHub status for ${fixedCount} items`,
+        { label: 'Settings Migration' }
+      );
+    } else {
+      logger.debug(
+        'v1.0.4 Migration: No items required promotion status initialization',
+        { label: 'Settings Migration' }
+      );
+    }
+  }
+
+  /**
+   * Migrate collection sortOrderHome values based on visibility settings
+   * Collections should only have sortOrderHome > 0 if they're visible on home/recommended screens
+   */
+  public migrateVisibilityBasedSortOrdersV104(): void {
+    const migrationId = 'visibility-based-sort-orders-v1.0.4';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Check if migration already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    let fixedCount = 0;
+
+    // Fix collection configs
+    if (this.data.plex.collectionConfigs) {
+      this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+        (config) => {
+          // Check if collection should have sortOrderHome = 0 (void)
+          const visibleOnHomeScreens =
+            config.visibilityConfig?.usersHome ||
+            config.visibilityConfig?.serverOwnerHome ||
+            config.visibilityConfig?.libraryRecommended;
+
+          // If not visible on home/recommended screens but has sortOrderHome > 0, fix it
+          if (!visibleOnHomeScreens && (config.sortOrderHome || 0) > 0) {
+            fixedCount++;
+            return {
+              ...config,
+              sortOrderHome: 0, // Set to void
+            };
+          }
+
+          return config;
+        }
+      );
+    }
+
+    // Mark migration as completed and save
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+
+    if (fixedCount > 0) {
+      logger.info(
+        `v1.0.4 Migration: Fixed ${fixedCount} collection configs for visibility-based sortOrderHome consistency`,
+        { label: 'Settings Migration' }
+      );
+    } else {
+      logger.debug(
+        'v1.0.4 Migration: No collection configs required sortOrderHome fixing',
+        { label: 'Settings Migration' }
+      );
+    }
   }
 }
 

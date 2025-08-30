@@ -1365,7 +1365,6 @@ class PlexAPI {
       );
     }
 
-    // CRITICAL DEBUG: Check if collection library matches item libraries
     const itemLibraries = [
       ...new Set(itemTypes.map((item) => item.librarySectionID)),
     ];
@@ -1523,8 +1522,6 @@ class PlexAPI {
         : `/hubs/sections/${sectionId}/manage/${hubId}/move`;
 
       await this.safePutQuery(url);
-
-      // Hub moved successfully - reduced logging
     } catch (error) {
       logger.error(
         `Error moving hub ${hubId} in library section ${sectionId}`,
@@ -1671,34 +1668,92 @@ class PlexAPI {
    * Reorder multiple hubs in a library section
    * @param sectionId Library section ID
    * @param hubOrder Array of hub IDs in desired order
+   * @param positionedItemsCount Optional count of positioned items
+   * @param libraryType Type of library (movie or show) for anchor positioning
    */
   public async reorderHubs(
     sectionId: string,
-    hubOrder: string[]
+    desiredOrder: string[],
+    positionedItemsCount?: number,
+    libraryType?: 'movie' | 'show'
   ): Promise<void> {
     try {
-      if (hubOrder.length <= 1) return;
-
-      // Build ordering from second position onwards
-      // Move each hub after the previous one in our desired order
-      for (let i = 1; i < hubOrder.length; i++) {
-        const hubId = hubOrder[i];
-        const afterHubId = hubOrder[i - 1];
-
-        await this.moveHub(sectionId, hubId, afterHubId);
-
-        // Small delay between moves to avoid overwhelming the API
-        await new Promise((resolve) => setTimeout(resolve, 200));
+      if (desiredOrder.length <= 1) {
+        return;
       }
 
-      // Successfully reordered hubs
+      // Get current hub order from Plex
+      const hubManagement = await this.getHubManagement(sectionId);
+      const currentHubs = hubManagement.MediaContainer.Hub;
+      const currentOrder = currentHubs.map(
+        (h: { identifier: string }) => h.identifier
+      );
+
+      // Only proceed if orders are actually different
+      if (JSON.stringify(currentOrder) === JSON.stringify(desiredOrder)) {
+        return;
+      }
+
+      // Determine anchor for positioning
+      let requiredAnchor: string | null = null;
+      if (libraryType === 'show') {
+        requiredAnchor = 'tv.ondeck';
+      } else if (libraryType === 'movie') {
+        requiredAnchor = 'movie.inprogress';
+      }
+
+      // Process items in reverse order, placing after the anchor
+
+      for (let i = desiredOrder.length - 1; i >= 0; i--) {
+        const hubId = desiredOrder[i];
+        const afterHubId = requiredAnchor;
+
+        if (!afterHubId) {
+          continue;
+        }
+        try {
+          await this.moveHub(sectionId, hubId, afterHubId);
+        } catch (error) {
+          logger.error(`Failed to move hub ${hubId}`, {
+            label: 'Plex API',
+            sectionId,
+            hubId,
+            afterHubId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     } catch (error) {
       logger.error(`Error reordering hubs in library section ${sectionId}`, {
         label: 'Plex API',
         error: error instanceof Error ? error.message : String(error),
         sectionId,
-        hubOrder,
+        desiredOrder,
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a hub item from a library section
+   * @param sectionId Library section ID
+   * @param hubId Hub identifier to delete
+   */
+  public async deleteHubItem(sectionId: string, hubId: string): Promise<void> {
+    try {
+      const url = `/hubs/sections/${sectionId}/manage/${hubId}`;
+
+      await this.safeDeleteQuery(url);
+    } catch (error) {
+      logger.error(
+        `Error deleting hub item ${hubId} from library section ${sectionId}`,
+        {
+          label: 'Plex API',
+          error: error instanceof Error ? error.message : String(error),
+          sectionId,
+          hubId,
+        }
+      );
       throw error;
     }
   }

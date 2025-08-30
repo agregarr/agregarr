@@ -116,8 +116,22 @@ export async function applyUnifiedOrderingToPlex(
       // Extract identifiers in the desired order
       const orderedIdentifiers = sortedItems.map((item) => item.identifier);
 
+      // Determine library type from hub identifiers
+      const libraryType = sortedItems.some(
+        (item) =>
+          item.identifier.startsWith('tv.') ||
+          item.identifier.startsWith('show.')
+      )
+        ? 'show'
+        : 'movie';
+
       // Apply ordering using Plex hub reordering API
-      await plexClient.reorderHubs(libraryId, orderedIdentifiers);
+      await plexClient.reorderHubs(
+        libraryId,
+        orderedIdentifiers,
+        undefined,
+        libraryType
+      );
     }
 
     // Successfully applied unified ordering

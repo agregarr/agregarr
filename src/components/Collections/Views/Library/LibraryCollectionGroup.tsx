@@ -829,7 +829,7 @@ const LibraryCollectionGroup = ({
     collections.forEach((config) => {
       const sortOrder =
         activeTab === 'home' || activeTab === 'recommended'
-          ? config.sortOrderHome || 0
+          ? config.sortOrderHome || 1
           : config.sortOrderLibrary || 0;
       result.push({ config, type: 'collection', sortOrder });
     });
@@ -838,7 +838,7 @@ const LibraryCollectionGroup = ({
     hubs.forEach((config) => {
       const sortOrder =
         activeTab === 'home' || activeTab === 'recommended'
-          ? config.sortOrderHome || 0
+          ? config.sortOrderHome || 1
           : config.sortOrderLibrary || 0;
       result.push({ config, type: 'hub', sortOrder });
     });
@@ -847,7 +847,7 @@ const LibraryCollectionGroup = ({
     preExisting.forEach((config) => {
       const sortOrder =
         activeTab === 'home' || activeTab === 'recommended'
-          ? config.sortOrderHome || 0
+          ? config.sortOrderHome || 1
           : config.sortOrderLibrary || 0;
       result.push({ config, type: 'preExisting', sortOrder });
     });

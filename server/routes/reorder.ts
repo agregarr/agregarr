@@ -41,37 +41,6 @@ function isPreExistingConfig(
 const reorderRoutes = Router();
 
 /**
- * Determine if a collection/hub/pre-existing is visible in the given context
- * Checks visibility settings and active state based on time restrictions
- */
-function isVisibleInContext(
-  config: CollectionConfig | PlexHubConfig | PreExistingCollectionConfig,
-  context: string
-): boolean {
-  // Check if collection is active (time restrictions)
-  if (config.isActive === false) {
-    return false;
-  }
-
-  // Check visibility settings based on context
-  const visibilityConfig = config.visibilityConfig;
-  if (!visibilityConfig) {
-    return true; // Default to visible if no visibility config
-  }
-
-  switch (context) {
-    case 'home':
-      return visibilityConfig.usersHome || visibilityConfig.serverOwnerHome;
-    case 'recommended':
-      return visibilityConfig.libraryRecommended;
-    case 'library':
-      return visibilityConfig.libraryRecommended;
-    default:
-      return true;
-  }
-}
-
-/**
  * POST /api/v1/reorder
  * Universal Sort Order Management API
  *
@@ -421,23 +390,21 @@ async function performAutoReordering(
   const allHubConfigs = defaultHubConfigService.getConfigs();
   const allPreExistingConfigs = preExistingCollectionConfigService.getConfigs();
 
-  // Filter to current library and determine visibility
+  // Filter to current library only (visibility handled in sort order assignment)
   const libraryCollections = allCollectionConfigs.filter((config) => {
     // Multi-library collections should be included if they contain current library
     const belongsToCurrentLibrary = Array.isArray(config.libraryId)
       ? config.libraryId.includes(libraryId)
       : config.libraryId === libraryId;
-    return belongsToCurrentLibrary && isVisibleInContext(config, context);
+    return belongsToCurrentLibrary;
   });
 
   const libraryHubs = allHubConfigs.filter(
-    (config) =>
-      config.libraryId === libraryId && isVisibleInContext(config, context)
+    (config) => config.libraryId === libraryId
   );
 
   const libraryPreExisting = allPreExistingConfigs.filter(
-    (config) =>
-      config.libraryId === libraryId && isVisibleInContext(config, context)
+    (config) => config.libraryId === libraryId
   );
 
   // Combine all items for this library context
@@ -480,8 +447,11 @@ async function performAutoReordering(
   });
 
   // Assign sequential sort orders with proper A-Z vs Promoted section logic
-  const updatedItems = allLibraryItems.map((item, index) => {
-    let newSortOrder = index;
+  let visibleIndex = 0; // Counter for visible items only (for sortOrderHome)
+  let promotedIndex = 0; // Counter for promoted items only (for sortOrderLibrary)
+
+  const updatedItems = allLibraryItems.map((item) => {
+    let newSortOrder: number;
 
     // For Library context, respect the A-Z vs Promoted section design:
     // - A-Z section (isLibraryPromoted: false) → sortOrderLibrary: 0
@@ -490,11 +460,22 @@ async function performAutoReordering(
       if (item.isLibraryPromoted === false) {
         newSortOrder = 0; // A-Z section always gets 0
       } else {
-        newSortOrder = index + 1; // Promoted section starts from 1
+        promotedIndex++;
+        newSortOrder = promotedIndex; // Promoted section starts from 1
       }
     } else {
-      // For Home/Recommended contexts, start from 1 (0 is void value)
-      newSortOrder = index + 1;
+      // For Home/Recommended contexts: Only assign 1+ values to collections visible on home/recommended screens
+      const visibleOnHomeScreens =
+        item.visibilityConfig?.usersHome ||
+        item.visibilityConfig?.serverOwnerHome ||
+        item.visibilityConfig?.libraryRecommended;
+
+      if (visibleOnHomeScreens) {
+        visibleIndex++;
+        newSortOrder = visibleIndex; // Start from 1 for visible items
+      } else {
+        newSortOrder = 0; // 0 = void for invisible collections
+      }
     }
 
     const updatedItem = {

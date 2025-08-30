@@ -34,7 +34,6 @@ import type {
   FilteringStats,
   MissingItem,
   PlexCollection,
-  PlexLabel,
   SourceTemplateContext,
   SyncResult,
   TimeRestrictionResult,
@@ -1002,14 +1001,23 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       }
     }
 
-    // Update visibility settings
+    // Update visibility settings - but only promote to hub if collection has ANY visibility
     if (visibilityConfig) {
-      await plexClient.updateCollectionVisibility(
-        collectionRatingKey,
-        visibilityConfig.libraryRecommended, // recommended (promotedToRecommended)
-        visibilityConfig.serverOwnerHome, // home (promotedToOwnHome)
-        visibilityConfig.usersHome // shared (promotedToSharedHome)
-      );
+      const hasAnyVisibility =
+        visibilityConfig.usersHome ||
+        visibilityConfig.serverOwnerHome ||
+        visibilityConfig.libraryRecommended;
+
+      if (hasAnyVisibility) {
+        // Only call updateCollectionVisibility (which promotes to hub) if collection should be visible somewhere
+        await plexClient.updateCollectionVisibility(
+          collectionRatingKey,
+          visibilityConfig.libraryRecommended, // recommended (promotedToRecommended)
+          visibilityConfig.serverOwnerHome, // home (promotedToOwnHome)
+          visibilityConfig.usersHome // shared (promotedToSharedHome)
+        );
+      }
+      // Collections with false/false/false visibility remain as basic collections (not promoted to hubs)
     }
 
     // Update poster if provided
@@ -1103,67 +1111,6 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           error: error instanceof Error ? error.message : String(error),
         }
       );
-    }
-  }
-
-  /**
-   * Clear the stored rating key from a collection config
-   * Used when collections are deleted from Plex due to time restrictions
-   */
-  private clearCollectionRatingKey(
-    configId: string,
-    deletedRatingKey: string
-  ): void {
-    try {
-      const settings = getSettings();
-      const collectionConfigs = settings.plex.collectionConfigs || [];
-      const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
-
-      if (configIndex !== -1) {
-        const config = collectionConfigs[configIndex];
-
-        // Only clear if the rating key matches (safety check)
-        if (config.collectionRatingKey === deletedRatingKey) {
-          collectionConfigs[configIndex] = {
-            ...config,
-            collectionRatingKey: undefined,
-          };
-          settings.plex.collectionConfigs = collectionConfigs;
-          settings.save();
-
-          logger.debug(
-            `Cleared rating key for time-restricted collection: ${config.name}`,
-            {
-              label: `${this.source} Collections`,
-              configId,
-              clearedRatingKey: deletedRatingKey,
-            }
-          );
-        } else {
-          logger.warn(
-            `Rating key mismatch when clearing - expected ${config.collectionRatingKey}, got ${deletedRatingKey}`,
-            {
-              label: `${this.source} Collections`,
-              configId,
-              expectedRatingKey: config.collectionRatingKey,
-              providedRatingKey: deletedRatingKey,
-            }
-          );
-        }
-      } else {
-        logger.warn(`Config ${configId} not found when clearing rating key`, {
-          label: `${this.source} Collections`,
-          configId,
-          deletedRatingKey,
-        });
-      }
-    } catch (error) {
-      logger.error(`Failed to clear rating key for config ${configId}`, {
-        label: `${this.source} Collections`,
-        configId,
-        deletedRatingKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
     }
   }
 
@@ -1297,17 +1244,12 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     processedCollectionKeys?: Set<string>
   ): Promise<void> {
     try {
-      // Generate the collection label that would be used for this config
-      const collectionLabel = createCollectionLabel(this.source, config.id);
-
-      // Find existing collections with this label
-      const existingCollections = allCollections.filter((collection) =>
-        collection.labels?.some((label: string | PlexLabel) =>
-          typeof label === 'string'
-            ? label === collectionLabel
-            : label.tag === collectionLabel
-        )
-      );
+      // Find the collection by stored rating key
+      const existingCollections = config.collectionRatingKey
+        ? allCollections.filter(
+            (collection) => collection.ratingKey === config.collectionRatingKey
+          )
+        : [];
 
       // This method is only called when removeFromPlexWhenInactive is true
       // So we only need the original deletion behavior
@@ -1326,8 +1268,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           // Remove the collection from Plex
           await plexClient.deleteCollection(collection.ratingKey);
 
-          // Clear the stored rating key from config to prevent "missing" status
-          this.clearCollectionRatingKey(config.id, collection.ratingKey);
+          // Note: We no longer clear the rating key here because the smart missing item detection
+          // in DiscoveryService now properly handles inactive collections with removeFromPlexWhenInactive
 
           // Mark as processed to avoid conflicts
           if (processedCollectionKeys) {

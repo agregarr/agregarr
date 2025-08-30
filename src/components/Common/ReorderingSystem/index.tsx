@@ -139,14 +139,14 @@ export const CollectionReorderingSystem: React.FC<
       if (context === 'home' || context === 'recommended') {
         return {
           ...config,
-          sortOrderHome: index,
+          sortOrderHome: index + 1, // Start from 1 (0 is void)
           // Preserve existing sortOrderLibrary
           sortOrderLibrary: config.sortOrderLibrary,
         };
       } else {
         return {
           ...config,
-          sortOrderLibrary: index,
+          sortOrderLibrary: index, // Library context: 0 = A-Z section, 1+ = promoted
           // Preserve existing sortOrderHome
           sortOrderHome: config.sortOrderHome,
         };

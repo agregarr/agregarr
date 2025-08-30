@@ -6,24 +6,12 @@ import type {
   PlexHubConfig,
   PreExistingCollectionConfig,
 } from '@server/lib/settings';
-import { getSettings } from '@server/lib/settings';
+import { CollectionType, getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import {
   applyUnifiedOrderingToPlex,
   type OrderingItem,
 } from './UnifiedOrderingService';
-
-// Plex hub interface for API responses
-interface PlexHub {
-  identifier: string;
-  title: string;
-  recommendationsVisibility?: 'all' | 'none';
-  homeVisibility?: 'all' | 'none' | 'admin';
-  promotedToRecommended?: boolean;
-  promotedToOwnHome?: boolean;
-  promotedToSharedHome?: boolean;
-  deletable?: boolean;
-}
 
 /**
  * Service for managing Plex hub visibility and ordering
@@ -133,7 +121,7 @@ export class HubSyncService {
   }
 
   /**
-   * Sync unified ordering for collections and hubs together
+   * Sync unified ordering for collections and hubs together with discovery and cleanup
    */
   public async syncUnifiedOrdering(
     plexClient: PlexAPI,
@@ -146,37 +134,82 @@ export class HubSyncService {
         label: 'Hub Sync Service',
       });
 
+      // Step 1: Discover new items and update configs (but no deletions yet)
+      onProgress?.('Discovering and updating configurations...');
+      const { DiscoveryService } = await import(
+        '@server/lib/collections/services/DiscoveryService'
+      );
+      const discoveryService = new DiscoveryService();
+      await discoveryService.discoverAllHubs(plexClient, true); // updateSettings = true, but without deletions
+
+      // Step 2: Get refreshed configs (now including newly discovered items)
       const settings = getSettings();
       const collectionConfigs = settings.plex.collectionConfigs || [];
       const hubConfigs = settings.plex.hubConfigs || [];
       const preExistingCollectionConfigs =
         settings.plex.preExistingCollectionConfigs || [];
 
+      // Step 3: Filter out inactive items with removeFromPlexWhenInactive (already processed by syncHubVisibility)
+      const activeCollectionConfigs = collectionConfigs.filter(
+        (config) =>
+          config.isActive || !config.timeRestriction?.removeFromPlexWhenInactive
+      );
+      const activeHubConfigs = hubConfigs.filter(
+        (config) =>
+          config.isActive || !config.timeRestriction?.removeFromPlexWhenInactive
+      );
+      const activePreExistingConfigs = preExistingCollectionConfigs.filter(
+        (config) =>
+          config.isActive || !config.timeRestriction?.removeFromPlexWhenInactive
+      );
+
+      // Step 4: Filter out only Overseerr individual user collections with no visibility (all false)
+      // Other types (default hubs, pre-existing, server_owner, global, etc.) should remain in reordering
+      const visibleCollectionConfigs = activeCollectionConfigs.filter(
+        (config) => {
+          // Only apply visibility filtering to Overseerr individual user collections
+          if (config.type === 'overseerr' && config.subtype === 'users') {
+            const hasAnyVisibility =
+              config.visibilityConfig?.usersHome ||
+              config.visibilityConfig?.serverOwnerHome ||
+              config.visibilityConfig?.libraryRecommended;
+            return hasAnyVisibility;
+          }
+          // All other collection types pass through (including server_owner, global, etc.)
+          return true;
+        }
+      );
+
+      // Hubs and pre-existing collections always pass through - no visibility filtering needed
+      const visibleHubConfigs = activeHubConfigs;
+      const visiblePreExistingConfigs = activePreExistingConfigs;
+
       logger.debug('Unified ordering config counts:', {
         label: 'Hub Sync Service',
-        collectionConfigs: collectionConfigs.length,
-        hubConfigs: hubConfigs.length,
-        preExistingCollectionConfigs: preExistingCollectionConfigs.length,
+        collectionConfigs: visibleCollectionConfigs.length,
+        hubConfigs: visibleHubConfigs.length,
+        preExistingCollectionConfigs: visiblePreExistingConfigs.length,
       });
 
-      // Build unified ordering items for each library
+      // Step 4: Build unified ordering items for each library using existing methods
       onProgress?.('Building collection ordering list...');
       const orderingItemsByLibrary = new Map<string, OrderingItem[]>();
 
       // Add collection configs to ordering
       this.addCollectionOrderingItems(
-        collectionConfigs,
+        visibleCollectionConfigs,
         orderingItemsByLibrary
       );
 
       // Add hub configs to ordering
-      this.addHubOrderingItems(hubConfigs, orderingItemsByLibrary);
+      this.addHubOrderingItems(visibleHubConfigs, orderingItemsByLibrary);
+
       this.addPreExistingOrderingItems(
-        preExistingCollectionConfigs,
+        visiblePreExistingConfigs,
         orderingItemsByLibrary
       );
 
-      // Apply unified ordering to each library
+      // Step 5: Apply unified ordering to each library with cleanup
       const libraryCount = orderingItemsByLibrary.size;
       onProgress?.(`Applying ordering to ${libraryCount} libraries...`);
       await this.applyOrderingToLibraries(
@@ -184,8 +217,6 @@ export class HubSyncService {
         orderingItemsByLibrary,
         onProgress
       );
-
-      // Unified ordering sync completed
     } catch (error) {
       logger.error(
         `Unified ordering sync failed: ${extractErrorMessage(error)}`,
@@ -345,15 +376,61 @@ export class HubSyncService {
       }
 
       try {
-        // Convert collection visibility config to Plex format
-        const plexVisibility =
-          this.convertCollectionToPlexVisibility(collectionConfig);
+        // Calculate current promotion status
+        const shouldBePromotedToHub =
+          this.calculateIsPromotedToHub(collectionConfig);
+        // For regular collections, we assume they were promoted if they have a collectionRatingKey (exist in Plex)
+        const wasPromotedToHub = !!collectionConfig.collectionRatingKey;
 
-        await plexClient.updateHubVisibility(
-          collectionConfig.libraryId,
-          hubIdentifier,
-          plexVisibility
-        );
+        if (shouldBePromotedToHub) {
+          // Collection should be in hub management - update visibility
+          const plexVisibility =
+            this.convertCollectionToPlexVisibility(collectionConfig);
+
+          await plexClient.updateHubVisibility(
+            collectionConfig.libraryId,
+            hubIdentifier,
+            plexVisibility
+          );
+
+          logger.debug(
+            `Updated hub visibility for collection ${collectionConfig.name}`,
+            {
+              label: 'Hub Sync Service',
+              collectionId: collectionConfig.id,
+              hubIdentifier,
+              plexVisibility,
+            }
+          );
+        } else if (wasPromotedToHub) {
+          // Collection was previously promoted but should NOT be in hub management anymore - delete from hubs
+          await plexClient.deleteHubItem(
+            collectionConfig.libraryId,
+            hubIdentifier
+          );
+
+          logger.debug(
+            `Deleted collection from hub management: ${collectionConfig.name}`,
+            {
+              label: 'Hub Sync Service',
+              collectionId: collectionConfig.id,
+              hubIdentifier,
+              reason: 'was promoted but should no longer be promoted',
+            }
+          );
+        } else {
+          // Collection was never promoted and shouldn't be - skip deletion attempt
+          logger.debug(
+            `Skipping collection (never promoted to hubs): ${collectionConfig.name}`,
+            {
+              label: 'Hub Sync Service',
+              collectionId: collectionConfig.id,
+              hubIdentifier,
+              wasPromotedToHub,
+              shouldBePromotedToHub,
+            }
+          );
+        }
 
         // Note: Collection sync status is already handled in CollectionSyncService
         // This is just visibility sync, so we don't update sync status here
@@ -406,26 +483,69 @@ export class HubSyncService {
       }
 
       try {
-        // Evaluate time restrictions and get effective visibility config
-        const effectiveVisibilityConfig = this.evaluateAndUpdateTimeRestriction(
-          preExistingConfig,
-          'preExisting'
-        );
+        // Calculate current promotion status
+        const shouldBePromotedToHub =
+          this.calculateIsPromotedToHub(preExistingConfig);
 
-        // Convert effective visibility config to Plex format
-        const plexVisibility = {
-          promotedToOwnHome:
-            effectiveVisibilityConfig?.serverOwnerHome || false,
-          promotedToSharedHome: effectiveVisibilityConfig?.usersHome || false,
-          promotedToRecommended:
-            effectiveVisibilityConfig?.libraryRecommended || false,
-        };
+        if (shouldBePromotedToHub) {
+          // Collection should be in hub management - update visibility
+          // Evaluate time restrictions and get effective visibility config
+          const effectiveVisibilityConfig =
+            this.evaluateAndUpdateTimeRestriction(
+              preExistingConfig,
+              'preExisting'
+            );
 
-        await plexClient.updateHubVisibility(
-          preExistingConfig.libraryId,
-          hubIdentifier,
-          plexVisibility
-        );
+          // Convert effective visibility config to Plex format
+          const plexVisibility = {
+            promotedToOwnHome:
+              effectiveVisibilityConfig?.serverOwnerHome || false,
+            promotedToSharedHome: effectiveVisibilityConfig?.usersHome || false,
+            promotedToRecommended:
+              effectiveVisibilityConfig?.libraryRecommended || false,
+          };
+
+          await plexClient.updateHubVisibility(
+            preExistingConfig.libraryId,
+            hubIdentifier,
+            plexVisibility
+          );
+
+          logger.debug(
+            `Updated hub visibility for pre-existing collection ${preExistingConfig.name}`,
+            {
+              label: 'Hub Sync Service',
+              collectionId: preExistingConfig.id,
+              hubIdentifier,
+              plexVisibility,
+            }
+          );
+        } else {
+          // Pre-existing collections are NEVER deleted from hub management
+          // Just hide them by setting all visibility to false
+          const hideVisibility = {
+            promotedToOwnHome: false,
+            promotedToSharedHome: false,
+            promotedToRecommended: false,
+          };
+
+          await plexClient.updateHubVisibility(
+            preExistingConfig.libraryId,
+            hubIdentifier,
+            hideVisibility
+          );
+
+          logger.debug(
+            `Hidden pre-existing collection (not deleted): ${preExistingConfig.name}`,
+            {
+              label: 'Hub Sync Service',
+              collectionId: preExistingConfig.id,
+              hubIdentifier,
+              reason:
+                'no visibility configured, hidden but preserved in hub management',
+            }
+          );
+        }
 
         // Mark pre-existing collection as successfully synced
         const settings = getSettings();
@@ -454,28 +574,69 @@ export class HubSyncService {
     collectionConfigs: CollectionConfig[],
     orderingItemsByLibrary: Map<string, OrderingItem[]>
   ): void {
-    for (const config of collectionConfigs) {
-      const libraryId = config.libraryId;
+    // Group collections by library first
+    const configsByLibrary = new Map<string, CollectionConfig[]>();
+    collectionConfigs.forEach((config) => {
+      if (!configsByLibrary.has(config.libraryId)) {
+        configsByLibrary.set(config.libraryId, []);
+      }
+      configsByLibrary.get(config.libraryId)?.push(config);
+    });
+
+    // Sort by sortOrderHome within each library (matching other methods)
+    for (const [libraryId, libraryConfigs] of configsByLibrary) {
+      const sortedConfigs = [...libraryConfigs].sort(
+        (a, b) =>
+          (a.sortOrderHome !== undefined ? a.sortOrderHome : 1) -
+          (b.sortOrderHome !== undefined ? b.sortOrderHome : 1)
+      );
 
       if (!orderingItemsByLibrary.has(libraryId)) {
         orderingItemsByLibrary.set(libraryId, []);
       }
 
-      // For collections, we need the collectionRatingKey to create proper Plex identifiers
-      const ratingKeyForLibrary = config.collectionRatingKey;
+      const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
+      if (libraryOrderingItems) {
+        sortedConfigs.forEach((config) => {
+          // Only include collections that have some visibility - items with zero visibility don't exist in Plex
+          const hasAnyVisibility =
+            config.visibilityConfig?.usersHome ||
+            config.visibilityConfig?.serverOwnerHome ||
+            config.visibilityConfig?.libraryRecommended;
 
-      // If we have a rating key for this library, include it in ordering
-      if (ratingKeyForLibrary) {
-        const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
-        if (libraryOrderingItems) {
-          libraryOrderingItems.push({
-            id: config.id,
-            type: 'collection',
-            libraryId,
-            collectionRatingKey: ratingKeyForLibrary,
-            sortOrder: config.sortOrderHome || 1,
-          });
-        }
+          if (!hasAnyVisibility) {
+            logger.debug(
+              `Skipping collection with no visibility from Plex reordering`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: config.id,
+                libraryId,
+              }
+            );
+            return;
+          }
+
+          // Only include collections that are calculated as promoted to hubs
+          const isPromotedToHub = this.calculateIsPromotedToHub(config);
+          if (!isPromotedToHub) {
+            return;
+          }
+
+          // For collections, we need the collectionRatingKey to create proper Plex identifiers
+          const ratingKeyForLibrary = config.collectionRatingKey;
+
+          // If we have a rating key for this library, include it in ordering
+          if (ratingKeyForLibrary) {
+            libraryOrderingItems.push({
+              id: config.id,
+              type: 'collection',
+              libraryId,
+              collectionRatingKey: ratingKeyForLibrary,
+              sortOrder:
+                config.sortOrderHome !== undefined ? config.sortOrderHome : 1,
+            });
+          }
+        });
       }
     }
   }
@@ -494,7 +655,9 @@ export class HubSyncService {
     for (const [libraryId, libraryHubConfigs] of hubConfigsByLibrary) {
       // Sort hub configs by their sortOrderHome (this is our UI order for home/recommended)
       const sortedHubConfigs = [...libraryHubConfigs].sort(
-        (a, b) => (a.sortOrderHome || 1) - (b.sortOrderHome || 1)
+        (a, b) =>
+          (a.sortOrderHome !== undefined ? a.sortOrderHome : 1) -
+          (b.sortOrderHome !== undefined ? b.sortOrderHome : 1)
       );
 
       // Add hubs to ordering in UI order
@@ -505,13 +668,22 @@ export class HubSyncService {
       const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
       if (libraryOrderingItems) {
         sortedHubConfigs.forEach((hubConfig) => {
-          // Only include hubs that have at least one of the main visibility settings enabled
-          const hasMainVisibility =
-            hubConfig.visibilityConfig.usersHome ||
-            hubConfig.visibilityConfig.serverOwnerHome ||
-            hubConfig.visibilityConfig.libraryRecommended;
+          // Only include hubs that have some visibility - items with zero visibility don't exist in Plex
+          const hasAnyVisibility =
+            hubConfig.visibilityConfig?.usersHome ||
+            hubConfig.visibilityConfig?.serverOwnerHome ||
+            hubConfig.visibilityConfig?.libraryRecommended;
 
-          if (!hasMainVisibility) {
+          if (!hasAnyVisibility) {
+            logger.debug(
+              `Skipping hub with no visibility from Plex reordering`,
+              {
+                label: 'Hub Sync Service',
+                hubId: hubConfig.id,
+                hubIdentifier: hubConfig.hubIdentifier,
+                libraryId: hubConfig.libraryId,
+              }
+            );
             return;
           }
 
@@ -522,7 +694,7 @@ export class HubSyncService {
               type: 'hub',
               libraryId: hubConfig.libraryId,
               hubIdentifier: hubConfig.hubIdentifier,
-              sortOrder: hubConfig.sortOrderHome || 1,
+              sortOrder: hubConfig.sortOrderHome,
             });
           } else {
             logger.warn(
@@ -559,7 +731,9 @@ export class HubSyncService {
     for (const [libraryId, libraryConfigs] of configsByLibrary) {
       // Sort configs by their sortOrderHome (this is our UI order for home/recommended)
       const sortedConfigs = [...libraryConfigs].sort(
-        (a, b) => (a.sortOrderHome || 1) - (b.sortOrderHome || 1)
+        (a, b) =>
+          (a.sortOrderHome !== undefined ? a.sortOrderHome : 1) -
+          (b.sortOrderHome !== undefined ? b.sortOrderHome : 1)
       );
 
       // Add pre-existing collections to ordering in UI order
@@ -570,13 +744,39 @@ export class HubSyncService {
       const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
       if (libraryOrderingItems) {
         sortedConfigs.forEach((config) => {
-          // Only include collections that have at least one of the main visibility settings enabled
-          const hasMainVisibility =
-            config.visibilityConfig.usersHome ||
-            config.visibilityConfig.serverOwnerHome ||
-            config.visibilityConfig.libraryRecommended;
+          // Only include pre-existing collections that have some visibility - items with zero visibility don't exist in Plex
+          const hasAnyVisibility =
+            config.visibilityConfig?.usersHome ||
+            config.visibilityConfig?.serverOwnerHome ||
+            config.visibilityConfig?.libraryRecommended;
 
-          if (!hasMainVisibility) {
+          if (!hasAnyVisibility) {
+            logger.debug(
+              `Skipping pre-existing collection with no visibility from Plex reordering`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: config.id,
+                collectionName: config.name,
+                ratingKey: config.collectionRatingKey,
+                libraryId: config.libraryId,
+              }
+            );
+            return;
+          }
+
+          // Only include pre-existing collections that are calculated as promoted to hubs
+          const isPromotedToHub = this.calculateIsPromotedToHub(config);
+          if (!isPromotedToHub) {
+            logger.debug(
+              `Excluding pre-existing collection from reordering: ${config.name} (not promoted to hub)`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: config.id,
+                libraryId: config.libraryId,
+                ratingKey: config.collectionRatingKey,
+                isPromotedToHub,
+              }
+            );
             return;
           }
 
@@ -586,7 +786,8 @@ export class HubSyncService {
             type: 'collection',
             libraryId: config.libraryId,
             collectionRatingKey: config.collectionRatingKey,
-            sortOrder: config.sortOrderHome || 1,
+            sortOrder:
+              config.sortOrderHome !== undefined ? config.sortOrderHome : 1,
           });
         });
       }
@@ -633,43 +834,59 @@ export class HubSyncService {
         onProgress?.(
           `Ordering library ${processedLibraries}/${totalLibraries} collections...`
         );
-        // Get all available hubs from Plex for this library to include inactive ones
-        const allPlexHubs = await plexClient.getHubManagement(libraryId);
-        const availableHubs = allPlexHubs.MediaContainer.Hub;
+        // All items should already be discovered and configured by DiscoveryService
+        // No need to find "unmanaged" items - everything should be managed by now
 
-        // Get current hub identifiers that are already managed
-        const managedHubIdentifiers = orderingItems
-          .filter((item) => item.type === 'hub')
-          .map((item) => item.hubIdentifier);
-
-        // Find ALL unmanaged hubs (both visible and invisible) to add at the end
-        const unmanagedHubs = availableHubs.filter((hub: PlexHub) => {
-          const isNotManaged = !managedHubIdentifiers.includes(hub.identifier);
-          const isBuiltIn = !hub.identifier?.startsWith('custom.collection.');
-          return isNotManaged && isBuiltIn;
-        });
-
-        // Normalize sort orders for managed items to ensure sequential ordering (0,1,2,...)
-        const normalizedOrderingItems = orderingItems
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((item, index) => ({ ...item, sortOrder: index }));
-
-        // Add unmanaged hubs to ordering items (at the bottom with sequential sort orders)
-        const unmanagedHubOrderingItems = unmanagedHubs.map(
-          (hub: PlexHub, index: number) => ({
-            id: `unmanaged-${hub.identifier}`,
-            type: 'hub' as const,
+        // DEBUG: Log items before sorting for library "1"
+        if (libraryId === '1') {
+          logger.debug('Items before sorting and compacting:', {
+            label: 'Hub Sync Service - SORT DEBUG',
             libraryId,
-            hubIdentifier: hub.identifier,
-            sortOrder: normalizedOrderingItems.length + index,
-          })
+            items: orderingItems.map((item) => ({
+              id: item.id,
+              type: item.type,
+              sortOrder: item.sortOrder,
+              collectionRatingKey: item.collectionRatingKey,
+              hubIdentifier: item.hubIdentifier,
+            })),
+          });
+        }
+
+        // Separate void items (sortOrder = 0) from regular items
+        const regularItems = orderingItems.filter(
+          (item) => item.sortOrder && item.sortOrder > 0
+        );
+        const voidItems = orderingItems.filter(
+          (item) => !item.sortOrder || item.sortOrder === 0
         );
 
-        // Combine normalized managed items with unmanaged hubs
-        const completeOrderingItems = [
-          ...normalizedOrderingItems,
-          ...unmanagedHubOrderingItems,
-        ];
+        // Sort regular items by their sortOrder
+        const sortedRegularItems = regularItems.sort(
+          (a, b) => a.sortOrder - b.sortOrder
+        );
+
+        // Combine: regular items first, then void items at the end
+        const sortedItems = [...sortedRegularItems, ...voidItems];
+
+        // Compact sortOrder values to remove gaps left by filtered inactive items
+        // This preserves the relative ordering while ensuring sequential values (1,2,3,4...)
+        // Void items get assigned sequential positions at the end
+        const managedOrderingItems = sortedItems.map((item, index) => ({
+          ...item,
+          sortOrder: index + 1,
+        }));
+
+        // Use only the managed items - discovery should have found everything we need
+        const completeOrderingItems = managedOrderingItems;
+
+        // Get library type for anchor positioning
+        const settings = getSettings();
+        const library = settings.plex.libraries.find(
+          (lib) => lib.key === libraryId
+        );
+        if (!library) {
+          throw new Error(`Library ${libraryId} not found in settings`);
+        }
 
         // Applying unified ordering for library
         await applyUnifiedOrderingToPlex(plexClient, completeOrderingItems);
@@ -901,6 +1118,98 @@ export class HubSyncService {
         }
       );
     }
+  }
+
+  /**
+   * Calculate isPromotedToHub status for a collection config
+   * This is a calculated field based on visibility settings and collection state
+   */
+  private calculateIsPromotedToHub(
+    config: CollectionConfig | PlexHubConfig | PreExistingCollectionConfig
+  ): boolean {
+    // Default Plex hubs are always promoted (can't be deleted)
+    if (
+      'collectionType' in config &&
+      config.collectionType === CollectionType.DEFAULT_PLEX_HUB
+    ) {
+      return true;
+    }
+
+    // For Agregarr collections, calculate based on current state and visibility
+    if ('type' in config) {
+      // This is a CollectionConfig
+      const collectionConfig = config as CollectionConfig;
+
+      if (collectionConfig.isActive) {
+        // Active collections: base on current visibility settings
+        return !!(
+          collectionConfig.visibilityConfig?.usersHome ||
+          collectionConfig.visibilityConfig?.serverOwnerHome ||
+          collectionConfig.visibilityConfig?.libraryRecommended
+        );
+      } else {
+        // Inactive collections: check time restriction settings
+        const timeRestriction = collectionConfig.timeRestriction;
+
+        if (timeRestriction?.removeFromPlexWhenInactive) {
+          // Remove entirely when inactive = DELETE from hub management
+          return false;
+        } else {
+          // Use inactive visibility settings
+          const inactiveConfig = timeRestriction?.inactiveVisibilityConfig;
+          if (inactiveConfig) {
+            return !!(
+              inactiveConfig.usersHome ||
+              inactiveConfig.serverOwnerHome ||
+              inactiveConfig.libraryRecommended
+            );
+          } else {
+            // Default inactive behavior: still visible in library recommended
+            return true;
+          }
+        }
+      }
+    }
+
+    // For pre-existing collections, calculate based on visibility config like regular collections
+    if ('visibilityConfig' in config && !('type' in config)) {
+      // This is a PreExistingCollectionConfig
+      const preExistingConfig = config as PreExistingCollectionConfig;
+
+      if (preExistingConfig.isActive) {
+        // Active pre-existing collections: base on current visibility settings
+        return !!(
+          preExistingConfig.visibilityConfig?.usersHome ||
+          preExistingConfig.visibilityConfig?.serverOwnerHome ||
+          preExistingConfig.visibilityConfig?.libraryRecommended
+        );
+      } else {
+        // Inactive pre-existing collections: check time restriction settings
+        const timeRestriction = preExistingConfig.timeRestriction;
+
+        if (timeRestriction?.removeFromPlexWhenInactive) {
+          // Remove entirely when inactive = DELETE from hub management
+          return false;
+        } else {
+          // Use inactive visibility settings
+          const inactiveConfig = timeRestriction?.inactiveVisibilityConfig;
+          if (inactiveConfig) {
+            return !!(
+              inactiveConfig.usersHome ||
+              inactiveConfig.serverOwnerHome ||
+              inactiveConfig.libraryRecommended
+            );
+          } else {
+            // Default inactive behavior: still visible in library recommended
+            return true;
+          }
+        }
+      }
+    }
+
+    // For other hub types, preserve their discovered value
+    // This maintains the user's existing Plex setup
+    return config.isPromotedToHub !== false; // Default to true if undefined
   }
 
   /**

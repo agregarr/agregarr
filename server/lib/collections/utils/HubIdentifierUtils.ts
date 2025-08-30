@@ -331,6 +331,7 @@ export function findConflictingHubs<
  */
 
 import { CollectionType } from '@server/lib/settings';
+import { IdGenerator } from '@server/utils/idGenerator';
 
 export interface HubCategorizationResult {
   collectionType: CollectionType;
@@ -450,6 +451,9 @@ export function createHubConfigFromDiscovery(
     isLibraryPromoted: false, // Hubs start in A-Z section (though they use different ordering logic)
     everLibraryPromoted: false, // Default: false for all discovered hubs
     collectionType: categorization.collectionType,
+    // Set initial promotion status: default hubs always promoted, others calculated
+    isPromotedToHub:
+      categorization.collectionType === CollectionType.DEFAULT_PLEX_HUB,
     visibilityConfig: {
       usersHome: hubData.promotedToSharedHome || false,
       serverOwnerHome: hubData.promotedToOwnHome || false,
@@ -487,8 +491,8 @@ export function createPreExistingConfigFromDiscovery(
   const detectedMediaType: 'movie' | 'tv' =
     mediaType || (library.type === 'movie' ? 'movie' : 'tv');
 
-  return {
-    id: `pre-existing-${library.key}-${ratingKey}`,
+  const config = {
+    id: IdGenerator.generateId(),
     collectionRatingKey: ratingKey,
     name: collectionData.title,
     libraryId: library.key,
@@ -512,6 +516,8 @@ export function createPreExistingConfigFromDiscovery(
     },
     // isActive field omitted - will be set server-side when saving
   };
+
+  return config;
 }
 
 /**
