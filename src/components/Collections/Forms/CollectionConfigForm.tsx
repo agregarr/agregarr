@@ -36,6 +36,7 @@ const messages = defineMessages({
   selectSubtype: 'Select sub-type...',
   visibility: 'Visibility',
   maxItems: 'Max Items',
+  minimumPlays: 'Minimum Play Count',
   // customPoster: 'Custom Poster', // Disabled for future release
   autoRequestSettings: 'Auto-Request Settings',
   timeRestrictions: 'Time Restrictions',
@@ -218,6 +219,15 @@ const CollectionFormConfigForm = ({
     maxItems: Yup.number()
       .min(1, 'Must be at least 1 item')
       .max(1000, 'Cannot exceed 1000 items'),
+
+    minimumPlays: Yup.number()
+      .min(1, 'Must be at least 1 play')
+      .max(100, 'Cannot exceed 100 plays')
+      .when('type', {
+        is: 'tautulli',
+        then: (schema) => schema.required('Minimum plays is required'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
 
     maxSeasonsToRequest: Yup.number().when(
       ['searchMissingTV', 'autoApproveTV'],
@@ -1290,6 +1300,7 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfigForEditing).libraryNames ||
             (config.libraryName ? [config.libraryName] : []),
           maxItems: (config as CollectionFormConfig).maxItems || 50,
+          minimumPlays: (config as CollectionFormConfig).minimumPlays || 3,
           customDays: (config as CollectionFormConfig).customDays || 30,
           // Download mode settings
           enableGrabMissingItems:
@@ -1386,6 +1397,9 @@ const CollectionFormConfigForm = ({
             customDays: values.customDays
               ? parseInt(values.customDays.toString(), 10)
               : undefined,
+            minimumPlays: values.minimumPlays
+              ? parseInt(values.minimumPlays.toString(), 10)
+              : 3,
             maxItems: values.maxItems
               ? parseInt(values.maxItems.toString(), 10)
               : 50,
@@ -1721,6 +1735,41 @@ const CollectionFormConfigForm = ({
                                 <div className="label-tip">
                                   Number of days to look back for statistics
                                   (1-365)
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Minimum Play Count (for Tautulli collections) */}
+                          {values.type === 'tautulli' && (
+                            <div className="form-row">
+                              <label
+                                htmlFor="minimumPlays"
+                                className="text-label"
+                              >
+                                Minimum Play Count
+                                <span className="label-required">*</span>
+                              </label>
+                              <div className="form-input-area">
+                                <div className="form-input-field">
+                                  <Field
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    id="minimumPlays"
+                                    name="minimumPlays"
+                                    className="short"
+                                  />
+                                </div>
+                                {errors.minimumPlays &&
+                                  touched.minimumPlays && (
+                                    <div className="error">
+                                      {String(errors.minimumPlays)}
+                                    </div>
+                                  )}
+                                <div className="label-tip">
+                                  Only include items with at least this many
+                                  unique viewers (1-100)
                                 </div>
                               </div>
                             </div>

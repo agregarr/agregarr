@@ -43,6 +43,7 @@ export interface CollectionConfig {
   readonly needsSync?: boolean; // true if modified since last sync
   readonly maxItems: number;
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
+  readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
   readonly libraryId: string; // Library ID this collection belongs to
   readonly libraryName: string; // Library name for display
   readonly sortOrderHome?: number; // Order for Plex home screen (1+ for positioned items, 0 for void/unpositioned)
