@@ -63,6 +63,11 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
     'Every {jobScheduleMinutes, plural, one {minute} other {{jobScheduleMinutes} minutes}}',
   editJobScheduleSelectorSeconds:
     'Every {jobScheduleSeconds, plural, one {second} other {{jobScheduleSeconds} seconds}}',
+  editJobScheduleUsePreset: 'Use Preset Intervals',
+  editJobScheduleUseCustom: 'Use Custom CRON Expression',
+  editJobScheduleCustomCron: 'CRON Expression',
+  editJobScheduleCustomCronPlaceholder: 'e.g. 0 0 */6 * * * (every 6 hours)',
+  editJobScheduleCustomCronInvalid: 'Invalid CRON expression',
   imagecache: 'Image Cache',
   imagecacheDescription:
     'When enabled in settings, Agregarr will proxy and cache images from pre-configured external sources. Cached images are saved into your config folder. You can find the files in <code>{appDataPath}/cache/images</code>.',
@@ -88,10 +93,19 @@ type JobModalState = {
   scheduleHours: number;
   scheduleMinutes: number;
   scheduleSeconds: number;
+  useCustomCron: boolean;
+  customCronExpression: string;
 };
 
 type JobModalAction =
-  | { type: 'set'; hours?: number; minutes?: number; seconds?: number }
+  | {
+      type: 'set';
+      hours?: number;
+      minutes?: number;
+      seconds?: number;
+      useCustomCron?: boolean;
+      customCronExpression?: string;
+    }
   | {
       type: 'close';
     }
@@ -115,6 +129,8 @@ const jobModalReducer = (
         scheduleHours: 1,
         scheduleMinutes: 5,
         scheduleSeconds: 30,
+        useCustomCron: false,
+        customCronExpression: '',
       };
 
     case 'set':
@@ -123,6 +139,9 @@ const jobModalReducer = (
         scheduleHours: action.hours ?? state.scheduleHours,
         scheduleMinutes: action.minutes ?? state.scheduleMinutes,
         scheduleSeconds: action.seconds ?? state.scheduleSeconds,
+        useCustomCron: action.useCustomCron ?? state.useCustomCron,
+        customCronExpression:
+          action.customCronExpression ?? state.customCronExpression,
       };
   }
 };
@@ -150,6 +169,8 @@ const SettingsJobs = () => {
     scheduleHours: 1,
     scheduleMinutes: 5,
     scheduleSeconds: 30,
+    useCustomCron: false,
+    customCronExpression: '',
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -208,25 +229,53 @@ const SettingsJobs = () => {
   };
 
   const scheduleJob = async () => {
-    const jobScheduleCron = ['0', '0', '*', '*', '*', '*'];
+    let scheduleExpression = '';
 
     try {
-      if (jobModalState.job?.interval === 'seconds') {
-        jobScheduleCron.splice(0, 2, `*/${jobModalState.scheduleSeconds}`, '*');
-      } else if (jobModalState.job?.interval === 'minutes') {
-        jobScheduleCron[1] = `*/${jobModalState.scheduleMinutes}`;
-      } else if (jobModalState.job?.interval === 'hours') {
-        jobScheduleCron[2] = `*/${jobModalState.scheduleHours}`;
+      if (jobModalState.useCustomCron) {
+        // Use custom CRON expression
+        const cronExpr = jobModalState.customCronExpression.trim();
+        if (!cronExpr) {
+          throw new Error('CRON expression is required');
+        }
+
+        // Basic validation: should have 6 parts for node-schedule (second minute hour day month weekday)
+        const cronParts = cronExpr.split(/\s+/);
+        if (cronParts.length !== 6) {
+          throw new Error(
+            'CRON expression must have 6 parts: second minute hour day month weekday'
+          );
+        }
+
+        scheduleExpression = cronExpr;
       } else {
-        // jobs with interval: fixed should not be editable
-        throw new Error();
+        // Use preset intervals
+        const jobScheduleCron = ['0', '0', '*', '*', '*', '*'];
+
+        if (jobModalState.job?.interval === 'seconds') {
+          jobScheduleCron.splice(
+            0,
+            2,
+            `*/${jobModalState.scheduleSeconds}`,
+            '*'
+          );
+        } else if (jobModalState.job?.interval === 'minutes') {
+          jobScheduleCron[1] = `*/${jobModalState.scheduleMinutes}`;
+        } else if (jobModalState.job?.interval === 'hours') {
+          jobScheduleCron[2] = `*/${jobModalState.scheduleHours}`;
+        } else {
+          // jobs with interval: fixed should not be editable unless using custom CRON
+          throw new Error('This job type requires custom CRON expression');
+        }
+
+        scheduleExpression = jobScheduleCron.join(' ');
       }
 
       setIsSaving(true);
       await axios.post(
-        `/api/v1/settings/jobs/${jobModalState.job.id}/schedule`,
+        `/api/v1/settings/jobs/${jobModalState.job?.id}/schedule`,
         {
-          schedule: jobScheduleCron.join(' '),
+          schedule: scheduleExpression,
         }
       );
 
@@ -295,79 +344,138 @@ const SettingsJobs = () => {
                 </div>
               </div>
               <div className="form-row">
-                <label htmlFor="jobSchedule" className="text-label">
+                <label className="text-label">
                   {intl.formatMessage(messages.editJobSchedulePrompt)}
                 </label>
                 <div className="form-input-area">
-                  {jobModalState.job?.interval === 'seconds' ? (
-                    <select
-                      name="jobScheduleSeconds"
-                      className="inline"
-                      value={jobModalState.scheduleSeconds}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          seconds: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {[30, 45, 60].map((v) => (
-                        <option value={v} key={`jobScheduleSeconds-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorSeconds,
-                            {
-                              jobScheduleSeconds: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
-                  ) : jobModalState.job?.interval === 'minutes' ? (
-                    <select
-                      name="jobScheduleMinutes"
-                      className="inline"
-                      value={jobModalState.scheduleMinutes}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          minutes: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {[5, 10, 15, 20, 30, 60].map((v) => (
-                        <option value={v} key={`jobScheduleMinutes-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorMinutes,
-                            {
-                              jobScheduleMinutes: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="mb-4">
+                    <label className="mr-6 inline-flex items-center">
+                      <input
+                        type="radio"
+                        className="form-radio"
+                        checked={!jobModalState.useCustomCron}
+                        onChange={() =>
+                          dispatch({ type: 'set', useCustomCron: false })
+                        }
+                      />
+                      <span className="ml-2">
+                        {intl.formatMessage(messages.editJobScheduleUsePreset)}
+                      </span>
+                    </label>
+                    <label className="inline-flex items-center">
+                      <input
+                        type="radio"
+                        className="form-radio"
+                        checked={jobModalState.useCustomCron}
+                        onChange={() =>
+                          dispatch({ type: 'set', useCustomCron: true })
+                        }
+                      />
+                      <span className="ml-2">
+                        {intl.formatMessage(messages.editJobScheduleUseCustom)}
+                      </span>
+                    </label>
+                  </div>
+
+                  {!jobModalState.useCustomCron ? (
+                    // Preset intervals
+                    <div>
+                      {jobModalState.job?.interval === 'seconds' ? (
+                        <select
+                          name="jobScheduleSeconds"
+                          className="inline"
+                          value={jobModalState.scheduleSeconds}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'set',
+                              seconds: Number(e.target.value),
+                            })
+                          }
+                        >
+                          {[30, 45, 60].map((v) => (
+                            <option value={v} key={`jobScheduleSeconds-${v}`}>
+                              {intl.formatMessage(
+                                messages.editJobScheduleSelectorSeconds,
+                                {
+                                  jobScheduleSeconds: v,
+                                }
+                              )}
+                            </option>
+                          ))}
+                        </select>
+                      ) : jobModalState.job?.interval === 'minutes' ? (
+                        <select
+                          name="jobScheduleMinutes"
+                          className="inline"
+                          value={jobModalState.scheduleMinutes}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'set',
+                              minutes: Number(e.target.value),
+                            })
+                          }
+                        >
+                          {[5, 10, 15, 20, 30, 60].map((v) => (
+                            <option value={v} key={`jobScheduleMinutes-${v}`}>
+                              {intl.formatMessage(
+                                messages.editJobScheduleSelectorMinutes,
+                                {
+                                  jobScheduleMinutes: v,
+                                }
+                              )}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          name="jobScheduleHours"
+                          className="inline"
+                          value={jobModalState.scheduleHours}
+                          onChange={(e) =>
+                            dispatch({
+                              type: 'set',
+                              hours: Number(e.target.value),
+                            })
+                          }
+                        >
+                          {[1, 2, 3, 4, 6, 8, 12, 24, 48, 72].map((v) => (
+                            <option value={v} key={`jobScheduleHours-${v}`}>
+                              {intl.formatMessage(
+                                messages.editJobScheduleSelectorHours,
+                                {
+                                  jobScheduleHours: v,
+                                }
+                              )}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   ) : (
-                    <select
-                      name="jobScheduleHours"
-                      className="inline"
-                      value={jobModalState.scheduleHours}
-                      onChange={(e) =>
-                        dispatch({
-                          type: 'set',
-                          hours: Number(e.target.value),
-                        })
-                      }
-                    >
-                      {[1, 2, 3, 4, 6, 8, 12, 24, 48, 72].map((v) => (
-                        <option value={v} key={`jobScheduleHours-${v}`}>
-                          {intl.formatMessage(
-                            messages.editJobScheduleSelectorHours,
-                            {
-                              jobScheduleHours: v,
-                            }
-                          )}
-                        </option>
-                      ))}
-                    </select>
+                    // Custom CRON expression
+                    <div>
+                      <label
+                        htmlFor="customCronExpression"
+                        className="text-label mb-2 block"
+                      >
+                        {intl.formatMessage(messages.editJobScheduleCustomCron)}
+                      </label>
+                      <input
+                        id="customCronExpression"
+                        type="text"
+                        className="inline"
+                        placeholder={intl.formatMessage(
+                          messages.editJobScheduleCustomCronPlaceholder
+                        )}
+                        value={jobModalState.customCronExpression}
+                        onChange={(e) =>
+                          dispatch({
+                            type: 'set',
+                            customCronExpression: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
                   )}
                 </div>
               </div>

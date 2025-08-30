@@ -38,7 +38,7 @@ export const startJobs = (): void => {
     id: 'plex-collections-sync',
     name: 'Plex Collections Sync',
     type: 'process',
-    interval: 'minutes',
+    interval: 'hours',
     cronSchedule: jobs['plex-collections-sync'].schedule,
     job: schedule.scheduleJob(jobs['plex-collections-sync'].schedule, () => {
       // Check if any collections are configured before running
