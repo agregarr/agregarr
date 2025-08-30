@@ -143,6 +143,18 @@ export class AutoRequestService {
             continue;
           }
 
+          // Check season limit for ALL TV shows first (regardless of auto-approve setting)
+          if (item.mediaType === 'tv') {
+            const seasonCount = await this.getTvSeasonCount(item.tmdbId);
+
+            if (seasonCount > maxSeasons) {
+              // Track TV shows that exceed the season limit
+              tooManySeasons.push(item.title);
+              skippedRequests++;
+              continue;
+            }
+          }
+
           // Determine if this request should be auto-approved
           let autoApprove = false;
           let requestType = 'manual-approval';
@@ -151,19 +163,9 @@ export class AutoRequestService {
             autoApprove = true;
             requestType = 'auto-approved';
           } else if (item.mediaType === 'tv' && config.autoApproveTV) {
-            // For TV shows, check season count if auto-approve is enabled
-            const seasonCount = await this.getTvSeasonCount(item.tmdbId);
-
-            if (seasonCount > maxSeasons) {
-              // Track TV shows that exceed the season limit
-              tooManySeasons.push(item.title);
-              skippedRequests++;
-              continue;
-            } else {
-              // Auto-approve TV shows within season limit
-              autoApprove = true;
-              requestType = 'auto-approved';
-            }
+            // Auto-approve TV shows (season limit already checked above)
+            autoApprove = true;
+            requestType = 'auto-approved';
           }
 
           // Get service user with dynamic permissions based on auto-approve decision
