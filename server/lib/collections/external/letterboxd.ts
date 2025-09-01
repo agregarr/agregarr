@@ -32,6 +32,7 @@ interface LetterboxdListItem {
  */
 export class LetterboxdCollectionSync extends BaseCollectionSync {
   private tmdbClient: TmdbAPI;
+  private lastFetchedHtml = '';
 
   constructor() {
     super('letterboxd');
@@ -80,26 +81,88 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         }
       );
 
-      const response = await axios.get(config.letterboxdCustomListUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        },
-        timeout: 10000,
-      });
+      // Fetch all pages to get the complete list
+      const letterboxdData: LetterboxdListItem[] = [];
+      let currentPage = 1;
+      let totalFetched = 0;
+      const maxPages = 15; // Safety limit (1001 movies ÷ 100 per page ≈ 11 pages)
 
-      // Parse the HTML to extract movie items
-      const letterboxdData = this.parseLetterboxdListHtml(
-        response.data,
-        config.maxItems
-      );
+      while (totalFetched < config.maxItems && currentPage <= maxPages) {
+        const pageUrl =
+          currentPage === 1
+            ? config.letterboxdCustomListUrl
+            : `${config.letterboxdCustomListUrl}page/${currentPage}/`;
+
+        logger.debug(`Fetching Letterboxd page ${currentPage}: ${pageUrl}`, {
+          label: 'Letterboxd Collections',
+          configName: config.name,
+          page: currentPage,
+          totalFetched,
+        });
+
+        const response = await axios.get(pageUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          timeout: 10000,
+        });
+
+        // Store HTML from first page for later title extraction
+        if (currentPage === 1) {
+          this.lastFetchedHtml = response.data;
+        }
+
+        // Parse this page's HTML to extract movie items
+        const remainingItems = config.maxItems - totalFetched;
+        const pageData = this.parseLetterboxdListHtml(
+          response.data,
+          remainingItems
+        );
+
+        if (pageData.length === 0) {
+          logger.debug(
+            `No more items found on page ${currentPage}, stopping pagination`,
+            {
+              label: 'Letterboxd Collections',
+              configName: config.name,
+              currentPage,
+              totalFetched,
+            }
+          );
+          break; // No more items, stop pagination
+        }
+
+        letterboxdData.push(...pageData);
+        totalFetched += pageData.length;
+
+        logger.debug(
+          `Page ${currentPage} complete: ${pageData.length} items (total: ${totalFetched})`,
+          {
+            label: 'Letterboxd Collections',
+            configName: config.name,
+            pageItems: pageData.length,
+            totalFetched,
+          }
+        );
+
+        currentPage++;
+
+        // Small delay between pages to be respectful
+        if (currentPage <= maxPages && totalFetched < config.maxItems) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
 
       logger.info(
-        `Successfully fetched ${letterboxdData.length} items from Letterboxd custom list`,
+        `Successfully fetched ${
+          letterboxdData.length
+        } items from Letterboxd custom list (${currentPage - 1} pages)`,
         {
           label: 'Letterboxd Collections',
           configName: config.name,
           itemCount: letterboxdData.length,
+          pagesFetched: currentPage - 1,
         }
       );
 
@@ -334,12 +397,43 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       config.subtype || 'custom'
     )) as LetterboxdTemplateContext;
 
+    // Try to get list name from HTML title first (more accurate), fallback to URL
+    let listName = '';
+    if (this.lastFetchedHtml) {
+      logger.debug('Attempting HTML title extraction', {
+        label: 'Letterboxd Collections',
+        hasHtml: !!this.lastFetchedHtml,
+        htmlLength: this.lastFetchedHtml.length,
+      });
+      listName = this.extractListNameFromHtml(this.lastFetchedHtml);
+    } else {
+      logger.warn('No HTML available for title extraction', {
+        label: 'Letterboxd Collections',
+        configName: config.name,
+      });
+    }
+
+    // If HTML extraction failed, fallback to URL-based extraction
+    if (!listName) {
+      logger.debug('HTML extraction failed, falling back to URL extraction', {
+        label: 'Letterboxd Collections',
+        url: config.letterboxdCustomListUrl,
+      });
+      listName = this.extractListNameFromUrl(
+        config.letterboxdCustomListUrl || ''
+      );
+    }
+
+    logger.info('Final list name determined:', {
+      label: 'Letterboxd Collections',
+      listName,
+      extractionMethod: this.lastFetchedHtml ? 'HTML' : 'URL',
+    });
+
     return {
       ...baseContext,
       listUrl: config.letterboxdCustomListUrl || '',
-      listName: this.extractListNameFromUrl(
-        config.letterboxdCustomListUrl || ''
-      ),
+      listName: listName,
     };
   }
 
@@ -483,20 +577,20 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     const items: LetterboxdListItem[] = [];
 
     try {
-      // Parse HTML using simple regex patterns based on Kometa's approach
-      // Look for poster containers and film details
-      const posterContainerRegex =
-        /<li[^>]*class="[^"]*(?:poster-container|film-detail)[^"]*"[^>]*>(.*?)<\/li>/gs;
+      // Parse HTML using regex patterns for the actual Letterboxd structure
+      // Look for posteritem numbered-list-item elements
+      const posterItemRegex =
+        /<li[^>]*class="[^"]*posteritem numbered-list-item[^"]*"[^>]*>(.*?)<\/li>/gs;
       const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
-      const yearRegex = /<small[^>]*>.*?<a[^>]*>(\d{4})<\/a>/;
+      const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /<img[^>]*alt="([^"]+)"/;
 
       let match;
       let count = 0;
 
       while (
-        (match = posterContainerRegex.exec(html)) !== null &&
+        (match = posterItemRegex.exec(html)) !== null &&
         count < maxItems
       ) {
         const itemHtml = match[1];
@@ -509,17 +603,37 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         const targetLinkMatch = itemHtml.match(targetLinkRegex);
         if (!targetLinkMatch) continue;
 
-        // Extract year
-        const yearMatch = itemHtml.match(yearRegex);
-        const year = yearMatch
-          ? parseInt(yearMatch[1])
-          : new Date().getFullYear();
-
         // Extract title from img alt text
         const titleMatch = itemHtml.match(titleRegex);
         if (!titleMatch) continue;
 
-        const title = titleMatch[1];
+        // Decode HTML entities in the title
+        let title = titleMatch[1];
+        title = title
+          .replace(/&lrm;/g, '') // Remove left-to-right mark
+          .replace(/&rlm;/g, '') // Remove right-to-left mark
+          .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
+          .replace(/&ndash;/g, '–') // Replace en-dash
+          .replace(/&mdash;/g, '—') // Replace em-dash
+          .replace(/&hellip;/g, '…') // Replace ellipsis
+          .replace(/&quot;/g, '"') // Replace quotes
+          .replace(/&#39;/g, "'") // Replace apostrophe
+          .replace(/&#039;/g, "'") // Replace apostrophe variant
+          .replace(/&amp;/g, '&') // Replace ampersand (do this last)
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>');
+
+        // Extract year from full display name (e.g., "All of Us Strangers (2023)")
+        const fullDisplayNameMatch = itemHtml.match(fullDisplayNameRegex);
+        let year = new Date().getFullYear(); // default fallback
+
+        if (fullDisplayNameMatch) {
+          const yearMatch = fullDisplayNameMatch[1].match(/\((\d{4})\)$/);
+          if (yearMatch) {
+            year = parseInt(yearMatch[1]);
+          }
+        }
+
         const slug = targetLinkMatch[1];
         const letterboxdUrl = `https://letterboxd.com${slug}`;
 
@@ -559,5 +673,88 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         .replace(/\b\w/g, (l: string) => l.toUpperCase());
     }
     return '';
+  }
+
+  /**
+   * Extract and clean the list name from HTML title, removing HTML entities and unwanted text
+   */
+  private extractListNameFromHtml(html: string): string {
+    try {
+      // Extract title from HTML
+      const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
+      if (!titleMatch) {
+        logger.debug('No title tag found in HTML', {
+          label: 'Letterboxd Collections',
+          htmlLength: html.length,
+        });
+        return '';
+      }
+
+      let title = titleMatch[1];
+      logger.debug('Extracted raw title from HTML:', {
+        label: 'Letterboxd Collections',
+        rawTitle: title,
+      });
+
+      // Decode HTML entities first
+      title = title
+        .replace(/&lrm;/g, '') // Remove left-to-right mark
+        .replace(/&rlm;/g, '') // Remove right-to-left mark
+        .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
+        .replace(/&ndash;/g, '–') // Replace en-dash
+        .replace(/&mdash;/g, '—') // Replace em-dash
+        .replace(/&hellip;/g, '…') // Replace ellipsis
+        .replace(/&quot;/g, '"') // Replace quotes
+        .replace(/&#39;/g, "'") // Replace apostrophe
+        .replace(/&amp;/g, '&') // Replace ampersand (do this last)
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>');
+
+      logger.debug('Title after HTML entity cleanup:', {
+        label: 'Letterboxd Collections',
+        cleanedTitle: title,
+      });
+
+      // Extract list name (everything before " • Letterboxd" or ", a list of films by")
+      const patterns = [
+        /^(.*?),\s*a\s+list\s+of\s+films?\s+by/i, // ", a list of films by"
+        /^(.*?)\s*•\s*Letterboxd/i, // " • Letterboxd"
+        /^(.*?)\s*-\s*Letterboxd/i, // " - Letterboxd"
+        /^(.*?)\s*\|\s*Letterboxd/i, // " | Letterboxd"
+      ];
+
+      for (const pattern of patterns) {
+        const match = title.match(pattern);
+        if (match && match[1]) {
+          const extractedName = match[1].trim();
+          logger.info('Successfully extracted list name from HTML title:', {
+            label: 'Letterboxd Collections',
+            extractedName,
+            usedPattern: pattern.source,
+          });
+          return extractedName;
+        }
+      }
+
+      // If no pattern matches, return the whole title cleaned up
+      const fallbackName = title
+        .replace(/\s*•\s*Letterboxd.*$/i, '') // Remove " • Letterboxd" suffix
+        .replace(/\s*-\s*Letterboxd.*$/i, '') // Remove " - Letterboxd" suffix
+        .replace(/\s*\|\s*Letterboxd.*$/i, '') // Remove " | Letterboxd" suffix
+        .trim();
+
+      logger.info('Used fallback pattern for list name extraction:', {
+        label: 'Letterboxd Collections',
+        fallbackName,
+      });
+
+      return fallbackName;
+    } catch (error) {
+      logger.warn('Failed to extract list name from HTML title:', {
+        label: 'Letterboxd Collections',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return '';
+    }
   }
 }

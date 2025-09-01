@@ -51,14 +51,9 @@ app
     // Initialize sync status for existing collections (one-time migration)
     settings.initializeSyncStatusForExistingCollections();
 
-    // Migrate default hub configs for v1.0.4 library ordering consistency
-    settings.migrateDefaultHubConfigsV104();
-
-    // Migrate collection sortOrderHome values for v1.0.4 visibility consistency
-    settings.migrateVisibilityBasedSortOrdersV104();
-
-    // Migrate collection promotion status for v1.0.4 hub promotion tracking
-    settings.migratePromotionStatusV104();
+    // Complete collection data normalization migration for v1.1.0
+    // Replaces 4 incomplete migrations with comprehensive field normalization
+    settings.migrateCollectionDataNormalizationV110();
 
     // Initialize poster storage directory
     try {

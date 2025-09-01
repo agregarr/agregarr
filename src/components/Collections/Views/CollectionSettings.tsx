@@ -546,7 +546,7 @@ const CollectionSettings = ({
       searchMissingTV: false,
       autoApproveMovies: false,
       autoApproveTV: false,
-      maxSeasonsToRequest: 3, // Default season limit
+      maxSeasonsToRequest: 0, // Default: no limit
       seasonsPerShowLimit: 0, // Default: all seasons
     };
     setEditingConfig(newConfig);

@@ -39,7 +39,9 @@ export class CollectionCleanupService {
     let deleted = 0;
 
     // Get all config types and their labels
-    const activeConfigLabels = this.generateActiveConfigLabels(currentConfigs);
+    const activeConfigLabels = await this.generateActiveConfigLabels(
+      currentConfigs
+    );
 
     // Get current user Plex IDs for orphaned user collection cleanup
     const currentUserPlexIds = new Set(Object.keys(userCollections));
@@ -303,39 +305,63 @@ export class CollectionCleanupService {
   /**
    * Generate active configuration labels for comparison
    * For user collections, returns generic type labels since they spawn multiple collections
-   * For other types including server_owner, this method needs to be enhanced to work with actual labels
+   * For server_owner, generates the actual label format using admin user's plexId
    */
-  private generateActiveConfigLabels(configs: CollectionConfig[]): Set<string> {
-    return new Set(
-      configs.map((c) => {
-        switch (c.type) {
-          case 'overseerr':
-            if (c.subtype === 'users') {
-              return `AgregarrOverseerrUser`; // Generic for user config type checking
-            } else if (c.subtype === 'global') {
-              return `AgregarrOverseerrAll${c.id}`;
-            } else if (c.subtype === 'server_owner') {
-              // For server_owner, we'll handle this in evaluateCollectionForDeletion using ratingKey matching
-              // Return a placeholder that won't match actual collection labels
-              return `AgregarrOverseerrOwner_CONFIG_${c.id}`;
-            } else {
-              return `AgregarrOverseerr${c.subtype}${c.id}`;
+  private async generateActiveConfigLabels(
+    configs: CollectionConfig[]
+  ): Promise<Set<string>> {
+    const labels = [];
+
+    for (const c of configs) {
+      switch (c.type) {
+        case 'overseerr':
+          if (c.subtype === 'users') {
+            labels.push(`AgregarrOverseerrUser`); // Generic for user config type checking
+          } else if (c.subtype === 'global') {
+            labels.push(`AgregarrOverseerrAll${c.id}`);
+          } else if (c.subtype === 'server_owner') {
+            // For server_owner, get the actual admin user plexId to match the real label format
+            try {
+              const { overseerrCollectionService } = await import(
+                '@server/lib/collections/external/overseerr'
+              );
+              const adminUser = await overseerrCollectionService.getAdminUser();
+              const adminPlexId = adminUser?.plexId || adminUser?.id;
+              if (adminPlexId) {
+                labels.push(`AgregarrOverseerrOwner${adminPlexId}`);
+              } else {
+                // Fallback to config-based label if no admin plexId found
+                labels.push(`AgregarrOverseerrOwner_CONFIG_${c.id}`);
+              }
+            } catch (error) {
+              // Fallback to config-based label if admin user fetch fails
+              labels.push(`AgregarrOverseerrOwner_CONFIG_${c.id}`);
             }
-          case 'tautulli':
-            return `AgregarrTautulli${c.id}`;
-          case 'trakt':
-            return `AgregarrTrakt${c.id}`;
-          case 'tmdb':
-            return `AgregarrTmdb${c.id}`;
-          case 'imdb':
-            return `AgregarrImdb${c.id}`;
-          case 'letterboxd':
-            return `AgregarrLetterboxd${c.id}`;
-          default:
-            return `Agregarr${c.type}${c.id}`;
-        }
-      })
-    );
+          } else {
+            labels.push(`AgregarrOverseerr${c.subtype}${c.id}`);
+          }
+          break;
+        case 'tautulli':
+          labels.push(`AgregarrTautulli${c.id}`);
+          break;
+        case 'trakt':
+          labels.push(`AgregarrTrakt${c.id}`);
+          break;
+        case 'tmdb':
+          labels.push(`AgregarrTmdb${c.id}`);
+          break;
+        case 'imdb':
+          labels.push(`AgregarrImdb${c.id}`);
+          break;
+        case 'letterboxd':
+          labels.push(`AgregarrLetterboxd${c.id}`);
+          break;
+        default:
+          labels.push(`Agregarr${c.type}${c.id}`);
+      }
+    }
+
+    return new Set(labels);
   }
 
   /**

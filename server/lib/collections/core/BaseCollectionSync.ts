@@ -63,6 +63,7 @@ interface CollectionUpdateOptions {
   customPoster?: string;
   processedCollectionKeys?: Set<string>;
   libraryKey: string;
+  config?: CollectionConfig;
 }
 
 interface CollectionUpdateResult {
@@ -587,6 +588,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         customPoster: config.customPoster,
         processedCollectionKeys,
         libraryKey: config.libraryId,
+        config,
       }
     );
 
@@ -664,7 +666,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     const existingCollection = await this.findExistingCollection(
       plexClient,
       customLabel,
-      libraryKey
+      libraryKey,
+      options.config
     );
 
     let collectionRatingKey: string;
@@ -784,19 +787,69 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   private async findExistingCollection(
     plexClient: PlexAPI,
     customLabel: string,
-    libraryKey: string
+    libraryKey: string,
+    config?: CollectionConfig
   ): Promise<PlexCollection | null> {
     try {
+      // First, try to find collection by stored ratingKey if available
+      // This is more reliable than label matching for all single collections
+      // Skip for Overseerr user collections which spawn multiple collections from one config
+      const isMultiCollection =
+        config?.type === 'overseerr' && config?.subtype === 'users';
+      if (config?.collectionRatingKey && !isMultiCollection) {
+        try {
+          const existingByRatingKey = await plexClient.getCollectionMetadata(
+            config.collectionRatingKey
+          );
+          if (existingByRatingKey) {
+            logger.debug(
+              `Found existing collection by stored ratingKey: ${existingByRatingKey.title}`,
+              {
+                label: 'Base Collection Sync',
+                ratingKey: config.collectionRatingKey,
+                collectionTitle: existingByRatingKey.title,
+                collectionType: config.type,
+                collectionSubtype: config.subtype,
+              }
+            );
+            return {
+              ratingKey: existingByRatingKey.ratingKey,
+              title: existingByRatingKey.title,
+              labels: existingByRatingKey.labels || [],
+              type: existingByRatingKey.type || 'collection',
+            };
+          }
+        } catch (error) {
+          logger.debug(
+            `Stored ratingKey ${config.collectionRatingKey} not found, falling back to label search`,
+            {
+              label: 'Base Collection Sync',
+              storedRatingKey: config.collectionRatingKey,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
       // Get collections only from the specific library where we would create new collections
       interface PlexClientWithQuery {
         plexClient: {
+          query<T>(options: {
+            uri: string;
+            extraHeaders?: Record<string, string>;
+          }): Promise<T>;
           query<T>(path: string): Promise<T>;
         };
       }
       const clientWithQuery = plexClient as unknown as PlexClientWithQuery;
       const response = await clientWithQuery.plexClient.query<{
         MediaContainer?: { Metadata?: PlexCollection[] };
-      }>(`/library/sections/${libraryKey}/collections`);
+      }>({
+        uri: `/library/sections/${libraryKey}/collections`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
       const collections = response.MediaContainer?.Metadata || [];
 
       // OPTIMIZATION: Fetch all collection metadata concurrently instead of sequentially

@@ -330,6 +330,7 @@ export function findConflictingHubs<
  * Hub discovery categorization utilities
  */
 
+import { parseConfigIdFromLabel } from '@server/lib/collections/core/CollectionUtilities';
 import { CollectionType } from '@server/lib/settings';
 import { IdGenerator } from '@server/utils/idGenerator';
 
@@ -362,11 +363,32 @@ export function categorizeDiscoveredItem(
 
   // Custom collections - check if they're Agregarr-managed
   if (parsedHub.isCustomCollection && parsedHub.ratingKey) {
-    const matchedConfig = collectionConfigs.find(
+    // First try to match by rating key
+    let matchedConfig = collectionConfigs.find(
       (config) =>
         config.collectionRatingKey === parsedHub.ratingKey &&
         config.libraryId === libraryId
     );
+
+    // If no rating key match and we have labels, try label-based matching
+    if (!matchedConfig && collectionLabels) {
+      // Extract config IDs from labels
+      const configIdsFromLabels = collectionLabels
+        .map((label) => {
+          const labelText = typeof label === 'string' ? label : label.tag;
+          return parseConfigIdFromLabel(labelText);
+        })
+        .filter(Boolean) as string[];
+
+      // Find matching config by ID
+      if (configIdsFromLabels.length > 0) {
+        matchedConfig = collectionConfigs.find(
+          (config) =>
+            configIdsFromLabels.includes(String(config.id)) &&
+            config.libraryId === libraryId
+        );
+      }
+    }
 
     return {
       collectionType: matchedConfig

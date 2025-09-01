@@ -388,9 +388,12 @@ class PlexAPI {
 
       for (const library of libraries) {
         try {
-          const response = await this.plexClient.query<PlexCollectionResponse>(
-            `/library/sections/${library.key}/collections`
-          );
+          const response = await this.plexClient.query<PlexCollectionResponse>({
+            uri: `/library/sections/${library.key}/collections`,
+            extraHeaders: {
+              'X-Plex-Container-Size': `0`,
+            },
+          });
 
           const collections = response.MediaContainer?.Metadata || [];
 
@@ -596,9 +599,12 @@ class PlexAPI {
     libraryKey: string
   ): Promise<PlexCollection | null> {
     try {
-      const response = await this.plexClient.query<PlexCollectionResponse>(
-        `/library/sections/${libraryKey}/collections`
-      );
+      const response = await this.plexClient.query<PlexCollectionResponse>({
+        uri: `/library/sections/${libraryKey}/collections`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
       const collections = response.MediaContainer?.Metadata || [];
 
       const foundCollection =
@@ -738,9 +744,12 @@ class PlexAPI {
     collectionRatingKey: string
   ): Promise<string[]> {
     try {
-      const response = await this.plexClient.query(
-        `/library/collections/${collectionRatingKey}/children`
-      );
+      const response = await this.plexClient.query({
+        uri: `/library/collections/${collectionRatingKey}/children`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
       const items = response.MediaContainer?.Metadata || [];
       return items.map((item: PlexCollectionItem) => item.ratingKey);
     } catch (error) {
@@ -759,9 +768,12 @@ class PlexAPI {
     collectionRatingKey: string
   ): Promise<void> {
     try {
-      const response = await this.plexClient.query(
-        `/library/collections/${collectionRatingKey}/children`
-      );
+      const response = await this.plexClient.query({
+        uri: `/library/collections/${collectionRatingKey}/children`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
       const items = response.MediaContainer?.Metadata || [];
 
       if (items.length === 0) {
@@ -844,8 +856,6 @@ class PlexAPI {
 
         // Build params with all labels to preserve existing ones
         const params: Record<string, string | number> = {
-          type: 18,
-          id: collectionRatingKey,
           'label.locked': 1,
         };
 
@@ -942,10 +952,7 @@ class PlexAPI {
   ): Promise<void> {
     try {
       const params = {
-        type: 18,
-        id: collectionRatingKey,
         'title.value': title,
-        'title.locked': 1,
       };
 
       const queryString = Object.entries(params)
@@ -972,10 +979,7 @@ class PlexAPI {
   ): Promise<void> {
     try {
       const params = {
-        type: 18,
-        id: collectionRatingKey,
         'titleSort.value': sortTitle,
-        'titleSort.locked': 1,
       };
 
       const queryString = Object.entries(params)
@@ -1717,13 +1721,18 @@ class PlexAPI {
    * @param hubOrder Array of hub IDs in desired order
    * @param positionedItemsCount Optional count of positioned items
    * @param libraryType Type of library (movie or show) for anchor positioning
+   * @param syncCounter Optional sync counter for alternating positioning methods (prevents precision convergence)
    */
   public async reorderHubs(
     sectionId: string,
     desiredOrder: string[],
     positionedItemsCount?: number,
-    libraryType?: 'movie' | 'show'
+    libraryType?: 'movie' | 'show',
+    syncCounter?: number
   ): Promise<void> {
+    // Declare outside try block for error logging
+    let completeDesiredOrder = desiredOrder;
+
     try {
       if (desiredOrder.length <= 1) {
         return;
@@ -1736,38 +1745,196 @@ class PlexAPI {
         (h: { identifier: string }) => h.identifier
       );
 
+      // Create complete desired order: our managed items first, then all unmanaged items at bottom
+      const managedItemsSet = new Set(desiredOrder);
+      const unmanagedItems = currentOrder.filter(
+        (id) => !managedItemsSet.has(id)
+      );
+      completeDesiredOrder = [...desiredOrder, ...unmanagedItems];
+
       // Only proceed if orders are actually different
-      if (JSON.stringify(currentOrder) === JSON.stringify(desiredOrder)) {
+      if (
+        JSON.stringify(currentOrder) === JSON.stringify(completeDesiredOrder)
+      ) {
         return;
       }
 
-      // Determine anchor for positioning
-      let requiredAnchor: string | null = null;
-      if (libraryType === 'show') {
-        requiredAnchor = 'tv.ondeck';
-      } else if (libraryType === 'movie') {
-        requiredAnchor = 'movie.inprogress';
+      logger.debug(
+        `Complete ordering includes ${completeDesiredOrder.length} items (${desiredOrder.length} managed, ${unmanagedItems.length} unmanaged)`,
+        {
+          label: 'Plex API',
+          sectionId,
+          managedItems: desiredOrder.length,
+          unmanagedItems: unmanagedItems.length,
+          completeOrder: completeDesiredOrder,
+        }
+      );
+
+      // Smart selective reordering: only move items that are in wrong positions
+      logger.debug(
+        `Using selective reordering approach for sync ${
+          syncCounter || 'manual'
+        }`,
+        {
+          label: 'Plex API',
+          sectionId,
+          method: 'selective',
+          syncCounter: syncCounter || 'manual',
+          currentOrder: currentOrder.slice(0, 5), // First 5 items for debugging
+          desiredOrder: completeDesiredOrder.slice(0, 5),
+        }
+      );
+
+      let moveCount = 0;
+
+      // Check if first item needs to be moved (use anchor positioning)
+      if (currentOrder[0] !== completeDesiredOrder[0]) {
+        // Determine anchor for positioning first item
+        let requiredAnchor: string | null = null;
+        if (libraryType === 'show') {
+          requiredAnchor = 'tv.ondeck';
+        } else if (libraryType === 'movie') {
+          requiredAnchor = 'movie.inprogress';
+        }
+
+        if (requiredAnchor) {
+          try {
+            logger.debug(
+              `Moving first item ${completeDesiredOrder[0]} after anchor ${requiredAnchor}`,
+              {
+                label: 'Plex API',
+                sectionId,
+                hubId: completeDesiredOrder[0],
+                afterHubId: requiredAnchor,
+              }
+            );
+            await this.moveHub(
+              sectionId,
+              completeDesiredOrder[0],
+              requiredAnchor
+            );
+            moveCount++;
+          } catch (error) {
+            logger.error(
+              `Failed to move first item ${completeDesiredOrder[0]} after anchor`,
+              {
+                label: 'Plex API',
+                sectionId,
+                hubId: completeDesiredOrder[0],
+                afterHubId: requiredAnchor,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
       }
 
-      // Process items in reverse order, placing after the anchor
+      // Check subsequent items - move after their immediate predecessor if wrong
+      for (let i = 1; i < completeDesiredOrder.length; i++) {
+        const currentItem = completeDesiredOrder[i];
+        const expectedPredecessor = completeDesiredOrder[i - 1];
 
-      for (let i = desiredOrder.length - 1; i >= 0; i--) {
-        const hubId = desiredOrder[i];
-        const afterHubId = requiredAnchor;
+        // Find current position of this item
+        const currentPosition = currentOrder.indexOf(currentItem);
+        const expectedPredecessorCurrentPosition =
+          currentOrder.indexOf(expectedPredecessor);
 
-        if (!afterHubId) {
-          continue;
+        // Item needs to move if it's not immediately after its expected predecessor
+        const needsMove =
+          currentPosition !== expectedPredecessorCurrentPosition + 1;
+
+        if (needsMove) {
+          try {
+            logger.debug(
+              `Moving item ${currentItem} after predecessor ${expectedPredecessor}`,
+              {
+                label: 'Plex API',
+                sectionId,
+                hubId: currentItem,
+                afterHubId: expectedPredecessor,
+                currentPosition,
+                expectedPosition: i,
+              }
+            );
+            await this.moveHub(sectionId, currentItem, expectedPredecessor);
+            moveCount++;
+
+            // Update our tracking of current order after the move
+            // Remove item from old position and insert after predecessor
+            const itemToMove = currentOrder.splice(currentPosition, 1)[0];
+            const predecessorNewPosition =
+              currentOrder.indexOf(expectedPredecessor);
+            currentOrder.splice(predecessorNewPosition + 1, 0, itemToMove);
+          } catch (error) {
+            logger.error(
+              `Failed to move item ${currentItem} after predecessor ${expectedPredecessor}`,
+              {
+                label: 'Plex API',
+                sectionId,
+                hubId: currentItem,
+                afterHubId: expectedPredecessor,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
         }
-        try {
-          await this.moveHub(sectionId, hubId, afterHubId);
-        } catch (error) {
-          logger.error(`Failed to move hub ${hubId}`, {
-            label: 'Plex API',
-            sectionId,
-            hubId,
-            afterHubId,
-            error: error instanceof Error ? error.message : String(error),
-          });
+      }
+
+      logger.info(`Selective reordering completed: ${moveCount} items moved`, {
+        label: 'Plex API',
+        sectionId,
+        moveCount,
+        totalItems: completeDesiredOrder.length,
+        efficiency: `${moveCount}/${completeDesiredOrder.length} moves`,
+      });
+
+      // Verify order after moves - detect precision convergence
+      if (moveCount > 0) {
+        const verificationHubManagement = await this.getHubManagement(
+          sectionId
+        );
+        const actualOrder = verificationHubManagement.MediaContainer.Hub.map(
+          (h: { identifier: string }) => h.identifier
+        );
+
+        const orderMatches =
+          JSON.stringify(actualOrder) === JSON.stringify(completeDesiredOrder);
+
+        if (!orderMatches) {
+          logger.error(
+            `Order verification failed after ${moveCount} moves - precision convergence detected`,
+            {
+              label: 'Plex API',
+              sectionId,
+              moveCount,
+              expectedOrder: completeDesiredOrder,
+              actualOrder,
+              convergenceDetected: true,
+            }
+          );
+
+          // Throw a specific error that can be caught and handled with reset
+          const convergenceError = new Error(
+            `Precision convergence detected in library ${sectionId}`
+          ) as Error & {
+            isPrecisionConvergence: boolean;
+            sectionId: string;
+            moveCount: number;
+          };
+          convergenceError.isPrecisionConvergence = true;
+          convergenceError.sectionId = sectionId;
+          convergenceError.moveCount = moveCount;
+          throw convergenceError;
+        } else {
+          logger.info(
+            `Order verification successful - all ${completeDesiredOrder.length} items in correct positions`,
+            {
+              label: 'Plex API',
+              sectionId,
+              verification: 'passed',
+              moveCount,
+            }
+          );
         }
       }
     } catch (error) {
@@ -1775,8 +1942,49 @@ class PlexAPI {
         label: 'Plex API',
         error: error instanceof Error ? error.message : String(error),
         sectionId,
-        desiredOrder,
+        desiredOrder: completeDesiredOrder,
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Reset all hub management for a library section
+   * This clears all hub positioning and forces Plex to use clean 1000-interval spacing
+   * @param sectionId Library section ID
+   */
+  public async resetLibraryHubManagement(sectionId: string): Promise<void> {
+    try {
+      const url = `/hubs/sections/${sectionId}/manage`;
+
+      logger.warn(
+        `Resetting hub management for library section ${sectionId} due to precision convergence`,
+        {
+          label: 'Plex API',
+          sectionId,
+          action: 'nuclear_reset',
+        }
+      );
+
+      await this.safeDeleteQuery(url);
+
+      logger.info(
+        `Successfully reset hub management for library section ${sectionId}`,
+        {
+          label: 'Plex API',
+          sectionId,
+          result: 'clean_spacing_restored',
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error resetting hub management for library section ${sectionId}`,
+        {
+          label: 'Plex API',
+          error: error instanceof Error ? error.message : String(error),
+          sectionId,
+        }
+      );
       throw error;
     }
   }
@@ -1874,6 +2082,41 @@ class PlexAPI {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
+    }
+  }
+
+  /**
+   * Promote a collection to hub management (makes it available for visibility/ordering management)
+   * @param collectionRatingKey The rating key of the collection to promote
+   * @param libraryId The library ID where the collection exists
+   */
+  public async promoteCollectionToHub(
+    collectionRatingKey: string,
+    libraryId: string
+  ): Promise<void> {
+    try {
+      const hubInitUrl = `/hubs/sections/${libraryId}/manage?metadataItemId=${collectionRatingKey}`;
+      await this.safePostQuery(hubInitUrl);
+
+      logger.debug(
+        `Successfully promoted collection to hub management: ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          libraryId,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error promoting collection ${collectionRatingKey} to hub management in library ${libraryId}`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      throw error;
     }
   }
 }

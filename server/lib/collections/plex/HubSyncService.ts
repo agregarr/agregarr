@@ -88,12 +88,17 @@ export class HubSyncService {
         }
       }
 
-      // Process collection configs that have rating keys
-      if (collectionConfigs.length > 0) {
+      // Process collection configs that have rating keys and are not removed from Plex when inactive
+      const activeCollectionConfigs = collectionConfigs.filter(
+        (config) =>
+          config.isActive || !config.timeRestriction?.removeFromPlexWhenInactive
+      );
+
+      if (activeCollectionConfigs.length > 0) {
         onProgress?.(
-          `Syncing visibility for ${collectionConfigs.length} collections...`
+          `Syncing visibility for ${activeCollectionConfigs.length} collections...`
         );
-        await this.syncLibraryCollections(plexClient, collectionConfigs);
+        await this.syncLibraryCollections(plexClient, activeCollectionConfigs);
       }
 
       // Process pre-existing collection configs that have rating keys

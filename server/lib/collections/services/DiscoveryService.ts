@@ -76,7 +76,7 @@ export class DiscoveryService {
 
     // Get existing configs to check for duplicates
     const settings = getSettings();
-    const collectionConfigs = settings.plex.collectionConfigs || [];
+    let collectionConfigs = settings.plex.collectionConfigs || [];
     const existingHubConfigs = settings.plex.hubConfigs || [];
     const existingPreExistingConfigs =
       settings.plex.preExistingCollectionConfigs || [];
@@ -112,7 +112,7 @@ export class DiscoveryService {
 
     // STEP 2: Reset promotion status for existing pre-existing collections before hub discovery
     // This ensures we detect when users manually remove collections from hub management
-    this.resetPreExistingPromotionStatus();
+    await this.resetPreExistingPromotionStatus();
 
     // STEP 3: Discover hubs and enhance pre-existing collections with hub data
     await this.discoverHubsAndEnhance(
@@ -127,10 +127,81 @@ export class DiscoveryService {
       allCollections
     );
 
-    // STEP 4: Report on collections removed from hub management
+    // STEP 4: Promote collections that should be visible but aren't in hub management
+    await this.promoteCollectionsThatShouldBeVisible(plexClient, libraries);
+
+    // STEP 5: Report on collections removed from hub management
     this.reportRemovedFromHubManagement();
 
-    // STEP 3: Validate existing collections for missing items
+    // STEP 3: Sync configs with Plex collections to fix any out-of-sync rating keys/labels
+    logger.info('Starting config sync process to fix out-of-sync collections', {
+      label: 'Discovery Service',
+      configsToCheck: collectionConfigs.length,
+    });
+
+    const { syncConfigsWithPlexCollections } = await import(
+      '@server/lib/collections/core/CollectionUtilities'
+    );
+
+    const syncResults = await syncConfigsWithPlexCollections(
+      plexClient,
+      collectionConfigs.map((config) => ({
+        id: config.id,
+        name: config.name,
+        collectionRatingKey: config.collectionRatingKey,
+        libraryId: config.libraryId,
+        source: config.type || 'unknown', // Use type as source
+      })),
+      allCollections
+    );
+
+    // Apply synced rating keys to actual settings and save
+    if (syncResults.syncedConfigs.length > 0) {
+      // Update the actual collection configs with new rating keys
+      for (const syncedConfig of syncResults.syncedConfigs) {
+        const actualConfig = settings.plex.collectionConfigs?.find(
+          (config) => config.id === syncedConfig.configId
+        );
+        if (actualConfig) {
+          // Update the rating key on the mutable config object
+          Object.assign(actualConfig, {
+            collectionRatingKey: syncedConfig.newRatingKey,
+          });
+          logger.debug(
+            `Updated config ${syncedConfig.configId} with new rating key`,
+            {
+              label: 'Discovery Service',
+              configId: syncedConfig.configId,
+              newRatingKey: syncedConfig.newRatingKey,
+            }
+          );
+        }
+      }
+
+      settings.save();
+
+      // Reload the updated collection configs from settings so validation uses correct rating keys
+      collectionConfigs = settings.plex.collectionConfigs || [];
+
+      logger.info(
+        `Config sync completed - updated ${syncResults.syncedConfigs.length} configs`,
+        {
+          label: 'Discovery Service',
+          syncedConfigs: syncResults.syncedConfigs.map((s) => s.configId),
+          updatedPlexLabels: syncResults.updatedPlexLabels.length,
+          errors: syncResults.errors.length,
+        }
+      );
+
+      if (syncResults.errors.length > 0) {
+        logger.warn('Config sync encountered some errors', {
+          label: 'Discovery Service',
+          errors: syncResults.errors,
+        });
+      }
+    }
+
+    // STEP 4: Validate existing collections for missing items
     const validationResults = await this.validateExistingCollections(
       plexClient,
       libraries,
@@ -194,6 +265,40 @@ export class DiscoveryService {
             label: 'Discovery Service',
           }
         );
+
+        // Auto-reorder libraries to fix any gaps/duplicates created by direct sort order assignments
+        const { autoReorderLibrary } = await import('@server/routes/reorder');
+        const librariesToReorder = new Set<string>();
+
+        // Collect all libraries that need reordering
+        discoveredHubConfigs.forEach((config) =>
+          librariesToReorder.add(config.libraryId)
+        );
+        discoveredPreExistingConfigs.forEach((config) =>
+          librariesToReorder.add(config.libraryId)
+        );
+
+        // Auto-reorder each library for both home and library contexts
+        for (const libraryId of librariesToReorder) {
+          try {
+            await autoReorderLibrary(libraryId, 'home');
+            await autoReorderLibrary(libraryId, 'library');
+            logger.debug(
+              `Auto-reordered library ${libraryId} after discovery`,
+              {
+                label: 'Discovery Service',
+              }
+            );
+          } catch (error) {
+            logger.warn(
+              `Failed to auto-reorder library ${libraryId} after discovery`,
+              {
+                label: 'Discovery Service',
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
       }
     }
 
@@ -245,24 +350,70 @@ export class DiscoveryService {
       allCollections.map((c) => c.ratingKey)
     );
 
+    // Import the utility function
+    const { findCollectionByConfigId } = await import(
+      '@server/lib/collections/core/CollectionUtilities'
+    );
+
+    // Debug: Log sample of collections with labels for troubleshooting
+    const collectionsWithLabels = allCollections.filter(
+      (c) => c.labels && c.labels.length > 0
+    );
+    if (collectionsWithLabels.length > 0) {
+      logger.debug(`Sample collections with labels (first 3):`, {
+        label: 'Discovery Service - Validation Debug',
+        sample: collectionsWithLabels.slice(0, 3).map((c) => ({
+          ratingKey: c.ratingKey,
+          title: c.title,
+          labels: c.labels?.map((l) => (typeof l === 'string' ? l : l.tag)),
+        })),
+        totalWithLabels: collectionsWithLabels.length,
+        totalCollections: allCollections.length,
+      });
+    }
+
     // Validate Agregarr-created collections
     for (const config of collectionConfigs) {
       // Skip missing item check if collection is inactive AND set to be removed from Plex when inactive
       const shouldSkipMissingCheck =
         !config.isActive && config.timeRestriction?.removeFromPlexWhenInactive;
 
-      if (
-        config.collectionRatingKey &&
-        !shouldSkipMissingCheck &&
-        !existingCollectionRatingKeys.has(config.collectionRatingKey)
-      ) {
-        missingCollections.push(config.id);
-        logger.warn(`Missing Agregarr collection detected: ${config.name}`, {
-          label: 'Discovery Service - Validation',
-          configId: config.id,
-          ratingKey: config.collectionRatingKey,
-          libraryId: config.libraryId,
-        });
+      if (!shouldSkipMissingCheck) {
+        // Use enhanced matching that checks both ratingKey and label fallback
+        const collectionExists = findCollectionByConfigId(
+          config.id,
+          config.collectionRatingKey,
+          allCollections,
+          config.type,
+          config.subtype
+        );
+
+        if (!collectionExists) {
+          // Debug logging to understand what's happening
+          const collectionInPlex = config.collectionRatingKey
+            ? allCollections.find(
+                (c) => c.ratingKey === config.collectionRatingKey
+              )
+            : null;
+
+          logger.debug(`Collection matching debug for "${config.name}"`, {
+            label: 'Discovery Service - Validation',
+            configId: config.id,
+            configRatingKey: config.collectionRatingKey,
+            libraryId: config.libraryId,
+            foundInPlex: !!collectionInPlex,
+            plexLabels: collectionInPlex?.labels,
+            totalPlexCollections: allCollections.length,
+          });
+
+          missingCollections.push(config.id);
+          logger.warn(`Missing Agregarr collection detected: ${config.name}`, {
+            label: 'Discovery Service - Validation',
+            configId: config.id,
+            ratingKey: config.collectionRatingKey,
+            libraryId: config.libraryId,
+          });
+        }
       }
     }
 
@@ -415,11 +566,17 @@ export class DiscoveryService {
             library.key
           );
 
+          // Find collection labels for enhanced matching
+          const collectionWithLabels = parsedHub.ratingKey
+            ? allCollections.find((c) => c.ratingKey === parsedHub.ratingKey)
+            : undefined;
+
           // Categorize the hub using centralized logic
           const categorization = categorizeDiscoveredItem(
             parsedHub,
             collectionConfigs,
-            library.key
+            library.key,
+            collectionWithLabels?.labels
           );
 
           // Create hub config using centralized function
@@ -488,9 +645,9 @@ export class DiscoveryService {
 
               if (
                 collectionWithLabels &&
-                this.isOverseerrUserCollection(collectionWithLabels)
+                this.isAgregarrManagedCollection(collectionWithLabels)
               ) {
-                // This is an Overseerr user collection (Agregarr-managed) - check visibility
+                // This is an Agregarr-managed collection - check visibility
                 const hasVisibility =
                   hub.promotedToSharedHome ||
                   hub.promotedToOwnHome ||
@@ -536,7 +693,7 @@ export class DiscoveryService {
                 } else {
                   // Has visibility - skip from discovery but leave in Plex
                   logger.debug(
-                    `Skipping visible Overseerr user collection from hub discovery: ${hubConfig.name}`,
+                    `Skipping visible Agregarr-managed collection from hub discovery: ${hubConfig.name}`,
                     {
                       label: 'Discovery Service',
                       ratingKey: parsedHub.ratingKey,
@@ -640,7 +797,7 @@ export class DiscoveryService {
    * Reset promotion status for all existing pre-existing collections
    * This ensures we can detect when users manually remove collections from hub management
    */
-  private resetPreExistingPromotionStatus(): void {
+  private async resetPreExistingPromotionStatus(): Promise<void> {
     const settings = getSettings();
     const preExistingConfigs = settings.plex.preExistingCollectionConfigs || [];
 
@@ -673,6 +830,38 @@ export class DiscoveryService {
           resetCount,
         }
       );
+
+      // Auto-reorder libraries to fix gaps created by resetting sortOrderHome to 0
+      const { autoReorderLibrary } = await import('@server/routes/reorder');
+      const librariesToReorder = new Set<string>();
+
+      // Collect all libraries that had collections reset
+      preExistingConfigs.forEach((config) => {
+        if (config.isPromotedToHub === true) {
+          librariesToReorder.add(config.libraryId);
+        }
+      });
+
+      // Auto-reorder each library for home context (where sortOrderHome was reset)
+      for (const libraryId of librariesToReorder) {
+        try {
+          await autoReorderLibrary(libraryId, 'home');
+          logger.debug(
+            `Auto-reordered library ${libraryId} after promotion reset`,
+            {
+              label: 'Discovery Service',
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to auto-reorder library ${libraryId} after promotion reset`,
+            {
+              label: 'Discovery Service',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
     }
   }
 
@@ -757,10 +946,10 @@ export class DiscoveryService {
               libraryId,
             }
           );
-        } else if (this.isOverseerrUserCollection(collection)) {
-          // This is an Overseerr user collection - skip it (should not be imported as pre-existing)
+        } else if (this.isAgregarrManagedCollection(collection)) {
+          // This is any Agregarr-managed collection - skip it (should not be imported as pre-existing)
           logger.debug(
-            `Skipping Overseerr user collection from collections discovery: ${collection.title}`,
+            `Skipping Agregarr-managed collection from collections discovery: ${collection.title}`,
             {
               label: 'Discovery Service',
               ratingKey: collection.ratingKey,
@@ -769,6 +958,37 @@ export class DiscoveryService {
             }
           );
         } else {
+          // Check if this is an existing pre-existing collection that needs title update
+          const settings = getSettings();
+          const existingPreExisting =
+            settings.plex.preExistingCollectionConfigs?.find(
+              (config) =>
+                config.collectionRatingKey === collection.ratingKey &&
+                config.libraryId === libraryId
+            );
+
+          if (
+            existingPreExisting &&
+            existingPreExisting.name !== collection.title
+          ) {
+            // Update existing pre-existing collection title
+            const oldTitle = existingPreExisting.name;
+            existingPreExisting.name = collection.title;
+            settings.save();
+
+            logger.info(
+              `Updated pre-existing collection title: "${oldTitle}" -> "${collection.title}"`,
+              {
+                label: 'Discovery Service',
+                configId: existingPreExisting.id,
+                ratingKey: collection.ratingKey,
+                libraryId,
+                oldTitle,
+                newTitle: collection.title,
+              }
+            );
+          }
+
           // This is a pre-existing collection (not created by Agregarr)
           const collectionConfig = createPreExistingConfigFromDiscovery(
             collection.ratingKey,
@@ -915,6 +1135,207 @@ export class DiscoveryService {
           label.match(/^AgregarrOverseerrUser\d+$/i)
       ) || false
     );
+  }
+
+  /**
+   * Check if a collection is managed by Agregarr and should be filtered from discovery
+   * This includes any collection with Agregarr labels (not just Overseerr user collections)
+   */
+  private isAgregarrManagedCollection(collection: PlexCollection): boolean {
+    return (
+      collection.labels?.some((label) => {
+        const labelText =
+          typeof label === 'string' ? label : (label as { tag: string }).tag;
+        return labelText.toLowerCase().startsWith('agregarr');
+      }) || false
+    );
+  }
+
+  /**
+   * Promote collections that should be visible but aren't currently in hub management
+   * This is the proper place for promotion logic - during discovery, not during ordering
+   */
+  private async promoteCollectionsThatShouldBeVisible(
+    plexClient: PlexAPI,
+    libraries: PlexLibrary[]
+  ): Promise<void> {
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+    const preExistingConfigs = settings.plex.preExistingCollectionConfigs || [];
+
+    logger.info(
+      'Checking for collections that need promotion to hub management',
+      {
+        label: 'Discovery Service - Promotion',
+        collectionConfigs: collectionConfigs.length,
+        preExistingConfigs: preExistingConfigs.length,
+      }
+    );
+
+    for (const library of libraries) {
+      try {
+        // Get current hub list from Plex
+        const hubListResponse = await plexClient.getHubManagement(library.key);
+        const existingHubIdentifiers = new Set(
+          hubListResponse.MediaContainer.Hub.map((hub) => hub.identifier)
+        );
+
+        // Check user-created collections for this library
+        const libraryCollections = collectionConfigs.filter(
+          (config) =>
+            (Array.isArray(config.libraryId)
+              ? config.libraryId.includes(library.key)
+              : config.libraryId === library.key) && config.collectionRatingKey
+        );
+
+        // Check pre-existing collections for this library
+        const libraryPreExisting = preExistingConfigs.filter(
+          (config) =>
+            config.libraryId === library.key && config.collectionRatingKey
+        );
+
+        // Process both types of collections
+        const allLibraryCollections = [
+          ...libraryCollections.map((c) => ({
+            type: 'collection' as const,
+            config: c,
+          })),
+          ...libraryPreExisting.map((c) => ({
+            type: 'preexisting' as const,
+            config: c,
+          })),
+        ];
+
+        for (const { type, config } of allLibraryCollections) {
+          const hubIdentifier = `custom.collection.${library.key}.${config.collectionRatingKey}`;
+
+          // Skip if already in hub management
+          if (existingHubIdentifiers.has(hubIdentifier)) {
+            continue;
+          }
+
+          // Check if this collection should be promoted based on visibility settings
+          const shouldPromote = this.shouldCollectionBePromoted(config);
+
+          if (shouldPromote) {
+            logger.info(
+              `Collection should be visible but not in hub management - promoting: ${config.name}`,
+              {
+                label: 'Discovery Service - Promotion',
+                configId: config.id,
+                libraryId: library.key,
+                collectionRatingKey: config.collectionRatingKey,
+                type,
+              }
+            );
+
+            try {
+              // Promote collection to hub management
+              if (config.collectionRatingKey) {
+                await plexClient.promoteCollectionToHub(
+                  config.collectionRatingKey,
+                  library.key
+                );
+              }
+
+              // Set visibility settings
+              const visibilityConfig =
+                this.getCollectionVisibilityConfig(config);
+              if (visibilityConfig) {
+                await plexClient.updateHubVisibility(
+                  library.key,
+                  hubIdentifier,
+                  visibilityConfig
+                );
+              }
+
+              logger.debug(`Successfully promoted collection: ${config.name}`, {
+                label: 'Discovery Service - Promotion',
+                configId: config.id,
+                hubIdentifier,
+              });
+            } catch (error) {
+              logger.error(`Failed to promote collection: ${config.name}`, {
+                label: 'Discovery Service - Promotion',
+                configId: config.id,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
+        }
+      } catch (error) {
+        logger.error(
+          `Failed to check promotions for library ${library.title}`,
+          {
+            label: 'Discovery Service - Promotion',
+            libraryId: library.key,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+    }
+  }
+
+  /**
+   * Check if a collection should be promoted to hub management based on its full configuration
+   * This includes checking active status, time restrictions, and removeFromPlexWhenInactive
+   */
+  private shouldCollectionBePromoted(
+    config: CollectionConfig | PreExistingCollectionConfig
+  ): boolean {
+    // Use the same comprehensive logic as HubSyncService
+    if (config.isActive) {
+      // Active collections: base on current visibility settings
+      return !!(
+        config.visibilityConfig?.usersHome ||
+        config.visibilityConfig?.serverOwnerHome ||
+        config.visibilityConfig?.libraryRecommended
+      );
+    } else {
+      // Inactive collections: check time restriction settings
+      const timeRestriction = config.timeRestriction;
+      if (timeRestriction?.removeFromPlexWhenInactive) {
+        // Remove entirely when inactive = should NOT be promoted
+        return false;
+      } else {
+        // Use inactive visibility settings
+        const inactiveConfig = timeRestriction?.inactiveVisibilityConfig;
+        if (inactiveConfig) {
+          return !!(
+            inactiveConfig.usersHome ||
+            inactiveConfig.serverOwnerHome ||
+            inactiveConfig.libraryRecommended
+          );
+        } else {
+          // Default inactive behavior: still visible in library recommended
+          return true;
+        }
+      }
+    }
+  }
+
+  /**
+   * Get the visibility config for Plex hub management
+   */
+  private getCollectionVisibilityConfig(config: {
+    visibilityConfig?: {
+      usersHome?: boolean;
+      serverOwnerHome?: boolean;
+      libraryRecommended?: boolean;
+    };
+  }): {
+    promotedToOwnHome: boolean;
+    promotedToSharedHome: boolean;
+    promotedToRecommended: boolean;
+  } | null {
+    if (!config.visibilityConfig) return null;
+
+    return {
+      promotedToOwnHome: config.visibilityConfig.serverOwnerHome || false,
+      promotedToSharedHome: config.visibilityConfig.usersHome || false,
+      promotedToRecommended:
+        config.visibilityConfig.libraryRecommended || false,
+    };
   }
 }
 

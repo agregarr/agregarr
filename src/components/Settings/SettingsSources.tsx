@@ -58,8 +58,6 @@ const messages = defineMessages({
   traktSettingsDescription:
     'Configure your Trakt API key to enable Trakt-based collections with preset lists and custom list option.',
   traktApiKey: 'Trakt API Key',
-  traktApiKeyTip:
-    'Get your API key from https://trakt.tv/oauth/applications/new and copy the Client ID. Use "urn:ietf:wg:oauth:2.0:oob" as the redirect URI when creating the application.',
   toastTraktSettingsSuccess: 'Trakt settings saved successfully!',
   toastTraktSettingsFailure:
     'Something went wrong while saving Trakt settings.',
@@ -313,8 +311,11 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
               <div className="form-row">
                 <label htmlFor="traktApiKey" className="text-label">
                   {intl.formatMessage(messages.traktApiKey)}
-                  <span className="label-tip">
-                    {intl.formatMessage(messages.traktApiKeyTip)}
+                  <span className="label-tip mb-2">
+                    Get your API key from
+                    https://trakt.tv/oauth/applications/new and copy the Client
+                    ID. Use <code>urn:ietf:wg:oauth:2.0:oob</code> as the
+                    redirect URI when creating the application.
                   </span>
                 </label>
                 <div className="form-input-area">

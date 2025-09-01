@@ -233,7 +233,7 @@ const CollectionFormConfigForm = ({
       is: (searchMissingTV: boolean) => searchMissingTV,
       then: (schema) =>
         schema
-          .min(1, 'Must be at least 1 season')
+          .min(0, 'Must be 0 or greater (0 = no limit)')
           .max(50, 'Cannot exceed 50 seasons'),
       otherwise: (schema) => schema,
     }),
@@ -1323,7 +1323,7 @@ const CollectionFormConfigForm = ({
           autoApproveTV:
             (config as CollectionFormConfig).autoApproveTV ?? false,
           maxSeasonsToRequest:
-            (config as CollectionFormConfig).maxSeasonsToRequest || 3,
+            (config as CollectionFormConfig).maxSeasonsToRequest ?? 3,
           seasonsPerShowLimit:
             (config as CollectionFormConfig).seasonsPerShowLimit || 0,
           maxPositionToProcess:
@@ -1390,12 +1390,8 @@ const CollectionFormConfigForm = ({
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
             name: generateCollectionName(values as CollectionFormConfig),
-            // For custom templates, send the actual custom text as the template
-            template:
-              values.template === 'custom'
-                ? (values as CollectionFormConfig).customMovieTemplate ||
-                  (values as CollectionFormConfig).customTVTemplate
-                : values.template,
+            // Send template as-is - let backend handle custom template selection per library
+            template: values.template,
             customMovieTemplate:
               values.template === 'custom'
                 ? (values as CollectionFormConfig).customMovieTemplate
@@ -2089,14 +2085,19 @@ const CollectionFormConfigForm = ({
       return values.name || 'User Collection';
     }
 
-    // Handle custom templates - use the actual custom template text, not "custom"
+    // Handle custom templates - show appropriate preview
     if (values.template === 'custom') {
-      // Use the first available custom template (movie or TV)
-      const customTemplate =
-        values.customMovieTemplate || values.customTVTemplate;
-      if (customTemplate) {
-        return customTemplate;
+      const hasMovie = values.customMovieTemplate?.trim();
+      const hasTV = values.customTVTemplate?.trim();
+
+      if (hasMovie && hasTV) {
+        return '[Different names per library type]';
+      } else if (hasMovie) {
+        return values.customMovieTemplate || '';
+      } else if (hasTV) {
+        return values.customTVTemplate || '';
       }
+      return 'Custom Template';
     }
 
     // Return the template as the name - backend will process it with proper library context

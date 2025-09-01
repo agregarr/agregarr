@@ -160,18 +160,24 @@ const SortableItem = ({
     Icon,
     activeState,
     inactiveState,
+    removeWhenInactive,
     title,
   }: {
     Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
     activeState: boolean;
     inactiveState: boolean;
+    removeWhenInactive: boolean;
     title: string;
   }) => (
     <div className="relative isolate h-5 w-5" title={title}>
       {/* Background icon (inactive state) */}
       <Icon
         className={`absolute inset-0 h-5 w-5 ${
-          inactiveState ? 'text-gray-400' : 'text-gray-600 opacity-30'
+          removeWhenInactive
+            ? 'text-gray-700 opacity-20' // Much darker when removed from Plex
+            : inactiveState
+            ? 'text-gray-400' // Regular inactive color
+            : 'text-gray-500 opacity-40' // Slightly lighter than previous inactive
         }`}
       />
       {/* Top half mask for active state */}
@@ -184,7 +190,7 @@ const SortableItem = ({
         />
         <Icon
           className={`absolute inset-0 h-5 w-5 ${
-            activeState ? 'text-gray-400' : 'text-gray-600 opacity-30'
+            activeState ? 'text-gray-400' : 'text-gray-500 opacity-40'
           }`}
           style={{
             clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%)',
@@ -202,6 +208,7 @@ const SortableItem = ({
     },
     timeRestriction?: {
       alwaysActive: boolean;
+      removeFromPlexWhenInactive?: boolean;
       inactiveVisibilityConfig?: {
         usersHome: boolean;
         serverOwnerHome: boolean;
@@ -210,6 +217,9 @@ const SortableItem = ({
     }
   ) => {
     const hasTimeRestriction = timeRestriction && !timeRestriction.alwaysActive;
+    const removeWhenInactive = Boolean(
+      timeRestriction?.removeFromPlexWhenInactive
+    );
 
     // Default to false if no visibilityConfig
     const activeVisibility = visibilityConfig || {
@@ -245,6 +255,7 @@ const SortableItem = ({
               Icon={HomeStarIcon}
               activeState={Boolean(activeVisibility.serverOwnerHome)}
               inactiveState={Boolean(inactiveVisibility.serverOwnerHome)}
+              removeWhenInactive={removeWhenInactive}
               title=""
             />
           ) : (
@@ -252,7 +263,7 @@ const SortableItem = ({
               className={`h-5 w-5 flex-shrink-0 ${
                 activeVisibility.serverOwnerHome
                   ? 'text-gray-400'
-                  : 'text-gray-600 opacity-30'
+                  : 'text-gray-500 opacity-40'
               }`}
             />
           )}
@@ -274,6 +285,7 @@ const SortableItem = ({
               Icon={ThreeHomesIcon}
               activeState={Boolean(activeVisibility.usersHome)}
               inactiveState={Boolean(inactiveVisibility.usersHome)}
+              removeWhenInactive={removeWhenInactive}
               title=""
             />
           ) : (
@@ -281,7 +293,7 @@ const SortableItem = ({
               className={`h-5 w-5 ${
                 activeVisibility.usersHome
                   ? 'text-gray-400'
-                  : 'text-gray-600 opacity-30'
+                  : 'text-gray-500 opacity-40'
               }`}
             />
           )}
@@ -307,6 +319,7 @@ const SortableItem = ({
               Icon={LibraryBookmarkIcon}
               activeState={Boolean(activeVisibility.libraryRecommended)}
               inactiveState={Boolean(inactiveVisibility.libraryRecommended)}
+              removeWhenInactive={removeWhenInactive}
               title=""
             />
           ) : (
@@ -314,7 +327,7 @@ const SortableItem = ({
               className={`h-5 w-5 ${
                 activeVisibility.libraryRecommended
                   ? 'text-gray-400'
-                  : 'text-gray-600 opacity-30'
+                  : 'text-gray-500 opacity-40'
               }`}
             />
           )}

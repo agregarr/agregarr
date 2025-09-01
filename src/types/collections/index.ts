@@ -197,6 +197,7 @@ export interface CollectionFormConfig {
       }
     | undefined;
   readonly customDays?: number; // Number of days for Tautulli collections
+  readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
   readonly tautulliStatType?: 'plays' | 'duration'; // Tautulli stat type
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct'; // Download mode: overseerr (requests) or direct (*arr)
@@ -288,6 +289,7 @@ export interface CollectionConfigCreateRequest {
   readonly sortOrderHome?: number;
   readonly sortOrderLibrary?: number;
   readonly customDays?: number;
+  readonly minimumPlays?: number;
   readonly tautulliStatType?: 'plays' | 'duration';
   readonly searchMissingMovies?: boolean;
   readonly searchMissingTV?: boolean;
@@ -349,6 +351,7 @@ export const toCollectionCreateRequest = (
     sortOrderHome: config.sortOrderHome,
     sortOrderLibrary: config.sortOrderLibrary,
     customDays: config.customDays,
+    minimumPlays: config.minimumPlays,
     tautulliStatType: config.tautulliStatType,
     searchMissingMovies: config.searchMissingMovies,
     searchMissingTV: config.searchMissingTV,

@@ -252,11 +252,11 @@ export class DefaultHubConfigService {
     let nextLinkId = this.getNextLinkId(hubConfigs);
     const resultConfigs: PlexHubConfig[] = [];
 
-    for (const [baseIdentifier, hubs] of hubGroups.entries()) {
+    for (const [baseIdentifier, hubs] of Array.from(hubGroups.entries())) {
       if (hubs.length > 1) {
         // Multiple hubs with same base identifier - check if they have matching visibility
         const firstHub = hubs[0];
-        const allHaveSameVisibility = hubs.every((hub) =>
+        const allHaveSameVisibility = hubs.every((hub: PlexHubConfig) =>
           this.areVisibilitySettingsEqual(
             firstHub.visibilityConfig,
             hub.visibilityConfig
@@ -273,14 +273,14 @@ export class DefaultHubConfigService {
               label: 'Default Hub Config Service',
               baseIdentifier,
               linkId,
-              hubIdentifiers: hubs.map((h) => h.hubIdentifier),
-              libraryIds: hubs.map((h) => h.libraryId),
+              hubIdentifiers: hubs.map((h: PlexHubConfig) => h.hubIdentifier),
+              libraryIds: hubs.map((h: PlexHubConfig) => h.libraryId),
               visibilityMatched: true,
             }
           );
 
           // Link all hubs in this group
-          hubs.forEach((hub) => {
+          hubs.forEach((hub: PlexHubConfig) => {
             resultConfigs.push({
               ...hub,
               isLinked: true,
@@ -297,15 +297,15 @@ export class DefaultHubConfigService {
               label: 'Default Hub Config Service',
               baseIdentifier,
               linkId,
-              hubIdentifiers: hubs.map((h) => h.hubIdentifier),
-              libraryIds: hubs.map((h) => h.libraryId),
+              hubIdentifiers: hubs.map((h: PlexHubConfig) => h.hubIdentifier),
+              libraryIds: hubs.map((h: PlexHubConfig) => h.libraryId),
               visibilityMatched: false,
               visibilityConfigs: hubs.map((h) => h.visibilityConfig),
             }
           );
 
           // Break out all hubs from the group - they belong to the same linkId but are individually unlinked
-          hubs.forEach((hub) => {
+          hubs.forEach((hub: PlexHubConfig) => {
             resultConfigs.push({
               ...hub,
               isLinked: false,

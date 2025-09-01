@@ -48,6 +48,16 @@ const tautulliValidation = {
     otherwise: (schema) => schema,
   }),
 
+  minimumPlays: Yup.number().when('type', {
+    is: 'tautulli',
+    then: (schema) =>
+      schema
+        .min(1, 'Must be at least 1 play')
+        .max(100, 'Cannot exceed 100 plays')
+        .required('Minimum plays is required for Tautulli collections'),
+    otherwise: (schema) => schema,
+  }),
+
   tautulliStatType: Yup.string().when('type', {
     is: 'tautulli',
     then: (schema) =>
@@ -127,9 +137,8 @@ const autoRequestValidations = {
     is: (searchMissingTV: boolean) => searchMissingTV,
     then: (schema) =>
       schema
-        .min(1, 'Must be at least 1 season')
-        .max(50, 'Cannot exceed 50 seasons')
-        .required('Max seasons is required when processing TV shows'),
+        .min(0, 'Must be 0 or greater (0 = no limit)')
+        .max(50, 'Cannot exceed 50 seasons'),
     otherwise: (schema) => schema,
   }),
 
@@ -317,8 +326,11 @@ export const ValidationHelpers = {
 
     // Validate max seasons when auto-requesting TV
     if (values.searchMissingTV && values.autoApproveTV) {
-      if (!values.maxSeasonsToRequest || values.maxSeasonsToRequest < 1) {
-        return 'Max seasons to request must be at least 1 when auto-approving TV shows';
+      if (
+        values.maxSeasonsToRequest !== undefined &&
+        values.maxSeasonsToRequest < 0
+      ) {
+        return 'Max seasons to request must be 0 or greater (0 = no limit)';
       }
     }
 

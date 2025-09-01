@@ -42,20 +42,52 @@ defaultHubsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     settings.markCollectionModified(id, 'hub');
 
     // Auto-reorder after visibility changes to assign proper sort orders
+    // For linked hubs, we need to reorder all affected libraries, not just the primary one
     const { autoReorderLibrary } = await import('@server/routes/reorder');
     try {
-      await autoReorderLibrary(updatedConfig.libraryId, 'home');
-      await autoReorderLibrary(updatedConfig.libraryId, 'library');
-      logger.debug(
-        `Auto-reordering completed after hub settings update for library ${updatedConfig.libraryId}`,
-        {
-          label: 'Default Hubs API - Auto Reorder',
-        }
-      );
+      const allConfigs = defaultHubConfigService.getConfigs();
+      const affectedLibraries = new Set<string>();
+
+      // If this hub is linked, find all libraries with the same linkId
+      if (updatedConfig.isLinked && updatedConfig.linkId) {
+        const linkedConfigs = allConfigs.filter(
+          (c) => c.linkId === updatedConfig.linkId && c.isLinked
+        );
+        linkedConfigs.forEach((config) =>
+          affectedLibraries.add(config.libraryId)
+        );
+        logger.debug(
+          `Found ${linkedConfigs.length} linked hubs across ${affectedLibraries.size} libraries`,
+          {
+            label: 'Default Hubs API - Auto Reorder',
+            linkId: updatedConfig.linkId,
+            libraries: Array.from(affectedLibraries),
+          }
+        );
+      } else {
+        // Non-linked hub, just reorder its own library
+        affectedLibraries.add(updatedConfig.libraryId);
+      }
+
+      // Auto-reorder each affected library
+      for (const libraryId of affectedLibraries) {
+        await autoReorderLibrary(libraryId, 'home');
+        await autoReorderLibrary(libraryId, 'library');
+        logger.debug(
+          `Auto-reordering completed after hub settings update for library ${libraryId}`,
+          {
+            label: 'Default Hubs API - Auto Reorder',
+            isLinked: updatedConfig.isLinked,
+            linkId: updatedConfig.linkId || 'none',
+          }
+        );
+      }
     } catch (error) {
       logger.warn('Failed to auto-reorder after hub settings update', {
         label: 'Default Hubs API - Auto Reorder',
         libraryId: updatedConfig.libraryId,
+        isLinked: updatedConfig.isLinked,
+        linkId: updatedConfig.linkId || 'none',
         error: error instanceof Error ? error.message : String(error),
       });
       // Don't fail the settings update if reordering fails

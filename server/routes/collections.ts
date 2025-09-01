@@ -202,7 +202,7 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
 
       // Get library to determine media type for template processing
       const library = libraries.find(
-        (lib) => lib.key === (req.body.libraryId || configToUpdate.libraryId)
+        (lib) => lib.key === configToUpdate.libraryId
       );
       const libraryMediaType: 'movie' | 'tv' =
         library && library.type === 'show' ? 'tv' : 'movie';
@@ -216,12 +216,25 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         subtype: req.body.subtype || configToUpdate.subtype,
       };
 
-      let processedName = templateEngine.processTemplate(
+      // Determine template to process - handle custom templates per library type
+      let templateToProcess =
         req.body.template ||
-          req.body.name ||
-          configToUpdate.template ||
-          configToUpdate.name ||
-          '',
+        req.body.name ||
+        configToUpdate.template ||
+        configToUpdate.name ||
+        '';
+
+      // For custom templates, choose the appropriate template based on library type
+      if (templateToProcess === 'custom') {
+        if (libraryMediaType === 'movie' && req.body.customMovieTemplate) {
+          templateToProcess = req.body.customMovieTemplate;
+        } else if (libraryMediaType === 'tv' && req.body.customTVTemplate) {
+          templateToProcess = req.body.customTVTemplate;
+        }
+      }
+
+      let processedName = templateEngine.processTemplate(
+        templateToProcess,
         context
       );
 
@@ -1167,13 +1180,49 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
             timeout: 10000,
           });
 
-          // Extract title from HTML
+          // Extract title from HTML and clean it up
           const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
           if (titleMatch) {
-            title = titleMatch[1]
-              .replace(' • Letterboxd', '')
-              .replace(' - Letterboxd', '')
-              .trim();
+            let rawTitle = titleMatch[1];
+
+            // Decode HTML entities
+            rawTitle = rawTitle
+              .replace(/&lrm;/g, '') // Remove left-to-right mark
+              .replace(/&rlm;/g, '') // Remove right-to-left mark
+              .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
+              .replace(/&ndash;/g, '–') // Replace en-dash
+              .replace(/&mdash;/g, '—') // Replace em-dash
+              .replace(/&hellip;/g, '…') // Replace ellipsis
+              .replace(/&quot;/g, '"') // Replace quotes
+              .replace(/&#39;/g, "'") // Replace apostrophe
+              .replace(/&amp;/g, '&') // Replace ampersand (do this last)
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+
+            // Extract list name (everything before " • Letterboxd" or ", a list of films by")
+            const patterns = [
+              /^(.*?),\s*a\s+list\s+of\s+films?\s+by/i, // ", a list of films by"
+              /^(.*?)\s*•\s*Letterboxd/i, // " • Letterboxd"
+              /^(.*?)\s*-\s*Letterboxd/i, // " - Letterboxd"
+              /^(.*?)\s*\|\s*Letterboxd/i, // " | Letterboxd"
+            ];
+
+            for (const pattern of patterns) {
+              const match = rawTitle.match(pattern);
+              if (match && match[1]) {
+                title = match[1].trim();
+                break;
+              }
+            }
+
+            // If no pattern matched, use fallback cleanup
+            if (!title) {
+              title = rawTitle
+                .replace(/\s*•\s*Letterboxd.*$/i, '') // Remove " • Letterboxd" suffix
+                .replace(/\s*-\s*Letterboxd.*$/i, '') // Remove " - Letterboxd" suffix
+                .replace(/\s*\|\s*Letterboxd.*$/i, '') // Remove " | Letterboxd" suffix
+                .trim();
+            }
           }
 
           // For Letterboxd, assume movies by default since it's primarily a film platform

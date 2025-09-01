@@ -287,6 +287,11 @@ components:
           description: "Number of days for Tautulli collections (required for Tautulli type)"
           example: 30
           nullable: true
+        minimumPlays:
+          type: integer
+          description: "Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)"
+          example: 3
+          nullable: true
         tautulliStatType:
           type: string
           enum: ['plays', 'duration']
@@ -574,6 +579,11 @@ components:
           description: "Number of days for Tautulli collections (required for Tautulli type)"
           example: 30
           nullable: true
+        minimumPlays:
+          type: integer
+          description: "Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)"
+          example: 3
+          nullable: true
         tautulliStatType:
           type: string
           enum: ['plays', 'duration']
@@ -822,6 +832,11 @@ components:
           type: integer
           description: "Number of days for Tautulli collections (required for Tautulli type)"
           example: 30
+          nullable: true
+        minimumPlays:
+          type: integer
+          description: "Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)"
+          example: 3
           nullable: true
         tautulliStatType:
           type: string
@@ -3703,6 +3718,9 @@ paths:
                 customDays:
                   type: number
                   example: 30
+                minimumPlays:
+                  type: number
+                  example: 3
               required:
                 - template
                 - mediaType

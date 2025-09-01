@@ -1,3 +1,5 @@
+import { defaultHubConfigService } from '@server/lib/collections/services/DefaultHubConfigService';
+import { preExistingCollectionConfigService } from '@server/lib/collections/services/PreExistingCollectionConfigService';
 import logger from '@server/logger';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
@@ -317,6 +319,7 @@ export interface MainSettings {
   // Global sync status tracking
   lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
   globalSyncError?: string; // Last sync error message if any (master error)
+  syncCounter?: number; // Counter for alternating Plex hub ordering methods (prevents precision convergence)
   // External service data for template variables
   adminUsername?: string; // Admin's Plex username
   adminNickname?: string; // Admin's Plex title/display name
@@ -797,12 +800,11 @@ class Settings {
   }
 
   /**
-   * Migrate default hub configs for v1.0.4 ordering consistency
-   * - Default Plex hubs should have sortOrderLibrary = 0 (void) since they cannot appear in library tabs
-   * - Default Plex hubs should have sortOrderHome = 0 (void) if not visible on home/recommended screens
+   * Complete collection data normalization migration for v1.1.0
+   * Replaces 4 incomplete migrations with comprehensive field normalization across all config types
    */
-  public migrateDefaultHubConfigsV104(): void {
-    const migrationId = 'default-hub-library-ordering-v1.0.4';
+  public migrateCollectionDataNormalizationV110(): void {
+    const migrationId = 'collection-data-normalization-v1.1.0';
 
     // Initialize completedMigrations if it doesn't exist
     if (!this.data.completedMigrations) {
@@ -814,191 +816,355 @@ class Settings {
       return;
     }
 
-    let fixedCount = 0;
+    const stats = {
+      hubs: 0,
+      collections: 0,
+      preExisting: 0,
+      duplicatesFixed: 0,
+    };
 
-    // Fix hub configs
-    if (this.data.plex.hubConfigs) {
-      this.data.plex.hubConfigs = this.data.plex.hubConfigs.map((config) => {
-        if (config.collectionType === CollectionType.DEFAULT_PLEX_HUB) {
-          // Check if any fields need fixing
-          const hasInvalidLibrarySettings =
-            config.sortOrderLibrary > 0 ||
-            config.isLibraryPromoted === true ||
-            config.everLibraryPromoted === true;
+    // Step 1: Normalize all hub configs
+    stats.hubs = this.normalizeHubConfigs();
 
-          // Check if sortOrderHome should be void (not visible on home/recommended screens)
-          const visibleOnHomeScreens =
-            config.visibilityConfig?.usersHome ||
-            config.visibilityConfig?.serverOwnerHome ||
-            config.visibilityConfig?.libraryRecommended;
-          const hasInvalidHomeOrdering =
-            !visibleOnHomeScreens && (config.sortOrderHome || 0) > 0;
+    // Step 2: Normalize all collection configs
+    stats.collections = this.normalizeCollectionConfigs();
 
-          if (hasInvalidLibrarySettings || hasInvalidHomeOrdering) {
-            fixedCount++;
-            return {
-              ...config,
-              sortOrderLibrary: 0, // Void for reordering (cannot appear in library tabs)
-              isLibraryPromoted: false, // Cannot be promoted in library tabs
-              everLibraryPromoted: false, // Reset promotion history
-              sortOrderHome: visibleOnHomeScreens ? config.sortOrderHome : 0, // Set to void if not visible
-            };
-          }
-        }
-        return config;
-      });
+    // Step 3: Normalize all pre-existing configs
+    stats.preExisting = this.normalizePreExistingConfigs();
+
+    // Step 4: Fix duplicates per library
+    for (const library of this.data.plex.libraries) {
+      stats.duplicatesFixed += this.fixDuplicateSortOrdersForLibrary(
+        library.key
+      );
     }
 
-    // Mark migration as completed and save
+    // Step 5: Save and log
     this.data.completedMigrations.push(migrationId);
     this.save();
 
-    if (fixedCount > 0) {
-      logger.info(
-        `v1.0.4 Migration: Fixed ${fixedCount} default hub configs for library ordering consistency`,
-        { label: 'Settings Migration' }
-      );
-    } else {
-      logger.debug('v1.0.4 Migration: No default hub configs required fixing', {
+    logger.info(
+      `v1.1.0 Migration: Normalized ${
+        stats.hubs + stats.collections + stats.preExisting
+      } configs, fixed ${stats.duplicatesFixed} duplicates`,
+      {
         label: 'Settings Migration',
-      });
-    }
+        stats,
+      }
+    );
   }
 
   /**
-   * Migrate collections to set initial isPromotedToHub values for discovery compatibility
-   * Note: isPromotedToHub is now calculated dynamically, but we set initial values for pre-existing collections
+   * Normalize hub configs with hub-specific business rules
    */
-  public migratePromotionStatusV104(): void {
-    const migrationId = 'promotion-status-v1.0.4';
-
-    // Initialize completedMigrations if it doesn't exist
-    if (!this.data.completedMigrations) {
-      this.data.completedMigrations = [];
-    }
-
-    // Check if migration already completed
-    if (this.data.completedMigrations.includes(migrationId)) {
-      return;
-    }
-
+  private normalizeHubConfigs(): number {
     let fixedCount = 0;
 
-    // Fix hub configs - default hubs are always promoted
-    if (this.data.plex.hubConfigs) {
-      this.data.plex.hubConfigs = this.data.plex.hubConfigs.map((config) => {
-        // Only set if isPromotedToHub is undefined (not explicitly set)
-        if (config.isPromotedToHub === undefined) {
+    if (!this.data.plex.hubConfigs) {
+      return fixedCount;
+    }
+
+    this.data.plex.hubConfigs = this.data.plex.hubConfigs.map((config) => {
+      const isVisibleOnHome =
+        config.visibilityConfig?.usersHome ||
+        config.visibilityConfig?.serverOwnerHome ||
+        config.visibilityConfig?.libraryRecommended;
+
+      // Check if normalization is needed
+      const needsNormalization =
+        config.sortOrderLibrary !== 0 ||
+        config.isLibraryPromoted !== false ||
+        config.everLibraryPromoted !== false ||
+        (!isVisibleOnHome && config.sortOrderHome > 0) ||
+        (config.collectionType === CollectionType.DEFAULT_PLEX_HUB &&
+          config.isPromotedToHub !== true) ||
+        config.isPromotedToHub === undefined;
+
+      if (needsNormalization) {
+        fixedCount++;
+        return {
+          ...config,
+          // Business rule: Hubs CANNOT appear in library tabs
+          sortOrderLibrary: 0,
+          isLibraryPromoted: false,
+          everLibraryPromoted: false,
+          // Visibility rule: Only visible hubs get home positioning
+          sortOrderHome: isVisibleOnHome ? config.sortOrderHome : 0,
+          // Discovery rule: All default hubs are promotable
+          isPromotedToHub:
+            config.collectionType === CollectionType.DEFAULT_PLEX_HUB
+              ? true
+              : config.isPromotedToHub ?? true,
+        };
+      }
+
+      return config;
+    });
+
+    return fixedCount;
+  }
+
+  /**
+   * Normalize collection configs with collection business rules
+   */
+  private normalizeCollectionConfigs(): number {
+    let fixedCount = 0;
+
+    if (!this.data.plex.collectionConfigs) {
+      return fixedCount;
+    }
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        const isVisibleOnHome =
+          config.visibilityConfig?.usersHome ||
+          config.visibilityConfig?.serverOwnerHome ||
+          config.visibilityConfig?.libraryRecommended;
+
+        // Check if normalization is needed
+        const needsNormalization =
+          (!isVisibleOnHome &&
+            config.sortOrderHome &&
+            config.sortOrderHome > 0) ||
+          (config.isLibraryPromoted === true &&
+            (!config.sortOrderLibrary || config.sortOrderLibrary === 0)) ||
+          (config.isLibraryPromoted === false &&
+            config.sortOrderLibrary &&
+            config.sortOrderLibrary > 0) ||
+          config.everLibraryPromoted === undefined;
+
+        if (needsNormalization) {
           fixedCount++;
           return {
             ...config,
-            // Default hubs are always promoted (can't be deleted)
-            isPromotedToHub:
-              config.collectionType === CollectionType.DEFAULT_PLEX_HUB,
+            // Visibility rule: Only visible collections get positioning
+            sortOrderHome: isVisibleOnHome ? config.sortOrderHome : 0,
+            // Consistency rule: Library positioning matches promotion status
+            sortOrderLibrary: config.isLibraryPromoted
+              ? config.sortOrderLibrary
+              : 0,
+            // Historical rule: Track promotion history
+            everLibraryPromoted:
+              config.isLibraryPromoted || (config.everLibraryPromoted ?? false),
+            // No isPromotedToHub changes (calculated dynamically)
           };
         }
 
         return config;
-      });
-    }
+      }
+    );
 
-    // Fix pre-existing collection configs - preserve discovery source
-    if (this.data.plex.preExistingCollectionConfigs) {
-      this.data.plex.preExistingCollectionConfigs =
-        this.data.plex.preExistingCollectionConfigs.map((config) => {
-          // Only set if isPromotedToHub is undefined (not explicitly set)
-          if (config.isPromotedToHub === undefined) {
-            // For pre-existing collections, default to false (collections API only)
-            // Will be set to true by discovery if found in hub management
-            fixedCount++;
-            return {
-              ...config,
-              isPromotedToHub: false,
-            };
-          }
-
-          return config;
-        });
-    }
-
-    // For Agregarr collections, isPromotedToHub is now calculated dynamically
-    // No migration needed - calculation handles all cases
-
-    // Mark migration as completed and save
-    this.data.completedMigrations.push(migrationId);
-    this.save();
-
-    if (fixedCount > 0) {
-      logger.info(
-        `v1.0.4 Migration: Set initial isPromotedToHub status for ${fixedCount} items`,
-        { label: 'Settings Migration' }
-      );
-    } else {
-      logger.debug(
-        'v1.0.4 Migration: No items required promotion status initialization',
-        { label: 'Settings Migration' }
-      );
-    }
+    return fixedCount;
   }
 
   /**
-   * Migrate collection sortOrderHome values based on visibility settings
-   * Collections should only have sortOrderHome > 0 if they're visible on home/recommended screens
+   * Normalize pre-existing configs with pre-existing collection business rules
    */
-  public migrateVisibilityBasedSortOrdersV104(): void {
-    const migrationId = 'visibility-based-sort-orders-v1.0.4';
-
-    // Initialize completedMigrations if it doesn't exist
-    if (!this.data.completedMigrations) {
-      this.data.completedMigrations = [];
-    }
-
-    // Check if migration already completed
-    if (this.data.completedMigrations.includes(migrationId)) {
-      return;
-    }
-
+  private normalizePreExistingConfigs(): number {
     let fixedCount = 0;
 
-    // Fix collection configs
-    if (this.data.plex.collectionConfigs) {
-      this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
-        (config) => {
-          // Check if collection should have sortOrderHome = 0 (void)
-          const visibleOnHomeScreens =
-            config.visibilityConfig?.usersHome ||
-            config.visibilityConfig?.serverOwnerHome ||
-            config.visibilityConfig?.libraryRecommended;
+    const preExistingConfigs = preExistingCollectionConfigService.getConfigs();
+    const updatedConfigs: PreExistingCollectionConfig[] = [];
 
-          // If not visible on home/recommended screens but has sortOrderHome > 0, fix it
-          if (!visibleOnHomeScreens && (config.sortOrderHome || 0) > 0) {
-            fixedCount++;
-            return {
-              ...config,
-              sortOrderHome: 0, // Set to void
-            };
-          }
+    for (const config of preExistingConfigs) {
+      const isVisibleOnHome =
+        config.visibilityConfig?.usersHome ||
+        config.visibilityConfig?.serverOwnerHome ||
+        config.visibilityConfig?.libraryRecommended;
 
-          return config;
-        }
-      );
+      // Check if normalization is needed
+      const needsNormalization =
+        (!isVisibleOnHome && config.sortOrderHome > 0) ||
+        (config.isLibraryPromoted === true && config.sortOrderLibrary === 0) ||
+        (config.isLibraryPromoted === false && config.sortOrderLibrary > 0) ||
+        config.everLibraryPromoted === undefined ||
+        config.isPromotedToHub === undefined;
+
+      if (needsNormalization) {
+        fixedCount++;
+        updatedConfigs.push({
+          ...config,
+          // Same as Collections (identical business rules)
+          sortOrderHome: isVisibleOnHome ? config.sortOrderHome : 0,
+          sortOrderLibrary: config.isLibraryPromoted
+            ? config.sortOrderLibrary
+            : 0,
+          everLibraryPromoted:
+            config.isLibraryPromoted || (config.everLibraryPromoted ?? false),
+          // Discovery rule: Default to collections API only
+          isPromotedToHub: config.isPromotedToHub ?? false,
+        });
+      } else {
+        updatedConfigs.push(config);
+      }
     }
 
-    // Mark migration as completed and save
-    this.data.completedMigrations.push(migrationId);
-    this.save();
-
+    // Save updated configs if any changes were made
     if (fixedCount > 0) {
-      logger.info(
-        `v1.0.4 Migration: Fixed ${fixedCount} collection configs for visibility-based sortOrderHome consistency`,
-        { label: 'Settings Migration' }
-      );
-    } else {
-      logger.debug(
-        'v1.0.4 Migration: No collection configs required sortOrderHome fixing',
-        { label: 'Settings Migration' }
-      );
+      preExistingCollectionConfigService.saveConfigs(updatedConfigs);
     }
+
+    return fixedCount;
+  }
+
+  /**
+   * Fix duplicate sort orders for a specific library
+   */
+  private fixDuplicateSortOrdersForLibrary(libraryKey: string): number {
+    // Get all configs for this library
+    const libraryCollections = (this.data.plex.collectionConfigs || []).filter(
+      (config) => {
+        const belongsToLibrary = Array.isArray(config.libraryId)
+          ? config.libraryId.includes(libraryKey)
+          : config.libraryId === libraryKey;
+        return belongsToLibrary;
+      }
+    );
+
+    const libraryHubs = defaultHubConfigService
+      .getConfigs()
+      .filter((config: PlexHubConfig) => {
+        return config.libraryId === libraryKey;
+      });
+
+    const libraryPreExisting = preExistingCollectionConfigService
+      .getConfigs()
+      .filter((config: PreExistingCollectionConfig) => {
+        return config.libraryId === libraryKey;
+      });
+
+    let totalFixed = 0;
+
+    // Fix home screen duplicates
+    totalFixed += this.fixDuplicateSortOrdersInContext(
+      libraryCollections,
+      libraryHubs,
+      libraryPreExisting,
+      'sortOrderHome'
+    );
+
+    // Fix library tab duplicates
+    totalFixed += this.fixDuplicateSortOrdersInContext(
+      libraryCollections,
+      libraryHubs,
+      libraryPreExisting,
+      'sortOrderLibrary'
+    );
+
+    return totalFixed;
+  }
+
+  /**
+   * Fix duplicate sort orders in a specific context (home or library)
+   */
+  private fixDuplicateSortOrdersInContext(
+    collections: CollectionConfig[],
+    hubs: PlexHubConfig[],
+    preExisting: PreExistingCollectionConfig[],
+    sortOrderField: 'sortOrderHome' | 'sortOrderLibrary'
+  ): number {
+    // Combine all items that should be positioned (including promoted items with 0 values)
+    const allItems = [
+      ...collections
+        .filter(
+          (c) =>
+            (c[sortOrderField] || 0) > 0 ||
+            (sortOrderField === 'sortOrderLibrary' && c.isLibraryPromoted) ||
+            (sortOrderField === 'sortOrderHome' &&
+              (c.visibilityConfig?.usersHome ||
+                c.visibilityConfig?.serverOwnerHome ||
+                c.visibilityConfig?.libraryRecommended))
+        )
+        .map((c) => ({ ...c, configType: 'collection' as const })),
+      ...hubs
+        .filter(
+          (h) =>
+            (h[sortOrderField] || 0) > 0 ||
+            (sortOrderField === 'sortOrderHome' &&
+              (h.visibilityConfig?.usersHome ||
+                h.visibilityConfig?.serverOwnerHome ||
+                h.visibilityConfig?.libraryRecommended))
+        )
+        .map((h) => ({ ...h, configType: 'hub' as const })),
+      ...preExisting
+        .filter(
+          (p) =>
+            (p[sortOrderField] || 0) > 0 ||
+            (sortOrderField === 'sortOrderLibrary' && p.isLibraryPromoted) ||
+            (sortOrderField === 'sortOrderHome' &&
+              (p.visibilityConfig?.usersHome ||
+                p.visibilityConfig?.serverOwnerHome ||
+                p.visibilityConfig?.libraryRecommended))
+        )
+        .map((p) => ({ ...p, configType: 'preExisting' as const })),
+    ];
+
+    if (allItems.length === 0) {
+      return 0;
+    }
+
+    // Sort by current position to preserve relative ordering
+    allItems.sort(
+      (a, b) => (a[sortOrderField] || 0) - (b[sortOrderField] || 0)
+    );
+
+    // Assign sequential positions and track changes
+    let fixedCount = 0;
+    const updatedCollections: CollectionConfig[] = [];
+    const updatedHubs: PlexHubConfig[] = [];
+    const updatedPreExisting: PreExistingCollectionConfig[] = [];
+
+    allItems.forEach((item, index) => {
+      const newPosition = index + 1;
+      const currentPosition = item[sortOrderField] || 0;
+
+      if (currentPosition !== newPosition) {
+        fixedCount++;
+        const updatedItem = { ...item, [sortOrderField]: newPosition };
+
+        if (item.configType === 'collection') {
+          updatedCollections.push(updatedItem as CollectionConfig);
+        } else if (item.configType === 'hub') {
+          updatedHubs.push(updatedItem as PlexHubConfig);
+        } else {
+          updatedPreExisting.push(updatedItem as PreExistingCollectionConfig);
+        }
+      }
+    });
+
+    // Apply updates
+    if (updatedCollections.length > 0) {
+      updatedCollections.forEach((updatedConfig) => {
+        const index = (this.data.plex.collectionConfigs || []).findIndex(
+          (c) => c.id === updatedConfig.id
+        );
+        if (index >= 0 && this.data.plex.collectionConfigs) {
+          this.data.plex.collectionConfigs[index] = updatedConfig;
+        }
+      });
+    }
+
+    if (updatedHubs.length > 0) {
+      const allHubConfigs = defaultHubConfigService
+        .getConfigs()
+        .map((config) => {
+          const updated = updatedHubs.find((u) => u.id === config.id);
+          return updated || config;
+        });
+      defaultHubConfigService.saveExistingConfigs(allHubConfigs);
+    }
+
+    if (updatedPreExisting.length > 0) {
+      const allPreExistingConfigs = preExistingCollectionConfigService
+        .getConfigs()
+        .map((config) => {
+          const updated = updatedPreExisting.find((u) => u.id === config.id);
+          return updated || config;
+        });
+      preExistingCollectionConfigService.saveConfigs(allPreExistingConfigs);
+    }
+
+    return fixedCount;
   }
 }
 

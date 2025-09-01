@@ -174,19 +174,25 @@ export class PreExistingCollectionConfigService {
     for (const configToUpdate of configsToUpdate) {
       const configIndex = configs.findIndex((c) => c.id === configToUpdate.id);
 
-      // Merge settings while preserving computed fields and library-specific fields
+      // For linked collections, exclude library-specific fields from settings to prevent corruption
+      const safeSettings = { ...settings };
+      if (existingConfig.isLinked && existingConfig.linkId) {
+        // Remove library-specific fields that must be preserved for each individual collection
+        delete safeSettings.libraryId;
+        delete safeSettings.libraryName;
+        delete safeSettings.collectionRatingKey; // CRITICAL: Each collection has its own unique rating key
+        delete safeSettings.mediaType;
+        delete safeSettings.id; // ID should never be overwritten
+      }
+
+      // Merge settings while preserving computed fields
       const updatedConfig: PreExistingCollectionConfig = {
         ...configToUpdate, // Preserve all existing fields including computed ones
-        ...settings, // Apply user changes
+        ...safeSettings, // Apply user changes (with library-specific fields excluded for linked collections)
         // Ensure computed fields stay computed:
         id: configToUpdate.id, // ID never changes
         isActive: configToUpdate.isActive, // isActive is computed elsewhere
         collectionType: configToUpdate.collectionType, // Computed field
-        // For linked collections, preserve library-specific fields
-        libraryId: configToUpdate.libraryId, // Don't change the library assignment
-        libraryName: configToUpdate.libraryName, // Don't change the library name
-        collectionRatingKey: configToUpdate.collectionRatingKey, // Don't change the Plex rating key
-        mediaType: configToUpdate.mediaType, // Don't change the media type
         // Business logic fields can be changed by user:
         isLinked: settings.isLinked ?? configToUpdate.isLinked,
         linkId: settings.linkId ?? configToUpdate.linkId,

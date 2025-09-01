@@ -1,6 +1,98 @@
 import type PlexAPI from '@server/api/plexapi';
 import { extractErrorMessage } from '@server/lib/collections/core/CollectionUtilities';
+import type {
+  CollectionConfig,
+  PlexHubConfig,
+  PreExistingCollectionConfig,
+} from '@server/lib/settings';
+import { CollectionType, getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+
+/**
+ * Helper function to determine if a collection should be promoted to hub management
+ * This replicates the logic from HubSyncService.calculateIsPromotedToHub
+ */
+function shouldCollectionBePromotedToHub(
+  config: CollectionConfig | PlexHubConfig | PreExistingCollectionConfig
+): boolean {
+  // Default Plex hubs are always promoted (can't be deleted)
+  if (
+    'collectionType' in config &&
+    config.collectionType === CollectionType.DEFAULT_PLEX_HUB
+  ) {
+    return true;
+  }
+
+  // For Agregarr collections, calculate based on current state and visibility
+  if ('type' in config) {
+    // This is a CollectionConfig
+    const collectionConfig = config as CollectionConfig;
+    if (collectionConfig.isActive) {
+      // Active collections: base on current visibility settings
+      return !!(
+        collectionConfig.visibilityConfig?.usersHome ||
+        collectionConfig.visibilityConfig?.serverOwnerHome ||
+        collectionConfig.visibilityConfig?.libraryRecommended
+      );
+    } else {
+      // Inactive collections: check time restriction settings
+      const timeRestriction = collectionConfig.timeRestriction;
+      if (timeRestriction?.removeFromPlexWhenInactive) {
+        // Remove entirely when inactive = DELETE from hub management
+        return false;
+      } else {
+        // Use inactive visibility settings
+        const inactiveConfig = timeRestriction?.inactiveVisibilityConfig;
+        if (inactiveConfig) {
+          return !!(
+            inactiveConfig.usersHome ||
+            inactiveConfig.serverOwnerHome ||
+            inactiveConfig.libraryRecommended
+          );
+        } else {
+          // Default inactive behavior: still visible in library recommended
+          return true;
+        }
+      }
+    }
+  }
+
+  // For pre-existing collections, calculate based on visibility config like regular collections
+  if ('visibilityConfig' in config && !('type' in config)) {
+    // This is a PreExistingCollectionConfig - check if it has any visibility
+    const preExistingConfig = config as PreExistingCollectionConfig;
+    if (preExistingConfig.isActive) {
+      return !!(
+        preExistingConfig.visibilityConfig?.usersHome ||
+        preExistingConfig.visibilityConfig?.serverOwnerHome ||
+        preExistingConfig.visibilityConfig?.libraryRecommended
+      );
+    } else {
+      // Inactive pre-existing collections: check time restriction settings
+      const timeRestriction = preExistingConfig.timeRestriction;
+      if (timeRestriction?.removeFromPlexWhenInactive) {
+        // Remove entirely when inactive = DELETE from hub management
+        return false;
+      } else {
+        // Use inactive visibility settings
+        const inactiveConfig = timeRestriction?.inactiveVisibilityConfig;
+        if (inactiveConfig) {
+          return !!(
+            inactiveConfig.usersHome ||
+            inactiveConfig.serverOwnerHome ||
+            inactiveConfig.libraryRecommended
+          );
+        } else {
+          // Default inactive behavior: still visible in library recommended
+          return true;
+        }
+      }
+    }
+  }
+
+  // Default: not promoted
+  return false;
+}
 
 /**
  * Unified ordering service for collections and hubs
@@ -84,6 +176,8 @@ export function convertUIOrderingToPlexIdentifiers(
 
 /**
  * Apply unified ordering to Plex libraries
+ * NOTE: This assumes all collections are already promoted and configured properly
+ * Discovery and promotion should happen in a separate phase before calling this
  */
 export async function applyUnifiedOrderingToPlex(
   plexClient: PlexAPI,
@@ -92,6 +186,27 @@ export async function applyUnifiedOrderingToPlex(
   try {
     // Convert UI ordering to Plex identifiers
     const plexItems = convertUIOrderingToPlexIdentifiers(orderingItems);
+
+    // Get and increment sync counter for alternating positioning methods
+    const settings = getSettings();
+    const currentSyncCounter = settings.main.syncCounter || 0;
+    const nextSyncCounter = currentSyncCounter + 1;
+
+    // Update sync counter in settings for next sync
+    settings.main.syncCounter = nextSyncCounter;
+    await settings.save();
+
+    logger.info(
+      `Applying unified ordering with sync counter: ${nextSyncCounter} (method: ${
+        nextSyncCounter % 2 === 0 ? 'reverse-anchor' : 'sequential'
+      })`,
+      {
+        label: 'Unified Ordering Service',
+        syncCounter: nextSyncCounter,
+        positioningMethod:
+          nextSyncCounter % 2 === 0 ? 'reverse-anchor' : 'sequential',
+      }
+    );
 
     // Group by library for efficient processing
     const itemsByLibrary = new Map<string, PlexOrderingItem[]>();
@@ -125,13 +240,80 @@ export async function applyUnifiedOrderingToPlex(
         ? 'show'
         : 'movie';
 
-      // Apply ordering using Plex hub reordering API
-      await plexClient.reorderHubs(
+      // DEBUG: Log the ordering array being sent to Plex
+      logger.info('ORDERING DEBUG: Array being sent to PlexAPI reorderHubs', {
+        label: 'Unified Ordering Service',
         libraryId,
+        libraryType,
         orderedIdentifiers,
-        undefined,
-        libraryType
-      );
+        sortedItemsDebug: sortedItems.map((item, index) => ({
+          index,
+          sortOrder: item.sortOrder,
+          identifier: item.identifier,
+          libraryId: item.libraryId,
+        })),
+      });
+
+      // Apply ordering using Plex hub reordering API with precision convergence recovery
+      try {
+        await plexClient.reorderHubs(
+          libraryId,
+          orderedIdentifiers,
+          undefined,
+          libraryType,
+          nextSyncCounter
+        );
+      } catch (error: unknown) {
+        // Check if this is a precision convergence error
+        const convergenceError = error as Error & {
+          isPrecisionConvergence?: boolean;
+          sectionId?: string;
+          moveCount?: number;
+        };
+
+        if (
+          convergenceError.isPrecisionConvergence &&
+          convergenceError.sectionId === libraryId
+        ) {
+          logger.warn(
+            `Precision convergence detected in library ${libraryId}, initiating reset and rebuild`,
+            {
+              label: 'Unified Ordering Service',
+              libraryId,
+              libraryType,
+              moveCount: convergenceError.moveCount,
+              action: 'reset_and_rebuild',
+            }
+          );
+
+          // Reset the library hub management (clears all positioning)
+          await plexClient.resetLibraryHubManagement(libraryId);
+
+          // Wait a moment for Plex to process the reset
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          // Rebuild: Run normal sync process to achieve the same end state
+          await rebuildLibraryHubManagement(
+            plexClient,
+            libraryId,
+            libraryType,
+            orderedIdentifiers
+          );
+
+          logger.info(
+            `Successfully recovered from precision convergence in library ${libraryId}`,
+            {
+              label: 'Unified Ordering Service',
+              libraryId,
+              libraryType,
+              action: 'recovery_completed',
+            }
+          );
+        } else {
+          // Re-throw non-convergence errors
+          throw error;
+        }
+      }
     }
 
     // Successfully applied unified ordering
@@ -140,6 +322,142 @@ export async function applyUnifiedOrderingToPlex(
       `Failed to apply unified ordering: ${extractErrorMessage(error)}`,
       {
         label: 'Unified Ordering',
+        error: extractErrorMessage(error),
+      }
+    );
+    throw error;
+  }
+}
+
+/**
+ * Rebuild hub management for a specific library after reset
+ * This restores exactly what was there before the reset
+ */
+async function rebuildLibraryHubManagement(
+  plexClient: PlexAPI,
+  libraryId: string,
+  libraryType: 'movie' | 'show',
+  orderedIdentifiers: string[]
+): Promise<void> {
+  try {
+    logger.info(`Starting hub management rebuild for library ${libraryId}`, {
+      label: 'Unified Ordering Service',
+      libraryId,
+      libraryType,
+      identifierCount: orderedIdentifiers.length,
+    });
+
+    // Get settings to determine what needs to be rebuilt
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+    const preExistingCollectionConfigs =
+      settings.plex.preExistingCollectionConfigs || [];
+
+    // Filter configs for this specific library
+    const libraryCollectionConfigs = collectionConfigs.filter(
+      (config) => config.libraryId === libraryId
+    );
+    const libraryPreExistingConfigs = preExistingCollectionConfigs.filter(
+      (config) => config.libraryId === libraryId
+    );
+
+    // Step 1: Re-promote collections that should be in hub management
+    // Our created collections
+    for (const config of libraryCollectionConfigs) {
+      // Use the same logic as HubSyncService - check if collection should be promoted
+      const shouldBePromoted = shouldCollectionBePromotedToHub(config);
+      if (config.collectionRatingKey && shouldBePromoted) {
+        try {
+          await plexClient.promoteCollectionToHub(
+            config.collectionRatingKey,
+            libraryId
+          );
+          logger.debug(
+            `Re-promoted collection ${config.name} to hub management`,
+            {
+              label: 'Unified Ordering Service',
+              collectionName: config.name,
+              libraryId,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to re-promote collection ${
+              config.name
+            } to hub: ${extractErrorMessage(error)}`,
+            {
+              label: 'Unified Ordering Service',
+              collectionName: config.name,
+              libraryId,
+            }
+          );
+        }
+      }
+    }
+
+    // Pre-existing collections that were promoted
+    for (const config of libraryPreExistingConfigs) {
+      // Use the same logic as HubSyncService to determine if this should be promoted
+      const shouldBePromoted = shouldCollectionBePromotedToHub(config);
+      if (config.collectionRatingKey && shouldBePromoted) {
+        try {
+          await plexClient.promoteCollectionToHub(
+            config.collectionRatingKey,
+            libraryId
+          );
+          logger.debug(
+            `Re-promoted pre-existing collection ${config.name} to hub management`,
+            {
+              label: 'Unified Ordering Service',
+              collectionName: config.name,
+              libraryId,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to re-promote pre-existing collection ${
+              config.name
+            } to hub: ${extractErrorMessage(error)}`,
+            {
+              label: 'Unified Ordering Service',
+              collectionName: config.name,
+              libraryId,
+            }
+          );
+        }
+      }
+    }
+
+    // Step 2: Set visibility settings for each hub
+    const { HubSyncService } = await import('./HubSyncService');
+    const hubSyncService = new HubSyncService();
+    await hubSyncService.syncHubVisibility(plexClient);
+
+    // Step 3: Wait for Plex to process the hub setup
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Step 4: Apply clean ordering (this will use fresh 1000-interval spacing)
+    await plexClient.reorderHubs(
+      libraryId,
+      orderedIdentifiers,
+      undefined,
+      libraryType
+      // Note: No sync counter here - we want clean positioning after reset
+    );
+
+    logger.info(`Hub management rebuild completed for library ${libraryId}`, {
+      label: 'Unified Ordering Service',
+      libraryId,
+      result: 'rebuild_successful',
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to rebuild hub management for library ${libraryId}: ${extractErrorMessage(
+        error
+      )}`,
+      {
+        label: 'Unified Ordering Service',
+        libraryId,
         error: extractErrorMessage(error),
       }
     );

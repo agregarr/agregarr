@@ -211,6 +211,7 @@ const AutoRequestSection = ({
                   inputMode="numeric"
                   id="maxSeasonsToRequest"
                   name="maxSeasonsToRequest"
+                  placeholder="0"
                   className="short"
                 />
               </div>
