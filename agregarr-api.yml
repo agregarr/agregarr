@@ -3744,8 +3744,8 @@ paths:
           description: Failed to generate template preview
   /collections/fetch-title:
     post:
-      summary: Fetch title from external collection URL
-      description: Extracts the title and media type from external collection URLs (Trakt, TMDb, IMDb, Letterboxd).
+      summary: Quick validation and title extraction from external collection URL
+      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDb, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
       tags:
         - collection
       requestBody:
@@ -3789,6 +3789,51 @@ paths:
           description: Too many requests - rate limited
         '500':
           description: Failed to fetch title
+  /collections/detect-media-type:
+    post:
+      summary: Comprehensive media type detection from external collection URL
+      description: Performs comprehensive analysis (up to 1000 items) to accurately detect media types from external collection URLs. This endpoint runs in the background after quick title validation to provide detailed media type information for better user guidance.
+      tags:
+        - collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  example: "https://trakt.tv/users/username/lists/my-list"
+                type:
+                  type: string
+                  enum: [trakt, tmdb, imdb, letterboxd]
+                  example: "trakt"
+              required:
+                - url
+                - type
+      responses:
+        '200':
+          description: Media type detected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  mediaType:
+                    type: string
+                    enum: [movie, tv, both]
+                    example: "both"
+                    description: "Detected media type based on comprehensive list analysis"
+        '400':
+          description: Bad request - invalid URL, unsupported type, or failed to analyze list content
+        '429':
+          description: Too many requests - rate limited
+        '500':
+          description: Internal server error while detecting media type
   /collections/poster:
     post:
       summary: Upload a poster image for collections

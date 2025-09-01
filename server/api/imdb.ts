@@ -120,7 +120,7 @@ class ImdbAPI extends ExternalAPI {
    */
   public async getCustomList(
     listUrl: string,
-    limit = 50
+    limit = 1000
   ): Promise<ImdbListItem[]> {
     try {
       // Extract list ID from URL

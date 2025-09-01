@@ -77,6 +77,13 @@ const CollectionFormConfigForm = ({
     letterboxd?: 'movie' | 'tv' | 'both';
   }>({});
 
+  const [detectingMediaTypes, setDetectingMediaTypes] = useState<{
+    trakt?: boolean;
+    tmdb?: boolean;
+    imdb?: boolean;
+    letterboxd?: boolean;
+  }>({});
+
   const [, setFetchingTitle] = useState<{
     trakt?: boolean;
     tmdb?: boolean;
@@ -319,6 +326,29 @@ const CollectionFormConfigForm = ({
     }
   };
 
+  // Comprehensive media type detection function
+  const detectMediaType = async (
+    url: string,
+    type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+  ) => {
+    try {
+      setDetectingMediaTypes((prev) => ({ ...prev, [type]: true }));
+      const response = await fetch(`/api/v1/collections/detect-media-type`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, type }),
+      });
+      const data = await response.json();
+      if (data.mediaType) {
+        setDetectedMediaTypes((prev) => ({ ...prev, [type]: data.mediaType }));
+      }
+    } catch (error) {
+      // Silently fail - media type detection is optional
+    } finally {
+      setDetectingMediaTypes((prev) => ({ ...prev, [type]: false }));
+    }
+  };
+
   // Title fetching functions
   const fetchTraktTitle = async (
     url: string,
@@ -326,14 +356,19 @@ const CollectionFormConfigForm = ({
   ) => {
     try {
       setFetchingTitle((prev) => ({ ...prev, trakt: true }));
+
+      // Step 1: Quick title fetch and validation (first 10 items)
       const response = await fetch(`/api/v1/collections/fetch-title`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'trakt' }),
       });
       const data = await response.json();
+
       if (data.title) {
         setFetchedTitles((prev) => ({ ...prev, trakt: data.title }));
+
+        // Set initial media type from first 10 items if available
         if (data.mediaType) {
           setDetectedMediaTypes((prev) => ({ ...prev, trakt: data.mediaType }));
         }
@@ -344,13 +379,15 @@ const CollectionFormConfigForm = ({
             // If media type is 'both', use template with {mediaType} placeholder for backend processing
             if (data.mediaType === 'both') {
               setFieldValue('template', `${data.title} - {mediaType}s`);
-              // Don't set form mediaType - let backend set it per individual library
             } else {
               setFieldValue('template', data.title);
-              // For specific media types, we could set it but backend will override anyway
             }
           }, 100); // Small delay to ensure state is updated
         }
+
+        // Step 2: Start comprehensive media type detection in background
+        setDetectingMediaTypes((prev) => ({ ...prev, trakt: true }));
+        detectMediaType(url, 'trakt');
       }
     } catch (error) {
       // Failed to fetch Trakt title - silently continue
@@ -404,14 +441,19 @@ const CollectionFormConfigForm = ({
   ) => {
     try {
       setFetchingTitle((prev) => ({ ...prev, imdb: true }));
+
+      // Step 1: Quick title fetch and validation
       const response = await fetch(`/api/v1/collections/fetch-title`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'imdb' }),
       });
       const data = await response.json();
+
       if (data.title) {
         setFetchedTitles((prev) => ({ ...prev, imdb: data.title }));
+
+        // Set initial media type if available
         if (data.mediaType) {
           setDetectedMediaTypes((prev) => ({ ...prev, imdb: data.mediaType }));
         }
@@ -419,16 +461,16 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            // If media type is 'both', use template with {mediaType} placeholder for backend processing
             if (data.mediaType === 'both') {
               setFieldValue('template', `${data.title} - {mediaType}s`);
-              // Don't set form mediaType - let backend set it per individual library
             } else {
               setFieldValue('template', data.title);
-              // For specific media types, we could set it but backend will override anyway
             }
-          }, 100); // Small delay to ensure state is updated
+          }, 100);
         }
+
+        // Step 2: Start comprehensive media type detection in background
+        detectMediaType(url, 'imdb');
       }
     } catch (error) {
       // Failed to fetch IMDb title - silently continue
@@ -1662,40 +1704,35 @@ const CollectionFormConfigForm = ({
                                 values.subtype === 'custom' &&
                                 (fetchedTitles.letterboxd || config?.name)))
                         )}
-                        filteredLibraries={(() => {
-                          // Filter by detected media type for custom lists
+                        detectedMediaType={(() => {
+                          // Return detected media type for custom lists
                           if (values.subtype === 'custom') {
-                            const detectedType =
-                              detectedMediaTypes?.[
-                                values.type as keyof typeof detectedMediaTypes
-                              ];
-                            if (detectedType === 'movie') {
-                              return libraries.filter(
-                                (lib) => lib.type === 'movie'
-                              );
-                            } else if (detectedType === 'tv') {
-                              return libraries.filter(
-                                (lib) => lib.type === 'show'
-                              );
-                            }
+                            return detectedMediaTypes?.[
+                              values.type as keyof typeof detectedMediaTypes
+                            ];
                           }
 
-                          // Filter for known movie-only collection types
+                          // Return media type for known single-type collection types
                           if (
                             values.type === 'trakt' &&
                             values.subtype === 'boxoffice'
                           ) {
-                            return libraries.filter(
-                              (lib) => lib.type === 'movie'
-                            );
+                            return 'movie';
                           }
                           if (values.type === 'letterboxd') {
-                            return libraries.filter(
-                              (lib) => lib.type === 'movie'
-                            );
+                            return 'movie';
                           }
 
                           return undefined;
+                        })()}
+                        isDetectingMediaType={(() => {
+                          // Return detecting state for custom lists
+                          if (values.subtype === 'custom') {
+                            return detectingMediaTypes?.[
+                              values.type as keyof typeof detectingMediaTypes
+                            ];
+                          }
+                          return false;
                         })()}
                       />
                     )}

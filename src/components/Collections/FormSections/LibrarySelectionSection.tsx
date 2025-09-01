@@ -150,6 +150,8 @@ interface LibrarySelectionSectionProps {
   isEnhancedForm?: boolean;
   isVisible?: boolean;
   filteredLibraries?: Library[];
+  detectedMediaType?: 'movie' | 'tv' | 'both';
+  isDetectingMediaType?: boolean;
 }
 
 const LibrarySelectionSection = ({
@@ -160,12 +162,56 @@ const LibrarySelectionSection = ({
   isEnhancedForm = false,
   isVisible = true,
   filteredLibraries,
+  detectedMediaType,
+  isDetectingMediaType = false,
 }: LibrarySelectionSectionProps) => {
   const intl = useIntl();
 
   if (!isVisible) return null;
 
   const librariesToUse = filteredLibraries || libraries;
+
+  // Generate message based on detected media type or detection state
+  const getMediaTypeMessage = (): {
+    message: string;
+    type: 'warning' | 'info' | 'success';
+  } | null => {
+    // Show loading state if currently detecting
+    if (isDetectingMediaType) {
+      return {
+        message: 'Analyzing list content to detect media types...',
+        type: 'info',
+      };
+    }
+
+    // Show success message if both types detected
+    if (detectedMediaType === 'both') {
+      return {
+        message: 'List contains both Movies and TV Shows.',
+        type: 'success',
+      };
+    }
+
+    // Show warning if specific media type detected
+    if (detectedMediaType === 'movie' || detectedMediaType === 'tv') {
+      const mediaTypeLabel =
+        detectedMediaType === 'movie' ? 'Movies' : 'TV Shows';
+      const oppositeTypeLabel =
+        detectedMediaType === 'movie' ? 'TV Shows' : 'Movies';
+
+      return {
+        message: `Detected ${mediaTypeLabel} only. ${oppositeTypeLabel} collections will be empty until matching content is added.`,
+        type: 'warning',
+      };
+    }
+
+    return null;
+  };
+
+  const messageData = getMediaTypeMessage();
+
+  // For custom lists, always show a message area to prevent layout jumping
+  const shouldShowMessageArea = values.subtype === 'custom';
 
   if (isEnhancedForm) {
     // Enhanced form - read-only display
@@ -217,6 +263,25 @@ const LibrarySelectionSection = ({
         {intl.formatMessage(messages.librarySelection)}{' '}
         <span className="text-red-500">*</span>
       </label>
+
+      {/* Media type detection feedback - always visible for custom lists to prevent layout jumping */}
+      {shouldShowMessageArea && (
+        <div className="mb-2 min-h-[1.25rem]">
+          {messageData && (
+            <p
+              className={`text-xs ${
+                messageData.type === 'info'
+                  ? 'text-gray-400'
+                  : messageData.type === 'success'
+                  ? 'text-green-400'
+                  : 'text-amber-400'
+              }`}
+            >
+              {messageData.message}
+            </p>
+          )}
+        </div>
+      )}
 
       <LibraryCheckboxDropdown
         selectedLibraries={values.libraryIds || []}
