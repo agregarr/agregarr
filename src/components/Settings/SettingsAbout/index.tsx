@@ -148,6 +148,30 @@ const SettingsAbout = () => {
         </List>
       </div>
       <div className="section">
+        <List title={intl.formatMessage(messages.gettingsupport)}>
+          <List.Item title={intl.formatMessage(messages.githubdiscussions)}>
+            <a
+              href="https://github.com/agregarr/agregarr/discussions"
+              target="_blank"
+              rel="noreferrer"
+              className="text-orange-500 transition duration-300 hover:underline"
+            >
+              https://github.com/agregarr/agregarr/discussions
+            </a>
+          </List.Item>
+          <List.Item title="Discord">
+            <a
+              href="https://discord.gg/RfEPPRQJQ2"
+              target="_blank"
+              rel="noreferrer"
+              className="text-orange-500 transition duration-300 hover:underline"
+            >
+              https://discord.gg/RfEPPRQJQ2
+            </a>
+          </List.Item>
+        </List>
+      </div>
+      <div className="section">
         <List title={intl.formatMessage(messages.supportagregarr)}>
           <List.Item
             title={`${intl.formatMessage(messages.helppaycoffee)} ☕️`}
