@@ -8,7 +8,7 @@ Agregarr keeps your Plex Home and Recommended fresh by frequently updating it wi
 - **Overseerr Requests**: Generate Collections either for each users requests (only visible to that user), or for All Requests
 - **Tautulli Statistics**: Generate Collections based on the Most Popular content on your server
 - **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independetly
-- **Keeps Plex Updated**: Collections will be be updated on every sync (default 12 hours)
+- **Keeps Plex Updated**: Collections will be be updated on every sync (default 12 hours, custom scheduling available)
 - **Template System**: Easily set collection names with flexible templating
 - **Time Restrictions**: Schedule collections to be active only during specific time periods
 - **Library Management**: Organize collections across multiple Plex libraries
