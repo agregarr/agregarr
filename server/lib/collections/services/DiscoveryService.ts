@@ -73,6 +73,7 @@ export class DiscoveryService {
 
     const discoveredHubConfigs: DiscoveredHubConfig[] = []; // Only built-in Plex hubs
     const discoveredPreExistingConfigs: DiscoveredPreExistingConfig[] = []; // Pre-existing collections
+    const enhancedExistingConfigs: PreExistingCollectionConfig[] = []; // Existing configs that were enhanced with hub data
 
     // Get existing configs to check for duplicates
     const settings = getSettings();
@@ -124,7 +125,8 @@ export class DiscoveryService {
       existingHubKeys,
       existingPreExistingKeys,
       existingCollectionKeys,
-      allCollections
+      allCollections,
+      enhancedExistingConfigs
     );
 
     // STEP 4: Promote collections that should be visible but aren't in hub management
@@ -253,14 +255,50 @@ export class DiscoveryService {
         );
       }
 
-      // Save settings if any configs were added
+      // Update existing pre-existing configs that were enhanced with hub data
+      if (enhancedExistingConfigs.length > 0) {
+        const currentPreExistingConfigs =
+          settings.plex.preExistingCollectionConfigs || [];
+
+        // Replace enhanced configs in the current array
+        for (const enhancedConfig of enhancedExistingConfigs) {
+          const existingIndex = currentPreExistingConfigs.findIndex(
+            (config) =>
+              config.collectionRatingKey ===
+                enhancedConfig.collectionRatingKey &&
+              config.libraryId === enhancedConfig.libraryId
+          );
+
+          if (existingIndex !== -1) {
+            currentPreExistingConfigs[existingIndex] = enhancedConfig;
+          }
+        }
+
+        settings.plex.preExistingCollectionConfigs = currentPreExistingConfigs;
+        logger.debug(
+          `Updated ${enhancedExistingConfigs.length} existing pre-existing configs with hub enhancement data`,
+          {
+            label: 'Discovery Service',
+            enhancedConfigs: enhancedExistingConfigs.map((c) => ({
+              name: c.name,
+              ratingKey: c.collectionRatingKey,
+              libraryId: c.libraryId,
+              newSortOrder: c.sortOrderHome,
+              isPromoted: c.isPromotedToHub,
+            })),
+          }
+        );
+      }
+
+      // Save settings if any configs were added or updated
       if (
         discoveredHubConfigs.length > 0 ||
-        discoveredPreExistingConfigs.length > 0
+        discoveredPreExistingConfigs.length > 0 ||
+        enhancedExistingConfigs.length > 0
       ) {
         settings.save();
         logger.info(
-          `Discovery updated settings: ${discoveredHubConfigs.length} hubs, ${discoveredPreExistingConfigs.length} pre-existing collections added`,
+          `Discovery updated settings: ${discoveredHubConfigs.length} hubs, ${discoveredPreExistingConfigs.length} pre-existing collections added, ${enhancedExistingConfigs.length} existing collections updated`,
           {
             label: 'Discovery Service',
           }
@@ -275,6 +313,9 @@ export class DiscoveryService {
           librariesToReorder.add(config.libraryId)
         );
         discoveredPreExistingConfigs.forEach((config) =>
+          librariesToReorder.add(config.libraryId)
+        );
+        enhancedExistingConfigs.forEach((config) =>
           librariesToReorder.add(config.libraryId)
         );
 
@@ -532,7 +573,8 @@ export class DiscoveryService {
     existingHubKeys: Set<string>,
     existingPreExistingKeys: Set<string>,
     existingCollectionKeys: Set<string>,
-    allCollections: PlexCollection[]
+    allCollections: PlexCollection[],
+    enhancedExistingConfigs: PreExistingCollectionConfig[]
   ): Promise<void> {
     for (const library of libraries) {
       logger.debug('Discovering hubs for library', {
@@ -751,34 +793,101 @@ export class DiscoveryService {
                       libraryId: library.key,
                     }
                   );
-                } else if (
+                } else {
+                  // Check if this is an existing pre-existing config in settings that needs updating
+                  const settings = getSettings();
+                  const existingConfigFromSettings =
+                    settings.plex.preExistingCollectionConfigs?.find(
+                      (config) =>
+                        config.collectionRatingKey === parsedHub.ratingKey &&
+                        config.libraryId === library.key
+                    );
+
+                  if (existingConfigFromSettings) {
+                    // Create a copy and enhance with hub promotion data
+                    const enhancedConfig: PreExistingCollectionConfig = {
+                      ...existingConfigFromSettings,
+                      sortOrderHome: hubConfig.sortOrderHome,
+                      visibilityConfig: {
+                        ...existingConfigFromSettings.visibilityConfig,
+                        ...(hub.promotedToSharedHome !== undefined && {
+                          usersHome: hub.promotedToSharedHome,
+                        }),
+                        ...(hub.promotedToOwnHome !== undefined && {
+                          serverOwnerHome: hub.promotedToOwnHome,
+                        }),
+                        ...(hub.promotedToRecommended !== undefined && {
+                          libraryRecommended: hub.promotedToRecommended,
+                        }),
+                      },
+                      isPromotedToHub: true,
+                    };
+
+                    // Track this enhanced config
+                    enhancedExistingConfigs.push(enhancedConfig);
+
+                    logger.debug(
+                      `Enhanced existing pre-existing collection "${enhancedConfig.name}" with hub promotion data`,
+                      {
+                        label: 'Discovery Service',
+                        wasPromoted: (
+                          existingConfigFromSettings as PreExistingCollectionConfig & {
+                            isPromotedToHub?: boolean;
+                          }
+                        ).isPromotedToHub,
+                        nowPromoted: true,
+                        statusChanged: !(
+                          existingConfigFromSettings as PreExistingCollectionConfig & {
+                            isPromotedToHub?: boolean;
+                          }
+                        ).isPromotedToHub,
+                        ratingKey: parsedHub.ratingKey,
+                        libraryId: library.key,
+                        newSortOrder: hubConfig.sortOrderHome,
+                        oldSortOrder: existingConfigFromSettings.sortOrderHome,
+                      }
+                    );
+                  }
+                }
+
+                if (
+                  !existingPreExisting &&
                   !existingPreExistingKeys.has(preExistingKey) &&
                   !existingCollectionKeys.has(collectionKey)
                 ) {
-                  // This collection wasn't found in step 1 (maybe only exists as promoted hub) - create proper pre-existing config
-                  const preExistingConfig =
-                    createPreExistingConfigFromDiscovery(
-                      parsedHub.ratingKey,
-                      {
-                        title: hub.title, // Use hub title as fallback
-                        // No titleSort available from hub API
-                        promotedToSharedHome: hub.promotedToSharedHome,
-                        promotedToOwnHome: hub.promotedToOwnHome,
-                        promotedToRecommended: hub.promotedToRecommended,
-                      },
-                      library,
-                      {
-                        library: hubConfig.sortOrderLibrary,
-                        home: hubConfig.sortOrderHome,
+                  // Check if we already enhanced this config from settings
+                  const alreadyEnhanced = enhancedExistingConfigs.some(
+                    (config) =>
+                      config.collectionRatingKey === parsedHub.ratingKey &&
+                      config.libraryId === library.key
+                  );
+
+                  if (!alreadyEnhanced) {
+                    // This collection wasn't found in step 1 (maybe only exists as promoted hub) - create proper pre-existing config
+                    const preExistingConfig =
+                      createPreExistingConfigFromDiscovery(
+                        parsedHub.ratingKey,
+                        {
+                          title: hub.title, // Use hub title as fallback
+                          // No titleSort available from hub API
+                          promotedToSharedHome: hub.promotedToSharedHome,
+                          promotedToOwnHome: hub.promotedToOwnHome,
+                          promotedToRecommended: hub.promotedToRecommended,
+                        },
+                        library,
+                        {
+                          library: hubConfig.sortOrderLibrary,
+                          home: hubConfig.sortOrderHome,
+                        }
+                      );
+                    // Pre-existing collection discovered in hub management - set initial promotion status
+                    (
+                      preExistingConfig as PreExistingCollectionConfig & {
+                        isPromotedToHub: boolean;
                       }
-                    );
-                  // Pre-existing collection discovered in hub management - set initial promotion status
-                  (
-                    preExistingConfig as PreExistingCollectionConfig & {
-                      isPromotedToHub: boolean;
-                    }
-                  ).isPromotedToHub = true;
-                  discoveredPreExistingConfigs.push(preExistingConfig);
+                    ).isPromotedToHub = true;
+                    discoveredPreExistingConfigs.push(preExistingConfig);
+                  }
                 }
               }
             }
