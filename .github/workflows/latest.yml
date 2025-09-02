@@ -9,6 +9,11 @@ jobs:
   semantic-release:
     name: Tag and release latest version
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
