@@ -216,9 +216,17 @@ components:
           example: "{nickname}'s TV Requests"
           nullable: true
         customPoster:
-          type: string
-          description: "Filename of custom poster image for this collection"
-          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+          oneOf:
+            - type: string
+              description: "Filename of custom poster image (legacy format)"
+              example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+            - type: object
+              description: "Per-library poster mapping (libraryId -> filename)"
+              additionalProperties:
+                type: string
+              example: 
+                lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
         visibilityConfig:
           type: object
@@ -514,9 +522,17 @@ components:
           example: "{nickname}'s TV Requests"
           nullable: true
         customPoster:
-          type: string
-          description: "Filename of custom poster image for this collection"
-          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+          oneOf:
+            - type: string
+              description: "Filename of custom poster image (legacy format)"
+              example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+            - type: object
+              description: "Per-library poster mapping (libraryId -> filename)"
+              additionalProperties:
+                type: string
+              example: 
+                lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
         visibilityConfig:
           type: object
@@ -762,9 +778,17 @@ components:
           example: "{nickname}'s TV Requests"
           nullable: true
         customPoster:
-          type: string
-          description: "Filename of custom poster image for this collection"
-          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+          oneOf:
+            - type: string
+              description: "Filename of custom poster image (legacy format)"
+              example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+            - type: object
+              description: "Per-library poster mapping (libraryId -> filename)"
+              additionalProperties:
+                type: string
+              example: 
+                lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
         visibilityConfig:
           type: object
@@ -1572,9 +1596,17 @@ components:
             - alwaysActive
           nullable: true
         customPoster:
-          type: string
-          description: "Filename of custom poster image for this collection"
-          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+          oneOf:
+            - type: string
+              description: "Filename of custom poster image (legacy format)"
+              example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+            - type: object
+              description: "Per-library poster mapping (libraryId -> filename)"
+              additionalProperties:
+                type: string
+              example: 
+                lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
         missing:
           type: boolean
@@ -3870,6 +3902,102 @@ paths:
         '400':
           description: Bad request - invalid file or upload error
         '403':
+          description: Authentication required
+        '500':
+          description: Internal server error
+  /collections/generate-poster:
+    post:
+      summary: Generate a poster for a collection
+      description: Generates a custom poster based on collection configuration data. Creates text-based posters with collection type styling.
+      tags:
+        - collection
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                collectionName:
+                  type: string
+                  description: Name of the collection to generate poster for
+                  example: "Top Trakt Movies"
+                collectionType:
+                  type: string
+                  description: Type of collection (trakt, tmdb, imdb, letterboxd, tautulli, overseerr, hub)
+                  example: "trakt"
+                collectionSubtype:
+                  type: string
+                  description: Subtype of the collection
+                  example: "popular"
+                mediaType:
+                  type: string
+                  enum: [movie, tv]
+                  description: Media type for the collection
+                  example: "movie"
+                template:
+                  type: string
+                  description: Collection template for additional context
+                  example: "Top {count} {type} from Trakt"
+              required:
+                - collectionName
+      responses:
+        '200':
+          description: Poster generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                    example: "generated_abc123def.jpg"
+                  url:
+                    type: string
+                    example: "/api/v1/collections/poster/generated_abc123def.jpg"
+                  message:
+                    type: string
+                    example: "Poster generated successfully"
+        '400':
+          description: Bad request - missing or invalid collection name
+        '401':
+          description: Authentication required
+        '500':
+          description: Internal server error
+  /collections/posters:
+    get:
+      summary: List all stored poster files
+      description: Returns a list of all poster files currently stored in the system with their URLs.
+      tags:
+        - collection
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: List of poster files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        filename:
+                          type: string
+                          description: The filename of the poster
+                          example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                        url:
+                          type: string
+                          description: The URL to access the poster
+                          example: "/api/v1/collections/poster/f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+        '401':
           description: Authentication required
         '500':
           description: Internal server error

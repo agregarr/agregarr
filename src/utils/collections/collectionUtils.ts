@@ -286,6 +286,7 @@ export const prepareLinkedConfigForEditing = <
     linkId?: number;
     isLinked?: boolean;
     isUnlinked?: boolean;
+    customPoster?: string | Record<string, string>;
   }
 >(
   config: T,
@@ -309,10 +310,25 @@ export const prepareLinkedConfigForEditing = <
     const allLibraryIds = allLinkedConfigs.map((c) => c.libraryId);
     const allLibraryNames = allLinkedConfigs.map((c) => c.libraryName);
 
+    // Create per-library poster mapping from all linked configs
+    const customPosterMapping: Record<string, string> = {};
+    for (const linkedConfig of allLinkedConfigs) {
+      if (
+        linkedConfig.customPoster &&
+        typeof linkedConfig.customPoster === 'string' &&
+        linkedConfig.customPoster.trim()
+      ) {
+        customPosterMapping[linkedConfig.libraryId] = linkedConfig.customPoster;
+      }
+    }
+
     const linkedConfigForEditing = {
       ...config,
       libraryIds: allLibraryIds,
       libraryNames: allLibraryNames,
+      // Use per-library poster mapping instead of single poster from primary config
+      customPoster:
+        Object.keys(customPosterMapping).length > 0 ? customPosterMapping : {},
     };
 
     return linkedConfigForEditing;

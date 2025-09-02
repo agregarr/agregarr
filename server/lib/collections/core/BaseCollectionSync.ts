@@ -4,9 +4,12 @@ import { serviceUserManager } from '@server/lib/collections/services/ServiceUser
 import type { TemplateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
+import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
+import { generatePoster } from '@server/lib/posterStorage';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import path from 'path';
 import {
   createCollectionLabel,
   createSyncError,
@@ -60,7 +63,7 @@ interface CollectionUpdateOptions {
   sortOrderLibrary?: number;
   isLibraryPromoted?: boolean;
   totalCollectionsInLibrary?: number;
-  customPoster?: string;
+  customPoster?: string | Record<string, string>;
   processedCollectionKeys?: Set<string>;
   libraryKey: string;
   config?: CollectionConfig;
@@ -600,6 +603,19 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       this.updateConfigWithRatingKey(config, updateResult.collectionRatingKey);
     }
 
+    // Auto-generate poster if enabled (available for all collection types)
+    // Default to true for existing collections that don't have this field set
+    const shouldGeneratePoster = config.autoPoster ?? true;
+    if (shouldGeneratePoster && updateResult.collectionRatingKey) {
+      await this.generateAutoPoster(
+        collectionName,
+        config,
+        updateResult.collectionRatingKey,
+        plexClient,
+        items
+      );
+    }
+
     return {
       created: updateResult.created,
       updated: updateResult.updated,
@@ -802,22 +818,43 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             config.collectionRatingKey
           );
           if (existingByRatingKey) {
-            logger.debug(
-              `Found existing collection by stored ratingKey: ${existingByRatingKey.title}`,
-              {
-                label: 'Base Collection Sync',
-                ratingKey: config.collectionRatingKey,
-                collectionTitle: existingByRatingKey.title,
-                collectionType: config.type,
-                collectionSubtype: config.subtype,
-              }
-            );
-            return {
-              ratingKey: existingByRatingKey.ratingKey,
-              title: existingByRatingKey.title,
-              labels: existingByRatingKey.labels || [],
-              type: existingByRatingKey.type || 'collection',
-            };
+            // CRITICAL: Validate that the found collection is in the correct library
+            // This prevents linked configs from stealing each other's rating keys
+            const collectionLibraryKey =
+              existingByRatingKey.librarySectionID ||
+              existingByRatingKey.libraryKey;
+            if (String(collectionLibraryKey) !== String(libraryKey)) {
+              logger.debug(
+                `Stored ratingKey ${config.collectionRatingKey} found but in wrong library - falling back to label search`,
+                {
+                  label: 'Base Collection Sync',
+                  storedRatingKey: config.collectionRatingKey,
+                  collectionTitle: existingByRatingKey.title,
+                  collectionLibraryKey,
+                  expectedLibraryKey: libraryKey,
+                  configId: config.id,
+                  configName: config.name,
+                }
+              );
+            } else {
+              logger.debug(
+                `Found existing collection by stored ratingKey: ${existingByRatingKey.title}`,
+                {
+                  label: 'Base Collection Sync',
+                  ratingKey: config.collectionRatingKey,
+                  collectionTitle: existingByRatingKey.title,
+                  collectionType: config.type,
+                  collectionSubtype: config.subtype,
+                  libraryKey: collectionLibraryKey,
+                }
+              );
+              return {
+                ratingKey: existingByRatingKey.ratingKey,
+                title: existingByRatingKey.title,
+                labels: existingByRatingKey.labels || [],
+                type: existingByRatingKey.type || 'collection',
+              };
+            }
           }
         } catch (error) {
           logger.debug(
@@ -1075,10 +1112,48 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
 
     // Update poster if provided
     if (customPoster) {
-      await plexClient.updateCollectionPoster(
-        collectionRatingKey,
-        customPoster
-      );
+      let posterFilename: string | undefined;
+
+      if (typeof customPoster === 'string') {
+        // Legacy single poster
+        posterFilename = customPoster;
+      } else {
+        // Per-library poster mapping - get poster for current library
+        posterFilename = customPoster[options.libraryKey];
+      }
+
+      if (posterFilename) {
+        try {
+          // Get full path to poster file
+          const { getPosterPath } = await import('@server/lib/posterStorage');
+          const posterPath = getPosterPath(posterFilename);
+
+          await plexClient.updateCollectionPoster(
+            collectionRatingKey,
+            posterPath
+          );
+
+          logger.debug(
+            `Successfully uploaded poster for collection ${collectionName}`,
+            {
+              label: `${this.source} Collections`,
+              collectionRatingKey,
+              posterFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload poster for collection ${collectionName}`,
+            {
+              label: `${this.source} Collections`,
+              collectionRatingKey,
+              posterFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if poster upload fails
+        }
+      }
     }
   }
 
@@ -1451,6 +1526,80 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         : [],
       error: result.error,
     };
+  }
+
+  /**
+   * Generate poster automatically for collections during sync
+   * Called for any collection type with autoPoster enabled
+   */
+  protected async generateAutoPoster(
+    collectionName: string,
+    config: CollectionConfig,
+    collectionRatingKey: string,
+    plexClient: PlexAPI,
+    items?: CollectionItem[]
+  ): Promise<void> {
+    try {
+      const mediaType = getCollectionMediaType(config);
+
+      logger.info(`Auto-generating poster for collection: ${collectionName}`, {
+        label: `${this.source} Collections`,
+        configId: config.id,
+        mediaType,
+      });
+
+      // Convert items to poster format if available
+      let posterItems: CollectionItemWithPoster[] | undefined;
+      if (items && items.length > 0) {
+        posterItems = items.slice(0, 4).map((item) => ({
+          title: item.title,
+          type: item.type,
+          tmdbId: item.tmdbId,
+          year: item.year,
+        }));
+      }
+
+      // Generate the poster using the processed collection name
+      const posterFilename = await generatePoster(
+        {
+          collectionName,
+          collectionType: config.type,
+          collectionSubtype: config.subtype,
+          mediaType,
+          items: posterItems,
+        },
+        `Auto-generated: ${collectionName}`
+      );
+
+      // Upload the generated poster to Plex
+      const posterPath = path.join(
+        process.cwd(),
+        'config',
+        'posters',
+        posterFilename
+      );
+      await plexClient.updateCollectionPoster(collectionRatingKey, posterPath);
+
+      logger.info(
+        `Successfully generated and applied poster for collection: ${collectionName}`,
+        {
+          label: `${this.source} Collections`,
+          configId: config.id,
+          posterFilename,
+          collectionRatingKey,
+        }
+      );
+    } catch (error) {
+      // Log error but don't fail the sync - poster generation is optional
+      logger.warn(
+        `Failed to auto-generate poster for collection: ${collectionName}`,
+        {
+          label: `${this.source} Collections`,
+          configId: config.id,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
   }
 }
 

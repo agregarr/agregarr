@@ -918,6 +918,7 @@ export class DiscoveryService {
     existingCollectionKeys: Set<string>
   ): Promise<PlexCollection[]> {
     let allCollections: PlexCollection[] = [];
+    const posterDiscoveryStats = { successful: 0, failed: 0 };
 
     try {
       allCollections = await plexClient.getAllCollections();
@@ -928,6 +929,21 @@ export class DiscoveryService {
         const library = libraries.find((lib) => lib.key === libraryId);
 
         if (!library) continue;
+
+        // Discover and store poster for this collection
+        const posterDiscovered = await this.discoverCollectionPoster(
+          plexClient,
+          collection,
+          libraryId,
+          library.title
+        );
+
+        // Track poster discovery statistics
+        if (posterDiscovered) {
+          posterDiscoveryStats.successful++;
+        } else {
+          posterDiscoveryStats.failed++;
+        }
 
         // Check if this is an Agregarr collection or pre-existing
         const matchingCollectionConfig = collectionConfigs.find(
@@ -1031,6 +1047,29 @@ export class DiscoveryService {
             // Pre-existing collections keep their actual Plex visibility settings
             discoveredPreExistingConfigs.push(collectionConfig);
           }
+        }
+      }
+
+      // Log poster discovery statistics
+      if (
+        posterDiscoveryStats.successful > 0 ||
+        posterDiscoveryStats.failed > 0
+      ) {
+        logger.info(`Poster discovery completed`, {
+          label: 'Poster Discovery',
+          successful: posterDiscoveryStats.successful,
+          failed: posterDiscoveryStats.failed,
+          total: posterDiscoveryStats.successful + posterDiscoveryStats.failed,
+        });
+
+        if (posterDiscoveryStats.failed > 0) {
+          logger.info(
+            `Poster not found for ${posterDiscoveryStats.failed} collections`,
+            {
+              label: 'Poster Discovery',
+              failedCount: posterDiscoveryStats.failed,
+            }
+          );
         }
       }
     } catch (error) {
@@ -1336,6 +1375,254 @@ export class DiscoveryService {
       promotedToRecommended:
         config.visibilityConfig.libraryRecommended || false,
     };
+  }
+
+  /**
+   * Discover and store poster for a collection
+   * Downloads the current poster from Plex and stores it for reuse
+   * @returns true if poster was successfully discovered and stored, false otherwise
+   */
+  private async discoverCollectionPoster(
+    plexClient: PlexAPI,
+    collection: PlexCollection,
+    libraryId: string,
+    libraryName: string
+  ): Promise<boolean> {
+    try {
+      // Get the current poster URL from Plex
+      const posterUrl = await plexClient.getCurrentPosterUrl(
+        collection.ratingKey
+      );
+
+      if (!posterUrl) {
+        logger.debug(`No poster found for collection: ${collection.title}`, {
+          label: 'Poster Discovery',
+          ratingKey: collection.ratingKey,
+          libraryId,
+        });
+        return false;
+      }
+
+      // Download and save the poster
+      const { downloadAndSavePoster } = await import(
+        '@server/lib/posterStorage'
+      );
+      const filename = await downloadAndSavePoster(
+        posterUrl,
+        `${collection.title} (${libraryName})`
+      );
+
+      if (filename) {
+        logger.info(
+          `Discovered and stored poster for collection: ${collection.title}`,
+          {
+            label: 'Poster Discovery',
+            ratingKey: collection.ratingKey,
+            libraryId,
+            libraryName,
+            filename,
+          }
+        );
+
+        // Link this poster to collection configs that match this collection
+        await this.linkPosterToConfigs(collection, libraryId, filename);
+        return true;
+      } else {
+        logger.warn(
+          `Failed to store poster for collection: ${collection.title}`,
+          {
+            label: 'Poster Discovery',
+            ratingKey: collection.ratingKey,
+            libraryId,
+            posterUrl,
+          }
+        );
+        return false;
+      }
+    } catch (error) {
+      logger.error(
+        `Error discovering poster for collection: ${collection.title}`,
+        {
+          label: 'Poster Discovery',
+          ratingKey: collection.ratingKey,
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Link discovered poster to matching collection configs
+   * Sets the discovered poster as the customPoster for Agregarr collections and pre-existing collections
+   * that don't already have a poster configured. Default hubs are excluded as they can't have custom posters.
+   */
+  private async linkPosterToConfigs(
+    collection: PlexCollection,
+    libraryId: string,
+    posterFilename: string
+  ): Promise<void> {
+    try {
+      const settings = getSettings();
+      let updated = false;
+
+      // Check user-created Agregarr collection configs
+      const collectionConfigs = settings.plex.collectionConfigs || [];
+      for (const config of collectionConfigs) {
+        // Use robust matching: rating key + library OR label matching
+        const ratingKeyMatches =
+          config.collectionRatingKey === collection.ratingKey;
+        const libraryMatches = config.libraryId === libraryId;
+
+        let configMatches = false;
+
+        // Method 1: Rating key match (if both exist and library matches)
+        if (ratingKeyMatches && libraryMatches && config.collectionRatingKey) {
+          configMatches = true;
+          logger.debug(`Poster config match by rating key: ${config.name}`, {
+            label: 'Poster Discovery',
+            configId: config.id,
+            ratingKey: config.collectionRatingKey,
+          });
+        }
+
+        // Method 2: Label-based matching (fallback for corrupted rating keys)
+        if (!configMatches && libraryMatches && collection.labels) {
+          const { parseConfigIdFromLabel } = await import(
+            '@server/lib/collections/core/CollectionUtilities'
+          );
+
+          const hasMatchingLabel = collection.labels.some((label) => {
+            const labelText = typeof label === 'string' ? label : label.tag;
+            const parsedConfigId = parseConfigIdFromLabel(labelText);
+            return parsedConfigId === config.id;
+          });
+
+          if (hasMatchingLabel) {
+            configMatches = true;
+            logger.debug(`Poster config match by label: ${config.name}`, {
+              label: 'Poster Discovery',
+              configId: config.id,
+              collectionRatingKey: collection.ratingKey,
+            });
+          }
+        }
+
+        if (
+          configMatches &&
+          !config.customPoster // Only set if no poster is already configured
+        ) {
+          // Type-safe modification of collection config
+          const mutableConfig = config as CollectionConfig & {
+            customPoster?: string;
+          };
+          mutableConfig.customPoster = posterFilename;
+          updated = true;
+          logger.info(
+            `Linked discovered poster to Agregarr collection config: ${config.name}`,
+            {
+              label: 'Poster Discovery',
+              configId: config.id,
+              posterFilename,
+            }
+          );
+        }
+      }
+
+      // Check pre-existing collection configs (non-Agregarr collections)
+      const preExistingConfigs =
+        settings.plex.preExistingCollectionConfigs || [];
+      for (const config of preExistingConfigs) {
+        // Use robust matching: rating key + library OR label matching
+        const ratingKeyMatches =
+          config.collectionRatingKey === collection.ratingKey;
+        const libraryMatches = config.libraryId === libraryId;
+
+        let configMatches = false;
+
+        // Method 1: Rating key match (if both exist and library matches)
+        if (ratingKeyMatches && libraryMatches && config.collectionRatingKey) {
+          configMatches = true;
+          logger.debug(
+            `Poster config match by rating key (pre-existing): ${config.name}`,
+            {
+              label: 'Poster Discovery',
+              configId: config.id,
+              ratingKey: config.collectionRatingKey,
+            }
+          );
+        }
+
+        // Method 2: Label-based matching (fallback for corrupted rating keys)
+        if (!configMatches && libraryMatches && collection.labels) {
+          const { parseConfigIdFromLabel } = await import(
+            '@server/lib/collections/core/CollectionUtilities'
+          );
+
+          const hasMatchingLabel = collection.labels.some((label) => {
+            const labelText = typeof label === 'string' ? label : label.tag;
+            const parsedConfigId = parseConfigIdFromLabel(labelText);
+            return parsedConfigId === config.id;
+          });
+
+          if (hasMatchingLabel) {
+            configMatches = true;
+            logger.debug(
+              `Poster config match by label (pre-existing): ${config.name}`,
+              {
+                label: 'Poster Discovery',
+                configId: config.id,
+                collectionRatingKey: collection.ratingKey,
+              }
+            );
+          }
+        }
+
+        if (
+          configMatches &&
+          !config.customPoster // Only set if no poster is already configured
+        ) {
+          // Type-safe modification of pre-existing config
+          const mutableConfig = config as PreExistingCollectionConfig & {
+            customPoster?: string;
+          };
+          mutableConfig.customPoster = posterFilename;
+          updated = true;
+          logger.info(
+            `Linked discovered poster to pre-existing collection config: ${config.name}`,
+            {
+              label: 'Poster Discovery',
+              configId: config.id,
+              posterFilename,
+            }
+          );
+        }
+      }
+
+      // Save settings if any configs were updated
+      if (updated) {
+        settings.save();
+        logger.debug(
+          `Saved settings with linked poster for collection: ${collection.title}`,
+          {
+            label: 'Poster Discovery',
+            ratingKey: collection.ratingKey,
+            posterFilename,
+          }
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Error linking poster to configs for collection: ${collection.title}`,
+        {
+          label: 'Poster Discovery',
+          ratingKey: collection.ratingKey,
+          posterFilename,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
   }
 }
 

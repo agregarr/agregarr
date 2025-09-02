@@ -5,11 +5,19 @@ import type { PlexCollection } from '@server/lib/collections/core/types';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import collectionsSync from '@server/lib/collectionsSync';
+import type { PosterGenerationConfig } from '@server/lib/posterGeneration';
+import {
+  generatePoster,
+  getPosterUrl,
+  initializePosterStorage,
+  savePosterFile,
+} from '@server/lib/posterStorage';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
+import multer from 'multer';
 
 // Plex label can be either a string or an object with a tag property
 type PlexLabel = string | { tag: string };
@@ -138,6 +146,42 @@ function validateExternalUrl(
 
 const collectionsRoutes = Router();
 
+// Initialize poster storage directory
+initializePosterStorage();
+
+// Configure multer for poster uploads
+const posterUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 1, // Only allow one file
+  },
+  fileFilter: (req, file, callback) => {
+    // Allow specific mime types
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return callback(
+        new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.')
+      );
+    }
+
+    // Check file extension matches mime type
+    const fileExt = file.originalname?.toLowerCase().split('.').pop();
+    const expectedExts: Record<string, string[]> = {
+      'image/jpeg': ['jpg', 'jpeg'],
+      'image/png': ['png'],
+      'image/webp': ['webp'],
+    };
+
+    if (fileExt && !expectedExts[file.mimetype]?.includes(fileExt)) {
+      return callback(new Error('File extension does not match file type.'));
+    }
+
+    callback(null, true);
+  },
+}).single('poster');
+
 /**
  * GET /api/v1/collections
  * Get collection configurations
@@ -258,11 +302,29 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         }
       }
 
+      // Handle per-library poster extraction for linked collections
+      let customPosterForThisLibrary: string | undefined;
+      if (req.body.customPoster) {
+        if (typeof req.body.customPoster === 'string') {
+          // Single poster - use as-is
+          customPosterForThisLibrary = req.body.customPoster;
+        } else if (typeof req.body.customPoster === 'object') {
+          // Per-library posters - extract the one for this config's library
+          customPosterForThisLibrary =
+            req.body.customPoster[configToUpdate.libraryId] || '';
+        }
+      }
+
       // Merge settings while preserving computed fields and library-specific fields
       const updatedConfig: CollectionConfig = {
         ...configToUpdate, // Preserve all existing fields including computed ones
         ...req.body, // Apply user changes
         name: processedName, // Use processed template name
+        // Override customPoster with library-specific value
+        customPoster:
+          customPosterForThisLibrary !== undefined
+            ? customPosterForThisLibrary
+            : configToUpdate.customPoster,
         // Ensure computed fields stay computed:
         id: configToUpdate.id, // ID never changes
         isActive: configToUpdate.isActive, // Preserve sync service's isActive calculation
@@ -1581,117 +1643,178 @@ collectionsRoutes.post(
  * Upload a poster image for collections
  * POST /api/v1/collections/poster
  */
-collectionsRoutes.post('/poster', isAuthenticated(), async (req, res) => {
-  try {
-    const multer = (await import('multer')).default;
-    const { savePosterFile, validatePosterBuffer, initializePosterStorage } =
-      await import('@server/lib/posterStorage');
-
-    // Initialize storage directory
-    initializePosterStorage();
-
-    // Configure multer for memory storage with strict security
-    const upload = multer({
-      storage: multer.memoryStorage(),
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-        files: 1,
-        fieldSize: 10 * 1024 * 1024, // 10MB field size limit
-        fieldNameSize: 100, // Limit field name size
-        fields: 1, // Only allow one field
-        parts: 1, // Only allow one part
-      },
-      fileFilter: (req, file, callback) => {
-        // Strict validation - only allow specific mime types
-        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
-
-        // Additional security: check file extension matches mime type
-        const fileExt = file.originalname?.toLowerCase().split('.').pop();
-        const expectedExts: Record<string, string[]> = {
-          'image/jpeg': ['jpg', 'jpeg'],
-          'image/png': ['png'],
-          'image/webp': ['webp'],
-        };
-
-        if (!allowedMimeTypes.includes(file.mimetype)) {
-          return callback(
-            new Error(
-              'Invalid file type. Only JPEG, PNG, and WebP are allowed.'
-            )
-          );
-        }
-
-        if (fileExt && !expectedExts[file.mimetype]?.includes(fileExt)) {
-          return callback(
-            new Error('File extension does not match file type.')
-          );
-        }
-
-        callback(null, true);
-      },
-    }).single('poster');
-
-    // Handle file upload with proper error handling
-    upload(req, res, async (err) => {
+collectionsRoutes.post(
+  '/poster',
+  isAuthenticated(),
+  (req, res, next) => {
+    posterUpload(req, res, (err) => {
       if (err) {
         logger.error('Poster upload error:', err);
 
         // Handle specific multer errors
-        const multerError = err as Error & { code?: string };
-        const errorCode = multerError.code;
-        const errorMessage = multerError.message;
-
-        if (errorCode === 'LIMIT_FILE_SIZE') {
+        if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
             error: 'File too large. Maximum size is 10MB.',
           });
-        } else if (errorCode === 'LIMIT_UNEXPECTED_FILE') {
+        } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
           return res.status(400).json({
             error: 'Unexpected field name. Use "poster" as the field name.',
           });
-        } else if (errorMessage) {
-          return res.status(400).json({
-            error: errorMessage,
-          });
         } else {
           return res.status(400).json({
-            error: 'File upload failed',
+            error: err.message || 'File upload failed',
           });
         }
       }
-
+      next();
+    });
+  },
+  async (req, res) => {
+    try {
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      try {
-        // Validate the uploaded file
-        validatePosterBuffer(req.file.buffer, req.file.mimetype);
+      // Save the poster file
+      const filename = await savePosterFile(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname
+      );
 
-        // Save the poster file
-        const filename = await savePosterFile(
-          req.file.buffer,
-          req.file.mimetype,
-          req.file.originalname
-        );
+      return res.status(200).json({
+        filename,
+        url: getPosterUrl(filename),
+      });
+    } catch (error) {
+      logger.error('Error processing poster upload:', error);
+      return res.status(400).json({
+        error:
+          error instanceof Error ? error.message : 'Failed to process poster',
+      });
+    }
+  }
+);
 
-        const { getPosterUrl } = await import('@server/lib/posterStorage');
+/**
+ * Generate a poster for a collection
+ * POST /api/v1/collections/generate-poster
+ */
+collectionsRoutes.post(
+  '/generate-poster',
+  isAuthenticated(),
+  async (req, res) => {
+    try {
+      const {
+        collectionName,
+        collectionType,
+        collectionSubtype,
+        mediaType,
+        template,
+        customMovieTemplate,
+        customTVTemplate,
+      } = req.body;
 
-        return res.status(200).json({
-          filename,
-          url: getPosterUrl(filename),
-        });
-      } catch (error) {
-        logger.error('Error processing poster upload:', error);
+      // Validate required fields
+      if (
+        !collectionName ||
+        typeof collectionName !== 'string' ||
+        !collectionName.trim()
+      ) {
         return res.status(400).json({
-          error:
-            error instanceof Error ? error.message : 'Failed to process poster',
+          error: 'Collection name is required and must be a non-empty string',
         });
       }
-    });
+
+      // Validate optional fields
+      if (collectionType && typeof collectionType !== 'string') {
+        return res.status(400).json({
+          error: 'Collection type must be a string if provided',
+        });
+      }
+
+      if (mediaType && !['movie', 'tv'].includes(mediaType)) {
+        return res.status(400).json({
+          error: 'Media type must be "movie" or "tv" if provided',
+        });
+      }
+
+      // Process template if provided, using the specific media type
+      let processedCollectionName = collectionName.trim();
+
+      if (template && mediaType) {
+        const context = {
+          mediaType,
+          subtype: collectionSubtype,
+        };
+
+        // Choose the correct template based on media type
+        let templateToProcess = template;
+        if (mediaType === 'movie' && customMovieTemplate) {
+          templateToProcess = customMovieTemplate;
+        } else if (mediaType === 'tv' && customTVTemplate) {
+          templateToProcess = customTVTemplate;
+        }
+
+        processedCollectionName = templateEngine.processTemplate(
+          templateToProcess,
+          context
+        );
+      }
+
+      const config: PosterGenerationConfig = {
+        collectionName: processedCollectionName,
+        collectionType,
+        collectionSubtype,
+        mediaType,
+        template,
+      };
+
+      logger.info('Generating poster for collection:', config);
+
+      // Generate the poster
+      const filename = await generatePoster(
+        config,
+        `Generated: ${collectionName}`
+      );
+
+      return res.status(200).json({
+        filename,
+        url: getPosterUrl(filename),
+        message: 'Poster generated successfully',
+      });
+    } catch (error) {
+      logger.error('Error generating poster:', error);
+      return res.status(500).json({
+        error:
+          error instanceof Error ? error.message : 'Failed to generate poster',
+      });
+    }
+  }
+);
+
+/**
+ * List all stored poster files
+ * GET /api/v1/collections/posters
+ */
+collectionsRoutes.get('/posters', isAuthenticated(), async (req, res) => {
+  try {
+    const { getAllPosterFiles, getPosterUrl } = await import(
+      '@server/lib/posterStorage'
+    );
+
+    const posterFiles = await getAllPosterFiles();
+
+    // Map files to include URLs and metadata
+    const posters = posterFiles.map((filename) => ({
+      filename,
+      url: getPosterUrl(filename),
+    }));
+
+    return res.status(200).json({ posters });
   } catch (error) {
-    logger.error('Poster upload route error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    logger.error('Error listing posters:', error);
+    return res.status(500).json({ error: 'Failed to list posters' });
   }
 });
 

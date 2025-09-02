@@ -47,6 +47,10 @@ export interface PlexCollection {
   title: string;
   /** Collection type */
   type: string;
+  /** Library key (section ID) this collection belongs to */
+  libraryKey?: string;
+  /** Library name this collection belongs to */
+  libraryName?: string;
   /** Collection summary/description */
   summary?: string;
   /** Collection thumb/poster */
@@ -148,7 +152,7 @@ export interface CollectionCreateConfig {
   /** Custom label for identification */
   customLabel?: string;
   /** Custom poster image path */
-  customPoster?: string;
+  customPoster?: string | Record<string, string>;
   /** User context for the collection */
   user: Partial<User>;
   /** Whether this is a source-specific collection (Trakt, Tautulli, etc.) */

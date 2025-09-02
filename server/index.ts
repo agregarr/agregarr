@@ -172,6 +172,79 @@ app
       };
       next();
     });
+
+    // Direct static file serving for posters
+    server.use(
+      '/posters',
+      express.static(path.join(process.cwd(), 'config', 'posters'), {
+        maxAge: '1y', // Cache for 1 year since filenames are UUIDs
+        setHeaders: (res, filePath) => {
+          // Set appropriate content type based on file extension
+          const ext = path.extname(filePath).toLowerCase();
+          if (ext === '.jpg' || ext === '.jpeg') {
+            res.setHeader('Content-Type', 'image/jpeg');
+          } else if (ext === '.png') {
+            res.setHeader('Content-Type', 'image/png');
+          } else if (ext === '.webp') {
+            res.setHeader('Content-Type', 'image/webp');
+          }
+        },
+      })
+    );
+
+    // Simple poster upload endpoint (bypasses complex API routing)
+    server.post('/upload-poster', async (req, res) => {
+      try {
+        const multer = (await import('multer')).default;
+        const { savePosterFile, initializePosterStorage } = await import(
+          '@server/lib/posterStorage'
+        );
+
+        // Initialize storage
+        initializePosterStorage();
+
+        // Simple multer config
+        const upload = multer({
+          storage: multer.memoryStorage(),
+          limits: { fileSize: 10 * 1024 * 1024 },
+        }).single('poster');
+
+        upload(req, res, async (err) => {
+          if (err) {
+            logger.error('Simple poster upload error:', err);
+            return res
+              .status(400)
+              .json({ error: err.message || 'Upload failed' });
+          }
+
+          if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+          }
+
+          try {
+            const filename = await savePosterFile(
+              req.file.buffer,
+              req.file.mimetype,
+              req.file.originalname
+            );
+            return res
+              .status(200)
+              .json({ filename, url: `/posters/${filename}` });
+          } catch (error) {
+            logger.error('Error saving poster:', error);
+            return res
+              .status(400)
+              .json({
+                error: error instanceof Error ? error.message : 'Save failed',
+              });
+          }
+        });
+      } catch (error) {
+        logger.error('Poster upload endpoint error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
     server.use('/api/v1', routes);
 
     // Do not set cookies so CDNs can cache them

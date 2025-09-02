@@ -11,7 +11,7 @@ import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
 import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
-// import { useToasts } from 'react-toast-notifications'; // Disabled for future release
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
 
@@ -20,7 +20,7 @@ import AutoRequestSection from '@app/components/Collections/FormSections/AutoReq
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
-// import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection'; // Disabled for future release
+import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
@@ -37,7 +37,7 @@ const messages = defineMessages({
   visibility: 'Visibility',
   maxItems: 'Max Items',
   minimumPlays: 'Minimum Play Count',
-  // customPoster: 'Custom Poster', // Disabled for future release
+  customPoster: 'Custom Posters',
   autoRequestSettings: 'Auto-Request Settings',
   timeRestrictions: 'Time Restrictions',
   createCollection: 'Create Collection',
@@ -54,15 +54,15 @@ const CollectionFormConfigForm = ({
   onUnlink,
   onLink,
   libraries,
+  allCollectionConfigs,
 }: CollectionConfigFormProps) => {
   const intl = useIntl();
-  // const { addToast } = useToasts(); // Disabled for future release
+  const { addToast } = useToasts();
 
   // Get current user data which includes Plex Pass status
   const { data: currentUser } = useSWR('/api/v1/auth/me');
 
   // State for storing fetched titles and detected media types
-  // const [posterUploading, setPosterUploading] = useState(false); // Disabled for future release
   const [fetchedTitles, setFetchedTitles] = useState<{
     trakt?: string;
     tmdb?: string;
@@ -1961,28 +1961,29 @@ const CollectionFormConfigForm = ({
                             </div>
                           </div>
 
-                          {/* Custom Poster - Disabled for future release
-                          <div className="form-row">
-                            <label
-                              htmlFor="customPoster"
-                              className="text-label"
-                            >
-                              Custom Poster
-                            </label>
-                            <div className="form-input-area">
-                              <PosterUploadSection
-                                values={typedValues as CollectionFormConfig}
-                                setFieldValue={setFieldValue}
-                                posterUploading={posterUploading}
-                                setPosterUploading={setPosterUploading}
-                                addToast={addToast}
-                                fieldId="customPoster"
-                                apiEndpoint="/api/v1/collections/poster"
-                                isEnhanced={false}
-                              />
-                            </div>
-                          </div>
-                          */}
+                          {/* Custom Poster Section */}
+                          {isCollection &&
+                            (values.libraryIds?.length > 0 ||
+                              values.libraryId) && (
+                              <div className="form-row">
+                                <label
+                                  htmlFor="customPoster"
+                                  className="text-label"
+                                >
+                                  {intl.formatMessage(messages.customPoster)}
+                                </label>
+                                <div className="form-input-area">
+                                  <PosterUploadSection
+                                    values={typedValues as CollectionFormConfig}
+                                    setFieldValue={setFieldValue}
+                                    addToast={addToast}
+                                    fieldId="customPoster"
+                                    libraries={libraries}
+                                    selectedLibraryIds={values.libraryIds || []}
+                                  />
+                                </div>
+                              </div>
+                            )}
 
                           <div className="form-row">
                             <label
@@ -2061,6 +2062,39 @@ const CollectionFormConfigForm = ({
                             />
                           </div>
                         </div>
+                        {/* Custom Poster Section - Only for pre-existing collections, NOT for default Plex hubs */}
+                        {isPreExisting && (
+                          <div className="form-row">
+                            <label
+                              htmlFor="customPoster"
+                              className="text-label"
+                            >
+                              {intl.formatMessage(messages.customPoster)}
+                            </label>
+                            <div className="form-input-area">
+                              <PosterUploadSection
+                                values={typedValues as CollectionFormConfig}
+                                setFieldValue={setFieldValue}
+                                addToast={addToast}
+                                fieldId="customPoster"
+                                libraries={libraries}
+                                selectedLibraryIds={
+                                  // For linked configs, get all library IDs from the linked group
+                                  // For single configs, just use the current libraryId
+                                  values.isLinked && allCollectionConfigs
+                                    ? allCollectionConfigs
+                                        .filter(
+                                          (c) => c.linkId === values.linkId
+                                        )
+                                        .map((c) => c.libraryId)
+                                    : values.libraryId
+                                    ? [values.libraryId]
+                                    : []
+                                }
+                              />
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
 

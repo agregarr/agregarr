@@ -389,6 +389,7 @@ export async function syncConfigsWithPlexCollections(
   allCollections: {
     ratingKey: string;
     title: string;
+    libraryKey?: string;
     labels?: (string | { tag: string })[];
   }[]
 ): Promise<{
@@ -425,8 +426,16 @@ export async function syncConfigsWithPlexCollections(
         }
       }
 
-      // Find Plex collection by name matching
+      // Find Plex collection by name matching within the same library
       const matchingCollections = allCollections.filter((collection) => {
+        // CRITICAL: Must be in the same library
+        if (
+          collection.libraryKey &&
+          String(collection.libraryKey) !== String(config.libraryId)
+        ) {
+          return false;
+        }
+
         // Try exact name match first
         if (collection.title === config.name) return true;
 

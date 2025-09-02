@@ -81,7 +81,7 @@ export class PreExistingCollectionConfigService {
           linkId: newConfig.linkId,
           isUnlinked: newConfig.isUnlinked,
           timeRestriction: newConfig.timeRestriction,
-          customPoster: undefined,
+          customPoster: newConfig.customPoster ?? existingConfig?.customPoster,
         };
       }
     );
@@ -266,7 +266,7 @@ export class PreExistingCollectionConfigService {
           timeRestriction: config.timeRestriction || {
             alwaysActive: true, // Default to always active
           },
-          customPoster: undefined,
+          customPoster: config.customPoster ?? existingConfig?.customPoster,
         };
       }
     );

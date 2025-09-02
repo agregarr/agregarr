@@ -1,17 +1,21 @@
 import type { CollectionFormConfig } from '@app/types/collections';
 import { PlusIcon } from '@heroicons/react/24/solid';
-import type React from 'react';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import PosterSelectionPopover from './PosterSelectionPopover';
 
 const messages = defineMessages({
   customPoster: 'Custom Poster',
+  customPosters: 'Custom Posters',
   addPoster: 'Add Poster',
+  addPosters: 'Add Posters',
   uploading: 'Uploading poster...',
   remove: 'Remove',
   posterSize: '500x750px',
   posterUploadHelp:
     'Upload a custom poster image for this collection (JPEG, PNG, or WebP, max 10MB). Poster will be applied to Plex during the next collection sync.',
+  posterUploadHelpMulti:
+    'Upload custom poster images for each selected library. Posters will be applied to Plex collections during the next sync.',
   posterRemoveConfirm: 'Poster will be removed on next collection sync',
   posterUploadSuccess:
     'Poster uploaded successfully. Will be applied on next collection sync.',
@@ -19,7 +23,16 @@ const messages = defineMessages({
   posterUploadErrorType: 'Only JPEG, PNG, and WebP files are allowed',
   posterUploadErrorGeneric: 'Upload failed',
   posterUploadErrorNetwork: 'Network error occurred',
+  autoPoster: 'Auto-generate posters',
+  autoPosterHelp:
+    'Automatically generate posters using the collection name during sync. Uncheck to manually upload custom posters instead.',
 });
+
+interface Library {
+  key: string;
+  name: string;
+  type: string;
+}
 
 interface PosterUploadSectionProps {
   values: CollectionFormConfig;
@@ -27,8 +40,6 @@ interface PosterUploadSectionProps {
     field: string,
     value: string | number | boolean | string[] | object | null
   ) => void;
-  posterUploading: boolean;
-  setPosterUploading: (loading: boolean) => void;
   addToast: (
     message: string,
     options?: {
@@ -37,195 +48,236 @@ interface PosterUploadSectionProps {
     }
   ) => void;
   fieldId?: string;
-  apiEndpoint?: string;
-  isEnhanced?: boolean;
+  // Multi-library support (optional)
+  libraries?: Library[];
+  selectedLibraryIds?: string[];
 }
 
 const PosterUploadSection = ({
   values,
   setFieldValue,
-  posterUploading,
-  setPosterUploading,
   addToast,
   fieldId = 'customPoster',
-  apiEndpoint = '/api/v1/collections/poster',
-  isEnhanced = false,
+  libraries = [],
+  selectedLibraryIds = [],
 }: PosterUploadSectionProps) => {
   const intl = useIntl();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedLibraryKey, setSelectedLibraryKey] = useState<string | null>(
+    null
+  );
 
-  const handlePosterUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file size on client side
-    if (file.size > 10 * 1024 * 1024) {
-      addToast(intl.formatMessage(messages.posterUploadErrorSize), {
-        appearance: 'error',
-      });
-      e.target.value = ''; // Reset file input
-      return;
-    }
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      addToast(intl.formatMessage(messages.posterUploadErrorType), {
-        appearance: 'error',
-      });
-      e.target.value = ''; // Reset file input
-      return;
-    }
-
-    setPosterUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('poster', file);
-
-      // Use upload endpoint for enhanced forms, regular endpoint for normal forms
-      const uploadEndpoint = isEnhanced ? `${apiEndpoint}/upload` : apiEndpoint;
-      const response = await fetch(uploadEndpoint, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setFieldValue('customPoster', result.filename);
-        addToast(intl.formatMessage(messages.posterUploadSuccess), {
-          appearance: 'success',
-        });
-      } else {
-        const error = await response.json();
-        addToast(
-          `${intl.formatMessage(messages.posterUploadErrorGeneric)}: ${
-            error.error
-          }`,
-          { appearance: 'error' }
-        );
-        e.target.value = ''; // Reset file input on error
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : intl.formatMessage(messages.posterUploadErrorNetwork);
-      addToast(
-        `${intl.formatMessage(messages.posterUploadErrorGeneric)}: ${message}`,
-        { appearance: 'error' }
-      );
-      e.target.value = ''; // Reset file input on error
-    } finally {
-      setPosterUploading(false);
+  // Convert library type to media type for poster generation
+  const getMediaTypeFromLibraryType = (libraryType: string): 'movie' | 'tv' => {
+    switch (libraryType.toLowerCase()) {
+      case 'movie':
+        return 'movie';
+      case 'show':
+      case 'tv':
+        return 'tv';
+      default:
+        return 'movie'; // Default fallback
     }
   };
 
-  const handleRemovePoster = () => {
-    setFieldValue('customPoster', '');
+  // Get current poster data as Record<string, string>
+  const currentPosters = (() => {
+    const customPoster = values.customPoster;
+    if (!customPoster) return {};
+    if (typeof customPoster === 'string') {
+      // Legacy single poster - convert to per-library format
+      return selectedLibraryIds.length > 0
+        ? { [selectedLibraryIds[0]]: customPoster }
+        : {};
+    }
+    return customPoster;
+  })();
+
+  // Get selected libraries with their details
+  const selectedLibraries = libraries.filter((lib) =>
+    selectedLibraryIds.includes(lib.key)
+  );
+
+  // Auto-poster is available for all collections, enabled by default
+  const isAutoPosterEnabled = values.autoPoster ?? true; // Default to true if not set
+
+  const handleAutoPosterChange = (enabled: boolean) => {
+    setFieldValue('autoPoster', enabled);
+  };
+
+  const handleRemovePoster = (libraryId: string) => {
+    const updatedPosters = { ...currentPosters };
+    delete updatedPosters[libraryId];
+
+    // If no posters left, set to empty object
+    setFieldValue(
+      'customPoster',
+      Object.keys(updatedPosters).length > 0 ? updatedPosters : {}
+    );
+
     addToast(intl.formatMessage(messages.posterRemoveConfirm), {
       appearance: 'info',
+      autoDismiss: true,
     });
   };
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
+  const handleButtonClick = (libraryId: string) => {
+    setSelectedLibraryKey(libraryId);
+    setModalOpen(true);
   };
+
+  const handlePosterSelect = (filename: string) => {
+    if (!selectedLibraryKey) return;
+
+    // Update the poster for the specific library
+    const newPosters = { ...currentPosters };
+    if (filename) {
+      newPosters[selectedLibraryKey] = filename;
+    } else {
+      delete newPosters[selectedLibraryKey];
+    }
+
+    // Save the updated posters to form
+    setFieldValue(
+      fieldId,
+      Object.keys(newPosters).length > 0 ? newPosters : null
+    );
+
+    // Show success message
+    addToast(intl.formatMessage(messages.posterUploadSuccess), {
+      appearance: 'success',
+      autoDismiss: true,
+    });
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setSelectedLibraryKey(null);
+  };
+
+  if (selectedLibraryIds.length === 0) {
+    return (
+      <div className="label-tip">
+        Select libraries first to upload custom posters.
+      </div>
+    );
+  }
 
   return (
     <>
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        id={fieldId}
-        accept="image/jpeg,image/png,image/webp"
-        disabled={posterUploading}
-        onChange={handlePosterUpload}
-        className="hidden"
-      />
-
-      {/* Styled upload button - only show if no poster is uploaded */}
-      {!values.customPoster && (
-        <button
-          type="button"
-          onClick={handleButtonClick}
-          disabled={posterUploading}
-          className={`
-              inline-flex items-center rounded-lg border border-dashed border-transparent bg-transparent px-4
-              py-2 text-sm font-medium text-orange-300 transition-colors
-              duration-200 hover:text-orange-400 focus:outline-none focus:ring-2
-              focus:ring-orange-500 focus:ring-offset-2
-              ${
-                posterUploading
-                  ? 'cursor-not-allowed opacity-50'
-                  : 'cursor-pointer hover:text-orange-400'
-              }
-            `}
-        >
-          <PlusIcon className="mr-2 h-5 w-5" />
-          {intl.formatMessage(messages.addPoster)}
-        </button>
-      )}
-
-      {posterUploading && (
-        <div
-          className={`mt-2 ${
-            isEnhanced
-              ? 'text-sm text-orange-400'
-              : 'flex items-center space-x-2'
-          }`}
-        >
-          {isEnhanced ? (
-            intl.formatMessage(messages.uploading)
-          ) : (
-            <>
-              <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-orange-600"></div>
-              <span className="text-sm text-gray-600">
-                {intl.formatMessage(messages.uploading)}
-              </span>
-            </>
-          )}
-        </div>
-      )}
-
-      {values.customPoster && !posterUploading && (
-        <div className="mt-2 flex items-center space-x-3">
-          <img
-            src={`/api/v1/collections/poster/${values.customPoster}`}
-            alt="Custom poster preview"
-            className="h-20 w-14 rounded border object-cover shadow-sm"
-            onError={(e) => {
-              // Handle broken image URLs
-              const target = e.target as HTMLImageElement;
-              target.src = '/images/overseerr_poster_not_found.png';
-            }}
-          />
-          <div className="flex flex-col space-y-2">
-            <button
-              type="button"
-              onClick={handleButtonClick}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
-            >
-              <PlusIcon className="mr-1.5 h-4 w-4" />
-              Change Poster
-            </button>
-            <button
-              type="button"
-              onClick={handleRemovePoster}
-              className="rounded-md border border-red-300 px-3 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50 hover:text-red-800"
-            >
-              {intl.formatMessage(messages.remove)}
-            </button>
-            <span className="text-xs text-gray-500">
-              {intl.formatMessage(messages.posterSize)}
+      {/* Auto-poster toggle for all collections */}
+      <div className="mb-6">
+        <div className="form-input-field">
+          <label className="checkbox-container">
+            <input
+              type="checkbox"
+              checked={isAutoPosterEnabled}
+              onChange={(e) => handleAutoPosterChange(e.target.checked)}
+            />
+            <span className="checkmark" />
+            <span className="text-label">
+              {intl.formatMessage(messages.autoPoster)}
             </span>
-          </div>
+          </label>
         </div>
-      )}
-
-      <div className="label-tip">
-        {intl.formatMessage(messages.posterUploadHelp)}
+        <div className="label-tip">
+          {intl.formatMessage(messages.autoPosterHelp)}
+        </div>
       </div>
+
+      {/* Manual poster uploads - only show when auto-poster is disabled */}
+      {!isAutoPosterEnabled && (
+        <>
+          {/* Horizontal library poster uploads */}
+          <div className="flex flex-wrap gap-4">
+            {selectedLibraries.map((library) => {
+              const libraryPoster = currentPosters[library.key];
+
+              return (
+                <div key={library.key} className="flex flex-col items-center">
+                  <div className="mb-2 text-xs text-gray-500">
+                    {library.name}
+                  </div>
+
+                  {/* Poster preview or upload button */}
+                  <div className="group relative">
+                    {libraryPoster ? (
+                      <div className="relative">
+                        <img
+                          src={`/posters/${libraryPoster}`}
+                          alt={`Poster for ${library.name}`}
+                          className="h-24 w-16 rounded border object-cover shadow-sm"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src =
+                              '/images/overseerr_poster_not_found.png';
+                          }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center space-x-1 rounded bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => handleButtonClick(library.key)}
+                            className="rounded bg-white p-1 text-xs"
+                            title="Change"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePoster(library.key)}
+                            className="rounded bg-white p-1 text-xs text-red-600"
+                            title="Remove"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="flex h-24 w-16 cursor-pointer items-center justify-center rounded border-2 border-dashed border-gray-300 transition-colors hover:border-orange-500"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleButtonClick(library.key)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleButtonClick(library.key);
+                          }
+                        }}
+                      >
+                        <PlusIcon className="h-6 w-6 text-gray-400" />
+                      </div>
+                    )}
+
+                    {/* Poster Selection Popover */}
+                    <PosterSelectionPopover
+                      isOpen={modalOpen && selectedLibraryKey === library.key}
+                      onClose={handleModalClose}
+                      onSelect={handlePosterSelect}
+                      currentPoster={libraryPoster}
+                      libraryName={library.name}
+                      addToast={addToast}
+                      collectionConfig={{
+                        name: values.name || 'Collection',
+                        type: values.type,
+                        subtype: values.subtype,
+                        mediaType: getMediaTypeFromLibraryType(library.type),
+                        template: values.template,
+                        customMovieTemplate: values.customMovieTemplate,
+                        customTVTemplate: values.customTVTemplate,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="label-tip">
+            {intl.formatMessage(messages.posterUploadHelpMulti)}
+          </div>
+        </>
+      )}
     </>
   );
 };

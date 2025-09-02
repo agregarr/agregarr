@@ -87,7 +87,8 @@ export interface CollectionConfig {
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
   // Poster settings
-  readonly customPoster?: string; // Path to custom poster image file
+  readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
+  readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -225,7 +226,7 @@ export interface PreExistingCollectionConfig {
     };
   };
   // Custom poster support
-  customPoster?: string; // Path to custom poster image file
+  customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
 }
 
 export interface PlexSettings {

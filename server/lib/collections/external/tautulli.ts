@@ -75,7 +75,11 @@ export class TautulliCollectionSync extends BaseCollectionSync {
 
       // Since configs are now library-specific, always use the standard flow
       const sourceData = await this.fetchSourceData(config, options);
-      const mappedResult = await this.mapSourceDataToItems(sourceData, config);
+      const mappedResult = await this.mapSourceDataToItems(
+        sourceData,
+        config,
+        plexClient
+      );
       const { items, mappingStats, filteringStats } =
         this.applyFilteringToMappedItems(mappedResult, config);
 
@@ -173,11 +177,25 @@ export class TautulliCollectionSync extends BaseCollectionSync {
   }
 
   /**
-   * Map Tautulli source data to standardized collection items
+   * Extract TMDB ID from Plex GUID array
+   */
+  private extractTmdbIdFromGuids(guids: { id: string }[]): number | undefined {
+    for (const guid of guids) {
+      const tmdbMatch = guid.id.match(/tmdb:\/\/(\d+)/);
+      if (tmdbMatch) {
+        return parseInt(tmdbMatch[1], 10);
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Map Tautulli source data to standardized collection items with TMDB IDs from Plex
    */
   protected async mapSourceDataToItems(
     sourceData: TautulliSourceData[],
-    config: CollectionConfig
+    config: CollectionConfig,
+    plexClient?: PlexAPI
   ): Promise<{
     items: TautulliCollectionItem[];
     missingItems?: MissingItem[];
@@ -199,6 +217,8 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         rating_key: item.rating_key,
         grandparent_rating_key: item.grandparent_rating_key,
         media_type: item.media_type,
+        tmdb_id: item.tmdb_id,
+        year: item.year,
       })),
     });
 
@@ -287,9 +307,9 @@ export class TautulliCollectionSync extends BaseCollectionSync {
       filteredItems = filteredItems.slice(0, config.maxItems);
     }
 
-    const mappedItems: TautulliCollectionItem[] = filteredItems
+    // First create basic mapped items
+    const basicMappedItems: TautulliCollectionItem[] = filteredItems
       .map((item) => {
-        // Only clean data - no fallbacks
         const ratingKey = item.rating_key?.toString() || '';
         const title = item.title || 'Unknown';
         const mediaType: 'movie' | 'tv' =
@@ -302,9 +322,41 @@ export class TautulliCollectionSync extends BaseCollectionSync {
           title,
           totalPlays: item.total_plays || 0,
           type: mediaType,
+          tmdbId: item.tmdb_id,
+          year: item.year,
         };
       })
       .filter((item) => item.ratingKey && item.title !== 'Unknown');
+
+    // If we have a Plex client, fetch TMDB IDs for items that don't have them
+    const mappedItems: TautulliCollectionItem[] = [];
+    for (const item of basicMappedItems) {
+      let tmdbId = item.tmdbId;
+
+      // If no TMDB ID and we have Plex client, try to get it from Plex metadata
+      if (!tmdbId && plexClient && item.ratingKey) {
+        try {
+          const plexMetadata = await plexClient.getMetadata(item.ratingKey);
+          if (plexMetadata.Guid && plexMetadata.Guid.length > 0) {
+            tmdbId = this.extractTmdbIdFromGuids(plexMetadata.Guid);
+            logger.debug(`Extracted TMDB ID from Plex for ${item.title}`, {
+              ratingKey: item.ratingKey,
+              tmdbId,
+            });
+          }
+        } catch (error) {
+          logger.debug(`Failed to get Plex metadata for ${item.title}`, {
+            ratingKey: item.ratingKey,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      mappedItems.push({
+        ...item,
+        tmdbId,
+      });
+    }
 
     const stats = this.createFilteringStats(
       sourceData.length,
@@ -426,7 +478,8 @@ export class TautulliCollectionSync extends BaseCollectionSync {
 
       const movieMappedResult = await this.mapSourceDataToItems(
         movieSourceData,
-        config
+        config,
+        plexClient
       );
       const {
         items: movieItems,
@@ -496,7 +549,8 @@ export class TautulliCollectionSync extends BaseCollectionSync {
 
       const tvMappedResult = await this.mapSourceDataToItems(
         tvSourceData,
-        config
+        config,
+        plexClient
       );
       const {
         items: tvItems,

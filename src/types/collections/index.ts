@@ -115,7 +115,7 @@ export interface PreExistingCollectionConfig {
     };
   };
   // Custom poster support
-  customPoster?: string; // Path to custom poster image file
+  customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
 }
 
 // Form metadata type for identifying config handling behavior
@@ -230,7 +230,8 @@ export interface CollectionFormConfig {
   readonly hubIdentifier?: string; // Plex hub identifier (e.g., "movie.recentlyadded")
 
   // Poster settings
-  readonly customPoster?: string; // Path to custom poster image file
+  readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
+  readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -324,7 +325,8 @@ export interface CollectionConfigCreateRequest {
       readonly sunday: boolean;
     };
   };
-  readonly customPoster?: string;
+  readonly customPoster?: string | Record<string, string>;
+  readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
 }
 
 /**
@@ -366,6 +368,7 @@ export const toCollectionCreateRequest = (
     randomizeOrder: config.randomizeOrder,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
+    autoPoster: config.autoPoster,
   };
 };
 
