@@ -12,7 +12,7 @@ const messages = defineMessages({
   menuDownloads: 'Downloads',
   menuNotifications: 'Notifications',
   menuLogs: 'Logs',
-  menuJobs: 'Jobs & Cache',
+  menuJobs: 'Jobs',
   menuAbout: 'About',
 });
 

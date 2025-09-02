@@ -44,7 +44,7 @@ const messages = defineMessages({
   updateCollection: 'Update Collection',
   cancel: 'Cancel',
   preview: 'Preview:',
-  alwaysActive: 'Always Active (no time restrictions)',
+  alwaysActive: 'Always Active',
 });
 
 const CollectionFormConfigForm = ({

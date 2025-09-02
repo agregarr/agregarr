@@ -7,14 +7,9 @@ import PageTitle from '@app/components/Common/PageTitle';
 import Table from '@app/components/Common/Table';
 import useLocale from '@app/hooks/useLocale';
 import globalMessages from '@app/i18n/globalMessages';
-import { formatBytes } from '@app/utils/numberHelpers';
 import { Transition } from '@headlessui/react';
-import { PlayIcon, StopIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, StopIcon } from '@heroicons/react/24/outline';
 import { PencilIcon } from '@heroicons/react/24/solid';
-import type {
-  CacheItem,
-  CacheResponse,
-} from '@server/interfaces/api/settingsInterfaces';
 import type { JobId } from '@server/lib/settings';
 import axios from 'axios';
 import cronstrue from 'cronstrue/i18n';
@@ -25,7 +20,7 @@ import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
 const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
-  jobsandcache: 'Jobs & Cache',
+  jobsandcache: 'Jobs',
   jobs: 'Jobs',
   jobsDescription:
     'Agregarr performs Collections Sync as regularly-scheduled job, but can also be manually triggered below.',
@@ -157,12 +152,6 @@ const SettingsJobs = () => {
   } = useSWR<Job[]>('/api/v1/settings/jobs', {
     refreshInterval: 5000,
   });
-  const { data: cacheData, mutate: cacheRevalidate } = useSWR<CacheResponse>(
-    '/api/v1/settings/cache',
-    {
-      refreshInterval: 10000,
-    }
-  );
 
   const [jobModalState, dispatch] = useReducer(jobModalReducer, {
     isOpen: false,
@@ -214,18 +203,6 @@ const SettingsJobs = () => {
       }
     );
     revalidate();
-  };
-
-  const flushCache = async (cache: CacheItem) => {
-    await axios.post(`/api/v1/settings/cache/${cache.id}/flush`);
-    addToast(
-      intl.formatMessage(messages.cacheflushed, { cachename: cache.name }),
-      {
-        appearance: 'success',
-        autoDismiss: true,
-      }
-    );
-    cacheRevalidate();
   };
 
   const scheduleJob = async () => {
@@ -558,45 +535,6 @@ const SettingsJobs = () => {
                       <span>{intl.formatMessage(messages.runnow)}</span>
                     </Button>
                   )}
-                </Table.TD>
-              </tr>
-            ))}
-          </Table.TBody>
-        </Table>
-      </div>
-      <div>
-        <h3 className="heading">{intl.formatMessage(messages.cache)}</h3>
-        <p className="description">
-          {intl.formatMessage(messages.cacheDescription)}
-        </p>
-      </div>
-      <div className="section">
-        <Table>
-          <thead>
-            <tr>
-              <Table.TH>{intl.formatMessage(messages.cachename)}</Table.TH>
-              <Table.TH>{intl.formatMessage(messages.cachehits)}</Table.TH>
-              <Table.TH>{intl.formatMessage(messages.cachemisses)}</Table.TH>
-              <Table.TH>{intl.formatMessage(messages.cachekeys)}</Table.TH>
-              <Table.TH>{intl.formatMessage(messages.cacheksize)}</Table.TH>
-              <Table.TH>{intl.formatMessage(messages.cachevsize)}</Table.TH>
-              <Table.TH></Table.TH>
-            </tr>
-          </thead>
-          <Table.TBody>
-            {cacheData?.apiCaches.map((cache) => (
-              <tr key={`cache-list-${cache.id}`}>
-                <Table.TD>{cache.name}</Table.TD>
-                <Table.TD>{intl.formatNumber(cache.stats.hits)}</Table.TD>
-                <Table.TD>{intl.formatNumber(cache.stats.misses)}</Table.TD>
-                <Table.TD>{intl.formatNumber(cache.stats.keys)}</Table.TD>
-                <Table.TD>{formatBytes(cache.stats.ksize)}</Table.TD>
-                <Table.TD>{formatBytes(cache.stats.vsize)}</Table.TD>
-                <Table.TD alignText="right">
-                  <Button buttonType="danger" onClick={() => flushCache(cache)}>
-                    <TrashIcon />
-                    <span>{intl.formatMessage(messages.flushcache)}</span>
-                  </Button>
                 </Table.TD>
               </tr>
             ))}

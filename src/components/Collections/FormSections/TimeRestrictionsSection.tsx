@@ -10,7 +10,7 @@ type VisibilityConfig = {
 
 const messages = defineMessages({
   timeRestrictions: 'Time Restrictions',
-  alwaysActive: 'Always Active (no time restrictions)',
+  alwaysActive: 'Always Active',
   removeFromPlex: 'Remove from Plex when inactive',
   dateRangesTitle: 'Date Ranges for Collection to be active',
   weeklyScheduleTitle: 'Days of the Week for Collection to be active',

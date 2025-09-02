@@ -64,7 +64,7 @@ router.post('/test', async (req, res, next) => {
           overseerrSettings.applicationTitle
         );
         templateDataSuccess = true;
-        templateDataMessage = `Template variables updated: ${overseerrSettings.applicationTitle}`;
+        templateDataMessage = `Template variables updated: ${overseerrSettings.applicationTitle} (${overseerrSettings.applicationUrl})`;
         logger.info(
           'Stored external Overseerr settings for template variables',
           {

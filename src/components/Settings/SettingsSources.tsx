@@ -202,14 +202,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
         <p className="description">
           {intl.formatMessage(messages.sourcesDescription)}
         </p>
-        {!!onComplete && (
-          <div className="section">
-            <Alert
-              title="You can skip this step but you will be limited to just IMDb, TMDB, and Letterboxd sources"
-              type="info"
-            />
-          </div>
-        )}
+        <div className="section">
+          <Alert
+            title="IMDb, TMDB, and Letterboxd sources do not require any setup"
+            type="info"
+          />
+        </div>
       </div>
 
       {/* Trakt Settings */}
@@ -313,9 +311,10 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                   {intl.formatMessage(messages.traktApiKey)}
                   <span className="label-tip mb-2">
                     Get your API key from
-                    https://trakt.tv/oauth/applications/new and copy the Client
-                    ID. Use <code>urn:ietf:wg:oauth:2.0:oob</code> as the
-                    redirect URI when creating the application.
+                    <code>https://trakt.tv/oauth/applications/new</code> and
+                    copy the Client ID. Use{' '}
+                    <code>urn:ietf:wg:oauth:2.0:oob</code> as the redirect URI
+                    when creating the application.
                   </span>
                 </label>
                 <div className="form-input-area">
@@ -389,7 +388,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
         initialValues={{
           overseerrHostname: dataOverseerr?.hostname,
           overseerrPort: dataOverseerr?.port ?? 5055,
-          overseerrUseSsl: dataOverseerr?.useSsl,
+          overseerrUseSsl: dataOverseerr?.useSsl ?? false,
           overseerrUrlBase: dataOverseerr?.urlBase,
           overseerrApiKey: dataOverseerr?.apiKey,
           overseerrExternalUrl: dataOverseerr?.externalUrl,
@@ -701,7 +700,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
         initialValues={{
           tautulliHostname: dataTautulli?.hostname,
           tautulliPort: dataTautulli?.port ?? 8181,
-          tautulliUseSsl: dataTautulli?.useSsl,
+          tautulliUseSsl: dataTautulli?.useSsl ?? false,
           tautulliUrlBase: dataTautulli?.urlBase,
           tautulliApiKey: dataTautulli?.apiKey,
           tautulliExternalUrl: dataTautulli?.externalUrl,
