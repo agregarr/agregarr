@@ -79,8 +79,9 @@ const VisibilitySection = ({
       {/* Show restriction notice for overseerr users collections */}
       {restrictToLibraryOnly && (
         <div className="mb-3 rounded border border-orange-500/20 bg-orange-500/10 p-3 text-sm text-orange-300">
-          Individual user request collections are restricted to &quot;Library
-          Tab Only&quot; visibility for privacy reasons.
+          Individual user request collections are restricted to Library Tab Only
+          visibility due a Plex bug that doesn&apos;t respect label restrictions
+          on the Home/Recommended screens.
         </div>
       )}
 

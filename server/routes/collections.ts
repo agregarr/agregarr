@@ -406,7 +406,7 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
 
 /**
  * DELETE /api/v1/collections/cleanup-missing
- * Remove all collection configs where missing: true
+ * Remove all collection configs where missing: true and delete them from Plex hubs
  */
 collectionsRoutes.delete(
   '/cleanup-missing',
@@ -415,8 +415,36 @@ collectionsRoutes.delete(
     try {
       const settings = getSettings();
       let cleanupCount = 0;
+      let hubDeleteCount = 0;
 
-      // Remove missing collections
+      // Get Plex client for hub deletion
+      let plexClient: PlexAPI | null = null;
+      try {
+        const { getRepository } = await import('@server/datasource');
+        const { User } = await import('@server/entity/User');
+        const userRepository = getRepository(User);
+        const adminUser = await userRepository.findOne({
+          where: { id: 1 },
+          select: ['id', 'plexToken'],
+        });
+
+        if (adminUser?.plexToken && settings.plex.ip && settings.plex.port) {
+          plexClient = new PlexAPI({
+            plexToken: adminUser.plexToken,
+            plexSettings: settings.plex,
+          });
+        }
+      } catch (error) {
+        logger.warn('Could not initialize Plex client for hub cleanup', {
+          label: 'Collections API - Cleanup',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // Remove missing collections and delete from hubs
+      const missingCollections = (settings.plex.collectionConfigs || []).filter(
+        (config) => config.missing === true
+      );
       const filteredCollections = (
         settings.plex.collectionConfigs || []
       ).filter((config) => {
@@ -431,6 +459,40 @@ collectionsRoutes.delete(
         }
         return !shouldRemove;
       });
+
+      // Delete missing collections from Plex hubs
+      if (plexClient && missingCollections.length > 0) {
+        for (const config of missingCollections) {
+          if (config.collectionRatingKey && config.libraryId) {
+            try {
+              // Generate the hub identifier for custom collections
+              const hubIdentifier = `custom.collection.${config.libraryId}.${config.collectionRatingKey}`;
+
+              await plexClient.deleteHubItem(config.libraryId, hubIdentifier);
+              hubDeleteCount++;
+
+              logger.info(
+                `Deleted missing collection from Plex hub: ${config.name}`,
+                {
+                  label: 'Collections API - Cleanup',
+                  configId: config.id,
+                  hubIdentifier,
+                  libraryId: config.libraryId,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to delete collection from Plex hub: ${config.name}`,
+                {
+                  label: 'Collections API - Cleanup',
+                  configId: config.id,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
+          }
+        }
+      }
 
       // Remove missing hubs
       const filteredHubs = (settings.plex.hubConfigs || []).filter((config) => {
@@ -469,19 +531,28 @@ collectionsRoutes.delete(
       settings.plex.collectionConfigs = filteredCollections;
       settings.plex.hubConfigs = filteredHubs;
       settings.plex.preExistingCollectionConfigs = filteredPreExisting;
+      settings.save();
+
+      const message =
+        hubDeleteCount > 0
+          ? `${cleanupCount} missing collection configuration${
+              cleanupCount !== 1 ? 's' : ''
+            } removed successfully (${hubDeleteCount} also deleted from Plex hubs)`
+          : `${cleanupCount} missing collection configuration${
+              cleanupCount !== 1 ? 's' : ''
+            } removed successfully`;
 
       logger.info(
-        `Cleanup complete: ${cleanupCount} missing collection configurations removed`,
+        `Cleanup complete: ${cleanupCount} missing collection configurations removed, ${hubDeleteCount} deleted from Plex hubs`,
         {
           label: 'Collections API - Cleanup',
         }
       );
 
       return res.status(200).json({
-        message: `${cleanupCount} missing collection configuration${
-          cleanupCount !== 1 ? 's' : ''
-        } removed successfully`,
+        message,
         cleanupCount,
+        hubDeleteCount,
       });
     } catch (error) {
       logger.error('Failed to cleanup missing collections', {
@@ -534,43 +605,12 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       (c) => !deletedConfigIds.includes(c.id)
     );
 
-    // Recalculate sort orders for remaining configs by library
-    const configsByLibrary = new Map<string, CollectionConfig[]>();
-    remainingConfigs.forEach((config) => {
-      if (!configsByLibrary.has(config.libraryId)) {
-        configsByLibrary.set(config.libraryId, []);
-      }
-      configsByLibrary.get(config.libraryId)?.push(config);
-    });
-
-    // Update sort orders for each library
-    configsByLibrary.forEach((libraryConfigs) => {
-      // Sort by current sortOrderHome to maintain relative order
-      libraryConfigs.sort(
-        (a, b) => (a.sortOrderHome || 1) - (b.sortOrderHome || 1)
-      );
-
-      // Reassign sequential sort orders
-      libraryConfigs.forEach((config, index) => {
-        // Safe type assertion since we're updating readonly fields
-        const mutableConfig = config as {
-          sortOrderHome?: number;
-          sortOrderLibrary?: number;
-        };
-        mutableConfig.sortOrderHome = index;
-        mutableConfig.sortOrderLibrary = index;
-      });
-    });
-
-    // Flatten back to single array
-    const reorderedConfigs = Array.from(configsByLibrary.values()).flat();
-
-    // Save updated configs
-    settings.plex.collectionConfigs = reorderedConfigs;
+    // Save updated configs (auto-reordering will handle sort order cleanup)
+    settings.plex.collectionConfigs = remainingConfigs;
     settings.save();
 
     // If this was the last collection config, trigger cleanup to remove all agregarr collections
-    if (reorderedConfigs.length === 0) {
+    if (remainingConfigs.length === 0) {
       logger.info(
         'Last collection config deleted - triggering cleanup of all agregarr collections',
         {
@@ -600,7 +640,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
         name: c.name,
         libraryId: c.libraryId,
       })),
-      remainingCount: reorderedConfigs.length,
+      remainingCount: remainingConfigs.length,
     });
 
     // Auto-reorder collections in affected libraries to fill gaps

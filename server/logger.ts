@@ -19,7 +19,32 @@ const hformat = winston.format.printf(
       label ? `[${label}]` : ''
     }: ${message} `;
     if (Object.keys(metadata).length > 0) {
-      msg += JSON.stringify(metadata);
+      try {
+        msg += JSON.stringify(metadata);
+      } catch (error) {
+        // Handle circular references by using a replacer function
+        msg += JSON.stringify(metadata, (key, value) => {
+          if (typeof value === 'object' && value !== null) {
+            // For Error objects, extract useful properties
+            if (value instanceof Error) {
+              return {
+                name: value.name,
+                message: value.message,
+                stack: value.stack,
+              };
+            }
+            // Skip circular references and complex objects like HTTP agents
+            if (
+              value.constructor &&
+              (value.constructor.name === 'Agent' ||
+                value.constructor.name === 'ClientRequest')
+            ) {
+              return '[Circular Reference]';
+            }
+          }
+          return value;
+        });
+      }
     }
     return msg;
   }

@@ -168,27 +168,52 @@ async function fetchTMDbPosterUrls(
 }
 
 /**
- * Download and convert image to base64 for SVG embedding
+ * Download and convert image to base64 for SVG embedding with retry logic
  */
-async function downloadImageAsBase64(url: string): Promise<string | null> {
-  try {
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const buffer = Buffer.from(response.data);
+async function downloadImageAsBase64(
+  url: string,
+  retries = 2
+): Promise<string | null> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'User-Agent': 'Agregarr/1.0',
+        },
+      });
+      const buffer = Buffer.from(response.data);
 
-    // Convert to JPEG and resize to optimize
-    const processedBuffer = await sharp(buffer)
-      .jpeg({ quality: 85 })
-      .resize(ITEM_POSTER_WIDTH, ITEM_POSTER_HEIGHT, {
-        fit: 'cover',
-        position: 'center',
-      })
-      .toBuffer();
+      // Convert to JPEG and resize to optimize
+      const processedBuffer = await sharp(buffer)
+        .jpeg({ quality: 85 })
+        .resize(ITEM_POSTER_WIDTH, ITEM_POSTER_HEIGHT, {
+          fit: 'cover',
+          position: 'center',
+        })
+        .toBuffer();
 
-    return `data:image/jpeg;base64,${processedBuffer.toString('base64')}`;
-  } catch (error) {
-    logger.warn(`Failed to download image ${url}:`, error);
-    return null;
+      return `data:image/jpeg;base64,${processedBuffer.toString('base64')}`;
+    } catch (error) {
+      if (attempt < retries) {
+        const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s
+        logger.debug(
+          `Retrying image download in ${delay}ms (attempt ${attempt + 1}/${
+            retries + 1
+          }): ${url}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      } else {
+        logger.warn(
+          `Failed to download image after ${retries + 1} attempts ${url}:`,
+          error
+        );
+        return null;
+      }
+    }
   }
+  return null;
 }
 
 /**
@@ -660,12 +685,18 @@ async function generatePosterSVG(
   if (items.length > 0) {
     try {
       itemsWithPosters = await fetchTMDbPosterUrls(items);
-      // Download and convert images to base64 for embedding
+      // Download and convert images to base64 for embedding, keep original URL as fallback
       for (const item of itemsWithPosters) {
         if (item.posterUrl) {
-          const base64Image = await downloadImageAsBase64(item.posterUrl);
+          const originalUrl = item.posterUrl;
+          const base64Image = await downloadImageAsBase64(originalUrl);
           if (base64Image) {
             item.posterUrl = base64Image;
+            logger.debug(`Successfully converted to base64: ${item.title}`);
+          } else {
+            // Keep original TMDB URL as fallback when base64 conversion fails
+            logger.debug(`Using fallback URL for: ${item.title}`);
+            item.posterUrl = originalUrl;
           }
         }
       }

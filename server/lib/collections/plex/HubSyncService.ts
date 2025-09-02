@@ -145,7 +145,7 @@ export class HubSyncService {
         '@server/lib/collections/services/DiscoveryService'
       );
       const discoveryService = new DiscoveryService();
-      await discoveryService.discoverAllHubs(plexClient, true); // updateSettings = true, but without deletions
+      await discoveryService.discoverAllHubs(plexClient, true, true); // updateSettings = true, skipSyncCheck = true (called from main sync)
 
       // Step 2: Get refreshed configs (now including newly discovered items)
       const settings = getSettings();

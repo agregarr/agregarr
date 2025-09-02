@@ -67,10 +67,12 @@ export class DiscoveryService {
    *
    * @param plexClient - Plex API client
    * @param updateSettings - If true, automatically adds discovered configs to settings
+   * @param skipSyncCheck - If true, skips the sync lock check (used when called from within main sync)
    */
   public async discoverAllHubs(
     plexClient: PlexAPI,
-    updateSettings = false
+    updateSettings = false,
+    skipSyncCheck = false
   ): Promise<DiscoveryResult> {
     if (this.running) {
       throw new Error(
@@ -79,11 +81,14 @@ export class DiscoveryService {
     }
 
     // Check if collections sync is running to prevent race conditions
-    const collectionsSync = await import('@server/lib/collectionsSync');
-    if (collectionsSync.default.running) {
-      throw new Error(
-        'Collections sync is currently running. Please wait for sync to complete before starting discovery.'
-      );
+    // Skip this check if we're being called from within the main sync
+    if (!skipSyncCheck) {
+      const collectionsSync = await import('@server/lib/collectionsSync');
+      if (collectionsSync.default.running) {
+        throw new Error(
+          'Collections sync is currently running. Please wait for sync to complete before starting discovery.'
+        );
+      }
     }
 
     this.running = true;

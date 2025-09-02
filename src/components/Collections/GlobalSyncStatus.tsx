@@ -73,7 +73,14 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
     const now = new Date();
     const diffInMs = date.getTime() - now.getTime();
     const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
+    const remainingMinutes = diffInMinutes % 60;
+
+    // Round to nearest hour based on 30-minute threshold
+    const diffInHours =
+      remainingMinutes >= 30
+        ? Math.ceil(diffInMinutes / 60)
+        : Math.floor(diffInMinutes / 60);
+
     const diffInDays = Math.floor(diffInHours / 24);
 
     if (diffInMs < 0) {
@@ -83,7 +90,14 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
     } else if (diffInMinutes < 60) {
       return `in ${diffInMinutes} minute${diffInMinutes === 1 ? '' : 's'}`;
     } else if (diffInHours < 24) {
-      return `in ${diffInHours} hour${diffInHours === 1 ? '' : 's'}`;
+      const exactHours = Math.floor(diffInMinutes / 60);
+      if (exactHours < 2 && remainingMinutes > 0) {
+        return `in ${exactHours} hour${
+          exactHours === 1 ? '' : 's'
+        } ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}`;
+      } else {
+        return `in ${diffInHours} hour${diffInHours === 1 ? '' : 's'}`;
+      }
     } else {
       return `in ${diffInDays} day${diffInDays === 1 ? '' : 's'}`;
     }

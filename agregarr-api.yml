@@ -4058,7 +4058,7 @@ paths:
   /collections/cleanup-missing:
     delete:
       summary: Clean up missing collections
-      description: Removes all collection configurations where missing is true (collections that no longer exist in Plex).
+      description: Removes all collection configurations where missing is true (collections that no longer exist in Plex) and also deletes them from Plex hubs if they are present there.
       tags:
         - collection
       responses:
@@ -4071,11 +4071,15 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: "3 missing collection configurations removed successfully"
+                    example: "3 missing collection configurations removed successfully (2 also deleted from Plex hubs)"
                   cleanupCount:
                     type: integer
                     description: "Number of configurations that were removed"
                     example: 3
+                  hubDeleteCount:
+                    type: integer
+                    description: "Number of collections that were deleted from Plex hubs"
+                    example: 2
         '403':
           description: Authentication required
         '500':

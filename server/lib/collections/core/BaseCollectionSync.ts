@@ -981,6 +981,59 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         }
       );
 
+      // FALLBACK: Check for orphaned agregarr collection with matching title
+      if (config?.name) {
+        for (let i = 0; i < metadataResults.length; i++) {
+          const result = metadataResults[i];
+
+          if (result.status === 'fulfilled' && !result.value.found) {
+            const collection = result.value.collection;
+            const labels = result.value.labels;
+
+            // Check if this is an orphaned agregarr collection with matching title
+            const hasAgregarrLabel = labels.some((label: string) =>
+              label.toLowerCase().startsWith('agregarr')
+            );
+
+            if (collection.title === config.name && hasAgregarrLabel) {
+              logger.info(
+                `Found orphaned agregarr collection by title: "${collection.title}" - updating label`,
+                {
+                  label: 'Base Collection Sync',
+                  collectionTitle: collection.title,
+                  ratingKey: collection.ratingKey,
+                  oldLabels: labels,
+                  newLabel: customLabel,
+                }
+              );
+
+              // Update the collection's label to match the new config ID
+              try {
+                await plexClient.addLabelToCollection(
+                  collection.ratingKey,
+                  customLabel
+                );
+                logger.info(`Updated collection label to match new config ID`);
+              } catch (labelError) {
+                logger.warn(`Failed to update collection label, continuing`, {
+                  error:
+                    labelError instanceof Error
+                      ? labelError.message
+                      : String(labelError),
+                });
+              }
+
+              return {
+                ratingKey: collection.ratingKey,
+                title: collection.title,
+                labels: [customLabel],
+                type: collection.type || 'collection',
+              };
+            }
+          }
+        }
+      }
+
       return null;
     } catch (error) {
       logger.error(
