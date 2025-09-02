@@ -153,6 +153,16 @@ class CollectionsSync {
   }
 
   public async run(): Promise<void> {
+    // Check if discovery is running to prevent race conditions
+    const { discoveryService } = await import(
+      '@server/lib/collections/services/DiscoveryService'
+    );
+    if (discoveryService.status.running) {
+      throw new Error(
+        'Discovery is currently running. Please wait for discovery to complete before starting sync.'
+      );
+    }
+
     // Set running state immediately for UI feedback
     this.running = true;
     this.cancelled = false;

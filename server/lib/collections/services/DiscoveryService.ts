@@ -48,6 +48,20 @@ interface DiscoveryResult {
  * Extracts the complex discovery logic from route handlers
  */
 export class DiscoveryService {
+  private running = false;
+  private cancelled = false;
+
+  public get status() {
+    return {
+      running: this.running,
+      cancelled: this.cancelled,
+    };
+  }
+
+  public cancel(): void {
+    this.cancelled = true;
+  }
+
   /**
    * Discover all available Plex hubs and convert them to hub configurations
    *
@@ -58,309 +72,341 @@ export class DiscoveryService {
     plexClient: PlexAPI,
     updateSettings = false
   ): Promise<DiscoveryResult> {
-    logger.info('Starting hub discovery process', {
-      label: 'Hub Discovery',
-      updateSettings,
-    });
-    const startTime = Date.now();
+    if (this.running) {
+      throw new Error(
+        'Discovery is already running. Please wait for the current discovery to complete.'
+      );
+    }
 
-    const libraries = await plexClient.getLibraries();
-    logger.info('Libraries loaded for discovery', {
-      label: 'Hub Discovery',
-      libraryCount: libraries.length,
-      libraryNames: libraries.map((l) => `${l.title} (${l.type})`),
-    });
+    // Check if collections sync is running to prevent race conditions
+    const collectionsSync = await import('@server/lib/collectionsSync');
+    if (collectionsSync.default.running) {
+      throw new Error(
+        'Collections sync is currently running. Please wait for sync to complete before starting discovery.'
+      );
+    }
 
-    const discoveredHubConfigs: DiscoveredHubConfig[] = []; // Only built-in Plex hubs
-    const discoveredPreExistingConfigs: DiscoveredPreExistingConfig[] = []; // Pre-existing collections
-    const enhancedExistingConfigs: PreExistingCollectionConfig[] = []; // Existing configs that were enhanced with hub data
+    this.running = true;
+    this.cancelled = false;
 
-    // Get existing configs to check for duplicates
-    const settings = getSettings();
-    let collectionConfigs = settings.plex.collectionConfigs || [];
-    const existingHubConfigs = settings.plex.hubConfigs || [];
-    const existingPreExistingConfigs =
-      settings.plex.preExistingCollectionConfigs || [];
+    try {
+      logger.info('Starting hub discovery process', {
+        label: 'Hub Discovery',
+        updateSettings,
+      });
+      const startTime = Date.now();
 
-    // Create sets for fast duplicate detection using proper field combinations
-    const existingHubKeys = new Set(
-      existingHubConfigs.map((hub) => `${hub.libraryId}:${hub.hubIdentifier}`)
-    );
-    const existingPreExistingKeys = new Set(
-      existingPreExistingConfigs.map(
-        (config) => `${config.libraryId}:${config.collectionRatingKey}`
-      )
-    );
-    const existingCollectionKeys = new Set(
-      collectionConfigs
-        .map((config) =>
-          config.collectionRatingKey
-            ? `${config.libraryId}:${config.collectionRatingKey}`
-            : null
+      const libraries = await plexClient.getLibraries();
+      logger.info('Libraries loaded for discovery', {
+        label: 'Hub Discovery',
+        libraryCount: libraries.length,
+        libraryNames: libraries.map((l) => `${l.title} (${l.type})`),
+      });
+
+      const discoveredHubConfigs: DiscoveredHubConfig[] = []; // Only built-in Plex hubs
+      const discoveredPreExistingConfigs: DiscoveredPreExistingConfig[] = []; // Pre-existing collections
+      const enhancedExistingConfigs: PreExistingCollectionConfig[] = []; // Existing configs that were enhanced with hub data
+
+      // Get existing configs to check for duplicates
+      const settings = getSettings();
+      let collectionConfigs = settings.plex.collectionConfigs || [];
+      const existingHubConfigs = settings.plex.hubConfigs || [];
+      const existingPreExistingConfigs =
+        settings.plex.preExistingCollectionConfigs || [];
+
+      // Create sets for fast duplicate detection using proper field combinations
+      const existingHubKeys = new Set(
+        existingHubConfigs.map((hub) => `${hub.libraryId}:${hub.hubIdentifier}`)
+      );
+      const existingPreExistingKeys = new Set(
+        existingPreExistingConfigs.map(
+          (config) => `${config.libraryId}:${config.collectionRatingKey}`
         )
-        .filter(Boolean) as string[]
-    );
+      );
+      const existingCollectionKeys = new Set(
+        collectionConfigs
+          .map((config) =>
+            config.collectionRatingKey
+              ? `${config.libraryId}:${config.collectionRatingKey}`
+              : null
+          )
+          .filter(Boolean) as string[]
+      );
 
-    // STEP 1: Discover all Plex collections first (source of truth for accurate titles)
-    const allCollections = await this.discoverAllCollectionsFirst(
-      plexClient,
-      libraries,
-      collectionConfigs,
-      discoveredPreExistingConfigs,
-      existingPreExistingKeys,
-      existingCollectionKeys
-    );
+      // Additional set for ALL collection IDs (including unsynced) - use label-based detection
+      const existingCollectionIds = new Set(
+        collectionConfigs.map((config) => `${config.libraryId}:${config.id}`)
+      );
 
-    // STEP 2: Reset promotion status for existing pre-existing collections before hub discovery
-    // This ensures we detect when users manually remove collections from hub management
-    await this.resetPreExistingPromotionStatus();
+      // STEP 1: Discover all Plex collections first (source of truth for accurate titles)
+      const allCollections = await this.discoverAllCollectionsFirst(
+        plexClient,
+        libraries,
+        collectionConfigs,
+        discoveredPreExistingConfigs,
+        existingPreExistingKeys,
+        existingCollectionKeys,
+        existingCollectionIds
+      );
 
-    // STEP 3: Discover hubs and enhance pre-existing collections with hub data
-    await this.discoverHubsAndEnhance(
-      plexClient,
-      libraries,
-      collectionConfigs,
-      discoveredHubConfigs,
-      discoveredPreExistingConfigs,
-      existingHubKeys,
-      existingPreExistingKeys,
-      existingCollectionKeys,
-      allCollections,
-      enhancedExistingConfigs
-    );
+      // STEP 2: Reset promotion status for existing pre-existing collections before hub discovery
+      // This ensures we detect when users manually remove collections from hub management
+      await this.resetPreExistingPromotionStatus();
 
-    // STEP 4: Promote collections that should be visible but aren't in hub management
-    await this.promoteCollectionsThatShouldBeVisible(plexClient, libraries);
+      // STEP 3: Discover hubs and enhance pre-existing collections with hub data
+      await this.discoverHubsAndEnhance(
+        plexClient,
+        libraries,
+        collectionConfigs,
+        discoveredHubConfigs,
+        discoveredPreExistingConfigs,
+        existingHubKeys,
+        existingPreExistingKeys,
+        existingCollectionKeys,
+        existingCollectionIds,
+        allCollections,
+        enhancedExistingConfigs
+      );
 
-    // STEP 5: Report on collections removed from hub management
-    this.reportRemovedFromHubManagement();
+      // STEP 4: Promote collections that should be visible but aren't in hub management
+      await this.promoteCollectionsThatShouldBeVisible(plexClient, libraries);
 
-    // STEP 3: Sync configs with Plex collections to fix any out-of-sync rating keys/labels
-    logger.info('Starting config sync process to fix out-of-sync collections', {
-      label: 'Discovery Service',
-      configsToCheck: collectionConfigs.length,
-    });
+      // STEP 5: Report on collections removed from hub management
+      this.reportRemovedFromHubManagement();
 
-    const { syncConfigsWithPlexCollections } = await import(
-      '@server/lib/collections/core/CollectionUtilities'
-    );
-
-    const syncResults = await syncConfigsWithPlexCollections(
-      plexClient,
-      collectionConfigs.map((config) => ({
-        id: config.id,
-        name: config.name,
-        collectionRatingKey: config.collectionRatingKey,
-        libraryId: config.libraryId,
-        source: config.type || 'unknown', // Use type as source
-      })),
-      allCollections
-    );
-
-    // Apply synced rating keys to actual settings and save
-    if (syncResults.syncedConfigs.length > 0) {
-      // Update the actual collection configs with new rating keys
-      for (const syncedConfig of syncResults.syncedConfigs) {
-        const actualConfig = settings.plex.collectionConfigs?.find(
-          (config) => config.id === syncedConfig.configId
-        );
-        if (actualConfig) {
-          // Update the rating key on the mutable config object
-          Object.assign(actualConfig, {
-            collectionRatingKey: syncedConfig.newRatingKey,
-          });
-          logger.debug(
-            `Updated config ${syncedConfig.configId} with new rating key`,
-            {
-              label: 'Discovery Service',
-              configId: syncedConfig.configId,
-              newRatingKey: syncedConfig.newRatingKey,
-            }
-          );
-        }
-      }
-
-      settings.save();
-
-      // Reload the updated collection configs from settings so validation uses correct rating keys
-      collectionConfigs = settings.plex.collectionConfigs || [];
-
+      // STEP 3: Sync configs with Plex collections to fix any out-of-sync rating keys/labels
       logger.info(
-        `Config sync completed - updated ${syncResults.syncedConfigs.length} configs`,
+        'Starting config sync process to fix out-of-sync collections',
         {
           label: 'Discovery Service',
-          syncedConfigs: syncResults.syncedConfigs.map((s) => s.configId),
-          updatedPlexLabels: syncResults.updatedPlexLabels.length,
-          errors: syncResults.errors.length,
+          configsToCheck: collectionConfigs.length,
         }
       );
 
-      if (syncResults.errors.length > 0) {
-        logger.warn('Config sync encountered some errors', {
-          label: 'Discovery Service',
-          errors: syncResults.errors,
-        });
-      }
-    }
+      const { syncConfigsWithPlexCollections } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
 
-    // STEP 4: Validate existing collections for missing items
-    const validationResults = await this.validateExistingCollections(
-      plexClient,
-      libraries,
-      collectionConfigs,
-      existingHubConfigs,
-      existingPreExistingConfigs,
-      allCollections
-    );
+      const syncResults = await syncConfigsWithPlexCollections(
+        plexClient,
+        collectionConfigs.map((config) => ({
+          id: config.id,
+          name: config.name,
+          collectionRatingKey: config.collectionRatingKey,
+          libraryId: config.libraryId,
+          source: config.type || 'unknown', // Use type as source
+        })),
+        allCollections
+      );
 
-    // STEP 4: Update settings with discovered configs if requested
-    if (updateSettings) {
-      // Add discovered hub configs to settings
-      if (discoveredHubConfigs.length > 0) {
-        const existingHubConfigs = settings.plex.hubConfigs || [];
-        const newHubConfigs = [...existingHubConfigs];
-
-        for (const discoveredHub of discoveredHubConfigs) {
-          // Add isActive: true to make it a complete PlexHubConfig
-          newHubConfigs.push({ ...discoveredHub, isActive: true });
+      // Apply synced rating keys to actual settings and save
+      if (syncResults.syncedConfigs.length > 0) {
+        // Update the actual collection configs with new rating keys
+        for (const syncedConfig of syncResults.syncedConfigs) {
+          const actualConfig = settings.plex.collectionConfigs?.find(
+            (config) => config.id === syncedConfig.configId
+          );
+          if (actualConfig) {
+            // Update the rating key on the mutable config object
+            Object.assign(actualConfig, {
+              collectionRatingKey: syncedConfig.newRatingKey,
+            });
+            logger.debug(
+              `Updated config ${syncedConfig.configId} with new rating key`,
+              {
+                label: 'Discovery Service',
+                configId: syncedConfig.configId,
+                newRatingKey: syncedConfig.newRatingKey,
+              }
+            );
+          }
         }
 
-        settings.plex.hubConfigs = newHubConfigs;
-        logger.debug(
-          `Added ${discoveredHubConfigs.length} new hub configs to settings`,
+        settings.save();
+
+        // Reload the updated collection configs from settings so validation uses correct rating keys
+        collectionConfigs = settings.plex.collectionConfigs || [];
+
+        logger.info(
+          `Config sync completed - updated ${syncResults.syncedConfigs.length} configs`,
           {
             label: 'Discovery Service',
+            syncedConfigs: syncResults.syncedConfigs.map((s) => s.configId),
+            updatedPlexLabels: syncResults.updatedPlexLabels.length,
+            errors: syncResults.errors.length,
           }
         );
+
+        if (syncResults.errors.length > 0) {
+          logger.warn('Config sync encountered some errors', {
+            label: 'Discovery Service',
+            errors: syncResults.errors,
+          });
+        }
       }
 
-      // Add discovered pre-existing configs to settings
-      if (discoveredPreExistingConfigs.length > 0) {
-        const existingPreExistingConfigs =
-          settings.plex.preExistingCollectionConfigs || [];
-        const newPreExistingConfigs = [...existingPreExistingConfigs];
+      // STEP 4: Validate existing collections for missing items
+      const validationResults = await this.validateExistingCollections(
+        plexClient,
+        libraries,
+        collectionConfigs,
+        existingHubConfigs,
+        existingPreExistingConfigs,
+        allCollections
+      );
 
-        for (const discoveredPreExisting of discoveredPreExistingConfigs) {
-          // Add isActive: true to make it a complete PreExistingCollectionConfig
-          const finalConfig = { ...discoveredPreExisting, isActive: true };
-          newPreExistingConfigs.push(finalConfig);
+      // STEP 4: Update settings with discovered configs if requested
+      if (updateSettings) {
+        // Add discovered hub configs to settings
+        if (discoveredHubConfigs.length > 0) {
+          const existingHubConfigs = settings.plex.hubConfigs || [];
+          const newHubConfigs = [...existingHubConfigs];
+
+          for (const discoveredHub of discoveredHubConfigs) {
+            // Add isActive: true to make it a complete PlexHubConfig
+            newHubConfigs.push({ ...discoveredHub, isActive: true });
+          }
+
+          settings.plex.hubConfigs = newHubConfigs;
+          logger.debug(
+            `Added ${discoveredHubConfigs.length} new hub configs to settings`,
+            {
+              label: 'Discovery Service',
+            }
+          );
         }
 
-        settings.plex.preExistingCollectionConfigs = newPreExistingConfigs;
-        logger.debug(
-          `Added ${discoveredPreExistingConfigs.length} new pre-existing configs to settings`,
-          {
-            label: 'Discovery Service',
+        // Add discovered pre-existing configs to settings
+        if (discoveredPreExistingConfigs.length > 0) {
+          const existingPreExistingConfigs =
+            settings.plex.preExistingCollectionConfigs || [];
+          const newPreExistingConfigs = [...existingPreExistingConfigs];
+
+          for (const discoveredPreExisting of discoveredPreExistingConfigs) {
+            // Add isActive: true to make it a complete PreExistingCollectionConfig
+            const finalConfig = { ...discoveredPreExisting, isActive: true };
+            newPreExistingConfigs.push(finalConfig);
           }
-        );
-      }
 
-      // Update existing pre-existing configs that were enhanced with hub data
-      if (enhancedExistingConfigs.length > 0) {
-        const currentPreExistingConfigs =
-          settings.plex.preExistingCollectionConfigs || [];
+          settings.plex.preExistingCollectionConfigs = newPreExistingConfigs;
+          logger.debug(
+            `Added ${discoveredPreExistingConfigs.length} new pre-existing configs to settings`,
+            {
+              label: 'Discovery Service',
+            }
+          );
+        }
 
-        // Replace enhanced configs in the current array
-        for (const enhancedConfig of enhancedExistingConfigs) {
-          const existingIndex = currentPreExistingConfigs.findIndex(
-            (config) =>
-              config.collectionRatingKey ===
-                enhancedConfig.collectionRatingKey &&
-              config.libraryId === enhancedConfig.libraryId
+        // Update existing pre-existing configs that were enhanced with hub data
+        if (enhancedExistingConfigs.length > 0) {
+          const currentPreExistingConfigs =
+            settings.plex.preExistingCollectionConfigs || [];
+
+          // Replace enhanced configs in the current array
+          for (const enhancedConfig of enhancedExistingConfigs) {
+            const existingIndex = currentPreExistingConfigs.findIndex(
+              (config) =>
+                config.collectionRatingKey ===
+                  enhancedConfig.collectionRatingKey &&
+                config.libraryId === enhancedConfig.libraryId
+            );
+
+            if (existingIndex !== -1) {
+              currentPreExistingConfigs[existingIndex] = enhancedConfig;
+            }
+          }
+
+          settings.plex.preExistingCollectionConfigs =
+            currentPreExistingConfigs;
+          logger.debug(
+            `Updated ${enhancedExistingConfigs.length} existing pre-existing configs with hub enhancement data`,
+            {
+              label: 'Discovery Service',
+              enhancedConfigs: enhancedExistingConfigs.map((c) => ({
+                name: c.name,
+                ratingKey: c.collectionRatingKey,
+                libraryId: c.libraryId,
+                newSortOrder: c.sortOrderHome,
+                isPromoted: c.isPromotedToHub,
+              })),
+            }
+          );
+        }
+
+        // Save settings if any configs were added or updated
+        if (
+          discoveredHubConfigs.length > 0 ||
+          discoveredPreExistingConfigs.length > 0 ||
+          enhancedExistingConfigs.length > 0
+        ) {
+          settings.save();
+          logger.info(
+            `Discovery updated settings: ${discoveredHubConfigs.length} hubs, ${discoveredPreExistingConfigs.length} pre-existing collections added, ${enhancedExistingConfigs.length} existing collections updated`,
+            {
+              label: 'Discovery Service',
+            }
           );
 
-          if (existingIndex !== -1) {
-            currentPreExistingConfigs[existingIndex] = enhancedConfig;
-          }
-        }
+          // Auto-reorder libraries to fix any gaps/duplicates created by direct sort order assignments
+          const { autoReorderLibrary } = await import('@server/routes/reorder');
+          const librariesToReorder = new Set<string>();
 
-        settings.plex.preExistingCollectionConfigs = currentPreExistingConfigs;
-        logger.debug(
-          `Updated ${enhancedExistingConfigs.length} existing pre-existing configs with hub enhancement data`,
-          {
-            label: 'Discovery Service',
-            enhancedConfigs: enhancedExistingConfigs.map((c) => ({
-              name: c.name,
-              ratingKey: c.collectionRatingKey,
-              libraryId: c.libraryId,
-              newSortOrder: c.sortOrderHome,
-              isPromoted: c.isPromotedToHub,
-            })),
-          }
-        );
-      }
+          // Collect all libraries that need reordering
+          discoveredHubConfigs.forEach((config) =>
+            librariesToReorder.add(config.libraryId)
+          );
+          discoveredPreExistingConfigs.forEach((config) =>
+            librariesToReorder.add(config.libraryId)
+          );
+          enhancedExistingConfigs.forEach((config) =>
+            librariesToReorder.add(config.libraryId)
+          );
 
-      // Save settings if any configs were added or updated
-      if (
-        discoveredHubConfigs.length > 0 ||
-        discoveredPreExistingConfigs.length > 0 ||
-        enhancedExistingConfigs.length > 0
-      ) {
-        settings.save();
-        logger.info(
-          `Discovery updated settings: ${discoveredHubConfigs.length} hubs, ${discoveredPreExistingConfigs.length} pre-existing collections added, ${enhancedExistingConfigs.length} existing collections updated`,
-          {
-            label: 'Discovery Service',
-          }
-        );
-
-        // Auto-reorder libraries to fix any gaps/duplicates created by direct sort order assignments
-        const { autoReorderLibrary } = await import('@server/routes/reorder');
-        const librariesToReorder = new Set<string>();
-
-        // Collect all libraries that need reordering
-        discoveredHubConfigs.forEach((config) =>
-          librariesToReorder.add(config.libraryId)
-        );
-        discoveredPreExistingConfigs.forEach((config) =>
-          librariesToReorder.add(config.libraryId)
-        );
-        enhancedExistingConfigs.forEach((config) =>
-          librariesToReorder.add(config.libraryId)
-        );
-
-        // Auto-reorder each library for both home and library contexts
-        for (const libraryId of librariesToReorder) {
-          try {
-            await autoReorderLibrary(libraryId, 'home');
-            await autoReorderLibrary(libraryId, 'library');
-            logger.debug(
-              `Auto-reordered library ${libraryId} after discovery`,
-              {
-                label: 'Discovery Service',
-              }
-            );
-          } catch (error) {
-            logger.warn(
-              `Failed to auto-reorder library ${libraryId} after discovery`,
-              {
-                label: 'Discovery Service',
-                error: error instanceof Error ? error.message : String(error),
-              }
-            );
+          // Auto-reorder each library for both home and library contexts
+          for (const libraryId of librariesToReorder) {
+            try {
+              await autoReorderLibrary(libraryId, 'home');
+              await autoReorderLibrary(libraryId, 'library');
+              logger.debug(
+                `Auto-reordered library ${libraryId} after discovery`,
+                {
+                  label: 'Discovery Service',
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to auto-reorder library ${libraryId} after discovery`,
+                {
+                  label: 'Discovery Service',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
           }
         }
       }
+
+      logger.info('Hub discovery process completed', {
+        label: 'Hub Discovery',
+        totalTime: Date.now() - startTime,
+        discoveredHubs: discoveredHubConfigs.length,
+        discoveredPreExisting: discoveredPreExistingConfigs.length,
+        totalCollections: allCollections.length,
+        settingsUpdated: updateSettings,
+      });
+
+      return {
+        success: true,
+        discoveredHubConfigs,
+        discoveredPreExistingConfigs,
+        totalHubsFound: discoveredHubConfigs.length,
+        totalPreExistingCollectionsFound: discoveredPreExistingConfigs.length,
+        totalActualCollections: allCollections.length,
+        validationResults,
+      };
+    } finally {
+      this.running = false;
     }
-
-    logger.info('Hub discovery process completed', {
-      label: 'Hub Discovery',
-      totalTime: Date.now() - startTime,
-      discoveredHubs: discoveredHubConfigs.length,
-      discoveredPreExisting: discoveredPreExistingConfigs.length,
-      totalCollections: allCollections.length,
-      settingsUpdated: updateSettings,
-    });
-
-    return {
-      success: true,
-      discoveredHubConfigs,
-      discoveredPreExistingConfigs,
-      totalHubsFound: discoveredHubConfigs.length,
-      totalPreExistingCollectionsFound: discoveredPreExistingConfigs.length,
-      totalActualCollections: allCollections.length,
-      validationResults,
-    };
   }
 
   /**
@@ -573,6 +619,7 @@ export class DiscoveryService {
     existingHubKeys: Set<string>,
     existingPreExistingKeys: Set<string>,
     existingCollectionKeys: Set<string>,
+    existingCollectionIds: Set<string>,
     allCollections: PlexCollection[],
     enhancedExistingConfigs: PreExistingCollectionConfig[]
   ): Promise<void> {
@@ -621,6 +668,98 @@ export class DiscoveryService {
             collectionWithLabels?.labels
           );
 
+          // Calculate correct sortOrderHome based on neighbors in Plex hub list
+          let calculatedHomeSortOrder = index; // Default fallback
+
+          // Helper function to find sortOrderHome for a hub identifier
+          const findSortOrderForHub = (
+            hubIdentifier: string
+          ): number | null => {
+            const parsed = parseHubIdentifier(hubIdentifier, library.key);
+
+            // Check all config types for this library
+            const settings = getSettings();
+            const allConfigs = [
+              ...collectionConfigs.filter((c) =>
+                Array.isArray(c.libraryId)
+                  ? c.libraryId.includes(library.key)
+                  : c.libraryId === library.key
+              ),
+              ...(settings.plex.hubConfigs || []).filter(
+                (h) => h.libraryId === library.key
+              ),
+              ...(settings.plex.preExistingCollectionConfigs || []).filter(
+                (p) => p.libraryId === library.key
+              ),
+            ];
+
+            const matchingConfig = allConfigs.find((config) => {
+              if ('hubIdentifier' in config && parsed.hubIdentifier) {
+                return config.hubIdentifier === parsed.hubIdentifier;
+              } else if ('collectionRatingKey' in config && parsed.ratingKey) {
+                return config.collectionRatingKey === parsed.ratingKey;
+              }
+              return false;
+            });
+
+            return matchingConfig?.sortOrderHome || null;
+          };
+
+          // Find previous and next neighbors with valid sortOrderHome values
+          let beforeSortOrder: number | null = null;
+          let afterSortOrder: number | null = null;
+
+          // Look backwards for previous neighbor
+          for (let i = index - 1; i >= 0; i--) {
+            const neighborHub = hubs[i];
+            const neighborSortOrder = findSortOrderForHub(
+              neighborHub.identifier
+            );
+            if (neighborSortOrder && neighborSortOrder > 0) {
+              beforeSortOrder = neighborSortOrder;
+              break;
+            }
+          }
+
+          // Look forwards for next neighbor
+          for (let i = index + 1; i < hubs.length; i++) {
+            const neighborHub = hubs[i];
+            const neighborSortOrder = findSortOrderForHub(
+              neighborHub.identifier
+            );
+            if (neighborSortOrder && neighborSortOrder > 0) {
+              afterSortOrder = neighborSortOrder;
+              break;
+            }
+          }
+
+          // Calculate insertion point between neighbors
+          if (beforeSortOrder !== null && afterSortOrder !== null) {
+            // Insert between two existing items
+            calculatedHomeSortOrder = (beforeSortOrder + afterSortOrder) / 2;
+          } else if (beforeSortOrder !== null) {
+            // Insert after the last item
+            calculatedHomeSortOrder = beforeSortOrder + 1;
+          } else if (afterSortOrder !== null) {
+            // Insert before the first item
+            calculatedHomeSortOrder = Math.max(0.5, afterSortOrder - 0.5);
+          } else {
+            // No existing neighbors found, use position-based fallback
+            calculatedHomeSortOrder = index + 1;
+          }
+
+          logger.debug(
+            `Calculated sortOrderHome for newly promoted collection`,
+            {
+              label: 'Hub Discovery - Neighbor Positioning',
+              hubTitle: typedHub.title,
+              plexPosition: index,
+              beforeSortOrder,
+              afterSortOrder,
+              calculatedHomeSortOrder,
+            }
+          );
+
           // Create hub config using centralized function
           const hubConfig = createHubConfigFromDiscovery(
             parsedHub,
@@ -637,7 +776,7 @@ export class DiscoveryService {
                 CollectionType.DEFAULT_PLEX_HUB
                   ? 0
                   : index, // Default hubs always get 0 (void) for library ordering
-              home: index,
+              home: calculatedHomeSortOrder,
             },
             categorization
           );
@@ -850,10 +989,20 @@ export class DiscoveryService {
                   }
                 }
 
+                // Check if this collection has a label indicating it belongs to an existing Agregarr collection
+                const hasMatchingCollectionId = collectionWithLabels
+                  ? this.checkCollectionForExistingId(
+                      collectionWithLabels,
+                      library.key,
+                      existingCollectionIds
+                    )
+                  : false;
+
                 if (
                   !existingPreExisting &&
                   !existingPreExistingKeys.has(preExistingKey) &&
-                  !existingCollectionKeys.has(collectionKey)
+                  !existingCollectionKeys.has(collectionKey) &&
+                  !hasMatchingCollectionId
                 ) {
                   // Check if we already enhanced this config from settings
                   const alreadyEnhanced = enhancedExistingConfigs.some(
@@ -923,6 +1072,12 @@ export class DiscoveryService {
             ...config,
             isPromotedToHub: false,
             sortOrderHome: 0, // Reset to void since no longer in hub management
+            visibilityConfig: {
+              ...config.visibilityConfig,
+              usersHome: false,
+              serverOwnerHome: false,
+              libraryRecommended: false,
+            },
           };
         }
         return config;
@@ -1024,7 +1179,8 @@ export class DiscoveryService {
     collectionConfigs: CollectionConfig[],
     discoveredPreExistingConfigs: DiscoveredPreExistingConfig[],
     existingPreExistingKeys: Set<string>,
-    existingCollectionKeys: Set<string>
+    existingCollectionKeys: Set<string>,
+    existingCollectionIds: Set<string>
   ): Promise<PlexCollection[]> {
     let allCollections: PlexCollection[] = [];
     const posterDiscoveryStats = { successful: 0, failed: 0 };
@@ -1148,10 +1304,18 @@ export class DiscoveryService {
           const preExistingKey = `${collectionConfig.libraryId}:${collectionConfig.collectionRatingKey}`;
           const collectionKey = `${collectionConfig.libraryId}:${collectionConfig.collectionRatingKey}`;
 
-          // Don't add if it exists as pre-existing config OR as collection config
+          // Check if this collection has a label indicating it belongs to an existing Agregarr collection
+          const hasMatchingCollectionId = this.checkCollectionForExistingId(
+            collection,
+            libraryId,
+            existingCollectionIds
+          );
+
+          // Don't add if it exists as pre-existing config OR as collection config OR matches existing Agregarr collection ID
           if (
             !existingPreExistingKeys.has(preExistingKey) &&
-            !existingCollectionKeys.has(collectionKey)
+            !existingCollectionKeys.has(collectionKey) &&
+            !hasMatchingCollectionId
           ) {
             // Pre-existing collections keep their actual Plex visibility settings
             discoveredPreExistingConfigs.push(collectionConfig);
@@ -1732,6 +1896,48 @@ export class DiscoveryService {
         }
       );
     }
+  }
+
+  /**
+   * Check if a Plex collection has a label indicating it belongs to an existing Agregarr collection
+   * This prevents duplicate detection gaps for unsynced collections
+   */
+  private checkCollectionForExistingId(
+    collection: PlexCollection,
+    libraryId: string,
+    existingCollectionIds: Set<string>
+  ): boolean {
+    if (!collection.labels || collection.labels.length === 0) {
+      return false;
+    }
+
+    // Parse collection IDs from labels
+    for (const label of collection.labels) {
+      const labelText = typeof label === 'string' ? label : label.tag;
+
+      // Look for Agregarr labels with config IDs
+      if (labelText.toLowerCase().startsWith('agregarr')) {
+        // Extract potential config ID from label
+        const configIdMatch = labelText.match(/agregarr[^0-9]*(\d+)/i);
+        if (configIdMatch) {
+          const configId = configIdMatch[1];
+          const libraryIdKey = `${libraryId}:${configId}`;
+
+          if (existingCollectionIds.has(libraryIdKey)) {
+            logger.debug('Found existing Agregarr collection via label match', {
+              label: 'Discovery Service - Duplicate Detection',
+              collectionName: collection.title,
+              libraryId,
+              configId,
+              labelText,
+            });
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
   }
 }
 

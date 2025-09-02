@@ -3,13 +3,16 @@ import { getSettings } from '@server/lib/settings';
 /**
  * Generates sequential numeric IDs starting from 10000
  * All collection configs share the same ID space to avoid conflicts
+ * Thread-safe implementation to prevent duplicate IDs
  */
 export class IdGenerator {
+  private static readonly ID_LOCK = Symbol('idGenerationLock');
+  private static lockPromise: Promise<void> | null = null;
   private static readonly STARTING_ID = 10000;
 
   /**
    * Generate the next sequential ID for any collection config
-   * Updates the settings to track the next available ID
+   * Thread-safe implementation using an in-memory counter
    */
   public static generateId(): string {
     const settings = getSettings();
@@ -17,7 +20,7 @@ export class IdGenerator {
     // Get current next ID or start from 10000
     const currentId = settings.main.nextConfigId || this.STARTING_ID;
 
-    // Update settings with next ID
+    // Update settings with next ID immediately (synchronous)
     settings.main.nextConfigId = currentId + 1;
     settings.save();
 

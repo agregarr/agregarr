@@ -84,8 +84,8 @@ const COLOR_SCHEMES: Record<string, ColorScheme> = {
 const POSTER_WIDTH = 500;
 const POSTER_HEIGHT = 750;
 const LOGO_SIZE = 60;
-const ITEM_POSTER_WIDTH = 140; // Width for individual item posters in the grid
-const ITEM_POSTER_HEIGHT = 210; // Height for individual item posters (1.5 aspect ratio)
+const ITEM_POSTER_WIDTH = 150; // Width for individual item posters in the grid
+const ITEM_POSTER_HEIGHT = 225; // Height for individual item posters (1.5 aspect ratio)
 
 // Path to service logos
 const LOGOS_PATH = path.join(process.cwd(), 'src', 'assets', 'services');
@@ -602,7 +602,7 @@ async function generatePosterSVG(
   const { collectionName, collectionType, items = [] } = config;
 
   // Fixed layout sections with consistent proportions
-  const topBuffer = 40; // Fixed buffer above logo
+  const topBuffer = 35; // Fixed buffer above logo
   const logoSectionHeight = topBuffer + LOGO_SIZE + 30; // Total space for logo section with bottom spacing
   const logoY = topBuffer + LOGO_SIZE / 2; // Logo centered in top portion of its section
 
@@ -611,7 +611,7 @@ async function generatePosterSVG(
   const titleSectionEnd = titleSectionStart + titleSectionHeight;
 
   const gridSectionStart = titleSectionEnd;
-  const bottomBuffer = 30; // Fixed buffer at bottom
+  const bottomBuffer = 35; // Fixed buffer at bottom (same as top for even spacing)
   const gridSectionHeight = POSTER_HEIGHT - gridSectionStart - bottomBuffer;
 
   // Title area calculations - text will shrink to fit

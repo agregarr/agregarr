@@ -8,7 +8,7 @@ import { defineMessages, useIntl } from 'react-intl';
 const messages = defineMessages({
   libraryTitle: 'Library',
   libraryDescription:
-    'Manage collections that appear in your Plex library tabs',
+    'Collections in the Library tab. Ordering in the Library tabs can be independent from the Home/Recommended views.',
   noCollections: 'No library collections configured yet',
 });
 

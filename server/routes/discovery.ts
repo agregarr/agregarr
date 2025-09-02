@@ -156,7 +156,10 @@ discoveryRoutes.get(
 discoveryRoutes.get('/hubs/scan', isAuthenticated(), async (req, res) => {
   try {
     const plexClient = await getPlexClient();
-    const discoveryResult = await discoveryService.discoverAllHubs(plexClient);
+    const discoveryResult = await discoveryService.discoverAllHubs(
+      plexClient,
+      true
+    );
 
     res.status(200).json(discoveryResult);
   } catch (error) {

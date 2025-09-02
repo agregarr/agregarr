@@ -8,7 +8,7 @@ import { defineMessages, useIntl } from 'react-intl';
 const messages = defineMessages({
   recommendedTitle: 'Recommended',
   recommendedDescription:
-    'Manage recommended collections that appear on your Plex home screen',
+    'Collections and Hubs in the Recommended tabs. Ordering is shared between Home and Recommended views, but can have seperate visibility setings.',
   noCollections: 'No recommended collections configured yet',
 });
 

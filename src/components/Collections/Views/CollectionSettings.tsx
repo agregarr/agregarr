@@ -623,6 +623,9 @@ const CollectionSettings = ({
       ];
 
       if (allDiscoveredConfigs.length === 0) {
+        // No new hubs found, but still need to refresh UI for any updates to existing configs
+        revalidateAll();
+
         addToast('No Plex hubs found to import.', {
           autoDismiss: true,
           appearance: 'info',
@@ -661,6 +664,9 @@ const CollectionSettings = ({
       );
 
       if (newHubs.length === 0 && newPreExistingCollections.length === 0) {
+        // No new configs to add, but still need to refresh UI for any updates to existing configs
+        revalidateAll();
+
         addToast('All available Plex hubs are already configured.', {
           autoDismiss: true,
           appearance: 'info',

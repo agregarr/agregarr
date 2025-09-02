@@ -37,9 +37,8 @@ The application will be available at `http://localhost:7171`
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+GPL-3.0 License - see [LICENSE](LICENSE) file for details.
 
 ## Credits
 
 Originally built off [Overseerr](https://github.com/sct/Overseerr)
-
