@@ -27,8 +27,6 @@ RUN yarn build
 # remove development dependencies
 RUN yarn install --production --ignore-scripts --prefer-offline
 
-# Copy service logos to public directory for poster generation
-RUN mkdir -p public/services && cp -r src/assets/services/* public/services/
 RUN rm -rf src server .next/cache
 
 RUN mkdir -p config && touch config/DOCKER

@@ -508,7 +508,11 @@ collectionsRoutes.delete(
         return !shouldRemove;
       });
 
-      // Remove missing pre-existing collections
+      // Remove missing pre-existing collections and delete from hubs
+      const missingPreExisting = (
+        settings.plex.preExistingCollectionConfigs || []
+      ).filter((config) => config.missing === true);
+
       const filteredPreExisting = (
         settings.plex.preExistingCollectionConfigs || []
       ).filter((config) => {
@@ -526,6 +530,41 @@ collectionsRoutes.delete(
         }
         return !shouldRemove;
       });
+
+      // Delete missing pre-existing collections from Plex hubs
+      if (plexClient && missingPreExisting.length > 0) {
+        for (const config of missingPreExisting) {
+          if (config.collectionRatingKey && config.libraryId) {
+            try {
+              // Generate the hub identifier for pre-existing collections
+              const hubIdentifier = `custom.collection.${config.libraryId}.${config.collectionRatingKey}`;
+
+              await plexClient.deleteHubItem(config.libraryId, hubIdentifier);
+              hubDeleteCount++;
+
+              logger.info(
+                `Deleted missing pre-existing collection from Plex hub: ${config.name}`,
+                {
+                  label: 'Collections API - Cleanup',
+                  configId: config.id,
+                  hubIdentifier,
+                  libraryId: config.libraryId,
+                  ratingKey: config.collectionRatingKey,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to delete pre-existing collection from Plex hub: ${config.name}`,
+                {
+                  label: 'Collections API - Cleanup',
+                  configId: config.id,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
+          }
+        }
+      }
 
       // Update settings with filtered configs
       settings.plex.collectionConfigs = filteredCollections;

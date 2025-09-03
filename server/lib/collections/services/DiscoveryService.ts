@@ -281,15 +281,30 @@ export class DiscoveryService {
           );
         }
 
-        // Add discovered pre-existing configs to settings
+        // Add discovered pre-existing configs to settings while preserving missing flags
         if (discoveredPreExistingConfigs.length > 0) {
           const existingPreExistingConfigs =
             settings.plex.preExistingCollectionConfigs || [];
+
+          // Create map of existing configs with their missing flags
+          const existingConfigsMap = new Map(
+            existingPreExistingConfigs.map((config) => [config.id, config])
+          );
+
           const newPreExistingConfigs = [...existingPreExistingConfigs];
 
           for (const discoveredPreExisting of discoveredPreExistingConfigs) {
-            // Add isActive: true to make it a complete PreExistingCollectionConfig
-            const finalConfig = { ...discoveredPreExisting, isActive: true };
+            // Preserve missing flag if config already exists
+            const existingConfig = existingConfigsMap.get(
+              discoveredPreExisting.id
+            );
+            const finalConfig = {
+              ...discoveredPreExisting,
+              isActive: true,
+              ...(existingConfig?.missing !== undefined && {
+                missing: existingConfig.missing,
+              }),
+            };
             newPreExistingConfigs.push(finalConfig);
           }
 
@@ -317,7 +332,15 @@ export class DiscoveryService {
             );
 
             if (existingIndex !== -1) {
-              currentPreExistingConfigs[existingIndex] = enhancedConfig;
+              // Preserve missing flag when updating with enhanced data
+              const existingMissing =
+                currentPreExistingConfigs[existingIndex].missing;
+              currentPreExistingConfigs[existingIndex] = {
+                ...enhancedConfig,
+                ...(existingMissing !== undefined && {
+                  missing: existingMissing,
+                }),
+              };
             }
           }
 
@@ -477,7 +500,9 @@ export class DiscoveryService {
           config.collectionRatingKey,
           allCollections,
           config.type,
-          config.subtype
+          config.subtype,
+          config.name,
+          config.libraryId
         );
 
         if (!collectionExists) {
