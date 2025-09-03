@@ -350,26 +350,35 @@ class TraktAPI {
     limit = 1000
   ): Promise<TraktListResponse[]> {
     try {
-      // Parse the URL to extract username and list slug
-      // Expected format: https://trakt.tv/users/{username}/lists/{list-slug}
-      const urlMatch = listUrl.match(
+      // Parse the URL to extract username and list slug or official list slug
+      // Expected formats:
+      // - https://trakt.tv/users/{username}/lists/{list-slug}
+      // - https://trakt.tv/lists/official/{collection-name}
+      const userListMatch = listUrl.match(
         /trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
       );
-      if (!urlMatch) {
+      const officialListMatch = listUrl.match(
+        /trakt\.tv\/lists\/official\/([^/?]+)/
+      );
+
+      let apiPath: string;
+
+      if (userListMatch) {
+        const [, username, listSlug] = userListMatch;
+        apiPath = `/users/${username}/lists/${listSlug}/items`;
+      } else if (officialListMatch) {
+        const [, collectionSlug] = officialListMatch;
+        apiPath = `/lists/official/${collectionSlug}/items`;
+      } else {
         throw new Error(
-          'Invalid Trakt list URL format. Expected: https://trakt.tv/users/{username}/lists/{list-name}'
+          'Invalid Trakt list URL format. Expected: https://trakt.tv/users/{username}/lists/{list-name} or https://trakt.tv/lists/official/{collection-name}'
         );
       }
 
-      const [, username, listSlug] = urlMatch;
-
       return await this.retryRequest(async () => {
-        const response = await this.axios.get<TraktListResponse[]>(
-          `/users/${username}/lists/${listSlug}/items`,
-          {
-            params: { limit },
-          }
-        );
+        const response = await this.axios.get<TraktListResponse[]>(apiPath, {
+          params: { limit },
+        });
         return response.data;
       });
     } catch (e) {

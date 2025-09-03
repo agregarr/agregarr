@@ -98,7 +98,7 @@ const CustomUrlSection = ({
             type="url"
             id="traktCustomListUrl"
             name="traktCustomListUrl"
-            placeholder="https://trakt.tv/users/username/lists/listname"
+            placeholder="https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name"
             className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTraktTitle && (
@@ -120,7 +120,8 @@ const CustomUrlSection = ({
           className="mt-1 text-sm text-red-500"
         />
         <p className="mt-1 text-xs text-gray-400">
-          Example: https://trakt.tv/users/username/lists/listname
+          Examples: https://trakt.tv/users/username/lists/listname or
+          https://trakt.tv/lists/official/jurassic-park-collection
         </p>
       </div>
     );

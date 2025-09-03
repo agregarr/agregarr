@@ -96,11 +96,14 @@ function validateExternalUrl(
     // Validate URL patterns for each service
     switch (type) {
       case 'trakt':
-        if (!urlObj.pathname.match(/^\/users\/[^/]+\/lists\/[^/?]+\/?$/)) {
+        if (
+          !urlObj.pathname.match(/^\/users\/[^/]+\/lists\/[^/?]+\/?$/) &&
+          !urlObj.pathname.match(/^\/lists\/official\/[^/?]+\/?$/)
+        ) {
           return {
             isValid: false,
             error:
-              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname',
+              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name',
           };
         }
         break;

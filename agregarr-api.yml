@@ -338,7 +338,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)"
+          description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
         tmdbCustomListUrl:
@@ -638,7 +638,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)"
+          description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
         tmdbCustomListUrl:
@@ -906,7 +906,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)"
+          description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
         tmdbCustomListUrl:

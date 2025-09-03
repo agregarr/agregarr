@@ -75,8 +75,8 @@ const customUrlValidations = {
       schema
         .required('Trakt list URL is required')
         .matches(
-          /trakt\.tv\/users\/[^/]+\/lists\/[^/?]+/,
-          'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/listname)'
+          /trakt\.tv\/(users\/[^/]+\/lists\/[^/?]+|lists\/official\/[^/?]+)/,
+          'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name)'
         ),
     otherwise: (schema) => schema,
   }),

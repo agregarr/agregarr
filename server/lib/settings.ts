@@ -76,7 +76,7 @@ export interface CollectionConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
   // Trakt custom list fields
-  readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)
+  readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
   // TMDb custom list fields
   readonly tmdbCustomListUrl?: string; // Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)
   // IMDb custom list fields

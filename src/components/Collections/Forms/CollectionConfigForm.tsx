@@ -178,8 +178,8 @@ const CollectionFormConfigForm = ({
         schema
           .required('Trakt list URL is required')
           .matches(
-            /trakt\.tv\/users\/[^/]+\/lists\/[^/?]+/,
-            'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name)'
+            /trakt\.tv\/(users\/[^/]+\/lists\/[^/?]+|lists\/official\/[^/?]+)/,
+            'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
           ),
       otherwise: (schema) => schema,
     }),
