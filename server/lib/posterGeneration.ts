@@ -88,7 +88,7 @@ const ITEM_POSTER_WIDTH = 150; // Width for individual item posters in the grid
 const ITEM_POSTER_HEIGHT = 225; // Height for individual item posters (1.5 aspect ratio)
 
 // Path to service logos
-const LOGOS_PATH = path.join(process.cwd(), 'src', 'assets', 'services');
+const LOGOS_PATH = path.join(process.cwd(), 'public', 'services');
 
 // Service type to logo file mapping
 const SERVICE_LOGO_MAP: Record<string, string> = {
