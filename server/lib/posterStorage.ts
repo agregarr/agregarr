@@ -107,6 +107,26 @@ function findPosterByHash(hash: string): string | null {
 }
 
 /**
+ * Remove hash registry entry by filename
+ */
+function removePosterFromRegistry(filename: string): void {
+  const registry = loadPosterHashRegistry();
+
+  // Find the hash entry that matches this filename
+  for (const [hash, entry] of Object.entries(registry)) {
+    if (entry.filename === filename) {
+      delete registry[hash];
+      logger.info(`Removed poster hash registry entry: ${filename}`, {
+        hash: hash.substring(0, 8),
+      });
+      break;
+    }
+  }
+
+  savePosterHashRegistry(registry);
+}
+
+/**
  * Check if a poster hash exists in the registry (regardless of file existence)
  */
 function posterHashExists(hash: string): boolean {
@@ -367,6 +387,9 @@ export async function deletePosterFile(filename: string): Promise<void> {
     if (fs.existsSync(filePath)) {
       await fs.promises.unlink(filePath);
       logger.info(`Deleted poster file: ${filename}`);
+
+      // Clean up hash registry entry
+      removePosterFromRegistry(filename);
     }
   } catch (error) {
     logger.warn(`Failed to delete poster file ${filename}:`, error);
@@ -493,16 +516,7 @@ export async function downloadAndSavePoster(
     // Calculate hash to check for duplicates before processing
     const fileHash = calculatePosterHash(buffer);
 
-    // First, check if we already know about this hash (could be auto-generated poster)
-    if (posterHashExists(fileHash)) {
-      logger.info(`Poster hash already exists in registry, skipping download`, {
-        hash: fileHash.substring(0, 8),
-        url: originalName ? `${originalName} (${url})` : url,
-      });
-      return null; // Don't store duplicate
-    }
-
-    // Then check if we have a file for this hash
+    // Check if we have a file for this hash
     const existingFilename = findPosterByHash(fileHash);
     if (existingFilename) {
       logger.info(
@@ -513,6 +527,13 @@ export async function downloadAndSavePoster(
         }
       );
       return existingFilename;
+    }
+
+    // Check if hash exists but no file (auto-generated poster case)
+    if (posterHashExists(fileHash)) {
+      throw new Error(
+        'This poster has already been processed and is managed by the system.'
+      );
     }
 
     // Save the poster

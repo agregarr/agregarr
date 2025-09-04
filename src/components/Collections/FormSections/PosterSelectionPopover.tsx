@@ -8,6 +8,11 @@ const messages = defineMessages({
   selectPoster: 'Select Poster',
   uploadNewPoster: 'Upload New Poster',
   generatePoster: 'Generate Poster',
+  addFromUrl: 'Add from URL',
+  enterPosterUrl: 'Enter poster URL',
+  invalidUrl: 'Please enter a valid URL',
+  downloadingPoster: 'Downloading poster...',
+  posterDownloadError: 'Failed to download poster from URL',
   deletePoster: 'Delete Poster',
   noPosterAvailable: 'No posters available',
   uploading: 'Uploading...',
@@ -59,7 +64,7 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
   currentPoster,
   libraryName,
   addToast,
-  collectionConfig,
+  // collectionConfig, // TODO: Re-enable when handleGeneratePoster is restored
 }) => {
   const intl = useIntl();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,8 +72,11 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
   const [posters, setPosters] = useState<Poster[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  // const [generating, setGenerating] = useState(false); // TODO: Re-enable when handleGeneratePoster is restored
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [urlInput, setUrlInput] = useState('');
+  const [downloadingFromUrl, setDownloadingFromUrl] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -87,6 +95,14 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
         document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isOpen, onClose]);
+
+  // Reset URL input state when popover closes
+  useEffect(() => {
+    if (!isOpen) {
+      setShowUrlInput(false);
+      setUrlInput('');
+    }
+  }, [isOpen]);
 
   // Fetch posters when popover opens
   useEffect(() => {
@@ -174,45 +190,92 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
     }
   };
 
-  const handleGeneratePoster = async () => {
-    if (!collectionConfig?.name) {
-      addToast('Collection name is required to generate a poster', {
+  const handleUrlDownload = async () => {
+    if (!urlInput.trim()) {
+      addToast(intl.formatMessage(messages.invalidUrl), {
+        appearance: 'error',
+      });
+      return;
+    }
+
+    // Basic URL validation
+    try {
+      new URL(urlInput);
+    } catch {
+      addToast(intl.formatMessage(messages.invalidUrl), {
         appearance: 'error',
       });
       return;
     }
 
     try {
-      setGenerating(true);
+      setDownloadingFromUrl(true);
 
-      const response = await axios.post('/api/v1/collections/generate-poster', {
-        collectionName: collectionConfig.name,
-        collectionType: collectionConfig.type,
-        collectionSubtype: collectionConfig.subtype,
-        mediaType: collectionConfig.mediaType,
-        template: collectionConfig.template,
-        customMovieTemplate: collectionConfig.customMovieTemplate,
-        customTVTemplate: collectionConfig.customTVTemplate,
+      const response = await axios.post('/api/v1/collections/download-poster', {
+        url: urlInput,
       });
 
       // Refresh poster list
       await refetchPosters();
 
-      // Auto-select the newly generated poster
+      // Auto-select the newly downloaded poster
       onSelect(response.data.filename);
+      setUrlInput(''); // Clear the input
+      setShowUrlInput(false); // Hide the input
       onClose();
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.data?.error) {
         addToast(error.response.data.error, { appearance: 'error' });
       } else {
-        addToast(intl.formatMessage(messages.posterGenerateError), {
+        addToast(intl.formatMessage(messages.posterDownloadError), {
           appearance: 'error',
         });
       }
     } finally {
-      setGenerating(false);
+      setDownloadingFromUrl(false);
     }
   };
+
+  // TODO: Re-enable when needed - this is now handled by autoPoster option
+  // const handleGeneratePoster = async () => {
+  //   if (!collectionConfig?.name) {
+  //     addToast('Collection name is required to generate a poster', {
+  //       appearance: 'error',
+  //     });
+  //     return;
+  //   }
+
+  //   try {
+  //     setGenerating(true);
+
+  //     const response = await axios.post('/api/v1/collections/generate-poster', {
+  //       collectionName: collectionConfig.name,
+  //       collectionType: collectionConfig.type,
+  //       collectionSubtype: collectionConfig.subtype,
+  //       mediaType: collectionConfig.mediaType,
+  //       template: collectionConfig.template,
+  //       customMovieTemplate: collectionConfig.customMovieTemplate,
+  //       customTVTemplate: collectionConfig.customTVTemplate,
+  //     });
+
+  //     // Refresh poster list
+  //     await refetchPosters();
+
+  //     // Auto-select the newly generated poster
+  //     onSelect(response.data.filename);
+  //     onClose();
+  //   } catch (error) {
+  //     if (axios.isAxiosError(error) && error.response?.data?.error) {
+  //       addToast(error.response.data.error, { appearance: 'error' });
+  //     } else {
+  //       addToast(intl.formatMessage(messages.posterGenerateError), {
+  //         appearance: 'error',
+  //       });
+  //     }
+  //   } finally {
+  //     setGenerating(false);
+  //   }
+  // };
 
   const handleDeletePoster = async (
     filename: string,
@@ -356,7 +419,8 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
 
             {/* Action buttons */}
             <div className="space-y-2">
-              {/* Generate Poster Button - Show only if collection config is provided */}
+              {/* Generate Poster Button - Commented out for future use
+              TODO: Re-enable when needed - this is now handled by autoPoster option
               {collectionConfig?.name && (
                 <button
                   type="button"
@@ -383,13 +447,14 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
                   )}
                 </button>
               )}
+              */}
 
-              {/* Upload New Poster Button - Compact */}
+              {/* Upload File Button */}
               <button
                 type="button"
                 className="flex w-full items-center justify-center rounded border border-dashed border-stone-600 px-3 py-2 text-sm text-white transition-colors hover:border-orange-500 disabled:opacity-50"
                 onClick={triggerFileInput}
-                disabled={uploading || generating}
+                disabled={uploading || downloadingFromUrl}
               >
                 {uploading ? (
                   <>
@@ -403,6 +468,62 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Add from URL Button */}
+              <button
+                type="button"
+                className="flex w-full items-center justify-center rounded border border-dashed border-stone-600 px-3 py-2 text-sm text-white transition-colors hover:border-orange-500 disabled:opacity-50"
+                onClick={() => setShowUrlInput(!showUrlInput)}
+                disabled={uploading || downloadingFromUrl}
+              >
+                <svg
+                  className="mr-2 h-4 w-4 text-stone-400"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {showUrlInput
+                  ? 'Cancel'
+                  : intl.formatMessage(messages.addFromUrl)}
+              </button>
+
+              {/* URL Input Field - Only show when requested */}
+              {showUrlInput && (
+                <div className="space-y-2">
+                  <input
+                    type="url"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    placeholder={intl.formatMessage(messages.enterPosterUrl)}
+                    className="w-full rounded border border-stone-600 bg-stone-700 px-3 py-2 text-sm text-white placeholder-stone-400 focus:border-orange-500 focus:outline-none"
+                    disabled={uploading || downloadingFromUrl}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleUrlDownload();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUrlDownload}
+                    disabled={
+                      uploading || downloadingFromUrl || !urlInput.trim()
+                    }
+                    className="w-full rounded bg-orange-600 px-3 py-2 text-sm text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {downloadingFromUrl
+                      ? intl.formatMessage(messages.downloadingPoster)
+                      : 'Download Poster'}
+                  </button>
+                </div>
+              )}
+
               <input
                 ref={fileInputRef}
                 type="file"

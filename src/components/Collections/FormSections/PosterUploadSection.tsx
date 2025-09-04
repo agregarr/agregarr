@@ -217,7 +217,7 @@ const PosterUploadSection = ({
                           <button
                             type="button"
                             onClick={() => handleButtonClick(library.key)}
-                            className="rounded bg-white p-1 text-xs"
+                            className="rounded bg-stone-700 p-1 text-xs text-white hover:bg-stone-600"
                             title="Change"
                           >
                             ✎
@@ -225,7 +225,7 @@ const PosterUploadSection = ({
                           <button
                             type="button"
                             onClick={() => handleRemovePoster(library.key)}
-                            className="rounded bg-white p-1 text-xs text-red-600"
+                            className="rounded bg-stone-700 p-1 text-xs text-red-400 hover:bg-stone-600"
                             title="Remove"
                           >
                             ✕

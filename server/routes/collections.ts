@@ -7,6 +7,7 @@ import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrict
 import collectionsSync from '@server/lib/collectionsSync';
 import type { PosterGenerationConfig } from '@server/lib/posterGeneration';
 import {
+  downloadAndSavePoster,
   generatePoster,
   getPosterUrl,
   initializePosterStorage,
@@ -1870,6 +1871,82 @@ collectionsRoutes.post(
       return res.status(500).json({
         error:
           error instanceof Error ? error.message : 'Failed to generate poster',
+      });
+    }
+  }
+);
+
+/**
+ * Download a poster from a URL and save it
+ * POST /api/v1/collections/download-poster
+ */
+collectionsRoutes.post(
+  '/download-poster',
+  isAuthenticated(),
+  async (req, res) => {
+    try {
+      const { url } = req.body;
+
+      // Validate URL
+      if (!url || typeof url !== 'string' || !url.trim()) {
+        return res.status(400).json({
+          error: 'URL is required and must be a non-empty string',
+        });
+      }
+
+      // Basic URL validation
+      let validUrl: URL;
+      try {
+        validUrl = new URL(url.trim());
+      } catch {
+        return res.status(400).json({
+          error: 'Invalid URL format',
+        });
+      }
+
+      // Security: Only allow HTTP/HTTPS
+      if (!['http:', 'https:'].includes(validUrl.protocol)) {
+        return res.status(400).json({
+          error: 'Only HTTP and HTTPS URLs are allowed',
+        });
+      }
+
+      // Rate limiting check
+      const clientId = req.ip || 'unknown';
+      if (!rateLimiter.isAllowed(clientId)) {
+        return res.status(429).json({
+          error: 'Too many requests. Please try again later.',
+        });
+      }
+
+      logger.info('Downloading poster from URL:', {
+        url: url.trim(),
+        clientId,
+      });
+
+      // Download and save the poster
+      const filename = await downloadAndSavePoster(
+        url.trim(),
+        `Downloaded from: ${validUrl.hostname}`
+      );
+
+      if (!filename) {
+        return res.status(400).json({
+          error:
+            'Failed to download poster. The URL may be invalid, the image may be too large, or the server may be unreachable.',
+        });
+      }
+
+      return res.status(200).json({
+        filename,
+        url: getPosterUrl(filename),
+        message: 'Poster downloaded successfully',
+      });
+    } catch (error) {
+      logger.error('Error downloading poster from URL:', error);
+      return res.status(500).json({
+        error:
+          error instanceof Error ? error.message : 'Failed to download poster',
       });
     }
   }

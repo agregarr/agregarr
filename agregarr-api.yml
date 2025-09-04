@@ -3997,6 +3997,70 @@ paths:
           description: Authentication required
         '500':
           description: Internal server error
+  /collections/download-poster:
+    post:
+      summary: Download a poster from a URL
+      description: Downloads a poster image from a given URL and saves it to the system. Supports JPEG, PNG, and WebP formats with automatic validation and processing.
+      tags:
+        - collection
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: URL of the poster image to download
+                  example: "https://example.com/poster.jpg"
+              required:
+                - url
+      responses:
+        '200':
+          description: Poster downloaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                    example: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                  url:
+                    type: string
+                    example: "/api/v1/collections/poster/f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
+                  message:
+                    type: string
+                    example: "Poster downloaded successfully"
+        '400':
+          description: Bad request - invalid URL, unsupported format, or file too large
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Invalid URL format"
+        '401':
+          description: Authentication required
+        '429':
+          description: Too many requests - rate limit exceeded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Too many requests. Please try again later."
+        '500':
+          description: Internal server error
   /collections/posters:
     get:
       summary: List all stored poster files
