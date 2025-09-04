@@ -19,11 +19,13 @@ interface GlobalSyncStatusResponse {
 interface GlobalSyncStatusProps {
   isStarting?: boolean;
   onSyncStart?: (refreshFn: () => void) => void;
+  onSyncComplete?: () => void;
 }
 
 const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
   isStarting = false,
   onSyncStart,
+  onSyncComplete,
 }) => {
   const { data: syncStatus, mutate } = useSWR<GlobalSyncStatusResponse>(
     '/api/v1/collections/sync/status',
@@ -38,12 +40,29 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
     mutate();
   }, [mutate]);
 
+  // Track previous running state to detect completion
+  const prevRunningRef = React.useRef<boolean>();
+
   // Expose the mutate function to parent via callback
   React.useEffect(() => {
     if (onSyncStart) {
       onSyncStart(refreshSync);
     }
   }, [onSyncStart, refreshSync]);
+
+  // Detect sync completion and trigger callback
+  React.useEffect(() => {
+    const wasRunning = prevRunningRef.current;
+    const isRunning = syncStatus?.running;
+
+    // If sync just completed (was running but now stopped), trigger onSyncComplete
+    if (wasRunning === true && isRunning === false && onSyncComplete) {
+      onSyncComplete();
+    }
+
+    // Update the ref for next comparison
+    prevRunningRef.current = isRunning;
+  }, [syncStatus?.running, onSyncComplete]);
 
   if (!syncStatus) {
     return null;

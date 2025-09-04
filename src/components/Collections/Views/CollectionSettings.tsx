@@ -2223,6 +2223,7 @@ const CollectionSettings = ({
             <GlobalSyncStatus
               isStarting={syncStarting}
               onSyncStart={(refreshFn) => setRefreshSyncStatus(() => refreshFn)}
+              onSyncComplete={revalidateAll}
             />
             <Button
               buttonType="primary"
@@ -2498,6 +2499,7 @@ const CollectionSettings = ({
           <GlobalSyncStatus
             isStarting={syncStarting}
             onSyncStart={(refreshFn) => setRefreshSyncStatus(() => refreshFn)}
+            onSyncComplete={revalidateAll}
           />
           <Button
             buttonType="primary"
