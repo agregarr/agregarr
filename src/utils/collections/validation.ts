@@ -34,6 +34,7 @@ const baseCollectionSchema = {
     .required('Max items is required'),
 
   customPoster: Yup.string().url('Must be a valid URL'),
+  autoPoster: Yup.boolean(),
 };
 
 // Tautulli-specific validation

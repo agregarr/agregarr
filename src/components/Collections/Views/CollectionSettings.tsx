@@ -351,6 +351,7 @@ const CollectionSettings = ({
           ...(collectionConfig.customPoster && {
             customPoster: collectionConfig.customPoster,
           }),
+          autoPoster: collectionConfig.autoPoster ?? true,
           ...(collectionConfig.timeRestriction && {
             timeRestriction: collectionConfig.timeRestriction,
           }),
@@ -481,6 +482,7 @@ const CollectionSettings = ({
           randomizeOrder: config.randomizeOrder,
           timeRestriction: config.timeRestriction,
           customPoster: config.customPoster,
+          autoPoster: config.autoPoster,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
           ...(config.downloadMode && { downloadMode: config.downloadMode }),

@@ -1377,6 +1377,7 @@ const CollectionFormConfigForm = ({
               config.visibilityConfig?.libraryRecommended ?? false,
           },
           customPoster: (config as CollectionFormConfig).customPoster || '',
+          autoPoster: (config as CollectionFormConfig).autoPoster ?? true,
           timeRestriction: config.timeRestriction || {
             alwaysActive: true,
             removeFromPlexWhenInactive: false,
@@ -1478,6 +1479,7 @@ const CollectionFormConfigForm = ({
             maxPositionToProcess: values.enableGrabMissingItems
               ? values.maxPositionToProcess
               : undefined,
+            autoPoster: values.autoPoster,
             // Remove UI-only fields from the final config
             enableGrabMissingItems: undefined,
           };

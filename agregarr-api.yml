@@ -228,6 +228,11 @@ components:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
+        autoPoster:
+          type: boolean
+          description: "Auto-generate poster during sync"
+          example: true
+          nullable: true
         visibilityConfig:
           type: object
           properties:
@@ -534,6 +539,11 @@ components:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
+        autoPoster:
+          type: boolean
+          description: "Auto-generate poster during sync"
+          example: true
+          nullable: true
         visibilityConfig:
           type: object
           properties:
@@ -789,6 +799,11 @@ components:
               example: 
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
+          nullable: true
+        autoPoster:
+          type: boolean
+          description: "Auto-generate poster during sync"
+          example: true
           nullable: true
         visibilityConfig:
           type: object
@@ -1427,6 +1442,11 @@ components:
           description: "Path to custom poster image file"
           example: "/app/config/poster-123.jpg"
           nullable: true
+        autoPoster:
+          type: boolean
+          description: "Auto-generate poster during sync"
+          example: true
+          nullable: true
         missing:
           type: boolean
           description: "True if collection no longer exists in Plex"
@@ -1607,6 +1627,11 @@ components:
               example: 
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
+          nullable: true
+        autoPoster:
+          type: boolean
+          description: "Auto-generate poster during sync"
+          example: true
           nullable: true
         missing:
           type: boolean
@@ -3271,6 +3296,11 @@ components:
         customPoster:
           type: string
           description: "Custom poster filename"
+          nullable: true
+        autoPoster:
+          type: boolean
+          description: "Auto-generate poster during sync"
+          example: true
           nullable: true
       required:
         - id
