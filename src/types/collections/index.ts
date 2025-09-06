@@ -131,6 +131,7 @@ export interface CollectionFormConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'networks'
     | 'hub';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
@@ -216,6 +217,8 @@ export interface CollectionFormConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL
+  // Networks fields
+  readonly networksCountry?: string; // Selected country for Networks collections
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -272,6 +275,7 @@ export interface CollectionConfigCreateRequest {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'networks'
     | 'hub';
   readonly subtype?: string;
   readonly template?: string;
@@ -301,6 +305,7 @@ export interface CollectionConfigCreateRequest {
   readonly tmdbCustomListUrl?: string;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
+  readonly networksCountry?: string;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
   readonly timeRestriction?: {
@@ -364,6 +369,7 @@ export const toCollectionCreateRequest = (
     tmdbCustomListUrl: config.tmdbCustomListUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
+    networksCountry: config.networksCountry,
     reverseOrder: config.reverseOrder,
     randomizeOrder: config.randomizeOrder,
     timeRestriction: config.timeRestriction,
@@ -497,6 +503,7 @@ export type CollectionSourceType =
   | 'tmdb'
   | 'imdb'
   | 'letterboxd'
+  | 'networks'
   | 'hub';
 export type MediaType = 'movie' | 'tv';
 

@@ -2265,4 +2265,92 @@ collectionsRoutes.patch('/:id/demote', isAuthenticated(), async (req, res) => {
   }
 });
 
+/**
+ * Get available countries for Networks collections
+ */
+collectionsRoutes.get('/networks/countries', async (_req, res) => {
+  try {
+    logger.debug('Fetching available countries for Networks collections', {
+      label: 'Collections API',
+    });
+
+    const { default: FlixPatrolAPI } = await import('@server/api/flixpatrol');
+    const flixpatrolClient = new FlixPatrolAPI();
+
+    const countryStrings = await flixpatrolClient.getAvailableCountries();
+
+    // Convert to the format expected by frontend dropdowns
+    const countries = countryStrings.map((country) => ({
+      value: country,
+      label: country.charAt(0).toUpperCase() + country.slice(1), // Capitalize first letter
+    }));
+
+    logger.debug(`Retrieved ${countries.length} countries for Networks`, {
+      label: 'Collections API',
+      count: countries.length,
+    });
+
+    return res.json(countries);
+  } catch (error) {
+    logger.error('Failed to fetch Networks countries:', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to load available countries',
+    });
+  }
+});
+
+/**
+ * Get available platforms for a specific country (on-demand caching)
+ */
+collectionsRoutes.get('/networks/platforms', async (req, res) => {
+  try {
+    const country = req.query.country as string;
+
+    if (!country) {
+      return res.status(400).json({
+        error: 'Country parameter is required',
+      });
+    }
+
+    logger.debug(`Fetching platforms for country: ${country}`, {
+      label: 'Collections API',
+      country,
+    });
+
+    const { default: FlixPatrolAPI } = await import('@server/api/flixpatrol');
+    const flixpatrolClient = new FlixPatrolAPI();
+
+    const platforms = await flixpatrolClient.getAvailablePlatformsForCountry(
+      country
+    );
+
+    logger.debug(`Retrieved ${platforms.length} platforms for ${country}`, {
+      label: 'Collections API',
+      country,
+      count: platforms.length,
+    });
+
+    return res.json(platforms);
+  } catch (error) {
+    logger.error(
+      `Failed to fetch platforms for country ${req.query.country}:`,
+      {
+        label: 'Collections API',
+        country: req.query.country,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    );
+
+    return res.status(500).json({
+      error: `Failed to load platforms for ${
+        req.query.country || 'selected country'
+      }`,
+    });
+  }
+});
+
 export default collectionsRoutes;

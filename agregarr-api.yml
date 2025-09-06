@@ -197,7 +197,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks']
           example: 'overseerr'
         subtype:
           type: string
@@ -508,7 +508,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks']
           example: 'overseerr'
         subtype:
           type: string
@@ -769,7 +769,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks']
           example: 'overseerr'
         subtype:
           type: string
@@ -938,6 +938,11 @@ components:
           type: string
           description: "Custom Letterboxd list URL (e.g., https://letterboxd.com/user/list/list-name/)"
           example: "https://letterboxd.com/user/list/my-list/"
+          nullable: true
+        networksCountry:
+          type: string
+          description: "Selected country for Networks collections (e.g., 'united-states', 'world')"
+          example: "united-states"
           nullable: true
         reverseOrder:
           type: boolean
@@ -3314,6 +3319,38 @@ components:
         - visibilityConfig
         - isActive
 
+    NetworksCountryOption:
+      type: object
+      description: "Country option for Networks collections"
+      properties:
+        value:
+          type: string
+          description: "Country code/identifier"
+          example: "united-states"
+        label:
+          type: string
+          description: "Display name for country"
+          example: "United States"
+      required:
+        - value
+        - label
+
+    NetworksPlatformOption:
+      type: object
+      description: "Platform option for Networks collections"
+      properties:
+        value:
+          type: string
+          description: "Platform identifier for Networks collections"
+          example: "netflix_top_10"
+        label:
+          type: string
+          description: "Display name for platform"
+          example: "Netflix Top 10"
+      required:
+        - value
+        - label
+
   securitySchemes:
     cookieAuth:
       type: apiKey
@@ -4186,6 +4223,74 @@ paths:
                   error:
                     type: string
                     example: "Failed to cleanup missing collections"
+  /collections/networks/countries:
+    get:
+      summary: Get available countries for Networks collections
+      description: Returns all available countries/regions that can be used for Networks streaming platform collections.
+      tags:
+        - collection
+      responses:
+        '200':
+          description: Countries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NetworksCountryOption'
+        '500':
+          description: Failed to fetch countries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to load available countries"
+  /collections/networks/platforms:
+    get:
+      summary: Get available platforms for a country
+      description: Returns all available streaming platforms for the specified country/region.
+      tags:
+        - collection
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Country code to get platforms for
+          example: "united-states"
+      responses:
+        '200':
+          description: Platforms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NetworksPlatformOption'
+        '400':
+          description: Country parameter is required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Country parameter is required"
+        '500':
+          description: Failed to fetch platforms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to load platforms for country"
   /collections/preexisting:
     get:
       summary: Get pre-existing Plex collections

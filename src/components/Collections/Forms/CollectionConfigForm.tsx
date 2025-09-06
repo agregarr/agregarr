@@ -20,6 +20,7 @@ import AutoRequestSection from '@app/components/Collections/FormSections/AutoReq
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
+import NetworksConfigSection from '@app/components/Collections/FormSections/NetworksConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
@@ -1598,6 +1599,17 @@ const CollectionFormConfigForm = ({
                         touched={touched as FormikTouched<CollectionFormConfig>}
                         isVisible={isCollection}
                         getTemplatePresets={getTemplatePresets}
+                      />
+                    )}
+
+                    {/* Networks Config Section - country and platform selection */}
+                    {isCollection && values.type === 'networks' && (
+                      <NetworksConfigSection
+                        values={typedValues as CollectionFormConfig}
+                        setFieldValue={setFieldValue}
+                        errors={errors as FormikErrors<CollectionFormConfig>}
+                        touched={touched as FormikTouched<CollectionFormConfig>}
+                        isVisible={true}
                       />
                     )}
 
