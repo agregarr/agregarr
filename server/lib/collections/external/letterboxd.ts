@@ -578,21 +578,54 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
 
     try {
       // Parse HTML using regex patterns for the actual Letterboxd structure
-      // Look for posteritem numbered-list-item elements
-      const posterItemRegex =
-        /<li[^>]*class="[^"]*posteritem numbered-list-item[^"]*"[^>]*>(.*?)<\/li>/gs;
+      // Use multiple patterns for robustness against CSS class changes
+      const patterns = [
+        // Primary pattern - current structure
+        /<li[^>]*class="[^"]*posteritem[^"]*"[^>]*>(.*?)<\/li>/gs,
+        // Fallback pattern - any li containing film data
+        /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
+      ];
+
       const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /<img[^>]*alt="([^"]+)"/;
 
-      let match;
+      let matches: RegExpMatchArray[] = [];
+      let patternUsed = 0;
+
+      // Try patterns in order until we find matches
+      for (let i = 0; i < patterns.length; i++) {
+        matches = [...html.matchAll(patterns[i])];
+        if (matches.length > 0) {
+          patternUsed = i + 1;
+          logger.debug(
+            `Using pattern ${patternUsed} for Letterboxd parsing (found ${matches.length} matches)`,
+            {
+              label: 'Letterboxd Collections',
+              patternUsed,
+              matchCount: matches.length,
+            }
+          );
+          break;
+        }
+      }
+
+      if (matches.length === 0) {
+        logger.warn(
+          'No matches found with any pattern - Letterboxd structure may have changed',
+          {
+            label: 'Letterboxd Collections',
+            htmlLength: html.length,
+            patternsAttempted: patterns.length,
+          }
+        );
+      }
+
       let count = 0;
 
-      while (
-        (match = posterItemRegex.exec(html)) !== null &&
-        count < maxItems
-      ) {
+      for (const match of matches) {
+        if (count >= maxItems) break;
         const itemHtml = match[1];
 
         // Extract film ID
