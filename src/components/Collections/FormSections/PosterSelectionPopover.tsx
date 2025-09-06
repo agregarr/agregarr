@@ -1,4 +1,10 @@
-import { PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
+import type { PosterEditorData } from '@app/components/PosterEditor';
+import { PosterEditorModal } from '@app/components/PosterEditor';
+import {
+  PencilSquareIcon,
+  PlusIcon,
+  TrashIcon,
+} from '@heroicons/react/24/solid';
 import axios from 'axios';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -7,6 +13,7 @@ import { defineMessages, useIntl } from 'react-intl';
 const messages = defineMessages({
   selectPoster: 'Select Poster',
   uploadNewPoster: 'Upload New Poster',
+  createPoster: 'Create New Poster',
   generatePoster: 'Generate Poster',
   addFromUrl: 'Add from URL',
   enterPosterUrl: 'Enter poster URL',
@@ -64,7 +71,7 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
   currentPoster,
   libraryName,
   addToast,
-  // collectionConfig, // TODO: Re-enable when handleGeneratePoster is restored
+  collectionConfig,
 }) => {
   const intl = useIntl();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,6 +84,7 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
   const [urlInput, setUrlInput] = useState('');
   const [downloadingFromUrl, setDownloadingFromUrl] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -317,6 +325,42 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
     onClose();
   };
 
+  const handleCreatePoster = () => {
+    setIsEditorOpen(true);
+  };
+
+  const handlePosterSave = async (data: {
+    name: string;
+    description?: string;
+    posterData: PosterEditorData;
+  }) => {
+    try {
+      // Save the poster to our saved posters
+      const response = await axios.post('/api/v1/posters/saved', {
+        name: data.name,
+        description: data.description,
+        posterData: data.posterData,
+      });
+
+      const savedPoster = response.data;
+
+      // If the poster was saved with an image, select it automatically
+      if (savedPoster.imagePath) {
+        onSelect(savedPoster.imagePath);
+        addToast(intl.formatMessage(messages.posterUploadSuccess), {
+          appearance: 'success',
+          autoDismiss: true,
+        });
+        onClose();
+      }
+    } catch (error) {
+      addToast(intl.formatMessage(messages.posterUploadError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
@@ -449,6 +493,17 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
               )}
               */}
 
+              {/* Create New Poster Button */}
+              <button
+                type="button"
+                className="flex w-full items-center justify-center rounded border border-dashed border-orange-600 px-3 py-2 text-sm text-white transition-colors hover:border-orange-500 disabled:opacity-50"
+                onClick={handleCreatePoster}
+                disabled={uploading || downloadingFromUrl}
+              >
+                <PencilSquareIcon className="mr-2 h-4 w-4 text-orange-400" />
+                {intl.formatMessage(messages.createPoster)}
+              </button>
+
               {/* Upload File Button */}
               <button
                 type="button"
@@ -535,6 +590,19 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
           </div>
         )}
       </div>
+
+      {/* Poster Editor Modal */}
+      <PosterEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        mode="create-poster"
+        onSave={handlePosterSave}
+        previewCollectionConfig={{
+          name: collectionConfig?.name || 'Collection',
+          type: collectionConfig?.type,
+          mediaType: collectionConfig?.mediaType || 'movie',
+        }}
+      />
     </div>
   );
 };

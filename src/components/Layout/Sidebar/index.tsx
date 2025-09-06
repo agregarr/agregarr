@@ -7,6 +7,7 @@ import {
   ChartBarIcon,
   CogIcon,
   HomeIcon,
+  PhotoIcon,
   QueueListIcon,
   RectangleStackIcon,
   StarIcon,
@@ -23,6 +24,7 @@ export const menuMessages = defineMessages({
   recommended: 'Recommended',
   library: 'Library',
   allcollections: 'All Collections',
+  posters: 'Posters',
   settings: 'Settings',
 });
 
@@ -82,6 +84,13 @@ const SidebarLinks: SidebarLinkProps[] = [
     svgIcon: <QueueListIcon className="mr-3 h-6 w-6" />,
     activeRegExp: /^\/allcollections$/,
     dataTestId: 'sidebar-menu-allcollections',
+  },
+  {
+    href: '/posters',
+    messagesKey: 'posters',
+    svgIcon: <PhotoIcon className="mr-3 h-6 w-6" />,
+    activeRegExp: /^\/posters$/,
+    dataTestId: 'sidebar-menu-posters',
   },
   {
     href: '/settings',

@@ -66,6 +66,15 @@ app
       logger.error('Failed to initialize poster storage:', error);
     }
 
+    // Initialize icon storage directory
+    try {
+      const { initializeIconStorage } = await import('@server/lib/iconManager');
+      await initializeIconStorage();
+      logger.info('Icon storage initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize icon storage:', error);
+    }
+
     // Migrate library types
     if (
       settings.plex.libraries.length > 1 &&
@@ -175,7 +184,7 @@ app
 
     // Direct static file serving for posters
     server.use(
-      '/posters',
+      '/poster-files',
       express.static(path.join(process.cwd(), 'config', 'posters'), {
         maxAge: '1y', // Cache for 1 year since filenames are UUIDs
         setHeaders: (res, filePath) => {
@@ -229,14 +238,12 @@ app
             );
             return res
               .status(200)
-              .json({ filename, url: `/posters/${filename}` });
+              .json({ filename, url: `/poster-files/${filename}` });
           } catch (error) {
             logger.error('Error saving poster:', error);
-            return res
-              .status(400)
-              .json({
-                error: error instanceof Error ? error.message : 'Save failed',
-              });
+            return res.status(400).json({
+              error: error instanceof Error ? error.message : 'Save failed',
+            });
           }
         });
       } catch (error) {

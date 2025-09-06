@@ -40,6 +40,8 @@ tags:
     description: Endpoints related to missing item request tracking and management.
   - name: dashboard
     description: Endpoints related to dashboard statistics and analytics.
+  - name: posters
+    description: Endpoints related to poster template management, saved posters, and icon assets.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -7425,6 +7427,841 @@ paths:
                         type: boolean
         '500':
           description: Failed to get hub management status
+
+  # Poster Management Endpoints
+  /posters/templates:
+    get:
+      summary: Get all poster templates
+      description: Retrieves all active poster templates with their metadata and configuration.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: "Classic Movie Poster"
+                        description:
+                          type: string
+                          example: "A classic movie poster template with text overlays"
+                        isDefault:
+                          type: boolean
+                          example: false
+                        templateData:
+                          type: object
+                          properties:
+                            width:
+                              type: number
+                              example: 500
+                            height:
+                              type: number
+                              example: 750
+                            background:
+                              type: object
+                              properties:
+                                type:
+                                  type: string
+                                  enum: [color, gradient]
+                                  example: "gradient"
+                                color:
+                                  type: string
+                                  example: "#6366f1"
+                                secondaryColor:
+                                  type: string
+                                  example: "#1e1b4b"
+                            textElements:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "text-1"
+                                  type:
+                                    type: string
+                                    example: "collection-title"
+                                  text:
+                                    type: string
+                                    example: "Collection Name"
+                                  x:
+                                    type: number
+                                    example: 50
+                                  y:
+                                    type: number
+                                    example: 100
+                                  width:
+                                    type: number
+                                    example: 400
+                                  height:
+                                    type: number
+                                    example: 60
+                                  fontSize:
+                                    type: number
+                                    example: 32
+                                  fontFamily:
+                                    type: string
+                                    example: "Arial, sans-serif"
+                                  fontWeight:
+                                    type: string
+                                    enum: [normal, bold]
+                                    example: "bold"
+                                  fontStyle:
+                                    type: string
+                                    enum: [normal, italic]
+                                    example: "normal"
+                                  color:
+                                    type: string
+                                    example: "#ffffff"
+                                  textAlign:
+                                    type: string
+                                    enum: [left, center, right]
+                                    example: "center"
+                                  maxLines:
+                                    type: number
+                                    example: 2
+                            iconElements:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "icon-1"
+                                  type:
+                                    type: string
+                                    enum: [service-logo, custom-icon]
+                                    example: "service-logo"
+                                  iconPath:
+                                    type: string
+                                    example: "/icons/tmdb-logo.svg"
+                                  x:
+                                    type: number
+                                    example: 25
+                                  y:
+                                    type: number
+                                    example: 25
+                                  width:
+                                    type: number
+                                    example: 50
+                                  height:
+                                    type: number
+                                    example: 50
+                                  grayscale:
+                                    type: boolean
+                                    example: false
+                            contentGrid:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  example: "grid-1"
+                                x:
+                                  type: number
+                                  example: 50
+                                y:
+                                  type: number
+                                  example: 200
+                                width:
+                                  type: number
+                                  example: 400
+                                height:
+                                  type: number
+                                  example: 400
+                                columns:
+                                  type: number
+                                  example: 3
+                                rows:
+                                  type: number
+                                  example: 3
+                                spacing:
+                                  type: number
+                                  example: 10
+                                cornerRadius:
+                                  type: number
+                                  example: 8
+                        createdBy:
+                          type: object
+                          nullable: true
+                          properties:
+                            id:
+                              type: integer
+                              example: 1
+                            displayName:
+                              type: string
+                              example: "John Doe"
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        '500':
+          description: Failed to fetch poster templates
+    post:
+      summary: Create new poster template
+      description: Creates a new poster template with the provided configuration.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - templateData
+              properties:
+                name:
+                  type: string
+                  example: "My Custom Template"
+                description:
+                  type: string
+                  example: "A custom poster template"
+                templateData:
+                  type: object
+                  description: "Template configuration data (same structure as in GET response)"
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Same structure as template object in GET response"
+        '400':
+          description: Invalid template data or validation failed
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to create poster template
+
+  /posters/templates/{id}:
+    put:
+      summary: Update poster template
+      description: Updates an existing poster template. Users can only update their own templates.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                templateData:
+                  type: object
+      responses:
+        '200':
+          description: Template updated successfully
+        '400':
+          description: Invalid template data
+        '401':
+          description: Authentication required
+        '403':
+          description: Permission denied
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to update poster template
+    delete:
+      summary: Delete poster template
+      description: Soft deletes a poster template. Users can only delete their own templates. Default templates cannot be deleted.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+      responses:
+        '204':
+          description: Template deleted successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Permission denied or cannot delete default template
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to delete poster template
+
+  /posters/templates/{id}/preview:
+    get:
+      summary: Generate template preview
+      description: Generates a preview image of a poster template with optional collection data.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+        - name: collectionName
+          in: query
+          schema:
+            type: string
+            default: "Preview Collection"
+          description: Collection name to use in preview
+        - name: collectionType
+          in: query
+          schema:
+            type: string
+          description: Collection type
+        - name: mediaType
+          in: query
+          schema:
+            type: string
+            enum: [movie, tv]
+            default: movie
+          description: Media type
+      responses:
+        '200':
+          description: Preview image generated successfully
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid template ID or failed to generate preview
+        '500':
+          description: Failed to generate template preview
+
+  /posters/templates/validate:
+    post:
+      summary: Validate template data
+      description: Validates poster template data structure and returns sanitized data if valid.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - templateData
+              properties:
+                templateData:
+                  type: object
+                  description: "Template data to validate"
+      responses:
+        '200':
+          description: Validation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isValid:
+                    type: boolean
+                    example: true
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+                  sanitizedData:
+                    type: object
+                    description: "Sanitized template data (only present if isValid is true)"
+        '400':
+          description: Template data is required
+        '500':
+          description: Failed to validate template data
+
+  /posters/saved:
+    get:
+      summary: Get saved posters
+      description: Retrieves all saved posters for the authenticated user.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Saved posters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: "My Custom Poster"
+                        description:
+                          type: string
+                          example: "A custom poster for my collection"
+                        filename:
+                          type: string
+                          example: "poster-abc123.jpg"
+                        thumbnailFilename:
+                          type: string
+                          example: "thumb-abc123.jpg"
+                        posterData:
+                          type: object
+                          description: "Poster configuration data"
+                        createdBy:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                            displayName:
+                              type: string
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to fetch saved posters
+    post:
+      summary: Create saved poster
+      description: Creates a new saved poster with the provided data.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - posterData
+              properties:
+                name:
+                  type: string
+                  example: "My Saved Poster"
+                description:
+                  type: string
+                  example: "Description of my poster"
+                posterData:
+                  type: object
+                  description: "Poster configuration data"
+                filename:
+                  type: string
+                  example: "poster-abc123.jpg"
+                thumbnailFilename:
+                  type: string
+                  example: "thumb-abc123.jpg"
+      responses:
+        '201':
+          description: Saved poster created successfully
+        '400':
+          description: Poster name and data are required
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to create saved poster
+
+  /posters/saved/{id}:
+    put:
+      summary: Update saved poster
+      description: Updates an existing saved poster. Users can only update their own posters.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Poster ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                posterData:
+                  type: object
+                filename:
+                  type: string
+                thumbnailFilename:
+                  type: string
+      responses:
+        '200':
+          description: Saved poster updated successfully
+        '401':
+          description: Authentication required
+        '404':
+          description: Poster not found
+        '500':
+          description: Failed to update saved poster
+    delete:
+      summary: Delete saved poster
+      description: Soft deletes a saved poster. Users can only delete their own posters.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Poster ID
+      responses:
+        '204':
+          description: Saved poster deleted successfully
+        '401':
+          description: Authentication required
+        '404':
+          description: Poster not found
+        '500':
+          description: Failed to delete saved poster
+
+  /posters/icons/upload:
+    post:
+      summary: Upload icon/asset
+      description: Uploads an icon or asset file for use in poster templates.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - icon
+              properties:
+                icon:
+                  type: string
+                  format: binary
+                  description: "Icon file (JPEG, PNG, WebP, SVG, max 10MB)"
+                name:
+                  type: string
+                  description: "Name for the icon"
+                category:
+                  type: string
+                  description: "Category for the icon"
+                tags:
+                  type: string
+                  description: "Comma-separated tags"
+                description:
+                  type: string
+                  description: "Description of the icon"
+      responses:
+        '201':
+          description: Icon uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  icon:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      filename:
+                        type: string
+                      category:
+                        type: string
+                      tags:
+                        type: array
+                        items:
+                          type: string
+                      description:
+                        type: string
+        '400':
+          description: No file uploaded or invalid file type
+        '500':
+          description: Failed to upload icon
+
+  /posters/icons/download:
+    post:
+      summary: Download icon from URL
+      description: Downloads an icon from a URL and saves it to the system.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  example: "https://example.com/icon.png"
+                name:
+                  type: string
+                category:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Icon downloaded successfully
+        '400':
+          description: URL is required or download failed
+        '500':
+          description: Failed to download icon
+
+  /posters/icons:
+    get:
+      summary: List available icons
+      description: Retrieves a list of available icons with optional filtering.
+      tags:
+        - posters
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [user, system]
+          description: Filter by icon type
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by category
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by tags
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in name and description
+      responses:
+        '200':
+          description: Icons retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  icons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        filename:
+                          type: string
+                        category:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                        description:
+                          type: string
+                        type:
+                          type: string
+                          enum: [user, system]
+        '500':
+          description: Failed to list icons
+
+  /posters/icons/categories:
+    get:
+      summary: List icon categories
+      description: Retrieves all available icon categories with statistics.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        displayName:
+                          type: string
+                        description:
+                          type: string
+                        iconCount:
+                          type: integer
+        '500':
+          description: Failed to list icon categories
+
+  /posters/icons/{id}:
+    delete:
+      summary: Delete icon
+      description: Deletes an icon by ID.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Icon ID
+      responses:
+        '204':
+          description: Icon deleted successfully
+        '400':
+          description: Icon ID is required
+        '404':
+          description: Icon not found
+        '500':
+          description: Failed to delete icon
+
+  /posters/files/{filename}:
+    get:
+      summary: Serve poster files
+      description: Serves poster image files by filename.
+      tags:
+        - posters
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Poster filename
+      responses:
+        '200':
+          description: Poster image served successfully
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Filename is required
+        '404':
+          description: Poster file not found
+        '500':
+          description: Failed to serve poster file
+
+  /posters/thumbnails/{filename}:
+    get:
+      summary: Serve thumbnail files
+      description: Serves poster thumbnail files by filename.
+      tags:
+        - posters
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Thumbnail filename
+      responses:
+        '200':
+          description: Thumbnail image served successfully
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Filename is required
+        '404':
+          description: Thumbnail not found
+        '500':
+          description: Failed to serve thumbnail file
+
+  /posters/icons/{type}/{filename}:
+    get:
+      summary: Serve icon files
+      description: Serves icon files by type and filename.
+      tags:
+        - posters
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [user, system]
+          description: Icon type
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Icon filename
+      responses:
+        '200':
+          description: Icon file served successfully
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid icon type or filename required
+        '404':
+          description: Icon file not found
+        '500':
+          description: Failed to serve icon file
 
 security:
   - cookieAuth: []

@@ -24,6 +24,7 @@ import discoveryRoutes from './discovery';
 import hubsRoutes from './hubs';
 import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
+import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import reorderRoutes from './reorder';
 
@@ -137,6 +138,7 @@ router.use('/collections', isAuthenticated(), collectionsRoutes);
 router.use('/defaulthubs', isAuthenticated(), defaultHubsRoutes);
 router.use('/discovery', isAuthenticated(), discoveryRoutes);
 router.use('/hubs', isAuthenticated(), hubsRoutes);
+router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);

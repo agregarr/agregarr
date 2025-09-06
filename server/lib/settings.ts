@@ -89,6 +89,7 @@ export interface CollectionConfig {
   // Poster settings
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
+  readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)

@@ -1,0 +1,137 @@
+[
+  {
+    "id": "system-imdb",
+    "name": "imdb",
+    "filename": "imdb.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "imdb"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 1720,
+    "uploadedAt": "2025-09-05T11:33:10.664Z",
+    "description": "imdb service logo"
+  },
+  {
+    "id": "system-letterboxd",
+    "name": "letterboxd",
+    "filename": "letterboxd.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "letterboxd"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 2483,
+    "uploadedAt": "2025-09-05T11:33:10.667Z",
+    "description": "letterboxd service logo"
+  },
+  {
+    "id": "system-overseerr",
+    "name": "overseerr",
+    "filename": "overseerr.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "overseerr"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 1650,
+    "uploadedAt": "2025-09-05T11:33:10.669Z",
+    "description": "overseerr service logo"
+  },
+  {
+    "id": "system-plex",
+    "name": "plex",
+    "filename": "plex.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "plex"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 2935,
+    "uploadedAt": "2025-09-05T11:33:10.671Z",
+    "description": "plex service logo"
+  },
+  {
+    "id": "system-radarr",
+    "name": "radarr",
+    "filename": "radarr.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "radarr"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 737,
+    "uploadedAt": "2025-09-05T11:33:10.676Z",
+    "description": "radarr service logo"
+  },
+  {
+    "id": "system-sonarr",
+    "name": "sonarr",
+    "filename": "sonarr.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "sonarr"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 2299,
+    "uploadedAt": "2025-09-05T11:33:10.678Z",
+    "description": "sonarr service logo"
+  },
+  {
+    "id": "system-tautulli",
+    "name": "tautulli",
+    "filename": "tautulli.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "tautulli"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 2032,
+    "uploadedAt": "2025-09-05T11:33:10.681Z",
+    "description": "tautulli service logo"
+  },
+  {
+    "id": "system-tmdb",
+    "name": "tmdb",
+    "filename": "tmdb.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "tmdb"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 2400,
+    "uploadedAt": "2025-09-05T11:33:10.682Z",
+    "description": "tmdb service logo"
+  },
+  {
+    "id": "system-trakt",
+    "name": "trakt",
+    "filename": "trakt.svg",
+    "type": "system",
+    "category": "services",
+    "tags": [
+      "service",
+      "trakt"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 957,
+    "uploadedAt": "2025-09-05T11:33:10.684Z",
+    "description": "trakt service logo"
+  }
+]

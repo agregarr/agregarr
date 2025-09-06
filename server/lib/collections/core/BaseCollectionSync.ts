@@ -1635,6 +1635,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           collectionSubtype: config.subtype,
           mediaType,
           items: posterItems,
+          autoPosterTemplate: config.autoPosterTemplate,
         },
         `Auto-generated: ${collectionName}`,
         collectionIdentifier

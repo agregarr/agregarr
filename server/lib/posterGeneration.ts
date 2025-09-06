@@ -1,9 +1,12 @@
 import TheMovieDb from '@server/api/themoviedb';
+import type { PosterTemplateData } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { applyTemplate } from './posterTemplates';
+import { DEFAULT_SOURCE_COLORS } from './sourceColors';
 
 export interface PosterGenerationConfig {
   collectionName: string;
@@ -12,6 +15,8 @@ export interface PosterGenerationConfig {
   mediaType?: 'movie' | 'tv';
   template?: string;
   items?: CollectionItemWithPoster[];
+  autoPosterTemplate?: number | null; // Template ID for auto-generated posters
+  templateData?: PosterTemplateData; // Template data for customized colors and layout
 }
 
 export interface CollectionItemWithPoster {
@@ -28,58 +33,6 @@ export interface ColorScheme {
   textColor: string;
   accentColor: string;
 }
-
-// Color schemes based on collection types
-const COLOR_SCHEMES: Record<string, ColorScheme> = {
-  trakt: {
-    primaryColor: '#ed2224',
-    secondaryColor: '#1f1a1a', // Consistent gentle dark with red tint
-    textColor: '#ffffff',
-    accentColor: '#ff4444',
-  },
-  tmdb: {
-    primaryColor: '#01b4e4',
-    secondaryColor: '#0d253f', // Already good - gentle dark blue
-    textColor: '#ffffff',
-    accentColor: '#90cea1',
-  },
-  imdb: {
-    primaryColor: '#f5c518',
-    secondaryColor: '#1f1c0d', // Changed from pure black to gentle dark with yellow tint
-    textColor: '#ffffff', // Changed to white for better contrast
-    accentColor: '#f5c518',
-  },
-  letterboxd: {
-    primaryColor: '#2c3440',
-    secondaryColor: '#1a1f24', // Slightly adjusted for consistency
-    textColor: '#ffffff',
-    accentColor: '#00e054',
-  },
-  tautulli: {
-    primaryColor: '#cc7b19',
-    secondaryColor: '#1f1a15', // Consistent gentle dark with orange tint
-    textColor: '#ffffff',
-    accentColor: '#ff9933',
-  },
-  overseerr: {
-    primaryColor: '#5a5ce6',
-    secondaryColor: '#1a1a2e', // Already good - gentle dark purple
-    textColor: '#ffffff',
-    accentColor: '#7b7dff',
-  },
-  hub: {
-    primaryColor: '#e5a00d',
-    secondaryColor: '#1f1c15', // Consistent gentle dark with yellow tint
-    textColor: '#ffffff',
-    accentColor: '#ffc107',
-  },
-  default: {
-    primaryColor: '#6366f1',
-    secondaryColor: '#1e1b4b', // Already good - gentle dark indigo
-    textColor: '#ffffff',
-    accentColor: '#818cf8',
-  },
-};
 
 const POSTER_WIDTH = 500;
 const POSTER_HEIGHT = 750;
@@ -102,11 +55,28 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
 };
 
 /**
- * Get color scheme for a collection type
+ * Get color scheme for a collection type, with optional template customization
  */
-function getColorScheme(collectionType?: string): ColorScheme {
-  if (!collectionType) return COLOR_SCHEMES.default;
-  return COLOR_SCHEMES[collectionType.toLowerCase()] || COLOR_SCHEMES.default;
+function getColorScheme(
+  collectionType?: string,
+  templateData?: PosterTemplateData
+): ColorScheme {
+  // If template has source colors enabled and custom colors are defined, use them
+  if (
+    templateData?.background?.useSourceColors &&
+    templateData.background.sourceColors &&
+    collectionType &&
+    templateData.background.sourceColors[collectionType.toLowerCase()]
+  ) {
+    return templateData.background.sourceColors[collectionType.toLowerCase()];
+  }
+
+  // Fall back to default color scheme
+  if (!collectionType) return DEFAULT_SOURCE_COLORS.default;
+  return (
+    DEFAULT_SOURCE_COLORS[collectionType.toLowerCase()] ||
+    DEFAULT_SOURCE_COLORS.default
+  );
 }
 
 /**
@@ -623,7 +593,10 @@ function createPosterGrid(
 async function generatePosterSVG(
   config: PosterGenerationConfig
 ): Promise<string> {
-  const colorScheme = getColorScheme(config.collectionType);
+  const colorScheme = getColorScheme(
+    config.collectionType,
+    config.templateData
+  );
   const { collectionName, collectionType, items = [] } = config;
 
   // Fixed layout sections with consistent proportions
@@ -784,9 +757,41 @@ export async function generatePosterBuffer(
       type: config.collectionType,
       subtype: config.collectionSubtype,
       mediaType: config.mediaType,
+      templateId: config.autoPosterTemplate,
     });
 
-    // Generate SVG content
+    // If a template ID is specified, use the template system
+    if (config.autoPosterTemplate) {
+      try {
+        const buffer = await applyTemplate(config.autoPosterTemplate, {
+          collectionName: config.collectionName,
+          collectionType: config.collectionType || 'custom',
+          mediaType: config.mediaType || 'movie',
+        });
+
+        logger.info('Poster generated successfully using template', {
+          name: config.collectionName,
+          templateId: config.autoPosterTemplate,
+          bufferSize: buffer.length,
+        });
+
+        return buffer;
+      } catch (templateError) {
+        logger.warn(
+          'Failed to generate poster using template, falling back to default',
+          {
+            templateId: config.autoPosterTemplate,
+            error:
+              templateError instanceof Error
+                ? templateError.message
+                : String(templateError),
+          }
+        );
+        // Fall through to default generation
+      }
+    }
+
+    // Default generation using existing SVG system
     const svgContent = await generatePosterSVG(config);
 
     // Convert SVG to PNG using Sharp
@@ -794,7 +799,7 @@ export async function generatePosterBuffer(
       .png({ quality: 90 })
       .toBuffer();
 
-    logger.info('Poster generated successfully', {
+    logger.info('Poster generated successfully using default design', {
       name: config.collectionName,
       bufferSize: buffer.length,
     });
