@@ -452,7 +452,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                 setIsTesting(true);
                 await axios.post('/api/v1/overseerr/test', {
                   hostname: values.overseerrHostname,
-                  port: values.overseerrPort,
+                  port: Number(values.overseerrPort),
                   apiKey: values.overseerrApiKey,
                   useSsl: values.overseerrUseSsl,
                   urlBase: values.overseerrUrlBase,

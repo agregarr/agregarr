@@ -224,7 +224,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -535,7 +535,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -796,7 +796,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -1624,7 +1624,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -5293,7 +5293,6 @@ paths:
                 - hostname
                 - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: 'Connection test successful'
@@ -5441,7 +5440,6 @@ paths:
                 - hostname
                 - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: 'Connection test successful'
