@@ -45,9 +45,9 @@ const LibraryCheckboxDropdown = ({
       ? newSelectedOptions.map((option) => option.value)
       : [];
 
-    // If "All Libraries" is selected, only keep that selection
+    // If "All Libraries" is selected, expand to all individual library IDs
     if (values.includes('all')) {
-      values = ['all'];
+      values = allLibraries.map((lib) => lib.key);
     }
 
     onSelectionChange(values);
