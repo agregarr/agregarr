@@ -51,6 +51,7 @@ const CollectionTypeSection = ({
     { value: 'letterboxd', label: 'Letterboxd Lists' },
     { value: 'tmdb', label: 'TMDb Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
+    { value: 'networks', label: 'Networks' },
   ];
 
   const getSubtypeOptions = (type: string): SubtypeOption[] => {
@@ -148,6 +149,8 @@ const CollectionTypeSection = ({
         ];
       case 'letterboxd':
         return [{ value: 'custom', label: 'Custom List' }];
+      case 'networks':
+        return []; // Will be populated dynamically based on selected country
       default:
         return [];
     }

@@ -562,6 +562,20 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'networks':
+                        // Format platform names like "netflix_top_10" -> "Netflix"
+                        // and "neon-tv" -> "Neon TV"
+                        return subtype
+                          .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
+                          .split('-') // Split on dashes
+                          .map((word) => {
+                            // Special case for TV to maintain proper capitalization
+                            if (word.toLowerCase() === 'tv') {
+                              return 'TV';
+                            }
+                            return word.charAt(0).toUpperCase() + word.slice(1);
+                          })
+                          .join(' ');
                       default:
                         return subtype;
                     }
@@ -580,6 +594,8 @@ const SortableItem = ({
                       ? 'Tautulli'
                       : collection.type === 'overseerr'
                       ? 'Overseerr'
+                      : collection.type === 'networks'
+                      ? 'Networks'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(

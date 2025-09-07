@@ -364,6 +364,10 @@ export class CollectionSyncService {
         );
         return new LetterboxdCollectionSync();
       }
+      case 'networks': {
+        const { NetworksCollectionSync } = await import('../external/networks');
+        return new NetworksCollectionSync();
+      }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
           '../external/overseerrSync'

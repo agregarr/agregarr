@@ -135,7 +135,8 @@ export type CollectionSource =
   | 'trakt'
   | 'tmdb'
   | 'imdb'
-  | 'letterboxd';
+  | 'letterboxd'
+  | 'networks';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -329,6 +330,13 @@ export interface LetterboxdTemplateContext extends TemplateContext {
   listName: string;
 }
 
+export interface NetworksTemplateContext extends TemplateContext {
+  /** Streaming platform */
+  platform?: string;
+  /** Network-specific stat type */
+  statType?: 'top_10';
+}
+
 /**
  * Union type for all possible template contexts
  */
@@ -338,7 +346,8 @@ export type SourceTemplateContext =
   | OverseerrTemplateContext
   | TmdbTemplateContext
   | ImdbTemplateContext
-  | LetterboxdTemplateContext;
+  | LetterboxdTemplateContext
+  | NetworksTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types
@@ -429,6 +438,19 @@ export interface LetterboxdSourceData {
   mediaType: 'movie';
 }
 
+export interface NetworksSourceData {
+  rank: number;
+  title: string;
+  points?: string;
+  flixpatrolUrl?: string;
+  type: 'movie' | 'tv';
+  platform: string;
+  platformLogo?: {
+    spriteUrl: string;
+    position: string;
+  };
+}
+
 /**
  * Union type for all possible source data
  */
@@ -438,7 +460,8 @@ export type CollectionSourceData =
   | OverseerrSourceData
   | TmdbSourceData
   | ImdbSourceData
-  | LetterboxdSourceData;
+  | LetterboxdSourceData
+  | NetworksSourceData;
 
 /**
  * Error types that can occur during collection sync

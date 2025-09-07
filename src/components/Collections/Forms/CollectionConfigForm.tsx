@@ -20,6 +20,7 @@ import AutoRequestSection from '@app/components/Collections/FormSections/AutoReq
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
+import NetworksConfigSection from '@app/components/Collections/FormSections/NetworksConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
@@ -1270,6 +1271,67 @@ const CollectionFormConfigForm = ({
       }
     }
 
+    // Networks collection presets
+    if (values.type === 'networks') {
+      if (values.subtype) {
+        // Get platform name from subtype for display
+        // Handle cases like "netflix_top_10" -> "Netflix"
+        // and "disney-plus" -> "Disney Plus"
+        const platformName = values.subtype
+          .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
+          .split('-') // Split on dashes
+          .map((word) => {
+            // Special case for TV to maintain proper capitalization
+            if (word.toLowerCase() === 'tv') {
+              return 'TV';
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          })
+          .join(' ');
+
+        return [
+          {
+            label: `Top 10 {mediaType}s on ${platformName}`,
+            value: `Top 10 {mediaType}s on ${platformName}`,
+          },
+          {
+            label: `Popular on ${platformName}`,
+            value: `Popular on ${platformName}`,
+          },
+          {
+            label: `${platformName} Top 10 {mediaType}s`,
+            value: `${platformName} Top 10 {mediaType}s`,
+          },
+          {
+            label: `${platformName} Top {mediaType}s`,
+            value: `${platformName} Top {mediaType}s`,
+          },
+          {
+            label: `Top {mediaType}s on ${platformName}`,
+            value: `Top {mediaType}s on ${platformName}`,
+          },
+          {
+            label: `${platformName} Trending {mediaType}s`,
+            value: `${platformName} Trending {mediaType}s`,
+          },
+          {
+            label: `Best of ${platformName}`,
+            value: `Best of ${platformName}`,
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      } else {
+        // No platform selected yet
+        return [
+          {
+            label: 'Select a Platform First',
+            value: 'select-platform',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      }
+    }
+
     // Fallback for unknown types
     return [
       {
@@ -1597,6 +1659,18 @@ const CollectionFormConfigForm = ({
                         errors={errors as FormikErrors<CollectionFormConfig>}
                         touched={touched as FormikTouched<CollectionFormConfig>}
                         isVisible={isCollection}
+                        getTemplatePresets={getTemplatePresets}
+                      />
+                    )}
+
+                    {/* Networks Config Section - country and platform selection */}
+                    {isCollection && values.type === 'networks' && (
+                      <NetworksConfigSection
+                        values={typedValues as CollectionFormConfig}
+                        setFieldValue={setFieldValue}
+                        errors={errors as FormikErrors<CollectionFormConfig>}
+                        touched={touched as FormikTouched<CollectionFormConfig>}
+                        isVisible={true}
                         getTemplatePresets={getTemplatePresets}
                       />
                     )}

@@ -28,7 +28,8 @@ export interface CollectionConfig {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
-    | 'letterboxd';
+    | 'letterboxd'
+    | 'networks';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string;
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
@@ -83,6 +84,8 @@ export interface CollectionConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)
+  // Networks (FlixPatrol) fields
+  readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)

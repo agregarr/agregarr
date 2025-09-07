@@ -12,6 +12,7 @@ export interface PosterGenerationConfig {
   mediaType?: 'movie' | 'tv';
   template?: string;
   items?: CollectionItemWithPoster[];
+  dynamicLogo?: string; // Path to dynamic logo file
 }
 
 export interface CollectionItemWithPoster {
@@ -73,6 +74,67 @@ const COLOR_SCHEMES: Record<string, ColorScheme> = {
     textColor: '#ffffff',
     accentColor: '#ffc107',
   },
+  // Streaming Platform Color Schemes
+  netflix: {
+    primaryColor: '#e50914',
+    secondaryColor: '#1a0c0d',
+    textColor: '#ffffff',
+    accentColor: '#ff1e2d',
+  },
+  hbo: {
+    primaryColor: '#9146ff',
+    secondaryColor: '#1a1625',
+    textColor: '#ffffff',
+    accentColor: '#a970ff',
+  },
+  disney: {
+    primaryColor: '#113ccf',
+    secondaryColor: '#0d1a24',
+    textColor: '#ffffff',
+    accentColor: '#4d7cff',
+  },
+  'amazon-prime': {
+    primaryColor: '#00a8e1',
+    secondaryColor: '#0d1a21',
+    textColor: '#ffffff',
+    accentColor: '#33b5e5',
+  },
+  'apple-tv': {
+    primaryColor: '#1d1d1f',
+    secondaryColor: '#161617',
+    textColor: '#ffffff',
+    accentColor: '#6e6e73',
+  },
+  paramount: {
+    primaryColor: '#0064ff',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+    accentColor: '#337aff',
+  },
+  peacock: {
+    primaryColor: '#005da0',
+    secondaryColor: '#0d1920',
+    textColor: '#ffffff',
+    accentColor: '#0074cc',
+  },
+  crunchyroll: {
+    primaryColor: '#ff6c00',
+    secondaryColor: '#1f1512',
+    textColor: '#ffffff',
+    accentColor: '#ff8533',
+  },
+  'discovery-plus': {
+    primaryColor: '#005aff',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+    accentColor: '#3371ff',
+  },
+  hulu: {
+    primaryColor: '#1ce783',
+    secondaryColor: '#0d1f16',
+    textColor: '#ffffff',
+    accentColor: '#4deb96',
+  },
   default: {
     primaryColor: '#6366f1',
     secondaryColor: '#1e1b4b', // Already good - gentle dark indigo
@@ -99,6 +161,17 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',
   plex: 'plex.svg',
+  // Streaming Platform Logo Mappings
+  netflix: 'netflix.svg',
+  hbo: 'hbo.svg',
+  disney: 'disney.svg',
+  'amazon-prime': 'amazon-prime.svg',
+  'apple-tv': 'apple-tv.svg',
+  paramount: 'paramount.svg',
+  peacock: 'peacock.svg',
+  crunchyroll: 'crunchyroll.svg',
+  'discovery-plus': 'discovery-plus.svg',
+  hulu: 'hulu.svg',
 };
 
 /**
@@ -663,6 +736,7 @@ async function generatePosterSVG(
   // Load service logo with improved positioning
   let logoContent = '';
   if (collectionType && collectionType !== 'hub') {
+    // Try static logo first for better quality when available
     const logoSvg = await loadServiceLogo(collectionType);
     if (logoSvg) {
       logoContent = embedServiceLogo(
@@ -671,7 +745,37 @@ async function generatePosterSVG(
         logoY,
         LOGO_SIZE
       );
-    } else {
+      logger.debug(`Using static logo for: ${collectionType}`);
+    }
+
+    // Fallback to dynamic logo if no static logo available
+    if (
+      !logoContent &&
+      config.dynamicLogo &&
+      fs.existsSync(config.dynamicLogo)
+    ) {
+      try {
+        // Convert dynamic logo (PNG) to SVG embedding
+        const logoBuffer = await fs.promises.readFile(config.dynamicLogo);
+        const base64Logo = logoBuffer.toString('base64');
+        logoContent = `
+          <g transform="translate(${POSTER_WIDTH / 2}, ${logoY})">
+            <image href="data:image/png;base64,${base64Logo}" width="${LOGO_SIZE}" height="${LOGO_SIZE}" x="-${
+          LOGO_SIZE / 2
+        }" y="-${LOGO_SIZE / 2}"/>
+          </g>
+        `;
+        logger.debug(`Using dynamic logo: ${config.dynamicLogo}`);
+      } catch (error) {
+        logger.warn(
+          `Failed to load dynamic logo: ${config.dynamicLogo}`,
+          error
+        );
+      }
+    }
+
+    if (!logoContent) {
+      // No logo available - create placeholder
       logoContent = `
         <g transform="translate(${POSTER_WIDTH / 2}, ${logoY})">
           ${createLogoPlaceholder(collectionType)}
