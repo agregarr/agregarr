@@ -1,3 +1,12 @@
+## [1.2.2](https://github.com/agregarr/agregarr/compare/v1.2.1...v1.2.2) (2025-09-07)
+
+
+### Bug Fixes
+
+* **letterboxd lists:** web-scraping updated for letterbox lists ([ea6435b](https://github.com/agregarr/agregarr/commit/ea6435bea6ec1bc84edbc9bcea912f6f812c280e))
+* **overseerr/tautulli connections test:** fixes port number conversion for test connection button ([2698a2c](https://github.com/agregarr/agregarr/commit/2698a2ce957010e472acdf0fcb094e633bdc0968)), closes [#33](https://github.com/agregarr/agregarr/issues/33)
+* remove useSSL as required field from overseerr and tautulli test ([8fd9a00](https://github.com/agregarr/agregarr/commit/8fd9a0026f591413c4fd3d13c78bbf0be38bc1fc))
+
 ## [1.2.1](https://github.com/agregarr/agregarr/compare/v1.2.0...v1.2.1) (2025-09-04)
 
 
