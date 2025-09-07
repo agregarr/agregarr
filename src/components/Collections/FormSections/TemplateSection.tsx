@@ -133,6 +133,7 @@ const TemplateSection = ({
               fetchedTitles,
               detectedMediaTypes
             );
+
             return templatePresets.map((preset) => (
               <option key={preset.value} value={preset.value}>
                 {preset.label}

@@ -837,7 +837,12 @@ export class NetworksCollectionSync extends BaseCollectionSync {
    * Extract clean platform name from subtype for branding
    */
   private extractPlatformNameFromSubtype(subtype: string): string {
-    return subtype.replace(/_top_10$/, '');
+    // Remove "_top_10" suffix and normalize to match poster generation system
+    const platformName = subtype.replace(/_top_10$/, '');
+
+    // Convert underscores to hyphens for poster generation compatibility
+    // This ensures platform names match the SERVICE_LOGO_MAP in posterGeneration.ts
+    return platformName.replace(/_/g, '-');
   }
 
   /**

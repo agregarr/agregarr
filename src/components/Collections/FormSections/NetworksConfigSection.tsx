@@ -32,12 +32,16 @@ interface NetworksConfigSectionProps {
   errors: FormikErrors<CollectionFormConfig>;
   touched: FormikTouched<CollectionFormConfig>;
   isVisible?: boolean;
+  getTemplatePresets?: (
+    values: CollectionFormConfig
+  ) => { label: string; value: string }[];
 }
 
 const NetworksConfigSection = ({
   values,
   setFieldValue,
   isVisible = true,
+  getTemplatePresets,
 }: NetworksConfigSectionProps) => {
   const intl = useIntl();
 
@@ -90,19 +94,33 @@ const NetworksConfigSection = ({
               setFieldValue('subtype', '');
             }
           }}
-          disabled={isLoadingCountries}
+          disabled={false}
         >
-          <option value="">
-            {isLoadingCountries
-              ? intl.formatMessage(messages.loadingCountries)
-              : intl.formatMessage(messages.selectCountry)}
+          <option value="">{intl.formatMessage(messages.selectCountry)}</option>
+
+          {/* Global option - always available */}
+          <option value="global">Global</option>
+
+          {/* Separator */}
+          <option disabled style={{ borderTop: '1px solid #4a5568' }}>
+            ────────────────
           </option>
-          {Array.isArray(countries) &&
-            countries.map((country) => (
-              <option key={country.value} value={country.value}>
-                {country.label}
-              </option>
-            ))}
+
+          {/* Loading state or countries */}
+          {isLoadingCountries ? (
+            <option disabled>
+              {intl.formatMessage(messages.loadingCountries)}
+            </option>
+          ) : (
+            Array.isArray(countries) &&
+            countries
+              .filter((country) => country.value !== 'global') // Exclude global since it's shown above
+              .map((country) => (
+                <option key={country.value} value={country.value}>
+                  {country.label}
+                </option>
+              ))
+          )}
         </Field>
         {countriesError && (
           <p className="mt-1 text-xs text-red-400">
@@ -127,6 +145,21 @@ const NetworksConfigSection = ({
             name="subtype"
             className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             disabled={isLoadingPlatforms}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+              const newPlatform = e.target.value;
+              setFieldValue('subtype', newPlatform);
+
+              // Auto-select first template option when platform is selected (same as other collection types)
+              if (newPlatform && getTemplatePresets) {
+                setTimeout(() => {
+                  const tempValues = { ...values, subtype: newPlatform };
+                  const presets = getTemplatePresets(tempValues);
+                  if (presets.length > 0) {
+                    setFieldValue('template', presets[0].value);
+                  }
+                }, 100); // Same delay as other collection types
+              }
+            }}
           >
             <option value="">
               {isLoadingPlatforms

@@ -91,13 +91,13 @@ class FlixPatrolAPI extends ExternalAPI {
    */
   public async getPlatformTop10(
     platform: string,
-    region = 'world',
+    region = 'global',
     requestedMediaType?: 'movie' | 'tv' | 'both'
   ): Promise<FlixPatrolPlatformData> {
     try {
       // Construct URL based on region
       let url: string;
-      if (region === 'world' || region === 'global') {
+      if (region === 'global') {
         url = '/top10';
       } else {
         // Use current date for streaming overview
@@ -258,8 +258,8 @@ class FlixPatrolAPI extends ExternalAPI {
   public async getAvailablePlatformsForCountry(
     country: string
   ): Promise<FlixPatrolPlatformOption[]> {
-    // For global/world, return our static list
-    if (country === 'world' || country === 'global') {
+    // For global, return our static list
+    if (country === 'global') {
       return this.getGlobalPlatformOptions();
     }
 
@@ -364,31 +364,83 @@ class FlixPatrolAPI extends ExternalAPI {
     let platformSection = null;
     for (const heading of headings) {
       const headingText = heading.textContent || '';
+
+      // Handle both formats:
+      // Country-specific: "PLATFORM TOP 10" (e.g., "NETFLIX TOP 10")
+      // Global: "TOP Movies on PLATFORM" (e.g., "TOP Movies on Netflix")
+      let actualPlatformName = null;
+
       if (headingText.toLowerCase().includes('top 10')) {
-        // Extract the actual platform name from the heading for comparison
+        // Country-specific format: "PLATFORM TOP 10"
         const match = headingText.match(/^(.+?)\s+TOP 10/i);
         if (match) {
-          const actualPlatformName = match[1].trim();
-          const normalizedActual = actualPlatformName
-            .toLowerCase()
-            .replace(/\s+/g, '-')
-            .replace(/\+/g, '')
-            .replace(/&/g, 'and')
-            .replace(/[^a-z0-9-]/g, '');
+          actualPlatformName = match[1].trim();
+        }
+      } else if (
+        headingText.toLowerCase().includes('top movies on') ||
+        headingText.toLowerCase().includes('top tv shows on')
+      ) {
+        // Global format: Check if heading contains any of our mapped platform names
+        const possibleNames = this.mapPlatformIdToFlixPatrolName(platformName);
 
-          // Compare normalized platform names
-          if (normalizedActual === platformName.toLowerCase()) {
-            logger.debug(`Found platform section: ${headingText}`, {
-              label: 'FlixPatrol API',
-              platform,
-              headingText,
-              actualPlatformName,
-              normalizedActual,
-              platformName,
-            });
-            platformSection = heading;
+        // Instead of parsing, just check if the heading contains our platform names
+        for (const possibleName of possibleNames) {
+          if (headingText.toLowerCase().includes(possibleName.toLowerCase())) {
+            actualPlatformName = possibleName; // Use the mapped name directly
             break;
           }
+        }
+      }
+
+      if (actualPlatformName) {
+        const normalizedActual = actualPlatformName
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/\+/g, '')
+          .replace(/&/g, 'and')
+          .replace(/[^a-z0-9-]/g, '');
+
+        let isMatch = false;
+
+        // For country-specific pages (with "TOP 10"), use the original logic
+        if (headingText.toLowerCase().includes('top 10')) {
+          const normalizedPlatform = platformName
+            .toLowerCase()
+            .replace(/_/g, '-'); // Keep the original underscore-to-dash conversion
+          isMatch = normalizedActual === normalizedPlatform;
+        } else {
+          // For global pages, use the new mapping logic
+          const possibleNames =
+            this.mapPlatformIdToFlixPatrolName(platformName);
+          isMatch = possibleNames.some((name) => {
+            const normalizedName = name
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/\+/g, '')
+              .replace(/&/g, 'and')
+              .replace(/[^a-z0-9-]/g, '');
+            return normalizedActual === normalizedName;
+          });
+        }
+
+        // Compare normalized platform names
+        if (isMatch) {
+          logger.debug(`Found platform section: ${headingText}`, {
+            label: 'FlixPatrol API',
+            platform,
+            headingText,
+            actualPlatformName,
+            normalizedActual,
+            platformName,
+            format: headingText.toLowerCase().includes('top 10')
+              ? 'country'
+              : 'global',
+            matchingMethod: headingText.toLowerCase().includes('top 10')
+              ? 'original'
+              : 'mapping',
+          });
+          platformSection = heading;
+          break;
         }
       }
     }
@@ -401,6 +453,11 @@ class FlixPatrolAPI extends ExternalAPI {
         region,
       });
       return result;
+    }
+
+    // For global pages, use the simpler card-table parsing
+    if (region === 'global') {
+      return this.parseGlobalPlatformData(platformSection, result, platform);
     }
 
     // Extract platform logo information from the platform section
@@ -799,7 +856,13 @@ class FlixPatrolAPI extends ExternalAPI {
     const platformName = this.extractPlatformNameFromSubtype(platform);
     return platformName
       .split(/[-_]/)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word) => {
+        // Special case for TV to maintain proper capitalization
+        if (word.toLowerCase() === 'tv') {
+          return 'TV';
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
       .join(' ');
   }
 
@@ -809,6 +872,27 @@ class FlixPatrolAPI extends ExternalAPI {
   private extractPlatformNameFromSubtype(platform: string): string {
     // Remove "_top_10" suffix and return the platform identifier
     return platform.replace(/_top_10$/, '');
+  }
+
+  /**
+   * Map our platform IDs to FlixPatrol HTML platform names
+   */
+  private mapPlatformIdToFlixPatrolName(platformId: string): string[] {
+    // Only platforms actually found in FlixPatrol /top10 page test data
+    const mappings: { [key: string]: string[] } = {
+      netflix: ['Netflix'],
+      hbo: ['HBO'],
+      disney: ['Disney+'], // "TOP Movies on Disney+ on September 6, 2025"
+      amazon_prime: ['Amazon Prime'], // "TOP Movies on Amazon Prime on September 6, 2025"
+      'amazon-prime': ['Amazon Prime'],
+      apple_tv: ['Apple'], // "TOP Movies on Apple on September 6, 2025"
+      'apple-tv': ['Apple'],
+      paramount: ['Paramount+'], // "TOP TV Shows on Paramount+ on September 6, 2025"
+      amazon: ['Amazon'], // "TOP Movies on Amazon on September 6, 2025" (different from Prime)
+    };
+
+    const normalized = platformId.toLowerCase().replace(/_/g, '-');
+    return mappings[normalized] || [platformId];
   }
 
   /**
@@ -1059,10 +1143,8 @@ class FlixPatrolAPI extends ExternalAPI {
         }
       });
 
-      // Always include 'world' as the global option
-      countries.add('world');
-
-      const result = Array.from(countries).sort();
+      // Always include 'global' as the global option at the top
+      const result = ['global', ...Array.from(countries).sort()];
 
       logger.debug(`Total unique countries found: ${result.length}`, {
         label: 'FlixPatrol API',
@@ -1332,6 +1414,196 @@ class FlixPatrolAPI extends ExternalAPI {
       // Return empty array - let the calling method handle the error
       return [];
     }
+  }
+
+  /**
+   * Parse global platform data using card-table structure
+   * Simple method focused only on global pages to avoid breaking country logic
+   */
+  private parseGlobalPlatformData(
+    platformSection: Element,
+    result: FlixPatrolPlatformData,
+    platform: string
+  ): FlixPatrolPlatformData {
+    logger.debug(`Parsing global platform data for ${platform}`, {
+      label: 'FlixPatrol API',
+      platform,
+    });
+
+    // The card tables exist in the document, but not directly after headings
+    // Search the entire document for card-table elements and associate them with platforms
+    const document = platformSection.ownerDocument;
+    const allCardTables = document?.querySelectorAll('table.card-table') || [];
+
+    logger.debug(
+      `Found ${allCardTables.length} total card tables in document`,
+      {
+        label: 'FlixPatrol API',
+        platform,
+      }
+    );
+
+    // Find all global platform headings (exclude country breakdown)
+    const allHeadings = Array.from(document?.querySelectorAll('h2') || []);
+    const globalPlatformHeadings = allHeadings.filter((h) => {
+      const text = h.textContent?.toLowerCase() || '';
+      return (
+        (text.includes('top movies on') || text.includes('top tv shows on')) &&
+        !text.includes('by country')
+      );
+    });
+
+    // Group headings by platform (Movies + TV pairs)
+    const platformGroups: { movies: Element | null; tv: Element | null }[] = [];
+    const platforms: string[] = [];
+
+    globalPlatformHeadings.forEach((heading) => {
+      const text = heading.textContent?.toLowerCase() || '';
+      // Extract platform name from heading like "TOP Movies on Netflix on September 6, 2025"
+      const platformMatch = text.match(
+        /top (?:movies|tv shows) on (.+?) on \w+/
+      );
+      if (platformMatch) {
+        const platformName = platformMatch[1].trim();
+        let platformGroup = platformGroups.find(
+          (_, index) => platforms[index] === platformName
+        );
+
+        if (!platformGroup) {
+          platforms.push(platformName);
+          platformGroup = { movies: null, tv: null };
+          platformGroups.push(platformGroup);
+        }
+
+        if (text.includes('movies')) {
+          platformGroup.movies = heading;
+        } else if (text.includes('tv shows')) {
+          platformGroup.tv = heading;
+        }
+      }
+    });
+
+    // Find which platform group our section belongs to
+    const currentPlatformGroupIndex = platformGroups.findIndex(
+      (group) =>
+        group.movies === platformSection || group.tv === platformSection
+    );
+
+    if (currentPlatformGroupIndex >= 0) {
+      // Each platform gets 2 sequential tables from the global card-table list
+      // Filter out country breakdown tables (they have many rows, typically >50)
+      const globalCardTables = Array.from(allCardTables).filter((table) => {
+        const rows = table.querySelectorAll('tr');
+        return rows.length <= 20; // Global platform tables have ~10 rows each
+      });
+
+      const startTableIndex = currentPlatformGroupIndex * 2;
+      const endTableIndex = startTableIndex + 2;
+
+      logger.debug(
+        `Platform ${platform} should use tables ${startTableIndex}-${
+          endTableIndex - 1
+        }`,
+        {
+          label: 'FlixPatrol API',
+          platform,
+          currentPlatformGroupIndex,
+          totalPlatformGroups: platformGroups.length,
+          globalCardTablesCount: globalCardTables.length,
+          platformName: platforms[currentPlatformGroupIndex],
+        }
+      );
+
+      for (
+        let i = startTableIndex;
+        i < endTableIndex && i < globalCardTables.length;
+        i++
+      ) {
+        const table = globalCardTables[i];
+        const items = this.parseCardTable(table);
+
+        // For global pages, each platform typically has 2 tables: Movies then TV Shows
+        // Determine the content type based on table position within the platform's tables
+        const tablePositionInPlatform = i - startTableIndex;
+        const isMovieTable = tablePositionInPlatform % 2 === 0; // Even indices = Movies, Odd = TV
+
+        if (isMovieTable) {
+          result.movies.push(
+            ...items.map((item) => ({ ...item, type: 'movie' as const }))
+          );
+        } else {
+          result.tvShows.push(
+            ...items.map((item) => ({ ...item, type: 'tv' as const }))
+          );
+        }
+
+        logger.debug(`Processed table ${i} for ${platform}`, {
+          label: 'FlixPatrol API',
+          platform,
+          tableIndex: i,
+          tablePositionInPlatform,
+          isMovieTable,
+          itemsCount: items.length,
+          contentType: isMovieTable ? 'movies' : 'tv',
+        });
+      }
+
+      logger.debug(`Parsed platform data for ${platform}`, {
+        label: 'FlixPatrol API',
+        platform,
+        movieCount: result.movies.length,
+        tvCount: result.tvShows.length,
+        tablesUsed: `${startTableIndex}-${endTableIndex - 1}`,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse a single card-table element to extract ranking items
+   */
+  private parseCardTable(table: Element): FlixPatrolListItem[] {
+    const items: FlixPatrolListItem[] = [];
+    const rows = table.querySelectorAll('tr');
+
+    rows.forEach((row, index) => {
+      const cells = row.querySelectorAll('td');
+
+      if (cells.length >= 3) {
+        const rankText = cells[0].textContent?.trim() || '';
+        const titleElement = cells[1].querySelector('a');
+        const pointsText = cells[2].textContent?.trim() || '';
+
+        // Extract rank number
+        const rankMatch = rankText.match(/(\d+)/);
+        const rank = rankMatch ? parseInt(rankMatch[1], 10) : index + 1;
+
+        // Extract title
+        const title =
+          titleElement?.textContent?.trim() ||
+          cells[1].textContent?.trim() ||
+          '';
+
+        // Extract FlixPatrol URL
+        const flixpatrolUrl = titleElement?.getAttribute('href') || undefined;
+
+        // Extract points
+        const points = pointsText;
+
+        if (title) {
+          items.push({
+            rank,
+            title,
+            points,
+            flixpatrolUrl,
+            type: 'movie', // Default - will be determined by context or backend
+          });
+        }
+      }
+    });
+
+    return items;
   }
 }
 

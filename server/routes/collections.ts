@@ -744,6 +744,8 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
     const settings = getSettings();
     const { IdGenerator } = await import('@server/utils/idGenerator');
 
+    // Cache warming removed - caused double requests and rate limiting issues
+
     // Extract libraryIds from request - support both single libraryId and multiple libraryIds
     const libraryIds = req.body.libraryIds
       ? Array.isArray(req.body.libraryIds)
