@@ -1,4 +1,9 @@
-import type { CollectionFormConfig } from '@app/types/collections';
+import type {
+  CollectionFormConfig,
+  CustomSyncSchedule,
+  MultiSourceCombineMode,
+} from '@app/types/collections';
+import { Field } from 'formik';
 import { defineMessages, useIntl } from 'react-intl';
 import VisibilitySection from './VisibilitySection';
 
@@ -18,6 +23,11 @@ const messages = defineMessages({
   remove: 'Remove',
   timeRestrictionsHelp:
     'Time restrictions allow you to control when and how collections appear in Plex based on date ranges and weekly schedules. You can choose to either remove collections completely when inactive, or change their visibility settings.',
+  customSyncSchedule: 'Custom Sync Schedule',
+  customSyncEnabled: 'Enable custom sync timing',
+  customSyncInterval: 'Sync every (hours)',
+  customSyncHelp:
+    'When enabled, this collection will sync independently from the main sync schedule. Supports decimal hours (e.g., 0.5 for 30 minutes, 2.5 for 2.5 hours).',
 });
 
 interface DateRange {
@@ -307,6 +317,62 @@ const TimeRestrictionsSection = ({
           </div>
         </div>
       )}
+
+      {/* Custom Sync Schedule Section */}
+      {(
+        values as CollectionFormConfig & {
+          isMultiSource?: boolean;
+          combineMode?: MultiSourceCombineMode;
+        }
+      ).isMultiSource &&
+        (
+          values as CollectionFormConfig & {
+            isMultiSource?: boolean;
+            combineMode?: MultiSourceCombineMode;
+          }
+        ).combineMode === 'cycle_lists' && (
+          <div className="mt-6">
+            <label className="mb-4 block text-sm font-medium text-gray-300">
+              {intl.formatMessage(messages.customSyncSchedule)}
+            </label>
+
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <Field
+                  type="checkbox"
+                  name="customSyncSchedule.enabled"
+                  className="rounded border-gray-600 bg-gray-700 text-orange-500 focus:ring-orange-500"
+                />
+                <span className="ml-3 text-sm text-gray-300">
+                  {intl.formatMessage(messages.customSyncEnabled)}
+                </span>
+              </div>
+
+              {(
+                values as CollectionFormConfig & {
+                  customSyncSchedule?: CustomSyncSchedule;
+                }
+              ).customSyncSchedule?.enabled && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-300">
+                    {intl.formatMessage(messages.customSyncInterval)}
+                  </label>
+                  <Field
+                    type="number"
+                    name="customSyncSchedule.intervalHours"
+                    step="0.5"
+                    min="0.5"
+                    max="168"
+                    className="w-32 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <p className="mt-2 text-sm text-gray-400">
+                    {intl.formatMessage(messages.customSyncHelp)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
       <div className="label-tip">
         {intl.formatMessage(messages.timeRestrictionsHelp)}

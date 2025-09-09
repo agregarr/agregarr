@@ -356,6 +356,16 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     settings.plex.collectionConfigs = configs;
     settings.save();
 
+    // Refresh individual collection scheduler for any custom sync schedules
+    try {
+      const { IndividualCollectionScheduler } = await import(
+        '@server/lib/collections/services/IndividualCollectionScheduler'
+      );
+      await IndividualCollectionScheduler.refreshAllJobs();
+    } catch (error) {
+      logger.warn('Failed to refresh individual collection scheduler:', error);
+    }
+
     logger.info('Collection config(s) updated successfully', {
       label: 'Collections API',
       updatedCount: updatedConfigs.length,
@@ -1052,6 +1062,178 @@ collectionsRoutes.post('/sync', isAuthenticated(), async (req, res) => {
     return res.status(500).json({
       status: 'error',
       message: 'An error occurred while starting collections sync',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * POST /api/v1/collections/:id/sync
+ * Sync a specific collection by ID
+ */
+collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = getSettings();
+
+    // Find the collection config by ID
+    const collectionConfig = settings.plex.collectionConfigs?.find(
+      (config) => config.id === id
+    );
+
+    if (!collectionConfig) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Collection with ID ${id} not found`,
+      });
+    }
+
+    logger.info(
+      `Starting manual sync for collection: ${collectionConfig.name}`,
+      {
+        label: 'Individual Collection Sync',
+        collectionId: id,
+        collectionName: collectionConfig.name,
+      }
+    );
+
+    // Import the collection sync service
+    const { collectionSyncService } = await import(
+      '@server/lib/collections/services/CollectionSyncService'
+    );
+
+    // Get Plex client
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOne({
+      where: { id: 1 },
+    });
+
+    if (!admin) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Admin user not found',
+      });
+    }
+
+    const plexClient = new PlexAPI({ plexToken: admin.plexToken });
+
+    // Start individual collection sync
+    const syncPromise = (async () => {
+      try {
+        // Check if this is a multi-source collection
+        const extendedConfig = collectionConfig as typeof collectionConfig & {
+          isMultiSource?: boolean;
+          sources?: {
+            id: string;
+            type: string;
+            subtype?: string;
+            customUrl?: string;
+            timePeriod?: string;
+            priority: number;
+          }[];
+          combineMode?: 'ordered' | 'randomized' | 'cycle';
+        };
+        const isMultiSource =
+          extendedConfig.isMultiSource &&
+          (extendedConfig.sources?.length ?? 0) > 0;
+        const allCollections = await plexClient.getAllCollections();
+
+        let result;
+        if (isMultiSource) {
+          // Use multi-source orchestrator
+          const { MultiSourceOrchestrator } = await import(
+            '@server/lib/collections/services/MultiSourceOrchestrator'
+          );
+          const orchestrator = new MultiSourceOrchestrator();
+
+          // Convert to MultiSourceCollectionConfig format
+          const multiSourceConfig = {
+            ...extendedConfig,
+            type: 'multi-source' as const,
+            sources:
+              extendedConfig.sources?.map((source) => ({
+                id: source.id,
+                type: source.type as MultiSourceType,
+                subtype: source.subtype || '',
+                customUrl: source.customUrl,
+                timePeriod: source.timePeriod as
+                  | 'daily'
+                  | 'weekly'
+                  | 'monthly'
+                  | 'all',
+                customDays: source.customDays,
+                minimumPlays: source.minimumPlays,
+                priority: source.priority,
+              })) || [],
+            combineMode:
+              (extendedConfig.combineMode as MultiSourceCombineMode) ||
+              'list_order',
+          };
+
+          result = await orchestrator.processMultiSourceCollection(
+            multiSourceConfig,
+            plexClient,
+            allCollections,
+            new Set(),
+            {}
+          );
+        } else {
+          // Use normal single-source sync
+          const syncService = await collectionSyncService.createSyncService(
+            collectionConfig.type
+          );
+          result = await syncService.processCollections(
+            [collectionConfig],
+            plexClient,
+            allCollections,
+            new Set(),
+            {}
+          );
+        }
+
+        logger.info(
+          `Individual collection sync completed: ${collectionConfig.name}`,
+          {
+            label: 'Individual Collection Sync',
+            collectionId: id,
+            result,
+          }
+        );
+
+        return result;
+      } catch (error) {
+        logger.error(
+          `Individual collection sync failed for ${collectionConfig.name}: ${error}`,
+          {
+            label: 'Individual Collection Sync',
+            collectionId: id,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+        throw error;
+      }
+    })();
+
+    // Start sync in background
+    syncPromise.catch((error) => {
+      logger.error(
+        `Background individual collection sync failed for ${collectionConfig.name}:`,
+        error
+      );
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: `Collection sync started for "${collectionConfig.name}"`,
+      collectionId: id,
+      collectionName: collectionConfig.name,
+    });
+  } catch (error) {
+    logger.error('Error starting individual collection sync:', error);
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while starting collection sync',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
   }

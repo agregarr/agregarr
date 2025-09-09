@@ -162,7 +162,8 @@ export interface CollectionFormConfig {
   readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
-  // Allow dynamic properties for library-specific sort orders and  fields
+  readonly customSyncSchedule?: CustomSyncSchedule; // Individual sync timing
+
   readonly [key: string]:
     | string
     | number
