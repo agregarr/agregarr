@@ -1,0 +1,16 @@
+# IMDb Random Lists Configuration  
+# Set enabled=true to activate random list rotation for IMDb collections
+enabled=false
+
+# Add one IMDb list URL per line below
+# Example URLs (remove # to activate):
+# https://www.imdb.com/list/ls004285815/
+# https://www.imdb.com/list/ls058982944/
+# https://www.imdb.com/list/ls055592025/
+# https://www.imdb.com/list/ls091520106/
+# https://www.imdb.com/list/ls056092300/
+
+# Popular IMDb lists you might want to add:
+# https://www.imdb.com/list/ls055386972/ (IMDb's Top 1000)
+# https://www.imdb.com/list/ls027636298/ (Greatest Films of All Time)  
+# https://www.imdb.com/list/ls070150896/ (Best Thriller Movies)

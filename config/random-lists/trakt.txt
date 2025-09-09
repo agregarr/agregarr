@@ -1,0 +1,16 @@
+# Trakt Random Lists Configuration
+# Set enabled=true to activate random list rotation for Trakt collections
+enabled=false
+
+# Add one Trakt list URL per line below
+# Example URLs (remove # to activate):
+# https://trakt.tv/users/username/lists/action-movies
+# https://trakt.tv/users/username/lists/sci-fi-classics
+# https://trakt.tv/users/username/lists/horror-favorites
+# https://trakt.tv/users/username/lists/comedy-gems
+# https://trakt.tv/users/username/lists/drama-collection
+
+# Popular community lists you might want to add:
+# https://trakt.tv/users/movistapp/lists/top-rated-movies
+# https://trakt.tv/users/justin/lists/imdb-top-250
+# https://trakt.tv/users/sp1ti/lists/reddit-top-250-2020

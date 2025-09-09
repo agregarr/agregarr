@@ -52,6 +52,7 @@ const CollectionTypeSection = ({
     { value: 'tmdb', label: 'TMDb Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
     { value: 'networks', label: 'Networks' },
+    { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
   const getSubtypeOptions = (type: string): SubtypeOption[] => {
@@ -119,6 +120,11 @@ const CollectionTypeSection = ({
             label: 'Custom List',
             description: 'Import a custom Trakt list by URL',
           },
+          {
+            value: 'random',
+            label: 'Random Lists',
+            description: 'Randomly select from configured Trakt lists',
+          },
         ];
       case 'tmdb':
         return [
@@ -127,6 +133,11 @@ const CollectionTypeSection = ({
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
           { value: 'custom', label: 'Custom Collection' },
+          {
+            value: 'random',
+            label: 'Random Lists',
+            description: 'Randomly select from configured TMDb lists',
+          },
         ];
       case 'imdb':
         return [
@@ -146,11 +157,25 @@ const CollectionTypeSection = ({
             description: 'Top grossing movies at the box office (movies only)',
           },
           { value: 'custom', label: 'Custom List' },
+          {
+            value: 'random',
+            label: 'Random Lists',
+            description: 'Randomly select from configured IMDb lists',
+          },
         ];
       case 'letterboxd':
-        return [{ value: 'custom', label: 'Custom List' }];
+        return [
+          { value: 'custom', label: 'Custom List' },
+          {
+            value: 'random',
+            label: 'Random Lists',
+            description: 'Randomly select from configured Letterboxd lists',
+          },
+        ];
       case 'networks':
         return []; // Will be populated dynamically based on selected country
+      case 'multi-source':
+        return []; // Multi-source collections don't use subtypes - they configure sources directly
       default:
         return [];
     }
@@ -173,7 +198,7 @@ const CollectionTypeSection = ({
           as="select"
           id="type"
           name="type"
-          className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
             const newType = e.target.value;
             const oldType = values.type;
@@ -214,7 +239,7 @@ const CollectionTypeSection = ({
             as="select"
             id="subtype"
             name="subtype"
-            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
               const newSubtype = e.target.value;
               setFieldValue('subtype', newSubtype);

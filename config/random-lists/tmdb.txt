@@ -1,0 +1,16 @@
+# TMDb Random Lists Configuration
+# Set enabled=true to activate random list rotation for TMDb collections
+enabled=false
+
+# Add one TMDb list URL per line below  
+# Example URLs (remove # to activate):
+# https://www.themoviedb.org/list/1
+# https://www.themoviedb.org/list/28
+# https://www.themoviedb.org/list/10749
+# https://www.themoviedb.org/list/99
+# https://www.themoviedb.org/list/634
+
+# Popular TMDb lists you might want to add:
+# https://www.themoviedb.org/list/7064149 (Top Rated Movies)
+# https://www.themoviedb.org/list/7103808 (Academy Award Winners)
+# https://www.themoviedb.org/list/7077855 (Best Action Movies)
