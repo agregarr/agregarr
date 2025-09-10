@@ -5525,7 +5525,6 @@ paths:
                   example: '/tautulli'
               required:
                 - hostname
-                - port
                 - apiKey
       responses:
         '200':
@@ -5672,7 +5671,6 @@ paths:
                   example: '/overseerr'
               required:
                 - hostname
-                - port
                 - apiKey
       responses:
         '200':
@@ -5787,9 +5785,7 @@ paths:
                   type: string
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: Succesfully connected to Radarr instance
@@ -5931,9 +5927,7 @@ paths:
                   type: string
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: Succesfully connected to Sonarr instance
