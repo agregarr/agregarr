@@ -440,7 +440,8 @@ export const useFormBehavior = ({
     ? CollectionFormConfigUtils.isDefaultPlexHub(config)
     : false;
   const isPreExistingCollection = config
-    ? CollectionFormConfigUtils.isPreExisting(config) && config.type !== 'hub'
+    ? CollectionFormConfigUtils.isPreExisting(config) &&
+      config.configType !== 'hub'
     : false;
   const isLinked = config ? Boolean(config.isLinked) : false;
 

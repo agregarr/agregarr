@@ -1,3 +1,7 @@
+import type {
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/../src/types/collections';
 import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';

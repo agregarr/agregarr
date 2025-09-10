@@ -150,7 +150,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
     mediaType: 'movie' | 'tv'
   ): Promise<NetworksTemplateContext> {
     // Extract platform name from subtype (e.g., "neon-tv_top_10" -> "neon-tv")
-    const platformName = config.subtype.replace(/_top_10$/, '');
+    const platformName = (config.subtype || '').replace(/_top_10$/, '');
 
     return this.templateEngine.createNetworksContext(
       mediaType,
@@ -162,13 +162,13 @@ export class NetworksCollectionSync extends BaseCollectionSync {
   /**
    * Fetch data from FlixPatrol API
    */
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     options?: CollectionSyncOptions
   ): Promise<NetworksSourceData[]> {
     try {
       // Extract platform name for logging
-      const platformName = config.subtype.replace(/_top_10$/, '');
+      const platformName = (config.subtype || '').replace(/_top_10$/, '');
 
       logger.debug(`Fetching Networks data for platform: ${platformName}`, {
         label: 'Networks Collections',
@@ -185,7 +185,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       const country = config.networksCountry || 'world';
       const mediaType = getCollectionMediaType(config);
       const platformData = await this.flixpatrolClient.getPlatformTop10(
-        config.subtype, // Pass the full subtype (e.g., "neon-tv_top_10")
+        config.subtype || '', // Pass the full subtype (e.g., "neon-tv_top_10")
         country,
         mediaType
       );
@@ -244,7 +244,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
    * Map Networks source data to standardized collection items
    * Uses TMDB API to resolve titles to TMDB IDs, then uses standard Plex matching
    */
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: NetworksSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,
@@ -700,7 +700,9 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       const mediaType = getCollectionMediaType(config);
 
       // Extract platform name from subtype (e.g., "netflix_top_10" -> "netflix")
-      const platformName = this.extractPlatformNameFromSubtype(config.subtype);
+      const platformName = this.extractPlatformNameFromSubtype(
+        config.subtype || ''
+      );
 
       logger.info(
         `Auto-generating poster for Networks collection: ${collectionName}`,

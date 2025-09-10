@@ -197,7 +197,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -508,7 +508,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -750,6 +750,39 @@ components:
                   example: false
               nullable: true
           nullable: true
+        # Multi-source collection properties
+        isMultiSource:
+          type: boolean
+          description: "Enable multi-source mode for combining multiple collection sources"
+          example: false
+          nullable: true
+        sources:
+          type: array
+          description: "Array of source configurations for multi-source collections"
+          items:
+            $ref: '#/components/schemas/CollectionSourceConfig'
+          nullable: true
+        combineMode:
+          type: string
+          enum: ['interleaved', 'list_order', 'randomised', 'cycle_lists']
+          description: "How to combine multiple sources: interleaved (alternate items), list_order (all from first, then second), randomised (shuffle all), cycle_lists (rotate active source)"
+          example: 'list_order'
+          nullable: true
+        customSyncSchedule:
+          type: object
+          description: "Custom sync schedule configuration"
+          properties:
+            enabled:
+              type: boolean
+              description: "Enable custom sync schedule"
+              example: false
+            intervalHours:
+              type: number
+              description: "Sync interval in hours (supports decimals)"
+              example: 24.0
+              minimum: 0.5
+              maximum: 168
+          nullable: true
       required:
         - id
         - name
@@ -769,7 +802,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -1043,6 +1076,39 @@ components:
           type: boolean
           description: "True if collection no longer exists in Plex"
           example: false
+        # Multi-source collection properties
+        isMultiSource:
+          type: boolean
+          description: "Enable multi-source mode for combining multiple collection sources"
+          example: false
+          nullable: true
+        sources:
+          type: array
+          description: "Array of source configurations for multi-source collections"
+          items:
+            $ref: '#/components/schemas/CollectionSourceConfig'
+          nullable: true
+        combineMode:
+          type: string
+          enum: ['interleaved', 'list_order', 'randomised', 'cycle_lists']
+          description: "How to combine multiple sources: interleaved (alternate items), list_order (all from first, then second), randomised (shuffle all), cycle_lists (rotate active source)"
+          example: 'list_order'
+          nullable: true
+        customSyncSchedule:
+          type: object
+          description: "Custom sync schedule configuration"
+          properties:
+            enabled:
+              type: boolean
+              description: "Enable custom sync schedule"
+              example: false
+            intervalHours:
+              type: number
+              description: "Sync interval in hours (supports decimals)"
+              example: 24.0
+              minimum: 0.5
+              maximum: 168
+          nullable: true
       required:
         - id
         - name
@@ -1051,6 +1117,69 @@ components:
         - template
         - visibilityConfig
         - maxItems
+
+    CollectionSourceConfig:
+      type: object
+      description: "Individual source configuration for multi-source collections"
+      properties:
+        id:
+          type: string
+          description: "Unique identifier for this source within the collection"
+          example: "source-1234567890"
+        type:
+          type: string
+          enum: ['trakt', 'tmdb', 'imdb', 'letterboxd', 'tautulli', 'overseerr', 'networks']
+          description: "Type of collection source"
+          example: 'trakt'
+        subtype:
+          type: string
+          description: "Sub-type of the collection source"
+          example: 'trending'
+          nullable: true
+        customUrl:
+          type: string
+          description: "Custom URL for list-based sources (Trakt, TMDb, IMDb, Letterboxd)"
+          example: "https://trakt.tv/users/username/lists/my-list"
+          nullable: true
+        timePeriod:
+          type: string
+          enum: ['daily', 'weekly', 'monthly', 'all']
+          description: "Time period for time-based sources"
+          example: 'weekly'
+          nullable: true
+        priority:
+          type: integer
+          description: "Order priority when combining (0 = highest priority)"
+          example: 0
+          minimum: 0
+        isExpanded:
+          type: boolean
+          description: "UI state for expandable sections"
+          example: true
+          nullable: true
+        customDays:
+          type: integer
+          description: "Number of days to look back for Tautulli statistics"
+          example: 30
+          minimum: 1
+          maximum: 365
+          nullable: true
+        minimumPlays:
+          type: integer
+          description: "Minimum play count required for Tautulli sources"
+          example: 3
+          minimum: 1
+          maximum: 100
+          nullable: true
+        networksCountry:
+          type: string
+          description: "Selected country for Networks collections"
+          example: "united-states"
+          nullable: true
+      required:
+        - id
+        - type
+        - priority
 
     PlexHubConfig:
       type: object

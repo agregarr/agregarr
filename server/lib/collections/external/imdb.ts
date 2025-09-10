@@ -47,7 +47,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     // 3. Any connectivity issues will be caught during actual fetching
   }
 
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
@@ -102,7 +102,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         // Using simple axios for predefined IMDb list
 
         const predefinedUrl = this.getPredefinedListUrl(
-          config.subtype,
+          config.subtype || '',
           mediaType
         );
         const axios = (await import('axios')).default;
@@ -399,7 +399,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     return items;
   }
 
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: ImdbSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,

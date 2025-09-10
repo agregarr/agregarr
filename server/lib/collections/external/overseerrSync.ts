@@ -321,7 +321,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
    * Fetch data from service layer (approved requests)
    * For performance, this should be called once and shared across all Overseerr collections
    */
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
@@ -405,7 +405,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
   /**
    * Map OverseerrMediaRequest data to standardized collection items
    */
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: OverseerrMediaRequest[],
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     config: CollectionConfig

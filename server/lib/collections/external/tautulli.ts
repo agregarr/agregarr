@@ -141,7 +141,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
   /**
    * Fetch data from Tautulli API
    */
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     options?: CollectionSyncOptions
   ): Promise<TautulliSourceData[]> {
@@ -192,7 +192,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
   /**
    * Map Tautulli source data to standardized collection items with TMDB IDs from Plex
    */
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: TautulliSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI

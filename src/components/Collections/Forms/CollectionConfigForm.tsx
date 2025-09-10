@@ -4,6 +4,10 @@ import type {
   CollectionConfigFormProps,
   CollectionFormConfig,
   CollectionFormConfigForEditing,
+  CollectionSourceConfig,
+  MultiSourceCollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
   TemplatePreset,
 } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
@@ -20,6 +24,7 @@ import AutoRequestSection from '@app/components/Collections/FormSections/AutoReq
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
+import MultiSourceConfigSection from '@app/components/Collections/FormSections/MultiSourceConfigSection';
 import NetworksConfigSection from '@app/components/Collections/FormSections/NetworksConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
@@ -107,11 +112,12 @@ const CollectionFormConfigForm = ({
       then: (schema) => schema.required('Collection type is required'),
       otherwise: (schema) => schema,
     }),
-    subtype: Yup.string().when(['hubIdentifier', 'collectionType'], {
-      is: (hubIdentifier: string, collectionType: string) =>
+    subtype: Yup.string().when(['hubIdentifier', 'collectionType', 'type'], {
+      is: (hubIdentifier: string, collectionType: string, type: string) =>
         !hubIdentifier &&
         collectionType !== 'default_plex_hub' &&
-        collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
+        collectionType !== 'pre_existing' &&
+        type !== 'multi-source', // Only required if not a hub, pre-existing, or multi-source
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema,
     }),
@@ -1332,6 +1338,11 @@ const CollectionFormConfigForm = ({
       }
     }
 
+    // Multi-source collection presets - only custom allowed
+    if (values.type === 'multi-source') {
+      return [{ label: 'Custom', value: 'custom' }];
+    }
+
     // Fallback for unknown types
     return [
       {
@@ -1448,6 +1459,34 @@ const CollectionFormConfigForm = ({
               serverOwnerHome: false,
               libraryRecommended: true,
             },
+          },
+          // Multi-source configuration - initialize with existing single-source config
+          isMultiSource: false,
+          sources: (() => {
+            const singleConfig = config as CollectionFormConfig;
+            if (singleConfig.type) {
+              return [
+                {
+                  id: '0',
+                  type: singleConfig.type,
+                  subtype: singleConfig.subtype,
+                  timePeriod: singleConfig.timePeriod,
+                  customUrl:
+                    singleConfig.traktCustomListUrl ||
+                    singleConfig.tmdbCustomListUrl ||
+                    singleConfig.imdbCustomListUrl ||
+                    singleConfig.letterboxdCustomListUrl,
+                  priority: 0,
+                  isExpanded: true,
+                },
+              ] as CollectionSourceConfig[];
+            }
+            return [] as CollectionSourceConfig[];
+          })(),
+          combineMode: 'list_order' as MultiSourceCombineMode,
+          customSyncSchedule: {
+            enabled: false,
+            intervalHours: 24,
           },
         }}
         validationSchema={CollectionFormConfigSchema}
@@ -1650,15 +1689,14 @@ const CollectionFormConfigForm = ({
                       </div>
                     )}
 
-                    {/* Basic Information Section */}
-                    {/* Collection Type Section - only for regular collections */}
+                    {/* Collection Type Section - appears above multi-source config */}
                     {isCollection && (
                       <CollectionTypeSection
                         values={typedValues as CollectionFormConfig}
                         setFieldValue={setFieldValue}
                         errors={errors as FormikErrors<CollectionFormConfig>}
                         touched={touched as FormikTouched<CollectionFormConfig>}
-                        isVisible={isCollection}
+                        isVisible={true}
                         getTemplatePresets={getTemplatePresets}
                       />
                     )}
@@ -1700,6 +1738,39 @@ const CollectionFormConfigForm = ({
                         />
                       )}
 
+                    {/* Multi-Source Configuration - New approach for type='multi-source' */}
+                    {isCollection &&
+                      (values as CollectionFormConfig & { type?: string })
+                        .type === 'multi-source' && (
+                        <MultiSourceConfigSection
+                          values={
+                            {
+                              ...values,
+                              type: 'multi-source',
+                              sources:
+                                values.sources?.map((source) => ({
+                                  id: source.id,
+                                  type: source.type as MultiSourceType,
+                                  subtype: source.subtype || '',
+                                  customUrl: source.customUrl,
+                                  timePeriod: source.timePeriod as
+                                    | 'daily'
+                                    | 'weekly'
+                                    | 'monthly'
+                                    | 'all'
+                                    | undefined,
+                                  customDays: source.customDays,
+                                  minimumPlays: source.minimumPlays,
+                                  priority: source.priority,
+                                  networksCountry: source.networksCountry,
+                                })) || [],
+                              combineMode: values.combineMode || 'list_order',
+                            } as MultiSourceCollectionConfig
+                          }
+                          setFieldValue={setFieldValue}
+                        />
+                      )}
+
                     {/* Simple explanation for Overseerr Users Collections */}
                     {isCollection &&
                       values.type === 'overseerr' &&
@@ -1731,7 +1802,7 @@ const CollectionFormConfigForm = ({
                         </div>
                       )}
 
-                    {/* Custom URL Section - only show for regular collections */}
+                    {/* Custom URL Section - show after type/subtype selection, before library selection */}
                     {isCollection && (
                       <CustomUrlSection
                         values={typedValues as CollectionFormConfig}
@@ -1755,7 +1826,9 @@ const CollectionFormConfigForm = ({
                         isVisible={Boolean(
                           isCollection &&
                             values.type &&
-                            values.subtype &&
+                            (values.type === 'multi-source'
+                              ? values.sources && values.sources.length >= 2
+                              : values.subtype) &&
                             // For Trakt time-period subtypes, also require timePeriod to be selected
                             (values.type !== 'trakt' ||
                               ![
@@ -1816,7 +1889,9 @@ const CollectionFormConfigForm = ({
                     {/* Regular Form - show full form for normal collections */}
                     {isCollection &&
                       values.type &&
-                      values.subtype &&
+                      (values.type === 'multi-source'
+                        ? values.sources && values.sources.length >= 2
+                        : values.subtype) &&
                       (values.libraryIds?.length > 0 || values.libraryId) &&
                       (values.type !== 'tautulli' || values.customDays) &&
                       (values.type !== 'trakt' ||
@@ -1829,75 +1904,6 @@ const CollectionFormConfigForm = ({
                         values.subtype !== 'custom' ||
                         (values as CollectionFormConfig).imdbCustomListUrl) && (
                         <>
-                          {/* Custom Days (for Tautulli collections) - moved here from above */}
-                          {values.type === 'tautulli' && (
-                            <div className="form-row">
-                              <label
-                                htmlFor="customDays"
-                                className="text-label"
-                              >
-                                No. of Days
-                                <span className="label-required">*</span>
-                              </label>
-                              <div className="form-input-area">
-                                <div className="form-input-field">
-                                  <Field
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    id="customDays"
-                                    name="customDays"
-                                    className="short"
-                                  />
-                                </div>
-                                {errors.customDays && touched.customDays && (
-                                  <div className="error">
-                                    {String(errors.customDays)}
-                                  </div>
-                                )}
-                                <div className="label-tip">
-                                  Number of days to look back for statistics
-                                  (1-365)
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Minimum Play Count (for Tautulli collections) */}
-                          {values.type === 'tautulli' && (
-                            <div className="form-row">
-                              <label
-                                htmlFor="minimumPlays"
-                                className="text-label"
-                              >
-                                Minimum Play Count
-                                <span className="label-required">*</span>
-                              </label>
-                              <div className="form-input-area">
-                                <div className="form-input-field">
-                                  <Field
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    id="minimumPlays"
-                                    name="minimumPlays"
-                                    className="short"
-                                  />
-                                </div>
-                                {errors.minimumPlays &&
-                                  touched.minimumPlays && (
-                                    <div className="error">
-                                      {String(errors.minimumPlays)}
-                                    </div>
-                                  )}
-                                <div className="label-tip">
-                                  Only include items with at least this many
-                                  unique viewers (1-100)
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
                           {/* Collection Title Template */}
                           <div className="form-row">
                             <label
@@ -1922,7 +1928,10 @@ const CollectionFormConfigForm = ({
                                 detectedMediaTypes={detectedMediaTypes}
                                 getTemplatePresets={getTemplatePresets}
                                 isVisible={Boolean(
-                                  isCollection && values.type && values.subtype
+                                  isCollection &&
+                                    values.type &&
+                                    (values.type === 'multi-source' ||
+                                      values.subtype)
                                 )}
                                 currentUser={currentUser}
                                 libraries={libraries}

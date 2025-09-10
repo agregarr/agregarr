@@ -43,18 +43,19 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     }
   }
 
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
   ): Promise<TmdbSourceData[]> {
-    const statType = config.subtype.split('_')[0];
+    const subtype = config.subtype || '';
+    const statType = subtype.split('_')[0];
     const mediaType = getCollectionMediaType(config);
     const tmdbData: TmdbSourceData[] = [];
 
     switch (statType) {
       case 'trending': {
-        const timeWindow = config.subtype.includes('week') ? 'week' : 'day';
+        const timeWindow = subtype.includes('week') ? 'week' : 'day';
         if (mediaType === 'movie') {
           const data = await this.tmdbClient.getMovieTrending({
             page: 1,
@@ -169,7 +170,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     return tmdbData.slice(0, config.maxItems);
   }
 
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: TmdbSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,

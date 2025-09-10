@@ -29,9 +29,10 @@ export interface CollectionConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
-    | 'networks';
+    | 'networks'
+    | 'multi-source';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
-  readonly template: string;
+  readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
   readonly customTVTemplate?: string; // Custom template for TV collections when mediaType is 'both'
   readonly visibilityConfig: {
@@ -115,6 +116,18 @@ export interface CollectionConfig {
       readonly sunday: boolean;
     };
   };
+  // Multi-source specific properties (only present when type === 'multi-source')
+  readonly sources?: readonly {
+    readonly id: string;
+    readonly type: string;
+    readonly subtype?: string;
+    readonly customUrl?: string;
+    readonly timePeriod?: string;
+    readonly customDays?: number;
+    readonly minimumPlays?: number;
+    readonly priority: number;
+  }[];
+  readonly combineMode?: 'ordered' | 'randomized' | 'cycle';
 }
 
 /**

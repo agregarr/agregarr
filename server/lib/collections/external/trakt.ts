@@ -144,7 +144,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
   /**
    * Fetch data from Trakt API
    */
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     options?: CollectionSyncOptions
   ): Promise<TraktSourceData[]> {
@@ -384,7 +384,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
   /**
    * Map Trakt source data to standardized collection items
    */
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: TraktSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,
@@ -667,7 +667,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
     ];
 
     return legacyValidPrefixes.some((prefix) =>
-      config.subtype.startsWith(prefix)
+      (config.subtype || '').startsWith(prefix)
     );
   }
 

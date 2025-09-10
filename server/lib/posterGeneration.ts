@@ -135,6 +135,12 @@ const COLOR_SCHEMES: Record<string, ColorScheme> = {
     textColor: '#ffffff',
     accentColor: '#4deb96',
   },
+  'multi-source': {
+    primaryColor: '#e65100', // Agregarr orange/brand color
+    secondaryColor: '#1c1917', // Matches UI bg-stone-900
+    textColor: '#ffffff',
+    accentColor: '#ff8a50', // Lighter orange accent
+  },
   default: {
     primaryColor: '#6366f1',
     secondaryColor: '#1e1b4b', // Already good - gentle dark indigo
@@ -161,6 +167,7 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',
   plex: 'plex.svg',
+  'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
   // Streaming Platform Logo Mappings
   netflix: 'netflix.svg',
   hbo: 'hbo.svg',

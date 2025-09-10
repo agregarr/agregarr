@@ -56,7 +56,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     // 3. Any connectivity issues will be caught during actual fetching
   }
 
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
@@ -282,7 +282,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     }
   }
 
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: LetterboxdSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,

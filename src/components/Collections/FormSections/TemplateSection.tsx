@@ -134,6 +134,14 @@ const TemplateSection = ({
               detectedMediaTypes
             );
 
+            // Auto-select the only available option if template is empty
+            if (templatePresets.length === 1 && !values.template) {
+              setTimeout(
+                () => setFieldValue('template', templatePresets[0].value),
+                0
+              );
+            }
+
             return templatePresets.map((preset) => (
               <option key={preset.value} value={preset.value}>
                 {preset.label}
