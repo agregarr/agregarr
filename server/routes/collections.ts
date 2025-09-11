@@ -2,7 +2,7 @@ import type {
   MultiSourceCombineMode,
   MultiSourceType,
 } from '@server/../src/types/collections';
-import PlexAPI from '@server/api/plexapi';
+import PlexAPI, { type PlexLibraryItem } from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
@@ -1078,7 +1078,7 @@ collectionsRoutes.post('/sync', isAuthenticated(), async (req, res) => {
 collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
   try {
     const { id } = req.params;
-    const settings = getSettings();
+    const settings = getSettings().load();
 
     // Find the collection config by ID
     const collectionConfig = settings.plex.collectionConfigs?.find(
@@ -1106,11 +1106,11 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
       '@server/lib/collections/services/CollectionSyncService'
     );
 
-    // Get Plex client
-    const userRepository = getRepository(User);
-    const admin = await userRepository.findOne({
-      where: { id: 1 },
-    });
+    // Get admin user for Plex token using the same utility as global sync
+    const { getAdminUser } = await import(
+      '@server/lib/collections/core/CollectionUtilities'
+    );
+    const admin = await getAdminUser();
 
     if (!admin) {
       return res.status(500).json({
@@ -1119,7 +1119,10 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
       });
     }
 
-    const plexClient = new PlexAPI({ plexToken: admin.plexToken });
+    const plexClient = new PlexAPI({
+      plexToken: admin.plexToken,
+      plexSettings: settings.plex,
+    });
 
     // Start individual collection sync
     const syncPromise = (async () => {
@@ -1141,6 +1144,35 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
           extendedConfig.isMultiSource &&
           (extendedConfig.sources?.length ?? 0) > 0;
         const allCollections = await plexClient.getAllCollections();
+
+        // Get library data for content matching (like global sync does)
+        const libraries = await plexClient.getLibraries();
+        const libraryCache: Record<string, PlexLibraryItem[]> = {};
+
+        // Pre-fetch library content for the target library
+        if (collectionConfig.libraryId && libraries) {
+          const targetLibrary = libraries.find(
+            (lib) => lib.key === collectionConfig.libraryId
+          );
+          if (targetLibrary) {
+            try {
+              const libraryContent = await plexClient.getLibraryContents(
+                collectionConfig.libraryId
+              );
+              libraryCache[collectionConfig.libraryId] =
+                libraryContent?.items || [];
+            } catch (error) {
+              logger.warn(
+                `Failed to fetch library content for library ${collectionConfig.libraryId}`,
+                {
+                  label: 'Individual Collection Sync',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              libraryCache[collectionConfig.libraryId] = [];
+            }
+          }
+        }
 
         let result;
         if (isMultiSource) {
@@ -1179,7 +1211,7 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
             plexClient,
             allCollections,
             new Set(),
-            {}
+            libraryCache
           );
         } else {
           // Use normal single-source sync
@@ -1191,9 +1223,20 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
             plexClient,
             allCollections,
             new Set(),
-            {}
+            libraryCache
           );
         }
+
+        // Mark collection as synced (update needsSync status)
+        settings.markCollectionSynced(id, 'collection');
+        settings.save();
+
+        // Sync Plex collection ordering after collection sync
+        const { HubSyncService } = await import(
+          '@server/lib/collections/plex/HubSyncService'
+        );
+        const hubSyncService = new HubSyncService();
+        await hubSyncService.syncUnifiedOrdering(plexClient);
 
         logger.info(
           `Individual collection sync completed: ${collectionConfig.name}`,

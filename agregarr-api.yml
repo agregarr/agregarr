@@ -3712,6 +3712,66 @@ paths:
                     example: "Failed to delete collection"
                   message:
                     type: string
+  /collections/{id}/sync:
+    post:
+      summary: Sync individual collection
+      description: Triggers sync for a specific collection by ID. This performs the same sync operation as the global sync but only for the specified collection, without the global preprocessing overhead.
+      tags:
+        - collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Collection ID to sync
+          schema:
+            type: string
+            example: "10000"
+      responses:
+        '200':
+          description: Collection sync started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Collection sync started for \"Movie Collection\""
+                  collectionId:
+                    type: string
+                    example: "10000"
+                  collectionName:
+                    type: string
+                    example: "Movie Collection"
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Collection with ID 10000 not found"
+        '500':
+          description: Failed to start collection sync
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Admin user not found"
   /collections/{id}/promote:
     patch:
       summary: Promote collection to top section
