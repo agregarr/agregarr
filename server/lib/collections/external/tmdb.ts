@@ -16,6 +16,7 @@ import type {
   TmdbTemplateContext,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -26,6 +27,7 @@ import logger from '@server/logger';
  */
 export class TmdbCollectionSync extends BaseCollectionSync {
   private tmdbClient: TmdbAPI;
+  private dynamicRandomTitle: string | null = null;
 
   constructor() {
     super('tmdb');
@@ -45,6 +47,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
 
   public async fetchSourceData(
     config: CollectionConfig,
+    libraryCache?: LibraryItemsCache,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
   ): Promise<TmdbSourceData[]> {
@@ -165,6 +168,59 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         }
         break;
       }
+      case 'random': {
+        // Get a random URL from RandomListManager with media type validation
+        const mediaType = getCollectionMediaType(config);
+        const randomResult = await RandomListManager.getRandomUrlWithTitle(
+          'tmdb',
+          config.maxItems,
+          mediaType,
+          libraryCache
+        );
+        if (!randomResult) {
+          throw this.createSyncError(
+            CollectionSyncErrorType.CONFIGURATION_ERROR,
+            `No random TMDb collections available with ${mediaType} content`
+          );
+        }
+
+        const { url: randomUrl, title: listTitle } = randomResult;
+
+        // Store the dynamic title for use in generateCollectionNameWithCustom
+        if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+          this.dynamicRandomTitle = listTitle;
+          this.updateCollectionConfigField(config.id, { name: listTitle });
+        }
+
+        logger.info(`Using random TMDb collection: ${randomUrl}`, {
+          label: 'TMDb Collections',
+          collection: config.name,
+          randomUrl,
+          listTitle,
+        });
+
+        // Parse TMDb collection URL to get collection ID (same as custom)
+        const urlMatch = randomUrl.match(/themoviedb\.org\/collection\/(\d+)/);
+        if (!urlMatch) {
+          throw this.createSyncError(
+            CollectionSyncErrorType.CONFIGURATION_ERROR,
+            `Invalid TMDb collection URL: ${randomUrl}`
+          );
+        }
+
+        const collectionData = await this.tmdbClient.getCollection({
+          collectionId: parseInt(urlMatch[1], 10),
+        });
+        if (collectionData.parts) {
+          tmdbData.push(
+            ...collectionData.parts.map((item) => ({
+              ...item,
+              media_type: 'movie' as const,
+            }))
+          );
+        }
+        break;
+      }
     }
 
     return tmdbData.slice(0, config.maxItems);
@@ -271,6 +327,24 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     };
   }
 
+  public async generateCollectionNameWithCustom(
+    config: CollectionConfig,
+    mediaType: 'movie' | 'tv',
+    libraryCache?: LibraryItemsCache
+  ): Promise<string> {
+    // Handle DYNAMIC_RANDOM_TITLE using stored title from fetchSourceData
+    if (config.template === 'DYNAMIC_RANDOM_TITLE' && this.dynamicRandomTitle) {
+      return this.dynamicRandomTitle;
+    }
+
+    // Fall back to base implementation for other templates
+    return super.generateCollectionNameWithCustom(
+      config,
+      mediaType,
+      libraryCache
+    );
+  }
+
   protected async createTemplateContext(
     config: CollectionConfig,
     mediaType: 'movie' | 'tv'
@@ -289,7 +363,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     libraryCache?: LibraryItemsCache,
     _options?: CollectionSyncOptions // eslint-disable-line @typescript-eslint/no-unused-vars
   ) {
-    const sourceData = await this.fetchSourceData(config);
+    const sourceData = await this.fetchSourceData(config, libraryCache);
     const mappedResult = await this.mapSourceDataToItems(
       sourceData,
       config,
@@ -321,7 +395,9 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       config,
       plexClient,
       allCollections,
-      processedCollectionKeys
+      processedCollectionKeys,
+      undefined, // userInfo
+      libraryCache
     );
   }
 

@@ -418,7 +418,11 @@ const SortableItem = ({
         <div className="flex-1">
           <div className="mb-2 flex items-center">
             <h5 className="text-base font-medium text-white">
-              {config.name || 'Unnamed Collection'}
+              {config.name === 'DYNAMIC_RANDOM_TITLE' ? (
+                <em>Title will be updated on Collection Sync</em>
+              ) : (
+                config.name || 'Unnamed Collection'
+              )}
             </h5>
             {/* Greyed out indicator for Recommended tab - inline with title */}
             {isGreyedInRecommended && (

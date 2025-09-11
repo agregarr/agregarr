@@ -423,8 +423,28 @@ class FlixPatrolAPI extends ExternalAPI {
           });
         }
 
-        // Compare normalized platform names
+        // Compare normalized platform names and media type
         if (isMatch) {
+          // For global pages, also check if this section matches the requested media type
+          if (!headingText.toLowerCase().includes('top 10')) {
+            // Global page - check media type match
+            const isMovieSection = headingText
+              .toLowerCase()
+              .includes('top movies on');
+            const isTvSection = headingText
+              .toLowerCase()
+              .includes('top tv shows on');
+
+            // Only use this section if it matches the requested media type
+            if (requestedMediaType === 'movie' && !isMovieSection) {
+              continue; // Skip this section, look for movies section
+            }
+            if (requestedMediaType === 'tv' && !isTvSection) {
+              continue; // Skip this section, look for TV section
+            }
+            // For 'both' or unspecified, use any matching platform section
+          }
+
           logger.debug(`Found platform section: ${headingText}`, {
             label: 'FlixPatrol API',
             platform,
@@ -432,6 +452,7 @@ class FlixPatrolAPI extends ExternalAPI {
             actualPlatformName,
             normalizedActual,
             platformName,
+            requestedMediaType,
             format: headingText.toLowerCase().includes('top 10')
               ? 'country'
               : 'global',
@@ -1522,18 +1543,29 @@ class FlixPatrolAPI extends ExternalAPI {
         const table = globalCardTables[i];
         const items = this.parseCardTable(table);
 
-        // For global pages, each platform typically has 2 tables: Movies then TV Shows
-        // Determine the content type based on table position within the platform's tables
-        const tablePositionInPlatform = i - startTableIndex;
-        const isMovieTable = tablePositionInPlatform % 2 === 0; // Even indices = Movies, Odd = TV
+        // FIXED: Use the section header to determine content type, not position
+        // Read what the header actually says instead of assuming table positions
+        const sectionHeaderText =
+          platformSection.textContent?.toLowerCase() || '';
+        const isMovieSection = sectionHeaderText.includes('top movies on');
+        const isTvSection = sectionHeaderText.includes('top tv shows on');
 
-        if (isMovieTable) {
+        if (isMovieSection) {
           result.movies.push(
             ...items.map((item) => ({ ...item, type: 'movie' as const }))
           );
-        } else {
+        } else if (isTvSection) {
           result.tvShows.push(
             ...items.map((item) => ({ ...item, type: 'tv' as const }))
+          );
+        } else {
+          logger.warn(
+            `Could not determine content type from header: ${sectionHeaderText}`,
+            {
+              label: 'FlixPatrol API',
+              platform,
+              headerText: sectionHeaderText,
+            }
           );
         }
 
@@ -1541,10 +1573,13 @@ class FlixPatrolAPI extends ExternalAPI {
           label: 'FlixPatrol API',
           platform,
           tableIndex: i,
-          tablePositionInPlatform,
-          isMovieTable,
           itemsCount: items.length,
-          contentType: isMovieTable ? 'movies' : 'tv',
+          contentType: isMovieSection
+            ? 'movies'
+            : isTvSection
+            ? 'tv'
+            : 'unknown',
+          headerText: sectionHeaderText.trim(),
         });
       }
 

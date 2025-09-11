@@ -1301,21 +1301,15 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
 
         const traktClient = new TraktAPI(settings.trakt.apiKey);
 
-        // Quick validation with first 10 items to get title and confirm accessibility
+        // Get list metadata to extract real title, then validate with items
         try {
+          // First get the real list title from metadata
+          const listMetadata = await traktClient.getListMetadata(sanitizedUrl);
+          title = listMetadata.name || 'Trakt List';
+
+          // Then validate list accessibility with first 10 items
           const listData = await traktClient.getCustomList(sanitizedUrl, 10);
           if (listData && listData.length >= 0) {
-            // Extract the list name from the URL since Trakt API doesn't return list metadata
-            const urlMatch = sanitizedUrl.match(
-              /trakt\.tv\/users\/[^/]+\/lists\/([^/?]+)/
-            );
-            if (urlMatch) {
-              // Convert slug to readable title (replace hyphens with spaces, capitalize)
-              title = urlMatch[1]
-                .replace(/-/g, ' ')
-                .replace(/\b\w/g, (l: string) => l.toUpperCase());
-            }
-
             // Quick media type detection from first 10 items
             if (listData.length > 0) {
               const hasMovies = listData.some(
@@ -1395,7 +1389,24 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           // Extract title from HTML
           const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
           if (titleMatch) {
-            title = titleMatch[1].replace(' - IMDb', '').trim();
+            let extractedTitle = titleMatch[1].replace(' - IMDb', '').trim();
+
+            // Decode HTML entities (same as RandomListManager and Letterboxd)
+            extractedTitle = extractedTitle
+              .replace(/&lrm;/g, '') // Remove left-to-right mark
+              .replace(/&rlm;/g, '') // Remove right-to-left mark
+              .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
+              .replace(/&ndash;/g, '–') // Replace en-dash
+              .replace(/&mdash;/g, '—') // Replace em-dash
+              .replace(/&hellip;/g, '…') // Replace ellipsis
+              .replace(/&quot;/g, '"') // Replace quotes
+              .replace(/&#39;/g, "'") // Replace apostrophe
+              .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
+              .replace(/&amp;/g, '&') // Replace ampersand (do this last)
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+
+            title = extractedTitle;
           }
 
           // Try to detect media type from the page content by analyzing list items

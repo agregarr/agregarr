@@ -19,6 +19,7 @@ import type {
   TraktTemplateContext,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -37,6 +38,7 @@ interface TraktCollectionItem extends CollectionItem {
  */
 export class TraktCollectionSync extends BaseCollectionSync {
   private traktClients: Map<string, TraktAPI> = new Map();
+  private dynamicRandomTitle: string | null = null;
 
   constructor() {
     super('trakt');
@@ -76,7 +78,11 @@ export class TraktCollectionSync extends BaseCollectionSync {
       }
 
       // Fetch data from Trakt API
-      const sourceData = await this.fetchSourceData(config, options);
+      const sourceData = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
 
       // Map to standardized format
       const mappedResult = await this.mapSourceDataToItems(
@@ -114,9 +120,25 @@ export class TraktCollectionSync extends BaseCollectionSync {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        undefined, // userInfo
+        libraryCache
       );
     } catch (error) {
+      // Log detailed error information before rethrowing
+      logger.error(`Detailed Trakt collection error for "${config.name}"`, {
+        label: 'trakt Collections',
+        configId: config.id,
+        configName: config.name,
+        subtype: config.subtype,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        errorProperties: Object.getOwnPropertyNames(error),
+      });
+
       throw this.createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
         `Failed to process Trakt collection ${config.name}`,
@@ -124,6 +146,24 @@ export class TraktCollectionSync extends BaseCollectionSync {
         error instanceof Error ? error : new Error(String(error))
       );
     }
+  }
+
+  public async generateCollectionNameWithCustom(
+    config: CollectionConfig,
+    mediaType: 'movie' | 'tv',
+    libraryCache?: LibraryItemsCache
+  ): Promise<string> {
+    // Handle DYNAMIC_RANDOM_TITLE using stored title from fetchSourceData
+    if (config.template === 'DYNAMIC_RANDOM_TITLE' && this.dynamicRandomTitle) {
+      return this.dynamicRandomTitle;
+    }
+
+    // Fall back to base implementation for other templates
+    return super.generateCollectionNameWithCustom(
+      config,
+      mediaType,
+      libraryCache
+    );
   }
 
   /**
@@ -146,7 +186,8 @@ export class TraktCollectionSync extends BaseCollectionSync {
    */
   public async fetchSourceData(
     config: CollectionConfig,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    libraryCache?: LibraryItemsCache
   ): Promise<TraktSourceData[]> {
     const settings = getSettings();
     const apiKey = settings.trakt.apiKey;
@@ -360,6 +401,87 @@ export class TraktCollectionSync extends BaseCollectionSync {
           customListData = this.applyOrderingOptions(customListData, config);
 
           traktData.push(...customListData);
+          break;
+        }
+
+        case 'random': {
+          // Get a random URL from RandomListManager with media type validation
+          const randomResult = await RandomListManager.getRandomUrlWithTitle(
+            'trakt',
+            config.maxItems,
+            mediaType,
+            libraryCache
+          );
+          if (!randomResult) {
+            throw this.createSyncError(
+              CollectionSyncErrorType.CONFIGURATION_ERROR,
+              `No random Trakt lists available with ${mediaType} content`
+            );
+          }
+
+          const { url: randomUrl, title: listTitle } = randomResult;
+
+          // Store the dynamic title for use in generateCollectionNameWithCustom
+          if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+            this.dynamicRandomTitle = listTitle;
+            this.updateCollectionConfigField(config.id, { name: listTitle });
+          }
+
+          logger.info(`Using random Trakt list: ${randomUrl}`, {
+            label: 'Trakt Collections',
+            collection: config.name,
+            randomUrl,
+            listTitle,
+          });
+
+          // Use the random URL like a custom list
+          const cleanUrl = randomUrl.split('?')[0];
+          let randomListData = await traktClient.getCustomList(
+            cleanUrl,
+            config.maxItems
+          );
+
+          // Smart promotion: Convert episodes/seasons to their parent shows, and include full movies/shows
+          randomListData = randomListData
+            .map((item): TraktListResponse => {
+              // If it's an episode or season, promote it to the parent show
+              if (item.episode && item.episode.show) {
+                return {
+                  ...item,
+                  type: 'show' as const,
+                  show: item.episode.show,
+                  movie: undefined, // Clear any movie data
+                  episode: undefined, // Clear episode data to avoid confusion
+                };
+              }
+
+              if (item.season && item.season.show) {
+                return {
+                  ...item,
+                  type: 'show' as const,
+                  show: item.season.show,
+                  movie: undefined, // Clear any movie data
+                  season: undefined, // Clear season data to avoid confusion
+                };
+              }
+
+              // Return movies and shows as-is
+              return item;
+            })
+            .filter((item) => item.movie || item.show); // Only keep items with movie or show data
+
+          // Filter by media type (now always specific to library)
+          const targetType = mediaType === 'movie' ? 'movie' : 'show';
+          randomListData = randomListData.filter(
+            (item) =>
+              (item.movie && targetType === 'movie') ||
+              (item.show && targetType === 'show')
+          );
+
+          // Apply ordering modifications
+          randomListData = this.applyOrderingOptions(randomListData, config);
+
+          traktData.push(...randomListData);
           break;
         }
 
@@ -651,6 +773,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
       'favorited_all',
       'boxoffice',
       'custom',
+      'random',
     ];
 
     // Check if it's a valid current subtype
@@ -704,6 +827,8 @@ export class TraktCollectionSync extends BaseCollectionSync {
         return 'boxoffice';
       case 'custom':
         return 'custom';
+      case 'random':
+        return 'random';
 
       // Extract stat type from old subtype format
       default:

@@ -128,7 +128,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       const validatedConfig = sourceConfigs[0];
 
       // Fetch data from the external source
-      const sourceData = await this.fetchSourceData(validatedConfig, options);
+      const sourceData = await this.fetchSourceData(
+        validatedConfig,
+        options,
+        libraryCache
+      );
 
       if (!sourceData || sourceData.length === 0) {
         logger.debug(`No source data returned for ${validatedConfig.name}`, {
@@ -377,15 +381,28 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
    */
   public async generateCollectionNameWithCustom(
     config: CollectionConfig,
-    mediaType: 'movie' | 'tv'
+    mediaType: 'movie' | 'tv',
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    libraryCache?: LibraryItemsCache
   ): Promise<string> {
     const context = await this.createTemplateContext(config, mediaType);
 
-    // Use custom templates if available, otherwise fall back to main template
-    const template =
-      mediaType === 'movie'
-        ? config.customMovieTemplate || config.template || config.name
-        : config.customTVTemplate || config.template || config.name;
+    // Handle special dynamic random title template
+    if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+      // DYNAMIC_RANDOM_TITLE should be handled by each subclass in fetchSourceData
+      // Fall back to config.name if not handled
+      return config.name;
+    }
+
+    // Use custom templates only if template is set to 'custom', otherwise use main template
+    const template = (() => {
+      if (config.template === 'custom') {
+        return mediaType === 'movie'
+          ? config.customMovieTemplate || config.name
+          : config.customTVTemplate || config.name;
+      }
+      return config.template || config.name;
+    })();
 
     return this.templateEngine.processTemplate(template, context);
   }
@@ -1332,7 +1349,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   /**
    * Update specific fields of a collection config
    */
-  private updateCollectionConfigField(
+  protected updateCollectionConfigField(
     configId: string,
     updateConfig: Partial<CollectionConfig>
   ): void {
@@ -1406,7 +1423,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
    */
   public abstract fetchSourceData(
     config: CollectionConfig,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    libraryCache?: LibraryItemsCache
   ): Promise<CollectionSourceData[]>;
 
   /**
@@ -1561,7 +1579,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
-    userInfo?: { userId?: number | string; customLabel?: string }
+    userInfo?: { userId?: number | string; customLabel?: string },
+    libraryCache?: LibraryItemsCache
   ): Promise<MediaProcessingResult> {
     const mediaType = getCollectionMediaType(config);
 
@@ -1575,7 +1594,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         plexClient,
         allCollections,
         processedCollectionKeys,
-        userInfo
+        userInfo,
+        libraryCache
       );
     } catch (error) {
       logger.error(`Media type processing failed`, {
@@ -1605,7 +1625,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
-    userInfo?: { userId?: number | string; customLabel?: string }
+    userInfo?: { userId?: number | string; customLabel?: string },
+    libraryCache?: LibraryItemsCache
   ): Promise<MediaProcessingResult> {
     // Filter items by the specified media type
     const filteredItems = items.filter((item) => item.type === mediaType);
@@ -1627,7 +1648,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }
 
     const collectionName =
-      (await this.generateCollectionNameWithCustom?.(config, mediaType)) ||
+      (await this.generateCollectionNameWithCustom?.(
+        config,
+        mediaType,
+        libraryCache
+      )) ||
       config.template ||
       config.name;
 

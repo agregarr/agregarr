@@ -40,6 +40,12 @@ export const useTemplatePreview = (options: UseTemplatePreviewOptions) => {
       return;
     }
 
+    // Handle special dynamic random title template
+    if (options.template === 'DYNAMIC_RANDOM_TITLE') {
+      setPreview('Title will be updated on Collection Sync');
+      return;
+    }
+
     // Skip if this is the same request as last time
     if (lastRequestRef.current === templateKey) {
       return;

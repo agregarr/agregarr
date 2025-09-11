@@ -1,16 +1,20 @@
 # Letterboxd Random Lists Configuration
-# Set enabled=true to activate random list rotation for Letterboxd collections  
+# 
+# RANDOM LISTS WORK AUTOMATICALLY! 
+# When you select "Random Lists" in the UI, thousands of lists are dynamically discovered from:
+# - 250 pages of popular lists (random page strategy)
+# - Community-curated film lists
+# - Cinephile recommendations
+#
+# OPTIONAL: Override with your own curated list collection
+# Set enabled=true and add custom URLs below to use your own lists instead
 enabled=false
 
-# Add one Letterboxd list URL per line below
-# Example URLs (remove # to activate):
+# Add one Letterboxd list URL per line below to override dynamic discovery
+# These will be used instead of the dynamically discovered lists
+# Example URLs (remove # and set enabled=true to activate):
 # https://letterboxd.com/username/list/favorite-films/
 # https://letterboxd.com/username/list/best-horror-films/
 # https://letterboxd.com/username/list/underrated-gems/
 # https://letterboxd.com/username/list/comfort-movies/
 # https://letterboxd.com/username/list/criterion-collection/
-
-# Popular Letterboxd lists you might want to add:
-# https://letterboxd.com/dave/list/official-top-250-narrative-feature-films/
-# https://letterboxd.com/lifeasfiction/list/letterboxds-top-250-films/
-# https://letterboxd.com/crew/list/staff-picks-the-best-films-on-letterboxd/

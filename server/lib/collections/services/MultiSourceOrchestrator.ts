@@ -280,7 +280,11 @@ export class MultiSourceOrchestrator {
 
     // Use sync service's internal methods to fetch items
     try {
-      const sourceData = await syncService.fetchSourceData(tempConfig, options);
+      const sourceData = await syncService.fetchSourceData(
+        tempConfig,
+        options,
+        libraryCache
+      );
       const mappedResult = await syncService.mapSourceDataToItems(
         sourceData,
         tempConfig,

@@ -17,6 +17,7 @@ import type {
   PlexCollection,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -30,6 +31,7 @@ import logger from '@server/logger';
  */
 export class ImdbCollectionSync extends BaseCollectionSync {
   private tmdbClient: TmdbAPI;
+  private dynamicRandomTitle: string | null = null;
 
   constructor() {
     super('imdb');
@@ -49,8 +51,8 @@ export class ImdbCollectionSync extends BaseCollectionSync {
 
   public async fetchSourceData(
     config: CollectionConfig,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    libraryCache?: LibraryItemsCache
   ): Promise<ImdbSourceData[]> {
     try {
       let imdbData: ImdbListItem[] = [];
@@ -93,6 +95,60 @@ export class ImdbCollectionSync extends BaseCollectionSync {
             label: 'IMDb Collections',
             configName: config.name,
             itemCount: imdbData.length,
+          }
+        );
+      } else if (config.subtype === 'random') {
+        // Random IMDb list - get a random URL from RandomListManager with media type validation
+        const mediaType = getCollectionMediaType(config);
+        const randomResult = await RandomListManager.getRandomUrlWithTitle(
+          'imdb',
+          config.maxItems,
+          mediaType,
+          libraryCache
+        );
+        if (!randomResult) {
+          throw this.createSyncError(
+            CollectionSyncErrorType.CONFIGURATION_ERROR,
+            `No random IMDb lists available with ${mediaType} content`
+          );
+        }
+
+        const { url: randomUrl, title: listTitle } = randomResult;
+
+        // Store the dynamic title for use in generateCollectionNameWithCustom
+        if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+          this.dynamicRandomTitle = listTitle;
+          this.updateCollectionConfigField(config.id, { name: listTitle });
+        }
+
+        logger.info(`Using random IMDb list: ${randomUrl}`, {
+          label: 'IMDb Collections',
+          collection: config.name,
+          randomUrl,
+          listTitle,
+        });
+
+        // Use the same approach as custom lists
+        const axios = (await import('axios')).default;
+
+        const response = await axios.get(randomUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          timeout: 10000,
+        });
+
+        // Parse the HTML to extract movie/TV show items
+        imdbData = this.parseImdbListHtml(response.data, config.maxItems);
+
+        logger.info(
+          `Successfully fetched ${imdbData.length} items from random IMDb list`,
+          {
+            label: 'IMDb Collections',
+            configName: config.name,
+            itemCount: imdbData.length,
+            randomUrl,
           }
         );
       } else {
@@ -227,7 +283,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
    * Parse IMDb list HTML to extract movie/TV items
    * Supports both custom lists (HTML parsing) and predefined lists (JSON-LD)
    */
-  private parseImdbListHtml(html: string, maxItems: number): ImdbListItem[] {
+  public parseImdbListHtml(html: string, maxItems: number): ImdbListItem[] {
     const items: ImdbListItem[] = [];
 
     try {
@@ -517,6 +573,24 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     };
   }
 
+  public async generateCollectionNameWithCustom(
+    config: CollectionConfig,
+    mediaType: 'movie' | 'tv',
+    libraryCache?: LibraryItemsCache
+  ): Promise<string> {
+    // Handle DYNAMIC_RANDOM_TITLE using stored title from fetchSourceData
+    if (config.template === 'DYNAMIC_RANDOM_TITLE' && this.dynamicRandomTitle) {
+      return this.dynamicRandomTitle;
+    }
+
+    // Fall back to base implementation for other templates
+    return super.generateCollectionNameWithCustom(
+      config,
+      mediaType,
+      libraryCache
+    );
+  }
+
   protected async createTemplateContext(
     config: CollectionConfig,
     mediaType: 'movie' | 'tv'
@@ -531,12 +605,18 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     config: CollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>
+    processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache,
+    options?: CollectionSyncOptions
   ) {
     // Processing IMDb collection configuration
 
     try {
-      const sourceData = await this.fetchSourceData(config);
+      const sourceData = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
       // Source data fetched successfully
 
       const mappedResult = await this.mapSourceDataToItems(
@@ -580,7 +660,9 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        undefined, // userInfo
+        libraryCache
       );
     } catch (error) {
       logger.error('Error in IMDb processConfiguration', {
@@ -654,7 +736,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
   /**
    * Resolve TMDb ID from IMDb ID using TMDb's external ID lookup
    */
-  private async resolveTmdbIdFromImdbId(
+  public async resolveTmdbIdFromImdbId(
     imdbId: string
   ): Promise<number | undefined> {
     try {

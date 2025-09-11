@@ -1,9 +1,18 @@
 # Trakt Random Lists Configuration
-# Set enabled=true to activate random list rotation for Trakt collections
+# 
+# RANDOM LISTS WORK AUTOMATICALLY! 
+# When you select "Random Lists" in the UI, thousands of lists are dynamically discovered from:
+# - Popular public lists API
+# - Trending lists API  
+# - Community recommendations
+#
+# OPTIONAL: Override with your own curated list collection
+# Set enabled=true and add custom URLs below to use your own lists instead
 enabled=false
 
-# Add one Trakt list URL per line below
-# Example URLs (remove # to activate):
+# Add one Trakt list URL per line below to override dynamic discovery
+# These will be used instead of the dynamically discovered lists
+# Example URLs (remove # and set enabled=true to activate):
 # https://trakt.tv/users/username/lists/action-movies
 # https://trakt.tv/users/username/lists/sci-fi-classics
 # https://trakt.tv/users/username/lists/horror-favorites

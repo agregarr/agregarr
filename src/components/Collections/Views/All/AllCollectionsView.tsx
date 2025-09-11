@@ -742,7 +742,11 @@ const AllCollectionsView: React.FC = () => {
                   <div className="flex-1">
                     <div className="mb-2">
                       <h5 className="text-base font-medium text-white">
-                        {collection.name || 'Unnamed Collection'}
+                        {collection.name === 'DYNAMIC_RANDOM_TITLE' ? (
+                          <em>Title will be updated on Collection Sync</em>
+                        ) : (
+                          collection.name || 'Unnamed Collection'
+                        )}
                       </h5>
                     </div>
 

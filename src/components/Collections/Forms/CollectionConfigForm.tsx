@@ -533,11 +533,17 @@ const CollectionFormConfigForm = ({
 
   const getTemplatePresets = (
     values?: CollectionFormConfig,
-    fetchedTitles?: { trakt?: string; tmdb?: string; imdb?: string },
+    fetchedTitles?: {
+      trakt?: string;
+      tmdb?: string;
+      imdb?: string;
+      letterboxd?: string;
+    },
     detectedMediaTypes?: {
       trakt?: 'movie' | 'tv' | 'both';
       tmdb?: 'movie' | 'tv' | 'both';
       imdb?: 'movie' | 'tv' | 'both';
+      letterboxd?: 'movie' | 'tv' | 'both';
     }
   ): TemplatePreset[] => {
     if (!values?.subtype) return [{ label: 'Custom', value: 'custom' }];
@@ -557,7 +563,7 @@ const CollectionFormConfigForm = ({
     // Helper function to generate preset options for custom URLs
     const getCustomUrlPresets = (
       title: string,
-      serviceType: 'trakt' | 'tmdb' | 'imdb'
+      serviceType: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
     ): TemplatePreset[] => {
       if (!title) {
         return [
@@ -1126,6 +1132,22 @@ const CollectionFormConfigForm = ({
           ];
         case 'custom':
           return getCustomUrlPresets(fetchedTitles?.trakt || '', 'trakt');
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random Trakt {mediaType}s',
+              value: 'Random Trakt {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from Trakt',
+              value: 'Curated {mediaType}s from Trakt',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
         default:
           return [
             {
@@ -1206,6 +1228,22 @@ const CollectionFormConfigForm = ({
           ];
         case 'custom':
           return getCustomUrlPresets(fetchedTitles?.tmdb || '', 'tmdb');
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random TMDb {mediaType}s',
+              value: 'Random TMDb {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from TMDb',
+              value: 'Curated {mediaType}s from TMDb',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
         default:
           return [
             {
@@ -1266,6 +1304,22 @@ const CollectionFormConfigForm = ({
           ];
         case 'custom':
           return getCustomUrlPresets(fetchedTitles?.imdb || '', 'imdb');
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random IMDb {mediaType}s',
+              value: 'Random IMDb {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from IMDb',
+              value: 'Curated {mediaType}s from IMDb',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
         default:
           return [
             {
@@ -1335,6 +1389,41 @@ const CollectionFormConfigForm = ({
           },
           { label: 'Custom', value: 'custom' },
         ];
+      }
+    }
+
+    // Letterboxd collection presets
+    if (values.type === 'letterboxd') {
+      switch (values.subtype) {
+        case 'custom':
+          return getCustomUrlPresets(
+            fetchedTitles?.letterboxd || '',
+            'letterboxd'
+          );
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random Letterboxd {mediaType}s',
+              value: 'Random Letterboxd {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from Letterboxd',
+              value: 'Curated {mediaType}s from Letterboxd',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        default:
+          return [
+            {
+              label: 'Letterboxd Collection',
+              value: 'Letterboxd Collection',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
       }
     }
 

@@ -1,16 +1,18 @@
-# TMDb Random Lists Configuration
-# Set enabled=true to activate random list rotation for TMDb collections
+# TMDb Random Collections Configuration
+# 
+# RANDOM COLLECTIONS WORK AUTOMATICALLY! 
+# When you select "Random Lists" in the UI, thousands of collections are dynamically discovered from:
+# - Popular collections API
+# - Trending collections
+# - Community favorites
+#
+# OPTIONAL: Override with your own curated collection set
+# Set enabled=true and add custom URLs below to use your own collections instead
 enabled=false
 
-# Add one TMDb list URL per line below  
-# Example URLs (remove # to activate):
-# https://www.themoviedb.org/list/1
-# https://www.themoviedb.org/list/28
-# https://www.themoviedb.org/list/10749
-# https://www.themoviedb.org/list/99
-# https://www.themoviedb.org/list/634
-
-# Popular TMDb lists you might want to add:
-# https://www.themoviedb.org/list/7064149 (Top Rated Movies)
-# https://www.themoviedb.org/list/7103808 (Academy Award Winners)
-# https://www.themoviedb.org/list/7077855 (Best Action Movies)
+# Add one TMDb collection URL per line below to override dynamic discovery
+# These will be used instead of the dynamically discovered collections
+# Example URLs (remove # and set enabled=true to activate):
+# https://www.themoviedb.org/collection/1570
+# https://www.themoviedb.org/collection/448150
+# https://www.themoviedb.org/collection/9485

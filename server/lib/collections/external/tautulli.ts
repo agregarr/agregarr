@@ -1,7 +1,10 @@
 import type PlexAPI from '@server/api/plexapi';
 import TautulliAPI from '@server/api/tautulli';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
-import { getCollectionMediaType } from '@server/lib/collections/core/CollectionUtilities';
+import {
+  getCollectionMediaType,
+  type LibraryItemsCache,
+} from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
   CollectionOperationResult,
@@ -62,6 +65,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
   ): Promise<SyncResult> {
     try {
@@ -74,7 +78,11 @@ export class TautulliCollectionSync extends BaseCollectionSync {
       }
 
       // Since configs are now library-specific, always use the standard flow
-      const sourceData = await this.fetchSourceData(config, options);
+      const sourceData = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
       const mappedResult = await this.mapSourceDataToItems(
         sourceData,
         config,
@@ -102,7 +110,9 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        undefined, // userInfo
+        libraryCache
       );
     } catch (error) {
       throw this.createSyncError(
@@ -143,7 +153,9 @@ export class TautulliCollectionSync extends BaseCollectionSync {
    */
   public async fetchSourceData(
     config: CollectionConfig,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used in mapSourceDataToItems via processConfiguration
+    libraryCache?: LibraryItemsCache
   ): Promise<TautulliSourceData[]> {
     const tautulli = await this.getTautulliClient();
     const timeRangeDays = this.getTimeRangeDays(config);

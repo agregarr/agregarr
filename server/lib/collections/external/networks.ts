@@ -88,7 +88,11 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       }
 
       // Fetch data from FlixPatrol
-      const sourceData = await this.fetchSourceData(config, options);
+      const sourceData = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
 
       // Get the collection media type for dual search
       const collectionMediaType = getCollectionMediaType(config);
@@ -130,7 +134,9 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        undefined, // userInfo
+        libraryCache
       );
     } catch (error) {
       throw this.createSyncError(
@@ -164,7 +170,9 @@ export class NetworksCollectionSync extends BaseCollectionSync {
    */
   public async fetchSourceData(
     config: CollectionConfig,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used in mapSourceDataToItems via processConfiguration
+    libraryCache?: LibraryItemsCache
   ): Promise<NetworksSourceData[]> {
     try {
       // Extract platform name for logging
