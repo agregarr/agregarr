@@ -208,6 +208,13 @@ const CollectionTypeSection = ({
             // Only reset subtype if type actually changed (not just re-rendering)
             if (newType !== oldType) {
               setFieldValue('subtype', ''); // Reset subtype when type changes
+
+              // Handle multi-source type selection
+              if (newType === 'multi-source') {
+                setFieldValue('isMultiSource', true);
+              } else if (oldType === 'multi-source') {
+                setFieldValue('isMultiSource', false);
+              }
             }
 
             // Auto-set media type based on collection type

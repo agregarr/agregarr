@@ -339,6 +339,11 @@ export interface CollectionConfigCreateRequest {
   };
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
+  // Multi-source fields
+  readonly isMultiSource?: boolean;
+  readonly sources?: readonly CollectionSourceConfig[];
+  readonly combineMode?: MultiSourceCombineMode;
+  readonly customSyncSchedule?: CustomSyncSchedule;
 }
 
 /**
@@ -382,6 +387,11 @@ export const toCollectionCreateRequest = (
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
+    // Multi-source fields
+    isMultiSource: config.isMultiSource,
+    sources: config.sources,
+    combineMode: config.combineMode,
+    customSyncSchedule: config.customSyncSchedule,
   };
 };
 

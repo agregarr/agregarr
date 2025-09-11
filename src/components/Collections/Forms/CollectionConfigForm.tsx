@@ -1471,7 +1471,9 @@ const CollectionFormConfigForm = ({
           ...config,
           // Set clean defaults for new collections
           // Cast to CollectionFormConfig since we're creating CollectionFormConfig-compatible values
-          type: (config as CollectionFormConfig).type || undefined,
+          type: (config as CollectionFormConfig).isMultiSource
+            ? 'multi-source'
+            : (config as CollectionFormConfig).type || undefined,
           // Parse compound subtypes (e.g., "played_daily" -> subtype: "played", timePeriod: "daily")
           ...(() => {
             const originalSubtype =
@@ -1549,22 +1551,37 @@ const CollectionFormConfigForm = ({
               libraryRecommended: true,
             },
           },
-          // Multi-source configuration - initialize with existing single-source config
-          isMultiSource: false,
+          // Multi-source configuration - initialize properly based on existing config
+          isMultiSource:
+            (config as CollectionFormConfig).isMultiSource ?? false,
           sources: (() => {
-            const singleConfig = config as CollectionFormConfig;
-            if (singleConfig.type) {
+            const existingConfig = config as CollectionFormConfig;
+
+            // If this is already a multi-source config, use existing sources
+            if (
+              existingConfig.isMultiSource &&
+              existingConfig.sources &&
+              existingConfig.sources.length > 0
+            ) {
+              return [...existingConfig.sources] as CollectionSourceConfig[];
+            }
+
+            // For single-source configs, create single source from existing config
+            if (existingConfig.type) {
               return [
                 {
                   id: '0',
-                  type: singleConfig.type,
-                  subtype: singleConfig.subtype,
-                  timePeriod: singleConfig.timePeriod,
+                  type: existingConfig.type,
+                  subtype: existingConfig.subtype,
+                  timePeriod: existingConfig.timePeriod,
                   customUrl:
-                    singleConfig.traktCustomListUrl ||
-                    singleConfig.tmdbCustomListUrl ||
-                    singleConfig.imdbCustomListUrl ||
-                    singleConfig.letterboxdCustomListUrl,
+                    existingConfig.traktCustomListUrl ||
+                    existingConfig.tmdbCustomListUrl ||
+                    existingConfig.imdbCustomListUrl ||
+                    existingConfig.letterboxdCustomListUrl,
+                  customDays: existingConfig.customDays,
+                  minimumPlays: existingConfig.minimumPlays,
+                  networksCountry: existingConfig.networksCountry,
                   priority: 0,
                   isExpanded: true,
                 },
@@ -1572,8 +1589,11 @@ const CollectionFormConfigForm = ({
             }
             return [] as CollectionSourceConfig[];
           })(),
-          combineMode: 'list_order' as MultiSourceCombineMode,
-          customSyncSchedule: {
+          combineMode:
+            (config as CollectionFormConfig).combineMode ??
+            ('list_order' as MultiSourceCombineMode),
+          customSyncSchedule: (config as CollectionFormConfig)
+            .customSyncSchedule ?? {
             enabled: false,
             intervalHours: 24,
           },
@@ -1619,6 +1639,8 @@ const CollectionFormConfigForm = ({
 
           const configToSave: CollectionFormConfig = {
             ...values,
+            // For multi-source collections, ensure type is set correctly
+            type: values.isMultiSource ? 'multi-source' : values.type,
             subtype: finalSubtype,
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
