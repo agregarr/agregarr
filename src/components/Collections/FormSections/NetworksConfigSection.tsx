@@ -75,7 +75,7 @@ const NetworksConfigSection = ({
       <div>
         <label
           htmlFor="networksCountry"
-          className="mb-2 block text-sm font-medium text-gray-300"
+          className="mb-2 block text-sm text-gray-300"
         >
           {intl.formatMessage(messages.networksCountry)}{' '}
           <span className="text-red-500">*</span>
@@ -84,7 +84,7 @@ const NetworksConfigSection = ({
           as="select"
           id="networksCountry"
           name="networksCountry"
-          className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
             const newCountry = e.target.value;
             setFieldValue('networksCountry', newCountry);
@@ -132,10 +132,7 @@ const NetworksConfigSection = ({
       {/* Platform Selection - Only show if country is selected */}
       {values.networksCountry && (
         <div>
-          <label
-            htmlFor="subtype"
-            className="mb-2 block text-sm font-medium text-gray-300"
-          >
+          <label htmlFor="subtype" className="mb-2 block text-sm text-gray-300">
             {intl.formatMessage(messages.networksPlatform)}{' '}
             <span className="text-red-500">*</span>
           </label>
@@ -143,7 +140,7 @@ const NetworksConfigSection = ({
             as="select"
             id="subtype"
             name="subtype"
-            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             disabled={isLoadingPlatforms}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
               const newPlatform = e.target.value;

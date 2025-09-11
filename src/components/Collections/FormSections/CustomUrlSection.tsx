@@ -88,7 +88,7 @@ const CustomUrlSection = ({
       <div>
         <label
           htmlFor="traktCustomListUrl"
-          className="mb-2 block text-sm font-medium text-gray-300"
+          className="mb-2 block text-sm text-gray-300"
         >
           {intl.formatMessage(messages.customTraktListUrl)}{' '}
           <span className="text-red-500">*</span>
@@ -99,7 +99,7 @@ const CustomUrlSection = ({
             id="traktCustomListUrl"
             name="traktCustomListUrl"
             placeholder="https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name"
-            className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTraktTitle && (
             <button
@@ -133,7 +133,7 @@ const CustomUrlSection = ({
       <div>
         <label
           htmlFor="tmdbCustomListUrl"
-          className="mb-2 block text-sm font-medium text-gray-300"
+          className="mb-2 block text-sm text-gray-300"
         >
           {intl.formatMessage(messages.customTmdbCollectionUrl)}{' '}
           <span className="text-red-500">*</span>
@@ -144,7 +144,7 @@ const CustomUrlSection = ({
             id="tmdbCustomListUrl"
             name="tmdbCustomListUrl"
             placeholder="https://www.themoviedb.org/collection/12345"
-            className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTmdbTitle && (
             <button
@@ -177,7 +177,7 @@ const CustomUrlSection = ({
       <div>
         <label
           htmlFor="imdbCustomListUrl"
-          className="mb-2 block text-sm font-medium text-gray-300"
+          className="mb-2 block text-sm text-gray-300"
         >
           {intl.formatMessage(messages.customImdbListUrl)}{' '}
           <span className="text-red-500">*</span>
@@ -188,7 +188,7 @@ const CustomUrlSection = ({
             id="imdbCustomListUrl"
             name="imdbCustomListUrl"
             placeholder="https://www.imdb.com/list/ls123456789/"
-            className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchImdbTitle && (
             <button
@@ -222,7 +222,7 @@ const CustomUrlSection = ({
       <div>
         <label
           htmlFor="letterboxdCustomListUrl"
-          className="mb-2 block text-sm font-medium text-gray-300"
+          className="mb-2 block text-sm text-gray-300"
         >
           {intl.formatMessage(messages.customLetterboxdListUrl)}{' '}
           <span className="text-red-500">*</span>
@@ -233,7 +233,7 @@ const CustomUrlSection = ({
             id="letterboxdCustomListUrl"
             name="letterboxdCustomListUrl"
             placeholder="https://letterboxd.com/username/list/listname/"
-            className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchLetterboxdTitle && (
             <button

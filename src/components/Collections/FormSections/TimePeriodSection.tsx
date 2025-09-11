@@ -73,10 +73,7 @@ const TimePeriodSection = ({
 
   return (
     <div>
-      <label
-        htmlFor="timePeriod"
-        className="mb-2 block text-sm font-medium text-gray-300"
-      >
+      <label htmlFor="timePeriod" className="mb-2 block text-sm text-gray-300">
         {intl.formatMessage(messages.timePeriod)}{' '}
         <span className="text-red-500">*</span>
       </label>
@@ -84,7 +81,7 @@ const TimePeriodSection = ({
         as="select"
         id="timePeriod"
         name="timePeriod"
-        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
         onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
           const newTimePeriod = e.target.value;
           setFieldValue('timePeriod', newTimePeriod);

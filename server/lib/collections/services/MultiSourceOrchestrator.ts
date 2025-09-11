@@ -15,8 +15,10 @@ import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollec
 import {
   createCollectionLabel,
   createSyncError,
+  getCollectionSyncCounter,
   getMediaTypeFromLibrary,
   handleRateLimit,
+  incrementCollectionSyncCounter,
   parseConfigIdFromLabel,
   updateConfigWithRatingKey,
   validateAndSanitizeItems,
@@ -131,6 +133,20 @@ export class MultiSourceOrchestrator {
         isActive: timeRestrictionResult.isActive,
       });
 
+      // Increment sync counter for cycle_lists mode
+      if (config.combineMode === 'cycle_lists') {
+        const newCounter = incrementCollectionSyncCounter(config.id);
+
+        logger.debug(
+          `Incremented sync counter for cycle collection: ${config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            syncCounter: newCounter,
+          }
+        );
+      }
+
       const itemGroups: CollectionItem[][] = [];
 
       // Fetch items from each source
@@ -176,7 +192,11 @@ export class MultiSourceOrchestrator {
       }
 
       // Combine items according to mode
-      const combinedItems = this.combineItems(itemGroups, config.combineMode);
+      const combinedItems = this.combineItems(
+        itemGroups,
+        config.combineMode,
+        config
+      );
 
       // 3. Validation & Filtering - use standard pipeline utilities
       const { validItems, invalidItems, validationErrors } =
@@ -401,7 +421,8 @@ export class MultiSourceOrchestrator {
    */
   private combineItems(
     itemGroups: CollectionItem[][],
-    combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists'
+    combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists',
+    parentConfig: MultiSourceCollectionConfig
   ): CollectionItem[] {
     switch (combineMode) {
       case 'interleaved':
@@ -421,7 +442,7 @@ export class MultiSourceOrchestrator {
 
       case 'cycle_lists':
         // Only one source active at a time, rotates each sync
-        return this.cycleListsItems(itemGroups);
+        return this.cycleListsItems(itemGroups, parentConfig.id);
 
       default:
         return this.concatenateItems(itemGroups);
@@ -470,18 +491,27 @@ export class MultiSourceOrchestrator {
   }
 
   /**
-   * Cycle lists: only show one source at a time, deterministically rotate
+   * Cycle lists: only show one source at a time, rotate on each sync execution
    */
-  private cycleListsItems(itemGroups: CollectionItem[][]): CollectionItem[] {
+  private cycleListsItems(
+    itemGroups: CollectionItem[][],
+    configId: string
+  ): CollectionItem[] {
     if (itemGroups.length === 0) return [];
 
-    // Use a deterministic rotation based on current date (changes daily)
-    const today = new Date();
-    const dayOfYear = Math.floor(
-      (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) /
-        86400000
-    );
-    const selectedIndex = dayOfYear % itemGroups.length;
+    // Get current sync counter for this collection
+    const syncCounter = getCollectionSyncCounter(configId);
+
+    // Select source based on sync iteration count
+    const selectedIndex = syncCounter % itemGroups.length;
+
+    logger.debug(`Cycle lists selection for ${configId}`, {
+      label: 'Multi-Source Orchestrator',
+      configId,
+      syncCounter,
+      selectedIndex,
+      totalSources: itemGroups.length,
+    });
 
     return itemGroups[selectedIndex] || [];
   }

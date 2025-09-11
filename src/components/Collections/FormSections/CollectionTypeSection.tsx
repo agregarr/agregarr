@@ -187,10 +187,7 @@ const CollectionTypeSection = ({
     <div className="space-y-4">
       {/* Collection Type */}
       <div>
-        <label
-          htmlFor="type"
-          className="mb-2 block text-sm font-medium text-gray-300"
-        >
+        <label htmlFor="type" className="mb-2 block text-sm text-gray-300">
           {intl.formatMessage(messages.collectionType)}{' '}
           <span className="text-red-500">*</span>
         </label>
@@ -198,7 +195,7 @@ const CollectionTypeSection = ({
           as="select"
           id="type"
           name="type"
-          className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
             const newType = e.target.value;
             const oldType = values.type;
@@ -235,10 +232,7 @@ const CollectionTypeSection = ({
       {/* Collection Sub-Type */}
       {values.type && subtypeOptions.length > 0 && (
         <div>
-          <label
-            htmlFor="subtype"
-            className="mb-2 block text-sm font-medium text-gray-300"
-          >
+          <label htmlFor="subtype" className="mb-2 block text-sm text-gray-300">
             {intl.formatMessage(messages.collectionSubtype)}{' '}
             <span className="text-red-500">*</span>
           </label>
@@ -246,7 +240,7 @@ const CollectionTypeSection = ({
             as="select"
             id="subtype"
             name="subtype"
-            className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
               const newSubtype = e.target.value;
               setFieldValue('subtype', newSubtype);
@@ -318,7 +312,7 @@ const CollectionTypeSection = ({
           <div>
             <label
               htmlFor="customDays"
-              className="mb-2 block text-sm font-medium text-gray-300"
+              className="mb-2 block text-sm text-gray-300"
             >
               Number of Days <span className="text-red-500">*</span>
             </label>
@@ -329,13 +323,13 @@ const CollectionTypeSection = ({
               placeholder="30"
               min="1"
               max="365"
-              className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
           <div>
             <label
               htmlFor="minimumPlays"
-              className="mb-2 block text-sm font-medium text-gray-300"
+              className="mb-2 block text-sm text-gray-300"
             >
               Minimum Play Count <span className="text-red-500">*</span>
             </label>
@@ -346,7 +340,7 @@ const CollectionTypeSection = ({
               placeholder="3"
               min="1"
               max="100"
-              className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
         </div>

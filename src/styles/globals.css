@@ -297,7 +297,7 @@
   input[type='password'],
   select,
   textarea {
-    @apply block w-full min-w-0 flex-1 rounded-md border border-slate-500 bg-slate-700 text-white transition duration-150 ease-in-out sm:text-sm sm:leading-5;
+    @apply block w-full min-w-0 flex-1 rounded-md border border-stone-500 bg-stone-700 text-white transition duration-150 ease-in-out sm:text-sm sm:leading-5;
   }
 
   input.rounded-l-only,
@@ -411,7 +411,7 @@
   }
 
   .react-select-container .react-select__multi-value {
-    @apply rounded-md border border-slate-500 bg-slate-800;
+    @apply rounded-md border border-stone-500 bg-stone-800;
   }
 
   .react-select-container .react-select__multi-value__label {

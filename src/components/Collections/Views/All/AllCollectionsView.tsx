@@ -764,7 +764,7 @@ const AllCollectionsView: React.FC = () => {
                       {isHub && (
                         <Badge
                           badgeType="default"
-                          className="!bg-gray-600/20 text-xs !text-gray-300"
+                          className="!bg-stone-600/20 text-xs !text-stone-300"
                         >
                           Plex Default
                         </Badge>
@@ -772,7 +772,7 @@ const AllCollectionsView: React.FC = () => {
                       {isPreExisting && (
                         <Badge
                           badgeType="default"
-                          className="!border !border-orange-500 !bg-gray-600/20 text-xs !text-gray-300"
+                          className="!border !border-orange-500 !bg-stone-600/20 text-xs !text-stone-300"
                         >
                           Pre-Existing
                         </Badge>

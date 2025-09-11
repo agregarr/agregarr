@@ -1591,3 +1591,88 @@ export async function findPlexItemsByTmdbIds(
 
   return results;
 }
+
+// Multi-source collection sync counter utilities
+
+/**
+ * Get the current sync counter for a multi-source collection
+ */
+export function getCollectionSyncCounter(configId: string): number {
+  try {
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+
+    const config = collectionConfigs.find((c) => c.id === configId);
+    if (!config) {
+      logger.warn(`Config not found for sync counter: ${configId}`, {
+        label: 'Collection Utilities',
+        configId,
+      });
+      return 0;
+    }
+
+    // Get sync counter from config (with type assertion for extended properties)
+    const extendedConfig = config as typeof config & { syncCounter?: number };
+    return extendedConfig.syncCounter || 0;
+  } catch (error) {
+    logger.error(`Failed to get sync counter for ${configId}: ${error}`, {
+      label: 'Collection Utilities',
+      configId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
+/**
+ * Increment and persist the sync counter for a multi-source collection
+ */
+export function incrementCollectionSyncCounter(configId: string): number {
+  try {
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+
+    const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
+    if (configIndex < 0) {
+      logger.warn(`Config not found for sync counter increment: ${configId}`, {
+        label: 'Collection Utilities',
+        configId,
+      });
+      return 0;
+    }
+
+    const existingConfig = collectionConfigs[configIndex];
+
+    // Get current counter and increment (with type assertion for extended properties)
+    const extendedConfig = existingConfig as typeof existingConfig & {
+      syncCounter?: number;
+    };
+    const newCounter = (extendedConfig.syncCounter || 0) + 1;
+
+    // Update config with new counter
+    const updatedConfig = {
+      ...existingConfig,
+      syncCounter: newCounter,
+    };
+
+    // Save updated config
+    collectionConfigs[configIndex] = updatedConfig;
+    settings.plex.collectionConfigs = collectionConfigs;
+    settings.save();
+
+    logger.debug(`Incremented sync counter for ${configId}: ${newCounter}`, {
+      label: 'Collection Utilities',
+      configId,
+      syncCounter: newCounter,
+    });
+
+    return newCounter;
+  } catch (error) {
+    logger.error(`Failed to increment sync counter for ${configId}: ${error}`, {
+      label: 'Collection Utilities',
+      configId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}

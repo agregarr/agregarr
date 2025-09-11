@@ -73,7 +73,7 @@ const NetworksPlatformSelect = ({
         id={`source-platform-${index}`}
         name={`sources[${index}].subtype`}
         value={value}
-        className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+        className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
         disabled={isLoadingPlatforms}
         onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
           onChange(e.target.value);
@@ -308,10 +308,10 @@ const MultiSourceConfigSection = ({
         {sources.map((source, index) => (
           <div
             key={source.id}
-            className="space-y-4 rounded-lg border border-gray-600 bg-gray-800 p-4"
+            className="space-y-4 rounded-lg border border-slate-500 bg-stone-800 p-4"
           >
             <div className="flex items-center justify-between">
-              <h5 className="text-sm font-medium text-gray-100">
+              <h5 className="text-sm font-medium text-gray-200">
                 Source {index + 1}
               </h5>
               {sources.length > 1 && (
@@ -328,7 +328,7 @@ const MultiSourceConfigSection = ({
             <div>
               <label
                 htmlFor={`source-type-${index}`}
-                className="mb-2 block text-sm font-medium text-gray-300"
+                className="mb-2 block text-sm text-gray-300"
               >
                 {intl.formatMessage(messages.sourceType)}{' '}
                 <span className="text-red-500">*</span>
@@ -337,7 +337,7 @@ const MultiSourceConfigSection = ({
                 as="select"
                 id={`source-type-${index}`}
                 name={`sources[${index}].type`}
-                className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   const newType = e.target.value;
                   setFieldValue(`sources[${index}].type`, newType);
@@ -362,7 +362,7 @@ const MultiSourceConfigSection = ({
                 <div>
                   <label
                     htmlFor={`source-subtype-${index}`}
-                    className="mb-2 block text-sm font-medium text-gray-300"
+                    className="mb-2 block text-sm text-gray-300"
                   >
                     {intl.formatMessage(messages.sourceSubtype)}{' '}
                     <span className="text-red-500">*</span>
@@ -371,7 +371,7 @@ const MultiSourceConfigSection = ({
                     as="select"
                     id={`source-subtype-${index}`}
                     name={`sources[${index}].subtype`}
-                    className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                       const newSubtype = e.target.value;
                       setFieldValue(`sources[${index}].subtype`, newSubtype);
@@ -410,7 +410,7 @@ const MultiSourceConfigSection = ({
               <div>
                 <label
                   htmlFor={`source-url-${index}`}
-                  className="mb-2 block text-sm font-medium text-gray-300"
+                  className="mb-2 block text-sm text-gray-300"
                 >
                   {intl.formatMessage(messages.customUrl)}{' '}
                   <span className="text-red-500">*</span>
@@ -422,7 +422,7 @@ const MultiSourceConfigSection = ({
                   placeholder={intl.formatMessage(
                     messages.customUrlPlaceholder
                   )}
-                  className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setFieldValue(
                       `sources[${index}].customUrl`,
@@ -438,7 +438,7 @@ const MultiSourceConfigSection = ({
                 <div>
                   <label
                     htmlFor={`source-country-${index}`}
-                    className="mb-2 block text-sm font-medium text-gray-300"
+                    className="mb-2 block text-sm text-gray-300"
                   >
                     {intl.formatMessage(messages.networksCountry)}{' '}
                     <span className="text-red-500">*</span>
@@ -447,7 +447,7 @@ const MultiSourceConfigSection = ({
                     as="select"
                     id={`source-country-${index}`}
                     name={`sources[${index}].networksCountry`}
-                    className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                       const newCountry = e.target.value;
                       setFieldValue(
@@ -491,7 +491,7 @@ const MultiSourceConfigSection = ({
                   <div>
                     <label
                       htmlFor={`source-platform-${index}`}
-                      className="mb-2 block text-sm font-medium text-gray-300"
+                      className="mb-2 block text-sm text-gray-300"
                     >
                       {intl.formatMessage(messages.networksPlatform)}{' '}
                       <span className="text-red-500">*</span>
@@ -516,7 +516,7 @@ const MultiSourceConfigSection = ({
                 <div>
                   <label
                     htmlFor={`source-timeperiod-${index}`}
-                    className="mb-2 block text-sm font-medium text-gray-300"
+                    className="mb-2 block text-sm text-gray-300"
                   >
                     {intl.formatMessage(messages.timePeriod)}{' '}
                     <span className="text-red-500">*</span>
@@ -525,7 +525,7 @@ const MultiSourceConfigSection = ({
                     as="select"
                     id={`source-timeperiod-${index}`}
                     name={`sources[${index}].timePeriod`}
-                    className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                       setFieldValue(
                         `sources[${index}].timePeriod`,
@@ -546,7 +546,7 @@ const MultiSourceConfigSection = ({
                 <div>
                   <label
                     htmlFor={`source-days-${index}`}
-                    className="mb-2 block text-sm font-medium text-gray-300"
+                    className="mb-2 block text-sm text-gray-300"
                   >
                     {intl.formatMessage(messages.customDays)}
                   </label>
@@ -557,7 +557,7 @@ const MultiSourceConfigSection = ({
                     placeholder="30"
                     min="1"
                     max="365"
-                    className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                       setFieldValue(
                         `sources[${index}].customDays`,
@@ -569,7 +569,7 @@ const MultiSourceConfigSection = ({
                 <div>
                   <label
                     htmlFor={`source-plays-${index}`}
-                    className="mb-2 block text-sm font-medium text-gray-300"
+                    className="mb-2 block text-sm text-gray-300"
                   >
                     {intl.formatMessage(messages.minimumPlays)}
                   </label>
@@ -580,7 +580,7 @@ const MultiSourceConfigSection = ({
                     placeholder="3"
                     min="1"
                     max="100"
-                    className="w-full rounded-md border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                       setFieldValue(
                         `sources[${index}].minimumPlays`,
@@ -602,7 +602,7 @@ const MultiSourceConfigSection = ({
       </div>
 
       <div>
-        <div className="mb-3 block text-sm font-medium text-gray-300">
+        <div className="mb-3 block text-sm font-medium text-gray-200">
           {intl.formatMessage(messages.combineMode)}
         </div>
         <div className="space-y-3">
