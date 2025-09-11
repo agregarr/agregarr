@@ -52,6 +52,97 @@ export class RandomListManager {
         path: this.configDir,
       });
     }
+
+    // Create template files if they don't exist
+    this.createTemplateFiles();
+  }
+
+  /**
+   * Create template configuration files for all source types
+   */
+  private static createTemplateFiles(): void {
+    const templates = {
+      trakt: `# Trakt Random Lists Configuration
+#
+# Add one Trakt list URL per line below to override the default true random search
+# Set enabled=true and add custom URLs below to use your own lists instead
+
+enabled=false
+
+# Example URLs (set enabled=true to activate):
+
+https://trakt.tv/users/justin/lists/imdb-top-250
+https://trakt.tv/users/giladg/lists/netflix-originals
+https://trakt.tv/users/sp1ti/lists/best-of-2023
+https://trakt.tv/users/hdlists/lists/popular-tv-shows
+https://trakt.tv/users/movistapp/lists/oscar-winners
+`,
+      tmdb: `# TMDb Random Collections Configuration
+#
+# Add one TMDb collection URL per line below to override the default true random search
+# Set enabled=true and add custom URLs below to use your own collections instead
+
+enabled=false
+
+# Example URLs (set enabled=true to activate):
+
+https://www.themoviedb.org/collection/1570
+https://www.themoviedb.org/collection/448150
+https://www.themoviedb.org/collection/9485
+https://www.themoviedb.org/collection/86311
+https://www.themoviedb.org/collection/131295
+`,
+      imdb: `# IMDb Random Lists Configuration
+#
+# Add one IMDb list URL per line below to override the default true random search
+# Set enabled=true and add custom URLs below to use your own lists instead
+
+enabled=false
+
+# Example URLs (set enabled=true to activate):
+
+https://www.imdb.com/list/ls004285815/
+https://www.imdb.com/list/ls058982944/
+https://www.imdb.com/list/ls055592025/
+https://www.imdb.com/list/ls091520106/
+https://www.imdb.com/list/ls056092300/
+`,
+      letterboxd: `# Letterboxd Random Lists Configuration
+#
+# Add one Letterboxd list URL per line below to override the default true random search
+# Set enabled=true and add custom URLs below to use your own lists instead
+
+enabled=false
+
+# Example URLs (set enabled=true to activate):
+
+https://letterboxd.com/dave/list/reddit-top-250/
+https://letterboxd.com/lifeasfiction/list/letterboxd-top-250/
+https://letterboxd.com/crew/list/popular-reviews/
+https://letterboxd.com/bestofrt/list/best-of-rotten-tomatoes/
+https://letterboxd.com/cinema/list/criterion-collection/
+`,
+    };
+
+    for (const [sourceType, template] of Object.entries(templates)) {
+      const filePath = path.join(this.configDir, `${sourceType}.txt`);
+
+      // Only create the file if it doesn't exist (don't overwrite user customizations)
+      if (!fs.existsSync(filePath)) {
+        try {
+          fs.writeFileSync(filePath, template, 'utf-8');
+          logger.debug(`Created template file: ${sourceType}.txt`, {
+            label: 'RandomListManager',
+            filePath,
+          });
+        } catch (error) {
+          logger.warn(`Failed to create template file: ${sourceType}.txt`, {
+            label: 'RandomListManager',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
   }
 
   /**
