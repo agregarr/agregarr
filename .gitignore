@@ -36,6 +36,7 @@ config/db/*.sqlite3*
 config/settings.json
 config/posters
 config/poster-hashes.json
+config/random-lists/*.txt
 
 # logs
 config/logs/*.log*
