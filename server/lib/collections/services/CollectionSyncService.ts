@@ -276,8 +276,7 @@ export class CollectionSyncService {
       );
     } catch (error) {
       throw new Error(
-        `Failed to apply pre-sync user restrictions: ${
-          error instanceof Error ? error.message : String(error)
+        `Failed to apply pre-sync user restrictions: ${error instanceof Error ? error.message : String(error)
         }`
       );
     }
@@ -329,8 +328,7 @@ export class CollectionSyncService {
       );
     } catch (error) {
       throw new Error(
-        `Failed to cleanup user filter labels: ${
-          error instanceof Error ? error.message : String(error)
+        `Failed to cleanup user filter labels: ${error instanceof Error ? error.message : String(error)
         }`
       );
     }
@@ -363,6 +361,12 @@ export class CollectionSyncService {
           '../external/letterboxd'
         );
         return new LetterboxdCollectionSync();
+      }
+      case 'anilist': {
+        const { AnilistCollectionSync } = await import(
+          '../external/anilist'
+        );
+        return new AnilistCollectionSync();
       }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(

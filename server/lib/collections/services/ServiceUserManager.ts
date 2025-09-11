@@ -26,7 +26,8 @@ export type ServiceType =
   | 'imdb'
   | 'letterboxd'
   | 'tautulli'
-  | 'overseerr';
+  | 'overseerr'
+  | 'anilist';
 
 /**
  * Generate service user configuration dynamically
@@ -43,6 +44,7 @@ export function generateServiceUserConfig(
     letterboxd: { name: 'Letterboxd', avatar: '/letterboxd-logo.svg' },
     tautulli: { name: 'Tautulli', avatar: '/tautulli-logo.svg' },
     overseerr: { name: 'Overseerr', avatar: '/os_logo_stacked.svg' },
+    anilist: { name: 'AniList', avatar: '/anilist-logo.png' },
   }[serviceType];
 
   let username: string;

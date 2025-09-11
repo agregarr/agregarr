@@ -571,6 +571,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       );
 
     // Simplified collection update logic (moved from CollectionUpdateStrategy)
+    // Normalize libraryId to a single library key (support arrays in config)
+    const normalizedLibraryKey = Array.isArray(config.libraryId)
+      ? config.libraryId[0]
+      : (config.libraryId as string);
+
     const updateResult = await this.createOrUpdateCollection(
       plexClient,
       allCollections,
@@ -593,7 +598,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         )._totalCollectionsInLibrary,
         customPoster: config.customPoster,
         processedCollectionKeys,
-        libraryKey: config.libraryId,
+        libraryKey: normalizedLibraryKey,
         config,
       }
     );
@@ -639,6 +644,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     items: CollectionItem[],
     options: CollectionUpdateOptions
   ): Promise<CollectionUpdateResult> {
+    // Normalize libraryKey to support config.libraryId being an array
+    const normalizedLibraryKey = Array.isArray(options.libraryKey)
+      ? (options.libraryKey as string[])[0]
+      : (options.libraryKey as string);
+
     const { collectionName, mediaType, customLabel } = options;
 
     // Validate items first
@@ -653,7 +663,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }
 
     const validItems = validation.valid;
-    const libraryKey = options.libraryKey;
+    const libraryKey = normalizedLibraryKey;
 
     // Filter items to only include those from the target library
     const libraryFilteredItems = this.filterItemsByLibrary(

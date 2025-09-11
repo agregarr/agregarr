@@ -197,7 +197,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'anilist']
           example: 'overseerr'
         subtype:
           type: string
@@ -508,7 +508,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'anilist']
           example: 'overseerr'
         subtype:
           type: string
@@ -769,7 +769,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'anilist']
           example: 'overseerr'
         subtype:
           type: string
@@ -1865,6 +1865,13 @@ components:
           type: string
           nullable: true
           example: 'your-trakt-api-key-here'
+    AnilistSettings:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          nullable: true
+          example: 'your-anilist-api-key-here'
     OverseerrSettings:
       type: object
       properties:
@@ -2795,7 +2802,7 @@ components:
           example: "Trending Movies"
         collectionSource:
           type: string
-          enum: [trakt, tmdb, imdb, letterboxd]
+          enum: [trakt, tmdb, imdb, letterboxd, anilist]
           example: "trakt"
         collectionSubtype:
           type: string
@@ -2906,6 +2913,9 @@ components:
                 letterboxd:
                   type: integer
                   example: 15
+                anilist:
+                  type: integer
+                  example: 7
     DashboardStats:
       type: object
       properties:
@@ -3822,7 +3832,7 @@ paths:
                   example: "https://trakt.tv/users/username/lists/my-list"
                 type:
                   type: string
-                  enum: [trakt, tmdb, imdb, letterboxd]
+                  enum: [trakt, tmdb, imdb, letterboxd, anilist]
                   example: "trakt"
               required:
                 - url
@@ -6893,7 +6903,7 @@ paths:
           name: collectionSource
           schema:
             type: string
-            enum: [trakt, tmdb, imdb, letterboxd]
+            enum: [trakt, tmdb, imdb, letterboxd, anilist]
           description: Filter by collection source
         - in: query
           name: requestService

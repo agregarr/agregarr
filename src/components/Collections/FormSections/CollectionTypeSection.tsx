@@ -51,6 +51,7 @@ const CollectionTypeSection = ({
     { value: 'letterboxd', label: 'Letterboxd Lists' },
     { value: 'tmdb', label: 'TMDb Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
+    { value: 'anilist', label: 'AniList' }, // Add AniList to collection types
   ];
 
   const getSubtypeOptions = (type: string): SubtypeOption[] => {
@@ -148,6 +149,29 @@ const CollectionTypeSection = ({
         ];
       case 'letterboxd':
         return [{ value: 'custom', label: 'Custom List' }];
+      case 'anilist': // Add AniList subtypes
+        return [
+          {
+            value: 'trending',
+            label: 'Trending',
+            description: 'Trending anime on AniList.',
+          },
+          {
+            value: 'popular',
+            label: 'Popular',
+            description: 'Most popular anime on AniList.',
+          },
+          {
+            value: 'top_rated',
+            label: 'Top Rated',
+            description: 'Highest-rated anime on AniList.',
+          },
+          {
+            value: 'custom',
+            label: 'Custom List',
+            description: 'Import a custom AniList list by URL.',
+          },
+        ];
       default:
         return [];
     }

@@ -135,7 +135,8 @@ export type CollectionSource =
   | 'trakt'
   | 'tmdb'
   | 'imdb'
-  | 'letterboxd';
+  | 'letterboxd'
+  | 'anilist';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -369,6 +370,7 @@ export type TraktSourceData =
         imdb?: string;
         tmdb: number;
         tvrage?: number;
+        anilist?: number;
       };
     };
 

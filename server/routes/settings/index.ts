@@ -317,6 +317,21 @@ settingsRoutes.get('/tautulli', (_req, res) => {
   res.status(200).json(settings.tautulli);
 });
 
+// AniList settings
+settingsRoutes.get('/anilist', (_req, res) => {
+  const settings = getSettings();
+  return res.status(200).json(settings.anilist || {});
+});
+
+settingsRoutes.post('/anilist', (req, res) => {
+  const settings = getSettings();
+  settings.anilist = settings.anilist || {};
+  settings.anilist.apiKey = req.body.apiKey;
+  settings.save();
+
+  return res.status(200).json(settings.anilist);
+});
+
 settingsRoutes.post('/tautulli', async (req, res) => {
   const settings = getSettings();
 

@@ -82,6 +82,7 @@ function validateExternalUrl(
       tmdb: ['www.themoviedb.org', 'themoviedb.org'],
       imdb: ['www.imdb.com', 'imdb.com'],
       letterboxd: ['letterboxd.com', 'www.letterboxd.com'],
+      anilist: ['anilist.co', 'www.anilist.co'],
     };
 
     const validDomains = allowedDomains[type as keyof typeof allowedDomains];
@@ -135,6 +136,25 @@ function validateExternalUrl(
           };
         }
         break;
+      case 'anilist': {
+        // Accept a wide range of AniList URL patterns including:
+        // - https://anilist.co/user/:username/animelist/:listname (personal animelists)
+        // - https://anilist.co/list/:listname
+        // - https://anilist.co/search/anime?... or /search/manga?...
+        // - single item pages: /anime/:id and /manga/:id
+        const anilistPattern = /^(?:\/user\/[^/]+\/(?:animelist|list)\/[^/?]+|\/(?:animelist|list)\/[^/?]+|\/search\/(?:anime|manga)(?:\/.*)?|\/anime\/?\d+|\/manga\/?\d+)(?:\/)?$/;
+
+        // Allow the pattern to match either the pathname or a search path with query params
+        if (!urlObj.pathname.match(anilistPattern)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid AniList URL format. Expected one of: user animelist, /list/, /search/anime or /anime/:id',
+          };
+        }
+
+        break;
+      }
       default:
         return { isValid: false, error: 'Unsupported collection type' };
     }
@@ -1380,6 +1400,43 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
         }
         break;
       }
+      case 'anilist': {
+        // Fetch the AniList page and extract the HTML title
+        const axios = (await import('axios')).default;
+
+        try {
+          const response = await axios.get(sanitizedUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            // Strip common suffixes like " - AniList"
+            title = titleMatch[1].replace(/\s+-\s+AniList$/i, '').trim();
+          }
+
+          // Try to detect media type heuristically by looking for anime/manga links
+          const html = response.data as string;
+          if (html.includes('/anime/')) {
+            mediaType = 'tv';
+          } else if (html.includes('/manga/')) {
+            mediaType = 'movie';
+          } else {
+            mediaType = 'tv'; // default to tv for AniList (anime)
+          }
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Could not fetch AniList list title',
+          });
+        }
+
+        break;
+      }
 
       default:
         return res.status(400).json({
@@ -1693,6 +1750,9 @@ collectionsRoutes.post(
             'plays',
             subtype || ''
           );
+          break;
+        case 'anilist':
+          context = templateEngine.createAnilistContext(mediaType, subtype || '');
           break;
         case 'overseerr':
           context = templateEngine.createGlobalContext(mediaType);

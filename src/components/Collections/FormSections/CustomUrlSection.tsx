@@ -8,6 +8,7 @@ const messages = defineMessages({
   customTmdbCollectionUrl: 'Custom TMDb Collection URL',
   customImdbListUrl: 'Custom IMDb List URL',
   customLetterboxdListUrl: 'Custom Letterboxd List URL',
+  customAnilistListUrl: 'Custom AniList List URL',
   fetchTitle: 'Validate',
   fetching: 'Fetching...',
   fetchedTitle: 'Fetched Title',
@@ -39,6 +40,10 @@ interface CustomUrlSectionProps {
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => Promise<void>;
+  fetchAnilistTitle?: (
+    url: string,
+    setFieldValue?: (field: string, value: string) => void
+  ) => Promise<void>;
 }
 
 const CustomUrlSection = ({
@@ -48,6 +53,7 @@ const CustomUrlSection = ({
   fetchTmdbTitle,
   fetchImdbTitle,
   fetchLetterboxdTitle,
+  fetchAnilistTitle,
 }: CustomUrlSectionProps) => {
   const intl = useIntl();
   const [isLoadingTitle, setIsLoadingTitle] = useState({
@@ -55,10 +61,11 @@ const CustomUrlSection = ({
     tmdb: false,
     imdb: false,
     letterboxd: false,
+    anilist: false,
   });
 
   const handleFetchTitle = async (
-    type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+    type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'anilist'
   ) => {
     const urlField = `${type}CustomListUrl`;
     const url = String((values as Record<string, unknown>)[urlField] || '');
@@ -76,6 +83,8 @@ const CustomUrlSection = ({
         await fetchImdbTitle(url, setFieldValue);
       } else if (type === 'letterboxd' && fetchLetterboxdTitle) {
         await fetchLetterboxdTitle(url, setFieldValue);
+      } else if (type === 'anilist' && fetchAnilistTitle) {
+        await fetchAnilistTitle(url, setFieldValue);
       }
     } finally {
       setIsLoadingTitle((prev) => ({ ...prev, [type]: false }));
@@ -261,6 +270,50 @@ const CustomUrlSection = ({
       </div>
     );
   }
+
+    // Custom AniList List URL
+    if (values.type === 'anilist' && values.subtype === 'custom') {
+      return (
+        <div>
+          <label
+            htmlFor="anilistCustomListUrl"
+            className="mb-2 block text-sm font-medium text-gray-300"
+          >
+            {intl.formatMessage(messages.customAnilistListUrl)}{' '}
+            <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            <Field
+              type="url"
+              id="anilistCustomListUrl"
+              name="anilistCustomListUrl"
+              placeholder="https://anilist.co/animelist/{listname} or https://anilist.co/user/{username}/animelist/{listname}"
+              className="flex-1 rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            {fetchAnilistTitle && (
+              <button
+                type="button"
+                onClick={() => handleFetchTitle('anilist')}
+                disabled={!values.anilistCustomListUrl || isLoadingTitle.anilist}
+                className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLoadingTitle.anilist
+                  ? intl.formatMessage(messages.fetching)
+                  : intl.formatMessage(messages.fetchTitle)}
+              </button>
+            )}
+          </div>
+          <ErrorMessage
+            name="anilistCustomListUrl"
+            component="div"
+            className="mt-1 text-sm text-red-500"
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Example: https://anilist.co/animelist/listname or https://anilist.co/user/username/animelist/listname
+          </p>
+        </div>
+      );
+    }
 
   return null;
 };

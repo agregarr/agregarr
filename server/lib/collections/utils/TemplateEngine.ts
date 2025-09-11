@@ -281,6 +281,21 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for AniList collections
+   */
+  public createAnilistContext(
+    mediaType: 'movie' | 'tv',
+    subtype: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      // Reuse Trakt subtype labeling for simple human-readable names
+      subtype: this.getAnilistSubtypeLabel(subtype),
+    };
+  }
+
+  /**
    * Create context for TMDb collections
    */
   public createTmdbContext(
@@ -432,10 +447,10 @@ export class TemplateEngine {
       nickname: isAdminUser
         ? this.settings.main.adminNickname || 'Admin'
         : enhancedUser.plexTitle ||
-          enhancedUser.displayName ||
-          enhancedUser.username ||
-          enhancedUser.plexUsername ||
-          'User',
+        enhancedUser.displayName ||
+        enhancedUser.username ||
+        enhancedUser.plexUsername ||
+        'User',
       username: enhancedUser.username || enhancedUser.plexUsername || 'User',
       displayName:
         enhancedUser.displayName ||
@@ -533,6 +548,28 @@ export class TemplateEngine {
         return 'Most Collected';
       case 'boxoffice':
         return 'Box Office';
+      case 'custom':
+        return 'Custom List';
+
+      default:
+        return subtype
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+
+  /**
+   * Get human-readable label for Anilist subtype
+   */
+  private getAnilistSubtypeLabel(subtype: string): string {
+    switch (subtype) {
+      case 'trending':
+        return 'Trending';
+      case 'popular':
+        return 'Popular';
+      case 'top_rated':
+        return 'Top Rated';
       case 'custom':
         return 'Custom List';
 

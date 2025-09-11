@@ -193,7 +193,7 @@ class PlexAPI {
       token: plexToken,
       authenticator: {
         authenticate: (
-          _plexApi,
+          _plexApi: NodePlexAPI,
           cb: (err?: string, token?: string) => void
         ) => {
           if (!plexToken) {
@@ -338,8 +338,7 @@ class PlexAPI {
     options: { includeChildren?: boolean } = {}
   ): Promise<PlexMetadata> {
     const response = await this.plexClient.query<PlexMetadataResponse>(
-      `/library/metadata/${key}${
-        options.includeChildren ? '?includeChildren=1' : ''
+      `/library/metadata/${key}${options.includeChildren ? '?includeChildren=1' : ''
       }`
     );
 
@@ -362,9 +361,8 @@ class PlexAPI {
     mediaType: 'movie' | 'show'
   ): Promise<PlexLibraryItem[]> {
     const response = await this.plexClient.query<PlexLibraryResponse>({
-      uri: `/library/sections/${id}/all?type=${
-        mediaType === 'show' ? '4' : '1'
-      }&sort=addedAt%3Adesc&addedAt>>=${Math.floor(options.addedAt / 1000)}`,
+      uri: `/library/sections/${id}/all?type=${mediaType === 'show' ? '4' : '1'
+        }&sort=addedAt%3Adesc&addedAt>>=${Math.floor(options.addedAt / 1000)}`,
       extraHeaders: {
         'X-Plex-Container-Start': `0`,
         'X-Plex-Container-Size': `500`,
@@ -471,8 +469,7 @@ class PlexAPI {
       });
       // Throw error to distinguish from "collection not found"
       throw new Error(
-        `API error getting collection metadata: ${
-          error instanceof Error ? error.message : 'Unknown error'
+        `API error getting collection metadata: ${error instanceof Error ? error.message : 'Unknown error'
         }`
       );
     }
@@ -667,16 +664,15 @@ class PlexAPI {
         libraryKey,
         mediaType,
         typeParam: mediaType === 'tv' ? 2 : 1,
-        createUrl: `/library/collections?type=${
-          mediaType === 'tv' ? 2 : 1
-        }&title=${encodeURIComponent(title)}&smart=0&sectionId=${libraryKey}`,
+        createUrl: `/library/collections?type=${mediaType === 'tv' ? 2 : 1
+          }&title=${encodeURIComponent(title)}&smart=0&sectionId=${libraryKey}`,
         error:
           error instanceof Error
             ? {
-                message: error.message,
-                stack: error.stack,
-                name: error.name,
-              }
+              message: error.message,
+              stack: error.stack,
+              name: error.name,
+            }
             : error,
       });
       return null;
@@ -1218,9 +1214,8 @@ class PlexAPI {
       // Use axios directly for file upload since plex-api may not handle binary data properly
       const axios = await import('axios');
       const settings = getSettings();
-      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
-        settings.plex.ip
-      }:${settings.plex.port}`;
+      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${settings.plex.ip
+        }:${settings.plex.port}`;
 
       await axios.default.post(`${baseUrl}${key}`, fileData, {
         headers: {
@@ -1351,9 +1346,8 @@ class PlexAPI {
 
       // Convert relative thumb path to full URL
       const settings = getSettings();
-      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
-        settings.plex.ip
-      }:${settings.plex.port}`;
+      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${settings.plex.ip
+        }:${settings.plex.port}`;
 
       // Handle both relative paths and full URLs
       if (item.thumb.startsWith('http')) {
@@ -1952,8 +1946,7 @@ class PlexAPI {
 
       // Smart selective reordering: only move items that are in wrong positions
       logger.debug(
-        `Using selective reordering approach for sync ${
-          syncCounter || 'manual'
+        `Using selective reordering approach for sync ${syncCounter || 'manual'
         }`,
         {
           label: 'Plex API',

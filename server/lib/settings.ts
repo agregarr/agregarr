@@ -28,7 +28,8 @@ export interface CollectionConfig {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
-    | 'letterboxd';
+    | 'letterboxd'
+    | 'anilist';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string;
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
@@ -247,6 +248,10 @@ export interface TraktSettings {
   apiKey?: string;
 }
 
+export interface AniListSettings {
+  apiKey?: string;
+}
+
 export interface TautulliSettings {
   hostname?: string;
   port?: number;
@@ -358,6 +363,7 @@ interface AllSettings {
   plex: PlexSettings;
   tautulli: TautulliSettings;
   overseerr: OverseerrSettings;
+  anilist: AniListSettings;
   serviceUser: ServiceUserSettings;
   trakt: TraktSettings;
   radarr: RadarrSettings[];
@@ -400,6 +406,7 @@ class Settings {
       },
       tautulli: {},
       overseerr: {},
+      anilist: {},
       serviceUser: {
         userCreationMode: 'per-service', // Default to per-service users
       },
@@ -465,6 +472,14 @@ class Settings {
 
   set overseerr(data: OverseerrSettings) {
     this.data.overseerr = data;
+  }
+
+  get anilist(): AniListSettings {
+    return this.data.anilist;
+  }
+
+  set anilist(data: AniListSettings) {
+    this.data.anilist = data;
   }
 
   get serviceUser(): ServiceUserSettings {

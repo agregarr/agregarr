@@ -1,10 +1,10 @@
 # Agregarr
 
-Agregarr keeps your Plex Home and Recommended fresh by frequently updating it with Collections from various sources, including Trakt, IMDb, TMdb and Letterboxd, as well as generated Collections from Tautulli Statistics, and Overseerr Requests. It has various options for downloading missing media, including as requests through Overseerr. Collections can be reordered on the Home/Recommended and Library tabs independently, and can have time periods or days set for their visibility in Plex.
+Agregarr keeps your Plex Home and Recommended fresh by frequently updating it with Collections from various sources, including Trakt, IMDb, TMdb, Letterboxd and anilist as well as generated Collections from Tautulli Statistics, and Overseerr Requests. It has various options for downloading missing media, including as requests through Overseerr. Collections can be reordered on the Home/Recommended and Library tabs independently, and can have time periods or days set for their visibility in Plex.
 
 ## Features
 
-- **Public Lists**: Add public lists from Trakt, IMDb, TMDB and Letterboxd, with presets and custom list options
+- **Public Lists**: Add public lists from Trakt, IMDb, TMDB, Letterboxd and anilist, with presets and custom list options
 - **Overseerr Requests**: Generate Collections either for each users requests (only visible to that user), or for All Requests
 - **Tautulli Statistics**: Generate Collections based on the Most Popular content on your server
 - **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independetly

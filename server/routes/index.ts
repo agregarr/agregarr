@@ -26,6 +26,7 @@ import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import preExistingRoutes from './preexisting';
 import reorderRoutes from './reorder';
+import anilistRoutes from './anilist';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -141,6 +142,7 @@ router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
 router.use('/auth', authRoutes);
+router.use('/anilist', anilistRoutes);
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();

@@ -130,8 +130,9 @@ export interface CollectionFormConfig {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
-    | 'letterboxd'
-    | 'hub';
+  | 'letterboxd'
+  | 'anilist'
+  | 'hub';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -216,6 +217,8 @@ export interface CollectionFormConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL
+  // AniList custom list fields
+  readonly anilistCustomListUrl?: string; // Custom AniList list URL
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -271,8 +274,9 @@ export interface CollectionConfigCreateRequest {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
-    | 'letterboxd'
-    | 'hub';
+  | 'letterboxd'
+  | 'anilist'
+  | 'hub';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -301,6 +305,7 @@ export interface CollectionConfigCreateRequest {
   readonly tmdbCustomListUrl?: string;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
+  readonly anilistCustomListUrl?: string;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
   readonly timeRestriction?: {

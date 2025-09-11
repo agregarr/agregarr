@@ -824,17 +824,28 @@ export function updateConfigWithRatingKey(
       const existingConfig = collectionConfigs[configIndex];
 
       // Verify this rating key is for the correct library
-      if (libraryId && existingConfig.libraryId !== libraryId) {
-        logger.warn(
-          `Rating key library mismatch: config for library ${existingConfig.libraryId}, but rating key for library ${libraryId}`,
-          {
-            label: 'Collection Utilities',
-            configId,
-            configLibrary: existingConfig.libraryId,
-            ratingKeyLibrary: libraryId,
-          }
-        );
-        return;
+      if (libraryId) {
+        const existingLib = Array.isArray(existingConfig.libraryId)
+          ? String(existingConfig.libraryId[0])
+          : String(existingConfig.libraryId);
+        const providedLib = Array.isArray(libraryId)
+          ? String(libraryId[0])
+          : String(libraryId);
+
+        if (existingLib !== providedLib) {
+          logger.warn(
+            `Rating key library mismatch: config for library ${existingConfig.libraryId}, but rating key for library ${libraryId}`,
+            {
+              label: 'Collection Utilities',
+              configId,
+              configLibrary: existingConfig.libraryId,
+              ratingKeyLibrary: libraryId,
+              existingLib,
+              providedLib,
+            }
+          );
+          return;
+        }
       }
 
       // Simple update - just set the rating key
@@ -1076,7 +1087,7 @@ export function filterItemsByPosition<T extends { originalPosition: number }>(
 export async function processMissingItemsWithMode(
   missingItems: MissingItem[],
   config: CollectionConfig,
-  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'anilist'
 ): Promise<AutoRequestResult> {
   // Apply position filtering first
   const filteredItems = filterItemsByPosition(
