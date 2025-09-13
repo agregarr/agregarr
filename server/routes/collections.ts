@@ -1,7 +1,3 @@
-import type {
-  MultiSourceCombineMode,
-  MultiSourceType,
-} from '@server/../src/types/collections';
 import PlexAPI, { type PlexLibraryItem } from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
@@ -17,7 +13,11 @@ import {
   initializePosterStorage,
   savePosterFile,
 } from '@server/lib/posterStorage';
-import type { CollectionConfig } from '@server/lib/settings';
+import type {
+  CollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';

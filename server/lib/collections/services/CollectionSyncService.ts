@@ -1,8 +1,3 @@
-import type {
-  MultiSourceCollectionConfig,
-  MultiSourceCombineMode,
-  MultiSourceType,
-} from '@server/../src/types/collections';
 import OverseerrAPI, {
   type OverseerrMediaRequest,
 } from '@server/api/overseerr';
@@ -10,6 +5,11 @@ import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import { prefetchAllLibraryItems } from '@server/lib/collections/core/CollectionUtilities';
 import type { SyncResult } from '@server/lib/collections/core/types';
+import type {
+  MultiSourceCollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { syncCacheService } from './SyncCacheService';

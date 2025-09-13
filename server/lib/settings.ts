@@ -1187,6 +1187,73 @@ class Settings {
 
 let settings: Settings | undefined;
 
+// Multi-source collection types
+export type MultiSourceCombineMode =
+  | 'interleaved'
+  | 'list_order'
+  | 'randomised'
+  | 'cycle_lists';
+
+export interface CustomSyncSchedule {
+  readonly enabled: boolean;
+  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+}
+
+export type MultiSourceType =
+  | 'trakt'
+  | 'tmdb'
+  | 'imdb'
+  | 'letterboxd'
+  | 'tautulli'
+  | 'overseerr'
+  | 'networks';
+
+export interface SourceDefinition {
+  readonly id: string;
+  readonly type: MultiSourceType;
+  readonly subtype: string;
+  readonly customUrl?: string;
+  readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+  readonly customDays?: number;
+  readonly minimumPlays?: number;
+  readonly priority: number;
+  readonly networksCountry?: string;
+}
+
+export interface MultiSourceCollectionConfig {
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'multi-source';
+  readonly visibilityConfig: {
+    usersHome: boolean;
+    serverOwnerHome: boolean;
+    libraryRecommended: boolean;
+  };
+  readonly mediaType?: 'movie' | 'tv';
+  readonly libraryId: string;
+  readonly libraryName: string;
+  readonly maxItems?: number;
+  readonly template?: string;
+  readonly sources: readonly SourceDefinition[];
+  readonly combineMode: MultiSourceCombineMode;
+  readonly customSyncSchedule?: CustomSyncSchedule;
+  readonly isActive?: boolean;
+  readonly sortOrderHome?: number;
+  readonly sortOrderLibrary?: number;
+  readonly isLibraryPromoted?: boolean;
+  readonly timeRestriction?: {
+    readonly alwaysActive: boolean;
+    readonly removeFromPlexWhenInactive?: boolean;
+    readonly inactiveVisibilityConfig?: {
+      usersHome: boolean;
+      serverOwnerHome: boolean;
+      libraryRecommended: boolean;
+    };
+  };
+  readonly customPoster?: string | Record<string, string>;
+  readonly autoPoster?: boolean;
+}
+
 export const getSettings = (initialSettings?: AllSettings): Settings => {
   if (!settings) {
     settings = new Settings(initialSettings);

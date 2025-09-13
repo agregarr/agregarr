@@ -7,10 +7,6 @@ import type {
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 // getCollectionMediaType removed - using items[0]?.type instead
-import type {
-  MultiSourceCollectionConfig,
-  SourceDefinition,
-} from '@server/../src/types/collections';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
   createCollectionLabel,
@@ -33,7 +29,11 @@ import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
 import { generatePoster, getPosterPath } from '@server/lib/posterStorage';
-import type { CollectionConfig } from '@server/lib/settings';
+import type {
+  CollectionConfig,
+  MultiSourceCollectionConfig,
+  SourceDefinition,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 

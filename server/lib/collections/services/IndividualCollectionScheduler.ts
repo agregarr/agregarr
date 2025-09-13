@@ -1,10 +1,10 @@
-import type {
-  MultiSourceCombineMode,
-  MultiSourceType,
-} from '@server/../src/types/collections';
 import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
+import type {
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import schedule from 'node-schedule';
