@@ -2,12 +2,9 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinColumn,
-  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './User';
 
 export interface PosterTemplateData {
   // Canvas dimensions
@@ -96,10 +93,6 @@ export class PosterTemplate {
 
   @Column({ default: true })
   public isActive: boolean;
-
-  @ManyToOne(() => User, { nullable: true })
-  @JoinColumn()
-  public createdBy?: User; // Null for system templates
 
   @CreateDateColumn()
   public createdAt: Date;

@@ -2,12 +2,9 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinColumn,
-  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './User';
 
 export interface SavedPosterData {
   // Canvas dimensions
@@ -88,10 +85,6 @@ export class SavedPoster {
 
   @Column({ default: true })
   public isActive: boolean;
-
-  @ManyToOne(() => User)
-  @JoinColumn()
-  public createdBy: User;
 
   @CreateDateColumn()
   public createdAt: Date;

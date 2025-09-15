@@ -64,7 +64,6 @@ router.get('/templates', async (req, res, next) => {
 
     const templates = await templateRepository.find({
       where: { isActive: true },
-      relations: ['createdBy'],
       order: { isDefault: 'DESC', createdAt: 'ASC' },
     });
 
@@ -74,12 +73,6 @@ router.get('/templates', async (req, res, next) => {
       description: template.description,
       isDefault: template.isDefault,
       templateData: template.getTemplateData(),
-      createdBy: template.createdBy
-        ? {
-            id: template.createdBy.id,
-            displayName: template.createdBy.displayName,
-          }
-        : null,
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
     }));
@@ -129,7 +122,6 @@ router.post('/templates', async (req, res, next) => {
     const newTemplate = new PosterTemplate({
       name,
       description,
-      createdBy: req.user,
       isDefault: false,
       isActive: true,
     });
@@ -150,10 +142,6 @@ router.post('/templates', async (req, res, next) => {
       description: savedTemplate.description,
       isDefault: savedTemplate.isDefault,
       templateData: savedTemplate.getTemplateData(),
-      createdBy: {
-        id: req.user.id,
-        displayName: req.user.displayName,
-      },
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
     });
@@ -181,7 +169,6 @@ router.put('/templates/:id', async (req, res, next) => {
     const templateRepository = getRepository(PosterTemplate);
     const template = await templateRepository.findOne({
       where: { id: templateId, isActive: true },
-      relations: ['createdBy'],
     });
 
     if (!template) {
@@ -190,12 +177,7 @@ router.put('/templates/:id', async (req, res, next) => {
       });
     }
 
-    // Only allow users to edit their own templates (unless it's a default template being updated by admin)
-    if (!template.isDefault && template.createdBy?.id !== req.user.id) {
-      return res.status(403).json({
-        error: 'Permission denied',
-      });
-    }
+    // Single-user system - no permission checks needed
 
     if (name !== undefined) template.name = name;
     if (description !== undefined) template.description = description;
@@ -228,12 +210,6 @@ router.put('/templates/:id', async (req, res, next) => {
       description: savedTemplate.description,
       isDefault: savedTemplate.isDefault,
       templateData: savedTemplate.getTemplateData(),
-      createdBy: savedTemplate.createdBy
-        ? {
-            id: savedTemplate.createdBy.id,
-            displayName: savedTemplate.createdBy.displayName,
-          }
-        : null,
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
     });
@@ -260,7 +236,6 @@ router.delete('/templates/:id', async (req, res, next) => {
     const templateRepository = getRepository(PosterTemplate);
     const template = await templateRepository.findOne({
       where: { id: templateId, isActive: true },
-      relations: ['createdBy'],
     });
 
     if (!template) {
@@ -273,13 +248,6 @@ router.delete('/templates/:id', async (req, res, next) => {
     if (template.isDefault) {
       return res.status(403).json({
         error: 'Cannot delete default template',
-      });
-    }
-
-    // Only allow users to delete their own templates
-    if (template.createdBy?.id !== req.user.id) {
-      return res.status(403).json({
-        error: 'Permission denied',
       });
     }
 
@@ -314,29 +282,78 @@ router.get('/saved', async (req, res, next) => {
 
     const posterRepository = getRepository(SavedPoster);
 
-    const posters = await posterRepository.find({
-      where: { isActive: true, createdBy: { id: req.user.id } },
-      relations: ['createdBy'],
+    // Get database entries for posters created in the editor
+    const dbPosters = await posterRepository.find({
+      where: { isActive: true },
       order: { createdAt: 'DESC' },
     });
 
-    const postersResponse = posters.map((poster: SavedPoster) => ({
+    // Get all poster files from storage folder (includes legacy and editor-exported files)
+    const { getAllPosterFiles } = await import('@server/lib/posterStorage');
+    const allPosterFiles = await getAllPosterFiles();
+
+    // Create a map of database posters by filename for quick lookup
+    const dbPostersByFilename = new Map(
+      dbPosters.filter((p) => p.filename).map((p) => [p.filename as string, p])
+    );
+
+    // Process all poster files from storage
+    const allPostersResponse = allPosterFiles.map((filename) => {
+      const dbPoster = dbPostersByFilename.get(filename);
+
+      if (dbPoster) {
+        // This file has a database entry (created in editor)
+        return {
+          id: dbPoster.id,
+          name: dbPoster.name,
+          description: dbPoster.description,
+          filename: dbPoster.filename,
+          thumbnailFilename: dbPoster.thumbnailFilename,
+          posterData: dbPoster.getPosterData(),
+          createdAt: dbPoster.createdAt,
+          updatedAt: dbPoster.updatedAt,
+          isEditable: true, // Can be edited in poster editor
+        };
+      } else {
+        // This is a legacy/uploaded file without database entry
+        return {
+          id: `file-${filename}`, // Use filename-based ID for legacy files
+          name: filename.replace(/\.(jpg|jpeg|png|webp)$/i, ''), // Filename without extension
+          description: 'Uploaded poster file',
+          filename,
+          thumbnailFilename: undefined,
+          posterData: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isEditable: false, // Cannot be edited in poster editor
+        };
+      }
+    });
+
+    // Add database entries that don't have files (edge case)
+    const dbPostersWithoutFiles = dbPosters.filter(
+      (p) => !p.filename || !allPosterFiles.includes(p.filename)
+    );
+    const dbOnlyPosters = dbPostersWithoutFiles.map((poster) => ({
       id: poster.id,
       name: poster.name,
       description: poster.description,
       filename: poster.filename,
       thumbnailFilename: poster.thumbnailFilename,
       posterData: poster.getPosterData(),
-      createdBy: {
-        id: poster.createdBy.id,
-        displayName: poster.createdBy.displayName,
-      },
       createdAt: poster.createdAt,
       updatedAt: poster.updatedAt,
+      isEditable: true,
     }));
 
+    // Combine all posters and sort by creation date (newest first)
+    const allPosters = [...allPostersResponse, ...dbOnlyPosters].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
     return res.status(200).json({
-      posters: postersResponse,
+      posters: allPosters,
     });
   } catch (error) {
     logger.error('Failed to fetch saved posters:', error);
@@ -372,7 +389,6 @@ router.post('/saved', async (req, res, next) => {
       description,
       filename,
       thumbnailFilename,
-      createdBy: req.user,
       isActive: true,
     });
 
@@ -393,10 +409,6 @@ router.post('/saved', async (req, res, next) => {
       filename: savedPoster.filename,
       thumbnailFilename: savedPoster.thumbnailFilename,
       posterData: savedPoster.getPosterData(),
-      createdBy: {
-        id: req.user.id,
-        displayName: req.user.displayName,
-      },
       createdAt: savedPoster.createdAt,
       updatedAt: savedPoster.updatedAt,
     });
@@ -424,8 +436,7 @@ router.put('/saved/:id', async (req, res, next) => {
 
     const posterRepository = getRepository(SavedPoster);
     const poster = await posterRepository.findOne({
-      where: { id: posterId, isActive: true, createdBy: { id: req.user.id } },
-      relations: ['createdBy'],
+      where: { id: posterId, isActive: true },
     });
 
     if (!poster) {
@@ -456,10 +467,6 @@ router.put('/saved/:id', async (req, res, next) => {
       filename: savedPoster.filename,
       thumbnailFilename: savedPoster.thumbnailFilename,
       posterData: savedPoster.getPosterData(),
-      createdBy: {
-        id: savedPoster.createdBy.id,
-        displayName: savedPoster.createdBy.displayName,
-      },
       createdAt: savedPoster.createdAt,
       updatedAt: savedPoster.updatedAt,
     });
@@ -485,8 +492,7 @@ router.delete('/saved/:id', async (req, res, next) => {
 
     const posterRepository = getRepository(SavedPoster);
     const poster = await posterRepository.findOne({
-      where: { id: posterId, isActive: true, createdBy: { id: req.user.id } },
-      relations: ['createdBy'],
+      where: { id: posterId, isActive: true },
     });
 
     if (!poster) {

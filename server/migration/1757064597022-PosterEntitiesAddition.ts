@@ -15,10 +15,10 @@ export class PosterEntitiesAddition1757064597022 implements MigrationInterface {
       `ALTER TABLE "temporary_missing_item_request" RENAME TO "missing_item_request"`
     );
     await queryRunner.query(
-      `CREATE TABLE "poster_template" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "templateData" text NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "createdById" integer)`
+      `CREATE TABLE "poster_template" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "templateData" text NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
-      `CREATE TABLE "saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "createdById" integer)`
+      `CREATE TABLE "saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
       `CREATE TABLE "temporary_user_settings" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "locale" varchar NOT NULL DEFAULT (''), "watchlistSyncMovies" boolean, "watchlistSyncTv" boolean, "userId" integer, CONSTRAINT "REL_986a2b6d3c05eb4091bb8066f7" UNIQUE ("userId"), CONSTRAINT "FK_986a2b6d3c05eb4091bb8066f78" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`
@@ -31,20 +31,20 @@ export class PosterEntitiesAddition1757064597022 implements MigrationInterface {
       `ALTER TABLE "temporary_user_settings" RENAME TO "user_settings"`
     );
     await queryRunner.query(
-      `CREATE TABLE "temporary_poster_template" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "templateData" text NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "createdById" integer, CONSTRAINT "FK_25382ab9e278fc3e3627cdb73e7" FOREIGN KEY ("createdById") REFERENCES "user" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`
+      `CREATE TABLE "temporary_poster_template" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "templateData" text NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
-      `INSERT INTO "temporary_poster_template"("id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt", "createdById") SELECT "id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt", "createdById" FROM "poster_template"`
+      `INSERT INTO "temporary_poster_template"("id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt") SELECT "id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt" FROM "poster_template"`
     );
     await queryRunner.query(`DROP TABLE "poster_template"`);
     await queryRunner.query(
       `ALTER TABLE "temporary_poster_template" RENAME TO "poster_template"`
     );
     await queryRunner.query(
-      `CREATE TABLE "temporary_saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "createdById" integer, CONSTRAINT "FK_edef72f5a7c2af76e27b7894aa3" FOREIGN KEY ("createdById") REFERENCES "user" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION)`
+      `CREATE TABLE "temporary_saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
-      `INSERT INTO "temporary_saved_poster"("id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt", "createdById") SELECT "id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt", "createdById" FROM "saved_poster"`
+      `INSERT INTO "temporary_saved_poster"("id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt") SELECT "id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt" FROM "saved_poster"`
     );
     await queryRunner.query(`DROP TABLE "saved_poster"`);
     await queryRunner.query(
@@ -77,20 +77,20 @@ export class PosterEntitiesAddition1757064597022 implements MigrationInterface {
       `ALTER TABLE "saved_poster" RENAME TO "temporary_saved_poster"`
     );
     await queryRunner.query(
-      `CREATE TABLE "saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "createdById" integer)`
+      `CREATE TABLE "saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
-      `INSERT INTO "saved_poster"("id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt", "createdById") SELECT "id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt", "createdById" FROM "temporary_saved_poster"`
+      `INSERT INTO "saved_poster"("id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt") SELECT "id", "name", "description", "posterData", "filename", "thumbnailFilename", "isActive", "createdAt", "updatedAt" FROM "temporary_saved_poster"`
     );
     await queryRunner.query(`DROP TABLE "temporary_saved_poster"`);
     await queryRunner.query(
       `ALTER TABLE "poster_template" RENAME TO "temporary_poster_template"`
     );
     await queryRunner.query(
-      `CREATE TABLE "poster_template" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "templateData" text NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')), "createdById" integer)`
+      `CREATE TABLE "poster_template" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "templateData" text NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
-      `INSERT INTO "poster_template"("id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt", "createdById") SELECT "id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt", "createdById" FROM "temporary_poster_template"`
+      `INSERT INTO "poster_template"("id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt") SELECT "id", "name", "description", "templateData", "isDefault", "isActive", "createdAt", "updatedAt" FROM "temporary_poster_template"`
     );
     await queryRunner.query(`DROP TABLE "temporary_poster_template"`);
     await queryRunner.query(

@@ -431,8 +431,11 @@ function createTemplateWrappedText(
   const limitedLines = lines.slice(0, maxLines);
   const lineHeight = fontSize * 1.1;
 
-  // Calculate vertical positioning based on alignment
-  const startY = y + fontSize; // Start from top of element plus font size
+  // Calculate total text block height
+  const totalTextHeight = limitedLines.length * lineHeight;
+
+  // Calculate vertical centering - center the text block within the available height
+  const textBlockStartY = y + (height - totalTextHeight) / 2 + fontSize;
 
   let textAnchor = 'start';
   let textX = x;
@@ -446,7 +449,7 @@ function createTemplateWrappedText(
 
   return limitedLines
     .map((line, index) => {
-      const lineY = startY + index * lineHeight;
+      const lineY = textBlockStartY + index * lineHeight;
       return `
         <text x="${textX}" y="${lineY}"
               font-family="${fontFamily}"

@@ -1,19 +1,16 @@
 import Badge from '@app/components/Common/Badge';
-import Button from '@app/components/Common/Button';
 import type {
   EditorMode,
   PosterEditorData,
 } from '@app/components/PosterEditor';
 import { PosterEditorModal } from '@app/components/PosterEditor';
-import { Menu, Transition } from '@headlessui/react';
 import {
   DocumentDuplicateIcon,
-  EllipsisVerticalIcon,
   PencilIcon,
   PhotoIcon,
   TrashIcon,
 } from '@heroicons/react/24/solid';
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
@@ -30,14 +27,15 @@ const messages = defineMessages({
 });
 
 interface SavedPoster {
-  id: number;
+  id: number | string;
   name: string;
   description?: string;
-  posterData: PosterEditorData;
-  imagePath?: string;
-  thumbnailPath?: string;
+  posterData: PosterEditorData | null;
+  filename?: string;
+  thumbnailFilename?: string;
   createdAt: string;
   updatedAt: string;
+  isEditable?: boolean;
 }
 
 interface SavedPosterGridProps {
@@ -55,7 +53,9 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
   const [selectedPoster, setSelectedPoster] = useState<SavedPoster | null>(
     null
   );
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<
+    number | string | null
+  >(null);
 
   const handleEdit = (poster: SavedPoster) => {
     setSelectedPoster(poster);
@@ -69,7 +69,12 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (posterId: number) => {
+  const handleDelete = async (posterId: number | string) => {
+    // Only allow deletion of database entries (numeric IDs)
+    if (typeof posterId !== 'number') {
+      return;
+    }
+
     const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
       method: 'DELETE',
     });
@@ -145,21 +150,27 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         {savedPosters.map((poster) => (
           <div
             key={poster.id}
-            className="hover:bg-stone-750 group relative overflow-hidden rounded-lg bg-stone-800 transition-colors duration-200"
+            className="group relative overflow-hidden rounded border border-stone-700 transition-colors duration-200 hover:border-orange-500"
           >
-            {/* Poster Preview */}
+            {/* Compact Poster Preview */}
             <div className="relative aspect-[2/3] bg-stone-700">
-              {poster.thumbnailPath ? (
+              {poster.thumbnailFilename ? (
                 <img
-                  src={`/api/v1/posters/images/${poster.thumbnailPath}`}
+                  src={`/api/v1/posters/thumbnails/${poster.thumbnailFilename}`}
                   alt={poster.name}
                   className="h-full w-full object-cover"
                 />
-              ) : (
+              ) : poster.filename ? (
+                <img
+                  src={`/api/v1/posters/files/${poster.filename}`}
+                  alt={poster.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : poster.posterData ? (
                 <div
                   className="flex h-full w-full items-center justify-center text-xs text-stone-400"
                   style={{
@@ -174,121 +185,89 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
                         : poster.posterData.background.color || '#6366f1',
                   }}
                 >
-                  <div className="p-4 text-center font-semibold text-white">
+                  <div className="p-1 text-center text-xs font-semibold text-white">
                     {poster.name}
                   </div>
+                </div>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-stone-600">
+                  <PhotoIcon className="h-6 w-6 text-stone-400" />
                 </div>
               )}
+
+              {/* Overlay with actions - only show on hover */}
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all duration-200 group-hover:bg-opacity-40 group-hover:opacity-100">
+                <div className="flex space-x-1">
+                  {poster.isEditable !== false && (
+                    <>
+                      <button
+                        onClick={() => handleEdit(poster)}
+                        className="rounded bg-stone-700 p-1 text-white transition-colors hover:bg-stone-600"
+                        title="Edit"
+                      >
+                        <PencilIcon className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => handleDuplicate(poster)}
+                        className="rounded bg-stone-700 p-1 text-white transition-colors hover:bg-stone-600"
+                        title="Duplicate"
+                      >
+                        <DocumentDuplicateIcon className="h-3 w-3" />
+                      </button>
+                    </>
+                  )}
+                  {typeof poster.id === 'number' && (
+                    <button
+                      onClick={() => setDeleteConfirmId(poster.id)}
+                      className="rounded bg-red-600 p-1 text-white transition-colors hover:bg-red-700"
+                      title="Delete"
+                    >
+                      <TrashIcon className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Status badges - show on image */}
+              <div className="absolute top-1 left-1">
+                {!poster.isEditable && (
+                  <Badge badgeType="warning" className="text-xs">
+                    File
+                  </Badge>
+                )}
+              </div>
             </div>
 
-            {/* Poster Info */}
-            <div className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-sm font-medium text-white">
-                    {poster.name}
-                  </h3>
-                  {poster.description && (
-                    <p className="line-clamp-2 mt-1 text-xs text-stone-400">
-                      {poster.description}
-                    </p>
-                  )}
-                  <div className="mt-2 flex items-center space-x-2">
-                    <Badge badgeType="default" className="text-xs">
-                      {poster.posterData.width}x{poster.posterData.height}
-                    </Badge>
-                    <span className="text-xs text-stone-500">
-                      {intl.formatMessage(messages.lastUpdated)}{' '}
-                      {new Date(poster.updatedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions Menu */}
-                <Menu as="div" className="relative">
-                  <Menu.Button className="flex items-center rounded-full p-1 text-stone-400 hover:bg-stone-700 hover:text-white">
-                    <EllipsisVerticalIcon className="h-5 w-5" />
-                  </Menu.Button>
-                  <Transition
-                    as={Fragment}
-                    enter="transition ease-out duration-100"
-                    enterFrom="transform opacity-0 scale-95"
-                    enterTo="transform opacity-100 scale-100"
-                    leave="transition ease-in duration-75"
-                    leaveFrom="transform opacity-100 scale-100"
-                    leaveTo="transform opacity-0 scale-95"
-                  >
-                    <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-stone-700 py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            onClick={() => handleEdit(poster)}
-                            className={`${
-                              active ? 'bg-stone-600' : ''
-                            } flex w-full items-center px-4 py-2 text-left text-sm text-stone-200`}
-                          >
-                            <PencilIcon className="mr-3 h-4 w-4" />
-                            {intl.formatMessage(messages.edit)}
-                          </button>
-                        )}
-                      </Menu.Item>
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            onClick={() => handleDuplicate(poster)}
-                            className={`${
-                              active ? 'bg-stone-600' : ''
-                            } flex w-full items-center px-4 py-2 text-left text-sm text-stone-200`}
-                          >
-                            <DocumentDuplicateIcon className="mr-3 h-4 w-4" />
-                            {intl.formatMessage(messages.duplicate)}
-                          </button>
-                        )}
-                      </Menu.Item>
-                      <Menu.Item>
-                        {({ active }) => (
-                          <button
-                            onClick={() => setDeleteConfirmId(poster.id)}
-                            className={`${
-                              active ? 'bg-stone-600' : ''
-                            } flex w-full items-center px-4 py-2 text-left text-sm text-red-400`}
-                          >
-                            <TrashIcon className="mr-3 h-4 w-4" />
-                            {intl.formatMessage(messages.delete)}
-                          </button>
-                        )}
-                      </Menu.Item>
-                    </Menu.Items>
-                  </Transition>
-                </Menu>
-              </div>
+            {/* Compact title */}
+            <div className="bg-stone-800 p-2">
+              <h3
+                className="truncate text-xs font-medium text-white"
+                title={poster.name}
+              >
+                {poster.name}
+              </h3>
             </div>
 
             {/* Delete Confirmation */}
             {deleteConfirmId === poster.id && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 p-4">
-                <div className="w-full max-w-sm rounded-lg bg-stone-800 p-4">
-                  <h4 className="mb-2 font-medium text-white">
-                    {intl.formatMessage(messages.deletePoster)}
-                  </h4>
-                  <p className="mb-4 text-sm text-stone-300">
-                    {intl.formatMessage(messages.confirmDelete)}
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 p-2">
+                <div className="w-full rounded bg-stone-800 p-2">
+                  <p className="mb-2 text-xs text-stone-300">
+                    Delete this poster?
                   </p>
-                  <div className="flex space-x-2">
-                    <Button
-                      buttonType="danger"
+                  <div className="flex space-x-1">
+                    <button
                       onClick={() => handleDelete(poster.id)}
-                      className="flex-1"
+                      className="flex-1 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
                     >
-                      {intl.formatMessage(messages.delete)}
-                    </Button>
-                    <Button
-                      buttonType="ghost"
+                      Delete
+                    </button>
+                    <button
                       onClick={() => setDeleteConfirmId(null)}
-                      className="flex-1"
+                      className="flex-1 rounded bg-stone-600 px-2 py-1 text-xs text-white hover:bg-stone-500"
                     >
-                      {intl.formatMessage(messages.cancel)}
-                    </Button>
+                      Cancel
+                    </button>
                   </div>
                 </div>
               </div>
@@ -304,7 +283,7 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
           setSelectedPoster(null);
         }}
         mode={modalMode}
-        initialData={selectedPoster?.posterData}
+        initialData={selectedPoster?.posterData || undefined}
         onSave={handleSave}
       />
     </>

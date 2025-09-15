@@ -7923,16 +7923,6 @@ paths:
                                 cornerRadius:
                                   type: number
                                   example: 8
-                        createdBy:
-                          type: object
-                          nullable: true
-                          properties:
-                            id:
-                              type: integer
-                              example: 1
-                            displayName:
-                              type: string
-                              example: "John Doe"
                         createdAt:
                           type: string
                           format: date-time
@@ -8171,13 +8161,6 @@ paths:
                         posterData:
                           type: object
                           description: "Poster configuration data"
-                        createdBy:
-                          type: object
-                          properties:
-                            id:
-                              type: integer
-                            displayName:
-                              type: string
                         createdAt:
                           type: string
                           format: date-time
