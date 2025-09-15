@@ -637,6 +637,14 @@ export async function generatePoster(
   originalName?: string,
   collectionIdentifier?: string
 ): Promise<string> {
+  // DEBUG: Track generatePoster calls
+  logger.debug('generatePoster called with:', {
+    templateId: config.autoPosterTemplate,
+    collectionName: config.collectionName,
+    originalName,
+    collectionIdentifier,
+  });
+
   try {
     // Mark any existing auto-generated posters for this collection as inactive
     if (collectionIdentifier) {

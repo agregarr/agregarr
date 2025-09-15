@@ -1609,7 +1609,41 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       // Convert items to poster format if available
       let posterItems: CollectionItemWithPoster[] | undefined;
       if (items && items.length > 0) {
-        posterItems = items.slice(0, 4).map((item) => ({
+        // Determine how many items we need based on the template's content grid
+        let maxItems = 4; // Default fallback for old templates
+
+        if (config.autoPosterTemplate) {
+          try {
+            const { getRepository } = await import('@server/datasource');
+            const { PosterTemplate } = await import(
+              '@server/entity/PosterTemplate'
+            );
+            const templateRepository = getRepository(PosterTemplate);
+
+            const template = await templateRepository.findOne({
+              where: { id: config.autoPosterTemplate, isActive: true },
+            });
+
+            if (template) {
+              const templateData = template.getTemplateData();
+              if (templateData.contentGrid) {
+                maxItems =
+                  templateData.contentGrid.columns *
+                  templateData.contentGrid.rows;
+              }
+            }
+          } catch (error) {
+            logger.warn(
+              'Failed to get template grid size, using default limit',
+              {
+                templateId: config.autoPosterTemplate,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
+
+        posterItems = items.slice(0, maxItems).map((item) => ({
           title: item.title,
           type: item.type,
           tmdbId: item.tmdbId,

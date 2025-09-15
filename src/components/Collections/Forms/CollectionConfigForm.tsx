@@ -1378,6 +1378,8 @@ const CollectionFormConfigForm = ({
           },
           customPoster: (config as CollectionFormConfig).customPoster || '',
           autoPoster: (config as CollectionFormConfig).autoPoster ?? true,
+          autoPosterTemplate:
+            (config as CollectionFormConfig).autoPosterTemplate ?? null,
           timeRestriction: config.timeRestriction || {
             alwaysActive: true,
             removeFromPlexWhenInactive: false,

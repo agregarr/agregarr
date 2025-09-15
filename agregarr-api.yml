@@ -226,7 +226,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -234,6 +234,11 @@ components:
           type: boolean
           description: "Auto-generate poster during sync"
           example: true
+          nullable: true
+        autoPosterTemplate:
+          type: integer
+          description: "Template ID for auto-generated posters (null for default template)"
+          example: 1
           nullable: true
         visibilityConfig:
           type: object
@@ -537,7 +542,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -545,6 +550,11 @@ components:
           type: boolean
           description: "Auto-generate poster during sync"
           example: true
+          nullable: true
+        autoPosterTemplate:
+          type: integer
+          description: "Template ID for auto-generated posters (null for default template)"
+          example: 1
           nullable: true
         visibilityConfig:
           type: object
@@ -798,7 +808,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -806,6 +816,11 @@ components:
           type: boolean
           description: "Auto-generate poster during sync"
           example: true
+          nullable: true
+        autoPosterTemplate:
+          type: integer
+          description: "Template ID for auto-generated posters (null for default template)"
+          example: 1
           nullable: true
         visibilityConfig:
           type: object
@@ -3315,6 +3330,35 @@ components:
         - sortOrderLibrary
         - visibilityConfig
         - isActive
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "not found"
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                      example: "/api/v1/posters/source-colors"
+                    message:
+                      type: string
+                      example: "not found"
+                  required:
+                    - path
+                    - message
+            required:
+              - message
+              - errors
 
   securitySchemes:
     cookieAuth:
@@ -7542,8 +7586,8 @@ paths:
                                     example: "icon-1"
                                   type:
                                     type: string
-                                    enum: [service-logo, custom-icon]
-                                    example: "service-logo"
+                                    enum: [source-logo, custom-icon]
+                                    example: "source-logo"
                                   iconPath:
                                     type: string
                                     example: "/icons/tmdb-logo.svg"
@@ -8262,6 +8306,38 @@ paths:
           description: Icon file not found
         '500':
           description: Failed to serve icon file
+
+  /posters/source-colors:
+    get:
+      summary: Get default source colors
+      description: Retrieves default color mappings for each source type used in poster generation.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Source colors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sourceColors:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    example:
+                      tmdb: "#01b4e4"
+                      trakt: "#ed1c24"
+                      imdb: "#f5c518"
+                  sourceTypes:
+                    type: array
+                    items:
+                      type: string
+                    example: ["tmdb", "trakt", "imdb"]
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: Failed to fetch source colors
 
 security:
   - cookieAuth: []

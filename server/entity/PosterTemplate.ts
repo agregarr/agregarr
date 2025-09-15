@@ -25,7 +25,6 @@ export interface PosterTemplateData {
         primaryColor: string;
         secondaryColor: string;
         textColor: string;
-        accentColor: string;
       };
     }; // Custom colors for each source type
   };
@@ -51,7 +50,7 @@ export interface PosterTemplateData {
   // Icon/logo elements
   iconElements: {
     id: string;
-    type: 'service-logo' | 'custom-icon';
+    type: 'source-logo' | 'custom-icon';
     iconPath?: string; // For custom icons, service logo is dynamic
     x: number;
     y: number;

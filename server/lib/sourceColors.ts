@@ -2,7 +2,6 @@ export interface SourceColorScheme {
   primaryColor: string;
   secondaryColor: string;
   textColor: string;
-  accentColor: string;
 }
 
 // Default color schemes based on collection source types
@@ -11,49 +10,41 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     primaryColor: '#ed2224',
     secondaryColor: '#1f1a1a',
     textColor: '#ffffff',
-    accentColor: '#ff4444',
   },
   tmdb: {
     primaryColor: '#01b4e4',
     secondaryColor: '#0d253f',
     textColor: '#ffffff',
-    accentColor: '#90cea1',
   },
   imdb: {
     primaryColor: '#f5c518',
     secondaryColor: '#1f1c0d',
     textColor: '#ffffff',
-    accentColor: '#f5c518',
   },
   letterboxd: {
     primaryColor: '#2c3440',
     secondaryColor: '#1a1f24',
     textColor: '#ffffff',
-    accentColor: '#00e054',
   },
   tautulli: {
     primaryColor: '#cc7b19',
     secondaryColor: '#1f1a15',
     textColor: '#ffffff',
-    accentColor: '#ff9933',
   },
   overseerr: {
     primaryColor: '#5a5ce6',
     secondaryColor: '#1a1a2e',
     textColor: '#ffffff',
-    accentColor: '#7b7dff',
   },
   hub: {
     primaryColor: '#e5a00d',
     secondaryColor: '#1f1c15',
     textColor: '#ffffff',
-    accentColor: '#ffc107',
   },
   default: {
     primaryColor: '#6366f1',
     secondaryColor: '#1e1b4b',
     textColor: '#ffffff',
-    accentColor: '#818cf8',
   },
 };
 

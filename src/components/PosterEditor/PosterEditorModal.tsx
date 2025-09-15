@@ -36,16 +36,16 @@ export interface PosterEditorData {
   width: number;
   height: number;
   background: {
-    type: 'color' | 'gradient';
+    type: 'color' | 'gradient' | 'radial';
     color?: string;
     secondaryColor?: string;
+    intensity?: number; // 0-100, controls gradient spread
     useSourceColors?: boolean;
     sourceColors?: {
       [sourceType: string]: {
         primaryColor: string;
         secondaryColor: string;
         textColor: string;
-        accentColor: string;
       };
     };
   };
@@ -73,7 +73,6 @@ export interface PosterEditorData {
     y: number;
     width: number;
     height: number;
-    grayscale: boolean;
   }[];
   contentGrid?: {
     id: string;
@@ -122,12 +121,12 @@ const DEFAULT_POSTER_DATA: PosterEditorData = {
     {
       id: 'title',
       type: 'collection-title',
-      x: 250,
+      x: 30, // (500 - 440) / 2 = 30 for proper centering
       y: 375,
       width: 440,
       height: 100,
       fontSize: 32,
-      fontFamily: 'Helvetica Neue, Segoe UI, Arial, sans-serif',
+      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       fontWeight: 'bold',
       fontStyle: 'normal',
       color: '#ffffff',
@@ -152,6 +151,10 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [currentlyEditingSource, setCurrentlyEditingSource] = useState<
+    string | undefined
+  >();
+  const [snapToGuides, setSnapToGuides] = useState(true);
   const canvasRef = useRef<{ exportAsImage: () => Promise<string> } | null>(
     null
   );
@@ -410,6 +413,8 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       onChange={handlePosterDataChange}
                       previewCollectionConfig={previewCollectionConfig}
                       mode={mode}
+                      currentlyEditingSource={currentlyEditingSource}
+                      snapToGuides={snapToGuides}
                     />
                   </div>
 
@@ -419,6 +424,9 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       posterData={posterData}
                       onChange={setPosterData}
                       mode={mode}
+                      onCurrentlyEditingSourceChange={setCurrentlyEditingSource}
+                      snapToGuides={snapToGuides}
+                      onSnapToGuidesChange={setSnapToGuides}
                     />
                   </div>
                 </div>

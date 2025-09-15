@@ -104,6 +104,90 @@ async function saveIconMetadata(metadata: IconMetadata[]): Promise<void> {
 }
 
 /**
+ * Scan for new user icons in the icons directory that aren't in metadata
+ */
+async function scanForNewIcons(): Promise<void> {
+  try {
+    if (!fs.existsSync(ICONS_STORAGE_DIR)) {
+      return;
+    }
+
+    const files = await fs.promises.readdir(ICONS_STORAGE_DIR);
+    const iconFiles = files.filter(
+      (file) =>
+        ['.svg', '.png', '.jpg', '.jpeg', '.webp'].includes(
+          path.extname(file).toLowerCase()
+        ) &&
+        !file.startsWith('thumb_') &&
+        file !== 'icons-metadata.json'
+    );
+
+    if (iconFiles.length === 0) {
+      return;
+    }
+
+    const metadata = await loadIconMetadata();
+    let addedCount = 0;
+
+    for (const file of iconFiles) {
+      // Check if this file is already in metadata
+      const existingIcon = metadata.find((icon) => icon.filename === file);
+      if (existingIcon) {
+        continue; // Skip existing files
+      }
+
+      try {
+        const filePath = path.join(ICONS_STORAGE_DIR, file);
+        const stats = await fs.promises.stat(filePath);
+        const ext = path.extname(file).toLowerCase();
+
+        // Determine mime type
+        const mimeTypeMap: Record<string, string> = {
+          '.svg': 'image/svg+xml',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.webp': 'image/webp',
+        };
+        const mimeType = mimeTypeMap[ext] || 'image/png';
+
+        // Create metadata entry for the found file
+        const iconName = path.parse(file).name;
+        const iconMetadata: IconMetadata = {
+          id: `user-${iconName}-${Date.now()}`,
+          name: iconName,
+          filename: file,
+          type: 'user',
+          category: 'user-uploads',
+          tags: ['user', iconName],
+          mimeType,
+          size: stats.size,
+          uploadedAt: new Date(stats.mtime).toISOString(),
+          description: `User uploaded ${iconName}`,
+        };
+
+        metadata.push(iconMetadata);
+        addedCount++;
+
+        logger.debug(`Found new user icon: ${iconName}`, {
+          filename: file,
+          size: stats.size,
+        });
+      } catch (error) {
+        logger.warn(`Failed to process found icon ${file}:`, error);
+      }
+    }
+
+    if (addedCount > 0) {
+      await saveIconMetadata(metadata);
+      logger.info(`Found and added ${addedCount} new user icons`);
+    }
+  } catch (error) {
+    logger.error('Failed to scan for new icons:', error);
+  }
+}
+
+/**
  * Seed system icons (copy from public/services to public/icons)
  */
 async function seedSystemIcons(): Promise<void> {
@@ -331,6 +415,9 @@ export async function getIcons(
   } = {}
 ): Promise<IconMetadata[]> {
   try {
+    // Scan for new icons first
+    await scanForNewIcons();
+
     let icons = await loadIconMetadata();
 
     // Apply filters

@@ -80,9 +80,10 @@ const PosterUploadSection = ({
   );
 
   // Fetch available poster templates
-  const { data: templates } = useSWR<PosterTemplate[]>(
+  const { data: templatesResponse } = useSWR<{ templates: PosterTemplate[] }>(
     '/api/v1/posters/templates'
   );
+  const templates = templatesResponse?.templates;
 
   // Convert library type to media type for poster generation
   const getMediaTypeFromLibraryType = (libraryType: string): 'movie' | 'tv' => {

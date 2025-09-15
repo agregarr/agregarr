@@ -162,9 +162,8 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
           >
             {/* Template Preview */}
             <div className="relative aspect-[2/3] bg-stone-700">
-              {/* Placeholder preview - would show actual template preview */}
               <div
-                className="flex h-full w-full items-center justify-center text-xs text-stone-400"
+                className="relative h-full w-full overflow-hidden"
                 style={{
                   background:
                     template.templateData.background.type === 'gradient'
@@ -174,12 +173,133 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                           template.templateData.background.secondaryColor ||
                           '#1e1b4b'
                         })`
+                      : template.templateData.background.type === 'radial'
+                      ? `radial-gradient(circle, ${
+                          template.templateData.background.color || '#6366f1'
+                        }, ${
+                          template.templateData.background.secondaryColor ||
+                          '#1e1b4b'
+                        })`
                       : template.templateData.background.color || '#6366f1',
                 }}
               >
-                <div className="p-4 text-center font-semibold text-white">
-                  {template.name}
-                </div>
+                {/* Text Elements Preview */}
+                {template.templateData.textElements.map((textElement) => (
+                  <div
+                    key={textElement.id}
+                    className="absolute text-center"
+                    style={{
+                      left: `${
+                        (textElement.x / template.templateData.width) * 100
+                      }%`,
+                      top: `${
+                        (textElement.y / template.templateData.height) * 100
+                      }%`,
+                      width: `${
+                        (textElement.width / template.templateData.width) * 100
+                      }%`,
+                      height: `${
+                        (textElement.height / template.templateData.height) *
+                        100
+                      }%`,
+                      fontSize: `${
+                        (textElement.fontSize / template.templateData.height) *
+                        100
+                      }px`,
+                      fontFamily: textElement.fontFamily,
+                      fontWeight: textElement.fontWeight,
+                      fontStyle: textElement.fontStyle,
+                      color: textElement.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {textElement.type === 'collection-title'
+                      ? 'Collection Title'
+                      : textElement.text || 'Sample Text'}
+                  </div>
+                ))}
+
+                {/* Icon Elements Preview */}
+                {template.templateData.iconElements.map((iconElement) => (
+                  <div
+                    key={iconElement.id}
+                    className="absolute flex items-center justify-center rounded bg-stone-600/50 text-xs text-white"
+                    style={{
+                      left: `${
+                        (iconElement.x / template.templateData.width) * 100
+                      }%`,
+                      top: `${
+                        (iconElement.y / template.templateData.height) * 100
+                      }%`,
+                      width: `${
+                        (iconElement.width / template.templateData.width) * 100
+                      }%`,
+                      height: `${
+                        (iconElement.height / template.templateData.height) *
+                        100
+                      }%`,
+                    }}
+                  >
+                    {iconElement.type === 'source-logo' ? 'Logo' : 'Icon'}
+                  </div>
+                ))}
+
+                {/* Content Grid Preview */}
+                {template.templateData.contentGrid && (
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${
+                        (template.templateData.contentGrid.x /
+                          template.templateData.width) *
+                        100
+                      }%`,
+                      top: `${
+                        (template.templateData.contentGrid.y /
+                          template.templateData.height) *
+                        100
+                      }%`,
+                      width: `${
+                        (template.templateData.contentGrid.width /
+                          template.templateData.width) *
+                        100
+                      }%`,
+                      height: `${
+                        (template.templateData.contentGrid.height /
+                          template.templateData.height) *
+                        100
+                      }%`,
+                    }}
+                  >
+                    <div
+                      className="grid gap-1"
+                      style={{
+                        gridTemplateColumns: `repeat(${template.templateData.contentGrid.columns}, 1fr)`,
+                        gridTemplateRows: `repeat(${template.templateData.contentGrid.rows}, 1fr)`,
+                        height: '100%',
+                      }}
+                    >
+                      {Array.from({
+                        length:
+                          template.templateData.contentGrid.columns *
+                          template.templateData.contentGrid.rows,
+                      }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="rounded-sm bg-stone-700/80"
+                          style={{
+                            borderRadius: `${
+                              template.templateData.contentGrid?.cornerRadius ||
+                              0
+                            }px`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -483,6 +483,7 @@ const CollectionSettings = ({
           timeRestriction: config.timeRestriction,
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
+          autoPosterTemplate: config.autoPosterTemplate,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
           ...(config.downloadMode && { downloadMode: config.downloadMode }),

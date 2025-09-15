@@ -6,7 +6,6 @@ import {
 import logger from '@server/logger';
 import sharp from 'sharp';
 import {
-  generatePosterBuffer,
   type CollectionItemWithPoster,
   type PosterGenerationConfig,
 } from './posterGeneration';
@@ -78,7 +77,6 @@ export function validateTemplateData(
             'primaryColor',
             'secondaryColor',
             'textColor',
-            'accentColor',
           ];
           requiredColors.forEach((colorKey) => {
             const colorValue = colors[colorKey];
@@ -127,7 +125,7 @@ export function validateTemplateData(
     if (!iconElement.id) {
       errors.push(`Icon element ${index} missing required id`);
     }
-    if (!['service-logo', 'custom-icon'].includes(iconElement.type)) {
+    if (!['source-logo', 'custom-icon'].includes(iconElement.type)) {
       errors.push(
         `Icon element ${index} has invalid type: ${iconElement.type}`
       );
@@ -210,8 +208,17 @@ export async function applyTemplate(
     templateData: templateData,
   };
 
-  // Use the existing poster generation system with template-aware colors
-  return await generatePosterBuffer(posterConfig);
+  // Generate poster directly using SVG system to avoid recursion
+  const { generatePosterSVG } = await import('./posterGeneration');
+  const svgContent = await generatePosterSVG(posterConfig);
+
+  // Convert SVG to PNG buffer
+  const sharp = (await import('sharp')).default;
+  const buffer = await sharp(Buffer.from(svgContent))
+    .png({ quality: 90 })
+    .toBuffer();
+
+  return buffer;
 }
 
 /**
@@ -331,9 +338,6 @@ export function sanitizeTemplateData(
                   textColor: colors.textColor?.match(/^#[0-9a-fA-F]{6}$/)
                     ? colors.textColor
                     : '#ffffff',
-                  accentColor: colors.accentColor?.match(/^#[0-9a-fA-F]{6}$/)
-                    ? colors.accentColor
-                    : '#818cf8',
                 },
               ])
           )

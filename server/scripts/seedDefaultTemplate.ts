@@ -57,7 +57,7 @@ async function seedDefaultTemplate() {
       iconElements: [
         {
           id: 'service-logo',
-          type: 'service-logo',
+          type: 'source-logo',
           x: 250, // centered
           y: 95, // top section
           width: 60,
