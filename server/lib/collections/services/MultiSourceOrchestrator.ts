@@ -873,6 +873,7 @@ export class MultiSourceOrchestrator {
           collectionType: 'multi-source', // Use our new color scheme
           mediaType,
           items: posterItems,
+          autoPosterTemplate: config.autoPosterTemplate, // Use configured template or default
         },
         `Multi-Source: ${config.name}`,
         config.id

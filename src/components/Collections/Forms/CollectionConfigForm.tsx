@@ -1694,6 +1694,7 @@ const CollectionFormConfigForm = ({
               ? values.maxPositionToProcess
               : undefined,
             autoPoster: values.autoPoster,
+            autoPosterTemplate: values.autoPosterTemplate,
             // Remove UI-only fields from the final config
             enableGrabMissingItems: undefined,
           };

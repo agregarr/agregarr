@@ -772,6 +772,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         collectionSubtype: config.subtype,
         mediaType,
         items: posterItems,
+        autoPosterTemplate: config.autoPosterTemplate, // Use configured template or default
         ...(dynamicPlatformLogo && { dynamicLogo: dynamicPlatformLogo }), // Pass dynamic logo if available
       };
 

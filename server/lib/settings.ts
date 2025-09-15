@@ -1253,6 +1253,7 @@ export interface MultiSourceCollectionConfig {
   };
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
+  readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {

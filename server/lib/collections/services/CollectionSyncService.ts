@@ -248,6 +248,7 @@ export class CollectionSyncService {
             timeRestriction: config.timeRestriction,
             customPoster: config.customPoster,
             autoPoster: config.autoPoster,
+            autoPosterTemplate: config.autoPosterTemplate,
           };
 
           result = await orchestrator.processMultiSourceCollection(

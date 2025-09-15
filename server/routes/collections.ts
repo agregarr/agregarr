@@ -2038,6 +2038,7 @@ collectionsRoutes.post(
         template,
         customMovieTemplate,
         customTVTemplate,
+        autoPosterTemplate,
       } = req.body;
 
       // Validate required fields
@@ -2093,6 +2094,7 @@ collectionsRoutes.post(
         collectionSubtype,
         mediaType,
         template,
+        autoPosterTemplate,
       };
 
       logger.info('Generating poster for collection:', config);

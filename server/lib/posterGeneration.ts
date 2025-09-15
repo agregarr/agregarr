@@ -224,6 +224,38 @@ async function loadServiceLogo(serviceType: string): Promise<string | null> {
 }
 
 /**
+ * Load dynamic logo from FlixPatrol extraction (PNG file)
+ */
+async function loadDynamicLogo(
+  dynamicLogoPath: string
+): Promise<string | null> {
+  try {
+    if (!fs.existsSync(dynamicLogoPath)) {
+      logger.debug(`Dynamic logo file not found: ${dynamicLogoPath}`);
+      return null;
+    }
+
+    // Convert PNG to base64 data URI and embed in SVG
+    const logoBuffer = await fs.promises.readFile(dynamicLogoPath);
+    const base64Data = logoBuffer.toString('base64');
+    const mimeType = 'image/png';
+
+    // Create an SVG wrapper for the PNG image
+    const svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="50" height="50">
+        <image href="data:${mimeType};base64,${base64Data}" width="50" height="50" x="0" y="0"/>
+      </svg>
+    `;
+
+    logger.debug(`Loaded dynamic logo: ${dynamicLogoPath}`);
+    return svgContent.trim();
+  } catch (error) {
+    logger.warn(`Failed to load dynamic logo: ${dynamicLogoPath}`, error);
+    return null;
+  }
+}
+
+/**
  * Create a logo placeholder for services without SVG logos
  */
 // Legacy function - kept for potential future use
@@ -427,15 +459,36 @@ function createTemplateWrappedText(
   textAlign: string,
   maxLines: number
 ): string {
-  const lines = wrapTextKeepWords(text, width, fontSize);
-  const limitedLines = lines.slice(0, maxLines);
-  const lineHeight = fontSize * 1.1;
+  // Start with the given font size and shrink if needed
+  let currentFontSize = fontSize;
+  let lines: string[] = [];
+  let limitedLines: string[] = [];
+  let lineHeight: number;
+  let totalTextHeight: number;
 
-  // Calculate total text block height
-  const totalTextHeight = limitedLines.length * lineHeight;
+  // Iteratively reduce font size until text fits within height bounds
+  do {
+    lines = wrapTextKeepWords(text, width, currentFontSize);
+    limitedLines = lines.slice(0, maxLines);
+    lineHeight = currentFontSize * 1.1;
+    totalTextHeight = limitedLines.length * lineHeight;
+
+    // If text fits within height, we're done
+    if (totalTextHeight <= height) {
+      break;
+    }
+
+    // Otherwise, reduce font size by 5% and try again
+    currentFontSize *= 0.95;
+
+    // Prevent infinite loop - minimum font size of 8px
+    if (currentFontSize < 8) {
+      break;
+    }
+  } while (totalTextHeight > height);
 
   // Calculate vertical centering - center the text block within the available height
-  const textBlockStartY = y + (height - totalTextHeight) / 2 + fontSize;
+  const textBlockStartY = y + (height - totalTextHeight) / 2 + currentFontSize;
 
   let textAnchor = 'start';
   let textX = x;
@@ -453,7 +506,7 @@ function createTemplateWrappedText(
       return `
         <text x="${textX}" y="${lineY}"
               font-family="${fontFamily}"
-              font-size="${fontSize}"
+              font-size="${currentFontSize}"
               font-weight="${fontWeight}"
               font-style="${fontStyle}"
               text-anchor="${textAnchor}"
@@ -499,10 +552,9 @@ function embedTemplateServiceLogo(
     if (heightMatch) logoHeight = parseFloat(heightMatch[1]);
   }
 
-  // Calculate scale to fit within template bounds while maintaining aspect ratio
-  const scaleX = width / logoWidth;
+  // Calculate scale to fit height (Y dimension) while maintaining aspect ratio
   const scaleY = height / logoHeight;
-  const scale = Math.min(scaleX, scaleY); // Use smaller scale to ensure it fits
+  const scale = scaleY; // Scale to match template height, let width adjust to maintain aspect ratio
 
   // Calculate final dimensions and centering offset
   const scaledWidth = logoWidth * scale;
@@ -670,14 +722,21 @@ async function generateTemplateIconElements(
     height: number;
     grayscale: boolean;
   }[],
-  collectionType?: string
+  collectionType?: string,
+  dynamicLogo?: string
 ): Promise<string> {
   const elements: string[] = [];
 
   for (const element of iconElements) {
     if (element.type === 'source-logo' && collectionType) {
-      // Load service logo
-      const logoSvg = await loadServiceLogo(collectionType);
+      // Priority: Local assets first, then dynamic logo as fallback
+      let logoSvg = await loadServiceLogo(collectionType);
+
+      // If no local asset found and we have a dynamic logo, use that
+      if (!logoSvg && dynamicLogo) {
+        logoSvg = await loadDynamicLogo(dynamicLogo);
+      }
+
       if (logoSvg) {
         const logoContent = embedTemplateServiceLogo(
           logoSvg,
@@ -871,7 +930,8 @@ export async function generatePosterSVG(
   // Generate icon elements from template data
   const iconElements = await generateTemplateIconElements(
     templateData.iconElements,
-    collectionType
+    collectionType,
+    config.dynamicLogo
   );
 
   // Generate content grid from template data
@@ -965,6 +1025,7 @@ export async function generatePosterBuffer(
             collectionType: config.collectionType || 'custom',
             mediaType: config.mediaType || 'movie',
             items: config.items || [],
+            dynamicLogo: config.dynamicLogo,
           });
 
           logger.info('Poster generated successfully using template', {

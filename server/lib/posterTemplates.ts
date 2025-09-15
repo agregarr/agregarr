@@ -173,6 +173,7 @@ export async function applyTemplate(
     collectionSubtype?: string;
     mediaType?: 'movie' | 'tv';
     items?: CollectionItemWithPoster[];
+    dynamicLogo?: string;
   }
 ): Promise<Buffer> {
   const templateRepository = getRepository(PosterTemplate);
@@ -206,6 +207,8 @@ export async function applyTemplate(
     template: `template-${templateId}`,
     // Pass template data for color customization
     templateData: templateData,
+    // Pass through dynamic logo if available
+    dynamicLogo: config.dynamicLogo,
   };
 
   // Generate poster directly using SVG system to avoid recursion
@@ -300,6 +303,18 @@ export function getTemplateTypes(): string[] {
     'tautulli',
     'overseerr',
     'hub',
+    'multi-source',
+    // Streaming platforms (networks)
+    'netflix',
+    'hbo',
+    'disney',
+    'amazon-prime',
+    'apple-tv',
+    'paramount',
+    'peacock',
+    'crunchyroll',
+    'discovery-plus',
+    'hulu',
     'default',
   ];
 }

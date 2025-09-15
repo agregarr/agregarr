@@ -2904,68 +2904,68 @@
     "plexUrl": "http://192.168.0.236:32400/library/metadata/40459/thumb/1757892484?X-Plex-Token=_WrCjEM_yzkuMZJtrNYb"
   },
   "edb380437ee1caf02b298cceed4b1cab74261f11d3d281ddb9b22135421dfcf1": {
-    "uploadedAt": "2025-09-15T06:53:57.419Z",
+    "uploadedAt": "2025-09-15T08:13:04.910Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Trending Movies Today",
     "collectionIdentifier": "10034",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40258/thumb/1757919236?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40258/thumb/1757923983?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "9bbba171720276e6db174303f39625b95de7fd8e7571d75543a52d3866e04d04": {
-    "uploadedAt": "2025-09-15T06:54:02.941Z",
+    "uploadedAt": "2025-09-15T08:46:20.316Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Most Popular Movies on Tom-Server in the last 90 Days",
     "collectionIdentifier": "10040",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40522/thumb/1757919242?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40522/thumb/1757925980?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "cbee8cd2742cc288b586a9b603944868bae5f104e1b263f6004f3d3cb43f557f": {
-    "uploadedAt": "2025-09-15T06:54:49.843Z",
+    "uploadedAt": "2025-09-15T08:47:15.990Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Most Played Movies This Month",
     "collectionIdentifier": "10128",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40524/thumb/1757919288?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40524/thumb/1757926035?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "b5ee50b8ec6f340405bbe2cb87e44a2be35fbd4dc7132ae35144999d33841b04": {
-    "uploadedAt": "2025-09-15T06:54:58.065Z",
+    "uploadedAt": "2025-09-15T08:47:26.065Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Tom's Movie requests",
     "collectionIdentifier": "10046",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40525/thumb/1757919297?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40525/thumb/1757926045?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "083c25f680cee758aafdfaa19c937c599be674fdc20947cc0730d0399b4c7878": {
-    "uploadedAt": "2025-09-15T06:55:38.472Z",
+    "uploadedAt": "2025-09-15T08:53:47.599Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Trending TV Shows Today",
     "collectionIdentifier": "10035",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40250/thumb/1757919338?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40250/thumb/1757926426?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "f09044d5509c9c971100a682f21b82a4ccd87fa919b57fcf545774ae0dd4dc5f": {
     "uploadedAt": "2025-09-15T06:55:44.868Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Most Popular TV Shows on Tom-Server in the last 90 Days",
     "collectionIdentifier": "10041",
     "plexUrl": "http://192.168.0.236:32400/library/metadata/40542/thumb/1757919344?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "df5f12db1912a8211af25465d2f92f8235eb9d1e83aae3980ba849fa5db2b32a": {
-    "uploadedAt": "2025-09-15T06:55:56.474Z",
+    "uploadedAt": "2025-09-15T08:55:00.746Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Most Played TV Shows This Month",
     "collectionIdentifier": "10129",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40543/thumb/1757919355?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40543/thumb/1757926500?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "e93af9ff8d903ab7d3b66e774181ebceb9d10ac9625c9e7391150e1712acc0da": {
-    "uploadedAt": "2025-09-15T06:56:39.761Z",
+    "uploadedAt": "2025-09-15T08:55:47.982Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: Tom's TV Show requests",
     "collectionIdentifier": "10047",
-    "plexUrl": "http://192.168.0.236:32400/library/metadata/40545/thumb/1757919399?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40545/thumb/1757926547?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   },
   "1025c6072d400af95cc8180f2d1105fb8d4d301996f0f848e42cfaf8db6c2a3b": {
     "uploadedAt": "2025-09-15T06:57:07.120Z",
@@ -2986,9 +2986,1281 @@
   "d7ece2147156673a593a8622c128306419251638f24e0d43112b49bed33acf73": {
     "uploadedAt": "2025-09-15T06:58:50.212Z",
     "type": "auto-generated-poster",
-    "isActive": true,
+    "isActive": false,
     "originalName": "Auto-generated: IMDb Top 250 Movies",
     "collectionIdentifier": "10050",
     "plexUrl": "http://192.168.0.236:32400/library/metadata/40523/thumb/1757919529?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "6fae68f5abed9739f7dd030cdd31ab601100c433bcd2cb6026d207232897ddae": {
+    "uploadedAt": "2025-09-15T08:47:10.107Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: IMDb Top 250 Movies",
+    "collectionIdentifier": "10050",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40523/thumb/1757926029?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "1ae7fe4bb7e74beffbfdd301f487d7b97d56396a414c06104a99dd18b08592f4": {
+    "uploadedAt": "2025-09-15T08:16:54.432Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-269175860-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40526/thumb/1757924213?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "227eb299b341e324699e1cf26e05786196f77e8804db0bcd3d54b33c66d52bda": {
+    "uploadedAt": "2025-09-15T08:16:57.774Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-56772713-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40527/thumb/1757924217?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "1d96b12e29fe1d75e2910f6068850876c89ba0a4651f5fdc60bf967111511297": {
+    "uploadedAt": "2025-09-15T08:17:01.838Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-513882108-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40528/thumb/1757924221?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "b2c9ffc4bc921e31c169dea2497a6cb1bac83cf67040a9f8d418250a7def0294": {
+    "uploadedAt": "2025-09-15T08:17:08.237Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-514268084-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40529/thumb/1757924227?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "b1d1d1f392a31e09bfa0223b2be001a74f3515ff5623ae33faacacf0cd68dcc2": {
+    "uploadedAt": "2025-09-15T08:17:14.972Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: lau719's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-24558624-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40530/thumb/1757924234?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "9bb20961f03c515f9a8a1ee49266e22a7c40cd14dd14fb75ecce60ef7e4d6094": {
+    "uploadedAt": "2025-09-15T08:17:17.695Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: ellahig4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-527060177-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40531/thumb/1757924236?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "5c838cbc8ba5f071cccbfad100841a53b531686659dc9fc905295fddeda493d9": {
+    "uploadedAt": "2025-09-15T08:17:21.984Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-528218714-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40532/thumb/1757924241?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "de75e2dfda95c27fe112119409a7eac7387a20374ced5d394fb5a7f998556a1b": {
+    "uploadedAt": "2025-09-15T08:53:08.012Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Seb & Bridget George's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-532271187-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40533/thumb/1757926386?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "31cc4a3f38c31dbc56d6fa5e47a17f5a4011aa0f0c9e8f728009422d04a9d4e2": {
+    "uploadedAt": "2025-09-15T08:17:39.860Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-469900913-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40534/thumb/1757924258?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a62d4210061b80141996393a2cebd4c46e39fc360fa1ad9c72ad752f2eab180c": {
+    "uploadedAt": "2025-09-15T08:53:21.078Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: yanez.4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-19319297-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40535/thumb/1757926400?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "be991132d3cc7bd1d477b0673af0e5bf9373b9ccbd30513add17cfdfda52bffb": {
+    "uploadedAt": "2025-09-15T08:53:22.791Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: SJ MacDougall's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-540984933-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40536/thumb/1757926402?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "cf31f92bce9b5189e93958ec69d449c6ddc6dd4ce8426a13e5051c5769e0e743": {
+    "uploadedAt": "2025-09-15T08:53:24.031Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie-May McCleary's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-449848018-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40537/thumb/1757926403?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "dc9bbf5dccc3dc5ebeffb897f3aacaa3c756c50aedc45163261228674c95b15d": {
+    "uploadedAt": "2025-09-15T08:53:27.041Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Colin Wheeler's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-196947461-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40538/thumb/1757926406?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d1bd0864952d426849eae28983fb920b4bbc5dbc546c1418980b4990367ae99b": {
+    "uploadedAt": "2025-09-15T08:53:36.018Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: d24tu's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-539818852-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40539/thumb/1757926415?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "3546deb016dcd8ab9173af0b9d538fc46695ac9f10858bbfc49f17bfcf7b5666": {
+    "uploadedAt": "2025-09-15T08:53:39.794Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Not-Tom's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-297429150-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40540/thumb/1757926418?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "117bd17a5c87fc345d45e150b9d555f5b21492885c9e3887a0db8bb272ac149f": {
+    "uploadedAt": "2025-09-15T08:53:41.247Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Cam_J_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-8599937-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40541/thumb/1757926420?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0274ca696cd1277b3408684b686d89632f696778bdf13c766fd1eeb6e2505ca2": {
+    "uploadedAt": "2025-09-15T08:19:21.173Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Most Popular TV Shows on Tom-Server in the last 90 Days",
+    "collectionIdentifier": "10041",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40542/thumb/1757924360?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4659ca565614535556f8fe9b7770f99772927157d4e48eb773066643dbb74f9c": {
+    "uploadedAt": "2025-09-15T08:55:39.053Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: IMDb Top 250 TV Shows",
+    "collectionIdentifier": "10051",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40544/thumb/1757926538?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a0df26aed01f74f916b30acf4c73843500f925e87d79a1e133249379f08a41ae": {
+    "uploadedAt": "2025-09-15T08:21:59.921Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-269175860-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40546/thumb/1757924519?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "bcc9c5f4ca54d42dc47c577860c9d62a19a6d5c57ae718e3dd1bcc8b1a460390": {
+    "uploadedAt": "2025-09-15T08:58:03.523Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-56772713-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40547/thumb/1757926683?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "548664b605d76707504579cb78e59cae63a80a9de0b5a29edc73c5120371d7fd": {
+    "uploadedAt": "2025-09-15T08:22:07.893Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-513882108-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40548/thumb/1757924526?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "975a5d9fa2dbbcd6e70776c0a91b2df96d9435b31af7b3265f3892a497fdcf79": {
+    "uploadedAt": "2025-09-15T08:22:11.071Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-514268084-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40549/thumb/1757924529?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "b972f55b26b887d051467cbddc3f8ba35550b8f07476c4064ef6b50223371425": {
+    "uploadedAt": "2025-09-15T08:22:15.836Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: connor_t3's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-514777959-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40550/thumb/1757924534?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0040b51c4392da58aae2986d9693d87fdf0a07451489d6e82b63106951b650bc": {
+    "uploadedAt": "2025-09-15T08:58:35.854Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: lau719's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-24558624-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40551/thumb/1757926715?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "623527086f60e0d626560b22e904819f286232b077d4218376f1862139706953": {
+    "uploadedAt": "2025-09-15T08:22:25.086Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Carl Ellis's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-526607190-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40552/thumb/1757924544?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4b4196fd56b288b7d90f572e918cb0972b6b224a011b1ac78dacdeaa5de3f285": {
+    "uploadedAt": "2025-09-15T08:22:31.398Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-528218714-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40553/thumb/1757924551?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0fa99048aeb428bcf624fd6522e9b4c7224fae5cf62b8c58b5f9d2bc47444e7c": {
+    "uploadedAt": "2025-09-15T08:58:52.005Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Louise Clifton's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-527111532-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40554/thumb/1757926731?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "bf732ad4138531b04de8148f847d2201dbe18a296775fd1fc76f748a932ae619": {
+    "uploadedAt": "2025-09-15T08:58:59.715Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Seb & Bridget George's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-532271187-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40555/thumb/1757926738?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "7a25546c4662c1f066365039d88532f09b3c69c47783c1876008f81b31ab80b5": {
+    "uploadedAt": "2025-09-15T08:59:07.566Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-469900913-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40556/thumb/1757926746?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4ac8eb40483a6c00b2d416187444c9eaf035478ed273e9ba1dbd661c637df5bd": {
+    "uploadedAt": "2025-09-15T08:59:11.078Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: yanez.4's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-19319297-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40557/thumb/1757926750?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e005b700d021703f02c0e1f374c10ba33185fa34c071700e12a975425d3dfdbd": {
+    "uploadedAt": "2025-09-15T08:59:15.513Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: SJ MacDougall's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-540984933-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40558/thumb/1757926754?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a394b43f962a5dc9ca77db9ac6deeec044a857bab1a8d88f2f38136f4b71a3a2": {
+    "uploadedAt": "2025-09-15T08:59:17.302Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie-May McCleary's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-449848018-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40559/thumb/1757926756?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "dc4ca5dc32fd9b84ba396485d5a9e90b7dddb4a0a72cbc985fdb575a3caa6a7f": {
+    "uploadedAt": "2025-09-15T08:59:22.626Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: d24tu's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-539818852-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40560/thumb/1757926762?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "697e74a30cced5002c63d1ce93176a176eb75ffeb2a204d044cb4f7e10acd03c": {
+    "uploadedAt": "2025-09-15T08:59:24.260Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Not-Tom's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-297429150-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40561/thumb/1757926763?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "225f274e07a9bae5729d21858d1b7deb464b7c69bc84032b7f6fc313420174a5": {
+    "uploadedAt": "2025-09-15T08:45:04.332Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Trending Movies Today",
+    "collectionIdentifier": "10034",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40258/thumb/1757925904?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e9077ee2db4b1e2218ef88915d4b68fcf08b1d6063ce94b23e7b639987f57428": {
+    "uploadedAt": "2025-09-15T08:45:32.414Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Apple",
+    "collectionIdentifier": "10311",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40563/thumb/1757925931?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "8562fcf2bcfe1e9f90ba8fa55380920f1ad039bb25352b2b2a580b60132c0ebe": {
+    "uploadedAt": "2025-09-15T08:45:46.282Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Disney",
+    "collectionIdentifier": "10309",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40564/thumb/1757925946?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "3e2b9d59230df5eb2443d2536a5798d821ea195826840c76c61766eb7b171859": {
+    "uploadedAt": "2025-09-15T08:46:02.672Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Amazon",
+    "collectionIdentifier": "10307",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40565/thumb/1757925962?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "aa8e64e51583c3bf0fc043c0e45a154a6c838d0a781c7a170d123d5997588730": {
+    "uploadedAt": "2025-09-15T08:46:15.292Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Netflix",
+    "collectionIdentifier": "10305",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40566/thumb/1757925975?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a0f5491685a9cb5dcc4bc03141accec848ecc825bdcf4b72b3bace46fdf8eff4": {
+    "uploadedAt": "2025-09-15T08:52:28.661Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-269175860-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40526/thumb/1757926348?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "f52a038f4bf66f16c2253c7caf29f9d29a5042ac1fa6a83ee6597834f96e5fa5": {
+    "uploadedAt": "2025-09-15T08:52:32.948Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-56772713-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40527/thumb/1757926351?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4b9484b51ca2e4f0448956217c5137fed63635020640b1741665150ab6a80f4b": {
+    "uploadedAt": "2025-09-15T08:52:36.835Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-513882108-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40528/thumb/1757926355?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "011e33f0f0ac8cc2a69558a52ea0e4aa2a3031a2da04fd410295a423b464201c": {
+    "uploadedAt": "2025-09-15T08:52:42.600Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-514268084-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40529/thumb/1757926361?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a0e6230835b7fc3903c9f86ecc2f1cb5c0402177309917a126a760285dfaffb3": {
+    "uploadedAt": "2025-09-15T08:52:51.644Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: lau719's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-24558624-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40530/thumb/1757926371?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "acb4628577adc3a6a75ade11977aede9a120aea9512736a3f7e13799753c9654": {
+    "uploadedAt": "2025-09-15T08:52:54.484Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: ellahig4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-527060177-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40531/thumb/1757926373?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "b27f1913d1f6dae1e99425204bd6b0a15c64c319be0098eb797cd008190d270b": {
+    "uploadedAt": "2025-09-15T08:52:59.287Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-528218714-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40532/thumb/1757926378?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "20a91a0d0bc2ee5accc9da1480d79679684bf2e2415fb6f48b6ac8d4fe25abda": {
+    "uploadedAt": "2025-09-15T08:53:15.163Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-469900913-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40534/thumb/1757926394?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "c0a75619d1d67fb8683dcc2cc3c95641152667091ba3f9ada24f31f47d6b9bb3": {
+    "uploadedAt": "2025-09-15T08:53:57.777Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 on Neon",
+    "collectionIdentifier": "10314",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40568/thumb/1757926437?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "ffb14bdf36abd0fb0d3f03459dfff4426ac17e4739a9de2df4cabd51c8e1192a": {
+    "uploadedAt": "2025-09-15T08:54:11.176Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Apple",
+    "collectionIdentifier": "10312",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40569/thumb/1757926449?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "fa393ac7294959e439ad113601b12d396db23c7d58723778e20121942b5cb277": {
+    "uploadedAt": "2025-09-15T08:54:22.734Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Disney",
+    "collectionIdentifier": "10310",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40570/thumb/1757926461?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "46f546524e3b9b974df0883bf1dd6e8aaa7b0736b5752d2310deb715699ed4f8": {
+    "uploadedAt": "2025-09-15T08:54:34.894Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Amazon",
+    "collectionIdentifier": "10308",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40571/thumb/1757926474?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "79819b8a75886ddc932d64028820423ad847456ce91371d60c6f851574d5359a": {
+    "uploadedAt": "2025-09-15T08:54:46.864Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Netflix",
+    "collectionIdentifier": "10306",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40572/thumb/1757926485?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "2b7952de451005a4b2005edf1be4b3bd0b978010754560dbd20190f0082ddc98": {
+    "uploadedAt": "2025-09-15T08:54:52.021Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Most Popular TV Shows on Tom-Server in the last 90 Days",
+    "collectionIdentifier": "10041",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40542/thumb/1757926491?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "551d60e48d31b02882d29fd46cfa0b40eacaac4ce5485010503da64bcb85ffc2": {
+    "uploadedAt": "2025-09-15T08:58:00.876Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-269175860-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40546/thumb/1757926680?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "915ade2dfd08753b7013f2d43c51a81b36b3595ee43e09ddfdc68c7a94a967c3": {
+    "uploadedAt": "2025-09-15T08:58:09.005Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-513882108-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40548/thumb/1757926688?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "1e37df187d087a0453debfddc4ac9cbe0ad52be1df135b8ea8dced662ddba37a": {
+    "uploadedAt": "2025-09-15T08:58:18.273Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-514268084-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40549/thumb/1757926698?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "fe1a649bcce3cb96e82a1c15d8680cffd77a2480fc00235c7e2549a23debf131": {
+    "uploadedAt": "2025-09-15T08:58:27.332Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: connor_t3's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-514777959-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40550/thumb/1757926706?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e9395492d6e9683058e5c473eb5a75eabc6b9de82de32294408a9e884771c171": {
+    "uploadedAt": "2025-09-15T08:58:39.427Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Carl Ellis's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-526607190-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40552/thumb/1757926718?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a15463df8c1cab7809a049d957ee76680425ec56849d2a6851a80fcb5990a2ca": {
+    "uploadedAt": "2025-09-15T08:58:46.306Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-528218714-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40553/thumb/1757926725?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "1a75f5e7fef73ec3f90abe0b74a50a7ad0ba82e9c780c31ea0786e88ff9cf446": {
+    "uploadedAt": "2025-09-15T10:17:06.245Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Trending Movies Today",
+    "collectionIdentifier": "10034",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40258/thumb/1757931425?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "ed8a3a5ea0e0dd7c17a83de4e2289a6c22cbd54317c1845669487623b2d6088c": {
+    "uploadedAt": "2025-09-15T10:17:27.936Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Apple",
+    "collectionIdentifier": "10311",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40563/thumb/1757931447?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "8c1f6b3640d8ca10e165a18bdd83b0b318bd95a619e8cc902140ddbf9dd64513": {
+    "uploadedAt": "2025-09-15T10:17:45.051Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Disney",
+    "collectionIdentifier": "10309",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40564/thumb/1757931463?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0332656fb75d930d8c12ac0857ece78b2049aa2f191b567f5db37ad3917cf8f9": {
+    "uploadedAt": "2025-09-15T10:18:00.563Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Amazon",
+    "collectionIdentifier": "10307",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40565/thumb/1757931479?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0f9af1703224ebc9f0b4d7e131726424b7f7483c2f5319fa47aa1dd7c16060d3": {
+    "uploadedAt": "2025-09-15T10:18:15.500Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 Movies on Netflix",
+    "collectionIdentifier": "10305",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40566/thumb/1757931494?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "9ef8644655a49e362179c80df25674e789447bb2ab267a1b561148b03abca0ef": {
+    "uploadedAt": "2025-09-15T10:18:20.221Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Most Popular Movies on Tom-Server in the last 90 Days",
+    "collectionIdentifier": "10040",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40522/thumb/1757931498?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e4a9834014ac9286539ae12b3c5f7b980a357963fd348e036e38b8d311c819e1": {
+    "uploadedAt": "2025-09-15T10:19:03.384Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: IMDb Top 250 Movies",
+    "collectionIdentifier": "10050",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40523/thumb/1757931542?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "84df8ccb42f53680348afd9555a3a58b736d36d42458e33aa1044d5a673228f7": {
+    "uploadedAt": "2025-09-15T10:19:08.990Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Most Played Movies This Month",
+    "collectionIdentifier": "10128",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40524/thumb/1757931548?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "077f9fd8c93ae3bdbc30488c901147d7a8c905e23d9190884270bceaad76f8e6": {
+    "uploadedAt": "2025-09-15T10:19:17.032Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Tom's Movie requests",
+    "collectionIdentifier": "10046",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40525/thumb/1757931556?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "71199dc37076ec2180ea2b2914505c3be85d824bc18407954235981d5ac9a5aa": {
+    "uploadedAt": "2025-09-15T10:20:17.250Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-269175860-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40526/thumb/1757931616?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "afd9a61b07149d4d67c733ab00143cb1868c204949657b240b667d3ceb701602": {
+    "uploadedAt": "2025-09-15T10:20:20.642Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-56772713-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40527/thumb/1757931619?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "8d34b22f17eec5b92a1c2b39700827d48747372b56235e8a3a6a28f5db260292": {
+    "uploadedAt": "2025-09-15T10:20:24.677Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-513882108-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40528/thumb/1757931624?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e801101c944466ba20f8924db68e3bbba80d36797250e98a3967d7e558277c7f": {
+    "uploadedAt": "2025-09-15T10:20:28.983Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-514268084-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40529/thumb/1757931627?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "7b0d9425769f71657cb5577fbea31aeb09aac639a7905e040c973e9cc44e776a": {
+    "uploadedAt": "2025-09-15T10:20:33.829Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: lau719's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-24558624-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40530/thumb/1757931632?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "2521b4998f63d10130d923f1f34098950886ac0c6d1df45b0bbccf7251b2d593": {
+    "uploadedAt": "2025-09-15T10:20:35.212Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: ellahig4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-527060177-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40531/thumb/1757931633?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4999ebe429fdb8df1ecdfccc1aad8b3754b39eaa409b9fa3df1f8ac6dd526234": {
+    "uploadedAt": "2025-09-15T10:20:38.469Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-528218714-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40532/thumb/1757931637?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "10038ed21c169e0cb33a2aa23e13c6b4b60ed965b1e0ba8e40866adddd7c7c7e": {
+    "uploadedAt": "2025-09-15T10:20:45.187Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Seb & Bridget George's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-532271187-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40533/thumb/1757931644?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "27a2bd7b274dc2ad42d4d52d86954c783db4e94a45dbf8d228304fe8d79866e8": {
+    "uploadedAt": "2025-09-15T10:20:52.975Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-469900913-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40534/thumb/1757931651?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "29202742db7109a9508b9b25e9554ba16459cd1bb65e605f6e6fe756edb0e72d": {
+    "uploadedAt": "2025-09-15T10:20:59.138Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: yanez.4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-19319297-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40535/thumb/1757931658?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4bde28de942368abe527b82386c6cbc3a4647d440599c481dc721deb3b8094d7": {
+    "uploadedAt": "2025-09-15T10:21:01.911Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: SJ MacDougall's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-540984933-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40536/thumb/1757931660?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e1b2913ab220d7c2a9a2f35d32b9a428b807866fbc19cdf28f09d4ce1bb199f3": {
+    "uploadedAt": "2025-09-15T10:21:03.195Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie-May McCleary's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-449848018-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40537/thumb/1757931661?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "bdea393cbe1d426f9ffab16f7cf01fb46933c3f66065fcda4f4a20a0c2eaa910": {
+    "uploadedAt": "2025-09-15T10:21:06.310Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Colin Wheeler's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-196947461-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40538/thumb/1757931665?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "917dd0c48fc7f79c84922fab52b9b8278e8cdb87e1373aa9a7bbb1554438dcb2": {
+    "uploadedAt": "2025-09-15T10:21:12.460Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: d24tu's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-539818852-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40539/thumb/1757931671?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "566af0aa852b685d22858b3b727a0f1e44bb1fca3266b4318675979282747d9e": {
+    "uploadedAt": "2025-09-15T10:21:15.709Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Not-Tom's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-297429150-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40540/thumb/1757931674?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "25a9bd85e395a9502bea2cac2c6563014d0afccf94b0194cad0b1a07ae9a50d7": {
+    "uploadedAt": "2025-09-15T10:21:17.145Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Cam_J_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-8599937-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40541/thumb/1757931676?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "adf5f296d0af81e0f9faacfd22d29c0e54d8b068a847a06250eebf84941c40b2": {
+    "uploadedAt": "2025-09-15T10:21:21.958Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Trending TV Shows Today",
+    "collectionIdentifier": "10035",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40250/thumb/1757931681?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "5f3538616f3cb2b9c4e43f5babc749a6062e3bd2a84d17597c5075b634bd4f20": {
+    "uploadedAt": "2025-09-15T10:21:31.091Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 on Neon",
+    "collectionIdentifier": "10314",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40568/thumb/1757931690?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "75d7712636a7532ec8e5512fd2d05262dfa601a346852e95eb324cc626e5d8e9": {
+    "uploadedAt": "2025-09-15T10:21:40.673Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Apple",
+    "collectionIdentifier": "10312",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40569/thumb/1757931699?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "57f59385d972b4dc8ba6b006c00a597a3df845266442fd0e6092d8c48de9c141": {
+    "uploadedAt": "2025-09-15T10:21:49.029Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Disney",
+    "collectionIdentifier": "10310",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40570/thumb/1757931708?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "79c6e6b3d339e34e5175cff07aa63f6db9114790f9223a3020d73fb450f33833": {
+    "uploadedAt": "2025-09-15T10:21:58.626Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Amazon",
+    "collectionIdentifier": "10308",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40571/thumb/1757931717?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d4e57360cc7ddc8c53daf60085930080be50e5af9d7e46291e787a4c1296629d": {
+    "uploadedAt": "2025-09-15T10:22:07.559Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 TV Shows on Netflix",
+    "collectionIdentifier": "10306",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40572/thumb/1757931726?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0b841a470a01a19e069c021bff991e31356a568da6e7969954aa40725319acaf": {
+    "uploadedAt": "2025-09-15T10:22:11.844Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Most Popular TV Shows on Tom-Server in the last 90 Days",
+    "collectionIdentifier": "10041",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40542/thumb/1757931730?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "372fb80acb4316b3e2804a209f3b7b123b8a8408cac6d31ee41937a1a9d7a150": {
+    "uploadedAt": "2025-09-15T10:22:19.995Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Most Played TV Shows This Month",
+    "collectionIdentifier": "10129",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40543/thumb/1757931738?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0d45084097200b1091d10b1af1b843f913e92d96067813bd8c44874e7dc453d4": {
+    "uploadedAt": "2025-09-15T10:22:59.760Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: IMDb Top 250 TV Shows",
+    "collectionIdentifier": "10051",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40544/thumb/1757931778?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "09686142e19b3ad7b651277c34ff272f07b8a56414a90402322fef42aa57a1ea": {
+    "uploadedAt": "2025-09-15T10:23:08.579Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Tom's TV Show requests",
+    "collectionIdentifier": "10047",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40545/thumb/1757931787?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "294324557a85f7cf13bba38b6514440914908ce8d7c40b890aca3889fed4b2a3": {
+    "uploadedAt": "2025-09-15T10:24:28.175Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-269175860-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40546/thumb/1757931866?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "257710cd63439ff69dd61d5e585a2bf8d647a9133f5fc7de16d61f951f6e307d": {
+    "uploadedAt": "2025-09-15T10:24:29.660Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-56772713-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40547/thumb/1757931868?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "8fa3c7771e19c340a6acc057d080c9d45975b8e32b149860bdc6ee3fa403a544": {
+    "uploadedAt": "2025-09-15T10:24:33.023Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-513882108-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40548/thumb/1757931871?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "df46e9ee890c1c902e889d21830e6c890f2e5dc62e8c856637ec2bbbde27cf61": {
+    "uploadedAt": "2025-09-15T10:24:35.462Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-514268084-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40549/thumb/1757931874?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "f646934bb368e11c157f60ef3554015f5fcae7305e0c2cea8234bdb88c6af32d": {
+    "uploadedAt": "2025-09-15T10:24:38.605Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: connor_t3's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-514777959-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40550/thumb/1757931877?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "b29477383a3550c7040cc9ad81eaf6788f3c32ca6f0b75ad887279a4f7ae3cee": {
+    "uploadedAt": "2025-09-15T10:24:42.356Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: lau719's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-24558624-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40551/thumb/1757931881?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "03258850d0c4e3b339d4374e035bc58273d49f894594b2f69945c37751101394": {
+    "uploadedAt": "2025-09-15T10:24:44.192Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Carl Ellis's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-526607190-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40552/thumb/1757931883?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a00784566658cba7315cb4723b26ba9bab15281cc30cc7023bca6a130e9478ba": {
+    "uploadedAt": "2025-09-15T10:24:47.706Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-528218714-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40553/thumb/1757931886?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "cfa1fe621ee924850ee218e281ddefc78e39a2060a28e22e603e670e55c1b9ee": {
+    "uploadedAt": "2025-09-15T10:24:50.383Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Louise Clifton's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-527111532-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40554/thumb/1757931889?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "29c240bbba681d7610b7a75957362b200c17e856cc0ce2ad6964d5f89007cc55": {
+    "uploadedAt": "2025-09-15T10:24:55.373Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Seb & Bridget George's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-532271187-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40555/thumb/1757931894?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "de225c07bc9b05840a9e0df5eb1184ba0869d69b56f8edc5ab7bffa8fe759505": {
+    "uploadedAt": "2025-09-15T10:24:58.566Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-469900913-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40556/thumb/1757931897?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "ce8d91d54f8884998aebab5c7cc65d9e724018499d5025df8212242f8f68cddb": {
+    "uploadedAt": "2025-09-15T10:25:00.389Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: yanez.4's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-19319297-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40557/thumb/1757931899?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "bf5eb96a45b90fd9a42ecb59785ebf484f3e42f2061a4c5e07e064efb143f7ba": {
+    "uploadedAt": "2025-09-15T10:25:05.298Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: SJ MacDougall's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-540984933-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40558/thumb/1757931904?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "1df2707f989148e3c72bb9e1f49dc2b8880f0970d4444e09d8b375382fb15567": {
+    "uploadedAt": "2025-09-15T10:25:08.147Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Jessie-May McCleary's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-449848018-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40559/thumb/1757931907?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "94fc0f0257e556de9bc64b2fe66985cfa04aa74b879738b1e0190065b58fa4d2": {
+    "uploadedAt": "2025-09-15T10:25:11.610Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: d24tu's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-539818852-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40560/thumb/1757931910?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d4cce10bd58b37e39bcdd7de92d85e001dddd1a6cc408dcf3108005b0766e7af": {
+    "uploadedAt": "2025-09-15T10:25:13.075Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Not-Tom's wheelerflix.com TV Show requests",
+    "collectionIdentifier": "10049-297429150-tv",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40561/thumb/1757931912?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "9e7b300b40e3e1b8b4cb043dda6996bb8711ee2f6cdd1e67b2d4570ff8af4faf": {
+    "uploadedAt": "2025-09-15T11:35:44.403Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Trending Movies Today",
+    "collectionIdentifier": "10034",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40258/thumb/1757936143?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0ce470493300900a1dff385c6500ccee6016912bea7f3009cc7966670e180a51": {
+    "uploadedAt": "2025-09-15T10:38:03.728Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 Movies on Apple",
+    "collectionIdentifier": "10311",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40563/thumb/1757932682?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d8a3e46b9a97f105bb5e79308757b13216edde5c2cc7ca739103ae5d820d0c34": {
+    "uploadedAt": "2025-09-15T10:38:16.956Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 Movies on Disney",
+    "collectionIdentifier": "10309",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40564/thumb/1757932695?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d790f44698095e767b926ab3edbff54a6734b7039925a4bf4dce922811be6062": {
+    "uploadedAt": "2025-09-15T10:38:30.776Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 Movies on Amazon",
+    "collectionIdentifier": "10307",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40565/thumb/1757932709?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "8b818c2d4829d744fd3701d104a4acf4894f334c1ea8f35b20b1dfe7cafe04ab": {
+    "uploadedAt": "2025-09-15T10:38:43.067Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 Movies on Netflix",
+    "collectionIdentifier": "10305",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40566/thumb/1757932721?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "dda5e65dc389a44f59544693680c7d4581efaea62f733f15cb8f91bf499be747": {
+    "uploadedAt": "2025-09-15T10:38:46.853Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Most Popular Movies on Tom-Server in the last 90 Days",
+    "collectionIdentifier": "10040",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40522/thumb/1757932725?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "7748953985cc535db7eb8e4d85f2c2d64e17ed0cf11a917a62f0ca32688e33e3": {
+    "uploadedAt": "2025-09-15T10:39:21.347Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: IMDb Top 250 Movies",
+    "collectionIdentifier": "10050",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40523/thumb/1757932760?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "fe5dd73073d2555c970fda7c80995427ede5688b131cb62357cbaa205a94559d": {
+    "uploadedAt": "2025-09-15T10:39:26.438Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Most Played Movies This Month",
+    "collectionIdentifier": "10128",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40524/thumb/1757932765?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "57ba52cbaeb9d5f952980157d4efd8f44967715ab93b97bdaef77ba48371bc58": {
+    "uploadedAt": "2025-09-15T10:39:35.434Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Tom's Movie requests",
+    "collectionIdentifier": "10046",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40525/thumb/1757932774?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "ebdd30ab180f7b1675d00e90d977b506f66177ab4916f44335cccceef3d3b3d9": {
+    "uploadedAt": "2025-09-15T10:40:27.311Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-269175860-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40526/thumb/1757932826?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d060e5562cba1726fdbbf2c0e869d9d061425ef58613ed5a532db021c14a24e1": {
+    "uploadedAt": "2025-09-15T10:40:30.034Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-56772713-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40527/thumb/1757932829?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4323242eeaa772c28d75fd08e903deb2172a1f6eee3cc82c8ca826b81cd0c3c8": {
+    "uploadedAt": "2025-09-15T10:40:32.709Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-513882108-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40528/thumb/1757932831?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "c0029a9baaef506e80ee91af3ec8e1e6dd8098ad0484cb5a620166e7591754a9": {
+    "uploadedAt": "2025-09-15T10:40:35.175Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-514268084-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40529/thumb/1757932834?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "bca59e39241ab3302e4f41b59096ec37ede1d3d8a5bd29fe63a325f488e01871": {
+    "uploadedAt": "2025-09-15T10:40:39.735Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: lau719's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-24558624-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40530/thumb/1757932838?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "545843e50bb13c295e3d87b9231f3bef5eee7c6cdc852f8d0ae58c52ffb6553a": {
+    "uploadedAt": "2025-09-15T10:40:40.887Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: ellahig4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-527060177-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40531/thumb/1757932839?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4d8405385fd398cea62da7fc2d99ecf1df35ebf3952506983904d04e2b2c189c": {
+    "uploadedAt": "2025-09-15T10:52:58.927Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Kelly Rush's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-528218714-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40532/thumb/1757933577?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "49c4e314bea33a1248f86b82830b8b0326c4b3a3694f09b1c7c7061ea9f7a48d": {
+    "uploadedAt": "2025-09-15T10:40:48.454Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Seb & Bridget George's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-532271187-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40533/thumb/1757932847?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "959243b093c3319bac6ce2d112202db9c46e4118c9f5a36aa98e726dd07a3d5a": {
+    "uploadedAt": "2025-09-15T10:40:52.330Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-469900913-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40534/thumb/1757932851?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a618c36f0e5e89526f86180a6a2fc727b71c25e8e7b7789c32226876b08e6b4c": {
+    "uploadedAt": "2025-09-15T10:40:55.813Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: yanez.4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-19319297-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40535/thumb/1757932854?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "bb794dacbcd3d14dca0753191ea76a9d6aa9265183b1c0cc9c31ed48dd62a9a1": {
+    "uploadedAt": "2025-09-15T10:53:33.255Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: SJ MacDougall's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-540984933-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40536/thumb/1757933612?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "6aef84641e8860a85dcb6dc34e0cbc49616efe7eece63deeb8ece82a57f22217": {
+    "uploadedAt": "2025-09-15T10:53:35.527Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Jessie-May McCleary's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-449848018-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40537/thumb/1757933614?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "47897ab2f19ca4e408199c92772b7b860c2465db7a1cb077b814315f68b09270": {
+    "uploadedAt": "2025-09-15T10:53:38.733Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Colin Wheeler's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-196947461-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40538/thumb/1757933617?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "70a85eba33efbe23a6a2099001c764a886357322d0e0320d638c5d85f37663aa": {
+    "uploadedAt": "2025-09-15T10:41:06.370Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: d24tu's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-539818852-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40539/thumb/1757932865?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "7996cb8d325c73e556c3db28343ae69396a85a8bbbe1e10e2df4b38c3522b0e5": {
+    "uploadedAt": "2025-09-15T10:53:49.121Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Not-Tom's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-297429150-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40540/thumb/1757933627?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "ca422f41fc0e07948993397f4cd2ec518953a446c2a9237b0cf4c38356a134e2": {
+    "uploadedAt": "2025-09-15T10:53:50.685Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Cam_J_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-8599937-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40541/thumb/1757933629?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "309cb5d2d5bce60fb150dda54725d9aa3760614ec70738e620da2afd8c05f0b1": {
+    "uploadedAt": "2025-09-15T11:35:23.450Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Trending TV Shows Today",
+    "collectionIdentifier": "10035",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40250/thumb/1757936122?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a41ef746e5367cc9d5ba741fa6d0340add56c97bff7585f5df44ce414f7bfebf": {
+    "uploadedAt": "2025-09-15T11:30:22.006Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 on Neon",
+    "collectionIdentifier": "10314",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40568/thumb/1757935820?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "17fadf095233fab5ed627e992591836d8e616ec001341b38a5ccc05e4ed5efb3": {
+    "uploadedAt": "2025-09-15T10:41:31.853Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 TV Shows on Apple",
+    "collectionIdentifier": "10312",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40569/thumb/1757932890?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "71cbd6f6d0a91c23e0ee46c73bf1f4778059f12db37b35184377c221b6b1e303": {
+    "uploadedAt": "2025-09-15T10:41:39.713Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 TV Shows on Disney",
+    "collectionIdentifier": "10310",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40570/thumb/1757932898?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "c4fe6b826185affe045f5ee464cae7f840f1455fb0323a33860e64c20ef262a5": {
+    "uploadedAt": "2025-09-15T10:41:49.025Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 TV Shows on Amazon",
+    "collectionIdentifier": "10308",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40571/thumb/1757932907?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "f8c525113f0b2d274a304e19b77bb5ea9945222218450e8bfd7b440eb11210ba": {
+    "uploadedAt": "2025-09-15T10:41:57.118Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 TV Shows on Netflix",
+    "collectionIdentifier": "10306",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40572/thumb/1757932915?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "4a67c5458b1f04151ba8e9d330bab58b8809312f74d196be9d5061de887edb78": {
+    "uploadedAt": "2025-09-15T10:42:01.386Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Most Popular TV Shows on Tom-Server in the last 90 Days",
+    "collectionIdentifier": "10041",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40542/thumb/1757932920?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a201bc546116221dab6bc576a7f87d6f91089ae7831541652204a154f8d4cc1c": {
+    "uploadedAt": "2025-09-15T10:52:06.287Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Jessie & Chris's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-269175860-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40526/thumb/1757933524?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "84e15ad48e8a8b25dc55ef4ab8a7dfa2573979d7c18cef5fd9a5c62fd543fc35": {
+    "uploadedAt": "2025-09-15T10:52:17.646Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: shjo3's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-56772713-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40527/thumb/1757933536?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "14f312f7e00f9c71c8fd6dda7de80be244be1f471556547e03650d9de8ffefea": {
+    "uploadedAt": "2025-09-15T10:52:28.296Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: georgiawheeler_'s wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-513882108-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40528/thumb/1757933547?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "0a5b0b79496e5d7919b06e2d908a8fa3d00fc7f007d965fc8e6925b7e21c3e08": {
+    "uploadedAt": "2025-09-15T10:52:37.218Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: breastfeedi's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-514268084-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40529/thumb/1757933555?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "48cb8d53c0c0f513beeccb3cd0afff367827a4b25f6f81fc8a852a78ae8175a0": {
+    "uploadedAt": "2025-09-15T10:52:47.627Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: lau719's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-24558624-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40530/thumb/1757933566?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "61e4b55a158d5ee98424415a677867276e4b060e20c1c3265b203785db31e85f": {
+    "uploadedAt": "2025-09-15T10:52:52.126Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: ellahig4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-527060177-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40531/thumb/1757933570?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "e347ca931b0b2b6e2c5b716f1a562214c1c3e8ac63d17fa998cb048f2c2e5509": {
+    "uploadedAt": "2025-09-15T10:53:10.795Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Seb & Bridget George's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-532271187-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40533/thumb/1757933589?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "b1a4ed4caf8961737d13dba40a472acd319e9958d01ee7830c13c8e1a1a7de2c": {
+    "uploadedAt": "2025-09-15T10:53:18.445Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Rick Jochem's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-469900913-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40534/thumb/1757933597?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "70ab9b84e9a4cfbb6215a33fc30bf2dbbbeea9951a5ae34fc20216d05b5b9bf9": {
+    "uploadedAt": "2025-09-15T10:53:28.024Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: yanez.4's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-19319297-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40535/thumb/1757933606?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "a729c759dc6ba000e27db5d3cce10255199a4a8e119401f6c960fe28b04e9ec3": {
+    "uploadedAt": "2025-09-15T10:53:46.438Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: d24tu's wheelerflix.com Movie requests",
+    "collectionIdentifier": "10048-539818852-movie",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40539/thumb/1757933624?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "88f33ee1f58a5b3fe875d5964a5224df3baf5042fe40f8ca753da8d6728d6f71": {
+    "uploadedAt": "2025-09-15T11:09:28.565Z",
+    "type": "plex-poster",
+    "isActive": true,
+    "filename": "c27e61e1-a32d-494e-b811-9146a1b3c6ee.jpg",
+    "originalName": "test movies (Films)",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40567/thumb/1757934419?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "d1f3fada77edaaf630ec83b7b667af6b1150ebef193487c7faa4e2ab474f88ee": {
+    "uploadedAt": "2025-09-15T11:09:29.855Z",
+    "type": "plex-poster",
+    "isActive": true,
+    "filename": "d177e334-e43f-4fb8-824b-0dc143e33e06.jpg",
+    "originalName": "Most Played TV Shows This Month (TV Programmes)",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40543/thumb/1757932927?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "3b4de57d022ec21dd2345544181b8a61ca40eae366dffc89af2b8d27f490cf83": {
+    "uploadedAt": "2025-09-15T11:09:30.009Z",
+    "type": "plex-poster",
+    "isActive": true,
+    "filename": "02e8cbb8-ce08-47a1-89f6-c7c226f5dfdb.jpg",
+    "originalName": "test tv shows (TV Programmes)",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40573/thumb/1757934563?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "ca956a61279db876d5eee08ee1189cd75954c3574f791444db2c94e7c11244c9": {
+    "uploadedAt": "2025-09-15T11:19:30.368Z",
+    "type": "auto-generated-poster",
+    "isActive": false,
+    "originalName": "Auto-generated: Top 10 on Neon",
+    "collectionIdentifier": "10314",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40568/thumb/1757935169?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "74e37ebe20e99db0cc3f8474a72270e0988385e53b065f98c76b0973349ec607": {
+    "uploadedAt": "2025-09-15T11:35:56.015Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: really liong title test to see how it handles the long title",
+    "collectionIdentifier": "10349",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40580/thumb/1757936154?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
+  },
+  "01fc51691027e7f7f8a59a6d82b6856c0c84843bf85a15045e154ead741bdae0": {
+    "uploadedAt": "2025-09-15T11:35:37.794Z",
+    "type": "auto-generated-poster",
+    "isActive": true,
+    "originalName": "Auto-generated: Top 10 on Neon",
+    "collectionIdentifier": "10314",
+    "plexUrl": "http://192.168.0.236:32400/library/metadata/40568/thumb/1757936136?X-Plex-Token=ZPUShSZRE7qqeVzTsHnV"
   }
 }
