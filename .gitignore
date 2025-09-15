@@ -38,7 +38,9 @@ config/posters/*.jpg
 config/*.json
 config/random-lists/*.txt
 config/icons/*.svg
-congif/icons/*.json
+config/icons/*.json
+config/temp/*.png
+
 
 # logs
 config/logs/*.log*
