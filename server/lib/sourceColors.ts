@@ -41,6 +41,62 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#1f1c15',
     textColor: '#ffffff',
   },
+  // Streaming Platform Color Schemes
+  netflix: {
+    primaryColor: '#e50914',
+    secondaryColor: '#1a0c0d',
+    textColor: '#ffffff',
+  },
+  hbo: {
+    primaryColor: '#9146ff',
+    secondaryColor: '#1a1625',
+    textColor: '#ffffff',
+  },
+  disney: {
+    primaryColor: '#113ccf',
+    secondaryColor: '#0d1a24',
+    textColor: '#ffffff',
+  },
+  'amazon-prime': {
+    primaryColor: '#00a8e1',
+    secondaryColor: '#0d1a21',
+    textColor: '#ffffff',
+  },
+  'apple-tv': {
+    primaryColor: '#1d1d1f',
+    secondaryColor: '#161617',
+    textColor: '#ffffff',
+  },
+  paramount: {
+    primaryColor: '#0064ff',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
+  peacock: {
+    primaryColor: '#005da0',
+    secondaryColor: '#0d1920',
+    textColor: '#ffffff',
+  },
+  crunchyroll: {
+    primaryColor: '#ff6c00',
+    secondaryColor: '#1f1512',
+    textColor: '#ffffff',
+  },
+  'discovery-plus': {
+    primaryColor: '#005aff',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
+  hulu: {
+    primaryColor: '#1ce783',
+    secondaryColor: '#0d1f16',
+    textColor: '#ffffff',
+  },
+  'multi-source': {
+    primaryColor: '#e65100', // Agregarr orange/brand color
+    secondaryColor: '#1c1917', // Matches UI bg-stone-900
+    textColor: '#ffffff',
+  },
   default: {
     primaryColor: '#6366f1',
     secondaryColor: '#1e1b4b',

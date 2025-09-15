@@ -28,9 +28,11 @@ export interface CollectionConfig {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
-    | 'letterboxd';
+    | 'letterboxd'
+    | 'networks'
+    | 'multi-source';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
-  readonly template: string;
+  readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
   readonly customTVTemplate?: string; // Custom template for TV collections when mediaType is 'both'
   readonly visibilityConfig: {
@@ -83,6 +85,8 @@ export interface CollectionConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)
+  // Networks (FlixPatrol) fields
+  readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -113,6 +117,18 @@ export interface CollectionConfig {
       readonly sunday: boolean;
     };
   };
+  // Multi-source specific properties (only present when type === 'multi-source')
+  readonly sources?: readonly {
+    readonly id: string;
+    readonly type: string;
+    readonly subtype?: string;
+    readonly customUrl?: string;
+    readonly timePeriod?: string;
+    readonly customDays?: number;
+    readonly minimumPlays?: number;
+    readonly priority: number;
+  }[];
+  readonly combineMode?: 'ordered' | 'randomized' | 'cycle';
 }
 
 /**
@@ -1171,6 +1187,73 @@ class Settings {
 }
 
 let settings: Settings | undefined;
+
+// Multi-source collection types
+export type MultiSourceCombineMode =
+  | 'interleaved'
+  | 'list_order'
+  | 'randomised'
+  | 'cycle_lists';
+
+export interface CustomSyncSchedule {
+  readonly enabled: boolean;
+  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+}
+
+export type MultiSourceType =
+  | 'trakt'
+  | 'tmdb'
+  | 'imdb'
+  | 'letterboxd'
+  | 'tautulli'
+  | 'overseerr'
+  | 'networks';
+
+export interface SourceDefinition {
+  readonly id: string;
+  readonly type: MultiSourceType;
+  readonly subtype: string;
+  readonly customUrl?: string;
+  readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+  readonly customDays?: number;
+  readonly minimumPlays?: number;
+  readonly priority: number;
+  readonly networksCountry?: string;
+}
+
+export interface MultiSourceCollectionConfig {
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'multi-source';
+  readonly visibilityConfig: {
+    usersHome: boolean;
+    serverOwnerHome: boolean;
+    libraryRecommended: boolean;
+  };
+  readonly mediaType?: 'movie' | 'tv';
+  readonly libraryId: string;
+  readonly libraryName: string;
+  readonly maxItems?: number;
+  readonly template?: string;
+  readonly sources: readonly SourceDefinition[];
+  readonly combineMode: MultiSourceCombineMode;
+  readonly customSyncSchedule?: CustomSyncSchedule;
+  readonly isActive?: boolean;
+  readonly sortOrderHome?: number;
+  readonly sortOrderLibrary?: number;
+  readonly isLibraryPromoted?: boolean;
+  readonly timeRestriction?: {
+    readonly alwaysActive: boolean;
+    readonly removeFromPlexWhenInactive?: boolean;
+    readonly inactiveVisibilityConfig?: {
+      usersHome: boolean;
+      serverOwnerHome: boolean;
+      libraryRecommended: boolean;
+    };
+  };
+  readonly customPoster?: string | Record<string, string>;
+  readonly autoPoster?: boolean;
+}
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {
   if (!settings) {

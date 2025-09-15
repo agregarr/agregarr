@@ -133,6 +133,15 @@ const TemplateSection = ({
               fetchedTitles,
               detectedMediaTypes
             );
+
+            // Auto-select the only available option if template is empty
+            if (templatePresets.length === 1 && !values.template) {
+              setTimeout(
+                () => setFieldValue('template', templatePresets[0].value),
+                0
+              );
+            }
+
             return templatePresets.map((preset) => (
               <option key={preset.value} value={preset.value}>
                 {preset.label}
@@ -232,8 +241,8 @@ const TemplateSection = ({
       )}
 
       {/* Template preview */}
-      <div className="mt-3 rounded-md bg-gray-700 p-3">
-        <h5 className="mb-2 text-sm font-medium text-white">Preview:</h5>
+      <div className="mt-3 rounded-md bg-stone-800 p-3">
+        <h5 className="mb-2 text-sm font-medium text-gray-200">Preview:</h5>
         <div className="text-sm text-gray-300">
           {(() => {
             // Get the actual template being used (same logic as dropdown)

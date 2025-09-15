@@ -446,7 +446,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
               setIsTesting(true);
               const response = await axios.post('/api/v1/overseerr/test', {
                 hostname: values.overseerrHostname,
-                port: values.overseerrPort,
+                port: Number(values.overseerrPort),
                 apiKey: values.overseerrApiKey,
                 useSsl: values.overseerrUseSsl,
                 urlBase: values.overseerrUrlBase,
@@ -760,7 +760,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 '/api/v1/settings/tautulli/test',
                 {
                   hostname: values.tautulliHostname,
-                  port: values.tautulliPort,
+                  port: Number(values.tautulliPort),
                   apiKey: values.tautulliApiKey,
                   useSsl: values.tautulliUseSsl,
                   urlBase: values.tautulliUrlBase,

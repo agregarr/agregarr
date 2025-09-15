@@ -4,6 +4,10 @@ import type {
   CollectionConfigFormProps,
   CollectionFormConfig,
   CollectionFormConfigForEditing,
+  CollectionSourceConfig,
+  MultiSourceCollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
   TemplatePreset,
 } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
@@ -20,6 +24,8 @@ import AutoRequestSection from '@app/components/Collections/FormSections/AutoReq
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
+import MultiSourceConfigSection from '@app/components/Collections/FormSections/MultiSourceConfigSection';
+import NetworksConfigSection from '@app/components/Collections/FormSections/NetworksConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
@@ -106,11 +112,12 @@ const CollectionFormConfigForm = ({
       then: (schema) => schema.required('Collection type is required'),
       otherwise: (schema) => schema,
     }),
-    subtype: Yup.string().when(['hubIdentifier', 'collectionType'], {
-      is: (hubIdentifier: string, collectionType: string) =>
+    subtype: Yup.string().when(['hubIdentifier', 'collectionType', 'type'], {
+      is: (hubIdentifier: string, collectionType: string, type: string) =>
         !hubIdentifier &&
         collectionType !== 'default_plex_hub' &&
-        collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
+        collectionType !== 'pre_existing' &&
+        type !== 'multi-source', // Only required if not a hub, pre-existing, or multi-source
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema,
     }),
@@ -526,11 +533,17 @@ const CollectionFormConfigForm = ({
 
   const getTemplatePresets = (
     values?: CollectionFormConfig,
-    fetchedTitles?: { trakt?: string; tmdb?: string; imdb?: string },
+    fetchedTitles?: {
+      trakt?: string;
+      tmdb?: string;
+      imdb?: string;
+      letterboxd?: string;
+    },
     detectedMediaTypes?: {
       trakt?: 'movie' | 'tv' | 'both';
       tmdb?: 'movie' | 'tv' | 'both';
       imdb?: 'movie' | 'tv' | 'both';
+      letterboxd?: 'movie' | 'tv' | 'both';
     }
   ): TemplatePreset[] => {
     if (!values?.subtype) return [{ label: 'Custom', value: 'custom' }];
@@ -550,7 +563,7 @@ const CollectionFormConfigForm = ({
     // Helper function to generate preset options for custom URLs
     const getCustomUrlPresets = (
       title: string,
-      serviceType: 'trakt' | 'tmdb' | 'imdb'
+      serviceType: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
     ): TemplatePreset[] => {
       if (!title) {
         return [
@@ -1119,6 +1132,22 @@ const CollectionFormConfigForm = ({
           ];
         case 'custom':
           return getCustomUrlPresets(fetchedTitles?.trakt || '', 'trakt');
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random Trakt {mediaType}s',
+              value: 'Random Trakt {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from Trakt',
+              value: 'Curated {mediaType}s from Trakt',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
         default:
           return [
             {
@@ -1199,6 +1228,22 @@ const CollectionFormConfigForm = ({
           ];
         case 'custom':
           return getCustomUrlPresets(fetchedTitles?.tmdb || '', 'tmdb');
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random TMDb {mediaType}s',
+              value: 'Random TMDb {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from TMDb',
+              value: 'Curated {mediaType}s from TMDb',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
         default:
           return [
             {
@@ -1259,6 +1304,22 @@ const CollectionFormConfigForm = ({
           ];
         case 'custom':
           return getCustomUrlPresets(fetchedTitles?.imdb || '', 'imdb');
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random IMDb {mediaType}s',
+              value: 'Random IMDb {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from IMDb',
+              value: 'Curated {mediaType}s from IMDb',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
         default:
           return [
             {
@@ -1268,6 +1329,107 @@ const CollectionFormConfigForm = ({
             { label: 'Custom', value: 'custom' },
           ];
       }
+    }
+
+    // Networks collection presets
+    if (values.type === 'networks') {
+      if (values.subtype) {
+        // Get platform name from subtype for display
+        // Handle cases like "netflix_top_10" -> "Netflix"
+        // and "disney-plus" -> "Disney Plus"
+        const platformName = values.subtype
+          .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
+          .split('-') // Split on dashes
+          .map((word) => {
+            // Special case for TV to maintain proper capitalization
+            if (word.toLowerCase() === 'tv') {
+              return 'TV';
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          })
+          .join(' ');
+
+        return [
+          {
+            label: `Top 10 {mediaType}s on ${platformName}`,
+            value: `Top 10 {mediaType}s on ${platformName}`,
+          },
+          {
+            label: `Popular on ${platformName}`,
+            value: `Popular on ${platformName}`,
+          },
+          {
+            label: `${platformName} Top 10 {mediaType}s`,
+            value: `${platformName} Top 10 {mediaType}s`,
+          },
+          {
+            label: `${platformName} Top {mediaType}s`,
+            value: `${platformName} Top {mediaType}s`,
+          },
+          {
+            label: `Top {mediaType}s on ${platformName}`,
+            value: `Top {mediaType}s on ${platformName}`,
+          },
+          {
+            label: `${platformName} Trending {mediaType}s`,
+            value: `${platformName} Trending {mediaType}s`,
+          },
+          {
+            label: `Best of ${platformName}`,
+            value: `Best of ${platformName}`,
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      } else {
+        // No platform selected yet
+        return [
+          {
+            label: 'Select a Platform First',
+            value: 'select-platform',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      }
+    }
+
+    // Letterboxd collection presets
+    if (values.type === 'letterboxd') {
+      switch (values.subtype) {
+        case 'custom':
+          return getCustomUrlPresets(
+            fetchedTitles?.letterboxd || '',
+            'letterboxd'
+          );
+        case 'random':
+          return [
+            {
+              label: 'Dynamic Title from Random List',
+              value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random Letterboxd {mediaType}s',
+              value: 'Random Letterboxd {mediaType}s',
+            },
+            {
+              label: 'Curated {mediaType}s from Letterboxd',
+              value: 'Curated {mediaType}s from Letterboxd',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        default:
+          return [
+            {
+              label: 'Letterboxd Collection',
+              value: 'Letterboxd Collection',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+      }
+    }
+
+    // Multi-source collection presets - only custom allowed
+    if (values.type === 'multi-source') {
+      return [{ label: 'Custom', value: 'custom' }];
     }
 
     // Fallback for unknown types
@@ -1309,7 +1471,9 @@ const CollectionFormConfigForm = ({
           ...config,
           // Set clean defaults for new collections
           // Cast to CollectionFormConfig since we're creating CollectionFormConfig-compatible values
-          type: (config as CollectionFormConfig).type || undefined,
+          type: (config as CollectionFormConfig).isMultiSource
+            ? 'multi-source'
+            : (config as CollectionFormConfig).type || undefined,
           // Parse compound subtypes (e.g., "played_daily" -> subtype: "played", timePeriod: "daily")
           ...(() => {
             const originalSubtype =
@@ -1389,6 +1553,52 @@ const CollectionFormConfigForm = ({
               libraryRecommended: true,
             },
           },
+          // Multi-source configuration - initialize properly based on existing config
+          isMultiSource:
+            (config as CollectionFormConfig).isMultiSource ?? false,
+          sources: (() => {
+            const existingConfig = config as CollectionFormConfig;
+
+            // If this is already a multi-source config, use existing sources
+            if (
+              existingConfig.isMultiSource &&
+              existingConfig.sources &&
+              existingConfig.sources.length > 0
+            ) {
+              return [...existingConfig.sources] as CollectionSourceConfig[];
+            }
+
+            // For single-source configs, create single source from existing config
+            if (existingConfig.type) {
+              return [
+                {
+                  id: '0',
+                  type: existingConfig.type,
+                  subtype: existingConfig.subtype,
+                  timePeriod: existingConfig.timePeriod,
+                  customUrl:
+                    existingConfig.traktCustomListUrl ||
+                    existingConfig.tmdbCustomListUrl ||
+                    existingConfig.imdbCustomListUrl ||
+                    existingConfig.letterboxdCustomListUrl,
+                  customDays: existingConfig.customDays,
+                  minimumPlays: existingConfig.minimumPlays,
+                  networksCountry: existingConfig.networksCountry,
+                  priority: 0,
+                  isExpanded: true,
+                },
+              ] as CollectionSourceConfig[];
+            }
+            return [] as CollectionSourceConfig[];
+          })(),
+          combineMode:
+            (config as CollectionFormConfig).combineMode ??
+            ('list_order' as MultiSourceCombineMode),
+          customSyncSchedule: (config as CollectionFormConfig)
+            .customSyncSchedule ?? {
+            enabled: false,
+            intervalHours: 24,
+          },
         }}
         validationSchema={CollectionFormConfigSchema}
         enableReinitialize={false}
@@ -1431,6 +1641,8 @@ const CollectionFormConfigForm = ({
 
           const configToSave: CollectionFormConfig = {
             ...values,
+            // For multi-source collections, ensure type is set correctly
+            type: values.isMultiSource ? 'multi-source' : values.type,
             subtype: finalSubtype,
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
@@ -1590,15 +1802,26 @@ const CollectionFormConfigForm = ({
                       </div>
                     )}
 
-                    {/* Basic Information Section */}
-                    {/* Collection Type Section - only for regular collections */}
+                    {/* Collection Type Section - appears above multi-source config */}
                     {isCollection && (
                       <CollectionTypeSection
                         values={typedValues as CollectionFormConfig}
                         setFieldValue={setFieldValue}
                         errors={errors as FormikErrors<CollectionFormConfig>}
                         touched={touched as FormikTouched<CollectionFormConfig>}
-                        isVisible={isCollection}
+                        isVisible={true}
+                        getTemplatePresets={getTemplatePresets}
+                      />
+                    )}
+
+                    {/* Networks Config Section - country and platform selection */}
+                    {isCollection && values.type === 'networks' && (
+                      <NetworksConfigSection
+                        values={typedValues as CollectionFormConfig}
+                        setFieldValue={setFieldValue}
+                        errors={errors as FormikErrors<CollectionFormConfig>}
+                        touched={touched as FormikTouched<CollectionFormConfig>}
+                        isVisible={true}
                         getTemplatePresets={getTemplatePresets}
                       />
                     )}
@@ -1625,6 +1848,39 @@ const CollectionFormConfigForm = ({
                           }
                           isVisible={true}
                           getTemplatePresets={getTemplatePresets}
+                        />
+                      )}
+
+                    {/* Multi-Source Configuration - New approach for type='multi-source' */}
+                    {isCollection &&
+                      (values as CollectionFormConfig & { type?: string })
+                        .type === 'multi-source' && (
+                        <MultiSourceConfigSection
+                          values={
+                            {
+                              ...values,
+                              type: 'multi-source',
+                              sources:
+                                values.sources?.map((source) => ({
+                                  id: source.id,
+                                  type: source.type as MultiSourceType,
+                                  subtype: source.subtype || '',
+                                  customUrl: source.customUrl,
+                                  timePeriod: source.timePeriod as
+                                    | 'daily'
+                                    | 'weekly'
+                                    | 'monthly'
+                                    | 'all'
+                                    | undefined,
+                                  customDays: source.customDays,
+                                  minimumPlays: source.minimumPlays,
+                                  priority: source.priority,
+                                  networksCountry: source.networksCountry,
+                                })) || [],
+                              combineMode: values.combineMode || 'list_order',
+                            } as MultiSourceCollectionConfig
+                          }
+                          setFieldValue={setFieldValue}
                         />
                       )}
 
@@ -1659,7 +1915,7 @@ const CollectionFormConfigForm = ({
                         </div>
                       )}
 
-                    {/* Custom URL Section - only show for regular collections */}
+                    {/* Custom URL Section - show after type/subtype selection, before library selection */}
                     {isCollection && (
                       <CustomUrlSection
                         values={typedValues as CollectionFormConfig}
@@ -1683,7 +1939,9 @@ const CollectionFormConfigForm = ({
                         isVisible={Boolean(
                           isCollection &&
                             values.type &&
-                            values.subtype &&
+                            (values.type === 'multi-source'
+                              ? values.sources && values.sources.length >= 2
+                              : values.subtype) &&
                             // For Trakt time-period subtypes, also require timePeriod to be selected
                             (values.type !== 'trakt' ||
                               ![
@@ -1744,7 +2002,9 @@ const CollectionFormConfigForm = ({
                     {/* Regular Form - show full form for normal collections */}
                     {isCollection &&
                       values.type &&
-                      values.subtype &&
+                      (values.type === 'multi-source'
+                        ? values.sources && values.sources.length >= 2
+                        : values.subtype) &&
                       (values.libraryIds?.length > 0 || values.libraryId) &&
                       (values.type !== 'tautulli' || values.customDays) &&
                       (values.type !== 'trakt' ||
@@ -1757,75 +2017,6 @@ const CollectionFormConfigForm = ({
                         values.subtype !== 'custom' ||
                         (values as CollectionFormConfig).imdbCustomListUrl) && (
                         <>
-                          {/* Custom Days (for Tautulli collections) - moved here from above */}
-                          {values.type === 'tautulli' && (
-                            <div className="form-row">
-                              <label
-                                htmlFor="customDays"
-                                className="text-label"
-                              >
-                                No. of Days
-                                <span className="label-required">*</span>
-                              </label>
-                              <div className="form-input-area">
-                                <div className="form-input-field">
-                                  <Field
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    id="customDays"
-                                    name="customDays"
-                                    className="short"
-                                  />
-                                </div>
-                                {errors.customDays && touched.customDays && (
-                                  <div className="error">
-                                    {String(errors.customDays)}
-                                  </div>
-                                )}
-                                <div className="label-tip">
-                                  Number of days to look back for statistics
-                                  (1-365)
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Minimum Play Count (for Tautulli collections) */}
-                          {values.type === 'tautulli' && (
-                            <div className="form-row">
-                              <label
-                                htmlFor="minimumPlays"
-                                className="text-label"
-                              >
-                                Minimum Play Count
-                                <span className="label-required">*</span>
-                              </label>
-                              <div className="form-input-area">
-                                <div className="form-input-field">
-                                  <Field
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    id="minimumPlays"
-                                    name="minimumPlays"
-                                    className="short"
-                                  />
-                                </div>
-                                {errors.minimumPlays &&
-                                  touched.minimumPlays && (
-                                    <div className="error">
-                                      {String(errors.minimumPlays)}
-                                    </div>
-                                  )}
-                                <div className="label-tip">
-                                  Only include items with at least this many
-                                  unique viewers (1-100)
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
                           {/* Collection Title Template */}
                           <div className="form-row">
                             <label
@@ -1850,7 +2041,10 @@ const CollectionFormConfigForm = ({
                                 detectedMediaTypes={detectedMediaTypes}
                                 getTemplatePresets={getTemplatePresets}
                                 isVisible={Boolean(
-                                  isCollection && values.type && values.subtype
+                                  isCollection &&
+                                    values.type &&
+                                    (values.type === 'multi-source' ||
+                                      values.subtype)
                                 )}
                                 currentUser={currentUser}
                                 libraries={libraries}

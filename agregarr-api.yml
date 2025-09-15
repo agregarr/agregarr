@@ -199,7 +199,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -515,7 +515,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -762,6 +762,39 @@ components:
                   example: false
               nullable: true
           nullable: true
+        # Multi-source collection properties
+        isMultiSource:
+          type: boolean
+          description: "Enable multi-source mode for combining multiple collection sources"
+          example: false
+          nullable: true
+        sources:
+          type: array
+          description: "Array of source configurations for multi-source collections"
+          items:
+            $ref: '#/components/schemas/CollectionSourceConfig'
+          nullable: true
+        combineMode:
+          type: string
+          enum: ['interleaved', 'list_order', 'randomised', 'cycle_lists']
+          description: "How to combine multiple sources: interleaved (alternate items), list_order (all from first, then second), randomised (shuffle all), cycle_lists (rotate active source)"
+          example: 'list_order'
+          nullable: true
+        customSyncSchedule:
+          type: object
+          description: "Custom sync schedule configuration"
+          properties:
+            enabled:
+              type: boolean
+              description: "Enable custom sync schedule"
+              example: false
+            intervalHours:
+              type: number
+              description: "Sync interval in hours (supports decimals)"
+              example: 24.0
+              minimum: 0.5
+              maximum: 168
+          nullable: true
       required:
         - id
         - name
@@ -781,7 +814,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -956,6 +989,11 @@ components:
           description: "Custom Letterboxd list URL (e.g., https://letterboxd.com/user/list/list-name/)"
           example: "https://letterboxd.com/user/list/my-list/"
           nullable: true
+        networksCountry:
+          type: string
+          description: "Selected country for Networks collections (e.g., 'united-states', 'world')"
+          example: "united-states"
+          nullable: true
         reverseOrder:
           type: boolean
           description: "Reverse the order of items from the source"
@@ -1055,6 +1093,39 @@ components:
           type: boolean
           description: "True if collection no longer exists in Plex"
           example: false
+        # Multi-source collection properties
+        isMultiSource:
+          type: boolean
+          description: "Enable multi-source mode for combining multiple collection sources"
+          example: false
+          nullable: true
+        sources:
+          type: array
+          description: "Array of source configurations for multi-source collections"
+          items:
+            $ref: '#/components/schemas/CollectionSourceConfig'
+          nullable: true
+        combineMode:
+          type: string
+          enum: ['interleaved', 'list_order', 'randomised', 'cycle_lists']
+          description: "How to combine multiple sources: interleaved (alternate items), list_order (all from first, then second), randomised (shuffle all), cycle_lists (rotate active source)"
+          example: 'list_order'
+          nullable: true
+        customSyncSchedule:
+          type: object
+          description: "Custom sync schedule configuration"
+          properties:
+            enabled:
+              type: boolean
+              description: "Enable custom sync schedule"
+              example: false
+            intervalHours:
+              type: number
+              description: "Sync interval in hours (supports decimals)"
+              example: 24.0
+              minimum: 0.5
+              maximum: 168
+          nullable: true
       required:
         - id
         - name
@@ -1063,6 +1134,69 @@ components:
         - template
         - visibilityConfig
         - maxItems
+
+    CollectionSourceConfig:
+      type: object
+      description: "Individual source configuration for multi-source collections"
+      properties:
+        id:
+          type: string
+          description: "Unique identifier for this source within the collection"
+          example: "source-1234567890"
+        type:
+          type: string
+          enum: ['trakt', 'tmdb', 'imdb', 'letterboxd', 'tautulli', 'overseerr', 'networks']
+          description: "Type of collection source"
+          example: 'trakt'
+        subtype:
+          type: string
+          description: "Sub-type of the collection source"
+          example: 'trending'
+          nullable: true
+        customUrl:
+          type: string
+          description: "Custom URL for list-based sources (Trakt, TMDb, IMDb, Letterboxd)"
+          example: "https://trakt.tv/users/username/lists/my-list"
+          nullable: true
+        timePeriod:
+          type: string
+          enum: ['daily', 'weekly', 'monthly', 'all']
+          description: "Time period for time-based sources"
+          example: 'weekly'
+          nullable: true
+        priority:
+          type: integer
+          description: "Order priority when combining (0 = highest priority)"
+          example: 0
+          minimum: 0
+        isExpanded:
+          type: boolean
+          description: "UI state for expandable sections"
+          example: true
+          nullable: true
+        customDays:
+          type: integer
+          description: "Number of days to look back for Tautulli statistics"
+          example: 30
+          minimum: 1
+          maximum: 365
+          nullable: true
+        minimumPlays:
+          type: integer
+          description: "Minimum play count required for Tautulli sources"
+          example: 3
+          minimum: 1
+          maximum: 100
+          nullable: true
+        networksCountry:
+          type: string
+          description: "Selected country for Networks collections"
+          example: "united-states"
+          nullable: true
+      required:
+        - id
+        - type
+        - priority
 
     PlexHubConfig:
       type: object
@@ -1641,7 +1775,7 @@ components:
               description: "Per-library poster mapping (libraryId -> filename)"
               additionalProperties:
                 type: string
-              example: 
+              example:
                 lib1: "f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg"
                 lib2: "a12bc34d-58cc-4372-a567-0e02b2c3d480.jpg"
           nullable: true
@@ -3331,6 +3465,38 @@ components:
         - visibilityConfig
         - isActive
 
+    NetworksCountryOption:
+      type: object
+      description: "Country option for Networks collections"
+      properties:
+        value:
+          type: string
+          description: "Country code/identifier"
+          example: "united-states"
+        label:
+          type: string
+          description: "Display name for country"
+          example: "United States"
+      required:
+        - value
+        - label
+
+    NetworksPlatformOption:
+      type: object
+      description: "Platform option for Networks collections"
+      properties:
+        value:
+          type: string
+          description: "Platform identifier for Networks collections"
+          example: "netflix_top_10"
+        label:
+          type: string
+          description: "Display name for platform"
+          example: "Netflix Top 10"
+      required:
+        - value
+        - label
+
   responses:
     NotFound:
       description: Resource not found
@@ -3359,6 +3525,7 @@ components:
             required:
               - message
               - errors
+
 
   securitySchemes:
     cookieAuth:
@@ -3592,6 +3759,66 @@ paths:
                     example: "Failed to delete collection"
                   message:
                     type: string
+  /collections/{id}/sync:
+    post:
+      summary: Sync individual collection
+      description: Triggers sync for a specific collection by ID. This performs the same sync operation as the global sync but only for the specified collection, without the global preprocessing overhead.
+      tags:
+        - collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Collection ID to sync
+          schema:
+            type: string
+            example: "10000"
+      responses:
+        '200':
+          description: Collection sync started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Collection sync started for \"Movie Collection\""
+                  collectionId:
+                    type: string
+                    example: "10000"
+                  collectionName:
+                    type: string
+                    example: "Movie Collection"
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Collection with ID 10000 not found"
+        '500':
+          description: Failed to start collection sync
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Admin user not found"
   /collections/{id}/promote:
     patch:
       summary: Promote collection to top section
@@ -4232,6 +4459,74 @@ paths:
                   error:
                     type: string
                     example: "Failed to cleanup missing collections"
+  /collections/networks/countries:
+    get:
+      summary: Get available countries for Networks collections
+      description: Returns all available countries/regions that can be used for Networks streaming platform collections.
+      tags:
+        - collection
+      responses:
+        '200':
+          description: Countries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NetworksCountryOption'
+        '500':
+          description: Failed to fetch countries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to load available countries"
+  /collections/networks/platforms:
+    get:
+      summary: Get available platforms for a country
+      description: Returns all available streaming platforms for the specified country/region.
+      tags:
+        - collection
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Country code to get platforms for
+          example: "united-states"
+      responses:
+        '200':
+          description: Platforms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NetworksPlatformOption'
+        '400':
+          description: Country parameter is required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Country parameter is required"
+        '500':
+          description: Failed to fetch platforms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to load platforms for country"
   /collections/preexisting:
     get:
       summary: Get pre-existing Plex collections
@@ -5337,9 +5632,7 @@ paths:
                   example: '/tautulli'
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: 'Connection test successful'
@@ -5485,9 +5778,7 @@ paths:
                   example: '/overseerr'
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: 'Connection test successful'
@@ -5601,9 +5892,7 @@ paths:
                   type: string
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: Succesfully connected to Radarr instance
@@ -5745,9 +6034,7 @@ paths:
                   type: string
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: Succesfully connected to Sonarr instance

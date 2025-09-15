@@ -16,6 +16,7 @@ import type {
   PlexCollection,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -33,6 +34,7 @@ interface LetterboxdListItem {
 export class LetterboxdCollectionSync extends BaseCollectionSync {
   private tmdbClient: TmdbAPI;
   private lastFetchedHtml = '';
+  private dynamicRandomTitle: string | null = null;
 
   constructor() {
     super('letterboxd');
@@ -56,30 +58,79 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     // 3. Any connectivity issues will be caught during actual fetching
   }
 
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    libraryCache?: LibraryItemsCache
   ): Promise<LetterboxdSourceData[]> {
     try {
-      if (config.subtype !== 'custom' || !config.letterboxdCustomListUrl) {
+      if (config.subtype === 'custom' && !config.letterboxdCustomListUrl) {
         throw this.createSyncError(
           CollectionSyncErrorType.CONFIGURATION_ERROR,
           'Custom Letterboxd list URL is required'
         );
       }
 
+      if (config.subtype !== 'custom' && config.subtype !== 'random') {
+        throw this.createSyncError(
+          CollectionSyncErrorType.CONFIGURATION_ERROR,
+          'Only custom and random Letterboxd lists are supported'
+        );
+      }
+
+      // Determine which URL to use based on subtype
+      let listUrl: string;
+      if (config.subtype === 'random') {
+        // Get a random URL from RandomListManager with media type validation
+        const mediaType = getCollectionMediaType(config);
+        const randomResult = await RandomListManager.getRandomUrlWithTitle(
+          'letterboxd',
+          config.maxItems,
+          mediaType,
+          libraryCache
+        );
+        if (!randomResult) {
+          throw this.createSyncError(
+            CollectionSyncErrorType.CONFIGURATION_ERROR,
+            `No random Letterboxd lists available with ${mediaType} content`
+          );
+        }
+
+        const { url: randomUrl, title: listTitle } = randomResult;
+        listUrl = randomUrl;
+
+        // Store the dynamic title for use in generateCollectionNameWithCustom
+        if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+          this.dynamicRandomTitle = listTitle;
+          this.updateCollectionConfigField(config.id, { name: listTitle });
+        }
+
+        logger.info(`Using random Letterboxd list: ${randomUrl}`, {
+          label: 'Letterboxd Collections',
+          collection: config.name,
+          randomUrl,
+          listTitle,
+        });
+      } else {
+        // Use custom URL
+        if (!config.letterboxdCustomListUrl) {
+          throw this.createSyncError(
+            CollectionSyncErrorType.CONFIGURATION_ERROR,
+            'Custom Letterboxd list URL is required but not provided'
+          );
+        }
+        listUrl = config.letterboxdCustomListUrl;
+      }
+
       // Use the same approach as fetch-title endpoint
       const axios = (await import('axios')).default;
 
-      logger.debug(
-        `Fetching Letterboxd custom list: ${config.letterboxdCustomListUrl}`,
-        {
-          label: 'Letterboxd Collections',
-          configName: config.name,
-          url: config.letterboxdCustomListUrl,
-        }
-      );
+      logger.debug(`Fetching Letterboxd list: ${listUrl}`, {
+        label: 'Letterboxd Collections',
+        configName: config.name,
+        url: listUrl,
+        subtype: config.subtype,
+      });
 
       // Fetch all pages to get the complete list
       const letterboxdData: LetterboxdListItem[] = [];
@@ -89,9 +140,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
 
       while (totalFetched < config.maxItems && currentPage <= maxPages) {
         const pageUrl =
-          currentPage === 1
-            ? config.letterboxdCustomListUrl
-            : `${config.letterboxdCustomListUrl}page/${currentPage}/`;
+          currentPage === 1 ? listUrl : `${listUrl}page/${currentPage}/`;
 
         logger.debug(`Fetching Letterboxd page ${currentPage}: ${pageUrl}`, {
           label: 'Letterboxd Collections',
@@ -282,7 +331,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     }
   }
 
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: LetterboxdSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,
@@ -388,6 +437,24 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     };
   }
 
+  public async generateCollectionNameWithCustom(
+    config: CollectionConfig,
+    mediaType: 'movie' | 'tv',
+    libraryCache?: LibraryItemsCache
+  ): Promise<string> {
+    // Handle DYNAMIC_RANDOM_TITLE using stored title from fetchSourceData
+    if (config.template === 'DYNAMIC_RANDOM_TITLE' && this.dynamicRandomTitle) {
+      return this.dynamicRandomTitle;
+    }
+
+    // Fall back to base implementation for other templates
+    return super.generateCollectionNameWithCustom(
+      config,
+      mediaType,
+      libraryCache
+    );
+  }
+
   protected async createTemplateContext(
     config: CollectionConfig,
     mediaType: 'movie' | 'tv'
@@ -441,7 +508,9 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     config: CollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>
+    processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache,
+    options?: CollectionSyncOptions
   ) {
     logger.debug('Starting Letterboxd processConfiguration', {
       label: 'Letterboxd Collections Debug',
@@ -452,7 +521,11 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     });
 
     try {
-      const sourceData = await this.fetchSourceData(config);
+      const sourceData = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
       logger.debug('Source data fetched successfully', {
         label: 'Letterboxd Collections Debug',
         configName: config.name,
@@ -503,7 +576,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       const mediaType = 'movie';
       const collectionName = await this.generateCollectionNameWithCustom(
         config,
-        mediaType
+        mediaType,
+        libraryCache
       );
 
       const result = await this.createCollection(
@@ -570,7 +644,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     await processMissingItemsWithMode(missingItems, config, 'letterboxd');
   }
 
-  private parseLetterboxdListHtml(
+  public parseLetterboxdListHtml(
     html: string,
     maxItems: number
   ): LetterboxdListItem[] {
@@ -578,21 +652,54 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
 
     try {
       // Parse HTML using regex patterns for the actual Letterboxd structure
-      // Look for posteritem numbered-list-item elements
-      const posterItemRegex =
-        /<li[^>]*class="[^"]*posteritem numbered-list-item[^"]*"[^>]*>(.*?)<\/li>/gs;
+      // Use multiple patterns for robustness against CSS class changes
+      const patterns = [
+        // Primary pattern - current structure
+        /<li[^>]*class="[^"]*posteritem[^"]*"[^>]*>(.*?)<\/li>/gs,
+        // Fallback pattern - any li containing film data
+        /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
+      ];
+
       const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /<img[^>]*alt="([^"]+)"/;
 
-      let match;
+      let matches: RegExpMatchArray[] = [];
+      let patternUsed = 0;
+
+      // Try patterns in order until we find matches
+      for (let i = 0; i < patterns.length; i++) {
+        matches = [...html.matchAll(patterns[i])];
+        if (matches.length > 0) {
+          patternUsed = i + 1;
+          logger.debug(
+            `Using pattern ${patternUsed} for Letterboxd parsing (found ${matches.length} matches)`,
+            {
+              label: 'Letterboxd Collections',
+              patternUsed,
+              matchCount: matches.length,
+            }
+          );
+          break;
+        }
+      }
+
+      if (matches.length === 0) {
+        logger.warn(
+          'No matches found with any pattern - Letterboxd structure may have changed',
+          {
+            label: 'Letterboxd Collections',
+            htmlLength: html.length,
+            patternsAttempted: patterns.length,
+          }
+        );
+      }
+
       let count = 0;
 
-      while (
-        (match = posterItemRegex.exec(html)) !== null &&
-        count < maxItems
-      ) {
+      for (const match of matches) {
+        if (count >= maxItems) break;
         const itemHtml = match[1];
 
         // Extract film ID

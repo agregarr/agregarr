@@ -102,6 +102,78 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   }
 
   /**
+   * Extract items from a collection configuration without creating/updating collections
+   * Used by multi-source orchestrator to get items for combining
+   */
+  public async extractItemsForMultiSource(
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    libraryCache?: LibraryItemsCache,
+    options?: CollectionSyncOptions
+  ): Promise<CollectionItem[]> {
+    try {
+      // Validate source is properly configured
+      await this.validateConfiguration();
+
+      // Validate this config is for our source
+      const sourceConfigs = this.filterConfigsForSource([config]);
+      if (sourceConfigs.length === 0) {
+        logger.debug(`Config ${config.name} is not for source ${this.source}`, {
+          label: `${this.source} Multi-Source Extractor`,
+          configName: config.name,
+        });
+        return [];
+      }
+
+      const validatedConfig = sourceConfigs[0];
+
+      // Fetch data from the external source
+      const sourceData = await this.fetchSourceData(
+        validatedConfig,
+        options,
+        libraryCache
+      );
+
+      if (!sourceData || sourceData.length === 0) {
+        logger.debug(`No source data returned for ${validatedConfig.name}`, {
+          label: `${this.source} Multi-Source Extractor`,
+          configName: validatedConfig.name,
+        });
+        return [];
+      }
+
+      // Map to standardized CollectionItem format
+      const mappedResult = await this.mapSourceDataToItems(
+        sourceData,
+        validatedConfig,
+        plexClient,
+        libraryCache
+      );
+
+      logger.debug(
+        `Extracted ${mappedResult.items.length} items from ${this.source} for multi-source collection`,
+        {
+          label: `${this.source} Multi-Source Extractor`,
+          configName: validatedConfig.name,
+          itemCount: mappedResult.items.length,
+        }
+      );
+
+      return mappedResult.items;
+    } catch (error) {
+      logger.error(
+        `Failed to extract items from ${this.source} for multi-source collection: ${error}`,
+        {
+          label: `${this.source} Multi-Source Extractor`,
+          configName: config.name,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
    * Main entry point for processing collections
    * Implements the common pipeline that all sources follow
    */
@@ -309,15 +381,28 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
    */
   public async generateCollectionNameWithCustom(
     config: CollectionConfig,
-    mediaType: 'movie' | 'tv'
+    mediaType: 'movie' | 'tv',
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    libraryCache?: LibraryItemsCache
   ): Promise<string> {
     const context = await this.createTemplateContext(config, mediaType);
 
-    // Use custom templates if available, otherwise fall back to main template
-    const template =
-      mediaType === 'movie'
-        ? config.customMovieTemplate || config.template || config.name
-        : config.customTVTemplate || config.template || config.name;
+    // Handle special dynamic random title template
+    if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+      // DYNAMIC_RANDOM_TITLE should be handled by each subclass in fetchSourceData
+      // Fall back to config.name if not handled
+      return config.name;
+    }
+
+    // Use custom templates only if template is set to 'custom', otherwise use main template
+    const template = (() => {
+      if (config.template === 'custom') {
+        return mediaType === 'movie'
+          ? config.customMovieTemplate || config.name
+          : config.customTVTemplate || config.name;
+      }
+      return config.template || config.name;
+    })();
 
     return this.templateEngine.processTemplate(template, context);
   }
@@ -1264,7 +1349,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   /**
    * Update specific fields of a collection config
    */
-  private updateCollectionConfigField(
+  protected updateCollectionConfigField(
     configId: string,
     updateConfig: Partial<CollectionConfig>
   ): void {
@@ -1336,9 +1421,10 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   /**
    * Fetch data from the external source (Trakt API, Tautulli API, etc.)
    */
-  protected abstract fetchSourceData(
+  public abstract fetchSourceData(
     config: CollectionConfig,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    libraryCache?: LibraryItemsCache
   ): Promise<CollectionSourceData[]>;
 
   /**
@@ -1348,7 +1434,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
    * @param plexClient - Optional Plex API client for lookups
    * @param libraryCache - Optional pre-fetched library items cache for performance optimization
    */
-  protected abstract mapSourceDataToItems(
+  public abstract mapSourceDataToItems(
     sourceData: CollectionSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,
@@ -1376,7 +1462,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
    * Apply filtering safety net to already-mapped items (validation, deduplication, maxItems safety check)
    * Use this after calling your specific mapSourceDataToItems implementation.
    */
-  protected applyFilteringToMappedItems(
+  public applyFilteringToMappedItems(
     mappedResult: {
       items: CollectionItem[];
       missingItems?: MissingItem[];
@@ -1493,7 +1579,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
-    userInfo?: { userId?: number | string; customLabel?: string }
+    userInfo?: { userId?: number | string; customLabel?: string },
+    libraryCache?: LibraryItemsCache
   ): Promise<MediaProcessingResult> {
     const mediaType = getCollectionMediaType(config);
 
@@ -1507,7 +1594,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         plexClient,
         allCollections,
         processedCollectionKeys,
-        userInfo
+        userInfo,
+        libraryCache
       );
     } catch (error) {
       logger.error(`Media type processing failed`, {
@@ -1537,7 +1625,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
-    userInfo?: { userId?: number | string; customLabel?: string }
+    userInfo?: { userId?: number | string; customLabel?: string },
+    libraryCache?: LibraryItemsCache
   ): Promise<MediaProcessingResult> {
     // Filter items by the specified media type
     const filteredItems = items.filter((item) => item.type === mediaType);
@@ -1559,7 +1648,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }
 
     const collectionName =
-      (await this.generateCollectionNameWithCustom?.(config, mediaType)) ||
+      (await this.generateCollectionNameWithCustom?.(
+        config,
+        mediaType,
+        libraryCache
+      )) ||
       config.template ||
       config.name;
 

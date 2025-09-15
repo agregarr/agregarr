@@ -323,6 +323,22 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for Networks collections
+   */
+  public createNetworksContext(
+    mediaType: 'movie' | 'tv',
+    platform: string,
+    statType: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getNetworksSubtypeLabel(platform),
+      statType,
+    };
+  }
+
+  /**
    * Create context for Overseerr collections
    */
   public createOverseerrContext(
@@ -596,6 +612,47 @@ export class TemplateEngine {
         return subtype
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for Networks platform
+   */
+  private getNetworksSubtypeLabel(platform: string): string {
+    switch (platform) {
+      case 'netflix':
+        return 'Netflix';
+      case 'hbo':
+        return 'HBO';
+      case 'disney':
+        return 'Disney+';
+      case 'amazon-prime':
+        return 'Amazon Prime';
+      case 'apple-tv':
+        return 'Apple TV+';
+      case 'paramount':
+        return 'Paramount+';
+      case 'peacock':
+        return 'Peacock';
+      case 'crunchyroll':
+        return 'Crunchyroll';
+      case 'discovery-plus':
+        return 'Discovery+';
+      case 'hulu':
+        return 'Hulu';
+      default:
+        return platform
+          .replace(/_/g, ' ')
+          .replace(/-/g, ' ')
+          .split(' ')
+          .map((word) => {
+            // Special case for TV to maintain proper capitalization
+            if (word.toLowerCase() === 'tv') {
+              return 'TV';
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          })
+          .join(' ');
     }
   }
 

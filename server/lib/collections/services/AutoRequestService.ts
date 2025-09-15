@@ -58,7 +58,7 @@ export class AutoRequestService {
   public async processAutoRequests(
     missingItems: MissingItem[],
     config: CollectionConfig,
-    source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+    source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'networks'
   ): Promise<AutoRequestResult> {
     // Only proceed if auto-request is enabled
     if (!config.searchMissingMovies && !config.searchMissingTV) {

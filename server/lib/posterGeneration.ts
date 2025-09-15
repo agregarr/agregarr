@@ -17,6 +17,7 @@ export interface PosterGenerationConfig {
   items?: CollectionItemWithPoster[];
   autoPosterTemplate?: number | null; // Template ID for auto-generated posters
   templateData?: PosterTemplateData; // Template data for customized colors and layout
+  dynamicLogo?: string; // Path to dynamic logo file
 }
 
 export interface CollectionItemWithPoster {
@@ -51,6 +52,18 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',
   plex: 'plex.svg',
+  'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
+  // Streaming Platform Logo Mappings
+  netflix: 'netflix.svg',
+  hbo: 'hbo.svg',
+  disney: 'disney.svg',
+  'amazon-prime': 'amazon-prime.svg',
+  'apple-tv': 'apple-tv.svg',
+  paramount: 'paramount.svg',
+  peacock: 'peacock.svg',
+  crunchyroll: 'crunchyroll.svg',
+  'discovery-plus': 'discovery-plus.svg',
+  hulu: 'hulu.svg',
 };
 
 /**
@@ -810,6 +823,8 @@ export async function generatePosterSVG(
   const colorScheme = getColorScheme(collectionType, templateData);
 
   // Fetch and prepare collection items for content grid
+
+  // Fetch poster URLs if items are provided
   let itemsWithPosters: CollectionItemWithPoster[] = [];
   if (items.length > 0 && templateData.contentGrid) {
     try {

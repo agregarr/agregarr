@@ -742,7 +742,11 @@ const AllCollectionsView: React.FC = () => {
                   <div className="flex-1">
                     <div className="mb-2">
                       <h5 className="text-base font-medium text-white">
-                        {collection.name || 'Unnamed Collection'}
+                        {collection.name === 'DYNAMIC_RANDOM_TITLE' ? (
+                          <em>Title will be updated on Collection Sync</em>
+                        ) : (
+                          collection.name || 'Unnamed Collection'
+                        )}
                       </h5>
                     </div>
 
@@ -760,7 +764,7 @@ const AllCollectionsView: React.FC = () => {
                       {isHub && (
                         <Badge
                           badgeType="default"
-                          className="!bg-gray-600/20 text-xs !text-gray-300"
+                          className="!bg-stone-600/20 text-xs !text-stone-300"
                         >
                           Plex Default
                         </Badge>
@@ -768,7 +772,7 @@ const AllCollectionsView: React.FC = () => {
                       {isPreExisting && (
                         <Badge
                           badgeType="default"
-                          className="!border !border-orange-500 !bg-gray-600/20 text-xs !text-gray-300"
+                          className="!border !border-orange-500 !bg-stone-600/20 text-xs !text-stone-300"
                         >
                           Pre-Existing
                         </Badge>
@@ -891,6 +895,23 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'networks':
+                                // Format platform names like "netflix_top_10" -> "Netflix"
+                                // and "neon-tv" -> "Neon TV"
+                                return subtype
+                                  .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
+                                  .split('-') // Split on dashes
+                                  .map((word) => {
+                                    // Special case for TV to maintain proper capitalization
+                                    if (word.toLowerCase() === 'tv') {
+                                      return 'TV';
+                                    }
+                                    return (
+                                      word.charAt(0).toUpperCase() +
+                                      word.slice(1)
+                                    );
+                                  })
+                                  .join(' ');
                               default:
                                 return subtype;
                             }
@@ -909,6 +930,8 @@ const AllCollectionsView: React.FC = () => {
                               ? 'Tautulli'
                               : config.type === 'overseerr'
                               ? 'Overseerr'
+                              : config.type === 'networks'
+                              ? 'Networks'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(

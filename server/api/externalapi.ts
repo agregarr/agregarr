@@ -21,7 +21,7 @@ interface ExternalAPIOptions {
 class ExternalAPI {
   protected axios: AxiosInstance;
   private baseUrl: string;
-  private cache?: NodeCache;
+  protected cache?: NodeCache;
 
   constructor(
     baseUrl: string,

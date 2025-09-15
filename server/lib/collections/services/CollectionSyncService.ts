@@ -5,6 +5,11 @@ import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import { prefetchAllLibraryItems } from '@server/lib/collections/core/CollectionUtilities';
 import type { SyncResult } from '@server/lib/collections/core/types';
+import type {
+  MultiSourceCollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { syncCacheService } from './SyncCacheService';
@@ -197,15 +202,72 @@ export class CollectionSyncService {
         onProgress?.(processedCount, `Processing "${config.name}"...`);
 
         // Get the sync service for this config type and process it
-        const syncService = await this.createSyncService(config.type);
         const allCollections = await plexClient.getAllCollections();
-        const result = await syncService.processCollections(
-          [config],
-          plexClient,
-          allCollections,
-          processedCollectionKeys,
-          libraryCache
-        );
+
+        let result: SyncResult;
+        if (config.type === 'multi-source') {
+          // Use new multi-source orchestrator for distinct multi-source collections
+          const { MultiSourceOrchestrator } = await import(
+            './MultiSourceOrchestrator'
+          );
+          const orchestrator = new MultiSourceOrchestrator();
+
+          // Convert CollectionConfig to MultiSourceCollectionConfig format
+          const multiSourceConfig: MultiSourceCollectionConfig = {
+            id: config.id,
+            name: config.name,
+            type: 'multi-source',
+            visibilityConfig: config.visibilityConfig,
+            mediaType: 'movie', // Default, should be set properly by caller
+            libraryId: config.libraryId,
+            libraryName: config.libraryName,
+            maxItems: config.maxItems ?? 50, // Provide default for multi-source
+            template: config.template || '', // Provide default for multi-source
+            sources:
+              config.sources?.map((source) => ({
+                id: source.id,
+                type: source.type as MultiSourceType,
+                subtype: source.subtype || '',
+                customUrl: source.customUrl,
+                timePeriod: source.timePeriod as
+                  | 'daily'
+                  | 'weekly'
+                  | 'monthly'
+                  | 'all'
+                  | undefined,
+                customDays: source.customDays,
+                minimumPlays: source.minimumPlays,
+                priority: source.priority,
+              })) || [],
+            combineMode:
+              (config.combineMode as MultiSourceCombineMode) || 'list_order',
+            isActive: config.isActive,
+            sortOrderHome: config.sortOrderHome,
+            sortOrderLibrary: config.sortOrderLibrary,
+            isLibraryPromoted: config.isLibraryPromoted,
+            timeRestriction: config.timeRestriction,
+            customPoster: config.customPoster,
+            autoPoster: config.autoPoster,
+          };
+
+          result = await orchestrator.processMultiSourceCollection(
+            multiSourceConfig,
+            plexClient,
+            allCollections,
+            processedCollectionKeys,
+            libraryCache
+          );
+        } else {
+          // Use normal single-source sync
+          const syncService = await this.createSyncService(config.type);
+          result = await syncService.processCollections(
+            [config],
+            plexClient,
+            allCollections,
+            processedCollectionKeys,
+            libraryCache
+          );
+        }
 
         created += result.created || 0;
         updated += result.updated || 0;
@@ -340,7 +402,7 @@ export class CollectionSyncService {
    * Create the appropriate sync service for a given collection type
    * Simple factory method without over-engineering
    */
-  private async createSyncService(type: string): Promise<BaseCollectionSync> {
+  public async createSyncService(type: string): Promise<BaseCollectionSync> {
     switch (type) {
       case 'trakt': {
         const { TraktCollectionSync } = await import('../external/trakt');
@@ -364,12 +426,20 @@ export class CollectionSyncService {
         );
         return new LetterboxdCollectionSync();
       }
+      case 'networks': {
+        const { NetworksCollectionSync } = await import('../external/networks');
+        return new NetworksCollectionSync();
+      }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
           '../external/overseerrSync'
         );
         return new OverseerrCollectionSync();
       }
+      case 'multi-source':
+        throw new Error(
+          'Multi-source collections should be handled by MultiSourceOrchestrator, not individual sync services'
+        );
       default:
         throw new Error(`Unknown collection type: ${type}`);
     }

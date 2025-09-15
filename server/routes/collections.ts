@@ -1,4 +1,4 @@
-import PlexAPI from '@server/api/plexapi';
+import PlexAPI, { type PlexLibraryItem } from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
@@ -13,7 +13,11 @@ import {
   initializePosterStorage,
   savePosterFile,
 } from '@server/lib/posterStorage';
-import type { CollectionConfig } from '@server/lib/settings';
+import type {
+  CollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
@@ -355,6 +359,16 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
 
     settings.plex.collectionConfigs = configs;
     settings.save();
+
+    // Refresh individual collection scheduler for any custom sync schedules
+    try {
+      const { IndividualCollectionScheduler } = await import(
+        '@server/lib/collections/services/IndividualCollectionScheduler'
+      );
+      await IndividualCollectionScheduler.refreshAllJobs();
+    } catch (error) {
+      logger.warn('Failed to refresh individual collection scheduler:', error);
+    }
 
     logger.info('Collection config(s) updated successfully', {
       label: 'Collections API',
@@ -744,6 +758,8 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
     const settings = getSettings();
     const { IdGenerator } = await import('@server/utils/idGenerator');
 
+    // Cache warming removed - caused double requests and rate limiting issues
+
     // Extract libraryIds from request - support both single libraryId and multiple libraryIds
     const libraryIds = req.body.libraryIds
       ? Array.isArray(req.body.libraryIds)
@@ -1056,6 +1072,221 @@ collectionsRoutes.post('/sync', isAuthenticated(), async (req, res) => {
 });
 
 /**
+ * POST /api/v1/collections/:id/sync
+ * Sync a specific collection by ID
+ */
+collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = getSettings().load();
+
+    // Find the collection config by ID
+    const collectionConfig = settings.plex.collectionConfigs?.find(
+      (config) => config.id === id
+    );
+
+    if (!collectionConfig) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Collection with ID ${id} not found`,
+      });
+    }
+
+    logger.info(
+      `Starting manual sync for collection: ${collectionConfig.name}`,
+      {
+        label: 'Individual Collection Sync',
+        collectionId: id,
+        collectionName: collectionConfig.name,
+      }
+    );
+
+    // Import the collection sync service
+    const { collectionSyncService } = await import(
+      '@server/lib/collections/services/CollectionSyncService'
+    );
+
+    // Get admin user for Plex token using the same utility as global sync
+    const { getAdminUser } = await import(
+      '@server/lib/collections/core/CollectionUtilities'
+    );
+    const admin = await getAdminUser();
+
+    if (!admin) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Admin user not found',
+      });
+    }
+
+    const plexClient = new PlexAPI({
+      plexToken: admin.plexToken,
+      plexSettings: settings.plex,
+    });
+
+    // Start individual collection sync
+    const syncPromise = (async () => {
+      try {
+        // Check if this is a multi-source collection
+        const extendedConfig = collectionConfig as typeof collectionConfig & {
+          isMultiSource?: boolean;
+          sources?: {
+            id: string;
+            type: string;
+            subtype?: string;
+            customUrl?: string;
+            timePeriod?: string;
+            priority: number;
+          }[];
+          combineMode?: 'ordered' | 'randomized' | 'cycle';
+        };
+        const isMultiSource =
+          extendedConfig.isMultiSource &&
+          (extendedConfig.sources?.length ?? 0) > 0;
+        const allCollections = await plexClient.getAllCollections();
+
+        // Get library data for content matching (like global sync does)
+        const libraries = await plexClient.getLibraries();
+        const libraryCache: Record<string, PlexLibraryItem[]> = {};
+
+        // Pre-fetch library content for the target library
+        if (collectionConfig.libraryId && libraries) {
+          const targetLibrary = libraries.find(
+            (lib) => lib.key === collectionConfig.libraryId
+          );
+          if (targetLibrary) {
+            try {
+              const libraryContent = await plexClient.getLibraryContents(
+                collectionConfig.libraryId
+              );
+              libraryCache[collectionConfig.libraryId] =
+                libraryContent?.items || [];
+            } catch (error) {
+              logger.warn(
+                `Failed to fetch library content for library ${collectionConfig.libraryId}`,
+                {
+                  label: 'Individual Collection Sync',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              libraryCache[collectionConfig.libraryId] = [];
+            }
+          }
+        }
+
+        let result;
+        if (isMultiSource) {
+          // Use multi-source orchestrator
+          const { MultiSourceOrchestrator } = await import(
+            '@server/lib/collections/services/MultiSourceOrchestrator'
+          );
+          const orchestrator = new MultiSourceOrchestrator();
+
+          // Convert to MultiSourceCollectionConfig format
+          const multiSourceConfig = {
+            ...extendedConfig,
+            type: 'multi-source' as const,
+            sources:
+              extendedConfig.sources?.map((source) => ({
+                id: source.id,
+                type: source.type as MultiSourceType,
+                subtype: source.subtype || '',
+                customUrl: source.customUrl,
+                timePeriod: source.timePeriod as
+                  | 'daily'
+                  | 'weekly'
+                  | 'monthly'
+                  | 'all',
+                customDays: source.customDays,
+                minimumPlays: source.minimumPlays,
+                priority: source.priority,
+              })) || [],
+            combineMode:
+              (extendedConfig.combineMode as MultiSourceCombineMode) ||
+              'list_order',
+          };
+
+          result = await orchestrator.processMultiSourceCollection(
+            multiSourceConfig,
+            plexClient,
+            allCollections,
+            new Set(),
+            libraryCache
+          );
+        } else {
+          // Use normal single-source sync
+          const syncService = await collectionSyncService.createSyncService(
+            collectionConfig.type
+          );
+          result = await syncService.processCollections(
+            [collectionConfig],
+            plexClient,
+            allCollections,
+            new Set(),
+            libraryCache
+          );
+        }
+
+        // Mark collection as synced (update needsSync status)
+        settings.markCollectionSynced(id, 'collection');
+        settings.save();
+
+        // Sync Plex collection ordering after collection sync
+        const { HubSyncService } = await import(
+          '@server/lib/collections/plex/HubSyncService'
+        );
+        const hubSyncService = new HubSyncService();
+        await hubSyncService.syncUnifiedOrdering(plexClient);
+
+        logger.info(
+          `Individual collection sync completed: ${collectionConfig.name}`,
+          {
+            label: 'Individual Collection Sync',
+            collectionId: id,
+            result,
+          }
+        );
+
+        return result;
+      } catch (error) {
+        logger.error(
+          `Individual collection sync failed for ${collectionConfig.name}: ${error}`,
+          {
+            label: 'Individual Collection Sync',
+            collectionId: id,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+        throw error;
+      }
+    })();
+
+    // Start sync in background
+    syncPromise.catch((error) => {
+      logger.error(
+        `Background individual collection sync failed for ${collectionConfig.name}:`,
+        error
+      );
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: `Collection sync started for "${collectionConfig.name}"`,
+      collectionId: id,
+      collectionName: collectionConfig.name,
+    });
+  } catch (error) {
+    logger.error('Error starting individual collection sync:', error);
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while starting collection sync',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * POST /api/v1/collections/fetch-title
  * Fetch title from external collection URL
  */
@@ -1113,21 +1344,15 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
 
         const traktClient = new TraktAPI(settings.trakt.apiKey);
 
-        // Quick validation with first 10 items to get title and confirm accessibility
+        // Get list metadata to extract real title, then validate with items
         try {
+          // First get the real list title from metadata
+          const listMetadata = await traktClient.getListMetadata(sanitizedUrl);
+          title = listMetadata.name || 'Trakt List';
+
+          // Then validate list accessibility with first 10 items
           const listData = await traktClient.getCustomList(sanitizedUrl, 10);
           if (listData && listData.length >= 0) {
-            // Extract the list name from the URL since Trakt API doesn't return list metadata
-            const urlMatch = sanitizedUrl.match(
-              /trakt\.tv\/users\/[^/]+\/lists\/([^/?]+)/
-            );
-            if (urlMatch) {
-              // Convert slug to readable title (replace hyphens with spaces, capitalize)
-              title = urlMatch[1]
-                .replace(/-/g, ' ')
-                .replace(/\b\w/g, (l: string) => l.toUpperCase());
-            }
-
             // Quick media type detection from first 10 items
             if (listData.length > 0) {
               const hasMovies = listData.some(
@@ -1207,7 +1432,24 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           // Extract title from HTML
           const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
           if (titleMatch) {
-            title = titleMatch[1].replace(' - IMDb', '').trim();
+            let extractedTitle = titleMatch[1].replace(' - IMDb', '').trim();
+
+            // Decode HTML entities (same as RandomListManager and Letterboxd)
+            extractedTitle = extractedTitle
+              .replace(/&lrm;/g, '') // Remove left-to-right mark
+              .replace(/&rlm;/g, '') // Remove right-to-left mark
+              .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
+              .replace(/&ndash;/g, '–') // Replace en-dash
+              .replace(/&mdash;/g, '—') // Replace em-dash
+              .replace(/&hellip;/g, '…') // Replace ellipsis
+              .replace(/&quot;/g, '"') // Replace quotes
+              .replace(/&#39;/g, "'") // Replace apostrophe
+              .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
+              .replace(/&amp;/g, '&') // Replace ampersand (do this last)
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+
+            title = extractedTitle;
           }
 
           // Try to detect media type from the page content by analyzing list items
@@ -2262,6 +2504,94 @@ collectionsRoutes.patch('/:id/demote', isAuthenticated(), async (req, res) => {
     });
 
     return res.status(500).json({ error: 'Failed to demote collection' });
+  }
+});
+
+/**
+ * Get available countries for Networks collections
+ */
+collectionsRoutes.get('/networks/countries', async (_req, res) => {
+  try {
+    logger.debug('Fetching available countries for Networks collections', {
+      label: 'Collections API',
+    });
+
+    const { default: FlixPatrolAPI } = await import('@server/api/flixpatrol');
+    const flixpatrolClient = new FlixPatrolAPI();
+
+    const countryStrings = await flixpatrolClient.getAvailableCountries();
+
+    // Convert to the format expected by frontend dropdowns
+    const countries = countryStrings.map((country) => ({
+      value: country,
+      label: country.charAt(0).toUpperCase() + country.slice(1), // Capitalize first letter
+    }));
+
+    logger.debug(`Retrieved ${countries.length} countries for Networks`, {
+      label: 'Collections API',
+      count: countries.length,
+    });
+
+    return res.json(countries);
+  } catch (error) {
+    logger.error('Failed to fetch Networks countries:', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to load available countries',
+    });
+  }
+});
+
+/**
+ * Get available platforms for a specific country (on-demand caching)
+ */
+collectionsRoutes.get('/networks/platforms', async (req, res) => {
+  try {
+    const country = req.query.country as string;
+
+    if (!country) {
+      return res.status(400).json({
+        error: 'Country parameter is required',
+      });
+    }
+
+    logger.debug(`Fetching platforms for country: ${country}`, {
+      label: 'Collections API',
+      country,
+    });
+
+    const { default: FlixPatrolAPI } = await import('@server/api/flixpatrol');
+    const flixpatrolClient = new FlixPatrolAPI();
+
+    const platforms = await flixpatrolClient.getAvailablePlatformsForCountry(
+      country
+    );
+
+    logger.debug(`Retrieved ${platforms.length} platforms for ${country}`, {
+      label: 'Collections API',
+      country,
+      count: platforms.length,
+    });
+
+    return res.json(platforms);
+  } catch (error) {
+    logger.error(
+      `Failed to fetch platforms for country ${req.query.country}:`,
+      {
+        label: 'Collections API',
+        country: req.query.country,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    );
+
+    return res.status(500).json({
+      error: `Failed to load platforms for ${
+        req.query.country || 'selected country'
+      }`,
+    });
   }
 });
 

@@ -55,6 +55,20 @@ app
     // Replaces 4 incomplete migrations with comprehensive field normalization
     settings.migrateCollectionDataNormalizationV110();
 
+    // Initialize IndividualCollectionScheduler for custom sync schedules
+    try {
+      const { IndividualCollectionScheduler } = await import(
+        '@server/lib/collections/services/IndividualCollectionScheduler'
+      );
+      await IndividualCollectionScheduler.initialize();
+      logger.info('IndividualCollectionScheduler initialized successfully');
+    } catch (error) {
+      logger.error(
+        'Failed to initialize IndividualCollectionScheduler:',
+        error
+      );
+    }
+
     // Initialize poster storage directory
     try {
       const { initializePosterStorage } = await import(
@@ -73,6 +87,19 @@ app
       logger.info('Icon storage initialized successfully');
     } catch (error) {
       logger.error('Failed to initialize icon storage:', error);
+    }
+
+    // Initialize RandomListManager for multi-source collections
+    try {
+      const { RandomListManager } = await import(
+        '@server/lib/collections/utils/RandomListManager'
+      );
+      const configDir =
+        process.env.CONFIG_DIRECTORY || path.join(__dirname, '../config');
+      RandomListManager.initialize(configDir);
+      logger.info('RandomListManager initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize RandomListManager:', error);
     }
 
     // Migrate library types

@@ -119,7 +119,7 @@ const AutoRequestSection = ({
             className="form-checkbox"
             id="enableGrabMissingItems"
           />
-          <span className="ml-2 text-sm font-medium text-gray-300">
+          <span className="ml-2 text-sm text-gray-300">
             {intl.formatMessage(messages.grabMissingItems)}
           </span>
         </label>
@@ -133,7 +133,7 @@ const AutoRequestSection = ({
         <>
           {/* Media Type Processing Options */}
           <div className="mb-6">
-            <div className="mb-3 text-sm font-medium text-gray-300">
+            <div className="mb-3 text-sm font-medium text-gray-200">
               Content Processing
             </div>
             <div className="space-y-3">
@@ -178,7 +178,7 @@ const AutoRequestSection = ({
 
           {/* Position Limit */}
           <div className="mb-6">
-            <div className="mb-2 text-sm font-medium text-gray-300">
+            <div className="mb-2 text-sm font-medium text-gray-200">
               {intl.formatMessage(messages.positionLimit)}
             </div>
             <div className="form-input-field">
@@ -202,7 +202,7 @@ const AutoRequestSection = ({
           {/* TV Season Limit - only show when TV processing is enabled */}
           {values.searchMissingTV && (
             <div className="mb-6">
-              <div className="mb-2 text-sm font-medium text-gray-300">
+              <div className="mb-2 text-sm font-medium text-gray-200">
                 {intl.formatMessage(messages.tvSeasonLimit)}
               </div>
               <div className="form-input-field">
@@ -227,7 +227,7 @@ const AutoRequestSection = ({
           {/* Seasons Per Show Limit - only show when TV processing is enabled */}
           {values.searchMissingTV && (
             <div className="mb-6">
-              <div className="mb-2 text-sm font-medium text-gray-300">
+              <div className="mb-2 text-sm font-medium text-gray-200">
                 {intl.formatMessage(messages.seasonsPerShow)}
               </div>
               <div className="form-input-field">
@@ -251,7 +251,7 @@ const AutoRequestSection = ({
 
           {/* Step 3: Download Method Selection */}
           <div className="mb-6">
-            <div className="mb-3 text-sm font-medium text-gray-300">
+            <div className="mb-3 text-sm font-medium text-gray-200">
               {intl.formatMessage(messages.downloadMethod)}
             </div>
             <div className="space-y-3">
@@ -307,7 +307,7 @@ const AutoRequestSection = ({
           {/* Step 4: Overseerr-Specific Options (only show when Overseerr mode is selected) */}
           {values.downloadMode === 'overseerr' && (
             <div className="mb-6">
-              <div className="mb-3 text-sm font-medium text-gray-300">
+              <div className="mb-3 text-sm font-medium text-gray-200">
                 {intl.formatMessage(messages.overseerrOptions)}
               </div>
               <div className="space-y-3">

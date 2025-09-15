@@ -1,6 +1,9 @@
 import type PlexAPI from '@server/api/plexapi';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
-import { getCollectionMediaType } from '@server/lib/collections/core/CollectionUtilities';
+import {
+  getCollectionMediaType,
+  type LibraryItemsCache,
+} from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
   CollectionOperationResult,
@@ -66,6 +69,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
   ): Promise<SyncResult> {
     const startTime = Date.now();
@@ -90,7 +94,11 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
 
         try {
           // Fetch and map data once - no filtering yet (filtering happens per-user or per-collection type)
-          const requests = await this.fetchSourceData(config, options);
+          const requests = await this.fetchSourceData(
+            config,
+            options,
+            libraryCache
+          );
           const { items: allItems } = await this.mapSourceDataToItems(
             requests,
             config
@@ -219,6 +227,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
   ): Promise<SyncResult> {
     try {
@@ -231,7 +240,11 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       }
 
       // Fetch and map data once for this configuration
-      const requests = await this.fetchSourceData(config, options);
+      const requests = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
       const { items: allItems } = await this.mapSourceDataToItems(
         requests,
         config
@@ -321,10 +334,12 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
    * Fetch data from service layer (approved requests)
    * For performance, this should be called once and shared across all Overseerr collections
    */
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    options?: CollectionSyncOptions
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Required by interface, not used in data fetching phase
+    options?: CollectionSyncOptions,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used in mapSourceDataToItems via processConfiguration
+    libraryCache?: LibraryItemsCache
   ): Promise<OverseerrMediaRequest[]> {
     // Get all requests from service layer - Plex availability determines inclusion
     let requests = await overseerrCollectionService.getCollectionRequests();
@@ -405,7 +420,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
   /**
    * Map OverseerrMediaRequest data to standardized collection items
    */
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: OverseerrMediaRequest[],
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     config: CollectionConfig
@@ -808,11 +823,15 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       isServerOwner
     );
 
-    // Use custom templates if available, similar to other collection sync types
-    const template =
-      mediaType === 'movie'
-        ? config.customMovieTemplate || config.template || config.name
-        : config.customTVTemplate || config.template || config.name;
+    // Use custom templates only if template is set to 'custom', otherwise use main template
+    const template = (() => {
+      if (config.template === 'custom') {
+        return mediaType === 'movie'
+          ? config.customMovieTemplate || config.name
+          : config.customTVTemplate || config.name;
+      }
+      return config.template || config.name;
+    })();
 
     return this.templateEngine.processTemplate(template, context);
   }
@@ -850,11 +869,15 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       plexClient
     );
 
-    // Use custom templates if available, similar to other collection sync types
-    const template =
-      mediaType === 'movie'
-        ? config.customMovieTemplate || config.template || config.name
-        : config.customTVTemplate || config.template || config.name;
+    // Use custom templates only if template is set to 'custom', otherwise use main template
+    const template = (() => {
+      if (config.template === 'custom') {
+        return mediaType === 'movie'
+          ? config.customMovieTemplate || config.name
+          : config.customTVTemplate || config.name;
+      }
+      return config.template || config.name;
+    })();
 
     return this.templateEngine.processTemplate(template, context);
   }

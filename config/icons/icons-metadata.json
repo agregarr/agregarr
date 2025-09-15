@@ -133,5 +133,35 @@
     "size": 957,
     "uploadedAt": "2025-09-05T11:33:10.684Z",
     "description": "trakt service logo"
+  },
+  {
+    "id": "user-rectanglestack-1757829445562",
+    "name": "rectanglestack",
+    "filename": "rectanglestack.svg",
+    "type": "user",
+    "category": "user-uploads",
+    "tags": [
+      "user",
+      "rectanglestack"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 568,
+    "uploadedAt": "2025-08-15T11:15:19.962Z",
+    "description": "User uploaded rectanglestack"
+  },
+  {
+    "id": "user-os_icon-1757832704043",
+    "name": "os_icon",
+    "filename": "os_icon.svg",
+    "type": "user",
+    "category": "user-uploads",
+    "tags": [
+      "user",
+      "os_icon"
+    ],
+    "mimeType": "image/svg+xml",
+    "size": 1987,
+    "uploadedAt": "2025-09-07T14:45:14.654Z",
+    "description": "User uploaded os_icon"
   }
 ]

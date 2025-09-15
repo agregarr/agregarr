@@ -34,10 +34,10 @@ yarn-error.log*
 # database
 config/db/*.sqlite3*
 config/settings.json
-config/posters
+config/posters/*.jpg
 config/poster-hashes.json
-config/random-lists
-config/icons
+config/random-lists/*.txt
+config/icons/*.svg
 
 # logs
 config/logs/*.log*
