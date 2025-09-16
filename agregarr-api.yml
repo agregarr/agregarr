@@ -42,6 +42,8 @@ tags:
     description: Endpoints related to dashboard statistics and analytics.
   - name: posters
     description: Endpoints related to poster template management, saved posters, and icon assets.
+  - name: source-colors
+    description: Endpoints related to managing global source color schemes for poster generation.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -3515,7 +3517,7 @@ components:
                   properties:
                     path:
                       type: string
-                      example: "/api/v1/posters/source-colors"
+                      example: "/api/v1/source-colors"
                     message:
                       type: string
                       example: "not found"
@@ -8033,6 +8035,50 @@ paths:
         '500':
           description: Failed to delete poster template
 
+  /posters/templates/{id}/set-default:
+    post:
+      summary: Set template as default
+      description: Sets the specified template as the default template for poster generation. Only one template can be default at a time.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+          example: 1
+      responses:
+        '200':
+          description: Template set as default successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Template set as default successfully"
+                  template:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      name:
+                        type: string
+                        example: "My Custom Template"
+                      isDefault:
+                        type: boolean
+                        example: true
+        '401':
+          description: Authentication required
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to set template as default
+
   /posters/templates/{id}/preview:
     get:
       summary: Generate template preview
@@ -8252,7 +8298,7 @@ paths:
           description: Failed to update saved poster
     delete:
       summary: Delete saved poster
-      description: Soft deletes a saved poster. Users can only delete their own posters.
+      description: Deletes a saved poster. Supports both database posters (integer ID) and file-based posters (string ID with 'file-' prefix). Users can only delete their own posters.
       tags:
         - posters
       parameters:
@@ -8260,8 +8306,13 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-          description: Poster ID
+            oneOf:
+              - type: integer
+                description: Database poster ID
+              - type: string
+                pattern: '^file-.+$'
+                description: File-based poster ID (starts with 'file-')
+          description: Poster ID (integer for database posters, or string starting with 'file-' for file-based posters)
       responses:
         '204':
           description: Saved poster deleted successfully
@@ -8269,6 +8320,24 @@ paths:
           description: Authentication required
         '404':
           description: Poster not found
+        '409':
+          description: Poster is currently in use by collections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Poster is currently in use"
+                  message:
+                    type: string
+                    example: "This poster is being used by the following collections: Movie Collection, TV Collection"
+                  collections:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Movie Collection", "TV Collection"]
         '500':
           description: Failed to delete saved poster
 
@@ -8577,12 +8646,12 @@ paths:
         '500':
           description: Failed to serve icon file
 
-  /posters/source-colors:
+  /source-colors:
     get:
-      summary: Get default source colors
-      description: Retrieves default color mappings for each source type used in poster generation.
+      summary: Get all source colors
+      description: Retrieves all source color mappings (database + defaults) for poster generation.
       tags:
-        - posters
+        - source-colors
       responses:
         '200':
           description: Source colors retrieved successfully
@@ -8590,24 +8659,194 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    primaryColor:
+                      type: string
+                      example: "#01b4e4"
+                    secondaryColor:
+                      type: string
+                      example: "#0d253f"
+                    textColor:
+                      type: string
+                      example: "#ffffff"
+                example:
+                  tmdb:
+                    primaryColor: "#01b4e4"
+                    secondaryColor: "#0d253f"
+                    textColor: "#ffffff"
+                  trakt:
+                    primaryColor: "#ed2224"
+                    secondaryColor: "#1f1a1a"
+                    textColor: "#ffffff"
+        '500':
+          description: Failed to get source colors
+
+  /source-colors/{sourceType}:
+    get:
+      summary: Get specific source color scheme
+      description: Retrieves color scheme for a specific source type.
+      tags:
+        - source-colors
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tmdb
+      responses:
+        '200':
+          description: Source color scheme retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
                 properties:
-                  sourceColors:
+                  primaryColor:
+                    type: string
+                    example: "#01b4e4"
+                  secondaryColor:
+                    type: string
+                    example: "#0d253f"
+                  textColor:
+                    type: string
+                    example: "#ffffff"
+        '500':
+          description: Failed to get source colors
+
+    put:
+      summary: Update source colors
+      description: Updates color scheme for a specific source type. This affects all templates using source colors.
+      tags:
+        - source-colors
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tmdb
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - primaryColor
+                - secondaryColor
+                - textColor
+              properties:
+                primaryColor:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  example: "#01b4e4"
+                secondaryColor:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  example: "#0d253f"
+                textColor:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  example: "#ffffff"
+      responses:
+        '200':
+          description: Source colors updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Source colors updated for tmdb"
+                  colors:
+                    type: object
+                    properties:
+                      primaryColor:
+                        type: string
+                        example: "#01b4e4"
+                      secondaryColor:
+                        type: string
+                        example: "#0d253f"
+                      textColor:
+                        type: string
+                        example: "#ffffff"
+        '400':
+          description: Invalid input - missing fields or invalid hex colors
+        '500':
+          description: Failed to update source colors
+
+    delete:
+      summary: Reset source colors to defaults
+      description: Resets the specified source type colors to system defaults.
+      tags:
+        - source-colors
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tmdb
+      responses:
+        '200':
+          description: Source colors reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Source colors reset to defaults for tmdb"
+                  colors:
+                    type: object
+                    properties:
+                      primaryColor:
+                        type: string
+                        example: "#01b4e4"
+                      secondaryColor:
+                        type: string
+                        example: "#0d253f"
+                      textColor:
+                        type: string
+                        example: "#ffffff"
+        '500':
+          description: Failed to reset source colors
+
+  /source-colors/reset:
+    post:
+      summary: Reset all source colors to defaults
+      description: Resets all source color customizations back to system defaults.
+      tags:
+        - source-colors
+      responses:
+        '200':
+          description: All source colors reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "All source colors reset to defaults"
+                  colors:
                     type: object
                     additionalProperties:
-                      type: string
-                    example:
-                      tmdb: "#01b4e4"
-                      trakt: "#ed1c24"
-                      imdb: "#f5c518"
-                  sourceTypes:
-                    type: array
-                    items:
-                      type: string
-                    example: ["tmdb", "trakt", "imdb"]
-        '404':
-          $ref: '#/components/responses/NotFound'
+                      type: object
+                      properties:
+                        primaryColor:
+                          type: string
+                        secondaryColor:
+                          type: string
+                        textColor:
+                          type: string
         '500':
-          description: Failed to fetch source colors
+          description: Failed to reset source colors
 
 security:
   - cookieAuth: []

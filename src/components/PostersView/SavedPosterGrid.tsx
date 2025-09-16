@@ -10,7 +10,7 @@ import {
   PhotoIcon,
   TrashIcon,
 } from '@heroicons/react/24/solid';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
@@ -57,6 +57,33 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     number | string | null
   >(null);
 
+  // Reset delete confirmation when clicking outside or pressing escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDeleteConfirmId(null);
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      // Reset delete confirmation when clicking outside the button
+      const target = e.target as Element;
+      if (!target.closest('[data-delete-button]')) {
+        setDeleteConfirmId(null);
+      }
+    };
+
+    if (deleteConfirmId !== null) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [deleteConfirmId]);
+
   const handleEdit = (poster: SavedPoster) => {
     setSelectedPoster(poster);
     setModalMode('edit-poster');
@@ -70,17 +97,28 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
   };
 
   const handleDelete = async (posterId: number | string) => {
-    // Only allow deletion of database entries (numeric IDs)
-    if (typeof posterId !== 'number') {
-      return;
-    }
+    try {
+      const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
+        method: 'DELETE',
+      });
 
-    const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
-      method: 'DELETE',
-    });
-
-    if (response.ok) {
-      onPosterUpdate();
+      if (response.ok) {
+        onPosterUpdate();
+        setDeleteConfirmId(null);
+      } else if (response.status === 409) {
+        // Poster is in use by collections
+        const errorData = await response.json();
+        const collectionNames =
+          errorData.collections?.join(', ') || 'unknown collections';
+        alert(
+          `Cannot delete poster: it's currently used by ${collectionNames}`
+        );
+        setDeleteConfirmId(null);
+      } else {
+        throw new Error('Failed to delete poster');
+      }
+    } catch (error) {
+      // Error logged silently for debugging
       setDeleteConfirmId(null);
     }
   };
@@ -216,15 +254,28 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
                       </button>
                     </>
                   )}
-                  {typeof poster.id === 'number' && (
-                    <button
-                      onClick={() => setDeleteConfirmId(poster.id)}
-                      className="rounded bg-red-600 p-1 text-white transition-colors hover:bg-red-700"
-                      title="Delete"
-                    >
+                  <button
+                    data-delete-button
+                    onClick={() => {
+                      if (deleteConfirmId === poster.id) {
+                        handleDelete(poster.id);
+                      } else {
+                        setDeleteConfirmId(poster.id);
+                      }
+                    }}
+                    className="rounded bg-red-600 px-2 py-1 text-white transition-colors hover:bg-red-700"
+                    title={
+                      deleteConfirmId === poster.id
+                        ? 'Click to confirm deletion'
+                        : 'Delete'
+                    }
+                  >
+                    {deleteConfirmId === poster.id ? (
+                      <span className="text-xs">Delete</span>
+                    ) : (
                       <TrashIcon className="h-3 w-3" />
-                    </button>
-                  )}
+                    )}
+                  </button>
                 </div>
               </div>
 
@@ -247,31 +298,6 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
                 {poster.name}
               </h3>
             </div>
-
-            {/* Delete Confirmation */}
-            {deleteConfirmId === poster.id && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 p-2">
-                <div className="w-full rounded bg-stone-800 p-2">
-                  <p className="mb-2 text-xs text-stone-300">
-                    Delete this poster?
-                  </p>
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => handleDelete(poster.id)}
-                      className="flex-1 rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(null)}
-                      className="flex-1 rounded bg-stone-600 px-2 py-1 text-xs text-white hover:bg-stone-500"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -284,6 +310,8 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
         }}
         mode={modalMode}
         initialData={selectedPoster?.posterData || undefined}
+        initialName={selectedPoster?.name}
+        initialDescription={selectedPoster?.description}
         onSave={handleSave}
       />
     </>

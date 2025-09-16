@@ -5,6 +5,7 @@ import {
   type PosterTemplateData,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
+import { seedSourceColors } from './seedSourceColors';
 
 /**
  * Seeds the database with a default poster template
@@ -16,6 +17,9 @@ async function seedDefaultTemplate() {
     if (!dataSource.isInitialized) {
       await dataSource.initialize();
     }
+
+    // First, ensure source colors are seeded (templates depend on them)
+    await seedSourceColors();
 
     const templateRepository = getRepository(PosterTemplate);
 
@@ -29,24 +33,26 @@ async function seedDefaultTemplate() {
       return;
     }
 
-    // Create the default template data based on current auto-poster design
+    // Create the default template data based on current architecture
     const defaultTemplateData: PosterTemplateData = {
       width: 500,
       height: 750,
       background: {
         type: 'gradient',
-        useSourceColors: true, // Use source colors like current system
+        color: '#6366f1',
+        secondaryColor: '#1e1b4b',
+        useSourceColors: true, // Use global source colors from SourceColors table
       },
       textElements: [
         {
           id: 'collection-title',
           type: 'collection-title',
-          x: 250, // centered
-          y: 320, // positioned after logo section
-          width: 440, // max width with padding
+          x: 32,
+          y: 117,
+          width: 440,
           height: 100,
           fontSize: 32,
-          fontFamily: 'Helvetica Neue, Segoe UI, Arial, sans-serif',
+          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
           fontWeight: 'bold',
           fontStyle: 'normal',
           color: '#ffffff',
@@ -58,23 +64,23 @@ async function seedDefaultTemplate() {
         {
           id: 'service-logo',
           type: 'source-logo',
-          x: 250, // centered
-          y: 95, // top section
-          width: 60,
-          height: 60,
+          x: 223,
+          y: 34,
+          width: 62,
+          height: 62,
           grayscale: false,
         },
       ],
       contentGrid: {
         id: 'items-grid',
-        x: 84, // centered: (500 - (150*2 + 16)) / 2 = 84
-        y: 470, // positioned in lower section
-        width: 332, // 2 columns * 150px + 1 spacing * 16px
-        height: 466, // 2 rows * 225px + 1 spacing * 16px
+        x: 91,
+        y: 227,
+        width: 324,
+        height: 478,
         columns: 2,
         rows: 2,
         spacing: 16,
-        cornerRadius: 6,
+        cornerRadius: 4,
       },
     };
 

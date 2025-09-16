@@ -32,6 +32,17 @@ interface PosterEditorCanvasProps {
   mode?: EditorMode; // Made optional since it's not currently used
   currentlyEditingSource?: string; // Source type currently being edited in toolbar
   snapToGuides?: boolean; // Enable snapping to guidelines
+  sourceColorsData?: {
+    sourceColors: Record<
+      string,
+      {
+        primaryColor: string;
+        secondaryColor: string;
+        textColor: string;
+      }
+    >;
+    sourceTypes: string[];
+  };
 }
 
 export const PosterEditorCanvas = forwardRef<
@@ -44,6 +55,7 @@ export const PosterEditorCanvas = forwardRef<
     previewCollectionConfig,
     currentlyEditingSource,
     snapToGuides = false,
+    sourceColorsData,
   },
   ref
 ) {
@@ -464,19 +476,15 @@ export const PosterEditorCanvas = forwardRef<
 
     if (
       posterData.background.useSourceColors &&
-      posterData.background.sourceColors
+      sourceColorsData?.sourceColors
     ) {
       // If we're actively editing a source, show that source's colors
       // Otherwise, show the preview collection's colors
       const sourceToPreview =
         currentlyEditingSource || previewCollectionConfig?.type;
 
-      if (
-        sourceToPreview &&
-        posterData.background.sourceColors[sourceToPreview]
-      ) {
-        const sourceColors =
-          posterData.background.sourceColors[sourceToPreview];
+      if (sourceToPreview && sourceColorsData.sourceColors[sourceToPreview]) {
+        const sourceColors = sourceColorsData.sourceColors[sourceToPreview];
         primaryColor = sourceColors.primaryColor || primaryColor;
         secondaryColor = sourceColors.secondaryColor || secondaryColor;
       }
@@ -534,16 +542,12 @@ export const PosterEditorCanvas = forwardRef<
       let textColor = textElement.color;
       if (
         posterData.background.useSourceColors &&
-        posterData.background.sourceColors
+        sourceColorsData?.sourceColors
       ) {
         const sourceToPreview =
           currentlyEditingSource || previewCollectionConfig?.type;
-        if (
-          sourceToPreview &&
-          posterData.background.sourceColors[sourceToPreview]
-        ) {
-          const sourceColors =
-            posterData.background.sourceColors[sourceToPreview];
+        if (sourceToPreview && sourceColorsData.sourceColors[sourceToPreview]) {
+          const sourceColors = sourceColorsData.sourceColors[sourceToPreview];
           textColor = sourceColors.textColor || textColor;
         }
       }
@@ -829,6 +833,7 @@ export const PosterEditorCanvas = forwardRef<
     isInitialized,
     debouncedUpdatePosterData,
     currentlyEditingSource,
+    sourceColorsData,
   ]);
 
   // Expose methods via ref

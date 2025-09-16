@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { applyTemplate } from './posterTemplates';
-import { DEFAULT_SOURCE_COLORS } from './sourceColors';
+import { sourceColorsService } from './services/SourceColorsService';
 
 export interface PosterGenerationConfig {
   collectionName: string;
@@ -69,26 +69,27 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
 /**
  * Get color scheme for a collection type, with optional template customization
  */
-function getColorScheme(
+async function getColorScheme(
   collectionType?: string,
   templateData?: PosterTemplateData
-): ColorScheme {
-  // If template has source colors enabled and custom colors are defined, use them
-  if (
-    templateData?.background?.useSourceColors &&
-    templateData.background.sourceColors &&
-    collectionType &&
-    templateData.background.sourceColors[collectionType.toLowerCase()]
-  ) {
-    return templateData.background.sourceColors[collectionType.toLowerCase()];
+): Promise<ColorScheme> {
+  // If template uses source colors, get from database/defaults
+  if (templateData?.background?.useSourceColors) {
+    return await sourceColorsService.getSourceColorScheme(collectionType);
   }
 
-  // Fall back to default color scheme
-  if (!collectionType) return DEFAULT_SOURCE_COLORS.default;
-  return (
-    DEFAULT_SOURCE_COLORS[collectionType.toLowerCase()] ||
-    DEFAULT_SOURCE_COLORS.default
-  );
+  // Template doesn't use source colors, use template's custom colors
+  if (templateData?.background?.color) {
+    return {
+      primaryColor: templateData.background.color,
+      secondaryColor:
+        templateData.background.secondaryColor || templateData.background.color,
+      textColor: '#ffffff', // Default text color for custom backgrounds
+    };
+  }
+
+  // Final fallback to source colors service
+  return await sourceColorsService.getSourceColorScheme(collectionType);
 }
 
 /**
@@ -260,9 +261,9 @@ async function loadDynamicLogo(
  */
 // Legacy function - kept for potential future use
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function createLogoPlaceholder(serviceType: string): string {
+async function createLogoPlaceholder(serviceType: string): Promise<string> {
   const letter = serviceType.charAt(0).toUpperCase();
-  const colorScheme = getColorScheme(serviceType);
+  const colorScheme = await getColorScheme(serviceType);
 
   return `
     <circle cx="0" cy="0" r="${LOGO_SIZE / 2}"
@@ -882,7 +883,7 @@ export async function generatePosterSVG(
   }
 
   // Get color scheme from template data
-  const colorScheme = getColorScheme(collectionType, templateData);
+  const colorScheme = await getColorScheme(collectionType, templateData);
 
   // Fetch and prepare collection items for content grid
 

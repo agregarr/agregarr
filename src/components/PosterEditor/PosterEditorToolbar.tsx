@@ -149,7 +149,7 @@ export const PosterEditorToolbar: React.FC<PosterEditorToolbarProps> = ({
       }
     >;
     sourceTypes: string[];
-  }>('/api/v1/posters/source-colors');
+  }>('/api/v1/source-colors');
 
   const updatePosterData = useCallback(
     (updates: Partial<PosterEditorData>) => {
@@ -239,7 +239,7 @@ export const PosterEditorToolbar: React.FC<PosterEditorToolbarProps> = ({
 
   const saveSourceColors = async () => {
     try {
-      const response = await fetch('/api/v1/posters/source-colors', {
+      const response = await fetch('/api/v1/source-colors', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

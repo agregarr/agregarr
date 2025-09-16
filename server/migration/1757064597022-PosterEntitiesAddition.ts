@@ -21,6 +21,9 @@ export class PosterEntitiesAddition1757064597022 implements MigrationInterface {
       `CREATE TABLE "saved_poster" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "name" varchar NOT NULL, "description" varchar, "posterData" text NOT NULL, "filename" varchar, "thumbnailFilename" varchar, "isActive" boolean NOT NULL DEFAULT (1), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
     );
     await queryRunner.query(
+      `CREATE TABLE "source_colors" ("sourceType" varchar PRIMARY KEY NOT NULL, "primaryColor" varchar NOT NULL, "secondaryColor" varchar NOT NULL, "textColor" varchar NOT NULL, "isDefault" boolean NOT NULL DEFAULT (0), "createdAt" datetime NOT NULL DEFAULT (datetime('now')), "updatedAt" datetime NOT NULL DEFAULT (datetime('now')))`
+    );
+    await queryRunner.query(
       `CREATE TABLE "temporary_user_settings" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "locale" varchar NOT NULL DEFAULT (''), "watchlistSyncMovies" boolean, "watchlistSyncTv" boolean, "userId" integer, CONSTRAINT "REL_986a2b6d3c05eb4091bb8066f7" UNIQUE ("userId"), CONSTRAINT "FK_986a2b6d3c05eb4091bb8066f78" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON DELETE CASCADE ON UPDATE NO ACTION)`
     );
     await queryRunner.query(
@@ -105,6 +108,7 @@ export class PosterEntitiesAddition1757064597022 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "temporary_user_settings"`);
     await queryRunner.query(`DROP TABLE "saved_poster"`);
     await queryRunner.query(`DROP TABLE "poster_template"`);
+    await queryRunner.query(`DROP TABLE "source_colors"`);
     await queryRunner.query(
       `ALTER TABLE "missing_item_request" RENAME TO "temporary_missing_item_request"`
     );

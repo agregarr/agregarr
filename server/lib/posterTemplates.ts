@@ -59,36 +59,7 @@ export function validateTemplateData(
       );
     }
 
-    // Validate source colors structure if present
-    if (
-      templateData.background.useSourceColors &&
-      templateData.background.sourceColors
-    ) {
-      Object.entries(templateData.background.sourceColors).forEach(
-        ([sourceType, colors]) => {
-          if (!colors || typeof colors !== 'object') {
-            errors.push(
-              `Invalid color configuration for source type: ${sourceType}`
-            );
-            return;
-          }
-
-          const requiredColors: (keyof typeof colors)[] = [
-            'primaryColor',
-            'secondaryColor',
-            'textColor',
-          ];
-          requiredColors.forEach((colorKey) => {
-            const colorValue = colors[colorKey];
-            if (!colorValue || !colorValue.match(/^#[0-9a-fA-F]{6}$/)) {
-              warnings.push(
-                `Invalid or missing ${colorKey} for source type: ${sourceType}`
-              );
-            }
-          });
-        }
-      );
-    }
+    // Note: sourceColors are now stored in SourceColors table, not in templates
   }
 
   // Validate text elements
@@ -335,28 +306,6 @@ export function sanitizeTemplateData(
       color: templateData.background?.color || '#6366f1',
       secondaryColor: templateData.background?.secondaryColor,
       useSourceColors: Boolean(templateData.background?.useSourceColors),
-      sourceColors: templateData.background?.sourceColors
-        ? Object.fromEntries(
-            Object.entries(templateData.background.sourceColors)
-              .filter(([, colors]) => colors && typeof colors === 'object')
-              .map(([sourceType, colors]) => [
-                sourceType,
-                {
-                  primaryColor: colors.primaryColor?.match(/^#[0-9a-fA-F]{6}$/)
-                    ? colors.primaryColor
-                    : '#6366f1',
-                  secondaryColor: colors.secondaryColor?.match(
-                    /^#[0-9a-fA-F]{6}$/
-                  )
-                    ? colors.secondaryColor
-                    : '#1e1b4b',
-                  textColor: colors.textColor?.match(/^#[0-9a-fA-F]{6}$/)
-                    ? colors.textColor
-                    : '#ffffff',
-                },
-              ])
-          )
-        : undefined,
     },
     textElements: Array.isArray(templateData.textElements)
       ? templateData.textElements

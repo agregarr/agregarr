@@ -27,6 +27,7 @@ import missingItemsRoutes from './missing-items';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import reorderRoutes from './reorder';
+import sourceColorsRoutes from './sourceColors';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -142,6 +143,7 @@ router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
+router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);
 router.use('/auth', authRoutes);
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {

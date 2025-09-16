@@ -27,6 +27,7 @@ interface PosterTemplate {
   name: string;
   description?: string;
   templateData: PosterEditorData;
+  isDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,10 +70,11 @@ const PostersView: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleCreatePoster = () => {
-    setModalMode('create-poster');
-    setIsModalOpen(true);
-  };
+  // Temporarily commented out for initial release
+  // const handleCreatePoster = () => {
+  //   setModalMode('create-poster');
+  //   setIsModalOpen(true);
+  // };
 
   const handleSave = async (data: {
     name: string;
@@ -176,14 +178,15 @@ const PostersView: React.FC = () => {
               <PlusIcon className="h-4 w-4" />
               <span>{intl.formatMessage(messages.createTemplate)}</span>
             </Button>
-            <Button
+            {/* Temporarily commented out - focusing on templates only for initial release */}
+            {/* <Button
               buttonType="ghost"
               onClick={handleCreatePoster}
               className="flex items-center space-x-2"
             >
               <PlusIcon className="h-4 w-4" />
               <span>{intl.formatMessage(messages.createPoster)}</span>
-            </Button>
+            </Button> */}
           </div>
         </div>
 

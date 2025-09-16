@@ -35,6 +35,7 @@ yarn-error.log*
 config/db/*.sqlite3*
 config/settings.json
 config/posters/*.jpg
+config/posters/*.json
 config/*.json
 config/random-lists/*.txt
 config/icons/*.svg

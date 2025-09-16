@@ -25,7 +25,9 @@ import {
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
+import fs from 'fs';
 import multer from 'multer';
+import path from 'path';
 
 const router = Router();
 
@@ -271,6 +273,60 @@ router.delete('/templates/:id', async (req, res, next) => {
   }
 });
 
+// POST /api/v1/posters/templates/:id/set-default - Set template as default
+router.post('/templates/:id/set-default', async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Authentication required',
+      });
+    }
+
+    const templateId = parseInt(req.params.id);
+
+    const templateRepository = getRepository(PosterTemplate);
+
+    // Find the template to set as default
+    const template = await templateRepository.findOne({
+      where: { id: templateId, isActive: true },
+    });
+
+    if (!template) {
+      return res.status(404).json({
+        error: 'Template not found',
+      });
+    }
+
+    // First, remove default flag from all templates
+    await templateRepository.update({ isDefault: true }, { isDefault: false });
+
+    // Set the selected template as default
+    template.isDefault = true;
+    await templateRepository.save(template);
+
+    logger.info('Set template as default', {
+      templateId,
+      name: template.name,
+      userId: req.user?.id,
+    });
+
+    return res.status(200).json({
+      message: 'Template set as default successfully',
+      template: {
+        id: template.id,
+        name: template.name,
+        isDefault: template.isDefault,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to set template as default:', error);
+    return next({
+      status: 500,
+      message: 'Failed to set template as default',
+    });
+  }
+});
+
 // GET /api/v1/posters/saved - Get all saved posters
 router.get('/saved', async (req, res, next) => {
   try {
@@ -316,6 +372,24 @@ router.get('/saved', async (req, res, next) => {
         };
       } else {
         // This is a legacy/uploaded file without database entry
+        // Use file stats for consistent timestamps
+        const filePath = path.join(
+          process.cwd(),
+          'config',
+          'posters',
+          filename
+        );
+        let createdAt = new Date().toISOString();
+        let updatedAt = new Date().toISOString();
+
+        try {
+          const stats = fs.statSync(filePath);
+          createdAt = stats.birthtime.toISOString();
+          updatedAt = stats.mtime.toISOString();
+        } catch (error) {
+          // Fallback to current time if file stats unavailable
+        }
+
         return {
           id: `file-${filename}`, // Use filename-based ID for legacy files
           name: filename.replace(/\.(jpg|jpeg|png|webp)$/i, ''), // Filename without extension
@@ -323,8 +397,8 @@ router.get('/saved', async (req, res, next) => {
           filename,
           thumbnailFilename: undefined,
           posterData: null,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt,
+          updatedAt,
           isEditable: false, // Cannot be edited in poster editor
         };
       }
@@ -479,6 +553,76 @@ router.put('/saved/:id', async (req, res, next) => {
   }
 });
 
+/**
+ * Check if a poster is currently in use by any collections
+ */
+async function checkPosterUsage(
+  posterId: number | string
+): Promise<{ inUse: boolean; collections: string[] }> {
+  const { getSettings } = await import('@server/lib/settings');
+  const { preExistingCollectionConfigService } = await import(
+    '@server/lib/collections/services/PreExistingCollectionConfigService'
+  );
+
+  const collections: string[] = [];
+  const posterIdStr = posterId.toString();
+
+  // Check user-created collections (CollectionFormConfig)
+  const settings = getSettings();
+  const collectionConfigs = settings.plex.collectionConfigs || [];
+
+  for (const config of collectionConfigs) {
+    // Check customPoster field - can be string or Record<string, string>
+    if (config.customPoster) {
+      if (
+        typeof config.customPoster === 'string' &&
+        config.customPoster === posterIdStr
+      ) {
+        collections.push(config.name);
+      } else if (typeof config.customPoster === 'object') {
+        const posterValues = Object.values(config.customPoster);
+        if (posterValues.includes(posterIdStr)) {
+          collections.push(config.name);
+        }
+      }
+    }
+
+    // Check autoPosterTemplate field (only for numeric IDs)
+    if (
+      typeof posterId === 'number' &&
+      config.autoPosterTemplate &&
+      config.autoPosterTemplate === posterId
+    ) {
+      collections.push(config.name);
+    }
+  }
+
+  // Check pre-existing collections (PreExistingCollectionConfig)
+  const preExistingConfigs = preExistingCollectionConfigService.getConfigs();
+
+  for (const config of preExistingConfigs) {
+    // Check customPoster field - can be string or Record<string, string>
+    if (config.customPoster) {
+      if (
+        typeof config.customPoster === 'string' &&
+        config.customPoster === posterIdStr
+      ) {
+        collections.push(config.name);
+      } else if (typeof config.customPoster === 'object') {
+        const posterValues = Object.values(config.customPoster);
+        if (posterValues.includes(posterIdStr)) {
+          collections.push(config.name);
+        }
+      }
+    }
+  }
+
+  return {
+    inUse: collections.length > 0,
+    collections,
+  };
+}
+
 // DELETE /api/v1/posters/saved/:id - Delete saved poster
 router.delete('/saved/:id', async (req, res, next) => {
   try {
@@ -488,7 +632,56 @@ router.delete('/saved/:id', async (req, res, next) => {
       });
     }
 
-    const posterId = parseInt(req.params.id);
+    const posterIdParam = req.params.id;
+
+    // Check if this is a file-based poster (starts with "file-")
+    if (posterIdParam.startsWith('file-')) {
+      // Extract filename from file-based ID
+      const filename = posterIdParam.substring(5); // Remove "file-" prefix
+
+      // Check if file-based poster is in use by any collections
+      const usage = await checkPosterUsage(posterIdParam);
+      if (usage.inUse) {
+        return res.status(409).json({
+          error: 'Poster is currently in use',
+          message: `This poster is being used by the following collections: ${usage.collections.join(
+            ', '
+          )}`,
+          collections: usage.collections,
+        });
+      }
+
+      // Check if file exists before deletion
+      const { posterExists, deletePosterFile } = await import(
+        '@server/lib/posterStorage'
+      );
+
+      if (!posterExists(filename)) {
+        return res.status(404).json({
+          error: 'Poster file not found',
+        });
+      }
+
+      // Delete the file from storage
+      await deletePosterFile(filename);
+
+      logger.info('Deleted file-based poster', {
+        filename,
+        posterIdParam,
+        userId: req.user?.id,
+      });
+
+      return res.status(204).send();
+    }
+
+    // Handle database poster (integer ID)
+    const posterId = parseInt(posterIdParam);
+
+    if (isNaN(posterId)) {
+      return res.status(400).json({
+        error: 'Invalid poster ID',
+      });
+    }
 
     const posterRepository = getRepository(SavedPoster);
     const poster = await posterRepository.findOne({
@@ -501,14 +694,26 @@ router.delete('/saved/:id', async (req, res, next) => {
       });
     }
 
-    // Soft delete
+    // Check if database poster is in use by any collections
+    const usage = await checkPosterUsage(posterId);
+    if (usage.inUse) {
+      return res.status(409).json({
+        error: 'Poster is currently in use',
+        message: `This poster is being used by the following collections: ${usage.collections.join(
+          ', '
+        )}`,
+        collections: usage.collections,
+      });
+    }
+
+    // Soft delete database entry
     poster.isActive = false;
     await posterRepository.save(poster);
 
     // TODO: Also clean up associated files (filename, thumbnailFilename)
     // This will be handled in Phase 3 when we set up file management
 
-    logger.info('Deleted saved poster', {
+    logger.info('Deleted database poster', {
       posterId,
       name: poster.name,
       userId: req.user?.id,

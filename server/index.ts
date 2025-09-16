@@ -55,6 +55,22 @@ app
     // Replaces 4 incomplete migrations with comprehensive field normalization
     settings.migrateCollectionDataNormalizationV110();
 
+    // Seed default source colors and poster template (one-time setup)
+    try {
+      const { seedSourceColors } = await import(
+        '@server/scripts/seedSourceColors'
+      );
+      const { seedDefaultTemplate } = await import(
+        '@server/scripts/seedDefaultTemplate'
+      );
+
+      await seedSourceColors();
+      await seedDefaultTemplate();
+      logger.info('Default data seeding completed successfully');
+    } catch (error) {
+      logger.error('Failed to seed default data:', error);
+    }
+
     // Initialize IndividualCollectionScheduler for custom sync schedules
     try {
       const { IndividualCollectionScheduler } = await import(

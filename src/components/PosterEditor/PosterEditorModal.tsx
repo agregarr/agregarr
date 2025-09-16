@@ -92,6 +92,8 @@ export interface PosterEditorModalProps {
   onClose: () => void;
   mode: EditorMode;
   initialData?: PosterEditorData;
+  initialName?: string;
+  initialDescription?: string;
   previewCollectionConfig?: {
     name: string;
     type?: string;
@@ -142,14 +144,16 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   onClose,
   mode,
   initialData = DEFAULT_POSTER_DATA,
+  initialName = '',
+  initialDescription = '',
   previewCollectionConfig: externalPreviewConfig,
   onSave,
   setPreviewCollectionConfig: externalSetPreviewConfig,
 }) => {
   const intl = useIntl();
   const [posterData, setPosterData] = useState<PosterEditorData>(initialData);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
   const [saving, setSaving] = useState(false);
   const [currentlyEditingSource, setCurrentlyEditingSource] = useState<
     string | undefined
@@ -189,14 +193,27 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
     }[];
   }>(isOpen ? '/api/v1/collections' : null);
 
+  // Fetch source colors for background rendering
+  const { data: sourceColorsData } = useSWR<{
+    sourceColors: Record<
+      string,
+      {
+        primaryColor: string;
+        secondaryColor: string;
+        textColor: string;
+      }
+    >;
+    sourceTypes: string[];
+  }>(isOpen ? '/api/v1/source-colors' : null);
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
       setPosterData(initialData);
-      setName('');
-      setDescription('');
+      setName(initialName);
+      setDescription(initialDescription);
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, initialName, initialDescription]);
 
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
@@ -415,6 +432,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       mode={mode}
                       currentlyEditingSource={currentlyEditingSource}
                       snapToGuides={snapToGuides}
+                      sourceColorsData={sourceColorsData}
                     />
                   </div>
 

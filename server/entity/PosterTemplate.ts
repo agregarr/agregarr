@@ -16,14 +16,7 @@ export interface PosterTemplateData {
     type: 'color' | 'gradient';
     color?: string; // Single color or primary gradient color
     secondaryColor?: string; // For gradients
-    useSourceColors?: boolean; // If true, use source-specific colors
-    sourceColors?: {
-      [sourceType: string]: {
-        primaryColor: string;
-        secondaryColor: string;
-        textColor: string;
-      };
-    }; // Custom colors for each source type
+    useSourceColors?: boolean; // If true, use global source-specific colors from SourceColors table
   };
 
   // Text elements
