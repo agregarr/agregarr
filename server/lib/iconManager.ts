@@ -6,7 +6,7 @@ import path from 'path';
 import sharp from 'sharp';
 
 const ICONS_STORAGE_DIR = path.join(process.cwd(), 'config', 'icons');
-const SYSTEM_ICONS_DIR = path.join(process.cwd(), 'public', 'icons');
+const SERVICES_ICONS_DIR = path.join(process.cwd(), 'public', 'services');
 const ALLOWED_ICON_TYPES = [
   'image/jpeg',
   'image/png',
@@ -50,20 +50,11 @@ export async function initializeIconStorage(): Promise<void> {
       logger.info(`Created icons storage directory: ${ICONS_STORAGE_DIR}`);
     }
 
-    // Create system icons directory if it doesn't exist
-    if (!fs.existsSync(SYSTEM_ICONS_DIR)) {
-      fs.mkdirSync(SYSTEM_ICONS_DIR, { recursive: true });
-      logger.info(`Created system icons directory: ${SYSTEM_ICONS_DIR}`);
-    }
-
     // Initialize metadata file if it doesn't exist
     if (!fs.existsSync(ICON_METADATA_FILE)) {
       await saveIconMetadata([]);
       logger.info('Initialized icons metadata file');
     }
-
-    // Seed system icons if they don't exist
-    await seedSystemIcons();
   } catch (error) {
     logger.error('Failed to initialize icon storage:', error);
     throw error;
@@ -184,86 +175,6 @@ async function scanForNewIcons(): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to scan for new icons:', error);
-  }
-}
-
-/**
- * Seed system icons (copy from public/services to public/icons)
- */
-async function seedSystemIcons(): Promise<void> {
-  try {
-    const servicesDir = path.join(process.cwd(), 'public', 'services');
-
-    if (!fs.existsSync(servicesDir)) {
-      logger.debug('Services directory not found, skipping system icons seed');
-      return;
-    }
-
-    const serviceFiles = await fs.promises.readdir(servicesDir);
-    const svgFiles = serviceFiles.filter((file) => file.endsWith('.svg'));
-
-    if (svgFiles.length === 0) {
-      logger.debug('No SVG files found in services directory');
-      return;
-    }
-
-    const metadata = await loadIconMetadata();
-    let addedCount = 0;
-
-    for (const svgFile of svgFiles) {
-      const iconName = path.parse(svgFile).name;
-
-      // Check if system icon already exists
-      const existingIcon = metadata.find(
-        (icon) => icon.type === 'system' && icon.name === iconName
-      );
-
-      if (existingIcon) {
-        continue; // Skip existing icons
-      }
-
-      try {
-        // Copy SVG to system icons directory
-        const sourcePath = path.join(servicesDir, svgFile);
-        const targetPath = path.join(SYSTEM_ICONS_DIR, svgFile);
-
-        await fs.promises.copyFile(sourcePath, targetPath);
-
-        // Get file stats
-        const stats = await fs.promises.stat(targetPath);
-
-        // Create metadata entry
-        const iconMetadata: IconMetadata = {
-          id: `system-${iconName}`,
-          name: iconName,
-          filename: svgFile,
-          type: 'system',
-          category: 'services',
-          tags: ['service', iconName],
-          mimeType: 'image/svg+xml',
-          size: stats.size,
-          uploadedAt: new Date().toISOString(),
-          description: `${iconName} service logo`,
-        };
-
-        metadata.push(iconMetadata);
-        addedCount++;
-
-        logger.debug(`Added system icon: ${iconName}`, {
-          filename: svgFile,
-          size: stats.size,
-        });
-      } catch (error) {
-        logger.warn(`Failed to seed system icon ${svgFile}:`, error);
-      }
-    }
-
-    if (addedCount > 0) {
-      await saveIconMetadata(metadata);
-      logger.info(`Seeded ${addedCount} system icons`);
-    }
-  } catch (error) {
-    logger.error('Failed to seed system icons:', error);
   }
 }
 
@@ -404,6 +315,51 @@ export async function downloadIcon(
 }
 
 /**
+ * Get system icons dynamically from services directory
+ */
+async function getSystemIcons(): Promise<IconMetadata[]> {
+  try {
+    if (!fs.existsSync(SERVICES_ICONS_DIR)) {
+      return [];
+    }
+
+    const files = await fs.promises.readdir(SERVICES_ICONS_DIR);
+    const svgFiles = files.filter((file) => file.endsWith('.svg'));
+    const systemIcons: IconMetadata[] = [];
+
+    for (const file of svgFiles) {
+      try {
+        const filePath = path.join(SERVICES_ICONS_DIR, file);
+        const stats = await fs.promises.stat(filePath);
+        const iconName = path.parse(file).name;
+
+        const iconMetadata: IconMetadata = {
+          id: `system-${iconName}`,
+          name: iconName,
+          filename: file,
+          type: 'system',
+          category: 'services',
+          tags: ['service', iconName],
+          mimeType: 'image/svg+xml',
+          size: stats.size,
+          uploadedAt: new Date(stats.mtime).toISOString(),
+          description: `${iconName} service logo`,
+        };
+
+        systemIcons.push(iconMetadata);
+      } catch (error) {
+        logger.warn(`Failed to process system icon ${file}:`, error);
+      }
+    }
+
+    return systemIcons;
+  } catch (error) {
+    logger.error('Failed to get system icons:', error);
+    return [];
+  }
+}
+
+/**
  * Get all icons with optional filtering
  */
 export async function getIcons(
@@ -415,10 +371,22 @@ export async function getIcons(
   } = {}
 ): Promise<IconMetadata[]> {
   try {
-    // Scan for new icons first
+    // Scan for new user icons first
     await scanForNewIcons();
 
-    let icons = await loadIconMetadata();
+    let icons: IconMetadata[] = [];
+
+    // Get user icons from metadata
+    if (!filters.type || filters.type === 'user') {
+      const userIcons = await loadIconMetadata();
+      icons.push(...userIcons);
+    }
+
+    // Get system icons dynamically from services directory
+    if (!filters.type || filters.type === 'system') {
+      const systemIcons = await getSystemIcons();
+      icons.push(...systemIcons);
+    }
 
     // Apply filters
     if (filters.type) {
@@ -465,7 +433,8 @@ export async function getIcons(
  */
 export async function getIconCategories(): Promise<IconCategory[]> {
   try {
-    const icons = await loadIconMetadata();
+    // Get all icons (both user and system)
+    const icons = await getIcons();
     const categoryMap = new Map<string, IconCategory>();
 
     icons.forEach((icon) => {
@@ -555,7 +524,7 @@ export function getIconPath(
   filename: string,
   type: 'user' | 'system' = 'user'
 ): string {
-  const dir = type === 'system' ? SYSTEM_ICONS_DIR : ICONS_STORAGE_DIR;
+  const dir = type === 'system' ? SERVICES_ICONS_DIR : ICONS_STORAGE_DIR;
   return path.join(dir, filename);
 }
 

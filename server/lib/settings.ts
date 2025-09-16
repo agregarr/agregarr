@@ -129,6 +129,8 @@ export interface CollectionConfig {
     readonly priority: number;
   }[];
   readonly combineMode?: 'ordered' | 'randomized' | 'cycle';
+  // Individual sync scheduling
+  readonly customSyncSchedule?: CustomSyncSchedule;
 }
 
 /**
