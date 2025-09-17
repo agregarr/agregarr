@@ -29,6 +29,20 @@ interface LibraryQueue {
   currentCollection?: string;
 }
 
+interface ApiWaitingItem {
+  collectionId: string;
+  collectionName: string;
+  libraryId: string;
+  resolve: () => void;
+  scheduledAt: Date;
+}
+
+interface ApiQueue {
+  apiType: string;
+  inUse: boolean;
+  waitingQueue: ApiWaitingItem[];
+}
+
 /**
  * IndividualCollectionScheduler - Manages custom sync schedules for collections
  *
@@ -40,6 +54,7 @@ export class IndividualCollectionScheduler {
   private static initialized = false;
   private static libraryQueues: Map<string, LibraryQueue> = new Map();
   private static fullSyncRunning = false;
+  private static apiQueues: Map<string, ApiQueue> = new Map();
 
   /**
    * Initialize the scheduler by setting up jobs for existing collections
@@ -196,6 +211,132 @@ export class IndividualCollectionScheduler {
   }
 
   /**
+   * Wait for API to become available, then acquire lock
+   */
+  public static async waitForApiAccess(
+    apiType: string,
+    collectionId: string,
+    collectionName: string,
+    libraryId: string
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      // Get or create API queue
+      let apiQueue = this.apiQueues.get(apiType);
+      if (!apiQueue) {
+        apiQueue = {
+          apiType,
+          inUse: false,
+          waitingQueue: [],
+        };
+        this.apiQueues.set(apiType, apiQueue);
+      }
+
+      // If API is not in use, acquire it immediately
+      if (!apiQueue.inUse) {
+        apiQueue.inUse = true;
+        logger.debug(`API acquired immediately: ${apiType}`, {
+          label: 'Individual Collection Scheduler',
+          apiType,
+          collectionId,
+          collectionName,
+        });
+        resolve();
+        return;
+      }
+
+      // API is in use, add to waiting queue
+      const waitingItem: ApiWaitingItem = {
+        collectionId,
+        collectionName,
+        libraryId,
+        resolve,
+        scheduledAt: new Date(),
+      };
+
+      apiQueue.waitingQueue.push(waitingItem);
+
+      logger.info(
+        `Collection waiting for API access: ${collectionName} (${apiType} API, position ${apiQueue.waitingQueue.length} in queue)`,
+        {
+          label: 'Individual Collection Scheduler',
+          apiType,
+          collectionId,
+          collectionName,
+          queuePosition: apiQueue.waitingQueue.length,
+        }
+      );
+    });
+  }
+
+  /**
+   * Release API and process next item in waiting queue
+   */
+  public static releaseApiAccess(apiType: string): void {
+    const apiQueue = this.apiQueues.get(apiType);
+    if (!apiQueue) {
+      return;
+    }
+
+    // Process next waiting item
+    const nextItem = apiQueue.waitingQueue.shift();
+    if (nextItem) {
+      logger.info(
+        `API access granted to next waiting collection: ${nextItem.collectionName} (${apiType} API)`,
+        {
+          label: 'Individual Collection Scheduler',
+          apiType,
+          collectionId: nextItem.collectionId,
+          collectionName: nextItem.collectionName,
+          waitingQueueRemaining: apiQueue.waitingQueue.length,
+        }
+      );
+      // Keep API in use for the next item
+      nextItem.resolve();
+    } else {
+      // No more waiting items, release the API
+      apiQueue.inUse = false;
+      logger.debug(`API released: ${apiType}`, {
+        label: 'Individual Collection Scheduler',
+        apiType,
+      });
+    }
+  }
+
+  /**
+   * Check if an API is currently in use
+   */
+  public static isApiInUse(apiType: string): boolean {
+    const apiQueue = this.apiQueues.get(apiType);
+    return apiQueue?.inUse || false;
+  }
+
+  /**
+   * Get all APIs currently in use
+   */
+  public static getApisInUse(): string[] {
+    return Array.from(this.apiQueues.entries())
+      .filter(([, queue]) => queue.inUse)
+      .map(([apiType]) => apiType);
+  }
+
+  /**
+   * Get API queue status for debugging
+   */
+  public static getApiQueuesStatus(): {
+    apiType: string;
+    inUse: boolean;
+    waitingCount: number;
+    waitingCollections: string[];
+  }[] {
+    return Array.from(this.apiQueues.entries()).map(([apiType, queue]) => ({
+      apiType,
+      inUse: queue.inUse,
+      waitingCount: queue.waitingQueue.length,
+      waitingCollections: queue.waitingQueue.map((item) => item.collectionName),
+    }));
+  }
+
+  /**
    * Queue a collection for sync with collision detection and library-based queuing
    */
   private static async queueCollectionSync(
@@ -231,6 +372,15 @@ export class IndividualCollectionScheduler {
         this.cancelCollectionSync(collectionId);
         return;
       }
+
+      // Wait for API access before proceeding
+      const apiType = collectionConfig.type;
+      await this.waitForApiAccess(
+        apiType,
+        collectionId,
+        collectionConfig.name,
+        collectionConfig.libraryId
+      );
 
       const libraryId = collectionConfig.libraryId;
 
@@ -391,12 +541,15 @@ export class IndividualCollectionScheduler {
         return;
       }
 
+      const apiType = collectionConfig.type;
+
       logger.info(
-        `Executing scheduled sync for collection: ${collectionConfig.name}`,
+        `Executing scheduled sync for collection: ${collectionConfig.name} (API: ${apiType})`,
         {
           label: 'Individual Collection Scheduler',
           collectionId,
           collectionName: collectionConfig.name,
+          apiType,
         }
       );
 
@@ -431,6 +584,10 @@ export class IndividualCollectionScheduler {
         extendedConfig.isMultiSource &&
         (extendedConfig.sources?.length ?? 0) > 0;
       const allCollections = await plexClient.getAllCollections();
+
+      // Use shared library cache for better matching
+      const { libraryCacheService } = await import('./LibraryCacheService');
+      const libraryCache = await libraryCacheService.getCache(plexClient);
 
       let result;
       if (isMultiSource) {
@@ -469,7 +626,7 @@ export class IndividualCollectionScheduler {
           plexClient,
           allCollections,
           new Set(),
-          {}
+          libraryCache
         );
       } else {
         // Use normal single-source sync
@@ -481,7 +638,7 @@ export class IndividualCollectionScheduler {
           plexClient,
           allCollections,
           new Set(),
-          {}
+          libraryCache
         );
       }
 
@@ -503,6 +660,15 @@ export class IndividualCollectionScheduler {
           error: error instanceof Error ? error.message : String(error),
         }
       );
+    } finally {
+      // Always release the API, regardless of success or failure
+      const settings = getSettings();
+      const collectionConfig = settings.plex.collectionConfigs?.find(
+        (config) => config.id === collectionId
+      );
+      if (collectionConfig) {
+        this.releaseApiAccess(collectionConfig.type);
+      }
     }
   }
 
@@ -554,7 +720,7 @@ export class IndividualCollectionScheduler {
   }
 
   /**
-   * Get status of all library queues
+   * Get status of all library queues and API locks
    */
   public static getLibraryQueuesStatus(): {
     libraryId: string;
@@ -609,10 +775,35 @@ export class IndividualCollectionScheduler {
       queue.currentCollection = undefined;
     }
 
-    logger.info(`Cleared all individual collection queues`, {
+    // Clear all API queues as well
+    const apiQueuesStatus = this.getApiQueuesStatus();
+    let totalWaitingCleared = 0;
+
+    for (const [apiType, apiQueue] of this.apiQueues) {
+      totalWaitingCleared += apiQueue.waitingQueue.length;
+      // Reject all waiting promises to prevent hanging
+      for (const waitingItem of apiQueue.waitingQueue) {
+        // We can't really reject them gracefully since they're waiting for resolve()
+        // But clearing the queue will prevent them from ever resolving
+        logger.debug(
+          `Clearing waiting collection: ${waitingItem.collectionName}`,
+          {
+            label: 'Individual Collection Scheduler',
+            apiType,
+            collectionId: waitingItem.collectionId,
+          }
+        );
+      }
+    }
+
+    this.apiQueues.clear();
+
+    logger.info(`Cleared all individual collection queues and API queues`, {
       label: 'Individual Collection Scheduler',
       totalCleared,
       librariesCleared: this.libraryQueues.size,
+      apiQueuesCleared: apiQueuesStatus.length,
+      totalWaitingCleared,
     });
   }
 

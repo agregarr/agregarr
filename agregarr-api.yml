@@ -794,7 +794,7 @@ components:
               type: number
               description: "Sync interval in hours (supports decimals)"
               example: 24.0
-              minimum: 0.5
+              minimum: 0.1
               maximum: 168
           nullable: true
       required:
@@ -1125,7 +1125,7 @@ components:
               type: number
               description: "Sync interval in hours (supports decimals)"
               example: 24.0
-              minimum: 0.5
+              minimum: 0.1
               maximum: 168
           nullable: true
       required:

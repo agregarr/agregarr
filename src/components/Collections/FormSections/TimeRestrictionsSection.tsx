@@ -365,8 +365,8 @@ const TimeRestrictionsSection = ({
                 <Field
                   type="number"
                   name="customSyncSchedule.intervalHours"
-                  step="0.5"
-                  min="0.5"
+                  step="0.1"
+                  min="0.1"
                   max="168"
                   className="w-32 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />

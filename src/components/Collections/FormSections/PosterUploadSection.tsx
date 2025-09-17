@@ -1,7 +1,7 @@
 import type { CollectionFormConfig } from '@app/types/collections';
 import { Menu, Transition } from '@headlessui/react';
 import { ChevronDownIcon, PlusIcon } from '@heroicons/react/24/solid';
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 import PosterSelectionPopover from './PosterSelectionPopover';
@@ -44,6 +44,7 @@ interface PosterTemplate {
   id: number;
   name: string;
   description?: string;
+  isDefault: boolean;
 }
 
 interface PosterUploadSectionProps {
@@ -119,8 +120,10 @@ const PosterUploadSection = ({
   // Auto-poster is available for all collections, enabled by default
   const isAutoPosterEnabled = values.autoPoster ?? true; // Default to true if not set
 
-  // Get current selected template
-  const selectedTemplateId = values.autoPosterTemplate || null;
+  // Get current selected template - if none selected, use the default template
+  const defaultTemplate = templates?.find((t) => t.isDefault);
+  const selectedTemplateId =
+    values.autoPosterTemplate || defaultTemplate?.id || null;
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
 
   const handleAutoPosterChange = (enabled: boolean) => {
@@ -130,6 +133,13 @@ const PosterUploadSection = ({
   const handleTemplateSelection = (templateId: number | null) => {
     setFieldValue('autoPosterTemplate', templateId);
   };
+
+  // Auto-select default template when templates load and no template is currently selected
+  useEffect(() => {
+    if (templates && !values.autoPosterTemplate && defaultTemplate) {
+      setFieldValue('autoPosterTemplate', defaultTemplate.id);
+    }
+  }, [templates, values.autoPosterTemplate, defaultTemplate, setFieldValue]);
 
   const handleRemovePoster = (libraryId: string) => {
     const updatedPosters = { ...currentPosters };
@@ -219,8 +229,7 @@ const PosterUploadSection = ({
             <Menu as="div" className="relative mt-2">
               <Menu.Button className="relative w-full cursor-default rounded-md bg-stone-700 py-2 pl-3 pr-10 text-left shadow-sm ring-1 ring-inset ring-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500 sm:text-sm">
                 <span className="block truncate text-white">
-                  {selectedTemplate?.name ||
-                    intl.formatMessage(messages.defaultTemplate)}
+                  {selectedTemplate?.name || 'Select Template'}
                 </span>
                 <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                   <ChevronDownIcon
@@ -240,35 +249,6 @@ const PosterUploadSection = ({
                 leaveTo="transform opacity-0 scale-95"
               >
                 <Menu.Items className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-stone-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={() => handleTemplateSelection(null)}
-                        className={`relative w-full cursor-default select-none py-2 pl-3 pr-9 text-left ${
-                          active ? 'bg-orange-600 text-white' : 'text-stone-200'
-                        }`}
-                      >
-                        <span
-                          className={`block truncate ${
-                            selectedTemplateId === null
-                              ? 'font-semibold'
-                              : 'font-normal'
-                          }`}
-                        >
-                          {intl.formatMessage(messages.defaultTemplate)}
-                        </span>
-                        {selectedTemplateId === null && (
-                          <span
-                            className={`absolute inset-y-0 right-0 flex items-center pr-4 ${
-                              active ? 'text-white' : 'text-orange-600'
-                            }`}
-                          >
-                            ✓
-                          </span>
-                        )}
-                      </button>
-                    )}
-                  </Menu.Item>
                   {templates?.map((template) => (
                     <Menu.Item key={template.id}>
                       {({ active }) => (

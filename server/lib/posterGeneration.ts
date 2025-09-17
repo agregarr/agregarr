@@ -988,77 +988,75 @@ export async function generatePosterBuffer(
       templateId: config.autoPosterTemplate,
     });
 
-    // If template-based poster generation is enabled (null = default template, number = specific template)
-    if (config.autoPosterTemplate !== undefined) {
-      try {
-        let templateId = config.autoPosterTemplate;
+    // Template-based poster generation (undefined/null = default template, number = specific template)
+    try {
+      let templateId = config.autoPosterTemplate;
 
-        // If autoPosterTemplate is null, find and use the default template
-        if (config.autoPosterTemplate === null) {
-          const { getRepository } = await import('@server/datasource');
-          const { PosterTemplate } = await import(
-            '@server/entity/PosterTemplate'
-          );
-          const templateRepository = getRepository(PosterTemplate);
-
-          const defaultTemplate = await templateRepository.findOne({
-            where: { isDefault: true, isActive: true },
-          });
-
-          if (!defaultTemplate) {
-            logger.warn(
-              'No default template found, falling back to legacy SVG generation'
-            );
-            // Fall through to default SVG generation
-          } else {
-            templateId = defaultTemplate.id;
-            logger.debug('Using default template for poster generation', {
-              templateId: defaultTemplate.id,
-              templateName: defaultTemplate.name,
-            });
-          }
-        }
-
-        // Generate using template system if we have a valid template ID
-        if (templateId) {
-          const buffer = await applyTemplate(templateId, {
-            collectionName: config.collectionName,
-            collectionType: config.collectionType || 'custom',
-            mediaType: config.mediaType || 'movie',
-            items: config.items || [],
-            dynamicLogo: config.dynamicLogo,
-          });
-
-          logger.info('Poster generated successfully using template', {
-            name: config.collectionName,
-            templateId,
-            bufferSize: buffer.length,
-          });
-
-          return buffer;
-        }
-      } catch (templateError) {
-        logger.error('Failed to generate poster using template', {
-          templateId: config.autoPosterTemplate,
-          error:
-            templateError instanceof Error
-              ? templateError.message
-              : String(templateError),
-        });
-        throw new Error(
-          `Template generation failed: ${
-            templateError instanceof Error
-              ? templateError.message
-              : String(templateError)
-          }`
+      // If autoPosterTemplate is undefined or null, find and use the default template
+      if (
+        config.autoPosterTemplate === undefined ||
+        config.autoPosterTemplate === null
+      ) {
+        const { getRepository } = await import('@server/datasource');
+        const { PosterTemplate } = await import(
+          '@server/entity/PosterTemplate'
         );
-      }
-    }
+        const templateRepository = getRepository(PosterTemplate);
 
-    // If no autoPosterTemplate specified, this should not happen in the current system
-    throw new Error(
-      'No auto poster template specified - all poster generation must use templates'
-    );
+        const defaultTemplate = await templateRepository.findOne({
+          where: { isDefault: true, isActive: true },
+        });
+
+        if (!defaultTemplate) {
+          logger.warn(
+            'No default template found, falling back to legacy SVG generation'
+          );
+          // Fall through to default SVG generation
+        } else {
+          templateId = defaultTemplate.id;
+          logger.debug('Using default template for poster generation', {
+            templateId: defaultTemplate.id,
+            templateName: defaultTemplate.name,
+          });
+        }
+      }
+
+      // Generate using template system if we have a valid template ID
+      if (templateId) {
+        const buffer = await applyTemplate(templateId, {
+          collectionName: config.collectionName,
+          collectionType: config.collectionType || 'custom',
+          mediaType: config.mediaType || 'movie',
+          items: config.items || [],
+          dynamicLogo: config.dynamicLogo,
+        });
+
+        logger.info('Poster generated successfully using template', {
+          name: config.collectionName,
+          templateId,
+          bufferSize: buffer.length,
+        });
+
+        return buffer;
+      } else {
+        throw new Error('No valid template ID found for poster generation');
+      }
+    } catch (templateError) {
+      logger.error('Failed to generate poster using template', {
+        templateId: config.autoPosterTemplate,
+        error:
+          templateError instanceof Error
+            ? templateError.message
+            : String(templateError),
+      });
+      throw new Error(
+        `Template generation failed: ${
+          templateError instanceof Error
+            ? templateError.message
+            : String(templateError)
+        }`
+      );
+    }
   } catch (error) {
     logger.error('Failed to generate poster', {
       config,

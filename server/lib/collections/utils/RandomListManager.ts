@@ -1367,10 +1367,8 @@ https://letterboxd.com/cinema/list/criterion-collection/
         return targetMediaType === 'movie' ? item.movie : item.show;
       });
 
-      // Check if list has enough items of target type to fill the collection
-      if (targetItems.length < maxItems) {
-        return false;
-      }
+      // Skip maxItems validation - let the normal collection filtering handle it
+      // This allows smaller lists that would still produce valid collections
 
       // If library cache is provided, check that we have at least 4 items in Plex library
       if (libraryCache) {

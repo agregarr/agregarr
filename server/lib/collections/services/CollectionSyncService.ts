@@ -3,7 +3,6 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
-import { prefetchAllLibraryItems } from '@server/lib/collections/core/CollectionUtilities';
 import type { SyncResult } from '@server/lib/collections/core/types';
 import type {
   MultiSourceCollectionConfig,
@@ -154,18 +153,16 @@ export class CollectionSyncService {
       }
     }
 
-    // OPTIMIZATION: Pre-fetch all library content and Overseerr requests once at the start of sync
+    // OPTIMIZATION: Use shared library cache for sync optimization
     // This eliminates repeated API calls across all collection sources
-    onProgress?.(0, 'Pre-fetching library content...');
-    logger.info('Pre-fetching all library content for sync optimization', {
-      label: 'Collection Sync Service',
-    });
+    onProgress?.(0, 'Loading shared library cache...');
 
-    const libraryCache = await prefetchAllLibraryItems(plexClient);
+    const { libraryCacheService } = await import('./LibraryCacheService');
+    const libraryCache = await libraryCacheService.getCache(plexClient);
     const cachedLibraryCount = Object.keys(libraryCache).length;
 
     logger.info(
-      `Library content cache ready (${cachedLibraryCount} libraries cached)`,
+      `Shared library cache ready (${cachedLibraryCount} libraries cached)`,
       {
         label: 'Collection Sync Service',
         cachedLibraries: cachedLibraryCount,
@@ -200,6 +197,17 @@ export class CollectionSyncService {
 
         // Report collection processing start
         onProgress?.(processedCount, `Processing "${config.name}"...`);
+
+        // Wait for API access for this collection type to prevent concurrent access
+        const { IndividualCollectionScheduler } = await import(
+          './IndividualCollectionScheduler'
+        );
+        await IndividualCollectionScheduler.waitForApiAccess(
+          config.type,
+          config.id,
+          config.name,
+          config.libraryId
+        );
 
         // Get the sync service for this config type and process it
         const allCollections = await plexClient.getAllCollections();
@@ -301,6 +309,12 @@ export class CollectionSyncService {
         // Still increment counter to avoid getting stuck
         processedCount++;
         onProgress?.(processedCount);
+      } finally {
+        // Always release the API, regardless of success or failure
+        const { IndividualCollectionScheduler } = await import(
+          './IndividualCollectionScheduler'
+        );
+        IndividualCollectionScheduler.releaseApiAccess(config.type);
       }
     }
 
