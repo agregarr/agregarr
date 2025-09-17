@@ -360,14 +360,28 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     settings.plex.collectionConfigs = configs;
     settings.save();
 
-    // Refresh individual collection scheduler for any custom sync schedules
+    // Update individual collection scheduler for edited collections only
     try {
       const { IndividualCollectionScheduler } = await import(
         '@server/lib/collections/services/IndividualCollectionScheduler'
       );
-      await IndividualCollectionScheduler.refreshAllJobs();
+
+      // Update scheduler for each edited collection
+      for (const config of updatedConfigs) {
+        const customSync = config.customSyncSchedule;
+        if (customSync?.enabled && customSync.intervalHours > 0) {
+          // Schedule or reschedule this collection
+          await IndividualCollectionScheduler.scheduleCollectionSync(
+            config.id,
+            customSync.intervalHours
+          );
+        } else {
+          // Cancel scheduling if custom sync was disabled
+          IndividualCollectionScheduler.cancelCollectionSync(config.id);
+        }
+      }
     } catch (error) {
-      logger.warn('Failed to refresh individual collection scheduler:', error);
+      logger.warn('Failed to update individual collection scheduler:', error);
     }
 
     logger.info('Collection config(s) updated successfully', {
@@ -923,6 +937,26 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         });
         // Don't fail the creation if reordering fails
       }
+    }
+
+    // Schedule individual collections with custom sync schedules (without affecting existing schedules)
+    try {
+      const { IndividualCollectionScheduler } = await import(
+        '@server/lib/collections/services/IndividualCollectionScheduler'
+      );
+
+      // Only schedule newly created collections with custom sync
+      for (const config of createdConfigs) {
+        const customSync = config.customSyncSchedule;
+        if (customSync?.enabled && customSync.intervalHours > 0) {
+          await IndividualCollectionScheduler.scheduleCollectionSync(
+            config.id,
+            customSync.intervalHours
+          );
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to schedule individual collections:', error);
     }
 
     return res.status(201).json({

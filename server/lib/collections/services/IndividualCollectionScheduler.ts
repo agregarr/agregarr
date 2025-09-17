@@ -642,6 +642,17 @@ export class IndividualCollectionScheduler {
         );
       }
 
+      // Mark collection as synced (update needsSync status)
+      settings.markCollectionSynced(collectionId, 'collection');
+      settings.save();
+
+      // Sync Plex collection ordering after collection sync
+      const { HubSyncService } = await import(
+        '@server/lib/collections/plex/HubSyncService'
+      );
+      const hubSyncService = new HubSyncService();
+      await hubSyncService.syncUnifiedOrdering(plexClient);
+
       logger.info(
         `Scheduled collection sync completed: ${collectionConfig.name}`,
         {
