@@ -1534,6 +1534,7 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).seasonsPerShowLimit || 0,
           maxPositionToProcess:
             (config as CollectionFormConfig).maxPositionToProcess || 0,
+          minimumYear: (config as CollectionFormConfig).minimumYear || 0,
           visibilityConfig: {
             usersHome: config.visibilityConfig?.usersHome ?? false,
             serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? true,
@@ -1692,6 +1693,9 @@ const CollectionFormConfigForm = ({
               : false,
             maxPositionToProcess: values.enableGrabMissingItems
               ? values.maxPositionToProcess
+              : undefined,
+            minimumYear: values.enableGrabMissingItems
+              ? values.minimumYear
               : undefined,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,

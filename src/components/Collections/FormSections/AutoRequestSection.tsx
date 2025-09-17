@@ -16,6 +16,9 @@ const messages = defineMessages({
   seasonsPerShow: 'Seasons per TV show to download/request',
   seasonsPerShowHelp:
     'Limit each TV show to only the first X seasons (0 = all seasons)',
+  minimumYear: 'Minimum release year',
+  minimumYearHelp:
+    'Only grab movies/TV shows released on or after this year (0 = no limit)',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -196,6 +199,29 @@ const AutoRequestSection = ({
             )}
             <div className="label-tip mt-2">
               {intl.formatMessage(messages.positionLimitHelp)}
+            </div>
+          </div>
+
+          {/* Minimum Year */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumYear)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="numeric"
+                id="minimumYear"
+                name="minimumYear"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumYear && touched.minimumYear && (
+              <div className="error">{errors.minimumYear}</div>
+            )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(messages.minimumYearHelp)}
             </div>
           </div>
 

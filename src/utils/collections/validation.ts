@@ -156,6 +156,14 @@ const autoRequestValidations = {
     .min(0, 'Position limit must be 0 or greater')
     .max(9999, 'Position limit cannot exceed 9999')
     .integer('Position limit must be a whole number'),
+
+  minimumYear: Yup.number()
+    .min(0, 'Minimum year must be 0 or greater (0 = no limit)')
+    .max(
+      new Date().getFullYear() + 10,
+      'Minimum year cannot be more than 10 years in the future'
+    )
+    .integer('Minimum year must be a whole number'),
 };
 
 // Time restriction validation

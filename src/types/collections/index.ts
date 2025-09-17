@@ -217,6 +217,7 @@ export interface CollectionFormConfig {
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
+  readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDb custom list fields
@@ -310,6 +311,7 @@ export interface CollectionConfigCreateRequest {
   readonly autoApproveMovies?: boolean;
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
+  readonly minimumYear?: number;
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomListUrl?: string;
   readonly imdbCustomListUrl?: string;
@@ -380,6 +382,7 @@ export const toCollectionCreateRequest = (
     autoApproveMovies: config.autoApproveMovies,
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
+    minimumYear: config.minimumYear,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomListUrl: config.tmdbCustomListUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,

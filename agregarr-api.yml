@@ -350,6 +350,11 @@ components:
           description: "Limit each TV show to only the first X seasons (0 = all seasons)"
           example: 2
           nullable: true
+        minimumYear:
+          type: integer
+          description: "Only process movies/TV shows released on or after this year (0 = no limit)"
+          example: 2010
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
@@ -659,6 +664,11 @@ components:
           type: integer
           description: "Limit each TV show to only the first X seasons (0 = all seasons)"
           example: 2
+          nullable: true
+        minimumYear:
+          type: integer
+          description: "Only process movies/TV shows released on or after this year (0 = no limit)"
+          example: 2010
           nullable: true
         traktCustomListUrl:
           type: string
@@ -970,6 +980,11 @@ components:
           type: integer
           description: "Limit each TV show to only the first X seasons (0 = all seasons)"
           example: 2
+          nullable: true
+        minimumYear:
+          type: integer
+          description: "Only process movies/TV shows released on or after this year (0 = no limit)"
+          example: 2010
           nullable: true
         traktCustomListUrl:
           type: string

@@ -73,9 +73,18 @@ export class AutoRequestService {
 
     // Filter items based on config settings
     const filteredMissingItems = missingItems.filter((item) => {
-      if (item.mediaType === 'movie' && config.searchMissingMovies) return true;
-      if (item.mediaType === 'tv' && config.searchMissingTV) return true;
-      return false;
+      // Check media type
+      if (item.mediaType === 'movie' && !config.searchMissingMovies)
+        return false;
+      if (item.mediaType === 'tv' && !config.searchMissingTV) return false;
+      if (item.mediaType !== 'movie' && item.mediaType !== 'tv') return false;
+
+      // Check minimum year filter
+      if (config.minimumYear && config.minimumYear > 0 && item.year) {
+        if (item.year < config.minimumYear) return false;
+      }
+
+      return true;
     });
 
     if (filteredMissingItems.length === 0) {

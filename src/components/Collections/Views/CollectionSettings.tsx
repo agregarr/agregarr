@@ -321,6 +321,9 @@ const CollectionSettings = ({
           ...(collectionConfig.maxPositionToProcess !== undefined && {
             maxPositionToProcess: collectionConfig.maxPositionToProcess,
           }),
+          ...(collectionConfig.minimumYear !== undefined && {
+            minimumYear: collectionConfig.minimumYear,
+          }),
           ...(collectionConfig.traktCustomListUrl && {
             traktCustomListUrl: collectionConfig.traktCustomListUrl,
           }),
@@ -494,6 +497,9 @@ const CollectionSettings = ({
           }),
           ...(config.maxPositionToProcess !== undefined && {
             maxPositionToProcess: config.maxPositionToProcess,
+          }),
+          ...(config.minimumYear !== undefined && {
+            minimumYear: config.minimumYear,
           }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
@@ -1659,6 +1665,7 @@ const CollectionSettings = ({
               maxSeasonsToRequest: masterConfig.maxSeasonsToRequest,
               seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
               maxPositionToProcess: masterConfig.maxPositionToProcess,
+              minimumYear: masterConfig.minimumYear,
               timeRestriction: masterConfig.timeRestriction,
               traktCustomListUrl: masterConfig.traktCustomListUrl,
               tmdbCustomListUrl: masterConfig.tmdbCustomListUrl,
