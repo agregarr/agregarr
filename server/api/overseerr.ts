@@ -325,7 +325,7 @@ class OverseerrAPI {
       // Get user's requests and check for this TMDB ID
       const requests = await this.getRequests({
         requestedBy: userId,
-        take: 1000, // Get all user requests
+        take: 9999, // Get all user requests
       });
 
       return (

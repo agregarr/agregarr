@@ -232,7 +232,7 @@ const CollectionFormConfigForm = ({
 
     maxItems: Yup.number()
       .min(1, 'Must be at least 1 item')
-      .max(1000, 'Cannot exceed 1000 items'),
+      .max(9999, 'Cannot exceed 9999 items'),
 
     minimumPlays: Yup.number()
       .min(1, 'Must be at least 1 play')
@@ -2155,7 +2155,7 @@ const CollectionFormConfigForm = ({
                               )}
                               <div className="label-tip">
                                 Maximum number of items to include in collection
-                                (1-1000)
+                                (1-9999)
                               </div>
                             </div>
                           </div>

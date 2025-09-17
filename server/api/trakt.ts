@@ -378,7 +378,7 @@ class TraktAPI {
 
   public async getCustomList(
     listUrl: string,
-    limit = 1000
+    limit = 9999
   ): Promise<TraktListResponse[]> {
     try {
       // Parse the URL to extract username and list slug or official list slug

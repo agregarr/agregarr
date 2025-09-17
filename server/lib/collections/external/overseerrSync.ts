@@ -56,7 +56,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
    * Get the maximum items limit for a collection config
    */
   private getMaxItems(config: CollectionConfig): number {
-    return config.maxItems && config.maxItems > 0 ? config.maxItems : 1000;
+    return config.maxItems && config.maxItems > 0 ? config.maxItems : 9999;
   }
 
   /**
