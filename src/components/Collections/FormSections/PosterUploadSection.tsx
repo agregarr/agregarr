@@ -314,14 +314,9 @@ const PosterUploadSection = ({
                     {libraryPoster ? (
                       <div className="relative">
                         <img
-                          src={`/posters/${libraryPoster}`}
+                          src={`/api/v1/collections/poster/${libraryPoster}`}
                           alt={`Poster for ${library.name}`}
                           className="h-24 w-16 rounded border object-cover shadow-sm"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src =
-                              '/images/overseerr_poster_not_found.png';
-                          }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center space-x-1 rounded bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
