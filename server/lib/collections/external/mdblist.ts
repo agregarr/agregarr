@@ -322,7 +322,8 @@ export class MDBListCollectionSync extends BaseCollectionSync {
         plexClient,
         mdblistLookups,
         targetLibraryId,
-        libraryCache
+        libraryCache,
+        false // Library-scoped search for collection creation
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {

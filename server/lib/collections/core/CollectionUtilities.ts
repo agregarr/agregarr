@@ -1379,8 +1379,9 @@ export async function prefetchAllLibraryItems(
  *
  * @param plexClient - Plex API client
  * @param tmdbLookups - Array of TMDB IDs to search for
- * @param targetLibraryId - DEPRECATED: Previously used to limit search scope, now searches all libraries to prevent duplicates
+ * @param targetLibraryId - Optional library ID to limit search scope (for collection creation)
  * @param libraryCache - Optional pre-fetched library items cache (RECOMMENDED)
+ * @param forDuplicateDetection - If true, searches all libraries for duplicate prevention (missing items). If false, respects targetLibraryId for collection creation.
  */
 export async function findPlexItemsByTmdbIds(
   plexClient: PlexAPI,
@@ -1396,7 +1397,8 @@ export async function findPlexItemsByTmdbIds(
     };
   }[],
   targetLibraryId?: string,
-  libraryCache?: LibraryItemsCache
+  libraryCache?: LibraryItemsCache,
+  forDuplicateDetection = false
 ): Promise<
   Map<string, { ratingKey: string; title: string; libraryKey: string }>
 > {
@@ -1445,16 +1447,46 @@ export async function findPlexItemsByTmdbIds(
     );
     const tvLookups = tmdbLookups.filter((lookup) => lookup.mediaType === 'tv');
 
-    // Query movie libraries - ALWAYS search ALL movie libraries to prevent duplicates
+    // Query movie libraries
     if (movieLookups.length > 0) {
-      const movieLibraries = libraries.filter(
+      let movieLibraries = libraries.filter(
         (lib) => lib.type === 'movie' || libraryCache
       );
 
-      // targetLibraryId parameter is now ignored - we search all libraries to prevent duplicates
-      if (targetLibraryId) {
+      // If targetLibraryId is specified and we're NOT doing duplicate detection, filter to target library
+      if (targetLibraryId && !forDuplicateDetection) {
+        if (libraryCache) {
+          movieLibraries = movieLibraries.filter(
+            (lib) => lib.key === targetLibraryId
+          );
+        } else {
+          movieLibraries = movieLibraries.filter(
+            (lib) => lib.key === targetLibraryId
+          );
+          if (movieLibraries.length === 0) {
+            logger.warn(
+              `Target library ${targetLibraryId} not found or is not a movie library`,
+              {
+                label: 'Plex Search',
+                targetLibraryId,
+                availableMovieLibraries: libraries
+                  .filter((lib) => lib.type === 'movie')
+                  .map((lib) => ({ key: lib.key, title: lib.title })),
+              }
+            );
+          }
+        }
         logger.debug(
-          `Global library search enabled - checking all ${movieLibraries.length} movie libraries instead of just target library ${targetLibraryId}`,
+          `Library-scoped search - checking target library ${targetLibraryId} for collection creation`,
+          {
+            label: 'Plex Search (Scoped)',
+            targetLibraryId,
+            movieLibraryCount: movieLibraries.length,
+          }
+        );
+      } else if (targetLibraryId && forDuplicateDetection) {
+        logger.debug(
+          `Global library search enabled - checking all ${movieLibraries.length} movie libraries for duplicate detection`,
           {
             label: 'Plex Search (Global)',
             targetLibraryId,
@@ -1511,16 +1543,46 @@ export async function findPlexItemsByTmdbIds(
       }
     }
 
-    // Query TV libraries - ALWAYS search ALL TV libraries to prevent duplicates
+    // Query TV libraries
     if (tvLookups.length > 0) {
-      const tvLibraries = libraries.filter(
+      let tvLibraries = libraries.filter(
         (lib) => lib.type === 'show' || libraryCache
       );
 
-      // targetLibraryId parameter is now ignored - we search all libraries to prevent duplicates
-      if (targetLibraryId) {
+      // If targetLibraryId is specified and we're NOT doing duplicate detection, filter to target library
+      if (targetLibraryId && !forDuplicateDetection) {
+        if (libraryCache) {
+          tvLibraries = tvLibraries.filter(
+            (lib) => lib.key === targetLibraryId
+          );
+        } else {
+          tvLibraries = tvLibraries.filter(
+            (lib) => lib.key === targetLibraryId
+          );
+          if (tvLibraries.length === 0) {
+            logger.warn(
+              `Target library ${targetLibraryId} not found or is not a TV library`,
+              {
+                label: 'Plex Search',
+                targetLibraryId,
+                availableTvLibraries: libraries
+                  .filter((lib) => lib.type === 'show')
+                  .map((lib) => ({ key: lib.key, title: lib.title })),
+              }
+            );
+          }
+        }
         logger.debug(
-          `Global library search enabled - checking all ${tvLibraries.length} TV libraries instead of just target library ${targetLibraryId}`,
+          `Library-scoped search - checking target library ${targetLibraryId} for collection creation`,
+          {
+            label: 'Plex Search (Scoped)',
+            targetLibraryId,
+            tvLibraryCount: tvLibraries.length,
+          }
+        );
+      } else if (targetLibraryId && forDuplicateDetection) {
+        logger.debug(
+          `Global library search enabled - checking all ${tvLibraries.length} TV libraries for duplicate detection`,
           {
             label: 'Plex Search (Global)',
             targetLibraryId,
@@ -1657,16 +1719,25 @@ export async function findPlexItemsByTmdbIds(
       }
     }
 
+    const searchScope = forDuplicateDetection
+      ? 'all libraries (duplicate detection)'
+      : targetLibraryId && !forDuplicateDetection
+      ? `target library ${targetLibraryId} (collection creation)`
+      : 'all libraries (no target specified)';
+
     logger.info(
-      `Plex global search completed: ${results.size}/${tmdbLookups.length} matches found across all libraries`,
+      `Plex search completed: ${results.size}/${tmdbLookups.length} matches found - ${searchScope}`,
       {
-        label: 'Plex Search (Global)',
+        label: forDuplicateDetection
+          ? 'Plex Search (Global)'
+          : 'Plex Search (Scoped)',
         foundMatches: results.size,
         totalLookups: tmdbLookups.length,
         movieLookups: movieLookups.length,
         tvLookups: tvLookups.length,
-        searchScope: 'all libraries (prevents duplicates)',
-        originalTargetLibrary: targetLibraryId || 'not specified',
+        searchScope,
+        targetLibrary: targetLibraryId || 'not specified',
+        forDuplicateDetection,
         searchedLibraries: libraries.map((l) => ({
           key: l.key,
           title: l.title,

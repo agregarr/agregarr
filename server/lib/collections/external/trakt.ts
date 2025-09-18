@@ -517,7 +517,12 @@ export class TraktCollectionSync extends BaseCollectionSync {
     stats?: FilteringStats;
   }> {
     const mappedItems: TraktCollectionItem[] = [];
-    const missingItems: MissingItem[] = [];
+    let missingItems: MissingItem[] = [];
+
+    // Calculate target library ID for both collection creation and duplicate detection
+    const targetLibraryId = Array.isArray(config.libraryId)
+      ? config.libraryId[0]
+      : config.libraryId;
 
     // Extract all TMDB IDs and prepare lookup data
     const traktLookups: {
@@ -627,15 +632,13 @@ export class TraktCollectionSync extends BaseCollectionSync {
     > = new Map();
 
     if (plexClient) {
-      // Pass target library ID to limit search scope to only the collection's target library
-      const targetLibraryId = Array.isArray(config.libraryId)
-        ? config.libraryId[0]
-        : config.libraryId;
+      // First, do library-scoped search for collection creation
       plexLookup = await findPlexItemsByTmdbIds(
         plexClient,
         traktLookups,
         targetLibraryId,
-        libraryCache // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        libraryCache, // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        false // Library-scoped search for collection creation
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {
@@ -681,6 +684,59 @@ export class TraktCollectionSync extends BaseCollectionSync {
           );
         }
       }
+    }
+
+    // Second pass: Check if "missing" items exist in other libraries to prevent duplicate downloads
+    if (missingItems.length > 0 && plexClient) {
+      logger.debug(
+        `Checking ${missingItems.length} missing items across all libraries for duplicate prevention`,
+        {
+          label: 'Trakt Collections',
+          collection: config.name,
+          targetLibrary: targetLibraryId,
+        }
+      );
+
+      const missingLookups = missingItems.map((item) => ({
+        tmdbId: item.tmdbId,
+        mediaType: item.mediaType,
+        title: item.title,
+        originalPosition: item.originalPosition,
+      }));
+
+      const globalPlexLookup = await findPlexItemsByTmdbIds(
+        plexClient,
+        missingLookups,
+        targetLibraryId,
+        libraryCache,
+        true // Global search for duplicate detection
+      );
+
+      // Filter out items that exist in other libraries
+      const trulyMissingItems = missingItems.filter((item) => {
+        const key = `${item.tmdbId}-${item.mediaType}`;
+        const foundInOtherLibrary = globalPlexLookup.has(key);
+
+        if (foundInOtherLibrary) {
+          const foundItem = globalPlexLookup.get(key);
+          if (foundItem) {
+            logger.debug(
+              `Item "${item.title}" found in library ${foundItem.libraryKey} - not marking as missing`,
+              {
+                label: 'Trakt Collections',
+                tmdbId: item.tmdbId,
+                targetLibrary: targetLibraryId,
+                foundInLibrary: foundItem.libraryKey,
+              }
+            );
+            return false; // Don't include in missing items
+          }
+        }
+        return true; // Truly missing
+      });
+
+      // Update missing items list
+      missingItems = trulyMissingItems;
     }
 
     const stats = this.createFilteringStats(

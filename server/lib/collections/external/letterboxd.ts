@@ -387,7 +387,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         plexClient,
         tmdbLookups,
         targetLibraryId,
-        libraryCache // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        libraryCache, // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        false // Library-scoped search for collection creation
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {

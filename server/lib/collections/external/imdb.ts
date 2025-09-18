@@ -582,7 +582,8 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         plexClient,
         tmdbLookups,
         targetLibraryId,
-        libraryCache // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        libraryCache, // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        false // Library-scoped search for collection creation
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {
@@ -804,9 +805,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
   /**
    * Enhanced resolve that returns both episode and show TMDb IDs for episodes
    */
-  public async resolveEpisodeAndShowTmdbIds(
-    imdbId: string
-  ): Promise<{
+  public async resolveEpisodeAndShowTmdbIds(imdbId: string): Promise<{
     episodeTmdbId?: number;
     showTmdbId?: number;
     seasonNumber?: number;

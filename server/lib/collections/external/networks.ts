@@ -413,7 +413,8 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         plexClient,
         tmdbLookups,
         targetLibraryId,
-        libraryCache
+        libraryCache,
+        false // Library-scoped search for collection creation
       );
 
       // Process items using the Plex lookup map
