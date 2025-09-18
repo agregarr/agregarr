@@ -623,6 +623,21 @@ export async function syncConfigsWithPlexCollections(
         continue;
       }
 
+      // Skip Overseerr collections - they manage their own specialized labels
+      // (AgregarrOverseerrUser${userId}, AgregarrOverseerrOwner${userId}, etc.)
+      if (config.source === 'overseerr') {
+        logger.debug(
+          `Skipping Overseerr collection "${matchingCollection.title}" - uses specialized labeling`,
+          {
+            label: 'Collection Config Sync',
+            configId: config.id,
+            configName: config.name,
+            collectionRatingKey: matchingCollection.ratingKey,
+          }
+        );
+        continue;
+      }
+
       // Generate the correct label for our config
       const correctLabel = createCollectionLabel(
         config.source as CollectionSource,
