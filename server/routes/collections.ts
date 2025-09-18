@@ -86,6 +86,7 @@ function validateExternalUrl(
       trakt: ['trakt.tv'],
       tmdb: ['www.themoviedb.org', 'themoviedb.org'],
       imdb: ['www.imdb.com', 'imdb.com'],
+      mdblist: ['mdblist.com', 'www.mdblist.com'],
       letterboxd: ['letterboxd.com', 'www.letterboxd.com'],
     };
 
@@ -128,6 +129,15 @@ function validateExternalUrl(
             isValid: false,
             error:
               'Invalid IMDb list URL format. Expected: https://www.imdb.com/list/ls123456789',
+          };
+        }
+        break;
+      case 'mdblist':
+        if (!urlObj.pathname.match(/^\/lists\/[^/]+\/[^/?]+\/?$/)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid MDBList list URL format. Expected: https://mdblist.com/lists/username/listname',
           };
         }
         break;
@@ -1627,6 +1637,74 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           return res.status(400).json({
             status: 'error',
             message: 'Could not fetch Letterboxd list title',
+          });
+        }
+        break;
+      }
+
+      case 'mdblist': {
+        const MDBListAPI = (await import('@server/api/mdblist')).default;
+        const settings = getSettings();
+
+        if (!settings.mdblist.apiKey) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'MDBList API key not configured',
+          });
+        }
+
+        const mdblistClient = new MDBListAPI(settings.mdblist.apiKey);
+
+        try {
+          // Parse URL to get username and list name
+          const parsedUrl = mdblistClient.parseListUrl(sanitizedUrl);
+          if (!parsedUrl) {
+            return res.status(400).json({
+              status: 'error',
+              message: 'Invalid MDBList URL format',
+            });
+          }
+
+          // Get list metadata to extract title
+          if (
+            parsedUrl.type === 'user' &&
+            parsedUrl.username &&
+            parsedUrl.listName
+          ) {
+            const userLists = await mdblistClient.getUserListsByUsername(
+              parsedUrl.username
+            );
+            const targetList = userLists.find(
+              (list) =>
+                list.slug === parsedUrl.listName ||
+                list.name.toLowerCase().replace(/\s+/g, '-') ===
+                  parsedUrl.listName
+            );
+            if (targetList) {
+              title = targetList.name;
+            }
+          }
+
+          // Validate list accessibility and get data with first 10 items
+          const listData = await mdblistClient.getCustomList(sanitizedUrl, {
+            limit: 10,
+          });
+
+          // Quick media type detection from first 10 items
+          const movies = listData.movies || [];
+          const shows = listData.shows || [];
+
+          if (movies.length > 0 && shows.length > 0) {
+            mediaType = 'both';
+          } else if (movies.length > 0) {
+            mediaType = 'movie';
+          } else if (shows.length > 0) {
+            mediaType = 'tv';
+          }
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Invalid MDBList list URL or list not accessible',
           });
         }
         break;

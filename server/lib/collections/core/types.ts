@@ -142,6 +142,7 @@ export type CollectionSource =
   | 'tmdb'
   | 'imdb'
   | 'letterboxd'
+  | 'mdblist'
   | 'networks';
 
 /**
@@ -303,6 +304,11 @@ export interface TraktTemplateContext extends TemplateContext {
   statType?: 'trending' | 'popular' | 'watched' | 'custom';
 }
 
+export interface MDBListTemplateContext extends TemplateContext {
+  /** MDBList-specific list type */
+  listType?: 'top' | 'user_lists' | 'custom';
+}
+
 export interface TautulliTemplateContext extends TemplateContext {
   /** Tautulli-specific stat type */
   statType?: 'plays' | 'duration' | 'users';
@@ -348,6 +354,7 @@ export interface NetworksTemplateContext extends TemplateContext {
  */
 export type SourceTemplateContext =
   | TraktTemplateContext
+  | MDBListTemplateContext
   | TautulliTemplateContext
   | OverseerrTemplateContext
   | TmdbTemplateContext
@@ -401,6 +408,17 @@ export type TraktSourceData =
         tvrage?: number;
       };
     };
+
+export interface MDBListSourceData {
+  item: {
+    id: number; // TMDB ID
+    title: string;
+    mediatype: 'movie' | 'show';
+    rank?: number;
+    release_year?: number;
+  };
+  mediaType: 'movie' | 'tv';
+}
 
 export interface TautulliSourceData {
   rating_key?: string;
@@ -484,6 +502,7 @@ export interface NetworksSourceData {
  */
 export type CollectionSourceData =
   | TraktSourceData
+  | MDBListSourceData
   | TautulliSourceData
   | OverseerrSourceData
   | TmdbSourceData

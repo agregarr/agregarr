@@ -58,12 +58,12 @@ router.get('/status', async (_req, res) => {
       const filteredCommits = commits.filter(
         (commit) => !commit.commit.message.includes('[skip ci]')
       );
-      if (filteredCommits[0].sha.substring(0, 7) !== commitTag) {
+      if (filteredCommits[0].sha !== commitTag) {
         updateAvailable = true;
       }
 
       const commitIndex = filteredCommits.findIndex(
-        (commit) => commit.sha.substring(0, 7) === commitTag
+        (commit) => commit.sha === commitTag
       );
 
       if (updateAvailable) {

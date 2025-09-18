@@ -58,6 +58,7 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   trakt: 'trakt.svg',
   tmdb: 'tmdb.svg',
   imdb: 'imdb.svg',
+  mdblist: 'mdblist.svg',
   letterboxd: 'letterboxd.svg',
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',

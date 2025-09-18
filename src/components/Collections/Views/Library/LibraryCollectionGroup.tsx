@@ -546,6 +546,13 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'mdblist':
+                        switch (subtype) {
+                          case 'custom':
+                            return 'Custom List';
+                          default:
+                            return subtype;
+                        }
                       case 'overseerr':
                         switch (subtype) {
                           case 'users':
@@ -599,6 +606,8 @@ const SortableItem = ({
                       ? 'TMDb'
                       : collection.type === 'imdb'
                       ? 'IMDb'
+                      : collection.type === 'mdblist'
+                      ? 'MDBList'
                       : collection.type === 'letterboxd'
                       ? 'Letterboxd'
                       : collection.type === 'tautulli'

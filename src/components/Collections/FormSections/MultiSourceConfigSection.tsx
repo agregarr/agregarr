@@ -212,6 +212,24 @@ const MultiSourceConfigSection = ({
             description: 'Randomly select from configured Trakt lists',
           },
         ];
+      case 'mdblist':
+        return [
+          {
+            value: 'user_lists',
+            label: 'User Lists',
+            description: 'Your personal MDBList lists',
+          },
+          {
+            value: 'top_lists',
+            label: 'Top Lists',
+            description: 'Most popular public lists on MDBList',
+          },
+          {
+            value: 'custom',
+            label: 'Custom List',
+            description: 'Import a custom MDBList by URL',
+          },
+        ];
       case 'tmdb':
         return [
           { value: 'trending_day', label: 'Trending Today' },
@@ -353,6 +371,7 @@ const MultiSourceConfigSection = ({
                 <option value="letterboxd">Letterboxd Lists</option>
                 <option value="tmdb">TMDb Lists</option>
                 <option value="imdb">IMDb Lists</option>
+                <option value="mdblist">MDBList Lists</option>
                 <option value="networks">Networks</option>
               </Field>
             </div>

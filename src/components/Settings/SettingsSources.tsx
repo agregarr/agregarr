@@ -5,6 +5,7 @@ import SensitiveInput from '@app/components/Common/SensitiveInput';
 import globalMessages from '@app/i18n/globalMessages';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
+  MDBListSettings,
   OverseerrSettings,
   TautulliSettings,
   TraktSettings,
@@ -64,6 +65,16 @@ const messages = defineMessages({
   testTraktConnection: 'Test Connection',
   traktConnectionSuccess: 'Connected to Trakt successfully!',
   traktConnectionFailure: 'Failed to connect to Trakt',
+  mdblistSettings: 'MDBList Settings',
+  mdblistSettingsDescription:
+    'Configure your MDBList API key to enable MDBList-based collections with user lists and top lists.',
+  mdblistApiKey: 'MDBList API Key',
+  toastMdblistSettingsSuccess: 'MDBList settings saved successfully!',
+  toastMdblistSettingsFailure:
+    'Something went wrong while saving MDBList settings.',
+  testMdblistConnection: 'Test Connection',
+  mdblistConnectionSuccess: 'Connected to MDBList successfully!',
+  mdblistConnectionFailure: 'Failed to connect to MDBList',
   validationHostnameRequired: 'You must provide a valid hostname or IP address',
   validationPortRequired: 'You must provide a valid port number',
   testTautulliConnection: 'Test Connection',
@@ -83,11 +94,13 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const { addToast } = useToasts();
   const [isTesting, setIsTesting] = useState(false);
   const [traktTestSuccess, setTraktTestSuccess] = useState(false);
+  const [mdblistTestSuccess, setMdblistTestSuccess] = useState(false);
   const [overseerrTestSuccess, setOverseerrTestSuccess] = useState(false);
   const [tautulliTestSuccess, setTautulliTestSuccess] = useState(false);
 
   // Store the values that were successfully tested to detect changes
   const [testedTraktValues, setTestedTraktValues] = useState<string>('');
+  const [testedMdblistValues, setTestedMdblistValues] = useState<string>('');
   const [testedOverseerrValues, setTestedOverseerrValues] =
     useState<string>('');
   const [testedTautulliValues, setTestedTautulliValues] = useState<string>('');
@@ -102,11 +115,17 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const { data: dataTrakt, mutate: revalidateTrakt } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
+  const { data: dataMdblist, mutate: revalidateMdblist } =
+    useSWR<MDBListSettings>('/api/v1/settings/mdblist');
 
   // Reset test success states when data changes (prevents gaming the system)
   useEffect(() => {
     setTraktTestSuccess(false);
   }, [dataTrakt?.apiKey]);
+
+  useEffect(() => {
+    setMdblistTestSuccess(false);
+  }, [dataMdblist?.apiKey]);
 
   useEffect(() => {
     setOverseerrTestSuccess(false);
@@ -186,6 +205,10 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
 
   const TraktSettingsSchema = Yup.object().shape({
     traktApiKey: Yup.string().nullable(),
+  });
+
+  const MdblistSettingsSchema = Yup.object().shape({
+    mdblistApiKey: Yup.string().nullable(),
   });
 
   return (
@@ -356,6 +379,177 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                           !!values.traktApiKey &&
                           (!traktTestSuccess ||
                             testedTraktValues !== (values.traktApiKey || '')))
+                      }
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(messages.saving)
+                          : intl.formatMessage(messages.save)}
+                      </span>
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            </form>
+          );
+        }}
+      </Formik>
+
+      {/* MDBList Settings */}
+      <div className="section">
+        <div className="mt-10 mb-6">
+          <h3 className="heading">
+            {intl.formatMessage(messages.mdblistSettings)}
+          </h3>
+          <p className="description">
+            {intl.formatMessage(messages.mdblistSettingsDescription)}
+          </p>
+        </div>
+      </div>
+      <Formik
+        initialValues={{
+          mdblistApiKey: dataMdblist?.apiKey,
+        }}
+        validationSchema={MdblistSettingsSchema}
+        enableReinitialize
+        onSubmit={async (values) => {
+          try {
+            await axios.post('/api/v1/settings/mdblist', {
+              apiKey: values.mdblistApiKey,
+            });
+            addToast(intl.formatMessage(messages.toastMdblistSettingsSuccess), {
+              appearance: 'success',
+              autoDismiss: true,
+            });
+          } catch (e) {
+            addToast(intl.formatMessage(messages.toastMdblistSettingsFailure), {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+          } finally {
+            revalidateMdblist();
+          }
+        }}
+      >
+        {({ handleSubmit, isSubmitting, isValid, values }) => {
+          const testMdblistConnection = async () => {
+            if (!values.mdblistApiKey) {
+              return;
+            }
+            try {
+              setIsTesting(true);
+              const response = await axios.post(
+                '/api/v1/settings/mdblist/test',
+                {
+                  apiKey: values.mdblistApiKey,
+                }
+              );
+              if (response.data.success) {
+                setMdblistTestSuccess(true);
+                setTestedMdblistValues(values.mdblistApiKey || '');
+                addToast(
+                  intl.formatMessage(messages.mdblistConnectionSuccess),
+                  {
+                    autoDismiss: true,
+                    appearance: 'success',
+                  }
+                );
+              } else {
+                setMdblistTestSuccess(false);
+                addToast(
+                  intl.formatMessage(messages.mdblistConnectionFailure),
+                  {
+                    autoDismiss: true,
+                    appearance: 'error',
+                  }
+                );
+              }
+            } catch (e) {
+              setMdblistTestSuccess(false);
+
+              // Provide specific error details to help users diagnose connection issues
+              let errorMessage = intl.formatMessage(
+                messages.mdblistConnectionFailure
+              );
+              if (e.response?.status === 401) {
+                errorMessage +=
+                  ' - Invalid API key. Check your MDBList API key.';
+              } else if (e.response?.status) {
+                errorMessage += ` (HTTP ${e.response.status})`;
+              } else if (e.code === 'ECONNREFUSED') {
+                errorMessage +=
+                  ' - Connection refused. Check network connectivity.';
+              } else if (e.code === 'ENOTFOUND') {
+                errorMessage +=
+                  ' - Unable to reach MDBList API. Check network connectivity.';
+              } else if (e.code === 'ETIMEDOUT') {
+                errorMessage +=
+                  ' - Connection timeout. Check network connectivity.';
+              } else if (e.message) {
+                errorMessage += ` - ${e.message}`;
+              }
+
+              addToast(errorMessage, {
+                autoDismiss: true,
+                appearance: 'error',
+              });
+            } finally {
+              setIsTesting(false);
+            }
+          };
+
+          return (
+            <form className="section" onSubmit={handleSubmit}>
+              <div className="form-row">
+                <label htmlFor="mdblistApiKey" className="text-label">
+                  {intl.formatMessage(messages.mdblistApiKey)}
+                  <span className="label-tip mb-2">
+                    Get your API key from
+                    <code>https://mdblist.com/preferences/</code> and generate a
+                    new API key.
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <SensitiveInput
+                      as="field"
+                      id="mdblistApiKey"
+                      name="mdblistApiKey"
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="ml-3 inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="default"
+                      type="button"
+                      disabled={!values.mdblistApiKey || isTesting}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        testMdblistConnection();
+                      }}
+                    >
+                      {isTesting
+                        ? intl.formatMessage(messages.testing)
+                        : intl.formatMessage(messages.testMdblistConnection)}
+                    </Button>
+                  </span>
+                  <span className="ml-3 inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={
+                        isSubmitting ||
+                        !isValid ||
+                        (isSetupMode &&
+                          !!values.mdblistApiKey &&
+                          (!mdblistTestSuccess ||
+                            testedMdblistValues !==
+                              (values.mdblistApiKey || '')))
                       }
                     >
                       <ArrowDownOnSquareIcon />

@@ -29,6 +29,7 @@ export interface CollectionConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'mdblist'
     | 'networks'
     | 'multi-source';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
@@ -86,6 +87,8 @@ export interface CollectionConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)
+  // MDBList custom list fields
+  readonly mdblistCustomListUrl?: string; // Custom MDBList list URL (e.g., https://mdblist.com/lists/123456 or https://mdblist.com/lists/username/list-name)
   // Networks (FlixPatrol) fields
   readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
   // Generic ordering options (applicable to all collection types)
@@ -267,6 +270,10 @@ export interface TraktSettings {
   apiKey?: string;
 }
 
+export interface MDBListSettings {
+  apiKey?: string;
+}
+
 export interface TautulliSettings {
   hostname?: string;
   port?: number;
@@ -380,6 +387,7 @@ interface AllSettings {
   overseerr: OverseerrSettings;
   serviceUser: ServiceUserSettings;
   trakt: TraktSettings;
+  mdblist: MDBListSettings;
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
   public: PublicSettings;
@@ -424,6 +432,7 @@ class Settings {
         userCreationMode: 'per-service', // Default to per-service users
       },
       trakt: {},
+      mdblist: {},
       radarr: [],
       sonarr: [],
       public: {
@@ -477,6 +486,14 @@ class Settings {
 
   set trakt(data: TraktSettings) {
     this.data.trakt = data;
+  }
+
+  get mdblist(): MDBListSettings {
+    return this.data.mdblist;
+  }
+
+  set mdblist(data: MDBListSettings) {
+    this.data.mdblist = data;
   }
 
   get overseerr(): OverseerrSettings {
@@ -1208,6 +1225,7 @@ export type MultiSourceType =
   | 'tmdb'
   | 'imdb'
   | 'letterboxd'
+  | 'mdblist'
   | 'tautulli'
   | 'overseerr'
   | 'networks';

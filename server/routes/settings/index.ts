@@ -1,3 +1,4 @@
+import MDBListAPI from '@server/api/mdblist';
 import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
@@ -470,6 +471,54 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
     return next({
       status: 500,
       message: 'Unable to connect to Trakt.',
+    });
+  }
+});
+
+settingsRoutes.get('/mdblist', (_req, res) => {
+  const settings = getSettings();
+
+  res.status(200).json(settings.mdblist);
+});
+
+settingsRoutes.post('/mdblist', async (req, res) => {
+  const settings = getSettings();
+
+  Object.assign(settings.mdblist, req.body);
+  settings.save();
+
+  return res.status(200).json(settings.mdblist);
+});
+
+settingsRoutes.post('/mdblist/test', async (req, res, next) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey) {
+      return next({
+        status: 400,
+        message: 'API key is required',
+      });
+    }
+
+    const mdblistClient = new MDBListAPI(apiKey);
+    const success = await mdblistClient.testConnection();
+
+    if (!success) {
+      throw new Error('Unable to connect to MDBList');
+    }
+
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (e) {
+    logger.error('MDBList connection test failed', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to connect to MDBList.',
     });
   }
 });

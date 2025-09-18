@@ -74,6 +74,7 @@ const CollectionFormConfigForm = ({
     tmdb?: string;
     imdb?: string;
     letterboxd?: string;
+    mdblist?: string;
   }>({});
 
   const [detectedMediaTypes, setDetectedMediaTypes] = useState<{
@@ -81,6 +82,7 @@ const CollectionFormConfigForm = ({
     tmdb?: 'movie' | 'tv' | 'both';
     imdb?: 'movie' | 'tv' | 'both';
     letterboxd?: 'movie' | 'tv' | 'both';
+    mdblist?: 'movie' | 'tv' | 'both';
   }>({});
 
   const [detectingMediaTypes, setDetectingMediaTypes] = useState<{
@@ -88,6 +90,7 @@ const CollectionFormConfigForm = ({
     tmdb?: boolean;
     imdb?: boolean;
     letterboxd?: boolean;
+    mdblist?: boolean;
   }>({});
 
   const [, setFetchingTitle] = useState<{
@@ -95,6 +98,7 @@ const CollectionFormConfigForm = ({
     tmdb?: boolean;
     imdb?: boolean;
     letterboxd?: boolean;
+    mdblist?: boolean;
   }>({});
 
   // State for confirmation - MUST be before any early returns to avoid React Hooks violation
@@ -528,6 +532,48 @@ const CollectionFormConfigForm = ({
     }
   };
 
+  const fetchMdblistTitle = async (
+    url: string,
+    setFieldValue?: (field: string, value: string) => void
+  ) => {
+    try {
+      setFetchingTitle((prev) => ({ ...prev, mdblist: true }));
+      const response = await fetch(`/api/v1/collections/fetch-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, type: 'mdblist' }),
+      });
+      const data = await response.json();
+      if (data.title) {
+        setFetchedTitles((prev) => ({ ...prev, mdblist: data.title }));
+        if (data.mediaType) {
+          setDetectedMediaTypes((prev) => ({
+            ...prev,
+            mdblist: data.mediaType,
+          }));
+        }
+
+        // Auto-select first template option when title is fetched
+        if (setFieldValue) {
+          setTimeout(() => {
+            // If media type is 'both', use template with {mediaType} placeholder for backend processing
+            if (data.mediaType === 'both') {
+              setFieldValue('template', `${data.title} - {mediaType}s`);
+              // Don't set form mediaType - let backend set it per individual library
+            } else {
+              setFieldValue('template', data.title);
+              // For specific media types, we could set it but backend will override anyway
+            }
+          }, 100); // Small delay to ensure state is updated
+        }
+      }
+    } catch (error) {
+      // Failed to fetch MDBList title - silently continue
+    } finally {
+      setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
+    }
+  };
+
   // Template presets will be handled within the Formik form
   // Auto-adjustments will be handled via onChange handlers
 
@@ -538,12 +584,14 @@ const CollectionFormConfigForm = ({
       tmdb?: string;
       imdb?: string;
       letterboxd?: string;
+      mdblist?: string;
     },
     detectedMediaTypes?: {
       trakt?: 'movie' | 'tv' | 'both';
       tmdb?: 'movie' | 'tv' | 'both';
       imdb?: 'movie' | 'tv' | 'both';
       letterboxd?: 'movie' | 'tv' | 'both';
+      mdblist?: 'movie' | 'tv' | 'both';
     }
   ): TemplatePreset[] => {
     if (!values?.subtype) return [{ label: 'Custom', value: 'custom' }];
@@ -563,7 +611,7 @@ const CollectionFormConfigForm = ({
     // Helper function to generate preset options for custom URLs
     const getCustomUrlPresets = (
       title: string,
-      serviceType: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+      serviceType: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist'
     ): TemplatePreset[] => {
       if (!title) {
         return [
@@ -1156,6 +1204,48 @@ const CollectionFormConfigForm = ({
             },
             { label: 'Custom', value: 'custom' },
           ];
+      }
+    }
+
+    // MDBList collection presets
+    if (values.type === 'mdblist') {
+      switch (values.subtype) {
+        case 'user_lists':
+          return [
+            {
+              label: 'My {mediaType}s List',
+              value: 'My {mediaType}s List',
+            },
+            {
+              label: "{username}'s {mediaType}s",
+              value: "{username}'s {mediaType}s",
+            },
+            {
+              label: 'Personal {mediaType}s Collection',
+              value: 'Personal {mediaType}s Collection',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'top_lists':
+          return [
+            {
+              label: 'Top {mediaType}s',
+              value: 'Top {mediaType}s',
+            },
+            {
+              label: '⭐ Popular {mediaType}s Lists',
+              value: '⭐ Popular {mediaType}s Lists',
+            },
+            {
+              label: 'Most Liked {mediaType}s',
+              value: 'Most Liked {mediaType}s',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'custom':
+          return getCustomUrlPresets(fetchedTitles?.mdblist || '', 'mdblist');
+        default:
+          return [{ label: 'Custom', value: 'custom' }];
       }
     }
 
@@ -1930,6 +2020,7 @@ const CollectionFormConfigForm = ({
                         fetchTmdbTitle={fetchTmdbTitle}
                         fetchImdbTitle={fetchImdbTitle}
                         fetchLetterboxdTitle={fetchLetterboxdTitle}
+                        fetchMdblistTitle={fetchMdblistTitle}
                       />
                     )}
 
@@ -1969,7 +2060,10 @@ const CollectionFormConfigForm = ({
                                 (fetchedTitles.imdb || config?.name)) ||
                               (values.type === 'letterboxd' &&
                                 values.subtype === 'custom' &&
-                                (fetchedTitles.letterboxd || config?.name)))
+                                (fetchedTitles.letterboxd || config?.name)) ||
+                              (values.type === 'mdblist' &&
+                                values.subtype === 'custom' &&
+                                (fetchedTitles.mdblist || config?.name)))
                         )}
                         detectedMediaType={(() => {
                           // Return detected media type for custom lists

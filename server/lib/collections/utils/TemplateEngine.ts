@@ -281,6 +281,20 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for MDBList collections
+   */
+  public createMDBListContext(
+    mediaType: 'movie' | 'tv',
+    listType: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getMDBListSubtypeLabel(listType),
+    };
+  }
+
+  /**
    * Create context for TMDb collections
    */
   public createTmdbContext(
@@ -554,6 +568,26 @@ export class TemplateEngine {
 
       default:
         return subtype
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for MDBList list type
+   */
+  private getMDBListSubtypeLabel(listType: string): string {
+    switch (listType) {
+      case 'top':
+      case 'top_lists':
+        return 'Top Lists';
+      case 'user_lists':
+        return 'User Lists';
+      case 'custom':
+        return 'Custom List';
+
+      default:
+        return listType
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (l) => l.toUpperCase());
     }

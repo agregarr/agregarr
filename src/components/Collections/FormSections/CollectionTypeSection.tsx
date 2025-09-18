@@ -51,6 +51,7 @@ const CollectionTypeSection = ({
     { value: 'letterboxd', label: 'Letterboxd Lists' },
     { value: 'tmdb', label: 'TMDb Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
+    { value: 'mdblist', label: 'MDBList Lists' },
     { value: 'networks', label: 'Networks' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
@@ -124,6 +125,14 @@ const CollectionTypeSection = ({
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured Trakt lists',
+          },
+        ];
+      case 'mdblist':
+        return [
+          {
+            value: 'custom',
+            label: 'Custom List',
+            description: 'Import a custom MDBList by URL',
           },
         ];
       case 'tmdb':

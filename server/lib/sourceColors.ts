@@ -26,6 +26,11 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#1a1f24',
     textColor: '#ffffff',
   },
+  mdblist: {
+    primaryColor: '#4283c9',
+    secondaryColor: '#1a2e42',
+    textColor: '#ffffff',
+  },
   tautulli: {
     primaryColor: '#cc7b19',
     secondaryColor: '#1f1a15',

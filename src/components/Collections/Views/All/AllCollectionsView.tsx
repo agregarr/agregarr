@@ -868,6 +868,13 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'mdblist':
+                                switch (subtype) {
+                                  case 'custom':
+                                    return 'Custom List';
+                                  default:
+                                    return subtype;
+                                }
                               case 'overseerr':
                                 switch (subtype) {
                                   case 'users':
@@ -924,6 +931,8 @@ const AllCollectionsView: React.FC = () => {
                               ? 'TMDb'
                               : config.type === 'imdb'
                               ? 'IMDb'
+                              : config.type === 'mdblist'
+                              ? 'MDBList'
                               : config.type === 'letterboxd'
                               ? 'Letterboxd'
                               : config.type === 'tautulli'

@@ -423,6 +423,10 @@ export class CollectionSyncService {
         const { TraktCollectionSync } = await import('../external/trakt');
         return new TraktCollectionSync();
       }
+      case 'mdblist': {
+        const { MDBListCollectionSync } = await import('../external/mdblist');
+        return new MDBListCollectionSync();
+      }
       case 'tmdb': {
         const { TmdbCollectionSync } = await import('../external/tmdb');
         return new TmdbCollectionSync();

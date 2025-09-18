@@ -131,6 +131,7 @@ export interface CollectionFormConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'mdblist'
     | 'networks'
     | 'multi-source';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
@@ -285,6 +286,7 @@ export interface CollectionConfigCreateRequest {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'mdblist'
     | 'networks'
     | 'multi-source';
   readonly subtype?: string;

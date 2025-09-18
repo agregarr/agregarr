@@ -1079,7 +1079,7 @@ export function filterItemsByPosition<T extends { originalPosition: number }>(
 export async function processMissingItemsWithMode(
   missingItems: MissingItem[],
   config: CollectionConfig,
-  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'networks'
+  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist' | 'networks'
 ): Promise<AutoRequestResult> {
   // Apply position filtering first
   const filteredItems = filterItemsByPosition(

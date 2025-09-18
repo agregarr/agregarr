@@ -22,6 +22,7 @@ import {
 } from '@server/lib/collections/core/CollectionUtilities';
 import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
 import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
+import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
 import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
 import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
 import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
@@ -389,6 +390,9 @@ export class MultiSourceOrchestrator {
       switch (sourceType) {
         case 'trakt':
           this.syncServices.set(sourceType, new TraktCollectionSync());
+          break;
+        case 'mdblist':
+          this.syncServices.set(sourceType, new MDBListCollectionSync());
           break;
         case 'tmdb':
           this.syncServices.set(sourceType, new TmdbCollectionSync());

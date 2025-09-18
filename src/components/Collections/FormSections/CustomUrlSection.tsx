@@ -8,6 +8,7 @@ const messages = defineMessages({
   customTmdbCollectionUrl: 'Custom TMDb Collection URL',
   customImdbListUrl: 'Custom IMDb List URL',
   customLetterboxdListUrl: 'Custom Letterboxd List URL',
+  customMdblistListUrl: 'Custom MDBList List URL',
   fetchTitle: 'Validate',
   fetching: 'Fetching...',
   fetchedTitle: 'Fetched Title',
@@ -39,6 +40,10 @@ interface CustomUrlSectionProps {
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => Promise<void>;
+  fetchMdblistTitle?: (
+    url: string,
+    setFieldValue?: (field: string, value: string) => void
+  ) => Promise<void>;
 }
 
 const CustomUrlSection = ({
@@ -48,17 +53,19 @@ const CustomUrlSection = ({
   fetchTmdbTitle,
   fetchImdbTitle,
   fetchLetterboxdTitle,
+  fetchMdblistTitle,
 }: CustomUrlSectionProps) => {
   const intl = useIntl();
   const [isLoadingTitle, setIsLoadingTitle] = useState({
     trakt: false,
+    mdblist: false,
     tmdb: false,
     imdb: false,
     letterboxd: false,
   });
 
   const handleFetchTitle = async (
-    type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+    type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist'
   ) => {
     const urlField = `${type}CustomListUrl`;
     const url = String((values as Record<string, unknown>)[urlField] || '');
@@ -76,6 +83,8 @@ const CustomUrlSection = ({
         await fetchImdbTitle(url, setFieldValue);
       } else if (type === 'letterboxd' && fetchLetterboxdTitle) {
         await fetchLetterboxdTitle(url, setFieldValue);
+      } else if (type === 'mdblist' && fetchMdblistTitle) {
+        await fetchMdblistTitle(url, setFieldValue);
       }
     } finally {
       setIsLoadingTitle((prev) => ({ ...prev, [type]: false }));
@@ -257,6 +266,50 @@ const CustomUrlSection = ({
         />
         <p className="mt-1 text-xs text-gray-400">
           Example: https://letterboxd.com/username/list/listname/
+        </p>
+      </div>
+    );
+  }
+
+  // Custom MDBList List URL
+  if (values.type === 'mdblist' && values.subtype === 'custom') {
+    return (
+      <div>
+        <label
+          htmlFor="mdblistCustomListUrl"
+          className="mb-2 block text-sm text-gray-300"
+        >
+          {intl.formatMessage(messages.customMdblistListUrl)}{' '}
+          <span className="text-red-500">*</span>
+        </label>
+        <div className="flex gap-2">
+          <Field
+            type="url"
+            id="mdblistCustomListUrl"
+            name="mdblistCustomListUrl"
+            placeholder="https://mdblist.com/lists/username/list-name"
+            className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+          {fetchMdblistTitle && (
+            <button
+              type="button"
+              onClick={() => handleFetchTitle('mdblist')}
+              disabled={!values.mdblistCustomListUrl || isLoadingTitle.mdblist}
+              className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoadingTitle.mdblist
+                ? intl.formatMessage(messages.fetching)
+                : intl.formatMessage(messages.fetchTitle)}
+            </button>
+          )}
+        </div>
+        <ErrorMessage
+          name="mdblistCustomListUrl"
+          component="div"
+          className="mt-1 text-sm text-red-500"
+        />
+        <p className="mt-1 text-xs text-gray-400">
+          Example: https://mdblist.com/lists/username/list-name
         </p>
       </div>
     );
