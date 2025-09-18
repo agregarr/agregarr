@@ -241,7 +241,7 @@ const TemplateSection = ({
       )}
 
       {/* Template preview */}
-      <div className="mt-3 rounded-md bg-stone-800 p-3">
+      <div className="mt-3 rounded-md border border-gray-600 bg-stone-800 p-3">
         <h5 className="mb-2 text-sm font-medium text-gray-200">Preview:</h5>
         <div className="text-sm text-gray-300">
           {(() => {

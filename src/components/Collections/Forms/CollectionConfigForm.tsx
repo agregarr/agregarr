@@ -43,7 +43,7 @@ const messages = defineMessages({
   visibility: 'Visibility',
   maxItems: 'Max Items',
   minimumPlays: 'Minimum Play Count',
-  customPoster: 'Custom Posters',
+  customPoster: 'Posters',
   autoRequestSettings: 'Auto-Request Settings',
   timeRestrictions: 'Time Restrictions',
   createCollection: 'Create Collection',
@@ -2252,8 +2252,8 @@ const CollectionFormConfigForm = ({
                                 </div>
                               )}
                               <div className="label-tip">
-                                Maximum number of items to include in collection
-                                (1-9999)
+                                Fetch the first X items from the source - e.g.
+                                IMDb Top 250 should be set to 250 (1-9999)
                               </div>
                             </div>
                           </div>

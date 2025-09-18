@@ -303,9 +303,7 @@ const LibrarySelectionSection = ({
 
       {/* Helper text */}
       <p className="mt-2 text-xs text-gray-400">
-        Select the libraries where this collection should appear. Choose
-        &quot;All Libraries&quot; to automatically include all libraries of the
-        appropriate type.
+        Select the libraries where collections should be created
       </p>
 
       {/* Note: Warning for "both" media type removed - no longer supported */}

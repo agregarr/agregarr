@@ -8,7 +8,7 @@ import PosterSelectionPopover from './PosterSelectionPopover';
 
 const messages = defineMessages({
   customPoster: 'Custom Poster',
-  customPosters: 'Custom Posters',
+  customPosters: 'Posters',
   addPoster: 'Add Poster',
   addPosters: 'Add Posters',
   uploading: 'Uploading poster...',
@@ -30,8 +30,7 @@ const messages = defineMessages({
     'Automatically generate posters using the collection name during sync. Uncheck to manually upload custom posters instead.',
   selectTemplate: 'Select Template',
   defaultTemplate: 'Default Template',
-  templateHelp:
-    'Choose a template for auto-generated posters. Leave blank to use the default template.',
+  templateHelp: 'Choose a template for auto-generated posters.',
 });
 
 interface Library {
@@ -203,17 +202,16 @@ const PosterUploadSection = ({
     <>
       {/* Auto-poster toggle for all collections */}
       <div className="mb-6">
-        <div className="form-input-field">
-          <label className="checkbox-container">
-            <input
-              type="checkbox"
-              checked={isAutoPosterEnabled}
-              onChange={(e) => handleAutoPosterChange(e.target.checked)}
-            />
-            <span className="checkmark" />
-            <span className="text-label">
-              {intl.formatMessage(messages.autoPoster)}
-            </span>
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="autoPoster"
+            checked={isAutoPosterEnabled}
+            onChange={(e) => handleAutoPosterChange(e.target.checked)}
+            className="form-checkbox"
+          />
+          <label htmlFor="autoPoster" className="ml-2 text-sm text-gray-300">
+            {intl.formatMessage(messages.autoPoster)}
           </label>
         </div>
         <div className="label-tip">
