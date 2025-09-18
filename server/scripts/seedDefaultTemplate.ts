@@ -23,16 +23,6 @@ async function seedDefaultTemplate() {
 
     const templateRepository = getRepository(PosterTemplate);
 
-    // Check if default template already exists
-    const existingTemplate = await templateRepository.findOne({
-      where: { isDefault: true },
-    });
-
-    if (existingTemplate) {
-      logger.info('Default template already exists, skipping seed');
-      return;
-    }
-
     // Create the default template data based on current architecture
     const defaultTemplateData: PosterTemplateData = {
       width: 500,
@@ -48,7 +38,7 @@ async function seedDefaultTemplate() {
           id: 'collection-title',
           type: 'collection-title',
           x: 32,
-          y: 117,
+          y: 111,
           width: 440,
           height: 100,
           fontSize: 32,
@@ -83,6 +73,23 @@ async function seedDefaultTemplate() {
         cornerRadius: 4,
       },
     };
+
+    // Check if default template already exists
+    const existingTemplate = await templateRepository.findOne({
+      where: { isDefault: true },
+    });
+
+    if (existingTemplate) {
+      logger.info('Updating existing default template');
+      // Update the existing template with new data
+      existingTemplate.setTemplateData(defaultTemplateData);
+      await templateRepository.save(existingTemplate);
+      logger.info('Successfully updated default poster template', {
+        templateId: existingTemplate.id,
+        name: existingTemplate.name,
+      });
+      return;
+    }
 
     const defaultTemplate = new PosterTemplate({
       name: 'Default Agregarr Template',
