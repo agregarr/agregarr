@@ -355,17 +355,17 @@ export class TraktCollectionSync extends BaseCollectionSync {
             config.maxItems
           );
 
-          // Smart promotion: Convert episodes/seasons to their parent shows, and include full movies/shows
+          // Handle episodes, seasons, movies and shows
           customListData = customListData
             .map((item): TraktListResponse => {
-              // If it's an episode or season, promote it to the parent show
+              // If it's an episode, preserve episode info and convert to show
               if (item.episode && item.episode.show) {
                 return {
                   ...item,
                   type: 'show' as const,
                   show: item.episode.show,
                   movie: undefined, // Clear any movie data
-                  episode: undefined, // Clear episode data to avoid confusion
+                  // Keep episode data for later extraction
                 };
               }
               if (item.season && item.season.show) {
@@ -441,17 +441,17 @@ export class TraktCollectionSync extends BaseCollectionSync {
             config.maxItems
           );
 
-          // Smart promotion: Convert episodes/seasons to their parent shows, and include full movies/shows
+          // Handle episodes, seasons, movies and shows
           randomListData = randomListData
             .map((item): TraktListResponse => {
-              // If it's an episode or season, promote it to the parent show
+              // If it's an episode, preserve episode info and convert to show
               if (item.episode && item.episode.show) {
                 return {
                   ...item,
                   type: 'show' as const,
                   show: item.episode.show,
                   movie: undefined, // Clear any movie data
-                  episode: undefined, // Clear episode data to avoid confusion
+                  // Keep episode data for later extraction
                 };
               }
 
@@ -522,9 +522,15 @@ export class TraktCollectionSync extends BaseCollectionSync {
     // Extract all TMDB IDs and prepare lookup data
     const traktLookups: {
       tmdbId: number;
+      showTmdbId?: number; // For episodes: the parent show's TMDB ID
       mediaType: 'movie' | 'tv';
       title: string;
       originalPosition: number;
+      episodeInfo?: {
+        season: number;
+        episode: number;
+        episodeTitle?: string;
+      };
     }[] = [];
 
     for (let index = 0; index < sourceData.length; index++) {
@@ -533,15 +539,32 @@ export class TraktCollectionSync extends BaseCollectionSync {
         // Handle both formats: wrapped ({movie: {...}, show: {...}}) and raw ({title: ..., ids: ...})
         let mediaItem;
         let itemMediaType: 'movie' | 'tv';
+        let episodeInfo:
+          | { season: number; episode: number; episodeTitle?: string }
+          | undefined;
 
         if ('movie' in item && item.movie) {
           // Wrapped format with movie
           mediaItem = item.movie;
           itemMediaType = 'movie';
         } else if ('show' in item && item.show) {
-          // Wrapped format with show
-          mediaItem = item.show;
-          itemMediaType = 'tv';
+          // Wrapped format with show (could be from episode promotion)
+
+          // Check if this was originally an episode
+          if (item.episode) {
+            // For episodes, use the episode data and TMDB ID, not the show's
+            mediaItem = item.episode;
+            itemMediaType = 'tv';
+            episodeInfo = {
+              season: item.episode.season,
+              episode: item.episode.number,
+              episodeTitle: item.episode.title,
+            };
+          } else {
+            // For actual shows, use the show data
+            mediaItem = item.show;
+            itemMediaType = 'tv';
+          }
         } else if ('ids' in item && item.ids) {
           // Raw format - item has direct properties
           mediaItem = item;
@@ -556,11 +579,20 @@ export class TraktCollectionSync extends BaseCollectionSync {
         }
 
         const tmdbId = mediaItem.ids.tmdb;
+
+        // For episodes, also capture the show's TMDB ID for two-pass lookup
+        let showTmdbId: number | undefined;
+        if (episodeInfo && 'show' in item && item.show?.ids?.tmdb) {
+          showTmdbId = item.show.ids.tmdb;
+        }
+
         traktLookups.push({
           tmdbId,
+          showTmdbId,
           mediaType: itemMediaType,
           title: mediaItem.title,
           originalPosition: index + 1, // 1-based position
+          episodeInfo,
         });
       } catch (error) {
         logger.warn(`Failed to process Trakt item: ${error}`, {
@@ -613,27 +645,41 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
     // Process items using the Plex lookup map
     for (const lookup of traktLookups) {
+      // Use simple TMDB+mediaType key since episodes have unique TMDB IDs
       const key = `${lookup.tmdbId}-${lookup.mediaType}`;
+
       const plexItem = plexLookup.get(key);
 
       if (plexItem) {
-        mappedItems.push({
+        const mappedItem = {
           ratingKey: plexItem.ratingKey,
-          title: lookup.title,
+          title: plexItem.title, // Use Plex title (episode title) instead of lookup title (show title)
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
           metadata: {
             libraryKey: plexItem.libraryKey,
+            showTmdbId: lookup.showTmdbId, // Preserve show TMDb ID for episodes
           },
-        });
+          episodeInfo: lookup.episodeInfo,
+        };
+
+        mappedItems.push(mappedItem);
       } else {
         // Item exists in Trakt but not in Plex
-        missingItems.push({
-          tmdbId: lookup.tmdbId,
-          mediaType: lookup.mediaType,
-          title: lookup.title,
-          originalPosition: lookup.originalPosition,
-        });
+        // Skip episodes from missing items (as per plan)
+        if (!lookup.episodeInfo) {
+          missingItems.push({
+            tmdbId: lookup.tmdbId,
+            mediaType: lookup.mediaType,
+            title: lookup.title,
+            originalPosition: lookup.originalPosition,
+          });
+        } else {
+          logger.debug(
+            `Skipping episode ${lookup.title} S${lookup.episodeInfo.season}E${lookup.episodeInfo.episode} from missing items`,
+            { label: 'Trakt Collections' }
+          );
+        }
       }
     }
 

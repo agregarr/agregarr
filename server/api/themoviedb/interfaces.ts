@@ -81,9 +81,23 @@ export interface TmdbUpcomingMoviesResponse extends TmdbPaginatedResponse {
   results: TmdbMovieResult[];
 }
 
+export interface TmdbEpisodeResult {
+  id: number;
+  name: string;
+  air_date: string;
+  episode_number: number;
+  season_number: number;
+  show_id: number;
+  still_path?: string;
+  vote_average: number;
+  vote_count: number;
+  overview: string;
+}
+
 export interface TmdbExternalIdResponse {
   movie_results: TmdbMovieResult[];
   tv_results: TmdbTvResult[];
+  tv_episode_results: TmdbEpisodeResult[];
   person_results: TmdbPersonResult[];
 }
 

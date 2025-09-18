@@ -26,6 +26,16 @@ export interface CollectionItemWithPoster {
   tmdbId?: number;
   year?: number;
   posterUrl?: string;
+  episodeInfo?: {
+    season?: number;
+    episode?: number;
+    episodeTitle?: string;
+  };
+  metadata?: {
+    libraryKey?: string;
+    showTmdbId?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface ColorScheme {
@@ -123,12 +133,63 @@ async function fetchTMDbPosterUrls(
             logger.debug(`No poster_path found for movie ${item.title}`);
           }
         } else if (item.type === 'tv') {
-          const tvDetails = await tmdb.getTvShow({ tvId: item.tmdbId });
-          if (tvDetails.poster_path) {
-            posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-            logger.debug(`Found TV poster for ${item.title}: ${posterUrl}`);
+          // Check if this is an episode with season info and show TMDb ID
+          if (item.episodeInfo?.season && item.metadata?.showTmdbId) {
+            try {
+              // Try to get season poster first
+              const seasonDetails = await tmdb.getTvSeason({
+                tvId: item.metadata.showTmdbId,
+                seasonNumber: item.episodeInfo.season,
+              });
+              if (seasonDetails.poster_path) {
+                posterUrl = `https://image.tmdb.org/t/p/w300${seasonDetails.poster_path}`;
+                logger.debug(
+                  `Found season ${item.episodeInfo.season} poster for episode ${item.title}: ${posterUrl}`
+                );
+              } else {
+                // Fallback to show poster if season has no poster
+                const tvDetails = await tmdb.getTvShow({
+                  tvId: item.metadata.showTmdbId,
+                });
+                if (tvDetails.poster_path) {
+                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
+                  logger.debug(
+                    `Using show poster as fallback for episode ${item.title}: ${posterUrl}`
+                  );
+                }
+              }
+            } catch (error) {
+              logger.warn(
+                `Failed to fetch season poster for episode ${item.title}, trying show poster:`,
+                error
+              );
+              // Fallback to show poster if season fetch fails
+              try {
+                const tvDetails = await tmdb.getTvShow({
+                  tvId: item.metadata.showTmdbId,
+                });
+                if (tvDetails.poster_path) {
+                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
+                  logger.debug(
+                    `Using show poster as error fallback for episode ${item.title}: ${posterUrl}`
+                  );
+                }
+              } catch (showError) {
+                logger.warn(
+                  `Failed to fetch show poster fallback for episode ${item.title}:`,
+                  showError
+                );
+              }
+            }
           } else {
-            logger.debug(`No poster_path found for TV show ${item.title}`);
+            // This is a regular TV show (not an episode)
+            const tvDetails = await tmdb.getTvShow({ tvId: item.tmdbId });
+            if (tvDetails.poster_path) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
+              logger.debug(`Found TV poster for ${item.title}: ${posterUrl}`);
+            } else {
+              logger.debug(`No poster_path found for TV show ${item.title}`);
+            }
           }
         }
       } catch (error) {

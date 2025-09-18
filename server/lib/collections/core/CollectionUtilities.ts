@@ -794,6 +794,9 @@ export function validateCollectionItems(items: unknown[]): {
       type: itemObj.type as 'movie' | 'tv',
       tmdbId: typeof itemObj.tmdbId === 'number' ? itemObj.tmdbId : undefined,
       metadata: itemObj.metadata as Record<string, unknown> | undefined,
+      episodeInfo: itemObj.episodeInfo as
+        | CollectionItem['episodeInfo']
+        | undefined,
     });
   }
 
@@ -1381,7 +1384,17 @@ export async function prefetchAllLibraryItems(
  */
 export async function findPlexItemsByTmdbIds(
   plexClient: PlexAPI,
-  tmdbLookups: { tmdbId: number; mediaType: 'movie' | 'tv'; title: string }[],
+  tmdbLookups: {
+    tmdbId: number;
+    showTmdbId?: number; // For episodes: the parent show's TMDB ID
+    mediaType: 'movie' | 'tv';
+    title: string;
+    episodeInfo?: {
+      season?: number;
+      episode?: number;
+      episodeTitle?: string;
+    };
+  }[],
   targetLibraryId?: string,
   libraryCache?: LibraryItemsCache
 ): Promise<
@@ -1549,14 +1562,94 @@ export async function findPlexItemsByTmdbIds(
             const tmdbId = extractTmdbIdFromGuids(item.Guid);
             if (tmdbId) {
               foundTmdbIds.push(tmdbId);
-              const lookup = tvLookups.find((l) => l.tmdbId === tmdbId);
+
+              // First try regular show lookup (for shows without episodes)
+              const lookup = tvLookups.find(
+                (l) => l.tmdbId === tmdbId && !l.episodeInfo
+              );
+
               if (lookup) {
+                // Regular show found - add it directly
                 const key = `${tmdbId}-tv`;
+
                 results.set(key, {
                   ratingKey: item.ratingKey,
                   title: item.title,
                   libraryKey: library.key,
                 });
+              } else {
+                // Check if this show has episodes we need to find
+                const episodeLookups = tvLookups.filter(
+                  (l) => l.showTmdbId === tmdbId && l.episodeInfo
+                );
+
+                if (episodeLookups.length > 0) {
+                  // This show has episodes we need - get all episodes and match by TMDB ID
+                  try {
+                    const allEpisodes = await plexClient.getAllEpisodesFromShow(
+                      item.ratingKey
+                    );
+
+                    // Early termination: stop searching once we find all target episodes
+                    const targetCount = episodeLookups.length;
+                    let foundCount = 0;
+
+                    // Search through episodes with early termination
+                    for (
+                      let i = 0;
+                      i < allEpisodes.length && foundCount < targetCount;
+                      i++
+                    ) {
+                      const episode = allEpisodes[i];
+
+                      // Check if this episode matches any of our target TMDB IDs
+                      for (const episodeLookup of episodeLookups) {
+                        // Skip if we already found this episode
+                        const key = `${episodeLookup.tmdbId}-tv`;
+                        if (results.has(key)) continue;
+
+                        // Find episode by TMDB ID in the episode GUIDs
+                        if (
+                          episode.Guid &&
+                          episode.Guid.some(
+                            (guid) =>
+                              guid.id === `tmdb://${episodeLookup.tmdbId}`
+                          )
+                        ) {
+                          results.set(key, {
+                            ratingKey: episode.ratingKey,
+                            title: episode.title,
+                            libraryKey: library.key,
+                          });
+
+                          foundCount++;
+                          break; // Found this episode, move to next episode
+                        }
+                      }
+                    }
+
+                    // Log any missing episodes
+                    for (const episodeLookup of episodeLookups) {
+                      const key = `${episodeLookup.tmdbId}-tv`;
+                      if (!results.has(key)) {
+                        logger.debug(
+                          `Episode with TMDB ID ${episodeLookup.tmdbId} not found in show ${item.title}`
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    logger.warn(
+                      `Failed to get episodes for show ${item.title}`,
+                      {
+                        label: 'Plex Search (Episode)',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      }
+                    );
+                  }
+                }
               }
             }
           }

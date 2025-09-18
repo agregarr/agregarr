@@ -222,14 +222,35 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         // Process batch concurrently
         const batchPromises = batch.map(async (item) => {
           try {
-            // Try to resolve TMDb ID from IMDb ID
-            const tmdbId = await this.resolveTmdbIdFromImdbId(item.imdbId);
+            // Use enhanced resolution to get both episode and show TMDb IDs
+            const { episodeTmdbId, showTmdbId, seasonNumber, episodeNumber } =
+              await this.resolveEpisodeAndShowTmdbIds(item.imdbId);
+
+            if (episodeTmdbId && showTmdbId) {
+              logger.debug(
+                `Found episode TMDb ID ${episodeTmdbId} and show TMDb ID ${showTmdbId} for ${item.title}`
+              );
+            }
+
+            // Update episodeInfo with TMDB data if available
+            let updatedEpisodeInfo = item.episodeInfo;
+            if (showTmdbId && (seasonNumber || episodeNumber)) {
+              updatedEpisodeInfo = {
+                ...item.episodeInfo,
+                season: seasonNumber,
+                episode: episodeNumber,
+              };
+            }
+
             return {
               imdbId: item.imdbId,
               title: item.title,
               year: item.year,
               type: item.type,
-              tmdbId,
+              tmdbId: episodeTmdbId,
+              isEpisode: item.isEpisode,
+              episodeInfo: updatedEpisodeInfo,
+              showTmdbId, // Store show TMDb ID for episodes
             };
           } catch (error) {
             logger.warn(
@@ -249,6 +270,9 @@ export class ImdbCollectionSync extends BaseCollectionSync {
               title: item.title,
               year: item.year,
               type: item.type,
+              isEpisode: item.isEpisode,
+              episodeInfo: item.episodeInfo,
+              showTmdbId: undefined, // No show TMDb ID if episode lookup failed
             };
           }
         });
@@ -310,26 +334,53 @@ export class ImdbCollectionSync extends BaseCollectionSync {
                 if (imdbIdMatch) {
                   // Determine type based on @type or genre
                   let type: 'movie' | 'tv' = 'movie';
-                  if (
+                  const finalTitle = movieData.name || movieData.alternateName;
+                  let year: number | undefined;
+                  let isEpisode = false;
+                  let episodeInfo:
+                    | {
+                        episodeTitle?: string;
+                        season?: number;
+                        episode?: number;
+                      }
+                    | undefined;
+
+                  if (movieData['@type'] === 'TVEpisode') {
+                    type = 'tv';
+                    isEpisode = true;
+
+                    // Store episode info
+                    episodeInfo = {
+                      episodeTitle: movieData.name || movieData.alternateName,
+                    };
+
+                    // Try to extract season/episode numbers if available
+                    if (movieData.episodeNumber) {
+                      episodeInfo.episode = parseInt(movieData.episodeNumber);
+                    }
+                    if (movieData.seasonNumber) {
+                      episodeInfo.season = parseInt(movieData.seasonNumber);
+                    }
+                  } else if (
                     movieData['@type'] === 'TVSeries' ||
-                    movieData['@type'] === 'TVEpisode' ||
                     (movieData.genre &&
                       movieData.genre.toLowerCase().includes('tv'))
                   ) {
                     type = 'tv';
                   }
 
-                  // Extract year from duration or other metadata if available
-                  let year: number | undefined;
-                  if (movieData.datePublished) {
+                  // Extract year from duration or other metadata if available (for non-episodes)
+                  if (!isEpisode && movieData.datePublished) {
                     year = parseInt(movieData.datePublished.substring(0, 4));
                   }
 
                   items.push({
                     imdbId: imdbIdMatch[1],
-                    title: movieData.name || movieData.alternateName,
+                    title: finalTitle,
                     year,
                     type,
+                    isEpisode,
+                    episodeInfo,
                   });
                 }
               }
@@ -467,9 +518,15 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     // Extract all TMDB IDs and prepare lookup data
     const tmdbLookups: {
       tmdbId: number;
+      showTmdbId?: number; // For episodes: the parent show's TMDB ID
       mediaType: 'movie' | 'tv';
       title: string;
       originalPosition: number;
+      episodeInfo?: {
+        season?: number;
+        episode?: number;
+        episodeTitle?: string;
+      };
     }[] = [];
     const skippedItems: string[] = [];
 
@@ -482,9 +539,11 @@ export class ImdbCollectionSync extends BaseCollectionSync {
       }
       tmdbLookups.push({
         tmdbId: item.tmdbId,
+        showTmdbId: item.showTmdbId, // For episodes: parent show's TMDb ID
         mediaType: item.type,
         title: item.title,
         originalPosition: index + 1, // 1-based position
+        episodeInfo: item.episodeInfo,
       });
     }
 
@@ -544,16 +603,25 @@ export class ImdbCollectionSync extends BaseCollectionSync {
           tmdbId: lookup.tmdbId,
           metadata: {
             libraryKey: plexItem.libraryKey,
+            showTmdbId: lookup.showTmdbId, // Preserve show TMDb ID for episodes
           },
+          episodeInfo: lookup.episodeInfo,
         });
       } else {
         // Item exists in IMDb but not in Plex
-        missingItems.push({
-          tmdbId: lookup.tmdbId,
-          mediaType: lookup.mediaType,
-          title: lookup.title,
-          originalPosition: lookup.originalPosition,
-        });
+        // Skip episodes from missing items (as per plan)
+        if (!lookup.episodeInfo) {
+          missingItems.push({
+            tmdbId: lookup.tmdbId,
+            mediaType: lookup.mediaType,
+            title: lookup.title,
+            originalPosition: lookup.originalPosition,
+          });
+        } else {
+          logger.debug(`Skipping episode ${lookup.title} from missing items`, {
+            label: 'IMDb Collections',
+          });
+        }
       }
     }
 
@@ -734,17 +802,52 @@ export class ImdbCollectionSync extends BaseCollectionSync {
   }
 
   /**
-   * Resolve TMDb ID from IMDb ID using TMDb's external ID lookup
+   * Enhanced resolve that returns both episode and show TMDb IDs for episodes
    */
-  public async resolveTmdbIdFromImdbId(
+  public async resolveEpisodeAndShowTmdbIds(
     imdbId: string
-  ): Promise<number | undefined> {
+  ): Promise<{
+    episodeTmdbId?: number;
+    showTmdbId?: number;
+    seasonNumber?: number;
+    episodeNumber?: number;
+  }> {
     try {
-      const result = await this.tmdbClient.getMediaByImdbId({ imdbId });
-      return result?.id;
+      // Use the external ID lookup directly to get all result types
+      const extResponse = await this.tmdbClient.getByExternalId({
+        externalId: imdbId,
+        type: 'imdb',
+      });
+
+      // Check if it's an episode first
+      if (
+        extResponse.tv_episode_results &&
+        extResponse.tv_episode_results.length > 0
+      ) {
+        const episode = extResponse.tv_episode_results[0];
+        return {
+          episodeTmdbId: episode.id,
+          showTmdbId: episode.show_id,
+          seasonNumber: episode.season_number,
+          episodeNumber: episode.episode_number,
+        };
+      }
+
+      // Fallback to regular movie/show handling
+      if (extResponse.movie_results && extResponse.movie_results.length > 0) {
+        return { episodeTmdbId: extResponse.movie_results[0].id };
+      }
+
+      if (extResponse.tv_results && extResponse.tv_results.length > 0) {
+        return { episodeTmdbId: extResponse.tv_results[0].id };
+      }
+
+      return {};
     } catch (error) {
-      // TMDb resolution failed
-      return undefined;
+      logger.warn(`Failed to resolve TMDb IDs for IMDb ID ${imdbId}:`, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return {};
     }
   }
 }

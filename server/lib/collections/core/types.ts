@@ -25,6 +25,12 @@ export interface CollectionItem {
   tmdbId?: number;
   /** Optional additional metadata */
   metadata?: Record<string, unknown>;
+  /** Episode-specific information (for individual episodes in collections) */
+  episodeInfo?: {
+    season?: number;
+    episode?: number;
+    episodeTitle?: string;
+  };
 }
 
 /**
@@ -366,6 +372,21 @@ export type TraktSourceData =
         title: string;
         year?: number;
       };
+      episode?: {
+        season: number;
+        number: number;
+        title: string;
+        ids: {
+          trakt: number;
+          tvdb: number;
+          tmdb: number;
+        };
+        show?: {
+          ids: { tmdb: number };
+          title: string;
+          year?: number;
+        };
+      };
     }
   // Raw format from media-specific endpoints
   | {
@@ -428,6 +449,13 @@ export interface ImdbSourceData {
   year?: number;
   type: 'movie' | 'tv';
   tmdbId?: number;
+  showTmdbId?: number; // For episodes: the parent show's TMDB ID
+  isEpisode?: boolean; // True if this is an individual episode
+  episodeInfo?: {
+    episodeTitle?: string;
+    season?: number;
+    episode?: number;
+  };
 }
 
 export interface LetterboxdSourceData {

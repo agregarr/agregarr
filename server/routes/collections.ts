@@ -1,7 +1,8 @@
-import PlexAPI, { type PlexLibraryItem } from '@server/api/plexapi';
+import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
+import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import collectionsSync from '@server/lib/collectionsSync';
@@ -1179,34 +1180,8 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
           (extendedConfig.sources?.length ?? 0) > 0;
         const allCollections = await plexClient.getAllCollections();
 
-        // Get library data for content matching (like global sync does)
-        const libraries = await plexClient.getLibraries();
-        const libraryCache: Record<string, PlexLibraryItem[]> = {};
-
-        // Pre-fetch library content for the target library
-        if (collectionConfig.libraryId && libraries) {
-          const targetLibrary = libraries.find(
-            (lib) => lib.key === collectionConfig.libraryId
-          );
-          if (targetLibrary) {
-            try {
-              const libraryContent = await plexClient.getLibraryContents(
-                collectionConfig.libraryId
-              );
-              libraryCache[collectionConfig.libraryId] =
-                libraryContent?.items || [];
-            } catch (error) {
-              logger.warn(
-                `Failed to fetch library content for library ${collectionConfig.libraryId}`,
-                {
-                  label: 'Individual Collection Sync',
-                  error: error instanceof Error ? error.message : String(error),
-                }
-              );
-              libraryCache[collectionConfig.libraryId] = [];
-            }
-          }
-        }
+        // Use global library cache for content matching (with proper pagination)
+        const libraryCache = await libraryCacheService.getCache(plexClient);
 
         let result;
         if (isMultiSource) {

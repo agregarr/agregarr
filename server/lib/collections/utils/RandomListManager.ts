@@ -1601,9 +1601,9 @@ https://letterboxd.com/cinema/list/criterion-collection/
         for (const item of targetItems) {
           try {
             // Resolve TMDB ID from IMDb ID (same logic as actual sync)
-            const tmdbId = await imdbValidator.resolveTmdbIdFromImdbId(
-              item.imdbId
-            );
+            const { episodeTmdbId } =
+              await imdbValidator.resolveEpisodeAndShowTmdbIds(item.imdbId);
+            const tmdbId = episodeTmdbId;
 
             // Check if this TMDB ID exists in user's Plex library
             if (tmdbId && userTmdbIds.has(tmdbId)) {

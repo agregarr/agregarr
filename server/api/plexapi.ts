@@ -53,7 +53,7 @@ export interface PlexMetadata {
   ratingKey: string;
   parentRatingKey?: string;
   guid: string;
-  type: 'movie' | 'show' | 'season';
+  type: 'movie' | 'show' | 'season' | 'episode';
   title: string;
   Guid: {
     id: string;
@@ -319,16 +319,21 @@ class PlexAPI {
     id: string,
     { offset = 0, size = 50 }: { offset?: number; size?: number } = {}
   ): Promise<{ totalSize: number; items: PlexLibraryItem[] }> {
+    const uri = `/library/sections/${id}/all?includeGuids=1`;
+    const headers = {
+      'X-Plex-Container-Start': `${offset}`,
+      'X-Plex-Container-Size': `${size}`,
+    };
+
     const response = await this.plexClient.query<PlexLibraryResponse>({
-      uri: `/library/sections/${id}/all?includeGuids=1`,
-      extraHeaders: {
-        'X-Plex-Container-Start': `${offset}`,
-        'X-Plex-Container-Size': `${size}`,
-      },
+      uri,
+      extraHeaders: headers,
     });
 
+    const totalSize = response.MediaContainer.totalSize;
+
     return {
-      totalSize: response.MediaContainer.totalSize,
+      totalSize,
       items: response.MediaContainer.Metadata ?? [],
     };
   }
@@ -352,6 +357,119 @@ class PlexAPI {
     );
 
     return response.MediaContainer.Metadata;
+  }
+
+  /**
+   * Find a specific episode within a show
+   * @param showRatingKey - The show's Plex rating key
+   * @param seasonNumber - Season number (1-based)
+   * @param episodeNumber - Episode number within the season (1-based)
+   * @returns The episode's PlexLibraryItem or null if not found
+   */
+  public async getShowEpisode(
+    showRatingKey: string,
+    seasonNumber: number,
+    episodeNumber: number
+  ): Promise<PlexLibraryItem | null> {
+    try {
+      // First get all seasons for the show
+      const seasons = await this.getChildrenMetadata(showRatingKey);
+
+      // Find the specific season
+      const season = seasons.find(
+        (s) => s.type === 'season' && s.index === seasonNumber
+      );
+
+      if (!season) {
+        logger.debug(
+          `Season ${seasonNumber} not found for show ${showRatingKey}`,
+          {
+            label: 'PlexAPI',
+          }
+        );
+        return null;
+      }
+
+      // Get all episodes for this season
+      const episodes = await this.getChildrenMetadata(season.ratingKey);
+
+      // Find the specific episode
+      const episode = episodes.find(
+        (e) => e.type === 'episode' && e.index === episodeNumber
+      );
+
+      if (!episode) {
+        logger.debug(
+          `Episode ${episodeNumber} not found in season ${seasonNumber} for show ${showRatingKey}`,
+          { label: 'PlexAPI' }
+        );
+        return null;
+      }
+
+      return episode as PlexLibraryItem;
+    } catch (error) {
+      logger.error(
+        `Failed to find episode S${seasonNumber}E${episodeNumber} for show ${showRatingKey}`,
+        {
+          label: 'PlexAPI',
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get all episodes from a show
+   * @param showRatingKey - The show's Plex rating key
+   * @returns Array of all episodes in the show with their metadata including TMDB GUIDs
+   */
+  public async getAllEpisodesFromShow(
+    showRatingKey: string
+  ): Promise<PlexLibraryItem[]> {
+    try {
+      // Get all seasons for the show
+      const seasons = await this.getChildrenMetadata(showRatingKey);
+      const allEpisodes: PlexLibraryItem[] = [];
+
+      // Get episodes from each season
+      for (const season of seasons) {
+        if (season.type === 'season') {
+          const episodes = await this.getChildrenMetadata(season.ratingKey);
+
+          // For each episode, get full metadata including GUIDs
+          for (const episode of episodes.filter(
+            (ep) => ep.type === 'episode'
+          )) {
+            try {
+              // Get full episode metadata with GUIDs
+              const fullEpisodeMetadata = await this.getMetadata(
+                episode.ratingKey
+              );
+              allEpisodes.push(fullEpisodeMetadata as PlexLibraryItem);
+            } catch (error) {
+              logger.warn(
+                `Failed to get full metadata for episode ${episode.ratingKey}`,
+                {
+                  label: 'Plex API',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              // Fallback to basic episode metadata (without GUIDs)
+              allEpisodes.push(episode as PlexLibraryItem);
+            }
+          }
+        }
+      }
+
+      return allEpisodes;
+    } catch (error) {
+      logger.warn(`Failed to get episodes for show ${showRatingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
   }
 
   public async getRecentlyAdded(
@@ -638,11 +756,18 @@ class PlexAPI {
   public async createEmptyCollection(
     title: string,
     libraryKey: string,
-    mediaType: 'movie' | 'tv' = 'movie'
+    mediaType: 'movie' | 'tv' = 'movie',
+    containsEpisodes = false
   ): Promise<string | null> {
     try {
-      // Use correct type parameter: 1 for movies, 2 for TV shows
-      const typeParam = mediaType === 'tv' ? 2 : 1;
+      // Use correct type parameter: 1 for movies, 2 for TV shows, 4 for episodes
+      let typeParam: number;
+      if (containsEpisodes) {
+        typeParam = 4; // Episode collections
+      } else {
+        typeParam = mediaType === 'tv' ? 2 : 1; // TV show or movie collections
+      }
+
       const createUrl = `/library/collections?type=${typeParam}&title=${encodeURIComponent(
         title
       )}&smart=0&sectionId=${libraryKey}`;
@@ -693,13 +818,43 @@ class PlexAPI {
 
     const machineId = getSettings().plex.machineId;
 
+    // Check if any items are episodes by querying their metadata
+    let hasEpisodes = false;
+    if (items.length <= 5) {
+      // Only check first few items for performance
+      try {
+        const itemChecks = await Promise.all(
+          items.slice(0, 3).map(async (item) => {
+            try {
+              const response = await this.plexClient.query(
+                `/library/metadata/${item.ratingKey}`
+              );
+              const metadata = response.MediaContainer?.Metadata?.[0];
+              return metadata?.type === 'episode';
+            } catch {
+              return false;
+            }
+          })
+        );
+        hasEpisodes = itemChecks.some((isEpisode) => isEpisode);
+      } catch {
+        // If we can't check, assume no episodes
+        hasEpisodes = false;
+      }
+    }
+
     try {
       // Use bulk addition with comma-separated rating keys
       const ratingKeys = items.map((item) => item.ratingKey).join(',');
       const uriParam = `server://${machineId}/com.plexapp.plugins.library/library/metadata/${ratingKeys}`;
-      const addUrl = `/library/collections/${collectionRatingKey}/items?uri=${encodeURIComponent(
+      let addUrl = `/library/collections/${collectionRatingKey}/items?uri=${encodeURIComponent(
         uriParam
       )}`;
+
+      // Add type=4 parameter for episode collections
+      if (hasEpisodes) {
+        addUrl += '&type=4';
+      }
 
       await this.safePutQuery(addUrl);
     } catch (error) {
@@ -715,9 +870,14 @@ class PlexAPI {
       for (const item of items) {
         try {
           const uriParam = `server://${machineId}/com.plexapp.plugins.library/library/metadata/${item.ratingKey}`;
-          const addUrl = `/library/collections/${collectionRatingKey}/items?uri=${encodeURIComponent(
+          let addUrl = `/library/collections/${collectionRatingKey}/items?uri=${encodeURIComponent(
             uriParam
           )}`;
+
+          // Add type=4 parameter for episode collections (reuse the hasEpisodes check from above)
+          if (hasEpisodes) {
+            addUrl += '&type=4';
+          }
 
           await this.safePutQuery(addUrl);
         } catch (itemError) {
@@ -1628,13 +1788,21 @@ class PlexAPI {
     const uri = `server://${machineId}/com.plexapp.plugins.library/library/metadata/${itemsToActuallyAdd.join(
       ','
     )}`;
+    const addUrl = `/library/collections/${collectionRatingKey}/items?uri=${encodeURIComponent(
+      uri
+    )}`;
+
+    // Check if we're adding episodes - if so, we might need special handling
+    const hasEpisodes = itemTypes.some((item) => item.type === 'episode');
 
     try {
-      await this.safePutQuery(
-        `/library/collections/${collectionRatingKey}/items?uri=${encodeURIComponent(
-          uri
-        )}`
-      );
+      if (hasEpisodes) {
+        // For episodes, try adding the type=4 parameter
+        const episodeAddUrl = `${addUrl}&type=4`;
+        await this.safePutQuery(episodeAddUrl);
+      } else {
+        await this.safePutQuery(addUrl);
+      }
       successful = itemsToActuallyAdd.length;
     } catch (error) {
       failed = itemsToActuallyAdd.length;

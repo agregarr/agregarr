@@ -767,6 +767,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       return { created: 0, updated: 0, itemCount: 0 };
     }
 
+    // Check if any items are episodes to determine collection type
+    const containsEpisodes = libraryFilteredItems.some(
+      (item) => item.episodeInfo
+    );
+
     // Check for existing collection
     const existingCollection = await this.findExistingCollection(
       plexClient,
@@ -789,10 +794,12 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     } else {
       // CREATE PATH: New collection
       // Always use simple empty collection creation (more predictable)
+
       const newCollectionRatingKey = await plexClient.createEmptyCollection(
         collectionName,
         libraryKey,
-        mediaType
+        mediaType,
+        containsEpisodes
       );
 
       if (!newCollectionRatingKey) {
@@ -1741,6 +1748,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           type: item.type,
           tmdbId: item.tmdbId,
           year: item.year,
+          episodeInfo: item.episodeInfo,
+          metadata: item.metadata,
         }));
       }
 
