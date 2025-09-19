@@ -48,3 +48,34 @@ jobs:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_TOKEN }}
         run: npx semantic-release
+
+  discord:
+    name: Send Discord Notification
+    needs: semantic-release
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Get Build Job Status
+        uses: technote-space/workflow-conclusion-action@v3
+      - name: Combine Job Status
+        id: status
+        run: |
+          failures=(neutral, skipped, timed_out, action_required)
+          if [[ ${array[@]} =~ $WORKFLOW_CONCLUSION ]]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+          else
+            echo "status=$WORKFLOW_CONCLUSION" >> $GITHUB_OUTPUT
+          fi
+      - name: Post Status to Discord
+        if: steps.status.outputs.status == 'success'
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_LATEST }}
+          content: "@everyone"
+          title: "🚀 Agregarr Release"
+          description: |
+            [View Release Notes](${{ github.server_url }}/${{ github.repository }}/releases)
+          color: 0x00ff00
+          username: "Agregarr Bot"
+          url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          nofail: true
