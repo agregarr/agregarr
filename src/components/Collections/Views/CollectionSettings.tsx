@@ -908,8 +908,8 @@ const CollectionSettings = ({
       };
     }
 
-    setEditingConfig(configToEdit);
-    setShowConfigForm(true);
+    setEditingHubConfig(configToEdit as PlexHubConfig);
+    setShowHubForm(true);
   };
 
   const editPreExistingConfig = (config: PreExistingCollectionConfig) => {
@@ -964,9 +964,9 @@ const CollectionSettings = ({
       };
     }
 
-    // Cast to CollectionFormConfig since we've created form-compatible structure
-    setEditingConfig(configToEdit as CollectionFormConfig);
-    setShowConfigForm(true);
+    // Set as pre-existing collection for proper form handling
+    setEditingPreExistingConfig(configToEdit as PreExistingCollectionConfig);
+    setShowPreExistingForm(true);
   };
 
   const saveHubConfig = async (
