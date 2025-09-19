@@ -311,11 +311,6 @@ export function findCollectionByConfigId(
 
   // First, try to match by rating key (fastest)
   if (ratingKey && allCollections.some((c) => c.ratingKey === ratingKey)) {
-    logger.debug(`Collection found by ratingKey: ${configId}`, {
-      label: 'Collection Matching',
-      configId,
-      ratingKey,
-    });
     return true;
   }
 
@@ -327,39 +322,8 @@ export function findCollectionByConfigId(
       // Handle both string and PlexLabel types
       const labelText = typeof label === 'string' ? label : label.tag;
       const parsedConfigId = parseConfigIdFromLabel(labelText);
-      const matches = parsedConfigId === configId;
-
-      if (matches) {
-        logger.debug(`Collection found by label: ${configId}`, {
-          label: 'Collection Matching',
-          configId,
-          ratingKey,
-          matchingLabel: labelText,
-          collectionRatingKey: collection.ratingKey,
-        });
-      }
-
-      return matches;
+      return parsedConfigId === configId;
     });
-
-    // Debug: Log all labels for collections that might match by name
-    if (!hasMatchingLabel && collection.labels.length > 0) {
-      const hasAgregarrLabels = collection.labels.some((label) => {
-        const labelText = typeof label === 'string' ? label : label.tag;
-        return labelText.toLowerCase().startsWith('agregarr');
-      });
-
-      if (hasAgregarrLabels) {
-        logger.debug(`Collection with Agregarr labels but no config match`, {
-          label: 'Collection Matching Debug',
-          configId,
-          collectionRatingKey: collection.ratingKey,
-          collectionLabels: collection.labels.map((l) =>
-            typeof l === 'string' ? l : l.tag
-          ),
-        });
-      }
-    }
 
     return hasMatchingLabel;
   });
@@ -417,39 +381,10 @@ export function findCollectionByConfigId(
 
     // Only proceed if it has Agregarr labels (safety check to avoid matching unrelated collections)
     if (hasAgregarrLabels) {
-      logger.debug(`Collection found by name match: ${configId}`, {
-        label: 'Collection Matching',
-        configId,
-        configName,
-        collectionTitle: matchingCollection.title,
-        collectionRatingKey: matchingCollection.ratingKey,
-      });
       return true;
     } else {
-      logger.debug(
-        `Name match found but collection lacks Agregarr labels - skipping for safety: ${configName}`,
-        {
-          label: 'Collection Matching',
-          configId,
-          configName,
-          collectionTitle: matchingCollection.title,
-          collectionRatingKey: matchingCollection.ratingKey,
-        }
-      );
       return false;
     }
-  }
-
-  if (!foundByLabel) {
-    logger.debug(`Collection not found: ${configId}`, {
-      label: 'Collection Matching',
-      configId,
-      ratingKey,
-      totalCollections: allCollections.length,
-      collectionsWithLabels: allCollections.filter(
-        (c) => c.labels && c.labels.length > 0
-      ).length,
-    });
   }
 
   return foundByLabel;
@@ -491,6 +426,12 @@ export async function syncConfigsWithPlexCollections(
     }
   );
 
+  // Track sync operations for summary logging
+  let foundByLabel = 0;
+  let foundByName = 0;
+  let labelsReplaced = 0;
+  let overseerrSkipped = 0;
+
   for (const config of collectionConfigs) {
     try {
       // Always check and sync labels even if rating key exists - ensures labels are always correct
@@ -519,16 +460,7 @@ export async function syncConfigsWithPlexCollections(
 
           if (hasMatchingLabel) {
             matchingCollection = collection;
-            logger.debug(
-              `Config sync found collection by label: ${config.id}`,
-              {
-                label: 'Collection Config Sync',
-                configId: config.id,
-                configName: config.name,
-                collectionTitle: collection.title,
-                collectionRatingKey: collection.ratingKey,
-              }
-            );
+            foundByLabel++;
             break;
           }
         }
@@ -566,13 +498,7 @@ export async function syncConfigsWithPlexCollections(
 
         if (matchingCollections.length === 1) {
           matchingCollection = matchingCollections[0];
-          logger.debug(`Config sync found collection by name: ${config.id}`, {
-            label: 'Collection Config Sync',
-            configId: config.id,
-            configName: config.name,
-            collectionTitle: matchingCollection.title,
-            collectionRatingKey: matchingCollection.ratingKey,
-          });
+          foundByName++;
         } else if (matchingCollections.length > 1) {
           logger.warn(
             `Multiple Plex collections found matching config "${config.name}" - skipping`,
@@ -623,6 +549,13 @@ export async function syncConfigsWithPlexCollections(
         continue;
       }
 
+      // Skip Overseerr collections - they manage their own specialized labels
+      // (AgregarrOverseerrUser${userId}, AgregarrOverseerrOwner${userId}, etc.)
+      if (config.source === 'overseerr') {
+        overseerrSkipped++;
+        continue;
+      }
+
       // Generate the correct label for our config
       const correctLabel = createCollectionLabel(
         config.source as CollectionSource,
@@ -636,35 +569,13 @@ export async function syncConfigsWithPlexCollections(
         correctLabel
       );
       updatedPlexLabels.push(matchingCollection.ratingKey);
-
-      // Since we now require existing Agregarr labels, we're always replacing them
-      logger.info(
-        `Replaced labels on collection "${matchingCollection.title}" with "${correctLabel}"`,
-        {
-          label: 'Collection Config Sync',
-          configId: config.id,
-          ratingKey: matchingCollection.ratingKey,
-          oldLabels: existingAgregarrLabels.map((l) =>
-            typeof l === 'string' ? l : l.tag
-          ),
-          newLabel: correctLabel,
-        }
-      );
+      labelsReplaced++;
 
       // Note: We don't update the config here since it's a copy
       // Return the sync info so the caller can update the actual settings
       syncedConfigs.push({
         configId: config.id,
         newRatingKey: matchingCollection.ratingKey,
-      });
-
-      logger.info(`Synced config "${config.name}" with Plex collection`, {
-        label: 'Collection Config Sync',
-        configId: config.id,
-        configName: config.name,
-        plexTitle: matchingCollection.title,
-        ratingKey: matchingCollection.ratingKey,
-        updatedLabel: correctLabel,
       });
     } catch (error) {
       const errorMessage =
@@ -678,12 +589,18 @@ export async function syncConfigsWithPlexCollections(
     }
   }
 
-  logger.info(`Collection sync process completed`, {
-    label: 'Collection Config Sync',
-    syncedConfigs: syncedConfigs.length,
-    updatedPlexLabels: updatedPlexLabels.length,
-    errors: errors.length,
-  });
+  logger.info(
+    `Collection sync completed: ${syncedConfigs.length} configs synced (${foundByLabel} by label, ${foundByName} by name), ${labelsReplaced} labels updated, ${overseerrSkipped} Overseerr skipped, ${errors.length} errors`,
+    {
+      label: 'Collection Config Sync',
+      syncedConfigs: syncedConfigs.length,
+      foundByLabel,
+      foundByName,
+      labelsReplaced,
+      overseerrSkipped,
+      errors: errors.length,
+    }
+  );
 
   return { syncedConfigs, updatedPlexLabels, errors };
 }
@@ -794,6 +711,9 @@ export function validateCollectionItems(items: unknown[]): {
       type: itemObj.type as 'movie' | 'tv',
       tmdbId: typeof itemObj.tmdbId === 'number' ? itemObj.tmdbId : undefined,
       metadata: itemObj.metadata as Record<string, unknown> | undefined,
+      episodeInfo: itemObj.episodeInfo as
+        | CollectionItem['episodeInfo']
+        | undefined,
     });
   }
 
@@ -1076,7 +996,7 @@ export function filterItemsByPosition<T extends { originalPosition: number }>(
 export async function processMissingItemsWithMode(
   missingItems: MissingItem[],
   config: CollectionConfig,
-  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
+  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist' | 'networks'
 ): Promise<AutoRequestResult> {
   // Apply position filtering first
   const filteredItems = filterItemsByPosition(
@@ -1376,14 +1296,26 @@ export async function prefetchAllLibraryItems(
  *
  * @param plexClient - Plex API client
  * @param tmdbLookups - Array of TMDB IDs to search for
- * @param targetLibraryId - Optional library ID to limit search scope
+ * @param targetLibraryId - Optional library ID to limit search scope (for collection creation)
  * @param libraryCache - Optional pre-fetched library items cache (RECOMMENDED)
+ * @param forDuplicateDetection - If true, searches all libraries for duplicate prevention (missing items). If false, respects targetLibraryId for collection creation.
  */
 export async function findPlexItemsByTmdbIds(
   plexClient: PlexAPI,
-  tmdbLookups: { tmdbId: number; mediaType: 'movie' | 'tv'; title: string }[],
+  tmdbLookups: {
+    tmdbId: number;
+    showTmdbId?: number; // For episodes: the parent show's TMDB ID
+    mediaType: 'movie' | 'tv';
+    title: string;
+    episodeInfo?: {
+      season?: number;
+      episode?: number;
+      episodeTitle?: string;
+    };
+  }[],
   targetLibraryId?: string,
-  libraryCache?: LibraryItemsCache
+  libraryCache?: LibraryItemsCache,
+  forDuplicateDetection = false
 ): Promise<
   Map<string, { ratingKey: string; title: string; libraryKey: string }>
 > {
@@ -1438,8 +1370,8 @@ export async function findPlexItemsByTmdbIds(
         (lib) => lib.type === 'movie' || libraryCache
       );
 
-      // If using cache and targetLibraryId is specified, filter to that library
-      if (targetLibraryId) {
+      // If targetLibraryId is specified and we're NOT doing duplicate detection, filter to target library
+      if (targetLibraryId && !forDuplicateDetection) {
         if (libraryCache) {
           movieLibraries = movieLibraries.filter(
             (lib) => lib.key === targetLibraryId
@@ -1461,6 +1393,23 @@ export async function findPlexItemsByTmdbIds(
             );
           }
         }
+        logger.debug(
+          `Library-scoped search - checking target library ${targetLibraryId} for collection creation`,
+          {
+            label: 'Plex Search (Scoped)',
+            targetLibraryId,
+            movieLibraryCount: movieLibraries.length,
+          }
+        );
+      } else if (targetLibraryId && forDuplicateDetection) {
+        logger.debug(
+          `Global library search enabled - checking all ${movieLibraries.length} movie libraries for duplicate detection`,
+          {
+            label: 'Plex Search (Global)',
+            targetLibraryId,
+            movieLibraryCount: movieLibraries.length,
+          }
+        );
       }
 
       for (const library of movieLibraries) {
@@ -1517,8 +1466,8 @@ export async function findPlexItemsByTmdbIds(
         (lib) => lib.type === 'show' || libraryCache
       );
 
-      // If using cache and targetLibraryId is specified, filter to that library
-      if (targetLibraryId) {
+      // If targetLibraryId is specified and we're NOT doing duplicate detection, filter to target library
+      if (targetLibraryId && !forDuplicateDetection) {
         if (libraryCache) {
           tvLibraries = tvLibraries.filter(
             (lib) => lib.key === targetLibraryId
@@ -1540,6 +1489,23 @@ export async function findPlexItemsByTmdbIds(
             );
           }
         }
+        logger.debug(
+          `Library-scoped search - checking target library ${targetLibraryId} for collection creation`,
+          {
+            label: 'Plex Search (Scoped)',
+            targetLibraryId,
+            tvLibraryCount: tvLibraries.length,
+          }
+        );
+      } else if (targetLibraryId && forDuplicateDetection) {
+        logger.debug(
+          `Global library search enabled - checking all ${tvLibraries.length} TV libraries for duplicate detection`,
+          {
+            label: 'Plex Search (Global)',
+            targetLibraryId,
+            tvLibraryCount: tvLibraries.length,
+          }
+        );
       }
 
       for (const library of tvLibraries) {
@@ -1575,14 +1541,94 @@ export async function findPlexItemsByTmdbIds(
             const tmdbId = extractTmdbIdFromGuids(item.Guid);
             if (tmdbId) {
               foundTmdbIds.push(tmdbId);
-              const lookup = tvLookups.find((l) => l.tmdbId === tmdbId);
+
+              // First try regular show lookup (for shows without episodes)
+              const lookup = tvLookups.find(
+                (l) => l.tmdbId === tmdbId && !l.episodeInfo
+              );
+
               if (lookup) {
+                // Regular show found - add it directly
                 const key = `${tmdbId}-tv`;
+
                 results.set(key, {
                   ratingKey: item.ratingKey,
                   title: item.title,
                   libraryKey: library.key,
                 });
+              } else {
+                // Check if this show has episodes we need to find
+                const episodeLookups = tvLookups.filter(
+                  (l) => l.showTmdbId === tmdbId && l.episodeInfo
+                );
+
+                if (episodeLookups.length > 0) {
+                  // This show has episodes we need - get all episodes and match by TMDB ID
+                  try {
+                    const allEpisodes = await plexClient.getAllEpisodesFromShow(
+                      item.ratingKey
+                    );
+
+                    // Early termination: stop searching once we find all target episodes
+                    const targetCount = episodeLookups.length;
+                    let foundCount = 0;
+
+                    // Search through episodes with early termination
+                    for (
+                      let i = 0;
+                      i < allEpisodes.length && foundCount < targetCount;
+                      i++
+                    ) {
+                      const episode = allEpisodes[i];
+
+                      // Check if this episode matches any of our target TMDB IDs
+                      for (const episodeLookup of episodeLookups) {
+                        // Skip if we already found this episode
+                        const key = `${episodeLookup.tmdbId}-tv`;
+                        if (results.has(key)) continue;
+
+                        // Find episode by TMDB ID in the episode GUIDs
+                        if (
+                          episode.Guid &&
+                          episode.Guid.some(
+                            (guid) =>
+                              guid.id === `tmdb://${episodeLookup.tmdbId}`
+                          )
+                        ) {
+                          results.set(key, {
+                            ratingKey: episode.ratingKey,
+                            title: episode.title,
+                            libraryKey: library.key,
+                          });
+
+                          foundCount++;
+                          break; // Found this episode, move to next episode
+                        }
+                      }
+                    }
+
+                    // Log any missing episodes
+                    for (const episodeLookup of episodeLookups) {
+                      const key = `${episodeLookup.tmdbId}-tv`;
+                      if (!results.has(key)) {
+                        logger.debug(
+                          `Episode with TMDB ID ${episodeLookup.tmdbId} not found in show ${item.title}`
+                        );
+                      }
+                    }
+                  } catch (error) {
+                    logger.warn(
+                      `Failed to get episodes for show ${item.title}`,
+                      {
+                        label: 'Plex Search (Episode)',
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      }
+                    );
+                  }
+                }
               }
             }
           }
@@ -1590,20 +1636,26 @@ export async function findPlexItemsByTmdbIds(
       }
     }
 
+    const searchScope = forDuplicateDetection
+      ? 'all libraries (duplicate detection)'
+      : targetLibraryId && !forDuplicateDetection
+      ? `target library ${targetLibraryId} (collection creation)`
+      : 'all libraries (no target specified)';
+
     logger.info(
-      `Plex search completed: ${results.size}/${
-        tmdbLookups.length
-      } matches found${
-        targetLibraryId ? ` (scoped to library ${targetLibraryId})` : ''
-      }`,
+      `Plex search completed: ${results.size}/${tmdbLookups.length} matches found - ${searchScope}`,
       {
-        label: 'Plex Search',
+        label: forDuplicateDetection
+          ? 'Plex Search (Global)'
+          : 'Plex Search (Scoped)',
         foundMatches: results.size,
         totalLookups: tmdbLookups.length,
         movieLookups: movieLookups.length,
         tvLookups: tvLookups.length,
-        targetLibraryId: targetLibraryId || 'all libraries',
-        availableLibraries: libraries.map((l) => ({
+        searchScope,
+        targetLibrary: targetLibraryId || 'not specified',
+        forDuplicateDetection,
+        searchedLibraries: libraries.map((l) => ({
           key: l.key,
           title: l.title,
           type: l.type,
@@ -1619,4 +1671,89 @@ export async function findPlexItemsByTmdbIds(
   }
 
   return results;
+}
+
+// Multi-source collection sync counter utilities
+
+/**
+ * Get the current sync counter for a multi-source collection
+ */
+export function getCollectionSyncCounter(configId: string): number {
+  try {
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+
+    const config = collectionConfigs.find((c) => c.id === configId);
+    if (!config) {
+      logger.warn(`Config not found for sync counter: ${configId}`, {
+        label: 'Collection Utilities',
+        configId,
+      });
+      return 0;
+    }
+
+    // Get sync counter from config (with type assertion for extended properties)
+    const extendedConfig = config as typeof config & { syncCounter?: number };
+    return extendedConfig.syncCounter || 0;
+  } catch (error) {
+    logger.error(`Failed to get sync counter for ${configId}: ${error}`, {
+      label: 'Collection Utilities',
+      configId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
+/**
+ * Increment and persist the sync counter for a multi-source collection
+ */
+export function incrementCollectionSyncCounter(configId: string): number {
+  try {
+    const settings = getSettings();
+    const collectionConfigs = settings.plex.collectionConfigs || [];
+
+    const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
+    if (configIndex < 0) {
+      logger.warn(`Config not found for sync counter increment: ${configId}`, {
+        label: 'Collection Utilities',
+        configId,
+      });
+      return 0;
+    }
+
+    const existingConfig = collectionConfigs[configIndex];
+
+    // Get current counter and increment (with type assertion for extended properties)
+    const extendedConfig = existingConfig as typeof existingConfig & {
+      syncCounter?: number;
+    };
+    const newCounter = (extendedConfig.syncCounter || 0) + 1;
+
+    // Update config with new counter
+    const updatedConfig = {
+      ...existingConfig,
+      syncCounter: newCounter,
+    };
+
+    // Save updated config
+    collectionConfigs[configIndex] = updatedConfig;
+    settings.plex.collectionConfigs = collectionConfigs;
+    settings.save();
+
+    logger.debug(`Incremented sync counter for ${configId}: ${newCounter}`, {
+      label: 'Collection Utilities',
+      configId,
+      syncCounter: newCounter,
+    });
+
+    return newCounter;
+  } catch (error) {
+    logger.error(`Failed to increment sync counter for ${configId}: ${error}`, {
+      label: 'Collection Utilities',
+      configId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
 }

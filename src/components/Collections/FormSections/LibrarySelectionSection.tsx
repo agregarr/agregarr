@@ -45,9 +45,9 @@ const LibraryCheckboxDropdown = ({
       ? newSelectedOptions.map((option) => option.value)
       : [];
 
-    // If "All Libraries" is selected, only keep that selection
+    // If "All Libraries" is selected, expand to all individual library IDs
     if (values.includes('all')) {
-      values = ['all'];
+      values = allLibraries.map((lib) => lib.key);
     }
 
     onSelectionChange(values);
@@ -61,7 +61,7 @@ const LibraryCheckboxDropdown = ({
       onChange={handleChange}
       isDisabled={disabled}
       placeholder={intl.formatMessage(messages.selectLibraries)}
-      menuPortalTarget={document.body}
+      menuPlacement="auto"
       classNamePrefix="react-select"
       closeMenuOnSelect={false}
       hideSelectedOptions={false}
@@ -69,24 +69,24 @@ const LibraryCheckboxDropdown = ({
         menuPortal: (base) => ({ ...base, zIndex: 9999 }),
         control: (base, state) => ({
           ...base,
-          backgroundColor: '#374151',
+          backgroundColor: '#44403c',
           borderColor: error
             ? '#ef4444'
             : state.isFocused
-            ? '#6366f1'
-            : '#4b5563',
+            ? '#ea580c'
+            : '#78716c',
           '&:hover': {
-            borderColor: error ? '#ef4444' : '#6366f1',
+            borderColor: error ? '#ef4444' : '#ea580c',
           },
           boxShadow: state.isFocused
             ? error
               ? '0 0 0 1px #ef4444'
-              : '0 0 0 1px #6366f1'
+              : '0 0 0 1px #ea580c'
             : 'none',
         }),
         menu: (base) => ({
           ...base,
-          backgroundColor: '#374151',
+          backgroundColor: '#44403c',
           border: '1px solid #4b5563',
         }),
         option: (base, state) => {
@@ -119,7 +119,7 @@ const LibraryCheckboxDropdown = ({
         },
         multiValue: (base) => ({
           ...base,
-          backgroundColor: '#4b5563',
+          backgroundColor: '#57534e',
           color: 'white',
         }),
         multiValueLabel: (base) => ({
@@ -128,7 +128,7 @@ const LibraryCheckboxDropdown = ({
         }),
         multiValueRemove: (base) => ({
           ...base,
-          color: '#9ca3af',
+          color: '#a8a29e',
           '&:hover': {
             backgroundColor: '#ef4444',
             color: 'white',
@@ -217,10 +217,10 @@ const LibrarySelectionSection = ({
     // Enhanced form - read-only display
     return (
       <div>
-        <label className="mb-2 block text-sm font-medium text-gray-300">
+        <label className="mb-2 block text-sm text-gray-300">
           {intl.formatMessage(messages.librarySelection)}
         </label>
-        <div className="rounded-md border border-gray-600 bg-gray-700 p-3">
+        <div className="rounded-md border border-stone-500 bg-stone-800 p-3">
           <div className="text-sm text-gray-300">
             {values.libraryIds && Array.isArray(values.libraryIds) ? (
               values.libraryIds.includes('all') ? (
@@ -259,7 +259,7 @@ const LibrarySelectionSection = ({
   // Regular form - editable
   return (
     <div>
-      <label className="mb-2 block text-sm font-medium text-gray-300">
+      <label className="mb-2 block text-sm text-gray-300">
         {intl.formatMessage(messages.librarySelection)}{' '}
         <span className="text-red-500">*</span>
       </label>
@@ -303,9 +303,7 @@ const LibrarySelectionSection = ({
 
       {/* Helper text */}
       <p className="mt-2 text-xs text-gray-400">
-        Select the libraries where this collection should appear. Choose
-        &quot;All Libraries&quot; to automatically include all libraries of the
-        appropriate type.
+        Select the libraries where collections should be created
       </p>
 
       {/* Note: Warning for "both" media type removed - no longer supported */}

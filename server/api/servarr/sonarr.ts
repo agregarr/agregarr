@@ -191,9 +191,26 @@ class SonarrAPI extends ServarrBase<{
     try {
       const series = await this.getSeriesByTvdbId(options.tvdbid);
 
-      // If the series already exists, we will simply just update it
-      if (series.id) {
-        series.monitored = options.monitored ?? series.monitored;
+      // Check if all requested seasons are already monitored and have episodes
+      if (
+        series.id &&
+        this.areRequestedSeasonsAlreadyAvailable(series, options.seasons)
+      ) {
+        logger.info(
+          'Series already exists and requested seasons are available. Skipping add and returning success',
+          {
+            label: 'Sonarr',
+            seriesId: series.id,
+            seriesTitle: series.title,
+            requestedSeasons: options.seasons,
+          }
+        );
+        return series;
+      }
+
+      // Series exists in Sonarr but is not monitored and has no episodes
+      if (series.id && !series.monitored) {
+        series.monitored = options.monitored ?? true;
         series.tags = options.tags
           ? Array.from(new Set([...series.tags, ...options.tags]))
           : series.tags;
@@ -205,7 +222,7 @@ class SonarrAPI extends ServarrBase<{
         );
 
         if (newSeriesResponse.data.id) {
-          logger.info('Updated existing series in Sonarr.', {
+          logger.info('Updated existing unmonitored series in Sonarr.', {
             label: 'Sonarr',
             seriesId: newSeriesResponse.data.id,
             seriesTitle: newSeriesResponse.data.title,
@@ -227,6 +244,19 @@ class SonarrAPI extends ServarrBase<{
           });
           throw new Error('Failed to update series in Sonarr');
         }
+      }
+
+      // Series exists and is already monitored - skip adding
+      if (series.id) {
+        logger.info(
+          'Series is already monitored in Sonarr. Skipping add and returning success',
+          {
+            label: 'Sonarr',
+            seriesId: series.id,
+            seriesTitle: series.title,
+          }
+        );
+        return series;
       }
 
       const createdSeriesResponse = await this.axios.post<SonarrSeries>(
@@ -336,6 +366,46 @@ class SonarrAPI extends ServarrBase<{
       throw new Error(`[Sonarr] Failed to retrieve exclusions: ${e.message}`);
     }
   };
+
+  /**
+   * Check if the requested seasons are already monitored and have episodes
+   */
+  private areRequestedSeasonsAlreadyAvailable(
+    series: SonarrSeries,
+    requestedSeasons: number[]
+  ): boolean {
+    if (!series.seasons || requestedSeasons.length === 0) {
+      return false;
+    }
+
+    // Check each requested season
+    for (const requestedSeason of requestedSeasons) {
+      const existingSeason = series.seasons.find(
+        (season) => season.seasonNumber === requestedSeason
+      );
+
+      // If season doesn't exist, not available
+      if (!existingSeason) {
+        return false;
+      }
+
+      // If season is not monitored, not available
+      if (!existingSeason.monitored) {
+        return false;
+      }
+
+      // If season has no episodes downloaded, not available
+      if (
+        !existingSeason.statistics ||
+        existingSeason.statistics.episodeFileCount === 0
+      ) {
+        return false;
+      }
+    }
+
+    // All requested seasons are monitored and have episodes
+    return true;
+  }
 
   private buildSeasonList(
     seasons: number[],

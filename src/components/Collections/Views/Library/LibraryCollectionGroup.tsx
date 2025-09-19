@@ -42,8 +42,11 @@ import type {
   PlexHubConfig,
   PreExistingCollectionConfig,
 } from '@server/lib/settings';
-import React, { useMemo, useState } from 'react';
+import axios from 'axios';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
+import useSWR from 'swr';
 
 // Frontend collection promotion utilities
 function isLibraryPromoted(
@@ -131,6 +134,8 @@ interface SortableItemProps {
   setBadgeClickCount: (value: number | ((prev: number) => number)) => void;
   checkForUnlockSequence: () => void;
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
+  onIndividualSync?: (collectionId: string) => Promise<void>;
+  isSyncing?: boolean;
 }
 
 const SortableItem = ({
@@ -146,6 +151,8 @@ const SortableItem = ({
   setBadgeClickCount,
   checkForUnlockSequence,
   activeTab,
+  onIndividualSync,
+  isSyncing,
 }: SortableItemProps) => {
   const isHub = configType === 'hub';
   const isPreExisting = configType === 'preExisting';
@@ -418,7 +425,11 @@ const SortableItem = ({
         <div className="flex-1">
           <div className="mb-2 flex items-center">
             <h5 className="text-base font-medium text-white">
-              {config.name || 'Unnamed Collection'}
+              {config.name === 'DYNAMIC_RANDOM_TITLE' ? (
+                <em>Title will be updated on Collection Sync</em>
+              ) : (
+                config.name || 'Unnamed Collection'
+              )}
             </h5>
             {/* Greyed out indicator for Recommended tab - inline with title */}
             {isGreyedInRecommended && (
@@ -535,6 +546,13 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'mdblist':
+                        switch (subtype) {
+                          case 'custom':
+                            return 'Custom List';
+                          default:
+                            return subtype;
+                        }
                       case 'overseerr':
                         switch (subtype) {
                           case 'users':
@@ -562,6 +580,20 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'networks':
+                        // Format platform names like "netflix_top_10" -> "Netflix"
+                        // and "neon-tv" -> "Neon TV"
+                        return subtype
+                          .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
+                          .split('-') // Split on dashes
+                          .map((word) => {
+                            // Special case for TV to maintain proper capitalization
+                            if (word.toLowerCase() === 'tv') {
+                              return 'TV';
+                            }
+                            return word.charAt(0).toUpperCase() + word.slice(1);
+                          })
+                          .join(' ');
                       default:
                         return subtype;
                     }
@@ -574,12 +606,16 @@ const SortableItem = ({
                       ? 'TMDb'
                       : collection.type === 'imdb'
                       ? 'IMDb'
+                      : collection.type === 'mdblist'
+                      ? 'MDBList'
                       : collection.type === 'letterboxd'
                       ? 'Letterboxd'
                       : collection.type === 'tautulli'
                       ? 'Tautulli'
                       : collection.type === 'overseerr'
                       ? 'Overseerr'
+                      : collection.type === 'networks'
+                      ? 'Networks'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(
@@ -664,10 +700,32 @@ const SortableItem = ({
         {/* Sync Status - Three-state system */}
         <div className="flex w-12 justify-center">
           {config.needsSync ? (
-            <ArrowPathIcon
-              className="h-4 w-4 text-red-400"
-              title="Needs Sync - Collection has been modified and needs to be synced to Plex"
-            />
+            isCollection && onIndividualSync ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onIndividualSync(config.id);
+                }}
+                disabled={isSyncing}
+                className="group -m-1 rounded p-1 transition-colors hover:bg-gray-700/50"
+                title={
+                  isSyncing ? 'Syncing...' : 'Click to sync this collection now'
+                }
+              >
+                <ArrowPathIcon
+                  className={`h-4 w-4 transition-colors ${
+                    isSyncing
+                      ? 'animate-spin text-yellow-400'
+                      : 'text-red-400 group-hover:text-red-300'
+                  }`}
+                />
+              </button>
+            ) : (
+              <ArrowPathIcon
+                className="h-4 w-4 text-red-400"
+                title="Needs Sync - Collection has been modified and needs to be synced to Plex"
+              />
+            )
           ) : config.isActive ? (
             <CheckIcon
               className="h-4 w-4 text-gray-400"
@@ -820,6 +878,69 @@ const LibraryCollectionGroup = ({
   void badgeClickCount;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+  const { addToast } = useToasts();
+
+  // SWR revalidation hook for refreshing collection data after sync
+  const { mutate: revalidateCollections } = useSWR('/api/v1/collections');
+
+  // Monitor collections to detect when individual syncs complete
+  useEffect(() => {
+    // Check if any collections that were syncing are now no longer needsSync
+    syncingIds.forEach((syncingId) => {
+      const collection = collections.find((c) => c.id === syncingId);
+      if (collection && !collection.needsSync) {
+        // Collection sync completed
+        setSyncingIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(syncingId);
+          return newSet;
+        });
+      }
+    });
+  }, [collections, syncingIds]);
+
+  // Handle individual collection sync
+  const handleIndividualSync = async (collectionId: string) => {
+    // Add to syncing set
+    setSyncingIds((prev) => new Set(prev).add(collectionId));
+
+    try {
+      await axios.post(`/api/v1/collections/${collectionId}/sync`);
+
+      addToast('Collection sync started successfully', {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+
+      // Start polling for status updates
+      const pollInterval = setInterval(() => {
+        revalidateCollections();
+      }, 3000);
+
+      // Clear polling after 5 minutes max
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setSyncingIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(collectionId);
+          return newSet;
+        });
+      }, 300000);
+    } catch (error) {
+      addToast(
+        `Failed to start collection sync: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
+    } finally {
+      // Let useEffect handle cleanup when sync actually completes
+    }
+  };
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -1057,6 +1178,8 @@ const LibraryCollectionGroup = ({
                       setBadgeClickCount={setBadgeClickCount}
                       checkForUnlockSequence={checkForUnlockSequence}
                       activeTab={activeTab}
+                      onIndividualSync={handleIndividualSync}
+                      isSyncing={syncingIds.has(config.id)}
                     />
                   </React.Fragment>
                 );

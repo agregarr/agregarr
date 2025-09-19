@@ -131,7 +131,9 @@ export interface CollectionFormConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
-    | 'hub';
+    | 'mdblist'
+    | 'networks'
+    | 'multi-source';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -161,13 +163,18 @@ export interface CollectionFormConfig {
   readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
-  // Allow dynamic properties for library-specific sort orders and  fields
+  readonly customSyncSchedule?: CustomSyncSchedule; // Individual sync timing
+  readonly isMultiSource?: boolean; // Enable multi-source mode
+  readonly sources?: readonly CollectionSourceConfig[]; // Array of source configurations
+  readonly combineMode?: MultiSourceCombineMode; // How to combine multiple sources
+
   readonly [key: string]:
     | string
     | number
     | boolean
     | string[]
     | Record<string, string>
+    | null
     | {
         usersHome: boolean;
         serverOwnerHome: boolean;
@@ -195,6 +202,9 @@ export interface CollectionFormConfig {
           readonly sunday: boolean;
         };
       }
+    | readonly CollectionSourceConfig[] // Multi-source configs
+    | { enabled: boolean; intervalHours: number } // Custom sync schedule
+    | MultiSourceCombineMode // Combine mode
     | undefined;
   readonly customDays?: number; // Number of days for Tautulli collections
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
@@ -208,6 +218,7 @@ export interface CollectionFormConfig {
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
+  readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDb custom list fields
@@ -216,6 +227,8 @@ export interface CollectionFormConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL
+  // Networks fields
+  readonly networksCountry?: string; // Selected country for Networks collections
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -232,6 +245,7 @@ export interface CollectionFormConfig {
   // Poster settings
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
+  readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -272,7 +286,9 @@ export interface CollectionConfigCreateRequest {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
-    | 'hub';
+    | 'mdblist'
+    | 'networks'
+    | 'multi-source';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -297,10 +313,12 @@ export interface CollectionConfigCreateRequest {
   readonly autoApproveMovies?: boolean;
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
+  readonly minimumYear?: number;
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomListUrl?: string;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
+  readonly networksCountry?: string;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
   readonly timeRestriction?: {
@@ -327,6 +345,12 @@ export interface CollectionConfigCreateRequest {
   };
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
+  readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Multi-source fields
+  readonly isMultiSource?: boolean;
+  readonly sources?: readonly CollectionSourceConfig[];
+  readonly combineMode?: MultiSourceCombineMode;
+  readonly customSyncSchedule?: CustomSyncSchedule;
 }
 
 /**
@@ -360,15 +384,23 @@ export const toCollectionCreateRequest = (
     autoApproveMovies: config.autoApproveMovies,
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
+    minimumYear: config.minimumYear,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomListUrl: config.tmdbCustomListUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
+    networksCountry: config.networksCountry,
     reverseOrder: config.reverseOrder,
     randomizeOrder: config.randomizeOrder,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
+    autoPosterTemplate: config.autoPosterTemplate,
+    // Multi-source fields
+    isMultiSource: config.isMultiSource,
+    sources: config.sources,
+    combineMode: config.combineMode,
+    customSyncSchedule: config.customSyncSchedule,
   };
 };
 
@@ -497,7 +529,8 @@ export type CollectionSourceType =
   | 'tmdb'
   | 'imdb'
   | 'letterboxd'
-  | 'hub';
+  | 'networks'
+  | 'multi-source';
 export type MediaType = 'movie' | 'tv';
 
 /**
@@ -531,3 +564,135 @@ export type PreExistingCollectionConfigForSubmission = Omit<
   PreExistingCollectionConfig,
   'isActive' | 'collectionType' | 'missing'
 >;
+
+/**
+ * Multi-Source Collection Configuration Types
+ * Support for collections that combine multiple list sources
+ */
+
+/**
+ * Individual source configuration for multi-source collections
+ */
+export interface CollectionSourceConfig {
+  readonly id: string; // Unique identifier for this source within the collection
+  readonly type: CollectionSourceType;
+  readonly subtype?: string;
+  readonly customUrl?: string; // For custom lists (Trakt, TMDb, IMDb, Letterboxd)
+  readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+  readonly priority: number; // Order priority when combining (0 = highest)
+  readonly isExpanded?: boolean; // UI state for expandable sections
+
+  // Tautulli-specific configuration (per source)
+  readonly customDays?: number; // Number of days to look back for statistics
+  readonly minimumPlays?: number; // Minimum play count required
+  // Networks-specific configuration
+  readonly networksCountry?: string; // Selected country for Networks collections
+}
+
+/**
+ * Multi-source combining modes
+ */
+export type MultiSourceCombineMode =
+  | 'interleaved'
+  | 'list_order'
+  | 'randomised'
+  | 'cycle_lists';
+
+/**
+ * Custom sync schedule configuration
+ */
+export interface CustomSyncSchedule {
+  readonly enabled: boolean;
+  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+}
+
+/**
+ * Distinct multi-source collection configuration type
+ * According to Orchestrator Method plan: multi-source is a separate collection type
+ */
+export interface MultiSourceCollectionConfig {
+  // Copy essential fields from CollectionFormConfig
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'multi-source'; // Distinct type
+  readonly visibilityConfig: {
+    usersHome: boolean;
+    serverOwnerHome: boolean;
+    libraryRecommended: boolean;
+  };
+  readonly mediaType?: 'movie' | 'tv';
+  readonly libraryId: string;
+  readonly libraryName: string;
+  readonly maxItems?: number;
+  readonly template?: string;
+  // Multi-source specific fields
+  readonly sources: readonly SourceDefinition[]; // Required sources array
+  readonly combineMode: MultiSourceCombineMode; // Required combine mode
+  readonly customSyncSchedule?: CustomSyncSchedule;
+  // Optional fields from parent
+  readonly isActive?: boolean;
+  readonly sortOrderHome?: number;
+  readonly sortOrderLibrary?: number;
+  readonly isLibraryPromoted?: boolean;
+  readonly timeRestriction?: {
+    readonly alwaysActive: boolean;
+    readonly removeFromPlexWhenInactive?: boolean;
+    readonly inactiveVisibilityConfig?: {
+      usersHome: boolean;
+      serverOwnerHome: boolean;
+      libraryRecommended: boolean;
+    };
+  };
+  readonly customPoster?: string | Record<string, string>;
+  readonly autoPoster?: boolean;
+}
+
+/**
+ * Valid source types for multi-source collections (excludes 'hub' and 'multi-source')
+ */
+export type MultiSourceType =
+  | 'trakt'
+  | 'tmdb'
+  | 'imdb'
+  | 'letterboxd'
+  | 'tautulli'
+  | 'overseerr'
+  | 'networks';
+
+/**
+ * Source definition for multi-source collections
+ * Alias for CollectionSourceConfig with stricter typing
+ */
+export interface SourceDefinition {
+  readonly id: string;
+  readonly type: MultiSourceType;
+  readonly subtype: string;
+  readonly customUrl?: string;
+  readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+  readonly customDays?: number;
+  readonly minimumPlays?: number;
+  readonly priority: number;
+  readonly networksCountry?: string; // Selected country for Networks collections
+}
+
+/**
+ * Extended CollectionFormConfig with multi-source support (backward compatibility)
+ * Uses intersection type to avoid index signature conflicts
+ */
+export type MultiSourceCollectionFormConfig = CollectionFormConfig & {
+  readonly isMultiSource?: boolean; // Enable multi-source mode
+  readonly sources?: readonly CollectionSourceConfig[]; // Array of source configurations
+  readonly combineMode?: MultiSourceCombineMode; // How to combine multiple sources
+  readonly customSyncSchedule?: CustomSyncSchedule; // Individual sync timing
+};
+
+/**
+ * Extended CollectionConfigCreateRequest with multi-source support
+ */
+export interface MultiSourceCollectionConfigCreateRequest
+  extends CollectionConfigCreateRequest {
+  readonly isMultiSource?: boolean;
+  readonly sources?: readonly CollectionSourceConfig[];
+  readonly combineMode?: MultiSourceCombineMode;
+  readonly customSyncSchedule?: CustomSyncSchedule;
+}

@@ -1,9 +1,12 @@
 import TheMovieDb from '@server/api/themoviedb';
+import type { PosterTemplateData } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { applyTemplate } from './posterTemplates';
+import { sourceColorsService } from './services/SourceColorsService';
 
 export interface PosterGenerationConfig {
   collectionName: string;
@@ -12,6 +15,9 @@ export interface PosterGenerationConfig {
   mediaType?: 'movie' | 'tv';
   template?: string;
   items?: CollectionItemWithPoster[];
+  autoPosterTemplate?: number | null; // Template ID for auto-generated posters
+  templateData?: PosterTemplateData; // Template data for customized colors and layout
+  dynamicLogo?: string; // Path to dynamic logo file
 }
 
 export interface CollectionItemWithPoster {
@@ -20,66 +26,23 @@ export interface CollectionItemWithPoster {
   tmdbId?: number;
   year?: number;
   posterUrl?: string;
+  episodeInfo?: {
+    season?: number;
+    episode?: number;
+    episodeTitle?: string;
+  };
+  metadata?: {
+    libraryKey?: string;
+    showTmdbId?: number;
+    [key: string]: unknown;
+  };
 }
 
 export interface ColorScheme {
   primaryColor: string;
   secondaryColor: string;
   textColor: string;
-  accentColor: string;
 }
-
-// Color schemes based on collection types
-const COLOR_SCHEMES: Record<string, ColorScheme> = {
-  trakt: {
-    primaryColor: '#ed2224',
-    secondaryColor: '#1f1a1a', // Consistent gentle dark with red tint
-    textColor: '#ffffff',
-    accentColor: '#ff4444',
-  },
-  tmdb: {
-    primaryColor: '#01b4e4',
-    secondaryColor: '#0d253f', // Already good - gentle dark blue
-    textColor: '#ffffff',
-    accentColor: '#90cea1',
-  },
-  imdb: {
-    primaryColor: '#f5c518',
-    secondaryColor: '#1f1c0d', // Changed from pure black to gentle dark with yellow tint
-    textColor: '#ffffff', // Changed to white for better contrast
-    accentColor: '#f5c518',
-  },
-  letterboxd: {
-    primaryColor: '#2c3440',
-    secondaryColor: '#1a1f24', // Slightly adjusted for consistency
-    textColor: '#ffffff',
-    accentColor: '#00e054',
-  },
-  tautulli: {
-    primaryColor: '#cc7b19',
-    secondaryColor: '#1f1a15', // Consistent gentle dark with orange tint
-    textColor: '#ffffff',
-    accentColor: '#ff9933',
-  },
-  overseerr: {
-    primaryColor: '#5a5ce6',
-    secondaryColor: '#1a1a2e', // Already good - gentle dark purple
-    textColor: '#ffffff',
-    accentColor: '#7b7dff',
-  },
-  hub: {
-    primaryColor: '#e5a00d',
-    secondaryColor: '#1f1c15', // Consistent gentle dark with yellow tint
-    textColor: '#ffffff',
-    accentColor: '#ffc107',
-  },
-  default: {
-    primaryColor: '#6366f1',
-    secondaryColor: '#1e1b4b', // Already good - gentle dark indigo
-    textColor: '#ffffff',
-    accentColor: '#818cf8',
-  },
-};
 
 const POSTER_WIDTH = 500;
 const POSTER_HEIGHT = 750;
@@ -95,18 +58,49 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   trakt: 'trakt.svg',
   tmdb: 'tmdb.svg',
   imdb: 'imdb.svg',
+  mdblist: 'mdblist.svg',
   letterboxd: 'letterboxd.svg',
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',
   plex: 'plex.svg',
+  'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
+  // Streaming Platform Logo Mappings
+  netflix: 'netflix.svg',
+  hbo: 'hbo.svg',
+  disney: 'disney.svg',
+  'amazon-prime': 'amazon-prime.svg',
+  'apple-tv': 'apple-tv.svg',
+  paramount: 'paramount.svg',
+  peacock: 'peacock.svg',
+  crunchyroll: 'crunchyroll.svg',
+  'discovery-plus': 'discovery-plus.svg',
+  hulu: 'hulu.svg',
 };
 
 /**
- * Get color scheme for a collection type
+ * Get color scheme for a collection type, with optional template customization
  */
-function getColorScheme(collectionType?: string): ColorScheme {
-  if (!collectionType) return COLOR_SCHEMES.default;
-  return COLOR_SCHEMES[collectionType.toLowerCase()] || COLOR_SCHEMES.default;
+async function getColorScheme(
+  collectionType?: string,
+  templateData?: PosterTemplateData
+): Promise<ColorScheme> {
+  // If template uses source colors, get from database/defaults
+  if (templateData?.background?.useSourceColors) {
+    return await sourceColorsService.getSourceColorScheme(collectionType);
+  }
+
+  // Template doesn't use source colors, use template's custom colors
+  if (templateData?.background?.color) {
+    return {
+      primaryColor: templateData.background.color,
+      secondaryColor:
+        templateData.background.secondaryColor || templateData.background.color,
+      textColor: '#ffffff', // Default text color for custom backgrounds
+    };
+  }
+
+  // Final fallback to source colors service
+  return await sourceColorsService.getSourceColorScheme(collectionType);
 }
 
 /**
@@ -120,8 +114,7 @@ async function fetchTMDbPosterUrls(
 
   logger.debug(`Fetching TMDB posters for ${items.length} items`);
 
-  for (const item of items.slice(0, 4)) {
-    // Only fetch first 4 items
+  for (const item of items) {
     let posterUrl: string | undefined;
 
     logger.debug(`Processing item: ${item.title}`, {
@@ -141,12 +134,63 @@ async function fetchTMDbPosterUrls(
             logger.debug(`No poster_path found for movie ${item.title}`);
           }
         } else if (item.type === 'tv') {
-          const tvDetails = await tmdb.getTvShow({ tvId: item.tmdbId });
-          if (tvDetails.poster_path) {
-            posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-            logger.debug(`Found TV poster for ${item.title}: ${posterUrl}`);
+          // Check if this is an episode with season info and show TMDb ID
+          if (item.episodeInfo?.season && item.metadata?.showTmdbId) {
+            try {
+              // Try to get season poster first
+              const seasonDetails = await tmdb.getTvSeason({
+                tvId: item.metadata.showTmdbId,
+                seasonNumber: item.episodeInfo.season,
+              });
+              if (seasonDetails.poster_path) {
+                posterUrl = `https://image.tmdb.org/t/p/w300${seasonDetails.poster_path}`;
+                logger.debug(
+                  `Found season ${item.episodeInfo.season} poster for episode ${item.title}: ${posterUrl}`
+                );
+              } else {
+                // Fallback to show poster if season has no poster
+                const tvDetails = await tmdb.getTvShow({
+                  tvId: item.metadata.showTmdbId,
+                });
+                if (tvDetails.poster_path) {
+                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
+                  logger.debug(
+                    `Using show poster as fallback for episode ${item.title}: ${posterUrl}`
+                  );
+                }
+              }
+            } catch (error) {
+              logger.warn(
+                `Failed to fetch season poster for episode ${item.title}, trying show poster:`,
+                error
+              );
+              // Fallback to show poster if season fetch fails
+              try {
+                const tvDetails = await tmdb.getTvShow({
+                  tvId: item.metadata.showTmdbId,
+                });
+                if (tvDetails.poster_path) {
+                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
+                  logger.debug(
+                    `Using show poster as error fallback for episode ${item.title}: ${posterUrl}`
+                  );
+                }
+              } catch (showError) {
+                logger.warn(
+                  `Failed to fetch show poster fallback for episode ${item.title}:`,
+                  showError
+                );
+              }
+            }
           } else {
-            logger.debug(`No poster_path found for TV show ${item.title}`);
+            // This is a regular TV show (not an episode)
+            const tvDetails = await tmdb.getTvShow({ tvId: item.tmdbId });
+            if (tvDetails.poster_path) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
+              logger.debug(`Found TV poster for ${item.title}: ${posterUrl}`);
+            } else {
+              logger.debug(`No poster_path found for TV show ${item.title}`);
+            }
           }
         }
       } catch (error) {
@@ -243,86 +287,55 @@ async function loadServiceLogo(serviceType: string): Promise<string | null> {
 }
 
 /**
+ * Load dynamic logo from FlixPatrol extraction (PNG file)
+ */
+async function loadDynamicLogo(
+  dynamicLogoPath: string
+): Promise<string | null> {
+  try {
+    if (!fs.existsSync(dynamicLogoPath)) {
+      logger.debug(`Dynamic logo file not found: ${dynamicLogoPath}`);
+      return null;
+    }
+
+    // Convert PNG to base64 data URI and embed in SVG
+    const logoBuffer = await fs.promises.readFile(dynamicLogoPath);
+    const base64Data = logoBuffer.toString('base64');
+    const mimeType = 'image/png';
+
+    // Create an SVG wrapper for the PNG image
+    const svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="50" height="50">
+        <image href="data:${mimeType};base64,${base64Data}" width="50" height="50" x="0" y="0"/>
+      </svg>
+    `;
+
+    logger.debug(`Loaded dynamic logo: ${dynamicLogoPath}`);
+    return svgContent.trim();
+  } catch (error) {
+    logger.warn(`Failed to load dynamic logo: ${dynamicLogoPath}`, error);
+    return null;
+  }
+}
+
+/**
  * Create a logo placeholder for services without SVG logos
  */
-function createLogoPlaceholder(serviceType: string): string {
+// Legacy function - kept for potential future use
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function createLogoPlaceholder(serviceType: string): Promise<string> {
   const letter = serviceType.charAt(0).toUpperCase();
-  const colorScheme = getColorScheme(serviceType);
+  const colorScheme = await getColorScheme(serviceType);
 
   return `
-    <circle cx="0" cy="0" r="${LOGO_SIZE / 2}" 
-            fill="${colorScheme.accentColor}" opacity="0.8"/>
-    <text x="0" y="6" 
+    <circle cx="0" cy="0" r="${LOGO_SIZE / 2}"
+            fill="${colorScheme.primaryColor}" opacity="0.8"/>
+    <text x="0" y="6"
           font-family="Arial, sans-serif" font-size="24" font-weight="bold"
           text-anchor="middle" fill="${colorScheme.textColor}">
       ${letter}
     </text>
   `;
-}
-
-/**
- * Process and embed SVG logo content for use in poster
- * Standardized to consistent height for all logos
- */
-function embedServiceLogo(
-  svgContent: string,
-  x: number,
-  y: number,
-  targetHeight: number = LOGO_SIZE
-): string {
-  try {
-    // Extract the svg tag and its attributes
-    const svgMatch = svgContent.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i);
-    const svgTagMatch = svgContent.match(/<svg[^>]*>/i);
-
-    if (!svgMatch || !svgTagMatch) {
-      return createLogoPlaceholder('unknown');
-    }
-
-    const innerContent = svgMatch[1];
-    const svgTag = svgTagMatch[0];
-
-    // Extract viewBox or width/height to determine original dimensions
-    let width = 100,
-      height = 100; // defaults
-
-    const viewBoxMatch = svgTag.match(/viewBox=["']([^"']+)["']/i);
-    if (viewBoxMatch) {
-      const viewBoxValues = viewBoxMatch[1].split(/[\s,]+/);
-      if (viewBoxValues.length >= 4) {
-        width = parseFloat(viewBoxValues[2]) - parseFloat(viewBoxValues[0]);
-        height = parseFloat(viewBoxValues[3]) - parseFloat(viewBoxValues[1]);
-      }
-    } else {
-      // Try to extract width and height attributes
-      const widthMatch = svgTag.match(/width=["']([^"']+)["']/i);
-      const heightMatch = svgTag.match(/height=["']([^"']+)["']/i);
-
-      if (widthMatch)
-        width = parseFloat(widthMatch[1].replace(/px|pt|em|rem/, ''));
-      if (heightMatch)
-        height = parseFloat(heightMatch[1].replace(/px|pt|em|rem/, ''));
-    }
-
-    // Calculate scale to make all logos the same HEIGHT (not size)
-    // This ensures consistent vertical presence regardless of aspect ratio
-    const heightScale = targetHeight / height;
-    const scaledWidth = width * heightScale;
-
-    // Create a group with the logo content, scaled to consistent height
-    return `
-      <g transform="translate(${x}, ${y})">
-        <g transform="scale(${heightScale}) translate(${
-      -scaledWidth / (2 * heightScale)
-    }, ${-targetHeight / (2 * heightScale)})">
-          ${innerContent}
-        </g>
-      </g>
-    `;
-  } catch (error) {
-    logger.warn('Failed to embed SVG logo:', error);
-    return createLogoPlaceholder('unknown');
-  }
 }
 
 /**
@@ -493,115 +506,415 @@ function wrapTextKeepWords(
 }
 
 /**
- * Create multi-line text with proper word wrapping
+ * Create wrapped text with template-driven positioning and typography
  */
-function createWrappedText(
+function createTemplateWrappedText(
   text: string,
   x: number,
   y: number,
-  maxWidth: number,
+  width: number,
+  height: number,
   fontSize: number,
-  fill: string,
-  filter?: string
+  color: string,
+  fontFamily: string,
+  fontWeight: string,
+  fontStyle: string,
+  textAlign: string,
+  maxLines: number
 ): string {
-  const lines = wrapTextKeepWords(text, maxWidth, fontSize);
-  const lineHeight = fontSize * 1.1; // Tighter line height for cleaner look
+  // Start with the given font size and shrink if needed
+  let currentFontSize = fontSize;
+  let lines: string[] = [];
+  let limitedLines: string[] = [];
+  let lineHeight: number;
+  let totalTextHeight: number;
 
-  // Start from the provided Y position (no centering - position downward from Y)
-  const startY = y;
+  // Iteratively reduce font size until text fits within height bounds
+  do {
+    lines = wrapTextKeepWords(text, width, currentFontSize);
+    limitedLines = lines.slice(0, maxLines);
+    lineHeight = currentFontSize * 1.1;
+    totalTextHeight = limitedLines.length * lineHeight;
 
-  return lines
+    // If text fits within height, we're done
+    if (totalTextHeight <= height) {
+      break;
+    }
+
+    // Otherwise, reduce font size by 5% and try again
+    currentFontSize *= 0.95;
+
+    // Prevent infinite loop - minimum font size of 8px
+    if (currentFontSize < 8) {
+      break;
+    }
+  } while (totalTextHeight > height);
+
+  // Calculate vertical centering - center the text block within the available height
+  const textBlockStartY = y + (height - totalTextHeight) / 2 + currentFontSize;
+
+  let textAnchor = 'start';
+  let textX = x;
+  if (textAlign === 'center') {
+    textAnchor = 'middle';
+    textX = x + width / 2;
+  } else if (textAlign === 'right') {
+    textAnchor = 'end';
+    textX = x + width;
+  }
+
+  return limitedLines
     .map((line, index) => {
-      const escapedLine = escapeXml(line);
-      const lineY = startY + index * lineHeight + fontSize; // Add fontSize to account for text baseline
-
+      const lineY = textBlockStartY + index * lineHeight;
       return `
-      <text x="${x}" y="${lineY}" 
-            font-family="Helvetica Neue, Segoe UI, Arial, sans-serif" 
-            font-size="${fontSize}" 
-            font-weight="600"
-            text-anchor="middle" 
-            fill="${fill}"
-            ${filter ? ` filter="${filter}"` : ''}
-            letter-spacing="-0.01em">
-        ${escapedLine}
-      </text>
-    `;
+        <text x="${textX}" y="${lineY}"
+              font-family="${fontFamily}"
+              font-size="${currentFontSize}"
+              font-weight="${fontWeight}"
+              font-style="${fontStyle}"
+              text-anchor="${textAnchor}"
+              fill="${color}"
+              filter="url(#textShadow)">
+          ${escapeXml(line)}
+        </text>
+      `;
     })
     .join('');
 }
 
 /**
- * Create poster grid with item images
+ * Embed service logo with template-driven positioning and sizing
  */
-function createPosterGrid(
-  items: CollectionItemWithPoster[],
-  startX: number,
-  startY: number
+function embedTemplateServiceLogo(
+  logoSvg: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  grayscale: boolean
 ): string {
-  if (!items.length) return '';
+  const grayscaleFilter = grayscale ? 'filter="grayscale(100%)"' : '';
 
-  const spacing = 16; // Space between posters - increased for better spacing
-  const itemWidth = ITEM_POSTER_WIDTH;
-  const itemHeight = ITEM_POSTER_HEIGHT;
+  // Extract actual logo dimensions from SVG
+  let logoWidth = 100; // fallback
+  let logoHeight = 100; // fallback
 
-  return items
-    .slice(0, 4)
-    .map((item, index) => {
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const x = startX + col * (itemWidth + spacing);
-      const y = startY + row * (itemHeight + spacing);
+  // Try to get dimensions from viewBox first (most reliable)
+  const viewBoxMatch = logoSvg.match(/viewBox=["']([^"']+)["']/i);
+  if (viewBoxMatch) {
+    const viewBoxValues = viewBoxMatch[1].split(/[\s,]+/);
+    if (viewBoxValues.length >= 4) {
+      logoWidth = parseFloat(viewBoxValues[2]) - parseFloat(viewBoxValues[0]);
+      logoHeight = parseFloat(viewBoxValues[3]) - parseFloat(viewBoxValues[1]);
+    }
+  } else {
+    // Fallback to width/height attributes
+    const widthMatch = logoSvg.match(/width=["']?([^"'\s>]+)/i);
+    const heightMatch = logoSvg.match(/height=["']?([^"'\s>]+)/i);
+    if (widthMatch) logoWidth = parseFloat(widthMatch[1]);
+    if (heightMatch) logoHeight = parseFloat(heightMatch[1]);
+  }
 
-      if (item.posterUrl) {
-        return `
-        <g transform="translate(${x}, ${y})">
+  // Calculate scale to fit height (Y dimension) while maintaining aspect ratio
+  const scaleY = height / logoHeight;
+  const scale = scaleY; // Scale to match template height, let width adjust to maintain aspect ratio
+
+  // Calculate final dimensions and centering offset
+  const scaledWidth = logoWidth * scale;
+  const scaledHeight = logoHeight * scale;
+  const offsetX = (width - scaledWidth) / 2;
+  const offsetY = (height - scaledHeight) / 2;
+
+  // Clean the SVG content by removing XML declaration, comments, DOCTYPE, and SVG tags
+  const cleanSvgContent = logoSvg
+    .replace(/<\?xml[^>]*\?>/gi, '') // Remove XML declaration
+    .replace(/<!--[\s\S]*?-->/gi, '') // Remove comments
+    .replace(/<!DOCTYPE[^>]*>/gi, '') // Remove DOCTYPE
+    .replace(/<svg[^>]*>|<\/svg>/gi, '') // Remove SVG tags
+    .trim();
+
+  return `
+    <g transform="translate(${x + offsetX}, ${
+    y + offsetY
+  }) scale(${scale})" ${grayscaleFilter}>
+      ${cleanSvgContent}
+    </g>
+  `;
+}
+
+/**
+ * Create logo placeholder with template-driven positioning
+ */
+function createTemplateLogoPlaceholder(
+  serviceType: string,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number
+): string {
+  const displayName =
+    serviceType.charAt(0).toUpperCase() + serviceType.slice(1);
+  const fontSize = Math.min(width / 6, height / 6);
+
+  return `
+    <g transform="translate(${centerX}, ${centerY})">
+      <!-- Placeholder circle -->
+      <circle r="${Math.min(width, height) / 3}"
+              fill="rgba(255,255,255,0.1)"
+              stroke="rgba(255,255,255,0.2)"
+              stroke-width="2"/>
+      <!-- Placeholder text -->
+      <text text-anchor="middle"
+            dominant-baseline="central"
+            font-family="Helvetica Neue, Segoe UI, Arial, sans-serif"
+            font-size="${fontSize}"
+            font-weight="600"
+            fill="rgba(255,255,255,0.7)">
+        ${escapeXml(displayName)}
+      </text>
+    </g>
+  `;
+}
+
+/**
+ * Generate background content from template data
+ */
+async function generateTemplateBackground(
+  backgroundConfig: {
+    type: 'color' | 'gradient';
+    color?: string;
+    secondaryColor?: string;
+    useSourceColors?: boolean;
+  },
+  colorScheme: ColorScheme
+): Promise<{ defs: string; background: string }> {
+  if (backgroundConfig.type === 'gradient') {
+    const primaryColor = backgroundConfig.useSourceColors
+      ? colorScheme.primaryColor
+      : backgroundConfig.color || '#6366f1';
+    const secondaryColor = backgroundConfig.useSourceColors
+      ? colorScheme.secondaryColor
+      : backgroundConfig.secondaryColor || primaryColor;
+
+    return {
+      defs: `
+        <linearGradient id="templateGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" style="stop-color:${secondaryColor};stop-opacity:1" />
+          <stop offset="40%" style="stop-color:${primaryColor};stop-opacity:0.85" />
+          <stop offset="100%" style="stop-color:${secondaryColor};stop-opacity:1" />
+        </linearGradient>
+      `,
+      background: `<rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#templateGradient)"/>`,
+    };
+  } else {
+    // Solid color background
+    const backgroundColor = backgroundConfig.useSourceColors
+      ? colorScheme.primaryColor
+      : backgroundConfig.color || '#6366f1';
+
+    return {
+      defs: '',
+      background: `<rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="${backgroundColor}"/>`,
+    };
+  }
+}
+
+/**
+ * Generate text elements from template data
+ */
+async function generateTemplateTextElements(
+  textElements: {
+    id: string;
+    type: 'collection-title' | 'custom-text';
+    text?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    fontSize: number;
+    fontFamily: string;
+    fontWeight: string;
+    fontStyle: string;
+    color: string;
+    textAlign: string;
+    maxLines?: number;
+  }[],
+  collectionName: string
+): Promise<string> {
+  const elements: string[] = [];
+
+  for (const element of textElements) {
+    const text =
+      element.type === 'collection-title' ? collectionName : element.text || '';
+
+    // Handle text wrapping based on element dimensions
+    const maxLines =
+      element.maxLines || Math.floor(element.height / element.fontSize);
+    const wrappedText = createTemplateWrappedText(
+      text,
+      element.x,
+      element.y,
+      element.width,
+      element.height,
+      element.fontSize,
+      element.color,
+      element.fontFamily,
+      element.fontWeight,
+      element.fontStyle,
+      element.textAlign,
+      maxLines
+    );
+
+    elements.push(wrappedText);
+  }
+
+  return elements.join('');
+}
+
+/**
+ * Generate icon elements from template data
+ */
+async function generateTemplateIconElements(
+  iconElements: {
+    id: string;
+    type: 'source-logo' | 'custom-icon';
+    iconPath?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    grayscale: boolean;
+  }[],
+  collectionType?: string,
+  dynamicLogo?: string
+): Promise<string> {
+  const elements: string[] = [];
+
+  for (const element of iconElements) {
+    if (element.type === 'source-logo' && collectionType) {
+      // Priority: Local assets first, then dynamic logo as fallback
+      let logoSvg = await loadServiceLogo(collectionType);
+
+      // If no local asset found and we have a dynamic logo, use that
+      if (!logoSvg && dynamicLogo) {
+        logoSvg = await loadDynamicLogo(dynamicLogo);
+      }
+
+      if (logoSvg) {
+        const logoContent = embedTemplateServiceLogo(
+          logoSvg,
+          element.x,
+          element.y,
+          element.width,
+          element.height,
+          element.grayscale
+        );
+        elements.push(`<g filter="url(#iconShadow)">${logoContent}</g>`);
+      } else {
+        // Fallback placeholder
+        const placeholder = createTemplateLogoPlaceholder(
+          collectionType,
+          element.x + element.width / 2,
+          element.y + element.height / 2,
+          element.width,
+          element.height
+        );
+        elements.push(`<g filter="url(#iconShadow)">${placeholder}</g>`);
+      }
+    } else if (element.type === 'custom-icon' && element.iconPath) {
+      // Handle custom icons (future feature)
+      // For now, skip custom icons
+    }
+  }
+
+  return elements.join('');
+}
+
+/**
+ * Generate content grid from template data
+ */
+async function generateTemplateContentGrid(
+  gridConfig: {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    columns: number;
+    rows: number;
+    spacing: number;
+    cornerRadius: number;
+  },
+  itemsWithPosters: CollectionItemWithPoster[]
+): Promise<string> {
+  if (!itemsWithPosters.length) return '';
+
+  const { x, y, width, height, columns, rows, spacing, cornerRadius } =
+    gridConfig;
+  const maxItems = columns * rows;
+  const items = itemsWithPosters.slice(0, maxItems);
+
+  // Calculate individual item dimensions
+  const itemWidth = (width - spacing * (columns - 1)) / columns;
+  const itemHeight = (height - spacing * (rows - 1)) / rows;
+
+  const gridElements: string[] = [];
+
+  items.forEach((item, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const itemX = x + col * (itemWidth + spacing);
+    const itemY = y + row * (itemHeight + spacing);
+
+    if (item.posterUrl) {
+      gridElements.push(`
+        <g transform="translate(${itemX}, ${itemY})" filter="url(#contentShadow)">
           <!-- Poster shadow -->
-          <rect x="2" y="4" 
-                width="${itemWidth}" 
-                height="${itemHeight}" 
-                fill="rgba(0,0,0,0.2)" 
-                rx="6"/>
+          <rect x="2" y="4"
+                width="${itemWidth}"
+                height="${itemHeight}"
+                fill="rgba(0,0,0,0.2)"
+                rx="${cornerRadius}"/>
           <!-- Poster image -->
-          <image xlink:href="${item.posterUrl}" 
-                 x="0" y="0" 
-                 width="${itemWidth}" 
+          <image xlink:href="${item.posterUrl}"
+                 x="0" y="0"
+                 width="${itemWidth}"
                  height="${itemHeight}"
                  preserveAspectRatio="xMidYMid slice"/>
           <!-- Border -->
-          <rect x="0" y="0" 
-                width="${itemWidth}" 
-                height="${itemHeight}" 
-                fill="none" 
-                stroke="rgba(255,255,255,0.15)" 
+          <rect x="0" y="0"
+                width="${itemWidth}"
+                height="${itemHeight}"
+                fill="none"
+                stroke="rgba(255,255,255,0.15)"
                 stroke-width="1"
-                rx="6"/>
+                rx="${cornerRadius}"/>
         </g>
-      `;
-      } else {
-        // Fallback placeholder
-        return `
-        <g transform="translate(${x}, ${y})">
+      `);
+    } else {
+      // Fallback placeholder
+      gridElements.push(`
+        <g transform="translate(${itemX}, ${itemY})">
           <!-- Placeholder shadow -->
-          <rect x="2" y="4" 
-                width="${itemWidth}" 
-                height="${itemHeight}" 
-                fill="rgba(0,0,0,0.15)" 
-                rx="6"/>
+          <rect x="2" y="4"
+                width="${itemWidth}"
+                height="${itemHeight}"
+                fill="rgba(0,0,0,0.15)"
+                rx="${cornerRadius}"/>
           <!-- Placeholder background -->
-          <rect x="0" y="0" 
-                width="${itemWidth}" 
-                height="${itemHeight}" 
-                fill="rgba(255,255,255,0.08)" 
-                stroke="rgba(255,255,255,0.15)" 
+          <rect x="0" y="0"
+                width="${itemWidth}"
+                height="${itemHeight}"
+                fill="rgba(255,255,255,0.08)"
+                stroke="rgba(255,255,255,0.15)"
                 stroke-width="1"
-                rx="6"/>
+                rx="${cornerRadius}"/>
           <!-- Placeholder text -->
-          <text x="${itemWidth / 2}" y="${itemHeight / 2}" 
-                font-family="Helvetica Neue, Segoe UI, Arial, sans-serif" 
-                font-size="11" 
+          <text x="${itemWidth / 2}" y="${itemHeight / 2}"
+                font-family="Helvetica Neue, Segoe UI, Arial, sans-serif"
+                font-size="${Math.min(itemWidth / 8, itemHeight / 12)}"
                 font-weight="500"
-                text-anchor="middle" 
+                text-anchor="middle"
                 fill="rgba(255,255,255,0.5)"
                 dominant-baseline="central">
             ${escapeXml(
@@ -611,81 +924,41 @@ function createPosterGrid(
             )}
           </text>
         </g>
-      `;
-      }
-    })
-    .join('');
+      `);
+    }
+  });
+
+  return gridElements.join('');
 }
 
 /**
  * Generate SVG poster content with new layout
  */
-async function generatePosterSVG(
+export async function generatePosterSVG(
   config: PosterGenerationConfig
 ): Promise<string> {
-  const colorScheme = getColorScheme(config.collectionType);
-  const { collectionName, collectionType, items = [] } = config;
+  const { collectionName, collectionType, items = [], templateData } = config;
 
-  // Fixed layout sections with consistent proportions
-  const topBuffer = 35; // Fixed buffer above logo
-  const logoSectionHeight = topBuffer + LOGO_SIZE + 30; // Total space for logo section with bottom spacing
-  const logoY = topBuffer + LOGO_SIZE / 2; // Logo centered in top portion of its section
-
-  const titleSectionStart = logoSectionHeight;
-  const titleSectionHeight = 100; // Fixed height for title section (reduced to fit better)
-  const titleSectionEnd = titleSectionStart + titleSectionHeight;
-
-  const gridSectionStart = titleSectionEnd;
-  const bottomBuffer = 35; // Fixed buffer at bottom (same as top for even spacing)
-  const gridSectionHeight = POSTER_HEIGHT - gridSectionStart - bottomBuffer;
-
-  // Title area calculations - text will shrink to fit
-  const titleAreaHeight = titleSectionHeight - 20; // Leave some padding in title section
-  const maxTitleWidth = POSTER_WIDTH - 60; // Padding on sides
-
-  // Dynamic font sizing to better fill the space
-  let fontSize = Math.min(50, Math.max(18, titleAreaHeight / 2));
-  let textLines = wrapTextKeepWords(collectionName, maxTitleWidth, fontSize);
-  let lineHeight = fontSize * 1.1;
-  let textBlockHeight = textLines.length * lineHeight;
-
-  // Reduce font size if text doesn't fit
-  while (textBlockHeight > titleAreaHeight && fontSize > 14) {
-    fontSize -= 1;
-    textLines = wrapTextKeepWords(collectionName, maxTitleWidth, fontSize);
-    lineHeight = fontSize * 1.1;
-    textBlockHeight = textLines.length * lineHeight;
+  // Template data is required for the new system
+  if (!templateData) {
+    throw new Error('Template data is required for poster generation');
   }
 
-  // Position title to better fill its section
-  const titleY = titleSectionStart; // Start right at the beginning of title section
+  // Get color scheme from template data
+  const colorScheme = await getColorScheme(collectionType, templateData);
 
-  // Load service logo with improved positioning
-  let logoContent = '';
-  if (collectionType && collectionType !== 'hub') {
-    const logoSvg = await loadServiceLogo(collectionType);
-    if (logoSvg) {
-      logoContent = embedServiceLogo(
-        logoSvg,
-        POSTER_WIDTH / 2,
-        logoY,
-        LOGO_SIZE
-      );
-    } else {
-      logoContent = `
-        <g transform="translate(${POSTER_WIDTH / 2}, ${logoY})">
-          ${createLogoPlaceholder(collectionType)}
-        </g>
-      `;
-    }
-  }
+  // Fetch and prepare collection items for content grid
 
   // Fetch poster URLs if items are provided
   let itemsWithPosters: CollectionItemWithPoster[] = [];
-  if (items.length > 0) {
+  if (items.length > 0 && templateData.contentGrid) {
     try {
-      itemsWithPosters = await fetchTMDbPosterUrls(items);
-      // Download and convert images to base64 for embedding, keep original URL as fallback
+      // Limit items to what the grid can display
+      const maxItems =
+        templateData.contentGrid.columns * templateData.contentGrid.rows;
+      itemsWithPosters = await fetchTMDbPosterUrls(items.slice(0, maxItems));
+
+      // Download and convert images to base64 for embedding
       for (const item of itemsWithPosters) {
         if (item.posterUrl) {
           const originalUrl = item.posterUrl;
@@ -705,69 +978,59 @@ async function generatePosterSVG(
     }
   }
 
-  // Calculate poster grid positioning within its fixed section
-  const totalGridWidth = ITEM_POSTER_WIDTH * 2 + 16; // 2 posters + 1 spacing
-  const totalGridHeight = ITEM_POSTER_HEIGHT * 2 + 16; // 2 rows + 1 spacing
-  const gridX = (POSTER_WIDTH - totalGridWidth) / 2; // Center horizontally
-  const gridY = gridSectionStart + (gridSectionHeight - totalGridHeight) / 2; // Center in grid section
+  // Generate background based on template data
+  const backgroundContent = await generateTemplateBackground(
+    templateData.background,
+    colorScheme
+  );
 
-  const posterGridContent = createPosterGrid(itemsWithPosters, gridX, gridY);
+  // Generate text elements from template data
+  const textElements = await generateTemplateTextElements(
+    templateData.textElements,
+    collectionName
+  );
+
+  // Generate icon elements from template data
+  const iconElements = await generateTemplateIconElements(
+    templateData.iconElements,
+    collectionType,
+    config.dynamicLogo
+  );
+
+  // Generate content grid from template data
+  const contentGridContent = templateData.contentGrid
+    ? await generateTemplateContentGrid(
+        templateData.contentGrid,
+        itemsWithPosters
+      )
+    : '';
 
   return `
     <svg width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <defs>
-        <linearGradient id="backgroundGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style="stop-color:${
-            colorScheme.secondaryColor
-          };stop-opacity:1" />
-          <stop offset="40%" style="stop-color:${
-            colorScheme.primaryColor
-          };stop-opacity:0.85" />
-          <stop offset="100%" style="stop-color:${
-            colorScheme.secondaryColor
-          };stop-opacity:1" />
-        </linearGradient>
         <filter id="textShadow">
           <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.4"/>
         </filter>
-        <filter id="logoGlow">
+        <filter id="iconShadow">
           <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.2"/>
         </filter>
-        <filter id="posterShadow">
+        <filter id="contentShadow">
           <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
         </filter>
-        <radialGradient id="overlayGradient" cx="50%" cy="0%" r="120%">
-          <stop offset="0%" style="stop-color:rgba(255,255,255,0.1);stop-opacity:1" />
-          <stop offset="100%" style="stop-color:rgba(0,0,0,0.1);stop-opacity:1" />
-        </radialGradient>
+        ${backgroundContent.defs}
       </defs>
 
       <!-- Background -->
-      <rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#backgroundGradient)"/>
-      
-      <!-- Subtle overlay for depth -->
-      <rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#overlayGradient)" opacity="0.6"/>
-      
-      <!-- Service logo (fixed at top with glow) -->
-      <g filter="url(#logoGlow)">
-        ${logoContent}
-      </g>
-      
-      <!-- Collection name (responsive sizing with improved shadow) -->
-      ${createWrappedText(
-        collectionName,
-        POSTER_WIDTH / 2,
-        titleY,
-        maxTitleWidth,
-        fontSize,
-        colorScheme.textColor,
-        'url(#textShadow)'
-      )}
-      
-      <!-- Poster grid with shadow -->
-      <g filter="url(#posterShadow)">
-        ${posterGridContent}
-      </g>
+      ${backgroundContent.background}
+
+      <!-- Text elements -->
+      ${textElements}
+
+      <!-- Icon elements -->
+      ${iconElements}
+
+      <!-- Content grid -->
+      ${contentGridContent}
     </svg>
   `;
 }
@@ -784,22 +1047,78 @@ export async function generatePosterBuffer(
       type: config.collectionType,
       subtype: config.collectionSubtype,
       mediaType: config.mediaType,
+      templateId: config.autoPosterTemplate,
     });
 
-    // Generate SVG content
-    const svgContent = await generatePosterSVG(config);
+    // Template-based poster generation (undefined/null = default template, number = specific template)
+    try {
+      let templateId = config.autoPosterTemplate;
 
-    // Convert SVG to PNG using Sharp
-    const buffer = await sharp(Buffer.from(svgContent))
-      .png({ quality: 90 })
-      .toBuffer();
+      // If autoPosterTemplate is undefined or null, find and use the default template
+      if (
+        config.autoPosterTemplate === undefined ||
+        config.autoPosterTemplate === null
+      ) {
+        const { getRepository } = await import('@server/datasource');
+        const { PosterTemplate } = await import(
+          '@server/entity/PosterTemplate'
+        );
+        const templateRepository = getRepository(PosterTemplate);
 
-    logger.info('Poster generated successfully', {
-      name: config.collectionName,
-      bufferSize: buffer.length,
-    });
+        const defaultTemplate = await templateRepository.findOne({
+          where: { isDefault: true, isActive: true },
+        });
 
-    return buffer;
+        if (!defaultTemplate) {
+          logger.warn(
+            'No default template found, falling back to legacy SVG generation'
+          );
+          // Fall through to default SVG generation
+        } else {
+          templateId = defaultTemplate.id;
+          logger.debug('Using default template for poster generation', {
+            templateId: defaultTemplate.id,
+            templateName: defaultTemplate.name,
+          });
+        }
+      }
+
+      // Generate using template system if we have a valid template ID
+      if (templateId) {
+        const buffer = await applyTemplate(templateId, {
+          collectionName: config.collectionName,
+          collectionType: config.collectionType || 'custom',
+          mediaType: config.mediaType || 'movie',
+          items: config.items || [],
+          dynamicLogo: config.dynamicLogo,
+        });
+
+        logger.info('Poster generated successfully using template', {
+          name: config.collectionName,
+          templateId,
+          bufferSize: buffer.length,
+        });
+
+        return buffer;
+      } else {
+        throw new Error('No valid template ID found for poster generation');
+      }
+    } catch (templateError) {
+      logger.error('Failed to generate poster using template', {
+        templateId: config.autoPosterTemplate,
+        error:
+          templateError instanceof Error
+            ? templateError.message
+            : String(templateError),
+      });
+      throw new Error(
+        `Template generation failed: ${
+          templateError instanceof Error
+            ? templateError.message
+            : String(templateError)
+        }`
+      );
+    }
   } catch (error) {
     logger.error('Failed to generate poster', {
       config,

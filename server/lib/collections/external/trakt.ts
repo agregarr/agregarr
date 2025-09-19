@@ -19,6 +19,7 @@ import type {
   TraktTemplateContext,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -37,6 +38,7 @@ interface TraktCollectionItem extends CollectionItem {
  */
 export class TraktCollectionSync extends BaseCollectionSync {
   private traktClients: Map<string, TraktAPI> = new Map();
+  private dynamicRandomTitle: string | null = null;
 
   constructor() {
     super('trakt');
@@ -76,7 +78,11 @@ export class TraktCollectionSync extends BaseCollectionSync {
       }
 
       // Fetch data from Trakt API
-      const sourceData = await this.fetchSourceData(config, options);
+      const sourceData = await this.fetchSourceData(
+        config,
+        options,
+        libraryCache
+      );
 
       // Map to standardized format
       const mappedResult = await this.mapSourceDataToItems(
@@ -114,9 +120,25 @@ export class TraktCollectionSync extends BaseCollectionSync {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        undefined, // userInfo
+        libraryCache
       );
     } catch (error) {
+      // Log detailed error information before rethrowing
+      logger.error(`Detailed Trakt collection error for "${config.name}"`, {
+        label: 'trakt Collections',
+        configId: config.id,
+        configName: config.name,
+        subtype: config.subtype,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error,
+        fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        errorProperties: Object.getOwnPropertyNames(error),
+      });
+
       throw this.createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
         `Failed to process Trakt collection ${config.name}`,
@@ -124,6 +146,24 @@ export class TraktCollectionSync extends BaseCollectionSync {
         error instanceof Error ? error : new Error(String(error))
       );
     }
+  }
+
+  public async generateCollectionNameWithCustom(
+    config: CollectionConfig,
+    mediaType: 'movie' | 'tv',
+    libraryCache?: LibraryItemsCache
+  ): Promise<string> {
+    // Handle DYNAMIC_RANDOM_TITLE using stored title from fetchSourceData
+    if (config.template === 'DYNAMIC_RANDOM_TITLE' && this.dynamicRandomTitle) {
+      return this.dynamicRandomTitle;
+    }
+
+    // Fall back to base implementation for other templates
+    return super.generateCollectionNameWithCustom(
+      config,
+      mediaType,
+      libraryCache
+    );
   }
 
   /**
@@ -144,9 +184,10 @@ export class TraktCollectionSync extends BaseCollectionSync {
   /**
    * Fetch data from Trakt API
    */
-  protected async fetchSourceData(
+  public async fetchSourceData(
     config: CollectionConfig,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    libraryCache?: LibraryItemsCache
   ): Promise<TraktSourceData[]> {
     const settings = getSettings();
     const apiKey = settings.trakt.apiKey;
@@ -314,17 +355,17 @@ export class TraktCollectionSync extends BaseCollectionSync {
             config.maxItems
           );
 
-          // Smart promotion: Convert episodes/seasons to their parent shows, and include full movies/shows
+          // Handle episodes, seasons, movies and shows
           customListData = customListData
             .map((item): TraktListResponse => {
-              // If it's an episode or season, promote it to the parent show
+              // If it's an episode, preserve episode info and convert to show
               if (item.episode && item.episode.show) {
                 return {
                   ...item,
                   type: 'show' as const,
                   show: item.episode.show,
                   movie: undefined, // Clear any movie data
-                  episode: undefined, // Clear episode data to avoid confusion
+                  // Keep episode data for later extraction
                 };
               }
               if (item.season && item.season.show) {
@@ -363,6 +404,87 @@ export class TraktCollectionSync extends BaseCollectionSync {
           break;
         }
 
+        case 'random': {
+          // Get a random URL from RandomListManager with media type validation
+          const randomResult = await RandomListManager.getRandomUrlWithTitle(
+            'trakt',
+            config.maxItems,
+            mediaType,
+            libraryCache
+          );
+          if (!randomResult) {
+            throw this.createSyncError(
+              CollectionSyncErrorType.CONFIGURATION_ERROR,
+              `No random Trakt lists available with ${mediaType} content`
+            );
+          }
+
+          const { url: randomUrl, title: listTitle } = randomResult;
+
+          // Store the dynamic title for use in generateCollectionNameWithCustom
+          if (config.template === 'DYNAMIC_RANDOM_TITLE') {
+            this.dynamicRandomTitle = listTitle;
+            this.updateCollectionConfigField(config.id, { name: listTitle });
+          }
+
+          logger.info(`Using random Trakt list: ${randomUrl}`, {
+            label: 'Trakt Collections',
+            collection: config.name,
+            randomUrl,
+            listTitle,
+          });
+
+          // Use the random URL like a custom list
+          const cleanUrl = randomUrl.split('?')[0];
+          let randomListData = await traktClient.getCustomList(
+            cleanUrl,
+            config.maxItems
+          );
+
+          // Handle episodes, seasons, movies and shows
+          randomListData = randomListData
+            .map((item): TraktListResponse => {
+              // If it's an episode, preserve episode info and convert to show
+              if (item.episode && item.episode.show) {
+                return {
+                  ...item,
+                  type: 'show' as const,
+                  show: item.episode.show,
+                  movie: undefined, // Clear any movie data
+                  // Keep episode data for later extraction
+                };
+              }
+
+              if (item.season && item.season.show) {
+                return {
+                  ...item,
+                  type: 'show' as const,
+                  show: item.season.show,
+                  movie: undefined, // Clear any movie data
+                  season: undefined, // Clear season data to avoid confusion
+                };
+              }
+
+              // Return movies and shows as-is
+              return item;
+            })
+            .filter((item) => item.movie || item.show); // Only keep items with movie or show data
+
+          // Filter by media type (now always specific to library)
+          const targetType = mediaType === 'movie' ? 'movie' : 'show';
+          randomListData = randomListData.filter(
+            (item) =>
+              (item.movie && targetType === 'movie') ||
+              (item.show && targetType === 'show')
+          );
+
+          // Apply ordering modifications
+          randomListData = this.applyOrderingOptions(randomListData, config);
+
+          traktData.push(...randomListData);
+          break;
+        }
+
         default:
           throw this.createSyncError(
             CollectionSyncErrorType.API_ERROR,
@@ -384,7 +506,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
   /**
    * Map Trakt source data to standardized collection items
    */
-  protected async mapSourceDataToItems(
+  public async mapSourceDataToItems(
     sourceData: TraktSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,
@@ -395,14 +517,25 @@ export class TraktCollectionSync extends BaseCollectionSync {
     stats?: FilteringStats;
   }> {
     const mappedItems: TraktCollectionItem[] = [];
-    const missingItems: MissingItem[] = [];
+    let missingItems: MissingItem[] = [];
+
+    // Calculate target library ID for both collection creation and duplicate detection
+    const targetLibraryId = Array.isArray(config.libraryId)
+      ? config.libraryId[0]
+      : config.libraryId;
 
     // Extract all TMDB IDs and prepare lookup data
     const traktLookups: {
       tmdbId: number;
+      showTmdbId?: number; // For episodes: the parent show's TMDB ID
       mediaType: 'movie' | 'tv';
       title: string;
       originalPosition: number;
+      episodeInfo?: {
+        season: number;
+        episode: number;
+        episodeTitle?: string;
+      };
     }[] = [];
 
     for (let index = 0; index < sourceData.length; index++) {
@@ -411,15 +544,32 @@ export class TraktCollectionSync extends BaseCollectionSync {
         // Handle both formats: wrapped ({movie: {...}, show: {...}}) and raw ({title: ..., ids: ...})
         let mediaItem;
         let itemMediaType: 'movie' | 'tv';
+        let episodeInfo:
+          | { season: number; episode: number; episodeTitle?: string }
+          | undefined;
 
         if ('movie' in item && item.movie) {
           // Wrapped format with movie
           mediaItem = item.movie;
           itemMediaType = 'movie';
         } else if ('show' in item && item.show) {
-          // Wrapped format with show
-          mediaItem = item.show;
-          itemMediaType = 'tv';
+          // Wrapped format with show (could be from episode promotion)
+
+          // Check if this was originally an episode
+          if (item.episode) {
+            // For episodes, use the episode data and TMDB ID, not the show's
+            mediaItem = item.episode;
+            itemMediaType = 'tv';
+            episodeInfo = {
+              season: item.episode.season,
+              episode: item.episode.number,
+              episodeTitle: item.episode.title,
+            };
+          } else {
+            // For actual shows, use the show data
+            mediaItem = item.show;
+            itemMediaType = 'tv';
+          }
         } else if ('ids' in item && item.ids) {
           // Raw format - item has direct properties
           mediaItem = item;
@@ -434,11 +584,20 @@ export class TraktCollectionSync extends BaseCollectionSync {
         }
 
         const tmdbId = mediaItem.ids.tmdb;
+
+        // For episodes, also capture the show's TMDB ID for two-pass lookup
+        let showTmdbId: number | undefined;
+        if (episodeInfo && 'show' in item && item.show?.ids?.tmdb) {
+          showTmdbId = item.show.ids.tmdb;
+        }
+
         traktLookups.push({
           tmdbId,
+          showTmdbId,
           mediaType: itemMediaType,
           title: mediaItem.title,
           originalPosition: index + 1, // 1-based position
+          episodeInfo,
         });
       } catch (error) {
         logger.warn(`Failed to process Trakt item: ${error}`, {
@@ -473,15 +632,13 @@ export class TraktCollectionSync extends BaseCollectionSync {
     > = new Map();
 
     if (plexClient) {
-      // Pass target library ID to limit search scope to only the collection's target library
-      const targetLibraryId = Array.isArray(config.libraryId)
-        ? config.libraryId[0]
-        : config.libraryId;
+      // First, do library-scoped search for collection creation
       plexLookup = await findPlexItemsByTmdbIds(
         plexClient,
         traktLookups,
         targetLibraryId,
-        libraryCache // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        libraryCache, // OPTIMIZATION: Pass library cache to avoid repeated API calls
+        false // Library-scoped search for collection creation
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {
@@ -491,28 +648,95 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
     // Process items using the Plex lookup map
     for (const lookup of traktLookups) {
+      // Use simple TMDB+mediaType key since episodes have unique TMDB IDs
       const key = `${lookup.tmdbId}-${lookup.mediaType}`;
+
       const plexItem = plexLookup.get(key);
 
       if (plexItem) {
-        mappedItems.push({
+        const mappedItem = {
           ratingKey: plexItem.ratingKey,
-          title: lookup.title,
+          title: plexItem.title, // Use Plex title (episode title) instead of lookup title (show title)
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
           metadata: {
             libraryKey: plexItem.libraryKey,
+            showTmdbId: lookup.showTmdbId, // Preserve show TMDb ID for episodes
           },
-        });
+          episodeInfo: lookup.episodeInfo,
+        };
+
+        mappedItems.push(mappedItem);
       } else {
         // Item exists in Trakt but not in Plex
-        missingItems.push({
-          tmdbId: lookup.tmdbId,
-          mediaType: lookup.mediaType,
-          title: lookup.title,
-          originalPosition: lookup.originalPosition,
-        });
+        // Skip episodes from missing items (as per plan)
+        if (!lookup.episodeInfo) {
+          missingItems.push({
+            tmdbId: lookup.tmdbId,
+            mediaType: lookup.mediaType,
+            title: lookup.title,
+            originalPosition: lookup.originalPosition,
+          });
+        } else {
+          logger.debug(
+            `Skipping episode ${lookup.title} S${lookup.episodeInfo.season}E${lookup.episodeInfo.episode} from missing items`,
+            { label: 'Trakt Collections' }
+          );
+        }
       }
+    }
+
+    // Second pass: Check if "missing" items exist in other libraries to prevent duplicate downloads
+    if (missingItems.length > 0 && plexClient) {
+      logger.debug(
+        `Checking ${missingItems.length} missing items across all libraries for duplicate prevention`,
+        {
+          label: 'Trakt Collections',
+          collection: config.name,
+          targetLibrary: targetLibraryId,
+        }
+      );
+
+      const missingLookups = missingItems.map((item) => ({
+        tmdbId: item.tmdbId,
+        mediaType: item.mediaType,
+        title: item.title,
+        originalPosition: item.originalPosition,
+      }));
+
+      const globalPlexLookup = await findPlexItemsByTmdbIds(
+        plexClient,
+        missingLookups,
+        targetLibraryId,
+        libraryCache,
+        true // Global search for duplicate detection
+      );
+
+      // Filter out items that exist in other libraries
+      const trulyMissingItems = missingItems.filter((item) => {
+        const key = `${item.tmdbId}-${item.mediaType}`;
+        const foundInOtherLibrary = globalPlexLookup.has(key);
+
+        if (foundInOtherLibrary) {
+          const foundItem = globalPlexLookup.get(key);
+          if (foundItem) {
+            logger.debug(
+              `Item "${item.title}" found in library ${foundItem.libraryKey} - not marking as missing`,
+              {
+                label: 'Trakt Collections',
+                tmdbId: item.tmdbId,
+                targetLibrary: targetLibraryId,
+                foundInLibrary: foundItem.libraryKey,
+              }
+            );
+            return false; // Don't include in missing items
+          }
+        }
+        return true; // Truly missing
+      });
+
+      // Update missing items list
+      missingItems = trulyMissingItems;
     }
 
     const stats = this.createFilteringStats(
@@ -651,6 +875,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
       'favorited_all',
       'boxoffice',
       'custom',
+      'random',
     ];
 
     // Check if it's a valid current subtype
@@ -667,7 +892,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
     ];
 
     return legacyValidPrefixes.some((prefix) =>
-      config.subtype.startsWith(prefix)
+      (config.subtype || '').startsWith(prefix)
     );
   }
 
@@ -704,6 +929,8 @@ export class TraktCollectionSync extends BaseCollectionSync {
         return 'boxoffice';
       case 'custom':
         return 'custom';
+      case 'random':
+        return 'random';
 
       // Extract stat type from old subtype format
       default:

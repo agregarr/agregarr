@@ -556,19 +556,7 @@ export async function downloadAndSavePoster(
 
     return filename;
   } catch (error) {
-    // Handle 401 errors specifically (poster not accessible/doesn't exist)
-    if (error instanceof Error && error.message.includes('401')) {
-      logger.debug(`Poster not accessible (401) for URL`, {
-        url: originalName ? `${originalName} (${url})` : url,
-        error: 'Poster not found or not accessible',
-      });
-      return null;
-    }
-
-    logger.error(`Failed to download poster from URL`, {
-      url: originalName ? `${originalName} (${url})` : url,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    // Poster download failed - summary logging handles the statistics
     return null;
   }
 }
@@ -637,6 +625,14 @@ export async function generatePoster(
   originalName?: string,
   collectionIdentifier?: string
 ): Promise<string> {
+  // DEBUG: Track generatePoster calls
+  logger.debug('generatePoster called with:', {
+    templateId: config.autoPosterTemplate,
+    collectionName: config.collectionName,
+    originalName,
+    collectionIdentifier,
+  });
+
   try {
     // Mark any existing auto-generated posters for this collection as inactive
     if (collectionIdentifier) {

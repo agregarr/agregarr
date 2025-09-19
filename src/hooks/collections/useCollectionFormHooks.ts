@@ -68,6 +68,10 @@ interface UseTitleFetchingReturn {
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => Promise<void>;
+  fetchMdblistTitle: (
+    url: string,
+    setFieldValue?: (field: string, value: string) => void
+  ) => Promise<void>;
   isLoading: boolean;
   lastError: string | null;
 }
@@ -284,7 +288,7 @@ export const useTitleFetching = ({
   const fetchTitle = useCallback(
     async (
       url: string,
-      type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd',
+      type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist',
       setFieldValue?: (field: string, value: string) => void
     ) => {
       if (!url.trim()) {
@@ -370,11 +374,19 @@ export const useTitleFetching = ({
     [fetchTitle]
   );
 
+  const fetchMdblistTitle = useCallback(
+    (url: string, setFieldValue?: (field: string, value: string) => void) => {
+      return fetchTitle(url, 'mdblist', setFieldValue);
+    },
+    [fetchTitle]
+  );
+
   return {
     fetchTraktTitle,
     fetchTmdbTitle,
     fetchImdbTitle,
     fetchLetterboxdTitle,
+    fetchMdblistTitle,
     isLoading,
     lastError,
   };
@@ -440,7 +452,8 @@ export const useFormBehavior = ({
     ? CollectionFormConfigUtils.isDefaultPlexHub(config)
     : false;
   const isPreExistingCollection = config
-    ? CollectionFormConfigUtils.isPreExisting(config) && config.type !== 'hub'
+    ? CollectionFormConfigUtils.isPreExisting(config) &&
+      config.configType !== 'hub'
     : false;
   const isLinked = config ? Boolean(config.isLinked) : false;
 

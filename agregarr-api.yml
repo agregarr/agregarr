@@ -40,6 +40,10 @@ tags:
     description: Endpoints related to missing item request tracking and management.
   - name: dashboard
     description: Endpoints related to dashboard statistics and analytics.
+  - name: posters
+    description: Endpoints related to poster template management, saved posters, and icon assets.
+  - name: source-colors
+    description: Endpoints related to managing global source color schemes for poster generation.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -197,7 +201,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -232,6 +236,11 @@ components:
           type: boolean
           description: "Auto-generate poster during sync"
           example: true
+          nullable: true
+        autoPosterTemplate:
+          type: integer
+          description: "Template ID for auto-generated posters (null for default template)"
+          example: 1
           nullable: true
         visibilityConfig:
           type: object
@@ -341,6 +350,11 @@ components:
           description: "Limit each TV show to only the first X seasons (0 = all seasons)"
           example: 2
           nullable: true
+        minimumYear:
+          type: integer
+          description: "Only process movies/TV shows released on or after this year (0 = no limit)"
+          example: 2010
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
@@ -355,6 +369,11 @@ components:
           type: string
           description: "Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)"
           example: "https://www.imdb.com/list/ls123456789/"
+          nullable: true
+        mdblistCustomListUrl:
+          type: string
+          description: "Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)"
+          example: "https://mdblist.com/lists/garycrawfordgc/netflix-shows"
           nullable: true
         reverseOrder:
           type: boolean
@@ -508,7 +527,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -543,6 +562,11 @@ components:
           type: boolean
           description: "Auto-generate poster during sync"
           example: true
+          nullable: true
+        autoPosterTemplate:
+          type: integer
+          description: "Template ID for auto-generated posters (null for default template)"
+          example: 1
           nullable: true
         visibilityConfig:
           type: object
@@ -646,6 +670,11 @@ components:
           description: "Limit each TV show to only the first X seasons (0 = all seasons)"
           example: 2
           nullable: true
+        minimumYear:
+          type: integer
+          description: "Only process movies/TV shows released on or after this year (0 = no limit)"
+          example: 2010
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
@@ -660,6 +689,11 @@ components:
           type: string
           description: "Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)"
           example: "https://www.imdb.com/list/ls123456789/"
+          nullable: true
+        mdblistCustomListUrl:
+          type: string
+          description: "Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)"
+          example: "https://mdblist.com/lists/garycrawfordgc/netflix-shows"
           nullable: true
         reverseOrder:
           type: boolean
@@ -750,6 +784,39 @@ components:
                   example: false
               nullable: true
           nullable: true
+        # Multi-source collection properties
+        isMultiSource:
+          type: boolean
+          description: "Enable multi-source mode for combining multiple collection sources"
+          example: false
+          nullable: true
+        sources:
+          type: array
+          description: "Array of source configurations for multi-source collections"
+          items:
+            $ref: '#/components/schemas/CollectionSourceConfig'
+          nullable: true
+        combineMode:
+          type: string
+          enum: ['interleaved', 'list_order', 'randomised', 'cycle_lists']
+          description: "How to combine multiple sources: interleaved (alternate items), list_order (all from first, then second), randomised (shuffle all), cycle_lists (rotate active source)"
+          example: 'list_order'
+          nullable: true
+        customSyncSchedule:
+          type: object
+          description: "Custom sync schedule configuration"
+          properties:
+            enabled:
+              type: boolean
+              description: "Enable custom sync schedule"
+              example: false
+            intervalHours:
+              type: number
+              description: "Sync interval in hours (supports decimals)"
+              example: 24.0
+              minimum: 0.1
+              maximum: 168
+          nullable: true
       required:
         - id
         - name
@@ -769,7 +836,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'letterboxd']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -804,6 +871,11 @@ components:
           type: boolean
           description: "Auto-generate poster during sync"
           example: true
+          nullable: true
+        autoPosterTemplate:
+          type: integer
+          description: "Template ID for auto-generated posters (null for default template)"
+          example: 1
           nullable: true
         visibilityConfig:
           type: object
@@ -919,6 +991,11 @@ components:
           description: "Limit each TV show to only the first X seasons (0 = all seasons)"
           example: 2
           nullable: true
+        minimumYear:
+          type: integer
+          description: "Only process movies/TV shows released on or after this year (0 = no limit)"
+          example: 2010
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
@@ -934,10 +1011,20 @@ components:
           description: "Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)"
           example: "https://www.imdb.com/list/ls123456789/"
           nullable: true
+        mdblistCustomListUrl:
+          type: string
+          description: "Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)"
+          example: "https://mdblist.com/lists/garycrawfordgc/netflix-shows"
+          nullable: true
         letterboxdCustomListUrl:
           type: string
           description: "Custom Letterboxd list URL (e.g., https://letterboxd.com/user/list/list-name/)"
           example: "https://letterboxd.com/user/list/my-list/"
+          nullable: true
+        networksCountry:
+          type: string
+          description: "Selected country for Networks collections (e.g., 'united-states', 'world')"
+          example: "united-states"
           nullable: true
         reverseOrder:
           type: boolean
@@ -1038,6 +1125,39 @@ components:
           type: boolean
           description: "True if collection no longer exists in Plex"
           example: false
+        # Multi-source collection properties
+        isMultiSource:
+          type: boolean
+          description: "Enable multi-source mode for combining multiple collection sources"
+          example: false
+          nullable: true
+        sources:
+          type: array
+          description: "Array of source configurations for multi-source collections"
+          items:
+            $ref: '#/components/schemas/CollectionSourceConfig'
+          nullable: true
+        combineMode:
+          type: string
+          enum: ['interleaved', 'list_order', 'randomised', 'cycle_lists']
+          description: "How to combine multiple sources: interleaved (alternate items), list_order (all from first, then second), randomised (shuffle all), cycle_lists (rotate active source)"
+          example: 'list_order'
+          nullable: true
+        customSyncSchedule:
+          type: object
+          description: "Custom sync schedule configuration"
+          properties:
+            enabled:
+              type: boolean
+              description: "Enable custom sync schedule"
+              example: false
+            intervalHours:
+              type: number
+              description: "Sync interval in hours (supports decimals)"
+              example: 24.0
+              minimum: 0.1
+              maximum: 168
+          nullable: true
       required:
         - id
         - name
@@ -1046,6 +1166,69 @@ components:
         - template
         - visibilityConfig
         - maxItems
+
+    CollectionSourceConfig:
+      type: object
+      description: "Individual source configuration for multi-source collections"
+      properties:
+        id:
+          type: string
+          description: "Unique identifier for this source within the collection"
+          example: "source-1234567890"
+        type:
+          type: string
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks']
+          description: "Type of collection source"
+          example: 'trakt'
+        subtype:
+          type: string
+          description: "Sub-type of the collection source"
+          example: 'trending'
+          nullable: true
+        customUrl:
+          type: string
+          description: "Custom URL for list-based sources (Trakt, TMDb, IMDb, Letterboxd)"
+          example: "https://trakt.tv/users/username/lists/my-list"
+          nullable: true
+        timePeriod:
+          type: string
+          enum: ['daily', 'weekly', 'monthly', 'all']
+          description: "Time period for time-based sources"
+          example: 'weekly'
+          nullable: true
+        priority:
+          type: integer
+          description: "Order priority when combining (0 = highest priority)"
+          example: 0
+          minimum: 0
+        isExpanded:
+          type: boolean
+          description: "UI state for expandable sections"
+          example: true
+          nullable: true
+        customDays:
+          type: integer
+          description: "Number of days to look back for Tautulli statistics"
+          example: 30
+          minimum: 1
+          maximum: 365
+          nullable: true
+        minimumPlays:
+          type: integer
+          description: "Minimum play count required for Tautulli sources"
+          example: 3
+          minimum: 1
+          maximum: 100
+          nullable: true
+        networksCountry:
+          type: string
+          description: "Selected country for Networks collections"
+          example: "united-states"
+          nullable: true
+      required:
+        - id
+        - type
+        - priority
 
     PlexHubConfig:
       type: object
@@ -1865,6 +2048,13 @@ components:
           type: string
           nullable: true
           example: 'your-trakt-api-key-here'
+    MDBListSettings:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          nullable: true
+          example: 'your-mdblist-api-key-here'
     OverseerrSettings:
       type: object
       properties:
@@ -2795,7 +2985,7 @@ components:
           example: "Trending Movies"
         collectionSource:
           type: string
-          enum: [trakt, tmdb, imdb, letterboxd]
+          enum: [trakt, tmdb, imdb, mdblist, letterboxd]
           example: "trakt"
         collectionSubtype:
           type: string
@@ -3314,6 +3504,68 @@ components:
         - visibilityConfig
         - isActive
 
+    NetworksCountryOption:
+      type: object
+      description: "Country option for Networks collections"
+      properties:
+        value:
+          type: string
+          description: "Country code/identifier"
+          example: "united-states"
+        label:
+          type: string
+          description: "Display name for country"
+          example: "United States"
+      required:
+        - value
+        - label
+
+    NetworksPlatformOption:
+      type: object
+      description: "Platform option for Networks collections"
+      properties:
+        value:
+          type: string
+          description: "Platform identifier for Networks collections"
+          example: "netflix_top_10"
+        label:
+          type: string
+          description: "Display name for platform"
+          example: "Netflix Top 10"
+      required:
+        - value
+        - label
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: "not found"
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                      example: "/api/v1/source-colors"
+                    message:
+                      type: string
+                      example: "not found"
+                  required:
+                    - path
+                    - message
+            required:
+              - message
+              - errors
+
+
   securitySchemes:
     cookieAuth:
       type: apiKey
@@ -3546,6 +3798,66 @@ paths:
                     example: "Failed to delete collection"
                   message:
                     type: string
+  /collections/{id}/sync:
+    post:
+      summary: Sync individual collection
+      description: Triggers sync for a specific collection by ID. This performs the same sync operation as the global sync but only for the specified collection, without the global preprocessing overhead.
+      tags:
+        - collection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Collection ID to sync
+          schema:
+            type: string
+            example: "10000"
+      responses:
+        '200':
+          description: Collection sync started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Collection sync started for \"Movie Collection\""
+                  collectionId:
+                    type: string
+                    example: "10000"
+                  collectionName:
+                    type: string
+                    example: "Movie Collection"
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Collection with ID 10000 not found"
+        '500':
+          description: Failed to start collection sync
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  message:
+                    type: string
+                    example: "Admin user not found"
   /collections/{id}/promote:
     patch:
       summary: Promote collection to top section
@@ -3822,7 +4134,7 @@ paths:
                   example: "https://trakt.tv/users/username/lists/my-list"
                 type:
                   type: string
-                  enum: [trakt, tmdb, imdb, letterboxd]
+                  enum: [trakt, tmdb, imdb, mdblist, letterboxd]
                   example: "trakt"
               required:
                 - url
@@ -3869,7 +4181,7 @@ paths:
                   example: "https://trakt.tv/users/username/lists/my-list"
                 type:
                   type: string
-                  enum: [trakt, tmdb, imdb, letterboxd]
+                  enum: [trakt, tmdb, imdb, mdblist, letterboxd]
                   example: "trakt"
               required:
                 - url
@@ -3957,7 +4269,7 @@ paths:
                   example: "Top Trakt Movies"
                 collectionType:
                   type: string
-                  description: Type of collection (trakt, tmdb, imdb, letterboxd, tautulli, overseerr, hub)
+                  description: Type of collection (trakt, tmdb, imdb, mdblist, letterboxd, tautulli, overseerr, hub)
                   example: "trakt"
                 collectionSubtype:
                   type: string
@@ -4186,6 +4498,74 @@ paths:
                   error:
                     type: string
                     example: "Failed to cleanup missing collections"
+  /collections/networks/countries:
+    get:
+      summary: Get available countries for Networks collections
+      description: Returns all available countries/regions that can be used for Networks streaming platform collections.
+      tags:
+        - collection
+      responses:
+        '200':
+          description: Countries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NetworksCountryOption'
+        '500':
+          description: Failed to fetch countries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to load available countries"
+  /collections/networks/platforms:
+    get:
+      summary: Get available platforms for a country
+      description: Returns all available streaming platforms for the specified country/region.
+      tags:
+        - collection
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Country code to get platforms for
+          example: "united-states"
+      responses:
+        '200':
+          description: Platforms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NetworksPlatformOption'
+        '400':
+          description: Country parameter is required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Country parameter is required"
+        '500':
+          description: Failed to fetch platforms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to load platforms for country"
   /collections/preexisting:
     get:
       summary: Get pre-existing Plex collections
@@ -5291,7 +5671,6 @@ paths:
                   example: '/tautulli'
               required:
                 - hostname
-                - port
                 - apiKey
       responses:
         '200':
@@ -5375,6 +5754,70 @@ paths:
           description: 'Missing required parameters'
         '500':
           description: 'Connection test failed'
+  /settings/mdblist:
+    get:
+      summary: Get MDBList settings
+      description: Retrieves current MDBList settings.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MDBListSettings'
+    post:
+      summary: Update MDBList settings
+      description: Updates MDBList settings with the provided values.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MDBListSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MDBListSettings'
+  /settings/mdblist/test:
+    post:
+      summary: Test MDBList connection
+      description: Tests connection to MDBList API with the provided API key.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKey:
+                  type: string
+                  description: MDBList API key
+              required:
+                - apiKey
+      responses:
+        '200':
+          description: 'Connection test successful'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: 'Missing required parameters'
+        '500':
+          description: 'Connection test failed'
   /settings/overseerr:
     get:
       summary: Get Overseerr settings
@@ -5438,7 +5881,6 @@ paths:
                   example: '/overseerr'
               required:
                 - hostname
-                - port
                 - apiKey
       responses:
         '200':
@@ -5553,9 +5995,7 @@ paths:
                   type: string
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: Succesfully connected to Radarr instance
@@ -5697,9 +6137,7 @@ paths:
                   type: string
               required:
                 - hostname
-                - port
                 - apiKey
-                - useSsl
       responses:
         '200':
           description: Succesfully connected to Sonarr instance
@@ -6891,7 +7329,7 @@ paths:
           name: collectionSource
           schema:
             type: string
-            enum: [trakt, tmdb, imdb, letterboxd]
+            enum: [trakt, tmdb, imdb, mdblist, letterboxd]
           description: Filter by collection source
         - in: query
           name: requestService
@@ -7423,6 +7861,1097 @@ paths:
                         type: boolean
         '500':
           description: Failed to get hub management status
+
+  # Poster Management Endpoints
+  /posters/templates:
+    get:
+      summary: Get all poster templates
+      description: Retrieves all active poster templates with their metadata and configuration.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Templates retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: "Classic Movie Poster"
+                        description:
+                          type: string
+                          example: "A classic movie poster template with text overlays"
+                        isDefault:
+                          type: boolean
+                          example: false
+                        templateData:
+                          type: object
+                          properties:
+                            width:
+                              type: number
+                              example: 500
+                            height:
+                              type: number
+                              example: 750
+                            background:
+                              type: object
+                              properties:
+                                type:
+                                  type: string
+                                  enum: [color, gradient]
+                                  example: "gradient"
+                                color:
+                                  type: string
+                                  example: "#6366f1"
+                                secondaryColor:
+                                  type: string
+                                  example: "#1e1b4b"
+                            textElements:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "text-1"
+                                  type:
+                                    type: string
+                                    example: "collection-title"
+                                  text:
+                                    type: string
+                                    example: "Collection Name"
+                                  x:
+                                    type: number
+                                    example: 50
+                                  y:
+                                    type: number
+                                    example: 100
+                                  width:
+                                    type: number
+                                    example: 400
+                                  height:
+                                    type: number
+                                    example: 60
+                                  fontSize:
+                                    type: number
+                                    example: 32
+                                  fontFamily:
+                                    type: string
+                                    example: "Arial, sans-serif"
+                                  fontWeight:
+                                    type: string
+                                    enum: [normal, bold]
+                                    example: "bold"
+                                  fontStyle:
+                                    type: string
+                                    enum: [normal, italic]
+                                    example: "normal"
+                                  color:
+                                    type: string
+                                    example: "#ffffff"
+                                  textAlign:
+                                    type: string
+                                    enum: [left, center, right]
+                                    example: "center"
+                                  maxLines:
+                                    type: number
+                                    example: 2
+                            iconElements:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "icon-1"
+                                  type:
+                                    type: string
+                                    enum: [source-logo, custom-icon]
+                                    example: "source-logo"
+                                  iconPath:
+                                    type: string
+                                    example: "/icons/tmdb-logo.svg"
+                                  x:
+                                    type: number
+                                    example: 25
+                                  y:
+                                    type: number
+                                    example: 25
+                                  width:
+                                    type: number
+                                    example: 50
+                                  height:
+                                    type: number
+                                    example: 50
+                                  grayscale:
+                                    type: boolean
+                                    example: false
+                            contentGrid:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  example: "grid-1"
+                                x:
+                                  type: number
+                                  example: 50
+                                y:
+                                  type: number
+                                  example: 200
+                                width:
+                                  type: number
+                                  example: 400
+                                height:
+                                  type: number
+                                  example: 400
+                                columns:
+                                  type: number
+                                  example: 3
+                                rows:
+                                  type: number
+                                  example: 3
+                                spacing:
+                                  type: number
+                                  example: 10
+                                cornerRadius:
+                                  type: number
+                                  example: 8
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        '500':
+          description: Failed to fetch poster templates
+    post:
+      summary: Create new poster template
+      description: Creates a new poster template with the provided configuration.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - templateData
+              properties:
+                name:
+                  type: string
+                  example: "My Custom Template"
+                description:
+                  type: string
+                  example: "A custom poster template"
+                templateData:
+                  type: object
+                  description: "Template configuration data (same structure as in GET response)"
+      responses:
+        '201':
+          description: Template created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: "Same structure as template object in GET response"
+        '400':
+          description: Invalid template data or validation failed
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to create poster template
+
+  /posters/templates/{id}:
+    put:
+      summary: Update poster template
+      description: Updates an existing poster template. Users can only update their own templates.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                templateData:
+                  type: object
+      responses:
+        '200':
+          description: Template updated successfully
+        '400':
+          description: Invalid template data
+        '401':
+          description: Authentication required
+        '403':
+          description: Permission denied
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to update poster template
+    delete:
+      summary: Delete poster template
+      description: Soft deletes a poster template. Users can only delete their own templates. Default templates cannot be deleted.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+      responses:
+        '204':
+          description: Template deleted successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Permission denied or cannot delete default template
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to delete poster template
+
+  /posters/templates/{id}/set-default:
+    post:
+      summary: Set template as default
+      description: Sets the specified template as the default template for poster generation. Only one template can be default at a time.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+          example: 1
+      responses:
+        '200':
+          description: Template set as default successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Template set as default successfully"
+                  template:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      name:
+                        type: string
+                        example: "My Custom Template"
+                      isDefault:
+                        type: boolean
+                        example: true
+        '401':
+          description: Authentication required
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to set template as default
+
+  /posters/templates/{id}/preview:
+    get:
+      summary: Generate template preview
+      description: Generates a preview image of a poster template with optional collection data.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Template ID
+        - name: collectionName
+          in: query
+          schema:
+            type: string
+            default: "Preview Collection"
+          description: Collection name to use in preview
+        - name: collectionType
+          in: query
+          schema:
+            type: string
+          description: Collection type
+        - name: mediaType
+          in: query
+          schema:
+            type: string
+            enum: [movie, tv]
+            default: movie
+          description: Media type
+      responses:
+        '200':
+          description: Preview image generated successfully
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid template ID or failed to generate preview
+        '500':
+          description: Failed to generate template preview
+
+  /posters/templates/validate:
+    post:
+      summary: Validate template data
+      description: Validates poster template data structure and returns sanitized data if valid.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - templateData
+              properties:
+                templateData:
+                  type: object
+                  description: "Template data to validate"
+      responses:
+        '200':
+          description: Validation completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isValid:
+                    type: boolean
+                    example: true
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+                  sanitizedData:
+                    type: object
+                    description: "Sanitized template data (only present if isValid is true)"
+        '400':
+          description: Template data is required
+        '500':
+          description: Failed to validate template data
+
+  /posters/saved:
+    get:
+      summary: Get saved posters
+      description: Retrieves all saved posters for the authenticated user.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Saved posters retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: "My Custom Poster"
+                        description:
+                          type: string
+                          example: "A custom poster for my collection"
+                        filename:
+                          type: string
+                          example: "poster-abc123.jpg"
+                        thumbnailFilename:
+                          type: string
+                          example: "thumb-abc123.jpg"
+                        posterData:
+                          type: object
+                          description: "Poster configuration data"
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to fetch saved posters
+    post:
+      summary: Create saved poster
+      description: Creates a new saved poster with the provided data.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - posterData
+              properties:
+                name:
+                  type: string
+                  example: "My Saved Poster"
+                description:
+                  type: string
+                  example: "Description of my poster"
+                posterData:
+                  type: object
+                  description: "Poster configuration data"
+                filename:
+                  type: string
+                  example: "poster-abc123.jpg"
+                thumbnailFilename:
+                  type: string
+                  example: "thumb-abc123.jpg"
+      responses:
+        '201':
+          description: Saved poster created successfully
+        '400':
+          description: Poster name and data are required
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to create saved poster
+
+  /posters/saved/{id}:
+    put:
+      summary: Update saved poster
+      description: Updates an existing saved poster. Users can only update their own posters.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Poster ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                posterData:
+                  type: object
+                filename:
+                  type: string
+                thumbnailFilename:
+                  type: string
+      responses:
+        '200':
+          description: Saved poster updated successfully
+        '401':
+          description: Authentication required
+        '404':
+          description: Poster not found
+        '500':
+          description: Failed to update saved poster
+    delete:
+      summary: Delete saved poster
+      description: Deletes a saved poster. Supports both database posters (integer ID) and file-based posters (string ID with 'file-' prefix). Users can only delete their own posters.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                description: Database poster ID
+              - type: string
+                pattern: '^file-.+$'
+                description: File-based poster ID (starts with 'file-')
+          description: Poster ID (integer for database posters, or string starting with 'file-' for file-based posters)
+      responses:
+        '204':
+          description: Saved poster deleted successfully
+        '401':
+          description: Authentication required
+        '404':
+          description: Poster not found
+        '409':
+          description: Poster is currently in use by collections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Poster is currently in use"
+                  message:
+                    type: string
+                    example: "This poster is being used by the following collections: Movie Collection, TV Collection"
+                  collections:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Movie Collection", "TV Collection"]
+        '500':
+          description: Failed to delete saved poster
+
+  /posters/icons/upload:
+    post:
+      summary: Upload icon/asset
+      description: Uploads an icon or asset file for use in poster templates.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - icon
+              properties:
+                icon:
+                  type: string
+                  format: binary
+                  description: "Icon file (JPEG, PNG, WebP, SVG, max 10MB)"
+                name:
+                  type: string
+                  description: "Name for the icon"
+                category:
+                  type: string
+                  description: "Category for the icon"
+                tags:
+                  type: string
+                  description: "Comma-separated tags"
+                description:
+                  type: string
+                  description: "Description of the icon"
+      responses:
+        '201':
+          description: Icon uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  icon:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      filename:
+                        type: string
+                      category:
+                        type: string
+                      tags:
+                        type: array
+                        items:
+                          type: string
+                      description:
+                        type: string
+        '400':
+          description: No file uploaded or invalid file type
+        '500':
+          description: Failed to upload icon
+
+  /posters/icons/download:
+    post:
+      summary: Download icon from URL
+      description: Downloads an icon from a URL and saves it to the system.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - url
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  example: "https://example.com/icon.png"
+                name:
+                  type: string
+                category:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Icon downloaded successfully
+        '400':
+          description: URL is required or download failed
+        '500':
+          description: Failed to download icon
+
+  /posters/icons:
+    get:
+      summary: List available icons
+      description: Retrieves a list of available icons with optional filtering.
+      tags:
+        - posters
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [user, system]
+          description: Filter by icon type
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by category
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: Filter by tags
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in name and description
+      responses:
+        '200':
+          description: Icons retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  icons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        filename:
+                          type: string
+                        category:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+                        description:
+                          type: string
+                        type:
+                          type: string
+                          enum: [user, system]
+        '500':
+          description: Failed to list icons
+
+  /posters/icons/categories:
+    get:
+      summary: List icon categories
+      description: Retrieves all available icon categories with statistics.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        displayName:
+                          type: string
+                        description:
+                          type: string
+                        iconCount:
+                          type: integer
+        '500':
+          description: Failed to list icon categories
+
+  /posters/icons/{id}:
+    delete:
+      summary: Delete icon
+      description: Deletes an icon by ID.
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Icon ID
+      responses:
+        '204':
+          description: Icon deleted successfully
+        '400':
+          description: Icon ID is required
+        '404':
+          description: Icon not found
+        '500':
+          description: Failed to delete icon
+
+  /posters/files/{filename}:
+    get:
+      summary: Serve poster files
+      description: Serves poster image files by filename.
+      tags:
+        - posters
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Poster filename
+      responses:
+        '200':
+          description: Poster image served successfully
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Filename is required
+        '404':
+          description: Poster file not found
+        '500':
+          description: Failed to serve poster file
+
+  /posters/thumbnails/{filename}:
+    get:
+      summary: Serve thumbnail files
+      description: Serves poster thumbnail files by filename.
+      tags:
+        - posters
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Thumbnail filename
+      responses:
+        '200':
+          description: Thumbnail image served successfully
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Filename is required
+        '404':
+          description: Thumbnail not found
+        '500':
+          description: Failed to serve thumbnail file
+
+  /posters/icons/{type}/{filename}:
+    get:
+      summary: Serve icon files
+      description: Serves icon files by type and filename.
+      tags:
+        - posters
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [user, system]
+          description: Icon type
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Icon filename
+      responses:
+        '200':
+          description: Icon file served successfully
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid icon type or filename required
+        '404':
+          description: Icon file not found
+        '500':
+          description: Failed to serve icon file
+
+  /source-colors:
+    get:
+      summary: Get all source colors
+      description: Retrieves all source color mappings (database + defaults) for poster generation.
+      tags:
+        - source-colors
+      responses:
+        '200':
+          description: Source colors retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    primaryColor:
+                      type: string
+                      example: "#01b4e4"
+                    secondaryColor:
+                      type: string
+                      example: "#0d253f"
+                    textColor:
+                      type: string
+                      example: "#ffffff"
+                example:
+                  tmdb:
+                    primaryColor: "#01b4e4"
+                    secondaryColor: "#0d253f"
+                    textColor: "#ffffff"
+                  trakt:
+                    primaryColor: "#ed2224"
+                    secondaryColor: "#1f1a1a"
+                    textColor: "#ffffff"
+                  mdblist:
+                    primaryColor: "#4283c9"
+                    secondaryColor: "#1a2e42"
+                    textColor: "#ffffff"
+        '500':
+          description: Failed to get source colors
+
+  /source-colors/{sourceType}:
+    get:
+      summary: Get specific source color scheme
+      description: Retrieves color scheme for a specific source type.
+      tags:
+        - source-colors
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tmdb
+      responses:
+        '200':
+          description: Source color scheme retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  primaryColor:
+                    type: string
+                    example: "#01b4e4"
+                  secondaryColor:
+                    type: string
+                    example: "#0d253f"
+                  textColor:
+                    type: string
+                    example: "#ffffff"
+        '500':
+          description: Failed to get source colors
+
+    put:
+      summary: Update source colors
+      description: Updates color scheme for a specific source type. This affects all templates using source colors.
+      tags:
+        - source-colors
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tmdb
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - primaryColor
+                - secondaryColor
+                - textColor
+              properties:
+                primaryColor:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  example: "#01b4e4"
+                secondaryColor:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  example: "#0d253f"
+                textColor:
+                  type: string
+                  pattern: '^#[0-9a-fA-F]{6}$'
+                  example: "#ffffff"
+      responses:
+        '200':
+          description: Source colors updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Source colors updated for tmdb"
+                  colors:
+                    type: object
+                    properties:
+                      primaryColor:
+                        type: string
+                        example: "#01b4e4"
+                      secondaryColor:
+                        type: string
+                        example: "#0d253f"
+                      textColor:
+                        type: string
+                        example: "#ffffff"
+        '400':
+          description: Invalid input - missing fields or invalid hex colors
+        '500':
+          description: Failed to update source colors
+
+    delete:
+      summary: Reset source colors to defaults
+      description: Resets the specified source type colors to system defaults.
+      tags:
+        - source-colors
+      parameters:
+        - name: sourceType
+          in: path
+          required: true
+          schema:
+            type: string
+          example: tmdb
+      responses:
+        '200':
+          description: Source colors reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Source colors reset to defaults for tmdb"
+                  colors:
+                    type: object
+                    properties:
+                      primaryColor:
+                        type: string
+                        example: "#01b4e4"
+                      secondaryColor:
+                        type: string
+                        example: "#0d253f"
+                      textColor:
+                        type: string
+                        example: "#ffffff"
+        '500':
+          description: Failed to reset source colors
+
+  /source-colors/reset:
+    post:
+      summary: Reset all source colors to defaults
+      description: Resets all source color customizations back to system defaults.
+      tags:
+        - source-colors
+      responses:
+        '200':
+          description: All source colors reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "All source colors reset to defaults"
+                  colors:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        primaryColor:
+                          type: string
+                        secondaryColor:
+                          type: string
+                        textColor:
+                          type: string
+        '500':
+          description: Failed to reset source colors
 
 security:
   - cookieAuth: []

@@ -42,7 +42,7 @@ export const useCollectionEdit = () => {
     }
 
     // Check if this is a hub config
-    if (config.type === 'hub') {
+    if (config.configType === 'hub') {
       // Use unified linking logic for hubs
       const hubConfigsArray = hubConfigs || [];
       const configToEdit = prepareLinkedConfigForEditing(

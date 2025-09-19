@@ -52,5 +52,40 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            COMMIT_TAG=${{ github.sha }}
           tags: |
             agregarr/agregarr:develop
+
+
+  discord:
+    name: Send Discord Notification
+    needs: build_and_push
+    if: always() && github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[skip ci]')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Get Build Job Status
+        uses: technote-space/workflow-conclusion-action@v3
+      - name: Combine Job Status
+        id: status
+        run: |
+          failures=(neutral, skipped, timed_out, action_required)
+          if [[ ${array[@]} =~ $WORKFLOW_CONCLUSION ]]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+          else
+            echo "status=$WORKFLOW_CONCLUSION" >> $GITHUB_OUTPUT
+          fi
+      - name: Post Status to Discord
+        if: steps.status.outputs.status == 'success'
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK_DEVELOP }}
+          title: "✅ Agregarr Develop Build"
+          description: |
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          color: 0x00ff00
+          username: "Agregarr Bot"
+          url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          nofail: true

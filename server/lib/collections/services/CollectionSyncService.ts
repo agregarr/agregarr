@@ -3,8 +3,12 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
-import { prefetchAllLibraryItems } from '@server/lib/collections/core/CollectionUtilities';
 import type { SyncResult } from '@server/lib/collections/core/types';
+import type {
+  MultiSourceCollectionConfig,
+  MultiSourceCombineMode,
+  MultiSourceType,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { syncCacheService } from './SyncCacheService';
@@ -149,18 +153,16 @@ export class CollectionSyncService {
       }
     }
 
-    // OPTIMIZATION: Pre-fetch all library content and Overseerr requests once at the start of sync
+    // OPTIMIZATION: Use shared library cache for sync optimization
     // This eliminates repeated API calls across all collection sources
-    onProgress?.(0, 'Pre-fetching library content...');
-    logger.info('Pre-fetching all library content for sync optimization', {
-      label: 'Collection Sync Service',
-    });
+    onProgress?.(0, 'Loading shared library cache...');
 
-    const libraryCache = await prefetchAllLibraryItems(plexClient);
+    const { libraryCacheService } = await import('./LibraryCacheService');
+    const libraryCache = await libraryCacheService.getCache(plexClient);
     const cachedLibraryCount = Object.keys(libraryCache).length;
 
     logger.info(
-      `Library content cache ready (${cachedLibraryCount} libraries cached)`,
+      `Shared library cache ready (${cachedLibraryCount} libraries cached)`,
       {
         label: 'Collection Sync Service',
         cachedLibraries: cachedLibraryCount,
@@ -196,16 +198,85 @@ export class CollectionSyncService {
         // Report collection processing start
         onProgress?.(processedCount, `Processing "${config.name}"...`);
 
-        // Get the sync service for this config type and process it
-        const syncService = await this.createSyncService(config.type);
-        const allCollections = await plexClient.getAllCollections();
-        const result = await syncService.processCollections(
-          [config],
-          plexClient,
-          allCollections,
-          processedCollectionKeys,
-          libraryCache
+        // Wait for API access for this collection type to prevent concurrent access
+        const { IndividualCollectionScheduler } = await import(
+          './IndividualCollectionScheduler'
         );
+        await IndividualCollectionScheduler.waitForApiAccess(
+          config.type,
+          config.id,
+          config.name,
+          config.libraryId
+        );
+
+        // Get the sync service for this config type and process it
+        const allCollections = await plexClient.getAllCollections();
+
+        let result: SyncResult;
+        if (config.type === 'multi-source') {
+          // Use new multi-source orchestrator for distinct multi-source collections
+          const { MultiSourceOrchestrator } = await import(
+            './MultiSourceOrchestrator'
+          );
+          const orchestrator = new MultiSourceOrchestrator();
+
+          // Convert CollectionConfig to MultiSourceCollectionConfig format
+          const multiSourceConfig: MultiSourceCollectionConfig = {
+            id: config.id,
+            name: config.name,
+            type: 'multi-source',
+            visibilityConfig: config.visibilityConfig,
+            mediaType: 'movie', // Default, should be set properly by caller
+            libraryId: config.libraryId,
+            libraryName: config.libraryName,
+            maxItems: config.maxItems ?? 50, // Provide default for multi-source
+            template: config.template || '', // Provide default for multi-source
+            sources:
+              config.sources?.map((source) => ({
+                id: source.id,
+                type: source.type as MultiSourceType,
+                subtype: source.subtype || '',
+                customUrl: source.customUrl,
+                timePeriod: source.timePeriod as
+                  | 'daily'
+                  | 'weekly'
+                  | 'monthly'
+                  | 'all'
+                  | undefined,
+                customDays: source.customDays,
+                minimumPlays: source.minimumPlays,
+                priority: source.priority,
+              })) || [],
+            combineMode:
+              (config.combineMode as MultiSourceCombineMode) || 'list_order',
+            isActive: config.isActive,
+            sortOrderHome: config.sortOrderHome,
+            sortOrderLibrary: config.sortOrderLibrary,
+            isLibraryPromoted: config.isLibraryPromoted,
+            timeRestriction: config.timeRestriction,
+            customPoster: config.customPoster,
+            autoPoster: config.autoPoster,
+            autoPosterTemplate: config.autoPosterTemplate,
+          };
+
+          result = await orchestrator.processMultiSourceCollection(
+            multiSourceConfig,
+            plexClient,
+            allCollections,
+            processedCollectionKeys,
+            libraryCache
+          );
+        } else {
+          // Use normal single-source sync
+          const syncService = await this.createSyncService(config.type);
+          result = await syncService.processCollections(
+            [config],
+            plexClient,
+            allCollections,
+            processedCollectionKeys,
+            libraryCache
+          );
+        }
 
         created += result.created || 0;
         updated += result.updated || 0;
@@ -238,6 +309,12 @@ export class CollectionSyncService {
         // Still increment counter to avoid getting stuck
         processedCount++;
         onProgress?.(processedCount);
+      } finally {
+        // Always release the API, regardless of success or failure
+        const { IndividualCollectionScheduler } = await import(
+          './IndividualCollectionScheduler'
+        );
+        IndividualCollectionScheduler.releaseApiAccess(config.type);
       }
     }
 
@@ -340,11 +417,15 @@ export class CollectionSyncService {
    * Create the appropriate sync service for a given collection type
    * Simple factory method without over-engineering
    */
-  private async createSyncService(type: string): Promise<BaseCollectionSync> {
+  public async createSyncService(type: string): Promise<BaseCollectionSync> {
     switch (type) {
       case 'trakt': {
         const { TraktCollectionSync } = await import('../external/trakt');
         return new TraktCollectionSync();
+      }
+      case 'mdblist': {
+        const { MDBListCollectionSync } = await import('../external/mdblist');
+        return new MDBListCollectionSync();
       }
       case 'tmdb': {
         const { TmdbCollectionSync } = await import('../external/tmdb');
@@ -364,12 +445,20 @@ export class CollectionSyncService {
         );
         return new LetterboxdCollectionSync();
       }
+      case 'networks': {
+        const { NetworksCollectionSync } = await import('../external/networks');
+        return new NetworksCollectionSync();
+      }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
           '../external/overseerrSync'
         );
         return new OverseerrCollectionSync();
       }
+      case 'multi-source':
+        throw new Error(
+          'Multi-source collections should be handled by MultiSourceOrchestrator, not individual sync services'
+        );
       default:
         throw new Error(`Unknown collection type: ${type}`);
     }

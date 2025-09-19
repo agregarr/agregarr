@@ -55,6 +55,34 @@ app
     // Replaces 4 incomplete migrations with comprehensive field normalization
     settings.migrateCollectionDataNormalizationV110();
 
+    // Seed default source colors and poster template (one-time setup)
+    try {
+      const { seedSourceColors } = await import(
+        '@server/scripts/seedSourceColors'
+      );
+      const { seedDefaultTemplate } = await import(
+        '@server/scripts/seedDefaultTemplate'
+      );
+
+      await seedSourceColors();
+      await seedDefaultTemplate();
+    } catch (error) {
+      logger.error('Failed to seed default data:', error);
+    }
+
+    // Initialize IndividualCollectionScheduler for custom sync schedules
+    try {
+      const { IndividualCollectionScheduler } = await import(
+        '@server/lib/collections/services/IndividualCollectionScheduler'
+      );
+      await IndividualCollectionScheduler.initialize();
+    } catch (error) {
+      logger.error(
+        'Failed to initialize IndividualCollectionScheduler:',
+        error
+      );
+    }
+
     // Initialize poster storage directory
     try {
       const { initializePosterStorage } = await import(
@@ -64,6 +92,28 @@ app
       logger.info('Poster storage initialized successfully');
     } catch (error) {
       logger.error('Failed to initialize poster storage:', error);
+    }
+
+    // Initialize icon storage directory
+    try {
+      const { initializeIconStorage } = await import('@server/lib/iconManager');
+      await initializeIconStorage();
+      logger.info('Icon storage initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize icon storage:', error);
+    }
+
+    // Initialize RandomListManager for multi-source collections
+    try {
+      const { RandomListManager } = await import(
+        '@server/lib/collections/utils/RandomListManager'
+      );
+      const configDir =
+        process.env.CONFIG_DIRECTORY || path.join(__dirname, '../config');
+      RandomListManager.initialize(configDir);
+      logger.info('RandomListManager initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize RandomListManager:', error);
     }
 
     // Migrate library types
@@ -175,7 +225,7 @@ app
 
     // Direct static file serving for posters
     server.use(
-      '/posters',
+      '/poster-files',
       express.static(path.join(process.cwd(), 'config', 'posters'), {
         maxAge: '1y', // Cache for 1 year since filenames are UUIDs
         setHeaders: (res, filePath) => {
@@ -229,14 +279,12 @@ app
             );
             return res
               .status(200)
-              .json({ filename, url: `/posters/${filename}` });
+              .json({ filename, url: `/poster-files/${filename}` });
           } catch (error) {
             logger.error('Error saving poster:', error);
-            return res
-              .status(400)
-              .json({
-                error: error instanceof Error ? error.message : 'Save failed',
-              });
+            return res.status(400).json({
+              error: error instanceof Error ? error.message : 'Save failed',
+            });
           }
         });
       } catch (error) {

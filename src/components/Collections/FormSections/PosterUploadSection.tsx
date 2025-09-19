@@ -1,12 +1,14 @@
 import type { CollectionFormConfig } from '@app/types/collections';
-import { PlusIcon } from '@heroicons/react/24/solid';
-import { useState } from 'react';
+import { Menu, Transition } from '@headlessui/react';
+import { ChevronDownIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { Fragment, useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import useSWR from 'swr';
 import PosterSelectionPopover from './PosterSelectionPopover';
 
 const messages = defineMessages({
   customPoster: 'Custom Poster',
-  customPosters: 'Custom Posters',
+  customPosters: 'Posters',
   addPoster: 'Add Poster',
   addPosters: 'Add Posters',
   uploading: 'Uploading poster...',
@@ -26,12 +28,22 @@ const messages = defineMessages({
   autoPoster: 'Auto-generate posters',
   autoPosterHelp:
     'Automatically generate posters using the collection name during sync. Uncheck to manually upload custom posters instead.',
+  selectTemplate: 'Select Template',
+  defaultTemplate: 'Default Template',
+  templateHelp: 'Choose a template for auto-generated posters.',
 });
 
 interface Library {
   key: string;
   name: string;
   type: string;
+}
+
+interface PosterTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  isDefault: boolean;
 }
 
 interface PosterUploadSectionProps {
@@ -67,6 +79,12 @@ const PosterUploadSection = ({
     null
   );
 
+  // Fetch available poster templates
+  const { data: templatesResponse } = useSWR<{ templates: PosterTemplate[] }>(
+    '/api/v1/posters/templates'
+  );
+  const templates = templatesResponse?.templates;
+
   // Convert library type to media type for poster generation
   const getMediaTypeFromLibraryType = (libraryType: string): 'movie' | 'tv' => {
     switch (libraryType.toLowerCase()) {
@@ -101,9 +119,26 @@ const PosterUploadSection = ({
   // Auto-poster is available for all collections, enabled by default
   const isAutoPosterEnabled = values.autoPoster ?? true; // Default to true if not set
 
+  // Get current selected template - if none selected, use the default template
+  const defaultTemplate = templates?.find((t) => t.isDefault);
+  const selectedTemplateId =
+    values.autoPosterTemplate || defaultTemplate?.id || null;
+  const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
+
   const handleAutoPosterChange = (enabled: boolean) => {
     setFieldValue('autoPoster', enabled);
   };
+
+  const handleTemplateSelection = (templateId: number | null) => {
+    setFieldValue('autoPosterTemplate', templateId);
+  };
+
+  // Auto-select default template when templates load and no template is currently selected
+  useEffect(() => {
+    if (templates && !values.autoPosterTemplate && defaultTemplate) {
+      setFieldValue('autoPosterTemplate', defaultTemplate.id);
+    }
+  }, [templates, values.autoPosterTemplate, defaultTemplate, setFieldValue]);
 
   const handleRemovePoster = (libraryId: string) => {
     const updatedPosters = { ...currentPosters };
@@ -167,22 +202,97 @@ const PosterUploadSection = ({
     <>
       {/* Auto-poster toggle for all collections */}
       <div className="mb-6">
-        <div className="form-input-field">
-          <label className="checkbox-container">
-            <input
-              type="checkbox"
-              checked={isAutoPosterEnabled}
-              onChange={(e) => handleAutoPosterChange(e.target.checked)}
-            />
-            <span className="checkmark" />
-            <span className="text-label">
-              {intl.formatMessage(messages.autoPoster)}
-            </span>
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="autoPoster"
+            checked={isAutoPosterEnabled}
+            onChange={(e) => handleAutoPosterChange(e.target.checked)}
+            className="form-checkbox"
+          />
+          <label htmlFor="autoPoster" className="ml-2 text-sm text-gray-300">
+            {intl.formatMessage(messages.autoPoster)}
           </label>
         </div>
         <div className="label-tip">
           {intl.formatMessage(messages.autoPosterHelp)}
         </div>
+
+        {/* Template selection when auto-poster is enabled */}
+        {isAutoPosterEnabled && (
+          <div className="mt-4">
+            <label className="text-label">
+              {intl.formatMessage(messages.selectTemplate)}
+            </label>
+            <Menu as="div" className="relative mt-2">
+              <Menu.Button className="relative w-full cursor-default rounded-md bg-stone-700 py-2 pl-3 pr-10 text-left shadow-sm ring-1 ring-inset ring-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500 sm:text-sm">
+                <span className="block truncate text-white">
+                  {selectedTemplate?.name || 'Select Template'}
+                </span>
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                  <ChevronDownIcon
+                    className="h-5 w-5 text-stone-400"
+                    aria-hidden="true"
+                  />
+                </span>
+              </Menu.Button>
+
+              <Transition
+                as={Fragment}
+                enter="transition ease-out duration-100"
+                enterFrom="transform opacity-0 scale-95"
+                enterTo="transform opacity-100 scale-100"
+                leave="transition ease-in duration-75"
+                leaveFrom="transform opacity-100 scale-100"
+                leaveTo="transform opacity-0 scale-95"
+              >
+                <Menu.Items className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-stone-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                  {templates?.map((template) => (
+                    <Menu.Item key={template.id}>
+                      {({ active }) => (
+                        <button
+                          onClick={() => handleTemplateSelection(template.id)}
+                          className={`relative w-full cursor-default select-none py-2 pl-3 pr-9 text-left ${
+                            active
+                              ? 'bg-orange-600 text-white'
+                              : 'text-stone-200'
+                          }`}
+                        >
+                          <span
+                            className={`block truncate ${
+                              selectedTemplateId === template.id
+                                ? 'font-semibold'
+                                : 'font-normal'
+                            }`}
+                          >
+                            {template.name}
+                          </span>
+                          {template.description && (
+                            <span className="block truncate text-xs text-stone-400">
+                              {template.description}
+                            </span>
+                          )}
+                          {selectedTemplateId === template.id && (
+                            <span
+                              className={`absolute inset-y-0 right-0 flex items-center pr-4 ${
+                                active ? 'text-white' : 'text-orange-600'
+                              }`}
+                            >
+                              ✓
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </Menu.Item>
+                  ))}
+                </Menu.Items>
+              </Transition>
+            </Menu>
+            <div className="label-tip mt-1">
+              {intl.formatMessage(messages.templateHelp)}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Manual poster uploads - only show when auto-poster is disabled */}
@@ -204,14 +314,9 @@ const PosterUploadSection = ({
                     {libraryPoster ? (
                       <div className="relative">
                         <img
-                          src={`/posters/${libraryPoster}`}
+                          src={`/api/v1/collections/poster/${libraryPoster}`}
                           alt={`Poster for ${library.name}`}
                           className="h-24 w-16 rounded border object-cover shadow-sm"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src =
-                              '/images/overseerr_poster_not_found.png';
-                          }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center space-x-1 rounded bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100">
                           <button

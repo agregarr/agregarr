@@ -12,6 +12,12 @@ export interface ImdbListItem {
   year?: number;
   type: 'movie' | 'tv';
   tmdbId?: number; // Will be resolved separately
+  isEpisode?: boolean; // True if this is an individual episode
+  episodeInfo?: {
+    episodeTitle?: string;
+    season?: number;
+    episode?: number;
+  };
 }
 
 /**
@@ -120,7 +126,7 @@ class ImdbAPI extends ExternalAPI {
    */
   public async getCustomList(
     listUrl: string,
-    limit = 1000
+    limit = 9999
   ): Promise<ImdbListItem[]> {
     try {
       // Extract list ID from URL

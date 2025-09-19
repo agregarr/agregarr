@@ -163,9 +163,38 @@ class CollectionsSync {
       );
     }
 
-    // Set running state immediately for UI feedback
+    // Wait for any running individual collection syncs to complete
+    const { IndividualCollectionScheduler } = await import(
+      '@server/lib/collections/services/IndividualCollectionScheduler'
+    );
+
+    const anyIndividualSyncsRunning =
+      IndividualCollectionScheduler.getLibraryQueuesStatus().some(
+        (queue) => queue.running || queue.queueSize > 0
+      );
+
+    if (anyIndividualSyncsRunning) {
+      logger.info(
+        'Individual collection syncs are running, waiting for completion...',
+        {
+          label: 'Collections Sync',
+          runningQueues: IndividualCollectionScheduler.getLibraryQueuesStatus()
+            .filter((q) => q.running || q.queueSize > 0)
+            .map((q) => ({
+              libraryId: q.libraryId,
+              queueSize: q.queueSize,
+              running: q.running,
+            })),
+        }
+      );
+
+      await IndividualCollectionScheduler.waitForIndividualSyncsToComplete();
+    }
+
+    // Set running state immediately for UI feedback and prevent individual syncs
     this.running = true;
     this.cancelled = false;
+    IndividualCollectionScheduler.setFullSyncRunning(true);
     this.setStage('Starting sync...');
 
     const settings = getSettings();
@@ -360,6 +389,13 @@ class CollectionsSync {
     } finally {
       this.running = false;
       this.cancelled = false;
+
+      // Allow individual syncs to resume
+      const { IndividualCollectionScheduler } = await import(
+        '@server/lib/collections/services/IndividualCollectionScheduler'
+      );
+      IndividualCollectionScheduler.setFullSyncRunning(false);
+
       // Reset progress tracking
       this.currentStage = '';
       this.totalCollections = 0;

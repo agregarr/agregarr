@@ -321,6 +321,9 @@ const CollectionSettings = ({
           ...(collectionConfig.maxPositionToProcess !== undefined && {
             maxPositionToProcess: collectionConfig.maxPositionToProcess,
           }),
+          ...(collectionConfig.minimumYear !== undefined && {
+            minimumYear: collectionConfig.minimumYear,
+          }),
           ...(collectionConfig.traktCustomListUrl && {
             traktCustomListUrl: collectionConfig.traktCustomListUrl,
           }),
@@ -483,6 +486,7 @@ const CollectionSettings = ({
           timeRestriction: config.timeRestriction,
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
+          autoPosterTemplate: config.autoPosterTemplate,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
           ...(config.downloadMode && { downloadMode: config.downloadMode }),
@@ -493,6 +497,9 @@ const CollectionSettings = ({
           }),
           ...(config.maxPositionToProcess !== undefined && {
             maxPositionToProcess: config.maxPositionToProcess,
+          }),
+          ...(config.minimumYear !== undefined && {
+            minimumYear: config.minimumYear,
           }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
@@ -780,7 +787,7 @@ const CollectionSettings = ({
 
   const editCollectionConfig = (config: CollectionFormConfig) => {
     // Check if this is a hub config
-    if (config.type === 'hub') {
+    if (config.configType === 'hub') {
       // Find the actual hub config to check linking status
       const targetHub = localHubConfigs.find(
         (h: PlexHubConfig) => h.id === config.id
@@ -886,18 +893,18 @@ const CollectionSettings = ({
           isLinked: true,
           linkId: targetHub.linkId,
           // Mark as hub type for form detection
-          type: 'hub',
+          configType: 'hub',
         };
       } else {
         configToEdit = {
           ...config,
-          type: 'hub',
+          configType: 'hub',
         };
       }
     } else {
       configToEdit = {
         ...config,
-        type: 'hub',
+        configType: 'hub',
       };
     }
 
@@ -1168,7 +1175,7 @@ const CollectionSettings = ({
   };
 
   const hideHubConfig = async (config: CollectionFormConfig) => {
-    if (config.type !== 'hub') {
+    if (config.configType !== 'hub') {
       return;
     }
 
@@ -1658,6 +1665,7 @@ const CollectionSettings = ({
               maxSeasonsToRequest: masterConfig.maxSeasonsToRequest,
               seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
               maxPositionToProcess: masterConfig.maxPositionToProcess,
+              minimumYear: masterConfig.minimumYear,
               timeRestriction: masterConfig.timeRestriction,
               traktCustomListUrl: masterConfig.traktCustomListUrl,
               tmdbCustomListUrl: masterConfig.tmdbCustomListUrl,

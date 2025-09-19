@@ -30,7 +30,7 @@ const baseCollectionSchema = {
 
   maxItems: Yup.number()
     .min(1, 'Must be at least 1 item')
-    .max(1000, 'Cannot exceed 1000 items')
+    .max(9999, 'Cannot exceed 9999 items')
     .required('Max items is required'),
 
   customPoster: Yup.string().url('Must be a valid URL'),
@@ -154,8 +154,16 @@ const autoRequestValidations = {
 
   maxPositionToProcess: Yup.number()
     .min(0, 'Position limit must be 0 or greater')
-    .max(1000, 'Position limit cannot exceed 1000')
+    .max(9999, 'Position limit cannot exceed 9999')
     .integer('Position limit must be a whole number'),
+
+  minimumYear: Yup.number()
+    .min(0, 'Minimum year must be 0 or greater (0 = no limit)')
+    .max(
+      new Date().getFullYear() + 10,
+      'Minimum year cannot be more than 10 years in the future'
+    )
+    .integer('Minimum year must be a whole number'),
 };
 
 // Time restriction validation

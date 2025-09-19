@@ -285,7 +285,7 @@ export const FormStateHelpers = {
     state: FormState
   ): boolean => {
     if (state.isLinked) return false;
-    if (config.type !== 'hub') return false;
+    if (config.configType !== 'hub') return false;
     return CollectionFormConfigUtils.canLinkCollection(config);
   },
 
@@ -354,6 +354,15 @@ export const FormStateHelpers = {
       };
     }
 
+    // For Hub configs, all options should be available
+    if (values.configType === 'hub') {
+      return {
+        usersHome: { enabled: true, label: 'Users Home' },
+        serverOwnerHome: { enabled: true, label: 'Server Owner Home' },
+        libraryRecommended: { enabled: true, label: 'Library Recommended' },
+      };
+    }
+
     // For Source collections (Tautulli/Trakt/etc), all options should be available
     if (
       values.type === 'tautulli' ||
@@ -361,7 +370,7 @@ export const FormStateHelpers = {
       values.type === 'tmdb' ||
       values.type === 'imdb' ||
       values.type === 'letterboxd' ||
-      values.type === 'hub'
+      values.type === 'multi-source'
     ) {
       return {
         usersHome: { enabled: true, label: 'Users Home' },

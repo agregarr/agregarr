@@ -74,6 +74,37 @@ export interface TraktListResponse {
   };
 }
 
+export interface TraktListSummary {
+  name: string;
+  trakt: number;
+  slug: string;
+  ids: {
+    trakt: number;
+    slug: string;
+  };
+  user: {
+    username: string;
+    private: boolean;
+    name: string;
+    vip: boolean;
+    vip_ep: boolean;
+    ids: {
+      slug: string;
+    };
+  };
+  description?: string;
+  privacy: 'public' | 'private' | 'friends';
+  display_numbers: boolean;
+  allow_comments: boolean;
+  sort_by: string;
+  sort_how: string;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+  comment_count: number;
+  like_count: number;
+}
+
 class TraktAPI {
   private axios: AxiosInstance;
 
@@ -347,7 +378,7 @@ class TraktAPI {
 
   public async getCustomList(
     listUrl: string,
-    limit = 1000
+    limit = 9999
   ): Promise<TraktListResponse[]> {
     try {
       // Parse the URL to extract username and list slug or official list slug
@@ -389,6 +420,109 @@ class TraktAPI {
         limit,
       });
       throw new Error(`[Trakt] Failed to fetch custom list: ${e.message}`);
+    }
+  }
+
+  /**
+   * Get popular public lists for discovery
+   */
+  public async getPopularLists(limit = 100): Promise<TraktListSummary[]> {
+    try {
+      return await this.retryRequest(async () => {
+        const response = await this.axios.get('/lists/popular', {
+          params: { limit },
+        });
+        return response.data;
+      });
+    } catch (e) {
+      logger.error('Failed to fetch popular lists from Trakt', {
+        label: 'Trakt API',
+        errorMessage: e.message,
+        limit,
+      });
+      throw new Error(`[Trakt] Failed to fetch popular lists: ${e.message}`);
+    }
+  }
+
+  /**
+   * Get trending public lists for discovery
+   */
+  public async getTrendingLists(limit = 100): Promise<TraktListSummary[]> {
+    try {
+      return await this.retryRequest(async () => {
+        const response = await this.axios.get('/lists/trending', {
+          params: { limit },
+        });
+        return response.data;
+      });
+    } catch (e) {
+      logger.error('Failed to fetch trending lists from Trakt', {
+        label: 'Trakt API',
+        errorMessage: e.message,
+        limit,
+      });
+      throw new Error(`[Trakt] Failed to fetch trending lists: ${e.message}`);
+    }
+  }
+
+  /**
+   * Get public lists from a specific user
+   */
+  public async getUserLists(
+    username: string,
+    limit = 50
+  ): Promise<TraktListSummary[]> {
+    try {
+      return await this.retryRequest(async () => {
+        const response = await this.axios.get(`/users/${username}/lists`, {
+          params: { limit },
+        });
+        return response.data;
+      });
+    } catch (e) {
+      logger.error(`Failed to fetch lists for user ${username} from Trakt`, {
+        label: 'Trakt API',
+        errorMessage: e.message,
+        username,
+        limit,
+      });
+      throw new Error(`[Trakt] Failed to fetch user lists: ${e.message}`);
+    }
+  }
+
+  public async getListMetadata(listUrl: string) {
+    try {
+      // Parse the URL to extract username and list slug
+      const userListMatch = listUrl.match(
+        /trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
+      );
+      const officialListMatch = listUrl.match(
+        /trakt\.tv\/lists\/official\/([^/?]+)/
+      );
+
+      let apiPath: string;
+
+      if (userListMatch) {
+        const [, username, listSlug] = userListMatch;
+        apiPath = `/users/${username}/lists/${listSlug}`;
+      } else if (officialListMatch) {
+        const [, collectionSlug] = officialListMatch;
+        apiPath = `/lists/official/${collectionSlug}`;
+      } else {
+        throw new Error('Invalid Trakt list URL format');
+      }
+
+      return await this.retryRequest(async () => {
+        const response = await this.axios.get(apiPath);
+        return response.data;
+      });
+    } catch (e) {
+      logger.error(`Failed to fetch list metadata from Trakt`, {
+        label: 'Trakt API',
+        errorMessage: e.message,
+        listUrl,
+      });
+      throw new Error(`[Trakt] Failed to fetch list metadata: ${e.message}`);
     }
   }
 

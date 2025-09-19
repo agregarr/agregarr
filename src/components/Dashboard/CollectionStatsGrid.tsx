@@ -125,7 +125,7 @@ const CollectionStatsGrid: React.FC = () => {
                 onChange={(e) => setDays(Number(e.target.value) || 30)}
                 min="0"
                 max="9999"
-                className="w-16 rounded border border-gray-600 bg-gray-700 px-2 py-1 text-sm text-white focus:border-orange-400 focus:outline-none"
+                className="w-16 rounded border border-stone-500 bg-stone-700 px-2 py-1 text-sm text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 placeholder="30"
               />
             </div>

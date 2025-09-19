@@ -25,6 +25,12 @@ export interface CollectionItem {
   tmdbId?: number;
   /** Optional additional metadata */
   metadata?: Record<string, unknown>;
+  /** Episode-specific information (for individual episodes in collections) */
+  episodeInfo?: {
+    season?: number;
+    episode?: number;
+    episodeTitle?: string;
+  };
 }
 
 /**
@@ -135,7 +141,9 @@ export type CollectionSource =
   | 'trakt'
   | 'tmdb'
   | 'imdb'
-  | 'letterboxd';
+  | 'letterboxd'
+  | 'mdblist'
+  | 'networks';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -296,6 +304,11 @@ export interface TraktTemplateContext extends TemplateContext {
   statType?: 'trending' | 'popular' | 'watched' | 'custom';
 }
 
+export interface MDBListTemplateContext extends TemplateContext {
+  /** MDBList-specific list type */
+  listType?: 'top' | 'user_lists' | 'custom';
+}
+
 export interface TautulliTemplateContext extends TemplateContext {
   /** Tautulli-specific stat type */
   statType?: 'plays' | 'duration' | 'users';
@@ -329,16 +342,25 @@ export interface LetterboxdTemplateContext extends TemplateContext {
   listName: string;
 }
 
+export interface NetworksTemplateContext extends TemplateContext {
+  /** Streaming platform */
+  platform?: string;
+  /** Network-specific stat type */
+  statType?: 'top_10';
+}
+
 /**
  * Union type for all possible template contexts
  */
 export type SourceTemplateContext =
   | TraktTemplateContext
+  | MDBListTemplateContext
   | TautulliTemplateContext
   | OverseerrTemplateContext
   | TmdbTemplateContext
   | ImdbTemplateContext
-  | LetterboxdTemplateContext;
+  | LetterboxdTemplateContext
+  | NetworksTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types
@@ -357,6 +379,21 @@ export type TraktSourceData =
         title: string;
         year?: number;
       };
+      episode?: {
+        season: number;
+        number: number;
+        title: string;
+        ids: {
+          trakt: number;
+          tvdb: number;
+          tmdb: number;
+        };
+        show?: {
+          ids: { tmdb: number };
+          title: string;
+          year?: number;
+        };
+      };
     }
   // Raw format from media-specific endpoints
   | {
@@ -371,6 +408,17 @@ export type TraktSourceData =
         tvrage?: number;
       };
     };
+
+export interface MDBListSourceData {
+  item: {
+    id: number; // TMDB ID
+    title: string;
+    mediatype: 'movie' | 'show';
+    rank?: number;
+    release_year?: number;
+  };
+  mediaType: 'movie' | 'tv';
+}
 
 export interface TautulliSourceData {
   rating_key?: string;
@@ -419,6 +467,13 @@ export interface ImdbSourceData {
   year?: number;
   type: 'movie' | 'tv';
   tmdbId?: number;
+  showTmdbId?: number; // For episodes: the parent show's TMDB ID
+  isEpisode?: boolean; // True if this is an individual episode
+  episodeInfo?: {
+    episodeTitle?: string;
+    season?: number;
+    episode?: number;
+  };
 }
 
 export interface LetterboxdSourceData {
@@ -429,16 +484,31 @@ export interface LetterboxdSourceData {
   mediaType: 'movie';
 }
 
+export interface NetworksSourceData {
+  rank: number;
+  title: string;
+  points?: string;
+  flixpatrolUrl?: string;
+  type: 'movie' | 'tv';
+  platform: string;
+  platformLogo?: {
+    spriteUrl: string;
+    position: string;
+  };
+}
+
 /**
  * Union type for all possible source data
  */
 export type CollectionSourceData =
   | TraktSourceData
+  | MDBListSourceData
   | TautulliSourceData
   | OverseerrSourceData
   | TmdbSourceData
   | ImdbSourceData
-  | LetterboxdSourceData;
+  | LetterboxdSourceData
+  | NetworksSourceData;
 
 /**
  * Error types that can occur during collection sync

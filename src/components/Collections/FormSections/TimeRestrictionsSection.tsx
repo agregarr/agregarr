@@ -1,4 +1,8 @@
-import type { CollectionFormConfig } from '@app/types/collections';
+import type {
+  CollectionFormConfig,
+  CustomSyncSchedule,
+} from '@app/types/collections';
+import { Field } from 'formik';
 import { defineMessages, useIntl } from 'react-intl';
 import VisibilitySection from './VisibilitySection';
 
@@ -12,12 +16,23 @@ const messages = defineMessages({
   timeRestrictions: 'Time Restrictions',
   alwaysActive: 'Always Active',
   removeFromPlex: 'Remove from Plex when inactive',
-  dateRangesTitle: 'Date Ranges for Collection to be active',
-  weeklyScheduleTitle: 'Days of the Week for Collection to be active',
+  dateRangesTitle: 'Date Ranges',
+  weeklyScheduleTitle: 'Days of the Week',
   addDateRange: '+ Add Date Range',
   remove: 'Remove',
   timeRestrictionsHelp:
-    'Time restrictions allow you to control when and how collections appear in Plex based on date ranges and weekly schedules. You can choose to either remove collections completely when inactive, or change their visibility settings.',
+    'Control when this collection is active in Plex. By default, collections are always active.',
+  dateRangesHelp:
+    "Specify date ranges when the collection should be active (format: DD-MM). If you want the collection to be active year round but only on certain days of the week, don't add a date range",
+  weeklyScheduleHelp:
+    'Choose which days of the week the collection should be active. All days are selected by default.',
+  inactiveVisibilityHelp:
+    'When the collection is inactive (outside time restrictions), control where it appears in Plex.',
+  customSyncSchedule: 'Custom Sync Schedule',
+  customSyncEnabled: 'Enable custom sync timing',
+  customSyncInterval: 'Sync every (hours)',
+  customSyncHelp:
+    'Override the default sync schedule for this collection. Use decimals for partial hours (0.5 = 30 minutes). This will also cycle the list for Random Lists and Multi-Source Collections in "Cycle Lists" mode.',
 });
 
 interface DateRange {
@@ -84,13 +99,13 @@ const TimeRestrictionsSection = ({
         removeFromPlexWhenInactive: false,
         dateRanges: [],
         weeklySchedule: {
-          monday: false,
-          tuesday: false,
-          wednesday: false,
-          thursday: false,
-          friday: false,
-          saturday: false,
-          sunday: false,
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: true,
+          sunday: true,
         },
       };
 
@@ -138,13 +153,13 @@ const TimeRestrictionsSection = ({
     checked: boolean
   ) => {
     const currentSchedule = timeRestriction.weeklySchedule || {
-      monday: false,
-      tuesday: false,
-      wednesday: false,
-      thursday: false,
-      friday: false,
-      saturday: false,
-      sunday: false,
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: true,
+      sunday: true,
     };
     updateTimeRestriction({
       alwaysActive: false,
@@ -167,6 +182,10 @@ const TimeRestrictionsSection = ({
 
   return (
     <>
+      <div className="label-tip">
+        {intl.formatMessage(messages.timeRestrictionsHelp)}
+      </div>
+
       <div className="form-input-field">
         <label className="inline-flex items-center">
           <input
@@ -201,7 +220,7 @@ const TimeRestrictionsSection = ({
               }}
               className="form-checkbox"
             />
-            <span className="ml-2 text-sm text-gray-400">
+            <span className="ml-2 text-sm text-gray-300">
               {intl.formatMessage(messages.removeFromPlex)}
             </span>
           </label>
@@ -222,8 +241,7 @@ const TimeRestrictionsSection = ({
               descriptionKey="inactiveVisibilityDescription"
             />
             <p className="mt-2 text-xs text-gray-400">
-              Control where this collection appears when inactive (outside time
-              restrictions)
+              {intl.formatMessage(messages.inactiveVisibilityHelp)}
             </p>
           </div>
         )}
@@ -233,7 +251,7 @@ const TimeRestrictionsSection = ({
         <div className="mt-4 space-y-4">
           {/* Date Ranges */}
           <div>
-            <div className="mb-2 block text-sm font-medium text-gray-300">
+            <div className="mb-2 block text-sm font-medium text-gray-200">
               {intl.formatMessage(messages.dateRangesTitle)}
             </div>
 
@@ -279,11 +297,14 @@ const TimeRestrictionsSection = ({
             >
               {intl.formatMessage(messages.addDateRange)}
             </button>
+            <p className="mt-2 text-xs text-gray-400">
+              {intl.formatMessage(messages.dateRangesHelp)}
+            </p>
           </div>
 
           {/* Weekly Schedule */}
           <div>
-            <div className="mb-2 block text-sm font-medium text-gray-300">
+            <div className="mb-2 block text-sm font-medium text-gray-200">
               {intl.formatMessage(messages.weeklyScheduleTitle)}
             </div>
 
@@ -292,7 +313,7 @@ const TimeRestrictionsSection = ({
                 <label key={day.key} className="inline-flex items-center">
                   <input
                     type="checkbox"
-                    checked={timeRestriction.weeklySchedule?.[day.key] ?? false}
+                    checked={timeRestriction.weeklySchedule?.[day.key] ?? true}
                     onChange={(e) =>
                       updateWeeklySchedule(day.key, e.target.checked)
                     }
@@ -304,13 +325,59 @@ const TimeRestrictionsSection = ({
                 </label>
               ))}
             </div>
+            <p className="mt-2 text-xs text-gray-400">
+              {intl.formatMessage(messages.weeklyScheduleHelp)}
+            </p>
           </div>
         </div>
       )}
 
-      <div className="label-tip">
-        {intl.formatMessage(messages.timeRestrictionsHelp)}
-      </div>
+      {/* Custom Sync Schedule Section - Available for all collections */}
+      {true && (
+        <div className="mt-6">
+          <label className="mb-4 block text-sm font-medium text-gray-200">
+            {intl.formatMessage(messages.customSyncSchedule)}
+          </label>
+
+          <div className="space-y-4">
+            <div className="form-input-field">
+              <label className="inline-flex items-center">
+                <Field
+                  type="checkbox"
+                  name="customSyncSchedule.enabled"
+                  className="form-checkbox"
+                />
+                <span className="ml-2 text-sm text-gray-300">
+                  {intl.formatMessage(messages.customSyncEnabled)}
+                </span>
+              </label>
+            </div>
+
+            {(
+              values as CollectionFormConfig & {
+                customSyncSchedule?: CustomSyncSchedule;
+              }
+            ).customSyncSchedule?.enabled && (
+              <div>
+                <label className="mb-2 block text-sm text-gray-300">
+                  {intl.formatMessage(messages.customSyncInterval)}
+                </label>
+                <Field
+                  type="number"
+                  name="customSyncSchedule.intervalHours"
+                  step="0.1"
+                  min="0.1"
+                  max="168"
+                  className="w-32 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                <p className="mt-2 text-xs text-gray-400">
+                  {intl.formatMessage(messages.customSyncHelp)}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 };

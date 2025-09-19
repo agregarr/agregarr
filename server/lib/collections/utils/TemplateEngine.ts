@@ -281,6 +281,20 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for MDBList collections
+   */
+  public createMDBListContext(
+    mediaType: 'movie' | 'tv',
+    listType: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getMDBListSubtypeLabel(listType),
+    };
+  }
+
+  /**
    * Create context for TMDb collections
    */
   public createTmdbContext(
@@ -319,6 +333,22 @@ export class TemplateEngine {
       ...this.getDefaultContext(),
       mediaType,
       subtype: this.getLetterboxdSubtypeLabel(subtype),
+    };
+  }
+
+  /**
+   * Create context for Networks collections
+   */
+  public createNetworksContext(
+    mediaType: 'movie' | 'tv',
+    platform: string,
+    statType: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getNetworksSubtypeLabel(platform),
+      statType,
     };
   }
 
@@ -544,6 +574,26 @@ export class TemplateEngine {
   }
 
   /**
+   * Get human-readable label for MDBList list type
+   */
+  private getMDBListSubtypeLabel(listType: string): string {
+    switch (listType) {
+      case 'top':
+      case 'top_lists':
+        return 'Top Lists';
+      case 'user_lists':
+        return 'User Lists';
+      case 'custom':
+        return 'Custom List';
+
+      default:
+        return listType
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
    * Get human-readable label for TMDb subtype
    */
   private getTmdbSubtypeLabel(subtype: string): string {
@@ -596,6 +646,47 @@ export class TemplateEngine {
         return subtype
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for Networks platform
+   */
+  private getNetworksSubtypeLabel(platform: string): string {
+    switch (platform) {
+      case 'netflix':
+        return 'Netflix';
+      case 'hbo':
+        return 'HBO';
+      case 'disney':
+        return 'Disney+';
+      case 'amazon-prime':
+        return 'Amazon Prime';
+      case 'apple-tv':
+        return 'Apple TV+';
+      case 'paramount':
+        return 'Paramount+';
+      case 'peacock':
+        return 'Peacock';
+      case 'crunchyroll':
+        return 'Crunchyroll';
+      case 'discovery-plus':
+        return 'Discovery+';
+      case 'hulu':
+        return 'Hulu';
+      default:
+        return platform
+          .replace(/_/g, ' ')
+          .replace(/-/g, ' ')
+          .split(' ')
+          .map((word) => {
+            // Special case for TV to maintain proper capitalization
+            if (word.toLowerCase() === 'tv') {
+              return 'TV';
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          })
+          .join(' ');
     }
   }
 

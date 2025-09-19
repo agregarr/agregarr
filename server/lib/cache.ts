@@ -6,6 +6,7 @@ export type AvailableCacheIds =
   | 'sonarr'
   | 'rt'
   | 'imdb'
+  | 'flixpatrol'
   | 'github'
   | 'plexguid'
   | 'plextv'
@@ -56,6 +57,10 @@ class CacheManager {
     imdb: new Cache('imdb', 'IMDB Radarr Proxy', {
       stdTtl: 43200,
       checkPeriod: 60 * 30,
+    }),
+    flixpatrol: new Cache('flixpatrol', 'FlixPatrol API', {
+      stdTtl: 3600, // 1 hour cache for streaming top 10 data
+      checkPeriod: 60 * 15,
     }),
     github: new Cache('github', 'GitHub API', {
       stdTtl: 21600,

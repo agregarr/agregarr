@@ -38,7 +38,7 @@ FROM node:18.18.2-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache tzdata tini fontconfig ttf-dejavu && rm -rf /tmp/*
+RUN apk add --no-cache tzdata tini fontconfig ttf-dejavu font-noto-emoji && rm -rf /tmp/*
 
 # copy from build image
 COPY --from=build_image /app ./

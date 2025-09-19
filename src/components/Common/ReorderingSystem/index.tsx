@@ -98,7 +98,7 @@ export const CollectionReorderingSystem: React.FC<
    * This ensures proper identification during drag operations
    */
   const generateDragId = (config: CollectionFormConfig): string => {
-    const isHub = config.type === 'hub';
+    const isHub = config.configType === 'hub';
     return isHub
       ? config.id.toString()
       : `${config.id}-${
@@ -179,7 +179,7 @@ export const CollectionReorderingSystem: React.FC<
 export const generateCollectionDragId = (
   config: CollectionFormConfig
 ): string => {
-  const isHub = config.type === 'hub';
+  const isHub = config.configType === 'hub';
   return isHub
     ? config.id.toString()
     : `${config.id}-${

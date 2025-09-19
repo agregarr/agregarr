@@ -24,6 +24,7 @@ export type ServiceType =
   | 'trakt'
   | 'tmdb'
   | 'imdb'
+  | 'mdblist'
   | 'letterboxd'
   | 'tautulli'
   | 'overseerr';
@@ -40,6 +41,7 @@ export function generateServiceUserConfig(
     trakt: { name: 'Trakt', avatar: '/trakt-logo.svg' },
     tmdb: { name: 'TMDb', avatar: '/tmdb-logo.svg' },
     imdb: { name: 'IMDb', avatar: '/imdb-logo.svg' },
+    mdblist: { name: 'MDBList', avatar: '/services/mdblist.svg' },
     letterboxd: { name: 'Letterboxd', avatar: '/letterboxd-logo.svg' },
     tautulli: { name: 'Tautulli', avatar: '/tautulli-logo.svg' },
     overseerr: { name: 'Overseerr', avatar: '/os_logo_stacked.svg' },

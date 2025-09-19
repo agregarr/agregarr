@@ -24,8 +24,10 @@ import discoveryRoutes from './discovery';
 import hubsRoutes from './hubs';
 import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
+import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import reorderRoutes from './reorder';
+import sourceColorsRoutes from './sourceColors';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -56,12 +58,12 @@ router.get('/status', async (_req, res) => {
       const filteredCommits = commits.filter(
         (commit) => !commit.commit.message.includes('[skip ci]')
       );
-      if (filteredCommits[0].sha.substring(0, 7) !== commitTag) {
+      if (filteredCommits[0].sha !== commitTag) {
         updateAvailable = true;
       }
 
       const commitIndex = filteredCommits.findIndex(
-        (commit) => commit.sha.substring(0, 7) === commitTag
+        (commit) => commit.sha === commitTag
       );
 
       if (updateAvailable) {
@@ -137,9 +139,11 @@ router.use('/collections', isAuthenticated(), collectionsRoutes);
 router.use('/defaulthubs', isAuthenticated(), defaultHubsRoutes);
 router.use('/discovery', isAuthenticated(), discoveryRoutes);
 router.use('/hubs', isAuthenticated(), hubsRoutes);
+router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
+router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);
 router.use('/auth', authRoutes);
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {

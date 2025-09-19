@@ -22,21 +22,6 @@ export class PreExistingCollectionConfigService {
     const preExistingCollectionConfigs =
       settings.plex.preExistingCollectionConfigs || [];
 
-    logger.debug('Pre-existing collection configs retrieved', {
-      label: 'Pre-existing Collection Config Service',
-      count: preExistingCollectionConfigs.length,
-      sample:
-        preExistingCollectionConfigs.length > 0
-          ? {
-              collectionRatingKey:
-                preExistingCollectionConfigs[0].collectionRatingKey,
-              libraryId: preExistingCollectionConfigs[0].libraryId,
-              name: preExistingCollectionConfigs[0].name,
-              isActive: preExistingCollectionConfigs[0].isActive,
-            }
-          : null,
-    });
-
     return preExistingCollectionConfigs;
   }
 

@@ -653,11 +653,18 @@ export class HubSyncService {
     hubConfigs: PlexHubConfig[],
     orderingItemsByLibrary: Map<string, OrderingItem[]>
   ): void {
+    // Track hub processing for summary logging
+    let hubsProcessed = 0;
+    let hubsSkippedNoVisibility = 0;
+    let hubsSkippedMalformed = 0;
+    const librariesProcessed = new Set<string>();
+
     // Group hub configs by library and use UI order
     const hubConfigsByLibrary = this.groupHubConfigsByLibrary(hubConfigs);
 
     // Process hubs by library using the same logic as hub ordering
     for (const [libraryId, libraryHubConfigs] of hubConfigsByLibrary) {
+      librariesProcessed.add(libraryId);
       // Sort hub configs by their sortOrderHome (this is our UI order for home/recommended)
       const sortedHubConfigs = [...libraryHubConfigs].sort(
         (a, b) =>
@@ -680,15 +687,7 @@ export class HubSyncService {
             hubConfig.visibilityConfig?.libraryRecommended;
 
           if (!hasAnyVisibility) {
-            logger.debug(
-              `Skipping hub with no visibility from Plex reordering`,
-              {
-                label: 'Hub Sync Service',
-                hubId: hubConfig.id,
-                hubIdentifier: hubConfig.hubIdentifier,
-                libraryId: hubConfig.libraryId,
-              }
-            );
+            hubsSkippedNoVisibility++;
             return;
           }
 
@@ -701,18 +700,30 @@ export class HubSyncService {
               hubIdentifier: hubConfig.hubIdentifier,
               sortOrder: hubConfig.sortOrderHome,
             });
+            hubsProcessed++;
           } else {
-            logger.warn(
-              `Skipping malformed hub identifier: ${hubConfig.hubIdentifier}`,
-              {
-                label: 'Hub Sync Service',
-                hubId: hubConfig.id,
-                libraryId: hubConfig.libraryId,
-              }
-            );
+            hubsSkippedMalformed++;
           }
         });
       }
+    }
+
+    // Log comprehensive hub processing summary
+    if (
+      hubsProcessed > 0 ||
+      hubsSkippedNoVisibility > 0 ||
+      hubsSkippedMalformed > 0
+    ) {
+      logger.info(
+        `Hub reordering: ${hubsProcessed} hubs processed, ${hubsSkippedNoVisibility} skipped (no visibility), ${hubsSkippedMalformed} skipped (malformed) across ${librariesProcessed.size} libraries`,
+        {
+          label: 'Hub Sync Service',
+          hubsProcessed,
+          hubsSkippedNoVisibility,
+          hubsSkippedMalformed,
+          librariesCount: librariesProcessed.size,
+        }
+      );
     }
   }
 

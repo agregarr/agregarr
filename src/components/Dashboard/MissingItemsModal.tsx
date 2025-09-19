@@ -324,7 +324,7 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
                     onChange={(e) =>
                       handleFilterChange('mediaType', e.target.value)
                     }
-                    className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">
                       {intl.formatMessage(messages.allMediaTypes)}
@@ -348,7 +348,7 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
                     onChange={(e) =>
                       handleFilterChange('status', e.target.value)
                     }
-                    className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">
                       {intl.formatMessage(messages.allStatuses)}
@@ -387,7 +387,7 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
                     onChange={(e) =>
                       handleFilterChange('collectionSource', e.target.value)
                     }
-                    className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">
                       {intl.formatMessage(messages.allSources)}
@@ -417,7 +417,7 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
                     onChange={(e) =>
                       handleFilterChange('requestService', e.target.value)
                     }
-                    className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-sm text-white"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="">
                       {intl.formatMessage(messages.allServices)}

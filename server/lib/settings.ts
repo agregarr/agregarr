@@ -28,9 +28,12 @@ export interface CollectionConfig {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
-    | 'letterboxd';
+    | 'letterboxd'
+    | 'mdblist'
+    | 'networks'
+    | 'multi-source';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
-  readonly template: string;
+  readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
   readonly customTVTemplate?: string; // Custom template for TV collections when mediaType is 'both'
   readonly visibilityConfig: {
@@ -75,6 +78,7 @@ export interface CollectionConfig {
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval/download (TV shows with more seasons require manual approval or are skipped)
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
+  readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
   // TMDb custom list fields
@@ -83,12 +87,17 @@ export interface CollectionConfig {
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)
+  // MDBList custom list fields
+  readonly mdblistCustomListUrl?: string; // Custom MDBList list URL (e.g., https://mdblist.com/lists/123456 or https://mdblist.com/lists/username/list-name)
+  // Networks (FlixPatrol) fields
+  readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
   // Poster settings
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
+  readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -112,6 +121,20 @@ export interface CollectionConfig {
       readonly sunday: boolean;
     };
   };
+  // Multi-source specific properties (only present when type === 'multi-source')
+  readonly sources?: readonly {
+    readonly id: string;
+    readonly type: string;
+    readonly subtype?: string;
+    readonly customUrl?: string;
+    readonly timePeriod?: string;
+    readonly customDays?: number;
+    readonly minimumPlays?: number;
+    readonly priority: number;
+  }[];
+  readonly combineMode?: 'ordered' | 'randomized' | 'cycle';
+  // Individual sync scheduling
+  readonly customSyncSchedule?: CustomSyncSchedule;
 }
 
 /**
@@ -247,6 +270,10 @@ export interface TraktSettings {
   apiKey?: string;
 }
 
+export interface MDBListSettings {
+  apiKey?: string;
+}
+
 export interface TautulliSettings {
   hostname?: string;
   port?: number;
@@ -360,6 +387,7 @@ interface AllSettings {
   overseerr: OverseerrSettings;
   serviceUser: ServiceUserSettings;
   trakt: TraktSettings;
+  mdblist: MDBListSettings;
   radarr: RadarrSettings[];
   sonarr: SonarrSettings[];
   public: PublicSettings;
@@ -404,6 +432,7 @@ class Settings {
         userCreationMode: 'per-service', // Default to per-service users
       },
       trakt: {},
+      mdblist: {},
       radarr: [],
       sonarr: [],
       public: {
@@ -457,6 +486,14 @@ class Settings {
 
   set trakt(data: TraktSettings) {
     this.data.trakt = data;
+  }
+
+  get mdblist(): MDBListSettings {
+    return this.data.mdblist;
+  }
+
+  set mdblist(data: MDBListSettings) {
+    this.data.mdblist = data;
   }
 
   get overseerr(): OverseerrSettings {
@@ -1170,6 +1207,75 @@ class Settings {
 }
 
 let settings: Settings | undefined;
+
+// Multi-source collection types
+export type MultiSourceCombineMode =
+  | 'interleaved'
+  | 'list_order'
+  | 'randomised'
+  | 'cycle_lists';
+
+export interface CustomSyncSchedule {
+  readonly enabled: boolean;
+  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+}
+
+export type MultiSourceType =
+  | 'trakt'
+  | 'tmdb'
+  | 'imdb'
+  | 'letterboxd'
+  | 'mdblist'
+  | 'tautulli'
+  | 'overseerr'
+  | 'networks';
+
+export interface SourceDefinition {
+  readonly id: string;
+  readonly type: MultiSourceType;
+  readonly subtype: string;
+  readonly customUrl?: string;
+  readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+  readonly customDays?: number;
+  readonly minimumPlays?: number;
+  readonly priority: number;
+  readonly networksCountry?: string;
+}
+
+export interface MultiSourceCollectionConfig {
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'multi-source';
+  readonly visibilityConfig: {
+    usersHome: boolean;
+    serverOwnerHome: boolean;
+    libraryRecommended: boolean;
+  };
+  readonly mediaType?: 'movie' | 'tv';
+  readonly libraryId: string;
+  readonly libraryName: string;
+  readonly maxItems?: number;
+  readonly template?: string;
+  readonly sources: readonly SourceDefinition[];
+  readonly combineMode: MultiSourceCombineMode;
+  readonly customSyncSchedule?: CustomSyncSchedule;
+  readonly isActive?: boolean;
+  readonly sortOrderHome?: number;
+  readonly sortOrderLibrary?: number;
+  readonly isLibraryPromoted?: boolean;
+  readonly timeRestriction?: {
+    readonly alwaysActive: boolean;
+    readonly removeFromPlexWhenInactive?: boolean;
+    readonly inactiveVisibilityConfig?: {
+      usersHome: boolean;
+      serverOwnerHome: boolean;
+      libraryRecommended: boolean;
+    };
+  };
+  readonly customPoster?: string | Record<string, string>;
+  readonly autoPoster?: boolean;
+  readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+}
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {
   if (!settings) {
