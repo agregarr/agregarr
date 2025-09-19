@@ -1,3 +1,42 @@
+# [1.3.0](https://github.com/agregarr/agregarr/compare/v1.2.2...v1.3.0) (2025-09-19)
+
+
+### Bug Fixes
+
+* adds global networks ([bda6bf5](https://github.com/agregarr/agregarr/commit/bda6bf5df68614b6f3583eaa878175b49a8f585e))
+* **caching:** add global library cache plus minor fixes ([3cb35eb](https://github.com/agregarr/agregarr/commit/3cb35eb3e0e574bfbcde505fd356acfcb736d4fe))
+* **collection sync:** adds individual collection sync tracking and fixes ([ce479da](https://github.com/agregarr/agregarr/commit/ce479da9cf3fc9e0de8a5947c76f14319d561a67))
+* **collection sync:** creating a collection with custom sync timing now adds it to the schedule ([b2d6cd0](https://github.com/agregarr/agregarr/commit/b2d6cd0b9d5569a13e640eae0dfbc6873722165a))
+* **collection sync:** fixed auth for individual collections sync ([1383749](https://github.com/agregarr/agregarr/commit/1383749d8e7688405b959023f4067087c0074164))
+* **collections:** episode based collections can now be created for trakt and imdb ([88e5ef3](https://github.com/agregarr/agregarr/commit/88e5ef3feffd5b8fee2b80387a05f61a7e14763a)), closes [#68](https://github.com/agregarr/agregarr/issues/68)
+* **config form:** edit form now correctly fills sources for multiple sources collections ([4cbd251](https://github.com/agregarr/agregarr/commit/4cbd2516ab5989d4475242c8ad2c3b1bcb8e9b86))
+* **config:** adds minimum year filter for missing items ([6b20a39](https://github.com/agregarr/agregarr/commit/6b20a3986bb2594539ac668412a6a27c116d42e6)), closes [#66](https://github.com/agregarr/agregarr/issues/66)
+* **config:** increased max items from 1000 to 9999 ([12a4595](https://github.com/agregarr/agregarr/commit/12a45955e434d119089d9985d11e3827b8eec338)), closes [#65](https://github.com/agregarr/agregarr/issues/65)
+* **connections:** remove port requirement from test endpoints ([8c001fe](https://github.com/agregarr/agregarr/commit/8c001fe0498e9201defdfdb9ac07e8e89f888531))
+* **item matching:** items that appear across multiple libraries now match correctly ([bd23c1e](https://github.com/agregarr/agregarr/commit/bd23c1efcdbce791b5e2df801ff1d7b1f51b6e79))
+* **library selection:** selecting all libraries now correctly selects all libraries ([8b53135](https://github.com/agregarr/agregarr/commit/8b53135fa31e8b8073417f043089cedb84f30fd3)), closes [#59](https://github.com/agregarr/agregarr/issues/59)
+* **missing items:** prevent duplicate downloads by checking all Plex libraries ([9d2d2a5](https://github.com/agregarr/agregarr/commit/9d2d2a53fe2b98b7431a8746f5346645b49978f8)), closes [#19](https://github.com/agregarr/agregarr/issues/19)
+* **overseerr:** server owner requests now correctly hidden from users ([d12ef17](https://github.com/agregarr/agregarr/commit/d12ef17552f2d4671609d5fcdf5367528ec8a936))
+* **poster editor:** multiple fixes for poster template editor ([bdbbf3c](https://github.com/agregarr/agregarr/commit/bdbbf3cd081b24d5730fba29ae65525b7a3978c5))
+* **poster editor:** multiple template fixes ([4993832](https://github.com/agregarr/agregarr/commit/4993832b2dfe4e9377e4fed972af6586b1d4c7eb))
+* **poster editor:** poster template not working correctly for networks and multi-lists ([0836477](https://github.com/agregarr/agregarr/commit/0836477f933888bd3a7bade2d2ce4ecac2397fb0))
+* **posters:** add emoji font package to dockerfile for posters ([1b3a844](https://github.com/agregarr/agregarr/commit/1b3a8445f57609b4a4889fd2310f12a2e594ff08))
+* **posters:** preview posters display now show correctly ([cf52f24](https://github.com/agregarr/agregarr/commit/cf52f24bd4ec1b4e968c11f9c38b0b30ef67ac80))
+* **random lists:** add custom random list files ([f44b85c](https://github.com/agregarr/agregarr/commit/f44b85cc979a8b2b0167d3e76e883f52aa000319))
+* **random lists:** adds true random collections for trakt, imdb, letterboxd and tmdb ([91ac4cb](https://github.com/agregarr/agregarr/commit/91ac4cb5baa189218e3d2b7eee1ec1d6ceb41949))
+* **sonarr:** prevent duplicate requests for existing series ([d5fe7e8](https://github.com/agregarr/agregarr/commit/d5fe7e864d740e2540575ee15decddb9b7983796)), closes [#60](https://github.com/agregarr/agregarr/issues/60)
+* **template:** default template spacing ([0d8e638](https://github.com/agregarr/agregarr/commit/0d8e6387fab9b09d2868e716fb2546f58f43f34a))
+* **version checking:** update semantic release build args to pass commit sha ([1a03e74](https://github.com/agregarr/agregarr/commit/1a03e7462fe9f699ddbd77d54d865de06a93f5ef))
+
+
+### Features
+
+* **collections sync:** adds individual collection syncing ([8c8edc4](https://github.com/agregarr/agregarr/commit/8c8edc4ce645bf6c4ff7612379035be0d4bdd17e)), closes [#26](https://github.com/agregarr/agregarr/issues/26)
+* **mdblists:** add mdblists as a source ([935b279](https://github.com/agregarr/agregarr/commit/935b279da7ec4e5727b6b181be4b9c5fada625ac)), closes [#69](https://github.com/agregarr/agregarr/issues/69)
+* **multi-lists:** collections can now be created with multiple sources ([9c438b3](https://github.com/agregarr/agregarr/commit/9c438b317bf1209fb7adeb81f87c30ae374dfb96)), closes [#50](https://github.com/agregarr/agregarr/issues/50)
+* **network lists:** adds Networks source, with global and per-country options ([51976d4](https://github.com/agregarr/agregarr/commit/51976d4686c3e0bbe3571910d43b85fd4eff6d5a)), closes [#42](https://github.com/agregarr/agregarr/issues/42)
+* **sources:** add random lists feature ([74a72c3](https://github.com/agregarr/agregarr/commit/74a72c3f194cfa4a256c571d44f153927a4ab35f))
+
 ## [1.2.2](https://github.com/agregarr/agregarr/compare/v1.2.1...v1.2.2) (2025-09-07)
 
 
