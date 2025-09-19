@@ -253,7 +253,6 @@ class PlexAPI {
   }
 
   public async getLibraries(): Promise<PlexLibrary[]> {
-    logger.debug('Fetching Plex libraries', { label: 'Plex API' });
     const startTime = Date.now();
 
     try {
@@ -261,11 +260,15 @@ class PlexAPI {
         '/library/sections'
       );
 
-      logger.debug('Plex libraries fetched successfully', {
-        label: 'Plex API',
-        libraryCount: response.MediaContainer.Directory?.length || 0,
-        responseTime: Date.now() - startTime,
-      });
+      // Only log if response time is unusually high (> 500ms) or if it fails
+      const responseTime = Date.now() - startTime;
+      if (responseTime > 500) {
+        logger.warn('Slow Plex libraries fetch detected', {
+          label: 'Plex API',
+          libraryCount: response.MediaContainer.Directory?.length || 0,
+          responseTime,
+        });
+      }
 
       return response.MediaContainer.Directory;
     } catch (error) {

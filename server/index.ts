@@ -66,7 +66,6 @@ app
 
       await seedSourceColors();
       await seedDefaultTemplate();
-      logger.info('Default data seeding completed successfully');
     } catch (error) {
       logger.error('Failed to seed default data:', error);
     }
@@ -77,7 +76,6 @@ app
         '@server/lib/collections/services/IndividualCollectionScheduler'
       );
       await IndividualCollectionScheduler.initialize();
-      logger.info('IndividualCollectionScheduler initialized successfully');
     } catch (error) {
       logger.error(
         'Failed to initialize IndividualCollectionScheduler:',

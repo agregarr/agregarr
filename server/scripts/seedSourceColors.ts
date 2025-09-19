@@ -20,9 +20,6 @@ async function seedSourceColors() {
     // Check if any source colors already exist
     const existingCount = await sourceColorsRepository.count();
     if (existingCount > 0) {
-      logger.info(
-        `Source colors already exist (${existingCount} entries), skipping seed`
-      );
       return;
     }
 

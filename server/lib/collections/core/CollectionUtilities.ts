@@ -311,11 +311,6 @@ export function findCollectionByConfigId(
 
   // First, try to match by rating key (fastest)
   if (ratingKey && allCollections.some((c) => c.ratingKey === ratingKey)) {
-    logger.debug(`Collection found by ratingKey: ${configId}`, {
-      label: 'Collection Matching',
-      configId,
-      ratingKey,
-    });
     return true;
   }
 
@@ -327,39 +322,8 @@ export function findCollectionByConfigId(
       // Handle both string and PlexLabel types
       const labelText = typeof label === 'string' ? label : label.tag;
       const parsedConfigId = parseConfigIdFromLabel(labelText);
-      const matches = parsedConfigId === configId;
-
-      if (matches) {
-        logger.debug(`Collection found by label: ${configId}`, {
-          label: 'Collection Matching',
-          configId,
-          ratingKey,
-          matchingLabel: labelText,
-          collectionRatingKey: collection.ratingKey,
-        });
-      }
-
-      return matches;
+      return parsedConfigId === configId;
     });
-
-    // Debug: Log all labels for collections that might match by name
-    if (!hasMatchingLabel && collection.labels.length > 0) {
-      const hasAgregarrLabels = collection.labels.some((label) => {
-        const labelText = typeof label === 'string' ? label : label.tag;
-        return labelText.toLowerCase().startsWith('agregarr');
-      });
-
-      if (hasAgregarrLabels) {
-        logger.debug(`Collection with Agregarr labels but no config match`, {
-          label: 'Collection Matching Debug',
-          configId,
-          collectionRatingKey: collection.ratingKey,
-          collectionLabels: collection.labels.map((l) =>
-            typeof l === 'string' ? l : l.tag
-          ),
-        });
-      }
-    }
 
     return hasMatchingLabel;
   });
@@ -417,39 +381,10 @@ export function findCollectionByConfigId(
 
     // Only proceed if it has Agregarr labels (safety check to avoid matching unrelated collections)
     if (hasAgregarrLabels) {
-      logger.debug(`Collection found by name match: ${configId}`, {
-        label: 'Collection Matching',
-        configId,
-        configName,
-        collectionTitle: matchingCollection.title,
-        collectionRatingKey: matchingCollection.ratingKey,
-      });
       return true;
     } else {
-      logger.debug(
-        `Name match found but collection lacks Agregarr labels - skipping for safety: ${configName}`,
-        {
-          label: 'Collection Matching',
-          configId,
-          configName,
-          collectionTitle: matchingCollection.title,
-          collectionRatingKey: matchingCollection.ratingKey,
-        }
-      );
       return false;
     }
-  }
-
-  if (!foundByLabel) {
-    logger.debug(`Collection not found: ${configId}`, {
-      label: 'Collection Matching',
-      configId,
-      ratingKey,
-      totalCollections: allCollections.length,
-      collectionsWithLabels: allCollections.filter(
-        (c) => c.labels && c.labels.length > 0
-      ).length,
-    });
   }
 
   return foundByLabel;
@@ -491,6 +426,12 @@ export async function syncConfigsWithPlexCollections(
     }
   );
 
+  // Track sync operations for summary logging
+  let foundByLabel = 0;
+  let foundByName = 0;
+  let labelsReplaced = 0;
+  let overseerrSkipped = 0;
+
   for (const config of collectionConfigs) {
     try {
       // Always check and sync labels even if rating key exists - ensures labels are always correct
@@ -519,16 +460,7 @@ export async function syncConfigsWithPlexCollections(
 
           if (hasMatchingLabel) {
             matchingCollection = collection;
-            logger.debug(
-              `Config sync found collection by label: ${config.id}`,
-              {
-                label: 'Collection Config Sync',
-                configId: config.id,
-                configName: config.name,
-                collectionTitle: collection.title,
-                collectionRatingKey: collection.ratingKey,
-              }
-            );
+            foundByLabel++;
             break;
           }
         }
@@ -566,13 +498,7 @@ export async function syncConfigsWithPlexCollections(
 
         if (matchingCollections.length === 1) {
           matchingCollection = matchingCollections[0];
-          logger.debug(`Config sync found collection by name: ${config.id}`, {
-            label: 'Collection Config Sync',
-            configId: config.id,
-            configName: config.name,
-            collectionTitle: matchingCollection.title,
-            collectionRatingKey: matchingCollection.ratingKey,
-          });
+          foundByName++;
         } else if (matchingCollections.length > 1) {
           logger.warn(
             `Multiple Plex collections found matching config "${config.name}" - skipping`,
@@ -626,15 +552,7 @@ export async function syncConfigsWithPlexCollections(
       // Skip Overseerr collections - they manage their own specialized labels
       // (AgregarrOverseerrUser${userId}, AgregarrOverseerrOwner${userId}, etc.)
       if (config.source === 'overseerr') {
-        logger.debug(
-          `Skipping Overseerr collection "${matchingCollection.title}" - uses specialized labeling`,
-          {
-            label: 'Collection Config Sync',
-            configId: config.id,
-            configName: config.name,
-            collectionRatingKey: matchingCollection.ratingKey,
-          }
-        );
+        overseerrSkipped++;
         continue;
       }
 
@@ -651,35 +569,13 @@ export async function syncConfigsWithPlexCollections(
         correctLabel
       );
       updatedPlexLabels.push(matchingCollection.ratingKey);
-
-      // Since we now require existing Agregarr labels, we're always replacing them
-      logger.info(
-        `Replaced labels on collection "${matchingCollection.title}" with "${correctLabel}"`,
-        {
-          label: 'Collection Config Sync',
-          configId: config.id,
-          ratingKey: matchingCollection.ratingKey,
-          oldLabels: existingAgregarrLabels.map((l) =>
-            typeof l === 'string' ? l : l.tag
-          ),
-          newLabel: correctLabel,
-        }
-      );
+      labelsReplaced++;
 
       // Note: We don't update the config here since it's a copy
       // Return the sync info so the caller can update the actual settings
       syncedConfigs.push({
         configId: config.id,
         newRatingKey: matchingCollection.ratingKey,
-      });
-
-      logger.info(`Synced config "${config.name}" with Plex collection`, {
-        label: 'Collection Config Sync',
-        configId: config.id,
-        configName: config.name,
-        plexTitle: matchingCollection.title,
-        ratingKey: matchingCollection.ratingKey,
-        updatedLabel: correctLabel,
       });
     } catch (error) {
       const errorMessage =
@@ -693,12 +589,18 @@ export async function syncConfigsWithPlexCollections(
     }
   }
 
-  logger.info(`Collection sync process completed`, {
-    label: 'Collection Config Sync',
-    syncedConfigs: syncedConfigs.length,
-    updatedPlexLabels: updatedPlexLabels.length,
-    errors: errors.length,
-  });
+  logger.info(
+    `Collection sync completed: ${syncedConfigs.length} configs synced (${foundByLabel} by label, ${foundByName} by name), ${labelsReplaced} labels updated, ${overseerrSkipped} Overseerr skipped, ${errors.length} errors`,
+    {
+      label: 'Collection Config Sync',
+      syncedConfigs: syncedConfigs.length,
+      foundByLabel,
+      foundByName,
+      labelsReplaced,
+      overseerrSkipped,
+      errors: errors.length,
+    }
+  );
 
   return { syncedConfigs, updatedPlexLabels, errors };
 }

@@ -80,11 +80,10 @@ async function seedDefaultTemplate() {
     });
 
     if (existingTemplate) {
-      logger.info('Updating existing default template');
       // Update the existing template with new data
       existingTemplate.setTemplateData(defaultTemplateData);
       await templateRepository.save(existingTemplate);
-      logger.info('Successfully updated default poster template', {
+      logger.info('Default poster template refreshed', {
         templateId: existingTemplate.id,
         name: existingTemplate.name,
       });

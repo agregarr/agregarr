@@ -18,20 +18,6 @@ export class DefaultHubConfigService {
     const settings = getSettings();
     const hubConfigs = settings.plex.hubConfigs || [];
 
-    logger.debug('Default hub configs retrieved', {
-      label: 'Default Hub Config Service',
-      count: hubConfigs.length,
-      sample:
-        hubConfigs.length > 0
-          ? {
-              hubIdentifier: hubConfigs[0].hubIdentifier,
-              libraryId: hubConfigs[0].libraryId,
-              name: hubConfigs[0].name,
-              isActive: hubConfigs[0].isActive,
-            }
-          : null,
-    });
-
     return hubConfigs;
   }
 

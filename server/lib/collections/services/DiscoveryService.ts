@@ -465,8 +465,8 @@ export class DiscoveryService {
       allCollections.map((c) => c.ratingKey)
     );
 
-    // Import the utility function
-    const { findCollectionByConfigId } = await import(
+    // Import the utility functions
+    const { findCollectionByConfigId, parseConfigIdFromLabel } = await import(
       '@server/lib/collections/core/CollectionUtilities'
     );
 
@@ -487,6 +487,11 @@ export class DiscoveryService {
       });
     }
 
+    // Track found collections for summary logging
+    let foundByRatingKey = 0;
+    let foundByLabel = 0;
+    let foundByName = 0;
+
     // Validate Agregarr-created collections
     for (const config of collectionConfigs) {
       // Skip missing item check if collection is inactive AND set to be removed from Plex when inactive
@@ -504,6 +509,35 @@ export class DiscoveryService {
           config.name,
           config.libraryId
         );
+
+        if (collectionExists) {
+          // Count how it was found for summary - check in order of priority
+          if (
+            config.collectionRatingKey &&
+            allCollections.some(
+              (c) => c.ratingKey === config.collectionRatingKey
+            )
+          ) {
+            foundByRatingKey++;
+          } else {
+            // Check if found by label matching
+            const foundByLabelMatch = allCollections.some((collection) => {
+              if (!collection.labels) return false;
+              return collection.labels.some((label) => {
+                const labelText = typeof label === 'string' ? label : label.tag;
+                const parsedConfigId = parseConfigIdFromLabel(labelText);
+                return parsedConfigId === config.id;
+              });
+            });
+
+            if (foundByLabelMatch) {
+              foundByLabel++;
+            } else {
+              // Must have been found by name matching
+              foundByName++;
+            }
+          }
+        }
 
         if (!collectionExists) {
           // Debug logging to understand what's happening
@@ -584,7 +618,13 @@ export class DiscoveryService {
     }
 
     logger.info(
-      `Validation complete: ${missingCollections.length} missing collections, ${missingHubs.length} missing hubs, ${missingPreExisting.length} missing pre-existing`,
+      `Validation complete: ${
+        foundByRatingKey + foundByLabel + foundByName
+      } collections found (${foundByRatingKey} by ratingKey, ${foundByLabel} by label, ${foundByName} by name), ${
+        missingCollections.length
+      } missing collections, ${missingHubs.length} missing hubs, ${
+        missingPreExisting.length
+      } missing pre-existing`,
       {
         label: 'Discovery Service - Validation',
       }
@@ -653,6 +693,11 @@ export class DiscoveryService {
     allCollections: PlexCollection[],
     enhancedExistingConfigs: PreExistingCollectionConfig[]
   ): Promise<void> {
+    // Counters for summary logging
+    let skippedAgregarrCollections = 0;
+    let processedHubs = 0;
+    let processedPreExisting = 0;
+
     for (const library of libraries) {
       logger.debug('Discovering hubs for library', {
         label: 'Hub Discovery',
@@ -828,6 +873,7 @@ export class DiscoveryService {
             // Built-in Plex hub (no rating key) - check against existing hub configs
             if (!existingHubKeys.has(hubKey)) {
               discoveredHubConfigs.push(hubConfig);
+              processedHubs++;
             }
           } else if (parsedHub.ratingKey) {
             // This has a rating key - check if it's an Agregarr collection or pre-existing
@@ -840,14 +886,7 @@ export class DiscoveryService {
             if (matchingCollectionConfig) {
               // This is an Agregarr-created collection that's been promoted to hub - skip it
               // (it's already managed via collectionConfigs, promotion status is calculated)
-              logger.debug(
-                `Skipping Agregarr collection from hub discovery: ${hubConfig.name}`,
-                {
-                  label: 'Discovery Service',
-                  ratingKey: parsedHub.ratingKey,
-                  libraryId: library.key,
-                }
-              );
+              skippedAgregarrCollections++;
             } else {
               // Check if this is an Overseerr user collection by finding it in allCollections
               const collectionWithLabels = allCollections.find(
@@ -1066,6 +1105,7 @@ export class DiscoveryService {
                       }
                     ).isPromotedToHub = true;
                     discoveredPreExistingConfigs.push(preExistingConfig);
+                    processedPreExisting++;
                   }
                 }
               }
@@ -1078,6 +1118,21 @@ export class DiscoveryService {
           error: error instanceof Error ? error.message : String(error),
         });
       }
+    }
+
+    // Summary logging for hub discovery operations
+    if (
+      skippedAgregarrCollections > 0 ||
+      processedHubs > 0 ||
+      processedPreExisting > 0
+    ) {
+      logger.info('Hub discovery completed', {
+        label: 'Hub Discovery',
+        summary: `Processed ${processedHubs} hubs, ${processedPreExisting} pre-existing collections, skipped ${skippedAgregarrCollections} Agregarr collections`,
+        processedHubs,
+        processedPreExisting,
+        skippedAgregarrCollections,
+      });
     }
   }
 
@@ -1213,7 +1268,12 @@ export class DiscoveryService {
     existingCollectionIds: Set<string>
   ): Promise<PlexCollection[]> {
     let allCollections: PlexCollection[] = [];
-    const posterDiscoveryStats = { successful: 0, failed: 0 };
+    const posterDiscoveryStats = {
+      successful: 0,
+      failed: 0,
+      agregarrSkipped: 0,
+      managedSkipped: 0,
+    };
 
     try {
       allCollections = await plexClient.getAllCollections();
@@ -1226,15 +1286,15 @@ export class DiscoveryService {
         if (!library) continue;
 
         // Discover and store poster for this collection
-        const posterDiscovered = await this.discoverCollectionPoster(
+        const posterResult = await this.discoverCollectionPoster(
           plexClient,
           collection,
           libraryId,
           library.title
         );
 
-        // Track poster discovery statistics
-        if (posterDiscovered) {
+        // Track detailed poster discovery statistics
+        if (posterResult.success) {
           posterDiscoveryStats.successful++;
         } else {
           posterDiscoveryStats.failed++;
@@ -1249,25 +1309,10 @@ export class DiscoveryService {
 
         if (matchingCollectionConfig) {
           // This is an Agregarr-created collection - skip it (already managed)
-          logger.debug(
-            `Skipping Agregarr collection from collections discovery: ${collection.title}`,
-            {
-              label: 'Discovery Service',
-              ratingKey: collection.ratingKey,
-              libraryId,
-            }
-          );
+          posterDiscoveryStats.agregarrSkipped++;
         } else if (this.isAgregarrManagedCollection(collection)) {
           // This is any Agregarr-managed collection - skip it (should not be imported as pre-existing)
-          logger.debug(
-            `Skipping Agregarr-managed collection from collections discovery: ${collection.title}`,
-            {
-              label: 'Discovery Service',
-              ratingKey: collection.ratingKey,
-              libraryId,
-              labels: collection.labels,
-            }
-          );
+          posterDiscoveryStats.managedSkipped++;
         } else {
           // Check if this is an existing pre-existing collection that needs title update
           const settings = getSettings();
@@ -1353,27 +1398,26 @@ export class DiscoveryService {
         }
       }
 
-      // Log poster discovery statistics
-      if (
-        posterDiscoveryStats.successful > 0 ||
-        posterDiscoveryStats.failed > 0
-      ) {
-        logger.info(`Poster discovery completed`, {
-          label: 'Poster Discovery',
-          successful: posterDiscoveryStats.successful,
-          failed: posterDiscoveryStats.failed,
-          total: posterDiscoveryStats.successful + posterDiscoveryStats.failed,
-        });
+      // Log comprehensive poster discovery statistics
+      const totalProcessed =
+        posterDiscoveryStats.successful + posterDiscoveryStats.failed;
+      const totalSkipped =
+        posterDiscoveryStats.agregarrSkipped +
+        posterDiscoveryStats.managedSkipped;
 
-        if (posterDiscoveryStats.failed > 0) {
-          logger.info(
-            `Poster not found for ${posterDiscoveryStats.failed} collections`,
-            {
-              label: 'Poster Discovery',
-              failedCount: posterDiscoveryStats.failed,
-            }
-          );
-        }
+      if (totalProcessed > 0 || totalSkipped > 0) {
+        logger.info(
+          `Poster discovery completed: ${posterDiscoveryStats.successful} stored, ${posterDiscoveryStats.failed} failed, ${totalSkipped} skipped (${posterDiscoveryStats.agregarrSkipped} Agregarr, ${posterDiscoveryStats.managedSkipped} managed)`,
+          {
+            label: 'Poster Discovery',
+            successful: posterDiscoveryStats.successful,
+            failed: posterDiscoveryStats.failed,
+            agregarrSkipped: posterDiscoveryStats.agregarrSkipped,
+            managedSkipped: posterDiscoveryStats.managedSkipped,
+            totalProcessed,
+            totalSkipped,
+          }
+        );
       }
     } catch (error) {
       logger.warn('Failed to discover Plex collections', {
@@ -1683,14 +1727,14 @@ export class DiscoveryService {
   /**
    * Discover and store poster for a collection
    * Downloads the current poster from Plex and stores it for reuse
-   * @returns true if poster was successfully discovered and stored, false otherwise
+   * @returns object with success status and failure reason
    */
   private async discoverCollectionPoster(
     plexClient: PlexAPI,
     collection: PlexCollection,
     libraryId: string,
     libraryName: string
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; reason?: string }> {
     try {
       // Get the current poster URL from Plex
       const posterUrl = await plexClient.getCurrentPosterUrl(
@@ -1698,12 +1742,7 @@ export class DiscoveryService {
       );
 
       if (!posterUrl) {
-        logger.debug(`No poster found for collection: ${collection.title}`, {
-          label: 'Poster Discovery',
-          ratingKey: collection.ratingKey,
-          libraryId,
-        });
-        return false;
+        return { success: false, reason: 'no-poster' };
       }
 
       // Download and save the poster
@@ -1716,43 +1755,16 @@ export class DiscoveryService {
       );
 
       if (filename) {
-        logger.info(
-          `Discovered and stored poster for collection: ${collection.title}`,
-          {
-            label: 'Poster Discovery',
-            ratingKey: collection.ratingKey,
-            libraryId,
-            libraryName,
-            filename,
-          }
-        );
-
         // Link this poster to collection configs that match this collection
         await this.linkPosterToConfigs(collection, libraryId, filename);
-        return true;
+        return { success: true };
       } else {
-        logger.warn(
-          `Failed to store poster for collection: ${collection.title}`,
-          {
-            label: 'Poster Discovery',
-            ratingKey: collection.ratingKey,
-            libraryId,
-            posterUrl,
-          }
-        );
-        return false;
+        // Since downloadAndSavePoster returns null, we can't determine specific reason here
+        // The detailed error logging happens inside posterStorage.ts
+        return { success: false, reason: 'download-failed' };
       }
     } catch (error) {
-      logger.error(
-        `Error discovering poster for collection: ${collection.title}`,
-        {
-          label: 'Poster Discovery',
-          ratingKey: collection.ratingKey,
-          libraryId,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-      return false;
+      return { success: false, reason: 'error' };
     }
   }
 

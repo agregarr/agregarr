@@ -64,10 +64,6 @@ export class IndividualCollectionScheduler {
       return;
     }
 
-    logger.info('Initializing IndividualCollectionScheduler', {
-      label: 'Individual Collection Scheduler',
-    });
-
     try {
       await this.refreshAllJobs();
       this.initialized = true;
@@ -106,12 +102,6 @@ export class IndividualCollectionScheduler {
         );
       }
     }
-
-    logger.debug(`Refreshed individual collection jobs`, {
-      label: 'Individual Collection Scheduler',
-      activeJobs: this.jobs.size,
-      collections: Array.from(this.jobs.keys()),
-    });
   }
 
   /**
@@ -692,10 +682,6 @@ export class IndividualCollectionScheduler {
       jobInfo.job.cancel();
     }
     this.jobs.clear();
-
-    logger.debug('Cleared all individual collection sync jobs', {
-      label: 'Individual Collection Scheduler',
-    });
   }
 
   /**
