@@ -999,20 +999,24 @@ class PlexAPI {
           throw new Error(`Collection ${collectionRatingKey} not found`);
         }
 
-        // Clean existing Agregarr labels while preserving user's custom labels
-        const { cleanAgregarrCollectionLabels } = await import(
-          '@server/lib/collections/core/CollectionUtilities'
-        );
+        // Check if label already exists first (case-insensitive comparison since Plex auto-formats labels)
         const existingLabels = collectionMeta.labels || [];
-        const preservedLabels = cleanAgregarrCollectionLabels(existingLabels);
-
-        // Check if label already exists (case-insensitive comparison since Plex auto-formats labels)
         const labelExistsIndex = existingLabels.findIndex(
           (existingLabel) => existingLabel.toLowerCase() === label.toLowerCase()
         );
         if (labelExistsIndex !== -1) {
-          return true;
+          return true; // Early return - no changes needed
         }
+
+        // Clean existing Agregarr labels while preserving user's custom labels
+        // Only remove OTHER Agregarr labels, not the one we're trying to add
+        const { cleanAgregarrCollectionLabels } = await import(
+          '@server/lib/collections/core/CollectionUtilities'
+        );
+        const preservedLabels = cleanAgregarrCollectionLabels(
+          existingLabels,
+          label
+        );
 
         // Combine preserved labels with new Agregarr label
         const allLabels = [...preservedLabels, label];

@@ -967,7 +967,13 @@ export class DiscoveryService {
                 if (existingPreExisting) {
                   // Enhance existing collection with hub promotion data
                   // Note: DO NOT overwrite sortOrderLibrary - collections have separate library ordering from hub ordering
-                  existingPreExisting.sortOrderHome = hubConfig.sortOrderHome;
+                  // PRESERVE user's manual sortOrderHome positioning - only set if not already configured
+                  if (
+                    existingPreExisting.sortOrderHome === 0 ||
+                    existingPreExisting.sortOrderHome === undefined
+                  ) {
+                    existingPreExisting.sortOrderHome = hubConfig.sortOrderHome;
+                  }
                   if (hub.promotedToSharedHome !== undefined) {
                     existingPreExisting.visibilityConfig.usersHome =
                       hub.promotedToSharedHome;
@@ -980,15 +986,20 @@ export class DiscoveryService {
                     existingPreExisting.visibilityConfig.libraryRecommended =
                       hub.promotedToRecommended;
                   }
-                  // Pre-existing collection found in hub management - mark as promoted and restore position
+                  // Pre-existing collection found in hub management - mark as promoted
                   const wasPromoted = existingPreExisting.isPromotedToHub;
                   (
                     existingPreExisting as PreExistingCollectionConfig & {
                       isPromotedToHub: boolean;
                     }
                   ).isPromotedToHub = true;
-                  // Restore sortOrderHome to discovered hub position
-                  existingPreExisting.sortOrderHome = hubConfig.sortOrderHome;
+                  // PRESERVE user's manual positioning - only set hub position if not manually configured
+                  if (
+                    existingPreExisting.sortOrderHome === 0 ||
+                    existingPreExisting.sortOrderHome === undefined
+                  ) {
+                    existingPreExisting.sortOrderHome = hubConfig.sortOrderHome;
+                  }
 
                   logger.debug(
                     `Enhanced pre-existing collection "${existingPreExisting.name}" with hub promotion data`,
@@ -1015,7 +1026,12 @@ export class DiscoveryService {
                     // Create a copy and enhance with hub promotion data
                     const enhancedConfig: PreExistingCollectionConfig = {
                       ...existingConfigFromSettings,
-                      sortOrderHome: hubConfig.sortOrderHome,
+                      // PRESERVE user's manual sortOrderHome positioning - only set if not already configured
+                      sortOrderHome:
+                        existingConfigFromSettings.sortOrderHome === 0 ||
+                        existingConfigFromSettings.sortOrderHome === undefined
+                          ? hubConfig.sortOrderHome
+                          : existingConfigFromSettings.sortOrderHome,
                       visibilityConfig: {
                         ...existingConfigFromSettings.visibilityConfig,
                         ...(hub.promotedToSharedHome !== undefined && {
@@ -1148,21 +1164,17 @@ export class DiscoveryService {
 
     // Reset all existing pre-existing collections to isPromotedToHub: false
     // They will be set back to true during hub discovery if they're still in hub management
-    // Also reset sortOrderHome to 0 since they're no longer in hub management
+    // PRESERVE user configurations (sortOrderHome and visibility settings) to maintain manual reordering
     settings.plex.preExistingCollectionConfigs = preExistingConfigs.map(
       (config) => {
         if (config.isPromotedToHub === true) {
           resetCount++;
           return {
             ...config,
-            isPromotedToHub: false,
-            sortOrderHome: 0, // Reset to void since no longer in hub management
-            visibilityConfig: {
-              ...config.visibilityConfig,
-              usersHome: false,
-              serverOwnerHome: false,
-              libraryRecommended: false,
-            },
+            isPromotedToHub: false, // Reset only this flag for external change detection
+            // PRESERVE user configurations:
+            // - sortOrderHome: preserve manual positioning
+            // - visibilityConfig: preserve user visibility settings
           };
         }
         return config;

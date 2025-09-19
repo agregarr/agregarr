@@ -2277,6 +2277,7 @@ const CollectionFormConfigForm = ({
                                     fieldId="customPoster"
                                     libraries={libraries}
                                     selectedLibraryIds={values.libraryIds || []}
+                                    isAgregarrCollection={isCollection}
                                   />
                                 </div>
                               </div>
@@ -2388,6 +2389,7 @@ const CollectionFormConfigForm = ({
                                     ? [values.libraryId]
                                     : []
                                 }
+                                isAgregarrCollection={false}
                               />
                             </div>
                           </div>

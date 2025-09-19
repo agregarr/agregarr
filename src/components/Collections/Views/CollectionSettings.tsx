@@ -908,8 +908,8 @@ const CollectionSettings = ({
       };
     }
 
-    setEditingConfig(configToEdit);
-    setShowConfigForm(true);
+    setEditingHubConfig(configToEdit as PlexHubConfig);
+    setShowHubForm(true);
   };
 
   const editPreExistingConfig = (config: PreExistingCollectionConfig) => {
@@ -964,9 +964,9 @@ const CollectionSettings = ({
       };
     }
 
-    // Cast to CollectionFormConfig since we've created form-compatible structure
-    setEditingConfig(configToEdit as CollectionFormConfig);
-    setShowConfigForm(true);
+    // Set as pre-existing collection for proper form handling
+    setEditingPreExistingConfig(configToEdit as PreExistingCollectionConfig);
+    setShowPreExistingForm(true);
   };
 
   const saveHubConfig = async (
@@ -1513,7 +1513,23 @@ const CollectionSettings = ({
             return; // Early return - we're done
           }
         } catch (error) {
-          addToast('Failed to create collection. Please try again.', {
+          // Show specific error message from API if available
+          const errorMessage =
+            error instanceof Error && 'response' in error
+              ? (
+                  error as {
+                    response?: { data?: { message?: string; error?: string } };
+                  }
+                ).response?.data?.message ||
+                (
+                  error as {
+                    response?: { data?: { message?: string; error?: string } };
+                  }
+                ).response?.data?.error ||
+                'Failed to create collection. Please try again.'
+              : 'Failed to create collection. Please try again.';
+
+          addToast(errorMessage, {
             autoDismiss: true,
             appearance: 'error',
           });

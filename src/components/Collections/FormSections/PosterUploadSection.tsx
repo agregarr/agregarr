@@ -63,6 +63,8 @@ interface PosterUploadSectionProps {
   // Multi-library support (optional)
   libraries?: Library[];
   selectedLibraryIds?: string[];
+  // Collection type flags
+  isAgregarrCollection?: boolean;
 }
 
 const PosterUploadSection = ({
@@ -72,6 +74,7 @@ const PosterUploadSection = ({
   fieldId = 'customPoster',
   libraries = [],
   selectedLibraryIds = [],
+  isAgregarrCollection = true,
 }: PosterUploadSectionProps) => {
   const intl = useIntl();
   const [modalOpen, setModalOpen] = useState(false);
@@ -200,103 +203,105 @@ const PosterUploadSection = ({
 
   return (
     <>
-      {/* Auto-poster toggle for all collections */}
-      <div className="mb-6">
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="autoPoster"
-            checked={isAutoPosterEnabled}
-            onChange={(e) => handleAutoPosterChange(e.target.checked)}
-            className="form-checkbox"
-          />
-          <label htmlFor="autoPoster" className="ml-2 text-sm text-gray-300">
-            {intl.formatMessage(messages.autoPoster)}
-          </label>
-        </div>
-        <div className="label-tip">
-          {intl.formatMessage(messages.autoPosterHelp)}
-        </div>
-
-        {/* Template selection when auto-poster is enabled */}
-        {isAutoPosterEnabled && (
-          <div className="mt-4">
-            <label className="text-label">
-              {intl.formatMessage(messages.selectTemplate)}
+      {/* Auto-poster toggle - only for Agregarr collections */}
+      {isAgregarrCollection && (
+        <div className="mb-6">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="autoPoster"
+              checked={isAutoPosterEnabled}
+              onChange={(e) => handleAutoPosterChange(e.target.checked)}
+              className="form-checkbox"
+            />
+            <label htmlFor="autoPoster" className="ml-2 text-sm text-gray-300">
+              {intl.formatMessage(messages.autoPoster)}
             </label>
-            <Menu as="div" className="relative mt-2">
-              <Menu.Button className="relative w-full cursor-default rounded-md bg-stone-700 py-2 pl-3 pr-10 text-left shadow-sm ring-1 ring-inset ring-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500 sm:text-sm">
-                <span className="block truncate text-white">
-                  {selectedTemplate?.name || 'Select Template'}
-                </span>
-                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                  <ChevronDownIcon
-                    className="h-5 w-5 text-stone-400"
-                    aria-hidden="true"
-                  />
-                </span>
-              </Menu.Button>
+          </div>
+          <div className="label-tip">
+            {intl.formatMessage(messages.autoPosterHelp)}
+          </div>
 
-              <Transition
-                as={Fragment}
-                enter="transition ease-out duration-100"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-              >
-                <Menu.Items className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-stone-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                  {templates?.map((template) => (
-                    <Menu.Item key={template.id}>
-                      {({ active }) => (
-                        <button
-                          onClick={() => handleTemplateSelection(template.id)}
-                          className={`relative w-full cursor-default select-none py-2 pl-3 pr-9 text-left ${
-                            active
-                              ? 'bg-orange-600 text-white'
-                              : 'text-stone-200'
-                          }`}
-                        >
-                          <span
-                            className={`block truncate ${
-                              selectedTemplateId === template.id
-                                ? 'font-semibold'
-                                : 'font-normal'
+          {/* Template selection when auto-poster is enabled */}
+          {isAutoPosterEnabled && (
+            <div className="mt-4">
+              <label className="text-label">
+                {intl.formatMessage(messages.selectTemplate)}
+              </label>
+              <Menu as="div" className="relative mt-2">
+                <Menu.Button className="relative w-full cursor-default rounded-md bg-stone-700 py-2 pl-3 pr-10 text-left shadow-sm ring-1 ring-inset ring-stone-600 focus:outline-none focus:ring-2 focus:ring-orange-500 sm:text-sm">
+                  <span className="block truncate text-white">
+                    {selectedTemplate?.name || 'Select Template'}
+                  </span>
+                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <ChevronDownIcon
+                      className="h-5 w-5 text-stone-400"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Menu.Button>
+
+                <Transition
+                  as={Fragment}
+                  enter="transition ease-out duration-100"
+                  enterFrom="transform opacity-0 scale-95"
+                  enterTo="transform opacity-100 scale-100"
+                  leave="transition ease-in duration-75"
+                  leaveFrom="transform opacity-100 scale-100"
+                  leaveTo="transform opacity-0 scale-95"
+                >
+                  <Menu.Items className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-stone-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                    {templates?.map((template) => (
+                      <Menu.Item key={template.id}>
+                        {({ active }) => (
+                          <button
+                            onClick={() => handleTemplateSelection(template.id)}
+                            className={`relative w-full cursor-default select-none py-2 pl-3 pr-9 text-left ${
+                              active
+                                ? 'bg-orange-600 text-white'
+                                : 'text-stone-200'
                             }`}
                           >
-                            {template.name}
-                          </span>
-                          {template.description && (
-                            <span className="block truncate text-xs text-stone-400">
-                              {template.description}
-                            </span>
-                          )}
-                          {selectedTemplateId === template.id && (
                             <span
-                              className={`absolute inset-y-0 right-0 flex items-center pr-4 ${
-                                active ? 'text-white' : 'text-orange-600'
+                              className={`block truncate ${
+                                selectedTemplateId === template.id
+                                  ? 'font-semibold'
+                                  : 'font-normal'
                               }`}
                             >
-                              ✓
+                              {template.name}
                             </span>
-                          )}
-                        </button>
-                      )}
-                    </Menu.Item>
-                  ))}
-                </Menu.Items>
-              </Transition>
-            </Menu>
-            <div className="label-tip mt-1">
-              {intl.formatMessage(messages.templateHelp)}
+                            {template.description && (
+                              <span className="block truncate text-xs text-stone-400">
+                                {template.description}
+                              </span>
+                            )}
+                            {selectedTemplateId === template.id && (
+                              <span
+                                className={`absolute inset-y-0 right-0 flex items-center pr-4 ${
+                                  active ? 'text-white' : 'text-orange-600'
+                                }`}
+                              >
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        )}
+                      </Menu.Item>
+                    ))}
+                  </Menu.Items>
+                </Transition>
+              </Menu>
+              <div className="label-tip mt-1">
+                {intl.formatMessage(messages.templateHelp)}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {/* Manual poster uploads - only show when auto-poster is disabled */}
-      {!isAutoPosterEnabled && (
+      {/* Manual poster uploads - show when auto-poster is disabled OR when not an Agregarr collection */}
+      {(!isAgregarrCollection || !isAutoPosterEnabled) && (
         <>
           {/* Horizontal library poster uploads */}
           <div className="flex flex-wrap gap-4">
