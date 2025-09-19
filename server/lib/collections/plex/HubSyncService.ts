@@ -603,6 +603,19 @@ export class HubSyncService {
       const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
       if (libraryOrderingItems) {
         sortedConfigs.forEach((config) => {
+          // Skip missing collections - they don't exist in Plex
+          if (config.missing) {
+            logger.debug(`Skipping missing collection from Plex reordering`, {
+              label: 'Hub Sync Service',
+              collectionId: config.id,
+              collectionName: config.name,
+              ratingKey: config.collectionRatingKey,
+              libraryId,
+              reason: 'collection marked as missing',
+            });
+            return;
+          }
+
           // Only include collections that have some visibility - items with zero visibility don't exist in Plex
           const hasAnyVisibility =
             config.visibilityConfig?.usersHome ||
@@ -680,6 +693,20 @@ export class HubSyncService {
       const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
       if (libraryOrderingItems) {
         sortedHubConfigs.forEach((hubConfig) => {
+          // Skip missing hubs - they don't exist in Plex
+          if (hubConfig.missing) {
+            logger.debug(`Skipping missing hub from Plex reordering`, {
+              label: 'Hub Sync Service',
+              hubId: hubConfig.id,
+              hubName: hubConfig.name,
+              hubIdentifier: hubConfig.hubIdentifier,
+              libraryId: hubConfig.libraryId,
+              reason: 'hub marked as missing',
+            });
+            hubsSkippedMalformed++;
+            return;
+          }
+
           // Only include hubs that have some visibility - items with zero visibility don't exist in Plex
           const hasAnyVisibility =
             hubConfig.visibilityConfig?.usersHome ||
@@ -760,6 +787,22 @@ export class HubSyncService {
       const libraryOrderingItems = orderingItemsByLibrary.get(libraryId);
       if (libraryOrderingItems) {
         sortedConfigs.forEach((config) => {
+          // Skip missing pre-existing collections - they don't exist in Plex
+          if (config.missing) {
+            logger.debug(
+              `Skipping missing pre-existing collection from Plex reordering`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: config.id,
+                collectionName: config.name,
+                ratingKey: config.collectionRatingKey,
+                libraryId: config.libraryId,
+                reason: 'collection marked as missing',
+              }
+            );
+            return;
+          }
+
           // Only include pre-existing collections that have some visibility - items with zero visibility don't exist in Plex
           const hasAnyVisibility =
             config.visibilityConfig?.usersHome ||
