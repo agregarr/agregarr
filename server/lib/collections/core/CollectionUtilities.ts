@@ -94,16 +94,22 @@ export function cleanOverseerrLabels(filterStr: string): string {
 /**
  * Clean Agregarr-specific labels from collection label arrays
  * Preserves user's custom labels while removing auto-generated ones
+ * @param existingLabels Array of current labels on the collection
+ * @param preserveLabel Optional specific Agregarr label to preserve during cleaning
  */
 export function cleanAgregarrCollectionLabels(
-  existingLabels: string[]
+  existingLabels: string[],
+  preserveLabel?: string
 ): string[] {
   if (!existingLabels || existingLabels.length === 0) return [];
 
-  // Filter out any existing Agregarr labels, preserving user's custom labels
-  return existingLabels.filter(
-    (label: string) => !label.toLowerCase().startsWith('agregarr')
-  );
+  // Filter out Agregarr labels, but preserve the specified label if provided
+  return existingLabels.filter((label: string) => {
+    const isAgregarrLabel = label.toLowerCase().startsWith('agregarr');
+    if (!isAgregarrLabel) return true; // Keep non-Agregarr labels
+    if (preserveLabel && label === preserveLabel) return true; // Keep specified label
+    return false; // Remove other Agregarr labels
+  });
 }
 
 /**
