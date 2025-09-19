@@ -1513,7 +1513,23 @@ const CollectionSettings = ({
             return; // Early return - we're done
           }
         } catch (error) {
-          addToast('Failed to create collection. Please try again.', {
+          // Show specific error message from API if available
+          const errorMessage =
+            error instanceof Error && 'response' in error
+              ? (
+                  error as {
+                    response?: { data?: { message?: string; error?: string } };
+                  }
+                ).response?.data?.message ||
+                (
+                  error as {
+                    response?: { data?: { message?: string; error?: string } };
+                  }
+                ).response?.data?.error ||
+                'Failed to create collection. Please try again.'
+              : 'Failed to create collection. Please try again.';
+
+          addToast(errorMessage, {
             autoDismiss: true,
             appearance: 'error',
           });

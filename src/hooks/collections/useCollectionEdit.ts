@@ -219,7 +219,23 @@ export const useCollectionEdit = () => {
           autoDismiss: true,
         });
       } catch (error) {
-        addToast('Failed to save collection configuration', {
+        // Show specific error message from API if available
+        const errorMessage =
+          error instanceof Error && 'response' in error
+            ? (
+                error as {
+                  response?: { data?: { message?: string; error?: string } };
+                }
+              ).response?.data?.message ||
+              (
+                error as {
+                  response?: { data?: { message?: string; error?: string } };
+                }
+              ).response?.data?.error ||
+              'Failed to save collection configuration'
+            : 'Failed to save collection configuration';
+
+        addToast(errorMessage, {
           appearance: 'error',
           autoDismiss: true,
         });

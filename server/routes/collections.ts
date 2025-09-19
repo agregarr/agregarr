@@ -852,6 +852,19 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         context
       );
 
+      // Check for duplicate collection names within this library
+      const duplicateName = existingConfigs.find(
+        (config) =>
+          config.name === processedName && config.libraryId === libraryId
+      );
+
+      if (duplicateName) {
+        return res.status(400).json({
+          error: `Collection "${processedName}" already exists in this library`,
+          message: `A collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
+        });
+      }
+
       // For Overseerr user collections, keep {username} and {nickname} as literals
       if (req.body.type === 'overseerr' && req.body.subtype === 'users') {
         const defaultContext = templateEngine.getDefaultContext();
