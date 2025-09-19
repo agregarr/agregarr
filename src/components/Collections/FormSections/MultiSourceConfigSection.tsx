@@ -4,10 +4,19 @@ import type {
   MultiSourceCombineMode,
   MultiSourceType,
 } from '@app/types/collections';
+import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
+import type {
+  MDBListSettings,
+  OverseerrSettings,
+  TautulliSettings,
+  TraktSettings,
+} from '@server/lib/settings';
 import { Field } from 'formik';
 import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+import ApiKeyWarning from './ApiKeyWarning';
 
 const messages = defineMessages({
   sourceType: 'Source Type',
@@ -122,6 +131,20 @@ const MultiSourceConfigSection = ({
     (url) => fetch(url).then((res) => res.json())
   );
 
+  // Fetch API settings for validation
+  const { data: traktSettings } = useSWR<TraktSettings>(
+    '/api/v1/settings/trakt'
+  );
+  const { data: mdblistSettings } = useSWR<MDBListSettings>(
+    '/api/v1/settings/mdblist'
+  );
+  const { data: tautulliSettings } = useSWR<TautulliSettings>(
+    '/api/v1/settings/tautulli'
+  );
+  const { data: overseerrSettings } = useSWR<OverseerrSettings>(
+    '/api/v1/settings/overseerr'
+  );
+
   if (!isVisible) return null;
   const sources = values.sources || [];
 
@@ -214,16 +237,6 @@ const MultiSourceConfigSection = ({
         ];
       case 'mdblist':
         return [
-          {
-            value: 'user_lists',
-            label: 'User Lists',
-            description: 'Your personal MDBList lists',
-          },
-          {
-            value: 'top_lists',
-            label: 'Top Lists',
-            description: 'Most popular public lists on MDBList',
-          },
           {
             value: 'custom',
             label: 'Custom List',
@@ -374,6 +387,22 @@ const MultiSourceConfigSection = ({
                 <option value="mdblist">MDBList Lists</option>
                 <option value="networks">Networks</option>
               </Field>
+
+              {/* API Key Warning for this source */}
+              {values.sources?.[index]?.type &&
+                (() => {
+                  const sourceType = values.sources[index].type;
+                  const apiKeyValidation = validateApiKeysForCollectionType(
+                    sourceType,
+                    {
+                      trakt: traktSettings,
+                      mdblist: mdblistSettings,
+                      tautulli: tautulliSettings,
+                      overseerr: overseerrSettings,
+                    }
+                  );
+                  return <ApiKeyWarning validation={apiKeyValidation} />;
+                })()}
             </div>
 
             {values.sources?.[index]?.type &&

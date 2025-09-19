@@ -1,7 +1,17 @@
 import type { CollectionFormConfig } from '@app/types/collections';
+import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
+import type {
+  MDBListSettings,
+  OverseerrSettings,
+  TautulliSettings,
+  TraktSettings,
+} from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import useSWR from 'swr';
+
+import ApiKeyWarning from './ApiKeyWarning';
 
 interface TemplatePreset {
   value: string;
@@ -42,7 +52,29 @@ const CollectionTypeSection = ({
 }: CollectionTypeSectionProps) => {
   const intl = useIntl();
 
+  // Fetch API settings for validation
+  const { data: traktSettings } = useSWR<TraktSettings>(
+    '/api/v1/settings/trakt'
+  );
+  const { data: mdblistSettings } = useSWR<MDBListSettings>(
+    '/api/v1/settings/mdblist'
+  );
+  const { data: tautulliSettings } = useSWR<TautulliSettings>(
+    '/api/v1/settings/tautulli'
+  );
+  const { data: overseerrSettings } = useSWR<OverseerrSettings>(
+    '/api/v1/settings/overseerr'
+  );
+
   if (!isVisible) return null;
+
+  // Validate API keys for the current collection type
+  const apiKeyValidation = validateApiKeysForCollectionType(values.type || '', {
+    trakt: traktSettings,
+    mdblist: mdblistSettings,
+    tautulli: tautulliSettings,
+    overseerr: overseerrSettings,
+  });
 
   const collectionTypes = [
     { value: 'overseerr', label: 'Overseerr Requests' },
@@ -236,6 +268,9 @@ const CollectionTypeSection = ({
             </option>
           ))}
         </Field>
+
+        {/* API Key Warning - Show after type selection */}
+        {values.type && <ApiKeyWarning validation={apiKeyValidation} />}
       </div>
 
       {/* Collection Sub-Type */}
