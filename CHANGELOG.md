@@ -1,3 +1,15 @@
+## [1.3.1](https://github.com/agregarr/agregarr/compare/v1.3.0...v1.3.1) (2025-09-19)
+
+
+### Bug Fixes
+
+* **api keys:** add API key warnings ([bc4a170](https://github.com/agregarr/agregarr/commit/bc4a1700c6be674f104f6cb5b26db82ce3560a71))
+* **auto poster:** removes auto poster option from pre-existing config form ([af9bd75](https://github.com/agregarr/agregarr/commit/af9bd75b457c9be936e7b95c8c39cc7b3e39fb48))
+* **config:** checks for duplicate titles on creation ([dd5055e](https://github.com/agregarr/agregarr/commit/dd5055e35fb3663d07b37e6becf35b8725731e76))
+* **plex collections:** collections are now correctly deleted when their config is removed ([03fecf0](https://github.com/agregarr/agregarr/commit/03fecf0ac28664c6389ffed3a01e0b1648f22c8f))
+* **reordering:** pre-existing collections no longer break reordering ([8b3b1ee](https://github.com/agregarr/agregarr/commit/8b3b1ee92364aba65bf2236a6b1716bcedeeecd7)), closes [#62](https://github.com/agregarr/agregarr/issues/62) [#55](https://github.com/agregarr/agregarr/issues/55) [#54](https://github.com/agregarr/agregarr/issues/54)
+* **sync:** missing items will no longer be sent in the ordering array ([f0352a5](https://github.com/agregarr/agregarr/commit/f0352a5ce3e6ea3d8de85d281df27f4b483ba878)), closes [#55](https://github.com/agregarr/agregarr/issues/55)
+
 # [1.3.0](https://github.com/agregarr/agregarr/compare/v1.2.2...v1.3.0) (2025-09-19)
 
 
