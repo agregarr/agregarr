@@ -224,8 +224,8 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         });
       });
 
-      // Apply maxItems limit
-      const limitedData = networksData.slice(0, config.maxItems);
+      // Note: maxItems limit is now applied later in the BaseCollectionSync filtering stage
+      const limitedData = networksData;
 
       logger.info(
         `Successfully fetched ${limitedData.length} items from ${platformData.platform}`,

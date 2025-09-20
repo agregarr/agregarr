@@ -2252,8 +2252,7 @@ const CollectionFormConfigForm = ({
                                 </div>
                               )}
                               <div className="label-tip">
-                                Fetch the first X items from the source - e.g.
-                                IMDb Top 250 should be set to 250 (1-9999)
+                                Limit the Collection to this many items
                               </div>
                             </div>
                           </div>

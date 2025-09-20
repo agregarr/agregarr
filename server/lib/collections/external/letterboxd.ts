@@ -85,7 +85,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         const mediaType = getCollectionMediaType(config);
         const randomResult = await RandomListManager.getRandomUrlWithTitle(
           'letterboxd',
-          config.maxItems,
+          9999,
           mediaType,
           libraryCache
         );
@@ -138,7 +138,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       let totalFetched = 0;
       const maxPages = 15; // Safety limit (1001 movies ÷ 100 per page ≈ 11 pages)
 
-      while (totalFetched < config.maxItems && currentPage <= maxPages) {
+      while (totalFetched < 9999 && currentPage <= maxPages) {
         const pageUrl =
           currentPage === 1 ? listUrl : `${listUrl}page/${currentPage}/`;
 
@@ -163,7 +163,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         }
 
         // Parse this page's HTML to extract movie items
-        const remainingItems = config.maxItems - totalFetched;
+        const remainingItems = 9999 - totalFetched;
         const pageData = this.parseLetterboxdListHtml(
           response.data,
           remainingItems
@@ -198,7 +198,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         currentPage++;
 
         // Small delay between pages to be respectful
-        if (currentPage <= maxPages && totalFetched < config.maxItems) {
+        if (currentPage <= maxPages && totalFetched < 9999) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }

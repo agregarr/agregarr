@@ -87,7 +87,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         });
 
         // Parse the HTML to extract movie/TV show items
-        imdbData = this.parseImdbListHtml(response.data, config.maxItems);
+        imdbData = this.parseImdbListHtml(response.data, 9999);
 
         logger.info(
           `Successfully fetched ${imdbData.length} items from IMDb custom list`,
@@ -102,7 +102,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         const mediaType = getCollectionMediaType(config);
         const randomResult = await RandomListManager.getRandomUrlWithTitle(
           'imdb',
-          config.maxItems,
+          9999,
           mediaType,
           libraryCache
         );
@@ -140,7 +140,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         });
 
         // Parse the HTML to extract movie/TV show items
-        imdbData = this.parseImdbListHtml(response.data, config.maxItems);
+        imdbData = this.parseImdbListHtml(response.data, 9999);
 
         logger.info(
           `Successfully fetched ${imdbData.length} items from random IMDb list`,
@@ -179,7 +179,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         // Predefined list response received
 
         // Parse using the same HTML parsing method
-        imdbData = this.parseImdbListHtml(response.data, config.maxItems);
+        imdbData = this.parseImdbListHtml(response.data, 9999);
 
         // Predefined list parsed
       }

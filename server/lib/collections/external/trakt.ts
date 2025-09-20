@@ -214,34 +214,22 @@ export class TraktCollectionSync extends BaseCollectionSync {
       switch (statType) {
         case 'trending':
           if (mediaType === 'movie') {
-            const movieData = await traktClient.getTrending(
-              'movies',
-              config.maxItems
-            );
+            const movieData = await traktClient.getTrending('movies', 9999);
             traktData.push(...movieData);
           }
           if (mediaType === 'tv') {
-            const showData = await traktClient.getTrending(
-              'shows',
-              config.maxItems
-            );
+            const showData = await traktClient.getTrending('shows', 9999);
             traktData.push(...showData);
           }
           break;
 
         case 'popular':
           if (mediaType === 'movie') {
-            const movieData = await traktClient.getPopular(
-              'movies',
-              config.maxItems
-            );
+            const movieData = await traktClient.getPopular('movies', 9999);
             traktData.push(...movieData);
           }
           if (mediaType === 'tv') {
-            const showData = await traktClient.getPopular(
-              'shows',
-              config.maxItems
-            );
+            const showData = await traktClient.getPopular('shows', 9999);
             traktData.push(...showData);
           }
           break;
@@ -252,16 +240,12 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const movieData = await traktClient.getPlayed(
               'movies',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...movieData);
           }
           if (mediaType === 'tv') {
-            const showData = await traktClient.getPlayed(
-              'shows',
-              period,
-              config.maxItems
-            );
+            const showData = await traktClient.getPlayed('shows', period, 9999);
             traktData.push(...showData);
           }
           break;
@@ -273,7 +257,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const movieData = await traktClient.getWatched(
               'movies',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...movieData);
           }
@@ -281,7 +265,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const showData = await traktClient.getWatched(
               'shows',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...showData);
           }
@@ -294,7 +278,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const movieData = await traktClient.getCollected(
               'movies',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...movieData);
           }
@@ -302,7 +286,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const showData = await traktClient.getCollected(
               'shows',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...showData);
           }
@@ -315,7 +299,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const movieData = await traktClient.getFavorited(
               'movies',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...movieData);
           }
@@ -323,7 +307,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             const showData = await traktClient.getFavorited(
               'shows',
               period,
-              config.maxItems
+              9999
             );
             traktData.push(...showData);
           }
@@ -333,7 +317,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
         case 'boxoffice':
           // Box office is movies only
           if (mediaType === 'movie') {
-            const movieData = await traktClient.getBoxOffice(config.maxItems);
+            const movieData = await traktClient.getBoxOffice(9999);
             traktData.push(...movieData);
           }
           break;
@@ -350,10 +334,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
           const cleanUrl =
             config.traktCustomListUrl?.split('?')[0] ||
             config.traktCustomListUrl;
-          let customListData = await traktClient.getCustomList(
-            cleanUrl,
-            config.maxItems
-          );
+          let customListData = await traktClient.getCustomList(cleanUrl, 9999);
 
           // Handle episodes, seasons, movies and shows
           customListData = customListData
@@ -408,7 +389,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
           // Get a random URL from RandomListManager with media type validation
           const randomResult = await RandomListManager.getRandomUrlWithTitle(
             'trakt',
-            config.maxItems,
+            9999,
             mediaType,
             libraryCache
           );
@@ -436,10 +417,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
           // Use the random URL like a custom list
           const cleanUrl = randomUrl.split('?')[0];
-          let randomListData = await traktClient.getCustomList(
-            cleanUrl,
-            config.maxItems
-          );
+          let randomListData = await traktClient.getCustomList(cleanUrl, 9999);
 
           // Handle episodes, seasons, movies and shows
           randomListData = randomListData

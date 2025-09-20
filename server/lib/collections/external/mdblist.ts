@@ -213,7 +213,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
       const customListData: MDBListResponse = await mdblistClient.getCustomList(
         cleanUrl,
         {
-          limit: config.maxItems,
+          limit: 9999,
         }
       );
 

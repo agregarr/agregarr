@@ -173,7 +173,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         const mediaType = getCollectionMediaType(config);
         const randomResult = await RandomListManager.getRandomUrlWithTitle(
           'tmdb',
-          config.maxItems,
+          9999,
           mediaType,
           libraryCache
         );
@@ -223,7 +223,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       }
     }
 
-    return tmdbData.slice(0, config.maxItems);
+    return tmdbData;
   }
 
   public async mapSourceDataToItems(
