@@ -626,15 +626,15 @@ const CollectionFormConfigForm = ({
       const detectedType = detectedMediaTypes?.[serviceType];
 
       if (detectedType === 'both') {
-        // For mixed content, offer template with {mediaType}s placeholder
+        // For mixed content, offer template with original title first (for cross-library linking)
         return [
+          {
+            label: title, // Original title without suffix - enables cross-library linking
+            value: title,
+          },
           {
             label: `${title} - {mediaType}s`,
             value: `${title} - {mediaType}s`,
-          },
-          {
-            label: title, // Original title without suffix
-            value: title,
           },
           { label: 'Custom', value: 'custom' },
         ];
@@ -656,12 +656,12 @@ const CollectionFormConfigForm = ({
         case 'users':
           return [
             {
-              label: "{nickname}'s {domain} {mediaType} requests",
-              value: "{nickname}'s {domain} {mediaType} requests",
-            },
-            {
               label: '{domain} requests by {nickname}',
               value: '{domain} requests by {nickname}',
+            },
+            {
+              label: "{nickname}'s {domain} {mediaType} requests",
+              value: "{nickname}'s {domain} {mediaType} requests",
             },
             {
               label: "{nickname}'s {mediaType} requests",
@@ -680,16 +680,16 @@ const CollectionFormConfigForm = ({
         case 'global':
           return [
             {
+              label: '{appTitle} requests by Everyone',
+              value: '{appTitle} requests by Everyone',
+            },
+            {
               label: '{domain} requests by Everyone - {mediaType}s',
               value: '{domain} requests by Everyone - {mediaType}s',
             },
             {
               label: '{domain} - All {mediaType} Requests',
               value: '{domain} - All {mediaType} Requests',
-            },
-            {
-              label: '{appTitle} requests by Everyone',
-              value: '{appTitle} requests by Everyone',
             },
             {
               label: '{appTitle} - All Requests',
@@ -699,6 +699,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'server_owner':
           return [
+            {
+              label: 'My Requests',
+              value: 'My Requests',
+            },
             {
               label: 'My {mediaType} Requests',
               value: 'My {mediaType} Requests',
@@ -743,6 +747,12 @@ const CollectionFormConfigForm = ({
           const mostPopularPlaysPresets = [
             {
               label:
+                'Most Popular on {servername} in the last {customdays} Days',
+              value:
+                'Most Popular on {servername} in the last {customdays} Days',
+            },
+            {
+              label:
                 'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
               value:
                 'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
@@ -758,12 +768,20 @@ const CollectionFormConfigForm = ({
             values.customDays &&
             parseInt(values.customDays.toString(), 10) === 365
           ) {
-            mostPopularPlaysPresets.unshift({
-              label:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              value:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-            });
+            mostPopularPlaysPresets.unshift(
+              {
+                label:
+                  'A Year In Review - Most Watched on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched on {servername} this Year',
+              },
+              {
+                label:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+              }
+            );
           }
 
           mostPopularPlaysPresets.push({ label: 'Custom', value: 'custom' });
@@ -773,6 +791,12 @@ const CollectionFormConfigForm = ({
           const mostPopularDurationPresets = [
             {
               label:
+                'Most Popular on {servername} in the last {customdays} Days',
+              value:
+                'Most Popular on {servername} in the last {customdays} Days',
+            },
+            {
+              label:
                 'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
               value:
                 'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
@@ -788,12 +812,20 @@ const CollectionFormConfigForm = ({
             values.customDays &&
             parseInt(values.customDays.toString(), 10) === 365
           ) {
-            mostPopularDurationPresets.unshift({
-              label:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              value:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-            });
+            mostPopularDurationPresets.unshift(
+              {
+                label:
+                  'A Year In Review - Most Watched on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched on {servername} this Year',
+              },
+              {
+                label:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+              }
+            );
           }
 
           mostPopularDurationPresets.push({ label: 'Custom', value: 'custom' });
@@ -803,6 +835,12 @@ const CollectionFormConfigForm = ({
           const mostWatchedPlaysPresets = [
             {
               label:
+                'Most Watched on {servername} in the last {customdays} Days',
+              value:
+                'Most Watched on {servername} in the last {customdays} Days',
+            },
+            {
+              label:
                 'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
               value:
                 'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
@@ -818,12 +856,20 @@ const CollectionFormConfigForm = ({
             values.customDays &&
             parseInt(values.customDays.toString(), 10) === 365
           ) {
-            mostWatchedPlaysPresets.unshift({
-              label:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              value:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-            });
+            mostWatchedPlaysPresets.unshift(
+              {
+                label:
+                  'A Year In Review - Most Watched on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched on {servername} this Year',
+              },
+              {
+                label:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+              }
+            );
           }
 
           mostWatchedPlaysPresets.push({ label: 'Custom', value: 'custom' });
@@ -833,6 +879,12 @@ const CollectionFormConfigForm = ({
           const mostWatchedDurationPresets = [
             {
               label:
+                'Most Watched on {servername} in the last {customdays} Days',
+              value:
+                'Most Watched on {servername} in the last {customdays} Days',
+            },
+            {
+              label:
                 'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
               value:
                 'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
@@ -848,12 +900,20 @@ const CollectionFormConfigForm = ({
             values.customDays &&
             parseInt(values.customDays.toString(), 10) === 365
           ) {
-            mostWatchedDurationPresets.unshift({
-              label:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              value:
-                'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-            });
+            mostWatchedDurationPresets.unshift(
+              {
+                label:
+                  'A Year In Review - Most Watched on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched on {servername} this Year',
+              },
+              {
+                label:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+                value:
+                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
+              }
+            );
           }
 
           mostWatchedDurationPresets.push({ label: 'Custom', value: 'custom' });
@@ -876,6 +936,10 @@ const CollectionFormConfigForm = ({
         case 'trending':
           return [
             {
+              label: "What's Trending Now",
+              value: "What's Trending Now",
+            },
+            {
               label: 'Trending {mediaType}s Today',
               value: 'Trending {mediaType}s Today',
             },
@@ -883,14 +947,14 @@ const CollectionFormConfigForm = ({
               label: '🔥 Trending {mediaType}s Now',
               value: '🔥 Trending {mediaType}s Now',
             },
-            {
-              label: "What's Trending Now",
-              value: "What's Trending Now",
-            },
             { label: 'Custom', value: 'custom' },
           ];
         case 'popular':
           return [
+            {
+              label: 'Most Popular from Trakt',
+              value: 'Most Popular from Trakt',
+            },
             {
               label: 'Popular {mediaType}s from Trakt',
               value: 'Popular {mediaType}s from Trakt',
@@ -925,6 +989,10 @@ const CollectionFormConfigForm = ({
         case 'played_daily':
           return [
             {
+              label: 'Most Played Today',
+              value: 'Most Played Today',
+            },
+            {
               label: 'Most Played {mediaType}s Today',
               value: 'Most Played {mediaType}s Today',
             },
@@ -940,6 +1008,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'played_weekly':
           return [
+            {
+              label: 'Most Played This Week',
+              value: 'Most Played This Week',
+            },
             {
               label: 'Most Played {mediaType}s This Week',
               value: 'Most Played {mediaType}s This Week',
@@ -957,6 +1029,10 @@ const CollectionFormConfigForm = ({
         case 'played_monthly':
           return [
             {
+              label: 'Most Played This Month',
+              value: 'Most Played This Month',
+            },
+            {
               label: 'Most Played {mediaType}s This Month',
               value: 'Most Played {mediaType}s This Month',
             },
@@ -972,6 +1048,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'played_all':
           return [
+            {
+              label: 'Most Played of All Time',
+              value: 'Most Played of All Time',
+            },
             {
               label: 'Most Played {mediaType}s of All Time',
               value: 'Most Played {mediaType}s of All Time',
@@ -989,6 +1069,10 @@ const CollectionFormConfigForm = ({
         case 'watched_daily':
           return [
             {
+              label: 'Most Watched Today',
+              value: 'Most Watched Today',
+            },
+            {
               label: 'Most Watched {mediaType}s Today',
               value: 'Most Watched {mediaType}s Today',
             },
@@ -1004,6 +1088,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'watched_weekly':
           return [
+            {
+              label: 'Most Watched This Week',
+              value: 'Most Watched This Week',
+            },
             {
               label: 'Most Watched {mediaType}s This Week',
               value: 'Most Watched {mediaType}s This Week',
@@ -1021,6 +1109,10 @@ const CollectionFormConfigForm = ({
         case 'watched_monthly':
           return [
             {
+              label: 'Most Watched This Month',
+              value: 'Most Watched This Month',
+            },
+            {
               label: 'Most Watched {mediaType}s This Month',
               value: 'Most Watched {mediaType}s This Month',
             },
@@ -1036,6 +1128,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'watched_all':
           return [
+            {
+              label: 'Most Watched of All Time',
+              value: 'Most Watched of All Time',
+            },
             {
               label: 'Most Watched {mediaType}s of All Time',
               value: 'Most Watched {mediaType}s of All Time',
@@ -1053,6 +1149,10 @@ const CollectionFormConfigForm = ({
         case 'collected_daily':
           return [
             {
+              label: 'Most Collected Today',
+              value: 'Most Collected Today',
+            },
+            {
               label: 'Most Collected {mediaType}s Today',
               value: 'Most Collected {mediaType}s Today',
             },
@@ -1068,6 +1168,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'collected_weekly':
           return [
+            {
+              label: 'Most Collected This Week',
+              value: 'Most Collected This Week',
+            },
             {
               label: 'Most Collected {mediaType}s This Week',
               value: 'Most Collected {mediaType}s This Week',
@@ -1085,6 +1189,10 @@ const CollectionFormConfigForm = ({
         case 'collected_monthly':
           return [
             {
+              label: 'Most Collected This Month',
+              value: 'Most Collected This Month',
+            },
+            {
               label: 'Most Collected {mediaType}s This Month',
               value: 'Most Collected {mediaType}s This Month',
             },
@@ -1100,6 +1208,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'collected_all':
           return [
+            {
+              label: 'Most Collected of All Time',
+              value: 'Most Collected of All Time',
+            },
             {
               label: 'Most Collected {mediaType}s of All Time',
               value: 'Most Collected {mediaType}s of All Time',
@@ -1117,6 +1229,10 @@ const CollectionFormConfigForm = ({
         case 'favorited_daily':
           return [
             {
+              label: 'Most Favorited Today',
+              value: 'Most Favorited Today',
+            },
+            {
               label: 'Most Favorited {mediaType}s Today',
               value: 'Most Favorited {mediaType}s Today',
             },
@@ -1132,6 +1248,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'favorited_weekly':
           return [
+            {
+              label: 'Most Favorited This Week',
+              value: 'Most Favorited This Week',
+            },
             {
               label: 'Most Favorited {mediaType}s This Week',
               value: 'Most Favorited {mediaType}s This Week',
@@ -1149,6 +1269,10 @@ const CollectionFormConfigForm = ({
         case 'favorited_monthly':
           return [
             {
+              label: 'Most Favorited This Month',
+              value: 'Most Favorited This Month',
+            },
+            {
               label: 'Most Favorited {mediaType}s This Month',
               value: 'Most Favorited {mediaType}s This Month',
             },
@@ -1164,6 +1288,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'favorited_all':
           return [
+            {
+              label: 'Most Favorited of All Time',
+              value: 'Most Favorited of All Time',
+            },
             {
               label: 'Most Favorited {mediaType}s of All Time',
               value: 'Most Favorited {mediaType}s of All Time',
@@ -1185,6 +1313,10 @@ const CollectionFormConfigForm = ({
             {
               label: 'Dynamic Title from Random List',
               value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random Trakt Collection',
+              value: 'Random Trakt Collection',
             },
             {
               label: 'Random Trakt {mediaType}s',
@@ -1213,6 +1345,10 @@ const CollectionFormConfigForm = ({
         case 'user_lists':
           return [
             {
+              label: 'My Personal List',
+              value: 'My Personal List',
+            },
+            {
               label: 'My {mediaType}s List',
               value: 'My {mediaType}s List',
             },
@@ -1228,6 +1364,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'top_lists':
           return [
+            {
+              label: 'Top Lists Collection',
+              value: 'Top Lists Collection',
+            },
             {
               label: 'Top {mediaType}s',
               value: 'Top {mediaType}s',
@@ -1255,6 +1395,10 @@ const CollectionFormConfigForm = ({
         case 'trending_day':
           return [
             {
+              label: 'Trending Today',
+              value: 'Trending Today',
+            },
+            {
               label: 'Trending {mediaType}s Today',
               value: 'Trending {mediaType}s Today',
             },
@@ -1270,6 +1414,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'trending_week':
           return [
+            {
+              label: 'Trending This Week',
+              value: 'Trending This Week',
+            },
             {
               label: 'Trending {mediaType}s This Week',
               value: 'Trending {mediaType}s This Week',
@@ -1287,6 +1435,10 @@ const CollectionFormConfigForm = ({
         case 'popular':
           return [
             {
+              label: 'Most Popular',
+              value: 'Most Popular',
+            },
+            {
               label: 'Popular {mediaType}s',
               value: 'Popular {mediaType}s',
             },
@@ -1302,6 +1454,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'top_rated':
           return [
+            {
+              label: 'Top Rated',
+              value: 'Top Rated',
+            },
             {
               label: 'Top Rated {mediaType}s',
               value: 'Top Rated {mediaType}s',
@@ -1323,6 +1479,10 @@ const CollectionFormConfigForm = ({
             {
               label: 'Dynamic Title from Random List',
               value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random TMDb Collection',
+              value: 'Random TMDb Collection',
             },
             {
               label: 'Random TMDb {mediaType}s',
@@ -1351,6 +1511,10 @@ const CollectionFormConfigForm = ({
         case 'top_250':
           return [
             {
+              label: 'IMDb Top 250',
+              value: 'IMDb Top 250',
+            },
+            {
               label: 'IMDb Top 250 {mediaType}s',
               value: 'IMDb Top 250 {mediaType}s',
             },
@@ -1362,6 +1526,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'popular':
           return [
+            {
+              label: 'Popular from IMDb',
+              value: 'Popular from IMDb',
+            },
             {
               label: 'Popular {mediaType}s',
               value: 'Popular {mediaType}s',
@@ -1378,6 +1546,10 @@ const CollectionFormConfigForm = ({
           ];
         case 'most_popular':
           return [
+            {
+              label: 'Most Popular from IMDb',
+              value: 'Most Popular from IMDb',
+            },
             {
               label: 'Most Popular {mediaType}s',
               value: 'Most Popular {mediaType}s',
@@ -1399,6 +1571,10 @@ const CollectionFormConfigForm = ({
             {
               label: 'Dynamic Title from Random List',
               value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random IMDb Collection',
+              value: 'Random IMDb Collection',
             },
             {
               label: 'Random IMDb {mediaType}s',
@@ -1441,12 +1617,12 @@ const CollectionFormConfigForm = ({
 
         return [
           {
-            label: `Top 10 {mediaType}s on ${platformName}`,
-            value: `Top 10 {mediaType}s on ${platformName}`,
-          },
-          {
             label: `Popular on ${platformName}`,
             value: `Popular on ${platformName}`,
+          },
+          {
+            label: `Top 10 {mediaType}s on ${platformName}`,
+            value: `Top 10 {mediaType}s on ${platformName}`,
           },
           {
             label: `${platformName} Top 10 {mediaType}s`,
@@ -1495,6 +1671,10 @@ const CollectionFormConfigForm = ({
             {
               label: 'Dynamic Title from Random List',
               value: 'DYNAMIC_RANDOM_TITLE',
+            },
+            {
+              label: 'Random Letterboxd Collection',
+              value: 'Random Letterboxd Collection',
             },
             {
               label: 'Random Letterboxd {mediaType}s',
