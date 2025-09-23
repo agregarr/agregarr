@@ -352,6 +352,28 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         libraryName: configToUpdate.libraryName, // Don't change the library name
       };
 
+      // Handle firstSyncAt for custom sync schedules
+      if (updatedConfig.customSyncSchedule?.enabled) {
+        const oldSchedule = configToUpdate.customSyncSchedule;
+        const newSchedule = req.body.customSyncSchedule;
+
+        // Set firstSyncAt if this is a new custom schedule with startNow
+        if (!oldSchedule?.enabled && newSchedule?.startNow) {
+          updatedConfig.customSyncSchedule.firstSyncAt =
+            new Date().toISOString();
+        }
+        // Preserve existing firstSyncAt if it exists
+        else if (oldSchedule?.firstSyncAt) {
+          updatedConfig.customSyncSchedule.firstSyncAt =
+            oldSchedule.firstSyncAt;
+        }
+        // If changing to startNow=true and no firstSyncAt exists, set it
+        else if (newSchedule?.startNow && !oldSchedule?.firstSyncAt) {
+          updatedConfig.customSyncSchedule.firstSyncAt =
+            new Date().toISOString();
+        }
+      }
+
       // Update the config in place
       configs[configIndex] = updatedConfig;
       updatedConfigs.push(updatedConfig);
@@ -380,12 +402,11 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       // Update scheduler for each edited collection
       for (const config of updatedConfigs) {
         const customSync = config.customSyncSchedule;
-        if (customSync?.enabled && customSync.intervalHours > 0) {
-          // Schedule or reschedule this collection
-          await IndividualCollectionScheduler.scheduleCollectionSync(
-            config.id,
-            customSync.intervalHours
-          );
+        if (customSync?.enabled) {
+          // Use refreshAllJobs to handle the new format properly
+          // This will re-evaluate all jobs with the new schedule parsing
+          await IndividualCollectionScheduler.refreshAllJobs();
+          break; // Only need to refresh once for all configs
         } else {
           // Cancel scheduling if custom sync was disabled
           IndividualCollectionScheduler.cancelCollectionSync(config.id);
@@ -904,6 +925,14 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         libraryNames: undefined,
       };
 
+      // Set firstSyncAt for custom sync schedules that use startNow
+      if (
+        newConfig.customSyncSchedule?.enabled &&
+        newConfig.customSyncSchedule?.startNow
+      ) {
+        newConfig.customSyncSchedule.firstSyncAt = new Date().toISOString();
+      }
+
       createdConfigs.push(newConfig);
     }
 
@@ -972,11 +1001,10 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
       // Only schedule newly created collections with custom sync
       for (const config of createdConfigs) {
         const customSync = config.customSyncSchedule;
-        if (customSync?.enabled && customSync.intervalHours > 0) {
-          await IndividualCollectionScheduler.scheduleCollectionSync(
-            config.id,
-            customSync.intervalHours
-          );
+        if (customSync?.enabled) {
+          // Use refreshAllJobs to handle the new format properly
+          await IndividualCollectionScheduler.refreshAllJobs();
+          break; // Only need to refresh once for all configs
         }
       }
     } catch (error) {

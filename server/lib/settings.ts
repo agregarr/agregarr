@@ -1255,9 +1255,39 @@ export type MultiSourceCombineMode =
   | 'randomised'
   | 'cycle_lists';
 
+/**
+ * Sync schedule preset options
+ */
+export const SYNC_SCHEDULE_PRESETS = [
+  { key: '10m', label: 'Every 10 minutes', intervalHours: 1 / 6 },
+  { key: '15m', label: 'Every 15 minutes', intervalHours: 1 / 4 },
+  { key: '30m', label: 'Every 30 minutes', intervalHours: 0.5 },
+  { key: '1h', label: 'Every hour', intervalHours: 1 },
+  { key: '2h', label: 'Every 2 hours', intervalHours: 2 },
+  { key: '3h', label: 'Every 3 hours', intervalHours: 3 },
+  { key: '6h', label: 'Every 6 hours', intervalHours: 6 },
+  { key: '12h', label: 'Every 12 hours', intervalHours: 12 },
+  { key: '1d', label: 'Once daily', intervalHours: 24 },
+  { key: '2d', label: 'Every 2 days', intervalHours: 48 },
+  { key: '3d', label: 'Every 3 days', intervalHours: 72 },
+  { key: '1w', label: 'Once weekly', intervalHours: 168 },
+  { key: '2w', label: 'Every 2 weeks', intervalHours: 336 },
+  { key: '1m', label: 'Once monthly', intervalHours: 720 }, // ~30 days
+  { key: '3m', label: 'Every 3 months', intervalHours: 2160 }, // ~90 days
+  { key: '6m', label: 'Every 6 months', intervalHours: 4320 }, // ~180 days
+  { key: '1y', label: 'Once yearly', intervalHours: 8760 }, // ~365 days
+] as const;
+
 export interface CustomSyncSchedule {
   readonly enabled: boolean;
-  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+  readonly scheduleType: 'preset' | 'custom'; // Type of schedule: preset dropdown or custom cron
+  readonly intervalHours?: number; // Legacy field for backward compatibility (when scheduleType === 'preset')
+  readonly preset?: string; // Preset option key (e.g., '10m', '30m', '1h', '6h', '1d', '1w')
+  readonly customCron?: string; // Custom cron expression (when scheduleType === 'custom')
+  readonly startNow: boolean; // If true, start immediately; if false, use startDate
+  readonly startDate?: string; // Start date in DD-MM format (e.g., "01-01" for January 1st)
+  readonly startTime?: string; // Start time in HH:MM format (e.g., "09:00")
+  firstSyncAt?: string; // ISO timestamp of when this schedule was first created (for persistence across restarts) - mutable for system updates
 }
 
 export type MultiSourceType =

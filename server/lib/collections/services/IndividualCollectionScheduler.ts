@@ -1,9 +1,10 @@
 import PlexAPI from '@server/api/plexapi';
 import type {
+  CustomSyncSchedule,
   MultiSourceCombineMode,
   MultiSourceType,
 } from '@server/lib/settings';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, SYNC_SCHEDULE_PRESETS } from '@server/lib/settings';
 import logger from '@server/logger';
 import schedule from 'node-schedule';
 import { collectionSyncService } from './CollectionSyncService';
@@ -11,7 +12,8 @@ import { collectionSyncService } from './CollectionSyncService';
 interface IndividualCollectionJob {
   collectionId: string;
   job: schedule.Job;
-  intervalHours: number;
+  intervalHours?: number; // For preset schedules
+  customCron?: string; // For custom cron schedules
 }
 
 interface QueuedCollectionSync {
@@ -57,6 +59,136 @@ export class IndividualCollectionScheduler {
   private static apiQueues: Map<string, ApiQueue> = new Map();
 
   /**
+   * Parse custom sync schedule and return either interval hours or cron expression
+   */
+  private static parseCustomSyncSchedule(schedule: CustomSyncSchedule): {
+    intervalHours?: number;
+    customCron?: string;
+    startDate?: string;
+    startTime?: string;
+    firstSyncAt?: string;
+  } {
+    if (!schedule.enabled) {
+      return {};
+    }
+
+    // Handle legacy format (direct intervalHours)
+    if (schedule.intervalHours && !schedule.scheduleType) {
+      return { intervalHours: schedule.intervalHours };
+    }
+
+    // Handle new format
+    if (schedule.scheduleType === 'preset' && schedule.preset) {
+      const preset = SYNC_SCHEDULE_PRESETS.find(
+        (p) => p.key === schedule.preset
+      );
+      if (preset) {
+        return {
+          intervalHours: preset.intervalHours,
+          startDate: schedule.startNow ? undefined : schedule.startDate,
+          startTime: schedule.startNow ? undefined : schedule.startTime,
+          firstSyncAt: schedule.firstSyncAt,
+        };
+      }
+    } else if (schedule.scheduleType === 'custom' && schedule.customCron) {
+      return { customCron: schedule.customCron };
+    }
+
+    // Fallback to legacy intervalHours if present
+    if (schedule.intervalHours) {
+      return { intervalHours: schedule.intervalHours };
+    }
+
+    return {};
+  }
+
+  /**
+   * Generate a cron expression for an interval with a specific start date/time
+   */
+  private static generateCronWithStartDateTime(
+    intervalHours: number,
+    startDate: string,
+    startTime: string
+  ): string {
+    const [hour, minute] = startTime.split(':').map(Number);
+    const [day, month] = startDate.split('-').map(Number);
+
+    if (intervalHours === 24) {
+      // Daily: run at the same time every day
+      return `${minute} ${hour} * * *`;
+    } else if (intervalHours === 168) {
+      // Weekly: run on the same day/time every week (assume Monday if not specified)
+      return `${minute} ${hour} * * 1`;
+    } else if (intervalHours === 720) {
+      // Monthly: run on the same day of month
+      return `${minute} ${hour} ${day} * *`;
+    } else if (intervalHours === 8760) {
+      // Yearly: run on the specific date/time
+      return `${minute} ${hour} ${day} ${month} *`;
+    } else {
+      // For other intervals, fall back to regular cron
+      const hours = Math.floor(intervalHours);
+      return `${minute} */${hours} * * *`;
+    }
+  }
+
+  /**
+   * Parse start date and time into a Date object for the next occurrence
+   */
+  private static parseStartDateTime(
+    startDate: string,
+    startTime: string
+  ): Date {
+    const [hour, minute] = startTime.split(':').map(Number);
+    const [day, month] = startDate.split('-').map(Number);
+
+    const now = new Date();
+    const targetDate = new Date(
+      now.getFullYear(),
+      month - 1,
+      day,
+      hour,
+      minute,
+      0
+    );
+
+    // If the target date is in the past, move to next year
+    if (targetDate < now) {
+      targetDate.setFullYear(now.getFullYear() + 1);
+    }
+
+    return targetDate;
+  }
+
+  /**
+   * Calculate the next run time based on the first sync time and interval
+   */
+  private static calculateNextRunFromFirstSync(
+    firstSyncAt: string,
+    intervalHours: number
+  ): Date {
+    const firstSync = new Date(firstSyncAt);
+    const now = new Date();
+    const intervalMs = intervalHours * 60 * 60 * 1000;
+
+    // Calculate how many intervals have passed since the first sync
+    const elapsed = now.getTime() - firstSync.getTime();
+    const intervalsPassed = Math.floor(elapsed / intervalMs);
+
+    // Calculate the next run time
+    const nextRun = new Date(
+      firstSync.getTime() + (intervalsPassed + 1) * intervalMs
+    );
+
+    // If the calculated next run is in the past (shouldn't happen, but safety check), use now + interval
+    if (nextRun <= now) {
+      return new Date(now.getTime() + intervalMs);
+    }
+
+    return nextRun;
+  }
+
+  /**
    * Initialize the scheduler by setting up jobs for existing collections
    */
   public static async initialize(): Promise<void> {
@@ -95,11 +227,18 @@ export class IndividualCollectionScheduler {
 
     for (const collection of collections) {
       const customSync = collection.customSyncSchedule;
-      if (customSync?.enabled && customSync.intervalHours > 0) {
-        await this.scheduleCollectionSync(
-          collection.id,
-          customSync.intervalHours
-        );
+      if (customSync?.enabled) {
+        const parsed = this.parseCustomSyncSchedule(customSync);
+        if (parsed.intervalHours || parsed.customCron) {
+          await this.scheduleCollectionSync(
+            collection.id,
+            parsed.intervalHours,
+            parsed.customCron,
+            parsed.startDate,
+            parsed.startTime,
+            parsed.firstSyncAt
+          );
+        }
       }
     }
   }
@@ -109,26 +248,88 @@ export class IndividualCollectionScheduler {
    */
   public static async scheduleCollectionSync(
     collectionId: string,
-    intervalHours: number
+    intervalHours?: number,
+    customCron?: string,
+    startDate?: string,
+    startTime?: string,
+    firstSyncAt?: string
   ): Promise<void> {
     // Cancel existing job if it exists
     this.cancelCollectionSync(collectionId);
 
     try {
-      // For intervals less than 1 hour, use minute-based scheduling
-      // For 1 hour or more, use hour-based scheduling
       let finalCronExpression: string;
-      if (intervalHours < 1) {
-        const minutes = Math.round(intervalHours * 60);
-        finalCronExpression = `*/${minutes} * * * *`;
-      } else if (intervalHours === Math.floor(intervalHours)) {
-        // Whole hours
-        const hours = Math.floor(intervalHours);
-        finalCronExpression = `0 */${hours} * * *`;
+
+      // Use custom cron if provided
+      if (customCron) {
+        finalCronExpression = customCron;
+      } else if (intervalHours && intervalHours > 0) {
+        // Generate cron from interval hours with optional start date/time
+        if (startDate && startTime && intervalHours >= 24) {
+          // For daily+ intervals with start date/time, create specific cron
+          finalCronExpression = this.generateCronWithStartDateTime(
+            intervalHours,
+            startDate,
+            startTime
+          );
+        } else if (firstSyncAt && intervalHours >= 1) {
+          // Use firstSyncAt to calculate next run time for persistent scheduling
+          const nextRunTime = this.calculateNextRunFromFirstSync(
+            firstSyncAt,
+            intervalHours
+          );
+
+          // Create a one-time job for the next calculated run, then reschedule
+          const job = schedule.scheduleJob(nextRunTime, async () => {
+            await this.queueCollectionSync(collectionId);
+            // Reschedule for next interval
+            await this.scheduleCollectionSync(
+              collectionId,
+              intervalHours,
+              undefined,
+              undefined,
+              undefined,
+              firstSyncAt
+            );
+          });
+
+          if (job) {
+            this.jobs.set(collectionId, {
+              collectionId,
+              job,
+              intervalHours,
+              customCron,
+            });
+
+            logger.info(
+              `Scheduled individual collection sync with persistent timing`,
+              {
+                label: 'Individual Collection Scheduler',
+                collectionId,
+                intervalHours,
+                firstSyncAt,
+                nextRun: nextRunTime.toISOString(),
+              }
+            );
+          }
+          return; // Exit early for persistent scheduling
+        } else {
+          // Legacy behavior for immediate start or sub-daily intervals
+          if (intervalHours < 1) {
+            const minutes = Math.round(intervalHours * 60);
+            finalCronExpression = `*/${minutes} * * * *`;
+          } else if (intervalHours === Math.floor(intervalHours)) {
+            // Whole hours
+            const hours = Math.floor(intervalHours);
+            finalCronExpression = `0 */${hours} * * *`;
+          } else {
+            // Decimal hours - use minute-based approach
+            const totalMinutes = Math.round(intervalHours * 60);
+            finalCronExpression = `*/${totalMinutes} * * * *`;
+          }
+        }
       } else {
-        // Decimal hours - use minute-based approach
-        const totalMinutes = Math.round(intervalHours * 60);
-        finalCronExpression = `*/${totalMinutes} * * * *`;
+        throw new Error('Either intervalHours or customCron must be provided');
       }
 
       const job = schedule.scheduleJob(finalCronExpression, async () => {
@@ -140,12 +341,14 @@ export class IndividualCollectionScheduler {
           collectionId,
           job,
           intervalHours,
+          customCron,
         });
 
         logger.info(`Scheduled individual collection sync`, {
           label: 'Individual Collection Scheduler',
           collectionId,
           intervalHours,
+          customCron,
           cronExpression: finalCronExpression,
         });
       } else {
@@ -158,6 +361,7 @@ export class IndividualCollectionScheduler {
           label: 'Individual Collection Scheduler',
           collectionId,
           intervalHours,
+          customCron,
           error: error instanceof Error ? error.message : String(error),
         }
       );
@@ -689,12 +893,14 @@ export class IndividualCollectionScheduler {
    */
   public static getJobsStatus(): {
     collectionId: string;
-    intervalHours: number;
+    intervalHours?: number;
+    customCron?: string;
     nextRun: Date | null;
   }[] {
     const status: {
       collectionId: string;
-      intervalHours: number;
+      intervalHours?: number;
+      customCron?: string;
       nextRun: Date | null;
     }[] = [];
 
@@ -702,6 +908,7 @@ export class IndividualCollectionScheduler {
       status.push({
         collectionId,
         intervalHours: jobInfo.intervalHours,
+        customCron: jobInfo.customCron,
         nextRun: jobInfo.job.nextInvocation(),
       });
     }

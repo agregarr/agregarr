@@ -355,6 +355,12 @@ const CollectionSettings = ({
             customPoster: collectionConfig.customPoster,
           }),
           autoPoster: collectionConfig.autoPoster ?? true,
+          ...(collectionConfig.autoPosterTemplate !== undefined && {
+            autoPosterTemplate: collectionConfig.autoPosterTemplate,
+          }),
+          ...(collectionConfig.customSyncSchedule && {
+            customSyncSchedule: collectionConfig.customSyncSchedule,
+          }),
           ...(collectionConfig.timeRestriction && {
             timeRestriction: collectionConfig.timeRestriction,
           }),
@@ -487,6 +493,7 @@ const CollectionSettings = ({
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
           autoPosterTemplate: config.autoPosterTemplate,
+          customSyncSchedule: config.customSyncSchedule,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
           ...(config.downloadMode && { downloadMode: config.downloadMode }),

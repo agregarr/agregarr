@@ -282,6 +282,25 @@ const CollectionFormConfigForm = ({
         libraryRecommended: Yup.boolean(),
       }),
     }),
+
+    // Custom sync schedule validation
+    customSyncSchedule: Yup.object().shape({
+      enabled: Yup.boolean(),
+      scheduleType: Yup.string().oneOf(['preset', 'custom']),
+      intervalHours: Yup.number().min(0.1),
+      preset: Yup.string(),
+      customCron: Yup.string(),
+      startNow: Yup.boolean(),
+      startDate: Yup.string().matches(
+        /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])$/,
+        'Invalid date format (DD-MM)'
+      ),
+      startTime: Yup.string().matches(
+        /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/,
+        'Invalid time format (HH:MM)'
+      ),
+      firstSyncAt: Yup.string(),
+    }),
   });
 
   // Safety check for undefined config
@@ -1868,7 +1887,12 @@ const CollectionFormConfigForm = ({
           customSyncSchedule: (config as CollectionFormConfig)
             .customSyncSchedule ?? {
             enabled: false,
+            scheduleType: 'preset' as const,
             intervalHours: 24,
+            preset: '1d',
+            startNow: true,
+            startDate: '01-01',
+            startTime: '09:00',
           },
         }}
         validationSchema={CollectionFormConfigSchema}
@@ -1969,6 +1993,8 @@ const CollectionFormConfigForm = ({
               : undefined,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
+            // Ensure customSyncSchedule is explicitly included
+            customSyncSchedule: values.customSyncSchedule,
             // Remove UI-only fields from the final config
             enableGrabMissingItems: undefined,
           };

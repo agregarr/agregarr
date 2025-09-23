@@ -209,77 +209,99 @@ export class CollectionSyncService {
           config.libraryId
         );
 
-        // Get the sync service for this config type and process it
-        const allCollections = await plexClient.getAllCollections();
+        // Check if this collection has custom scheduling enabled
+        const hasCustomSchedule = config.customSyncSchedule?.enabled;
 
-        let result: SyncResult;
-        if (config.type === 'multi-source') {
-          // Use new multi-source orchestrator for distinct multi-source collections
-          const { MultiSourceOrchestrator } = await import(
-            './MultiSourceOrchestrator'
+        if (hasCustomSchedule) {
+          // Skip content sync for custom scheduled collections - just ensure it's tracked
+          onProgress?.(
+            processedCount,
+            `Skipping content sync for "${config.name}" (custom scheduled)...`
           );
-          const orchestrator = new MultiSourceOrchestrator();
 
-          // Convert CollectionConfig to MultiSourceCollectionConfig format
-          const multiSourceConfig: MultiSourceCollectionConfig = {
-            id: config.id,
-            name: config.name,
-            type: 'multi-source',
-            visibilityConfig: config.visibilityConfig,
-            mediaType: 'movie', // Default, should be set properly by caller
-            libraryId: config.libraryId,
-            libraryName: config.libraryName,
-            maxItems: config.maxItems ?? 50, // Provide default for multi-source
-            template: config.template || '', // Provide default for multi-source
-            sources:
-              config.sources?.map((source) => ({
-                id: source.id,
-                type: source.type as MultiSourceType,
-                subtype: source.subtype || '',
-                customUrl: source.customUrl,
-                timePeriod: source.timePeriod as
-                  | 'daily'
-                  | 'weekly'
-                  | 'monthly'
-                  | 'all'
-                  | undefined,
-                customDays: source.customDays,
-                minimumPlays: source.minimumPlays,
-                priority: source.priority,
-              })) || [],
-            combineMode:
-              (config.combineMode as MultiSourceCombineMode) || 'list_order',
-            isActive: config.isActive,
-            sortOrderHome: config.sortOrderHome,
-            sortOrderLibrary: config.sortOrderLibrary,
-            isLibraryPromoted: config.isLibraryPromoted,
-            timeRestriction: config.timeRestriction,
-            customPoster: config.customPoster,
-            autoPoster: config.autoPoster,
-            autoPosterTemplate: config.autoPosterTemplate,
-          };
+          const collectionKey = `${config.libraryId}-${config.name}`;
+          processedCollectionKeys.add(collectionKey);
 
-          result = await orchestrator.processMultiSourceCollection(
-            multiSourceConfig,
-            plexClient,
-            allCollections,
-            processedCollectionKeys,
-            libraryCache
+          logger.debug(
+            `Skipped content sync for custom scheduled collection: ${config.name}`,
+            {
+              label: 'Collection Sync Service',
+              configId: config.id,
+            }
           );
         } else {
-          // Use normal single-source sync
-          const syncService = await this.createSyncService(config.type);
-          result = await syncService.processCollections(
-            [config],
-            plexClient,
-            allCollections,
-            processedCollectionKeys,
-            libraryCache
-          );
-        }
+          // Get the sync service for this config type and process it normally
+          const allCollections = await plexClient.getAllCollections();
 
-        created += result.created || 0;
-        updated += result.updated || 0;
+          let result: SyncResult;
+          if (config.type === 'multi-source') {
+            // Use new multi-source orchestrator for distinct multi-source collections
+            const { MultiSourceOrchestrator } = await import(
+              './MultiSourceOrchestrator'
+            );
+            const orchestrator = new MultiSourceOrchestrator();
+
+            // Convert CollectionConfig to MultiSourceCollectionConfig format
+            const multiSourceConfig: MultiSourceCollectionConfig = {
+              id: config.id,
+              name: config.name,
+              type: 'multi-source',
+              visibilityConfig: config.visibilityConfig,
+              mediaType: 'movie', // Default, should be set properly by caller
+              libraryId: config.libraryId,
+              libraryName: config.libraryName,
+              maxItems: config.maxItems ?? 50, // Provide default for multi-source
+              template: config.template || '', // Provide default for multi-source
+              sources:
+                config.sources?.map((source) => ({
+                  id: source.id,
+                  type: source.type as MultiSourceType,
+                  subtype: source.subtype || '',
+                  customUrl: source.customUrl,
+                  timePeriod: source.timePeriod as
+                    | 'daily'
+                    | 'weekly'
+                    | 'monthly'
+                    | 'all'
+                    | undefined,
+                  customDays: source.customDays,
+                  minimumPlays: source.minimumPlays,
+                  priority: source.priority,
+                })) || [],
+              combineMode:
+                (config.combineMode as MultiSourceCombineMode) || 'list_order',
+              isActive: config.isActive,
+              sortOrderHome: config.sortOrderHome,
+              sortOrderLibrary: config.sortOrderLibrary,
+              isLibraryPromoted: config.isLibraryPromoted,
+              timeRestriction: config.timeRestriction,
+              customPoster: config.customPoster,
+              autoPoster: config.autoPoster,
+              autoPosterTemplate: config.autoPosterTemplate,
+            };
+
+            result = await orchestrator.processMultiSourceCollection(
+              multiSourceConfig,
+              plexClient,
+              allCollections,
+              processedCollectionKeys,
+              libraryCache
+            );
+          } else {
+            // Use normal single-source sync
+            const syncService = await this.createSyncService(config.type);
+            result = await syncService.processCollections(
+              [config],
+              plexClient,
+              allCollections,
+              processedCollectionKeys,
+              libraryCache
+            );
+          }
+
+          created += result.created || 0;
+          updated += result.updated || 0;
+        }
 
         totalCreated += created;
         totalUpdated += updated;
