@@ -893,6 +893,46 @@ class Settings {
   }
 
   /**
+   * Migrate poster templates to unified layering system for v1.3.2
+   */
+  public async migratePosterTemplatesV132(): Promise<void> {
+    const migrationId = 'poster-template-unified-layers-v1.3.2';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Check if migration already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    try {
+      // Import and run the migration
+      const { runPosterTemplateMigration } = await import(
+        './migrations/posterTemplateMigrationV132'
+      );
+      await runPosterTemplateMigration();
+
+      // Mark migration as completed
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+
+      logger.info(
+        'v1.3.2 Migration: Poster templates migrated to unified layering system',
+        {
+          label: 'Settings Migration',
+          migrationId,
+        }
+      );
+    } catch (error) {
+      logger.error('v1.3.2 Migration failed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Normalize hub configs with hub-specific business rules
    */
   private normalizeHubConfigs(): number {

@@ -727,7 +727,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       let posterItems: CollectionItemWithPoster[] | undefined;
       if (items && items.length > 0) {
         const networksItems = items as NetworksCollectionItem[];
-        posterItems = networksItems.slice(0, 4).map((item) => ({
+        posterItems = networksItems.slice(0, 100).map((item) => ({
           title: item.title,
           type: item.type,
           tmdbId: item.metadata?.tmdbId,

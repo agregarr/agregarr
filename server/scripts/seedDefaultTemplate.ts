@@ -2,7 +2,10 @@
 import dataSource, { getRepository } from '@server/datasource';
 import {
   PosterTemplate,
+  type ContentGridProps,
   type PosterTemplateData,
+  type SVGElementProps,
+  type TextElementProps,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
 import { seedSourceColors } from './seedSourceColors';
@@ -23,7 +26,7 @@ async function seedDefaultTemplate() {
 
     const templateRepository = getRepository(PosterTemplate);
 
-    // Create the default template data based on current architecture
+    // Create the default template data in unified format
     const defaultTemplateData: PosterTemplateData = {
       width: 500,
       height: 750,
@@ -33,45 +36,59 @@ async function seedDefaultTemplate() {
         secondaryColor: '#1e1b4b',
         useSourceColors: true, // Use global source colors from SourceColors table
       },
-      textElements: [
-        {
-          id: 'collection-title',
-          type: 'collection-title',
-          x: 32,
-          y: 111,
-          width: 440,
-          height: 100,
-          fontSize: 32,
-          fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-          fontWeight: 'bold',
-          fontStyle: 'normal',
-          color: '#ffffff',
-          textAlign: 'center',
-          maxLines: 3,
-        },
-      ],
-      iconElements: [
+      elements: [
+        // Service logo (layer 10)
         {
           id: 'service-logo',
-          type: 'source-logo',
+          layerOrder: 10,
+          type: 'svg',
           x: 223,
           y: 34,
           width: 62,
           height: 62,
-          grayscale: false,
+          properties: {
+            iconType: 'source-logo',
+            grayscale: false,
+          } as SVGElementProps,
+        },
+        // Content grid (layer 20)
+        {
+          id: 'items-grid',
+          layerOrder: 20,
+          type: 'content-grid',
+          x: 91,
+          y: 227,
+          width: 324,
+          height: 478,
+          properties: {
+            columns: 2,
+            rows: 2,
+            spacing: 16,
+            cornerRadius: 4,
+          } as ContentGridProps,
+        },
+        // Collection title (layer 40)
+        {
+          id: 'collection-title',
+          layerOrder: 40,
+          type: 'text',
+          x: 32,
+          y: 111,
+          width: 440,
+          height: 100,
+          properties: {
+            elementType: 'collection-title',
+            fontSize: 32,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#ffffff',
+            textAlign: 'center',
+            maxLines: 6,
+          } as TextElementProps,
         },
       ],
-      contentGrid: {
-        id: 'items-grid',
-        x: 91,
-        y: 227,
-        width: 324,
-        height: 478,
-        columns: 2,
-        rows: 2,
-        spacing: 16,
-        cornerRadius: 4,
-      },
+      migrated: true,
     };
 
     // Check if default template already exists

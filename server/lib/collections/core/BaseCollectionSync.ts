@@ -1726,11 +1726,32 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
 
             if (template) {
               const templateData = template.getTemplateData();
-              if (templateData.contentGrid) {
-                maxItems =
-                  templateData.contentGrid.columns *
-                  templateData.contentGrid.rows;
+
+              // Calculate grid size for unified system
+              if (templateData.elements) {
+                // Unified system - find content-grid elements and calculate total size
+                const contentGridElements = templateData.elements.filter(
+                  (el) => el.type === 'content-grid'
+                );
+                if (contentGridElements.length > 0) {
+                  // Sum up all content grid sizes (in case there are multiple grids)
+                  maxItems = contentGridElements.reduce((total, element) => {
+                    const props = element.properties as {
+                      columns?: number;
+                      rows?: number;
+                    };
+                    return total + (props.columns || 2) * (props.rows || 2);
+                  }, 0);
+                }
               }
+
+              logger.debug(
+                `Template grid size calculated for collection poster: ${maxItems} items needed`,
+                {
+                  templateId: config.autoPosterTemplate,
+                  hasElements: !!templateData.elements,
+                }
+              );
             }
           } catch (error) {
             logger.warn(

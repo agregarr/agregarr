@@ -1,9 +1,12 @@
 import { getRepository } from '@server/datasource';
 import {
   PosterTemplate,
+  type ContentGridProps,
   type PosterTemplateData,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
+import fs from 'fs';
+import path from 'path';
 import sharp from 'sharp';
 import {
   type CollectionItemWithPoster,
@@ -23,6 +26,47 @@ export interface TemplateValidationResult {
   isValid: boolean;
   errors: string[];
   warnings: string[];
+}
+
+interface LocalPosterItem {
+  title: string;
+  type: 'movie' | 'tv';
+  tmdbId: number;
+  year: number;
+  filename: string;
+  posterPath: string;
+}
+
+/**
+ * Load local poster mapping for preview rendering
+ */
+function loadLocalPosterMapping(): LocalPosterItem[] {
+  try {
+    const mappingPath = path.join(
+      process.cwd(),
+      'public',
+      'preview-posters',
+      'poster-mapping.json'
+    );
+    if (!fs.existsSync(mappingPath)) {
+      logger.warn(
+        'Local poster mapping file not found, falling back to TMDB fetching'
+      );
+      return [];
+    }
+
+    const mappingData = fs.readFileSync(mappingPath, 'utf8');
+    const posterItems: LocalPosterItem[] = JSON.parse(mappingData);
+
+    logger.debug(`Loaded ${posterItems.length} local preview posters`);
+    return posterItems;
+  } catch (error) {
+    logger.warn(
+      'Failed to load local poster mapping, falling back to TMDB fetching:',
+      error
+    );
+    return [];
+  }
 }
 
 /**
@@ -62,68 +106,32 @@ export function validateTemplateData(
     // Note: sourceColors are now stored in SourceColors table, not in templates
   }
 
-  // Validate text elements
-  if (!Array.isArray(templateData.textElements)) {
-    templateData.textElements = [];
-  }
-
-  templateData.textElements.forEach((textElement, index) => {
-    if (!textElement.id) {
-      errors.push(`Text element ${index} missing required id`);
-    }
-    if (!['collection-title', 'custom-text'].includes(textElement.type)) {
-      errors.push(
-        `Text element ${index} has invalid type: ${textElement.type}`
-      );
-    }
-    if (textElement.type === 'custom-text' && !textElement.text) {
-      warnings.push(`Custom text element ${index} has no text content`);
-    }
-    if (textElement.fontSize <= 0) {
-      errors.push(`Text element ${index} font size must be positive`);
-    }
-    if (!textElement.color || !textElement.color.match(/^#[0-9a-fA-F]{6}$/)) {
-      warnings.push(`Text element ${index} color should be a valid hex color`);
-    }
-  });
-
-  // Validate icon elements
-  if (!Array.isArray(templateData.iconElements)) {
-    templateData.iconElements = [];
-  }
-
-  templateData.iconElements.forEach((iconElement, index) => {
-    if (!iconElement.id) {
-      errors.push(`Icon element ${index} missing required id`);
-    }
-    if (!['source-logo', 'custom-icon'].includes(iconElement.type)) {
-      errors.push(
-        `Icon element ${index} has invalid type: ${iconElement.type}`
-      );
-    }
-    if (iconElement.type === 'custom-icon' && !iconElement.iconPath) {
-      warnings.push(`Custom icon element ${index} has no icon path`);
-    }
-    if (iconElement.width <= 0 || iconElement.height <= 0) {
-      errors.push(`Icon element ${index} width and height must be positive`);
-    }
-  });
-
-  // Validate content grid (optional)
-  if (templateData.contentGrid) {
-    const grid = templateData.contentGrid;
-    if (!grid.id) {
-      errors.push('Content grid missing required id');
-    }
-    if (grid.columns <= 0 || grid.rows <= 0) {
-      errors.push('Content grid columns and rows must be positive');
-    }
-    if (grid.width <= 0 || grid.height <= 0) {
-      errors.push('Content grid width and height must be positive');
-    }
-    if (grid.spacing < 0) {
-      warnings.push('Content grid spacing should not be negative');
-    }
+  // Validate unified elements array (all templates should be migrated)
+  if (!Array.isArray(templateData.elements)) {
+    errors.push('Elements must be an array');
+  } else {
+    templateData.elements.forEach((element, index) => {
+      if (!element.id) {
+        errors.push(`Element ${index} missing required id`);
+      }
+      if (!['text', 'raster', 'svg', 'content-grid'].includes(element.type)) {
+        errors.push(`Element ${index} has invalid type: ${element.type}`);
+      }
+      if (typeof element.layerOrder !== 'number') {
+        errors.push(`Element ${index} missing valid layerOrder`);
+      }
+      if (typeof element.x !== 'number' || typeof element.y !== 'number') {
+        errors.push(`Element ${index} missing valid position coordinates`);
+      }
+      if (
+        typeof element.width !== 'number' ||
+        typeof element.height !== 'number' ||
+        element.width <= 0 ||
+        element.height <= 0
+      ) {
+        errors.push(`Element ${index} missing valid dimensions`);
+      }
+    });
   }
 
   return {
@@ -202,32 +210,477 @@ export async function generateTemplatePreview(
   templateId: number,
   previewConfig?: Partial<TemplatePreviewConfig>
 ): Promise<Buffer> {
-  const sampleItems: CollectionItemWithPoster[] = [
-    {
-      title: 'Sample Movie 1',
-      type: 'movie',
-      tmdbId: 550,
-      year: 1999,
-    },
-    {
-      title: 'Sample Movie 2',
-      type: 'movie',
-      tmdbId: 155,
-      year: 2008,
-    },
-    {
-      title: 'Sample TV Show 1',
-      type: 'tv',
-      tmdbId: 1399,
-      year: 2011,
-    },
-    {
-      title: 'Sample TV Show 2',
-      type: 'tv',
-      tmdbId: 1396,
-      year: 2008,
-    },
-  ];
+  // Get the template to check content grid configuration
+  const templateRepository = getRepository(PosterTemplate);
+  const template = await templateRepository.findOne({
+    where: { id: templateId, isActive: true },
+  });
+
+  if (!template) {
+    throw new Error(`Template ${templateId} not found`);
+  }
+
+  const templateData = template.getTemplateData();
+
+  // Generate enough sample items to fill the content grid
+  let gridSize = 0;
+
+  if (templateData.elements) {
+    // Unified system - find content-grid elements and calculate total size
+    const contentGridElements = templateData.elements.filter(
+      (el) => el.type === 'content-grid'
+    );
+    if (contentGridElements.length > 0) {
+      // Sum up all content grid sizes (in case there are multiple grids)
+      gridSize = contentGridElements.reduce((total, element) => {
+        const props = element.properties as ContentGridProps;
+        return total + (props.columns || 2) * (props.rows || 2);
+      }, 0);
+    }
+  }
+
+  // Fallback to 4 if no content grids found
+  if (gridSize === 0) {
+    gridSize = 4;
+  }
+
+  logger.debug(`Template grid size calculated: ${gridSize} items needed`);
+
+  // Load local poster mapping for fast preview rendering
+  const localPosters = loadLocalPosterMapping();
+
+  let sampleItems: CollectionItemWithPoster[] = [];
+
+  if (localPosters.length > 0) {
+    // Use local posters for much faster preview rendering
+    logger.debug(`Using ${localPosters.length} local posters for preview`);
+
+    const localSampleItems: CollectionItemWithPoster[] = [];
+    for (let i = 0; i < gridSize; i++) {
+      const localPoster = localPosters[i % localPosters.length];
+      // Use absolute file path instead of URL path
+      const absoluteFilePath = path.join(
+        process.cwd(),
+        'public',
+        'preview-posters',
+        localPoster.filename
+      );
+      localSampleItems.push({
+        title:
+          i >= localPosters.length
+            ? `${localPoster.title} ${Math.floor(i / localPosters.length) + 1}`
+            : localPoster.title,
+        type: localPoster.type,
+        tmdbId: localPoster.tmdbId,
+        year: localPoster.year,
+        posterUrl: `file://${absoluteFilePath}`, // Use file:// protocol for local files
+      });
+    }
+    sampleItems = localSampleItems;
+  } else {
+    // Fallback to hardcoded list if local posters aren't available
+    logger.warn('Local posters not available, falling back to hardcoded list');
+
+    const baseSampleItems = [
+      // Popular Movies (50 items)
+      {
+        title: 'The Dark Knight',
+        type: 'movie' as const,
+        tmdbId: 155,
+        year: 2008,
+      },
+      { title: 'Inception', type: 'movie' as const, tmdbId: 27205, year: 2010 },
+      {
+        title: 'Interstellar',
+        type: 'movie' as const,
+        tmdbId: 157336,
+        year: 2014,
+      },
+      { title: 'The Matrix', type: 'movie' as const, tmdbId: 603, year: 1999 },
+      { title: 'Fight Club', type: 'movie' as const, tmdbId: 550, year: 1999 },
+      {
+        title: 'Pulp Fiction',
+        type: 'movie' as const,
+        tmdbId: 680,
+        year: 1994,
+      },
+      {
+        title: 'The Godfather',
+        type: 'movie' as const,
+        tmdbId: 238,
+        year: 1972,
+      },
+      { title: 'Goodfellas', type: 'movie' as const, tmdbId: 769, year: 1990 },
+      {
+        title: 'The Departed',
+        type: 'movie' as const,
+        tmdbId: 1422,
+        year: 2006,
+      },
+      { title: 'Joker', type: 'movie' as const, tmdbId: 475557, year: 2019 },
+      {
+        title: 'Avengers: Endgame',
+        type: 'movie' as const,
+        tmdbId: 299534,
+        year: 2019,
+      },
+      {
+        title: 'Spider-Man: No Way Home',
+        type: 'movie' as const,
+        tmdbId: 634649,
+        year: 2021,
+      },
+      {
+        title: 'Top Gun: Maverick',
+        type: 'movie' as const,
+        tmdbId: 361743,
+        year: 2022,
+      },
+      { title: 'Dune', type: 'movie' as const, tmdbId: 438631, year: 2021 },
+      {
+        title: 'No Time to Die',
+        type: 'movie' as const,
+        tmdbId: 370172,
+        year: 2021,
+      },
+      {
+        title: 'The Batman',
+        type: 'movie' as const,
+        tmdbId: 414906,
+        year: 2022,
+      },
+      { title: 'Parasite', type: 'movie' as const, tmdbId: 496243, year: 2019 },
+      {
+        title: 'La La Land',
+        type: 'movie' as const,
+        tmdbId: 313369,
+        year: 2016,
+      },
+      {
+        title: 'Mad Max: Fury Road',
+        type: 'movie' as const,
+        tmdbId: 76341,
+        year: 2015,
+      },
+      {
+        title: 'Blade Runner 2049',
+        type: 'movie' as const,
+        tmdbId: 335984,
+        year: 2017,
+      },
+      {
+        title: 'Once Upon a Time in Hollywood',
+        type: 'movie' as const,
+        tmdbId: 466272,
+        year: 2019,
+      },
+      { title: '1917', type: 'movie' as const, tmdbId: 530915, year: 2019 },
+      {
+        title: 'Ford v Ferrari',
+        type: 'movie' as const,
+        tmdbId: 359724,
+        year: 2019,
+      },
+      {
+        title: 'Knives Out',
+        type: 'movie' as const,
+        tmdbId: 546554,
+        year: 2019,
+      },
+      {
+        title: 'Everything Everywhere All at Once',
+        type: 'movie' as const,
+        tmdbId: 545611,
+        year: 2022,
+      },
+      {
+        title: 'The Wolf of Wall Street',
+        type: 'movie' as const,
+        tmdbId: 106646,
+        year: 2013,
+      },
+      {
+        title: 'Django Unchained',
+        type: 'movie' as const,
+        tmdbId: 68718,
+        year: 2012,
+      },
+      { title: 'Get Out', type: 'movie' as const, tmdbId: 419430, year: 2017 },
+      {
+        title: 'Hereditary',
+        type: 'movie' as const,
+        tmdbId: 493922,
+        year: 2018,
+      },
+      {
+        title: 'Midsommar',
+        type: 'movie' as const,
+        tmdbId: 530385,
+        year: 2019,
+      },
+      {
+        title: 'The Grand Budapest Hotel',
+        type: 'movie' as const,
+        tmdbId: 120467,
+        year: 2014,
+      },
+      {
+        title: 'Moonlight',
+        type: 'movie' as const,
+        tmdbId: 376867,
+        year: 2016,
+      },
+      { title: 'Whiplash', type: 'movie' as const, tmdbId: 244786, year: 2014 },
+      {
+        title: 'Ex Machina',
+        type: 'movie' as const,
+        tmdbId: 264660,
+        year: 2014,
+      },
+      {
+        title: 'Baby Driver',
+        type: 'movie' as const,
+        tmdbId: 390043,
+        year: 2017,
+      },
+      {
+        title: 'John Wick',
+        type: 'movie' as const,
+        tmdbId: 245891,
+        year: 2014,
+      },
+      {
+        title: 'The Social Network',
+        type: 'movie' as const,
+        tmdbId: 37799,
+        year: 2010,
+      },
+      {
+        title: 'There Will Be Blood',
+        type: 'movie' as const,
+        tmdbId: 7345,
+        year: 2007,
+      },
+      {
+        title: 'No Country for Old Men',
+        type: 'movie' as const,
+        tmdbId: 6977,
+        year: 2007,
+      },
+      { title: 'Zodiac', type: 'movie' as const, tmdbId: 1271, year: 2007 },
+      {
+        title: 'Shutter Island',
+        type: 'movie' as const,
+        tmdbId: 11324,
+        year: 2010,
+      },
+      {
+        title: 'The Prestige',
+        type: 'movie' as const,
+        tmdbId: 1124,
+        year: 2006,
+      },
+      {
+        title: 'Casino Royale',
+        type: 'movie' as const,
+        tmdbId: 36557,
+        year: 2006,
+      },
+      { title: 'Iron Man', type: 'movie' as const, tmdbId: 1726, year: 2008 },
+      {
+        title: 'The Avengers',
+        type: 'movie' as const,
+        tmdbId: 24428,
+        year: 2012,
+      },
+      {
+        title: 'Guardians of the Galaxy',
+        type: 'movie' as const,
+        tmdbId: 118340,
+        year: 2014,
+      },
+      {
+        title: 'Black Panther',
+        type: 'movie' as const,
+        tmdbId: 284054,
+        year: 2018,
+      },
+      {
+        title: 'Thor: Ragnarok',
+        type: 'movie' as const,
+        tmdbId: 284053,
+        year: 2017,
+      },
+      {
+        title: 'Captain America: The Winter Soldier',
+        type: 'movie' as const,
+        tmdbId: 100402,
+        year: 2014,
+      },
+      {
+        title: 'Doctor Strange',
+        type: 'movie' as const,
+        tmdbId: 284052,
+        year: 2016,
+      },
+
+      // Popular TV Shows (50 items)
+      { title: 'Breaking Bad', type: 'tv' as const, tmdbId: 1396, year: 2008 },
+      {
+        title: 'Game of Thrones',
+        type: 'tv' as const,
+        tmdbId: 1399,
+        year: 2011,
+      },
+      { title: 'The Sopranos', type: 'tv' as const, tmdbId: 1398, year: 1999 },
+      { title: 'The Office', type: 'tv' as const, tmdbId: 2316, year: 2005 },
+      {
+        title: 'Stranger Things',
+        type: 'tv' as const,
+        tmdbId: 66732,
+        year: 2016,
+      },
+      {
+        title: 'The Mandalorian',
+        type: 'tv' as const,
+        tmdbId: 82856,
+        year: 2019,
+      },
+      { title: 'The Crown', type: 'tv' as const, tmdbId: 73375, year: 2016 },
+      {
+        title: 'House of Cards',
+        type: 'tv' as const,
+        tmdbId: 1425,
+        year: 2013,
+      },
+      {
+        title: 'Orange Is the New Black',
+        type: 'tv' as const,
+        tmdbId: 46317,
+        year: 2013,
+      },
+      { title: 'Narcos', type: 'tv' as const, tmdbId: 63351, year: 2015 },
+      {
+        title: 'Better Call Saul',
+        type: 'tv' as const,
+        tmdbId: 60059,
+        year: 2015,
+      },
+      {
+        title: 'The Walking Dead',
+        type: 'tv' as const,
+        tmdbId: 1402,
+        year: 2010,
+      },
+      { title: 'Westworld', type: 'tv' as const, tmdbId: 63247, year: 2016 },
+      {
+        title: 'True Detective',
+        type: 'tv' as const,
+        tmdbId: 46648,
+        year: 2014,
+      },
+      { title: 'Fargo', type: 'tv' as const, tmdbId: 60622, year: 2014 },
+      { title: 'The Wire', type: 'tv' as const, tmdbId: 1438, year: 2002 },
+      { title: 'Mad Men', type: 'tv' as const, tmdbId: 1104, year: 2007 },
+      { title: 'Lost', type: 'tv' as const, tmdbId: 4607, year: 2004 },
+      { title: 'Sherlock', type: 'tv' as const, tmdbId: 19885, year: 2010 },
+      { title: 'Friends', type: 'tv' as const, tmdbId: 1668, year: 1994 },
+      {
+        title: 'The Big Bang Theory',
+        type: 'tv' as const,
+        tmdbId: 1418,
+        year: 2007,
+      },
+      {
+        title: 'How I Met Your Mother',
+        type: 'tv' as const,
+        tmdbId: 1100,
+        year: 2005,
+      },
+      {
+        title: 'Parks and Recreation',
+        type: 'tv' as const,
+        tmdbId: 8592,
+        year: 2009,
+      },
+      {
+        title: 'Brooklyn Nine-Nine',
+        type: 'tv' as const,
+        tmdbId: 48891,
+        year: 2013,
+      },
+      {
+        title: 'The Good Place',
+        type: 'tv' as const,
+        tmdbId: 66573,
+        year: 2016,
+      },
+      { title: 'Community', type: 'tv' as const, tmdbId: 18347, year: 2009 },
+      {
+        title: 'Arrested Development',
+        type: 'tv' as const,
+        tmdbId: 4589,
+        year: 2003,
+      },
+      {
+        title: 'Peaky Blinders',
+        type: 'tv' as const,
+        tmdbId: 60574,
+        year: 2013,
+      },
+      { title: 'Money Heist', type: 'tv' as const, tmdbId: 71446, year: 2017 },
+      { title: 'Dark', type: 'tv' as const, tmdbId: 70523, year: 2017 },
+      { title: 'Mindhunter', type: 'tv' as const, tmdbId: 67744, year: 2017 },
+      { title: 'Ozark', type: 'tv' as const, tmdbId: 69740, year: 2017 },
+      { title: 'The Witcher', type: 'tv' as const, tmdbId: 71912, year: 2019 },
+      { title: 'The Boys', type: 'tv' as const, tmdbId: 76479, year: 2019 },
+      { title: 'Euphoria', type: 'tv' as const, tmdbId: 85552, year: 2019 },
+      { title: 'Succession', type: 'tv' as const, tmdbId: 76331, year: 2018 },
+      {
+        title: "The Handmaid's Tale",
+        type: 'tv' as const,
+        tmdbId: 69478,
+        year: 2017,
+      },
+      { title: 'Black Mirror', type: 'tv' as const, tmdbId: 42009, year: 2011 },
+      {
+        title: 'Rick and Morty',
+        type: 'tv' as const,
+        tmdbId: 60625,
+        year: 2013,
+      },
+      {
+        title: 'BoJack Horseman',
+        type: 'tv' as const,
+        tmdbId: 61222,
+        year: 2014,
+      },
+      { title: 'The Simpsons', type: 'tv' as const, tmdbId: 456, year: 1989 },
+      { title: 'South Park', type: 'tv' as const, tmdbId: 2190, year: 1997 },
+      { title: 'Family Guy', type: 'tv' as const, tmdbId: 1434, year: 1999 },
+      { title: 'Dexter', type: 'tv' as const, tmdbId: 1405, year: 2006 },
+      { title: 'House', type: 'tv' as const, tmdbId: 1408, year: 2004 },
+      { title: 'Homeland', type: 'tv' as const, tmdbId: 1407, year: 2011 },
+      { title: '24', type: 'tv' as const, tmdbId: 1995, year: 2001 },
+      { title: 'Prison Break', type: 'tv' as const, tmdbId: 2288, year: 2005 },
+      { title: 'Suits', type: 'tv' as const, tmdbId: 37680, year: 2011 },
+      { title: 'Vikings', type: 'tv' as const, tmdbId: 44217, year: 2013 },
+    ];
+
+    // Generate enough items to fill the grid, cycling through base items if needed
+    const fallbackSampleItems: CollectionItemWithPoster[] = [];
+    for (let i = 0; i < gridSize; i++) {
+      const baseItem = baseSampleItems[i % baseSampleItems.length];
+      fallbackSampleItems.push({
+        ...baseItem,
+        title:
+          i >= baseSampleItems.length
+            ? `${baseItem.title} ${Math.floor(i / baseSampleItems.length) + 1}`
+            : baseItem.title,
+      });
+    }
+    sampleItems = fallbackSampleItems;
+  }
 
   const config = {
     collectionName: previewConfig?.collectionName || 'Sample Collection',
@@ -296,7 +749,8 @@ export function getTemplateTypes(): string[] {
 export function sanitizeTemplateData(
   templateData: Partial<PosterTemplateData>
 ): PosterTemplateData {
-  const sanitized: PosterTemplateData = {
+  // All templates should be in migrated format after startup migration
+  return {
     width: Math.max(100, templateData.width || 500),
     height: Math.max(100, templateData.height || 750),
     background: {
@@ -307,45 +761,18 @@ export function sanitizeTemplateData(
       secondaryColor: templateData.background?.secondaryColor,
       useSourceColors: Boolean(templateData.background?.useSourceColors),
     },
-    textElements: Array.isArray(templateData.textElements)
-      ? templateData.textElements
-          .filter((el) => el.id && el.type)
+    elements: Array.isArray(templateData.elements)
+      ? templateData.elements
+          .filter((el) => el.id && el.type && typeof el.layerOrder === 'number')
           .map((el) => ({
             ...el,
-            fontSize: Math.max(8, el.fontSize || 16),
-            color: el.color?.match(/^#[0-9a-fA-F]{6}$/) ? el.color : '#ffffff',
-            fontFamily: el.fontFamily || 'Arial, sans-serif',
-            fontWeight: ['normal', 'bold'].includes(el.fontWeight || '')
-              ? (el.fontWeight as 'normal' | 'bold')
-              : 'normal',
-            fontStyle: ['normal', 'italic'].includes(el.fontStyle || '')
-              ? (el.fontStyle as 'normal' | 'italic')
-              : 'normal',
-            textAlign: ['left', 'center', 'right'].includes(el.textAlign || '')
-              ? (el.textAlign as 'left' | 'center' | 'right')
-              : 'center',
-          }))
-      : [],
-    iconElements: Array.isArray(templateData.iconElements)
-      ? templateData.iconElements
-          .filter((el) => el.id && el.type)
-          .map((el) => ({
-            ...el,
+            x: typeof el.x === 'number' ? el.x : 0,
+            y: typeof el.y === 'number' ? el.y : 0,
             width: Math.max(10, el.width || 50),
             height: Math.max(10, el.height || 50),
-            grayscale: Boolean(el.grayscale),
+            layerOrder: Math.max(0, el.layerOrder || 0),
           }))
       : [],
-    contentGrid: templateData.contentGrid
-      ? {
-          ...templateData.contentGrid,
-          columns: Math.max(1, templateData.contentGrid.columns || 2),
-          rows: Math.max(1, templateData.contentGrid.rows || 2),
-          spacing: Math.max(0, templateData.contentGrid.spacing || 8),
-          cornerRadius: Math.max(0, templateData.contentGrid.cornerRadius || 4),
-        }
-      : undefined,
+    migrated: true, // Always true since startup migration handles legacy data
   };
-
-  return sanitized;
 }

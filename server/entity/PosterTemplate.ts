@@ -6,6 +6,55 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+// New unified layering system types
+export interface LayeredElement {
+  id: string;
+  layerOrder: number; // 0 = bottom, higher = top
+  type: 'text' | 'raster' | 'svg' | 'content-grid';
+
+  // Common properties
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+
+  // Type-specific properties (discriminated union)
+  properties:
+    | TextElementProps
+    | RasterElementProps
+    | SVGElementProps
+    | ContentGridProps;
+}
+
+export interface TextElementProps {
+  elementType: 'collection-title' | 'custom-text';
+  text?: string; // For custom text, collection title is dynamic
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  color: string;
+  textAlign: 'left' | 'center' | 'right';
+  maxLines?: number;
+}
+
+export interface RasterElementProps {
+  imagePath: string; // Path to uploaded raster image
+}
+
+export interface SVGElementProps {
+  iconType: 'source-logo' | 'svg-icon';
+  iconPath?: string; // For custom icons, service logo is dynamic
+  grayscale: boolean;
+}
+
+export interface ContentGridProps {
+  columns: number;
+  rows: number;
+  spacing: number;
+  cornerRadius: number;
+}
+
 export interface PosterTemplateData {
   // Canvas dimensions
   width: number;
@@ -19,48 +68,9 @@ export interface PosterTemplateData {
     useSourceColors?: boolean; // If true, use global source-specific colors from SourceColors table
   };
 
-  // Text elements
-  textElements: {
-    id: string;
-    type: 'collection-title' | 'custom-text';
-    text?: string; // For custom text, collection title is dynamic
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    fontSize: number;
-    fontFamily: string;
-    fontWeight: 'normal' | 'bold';
-    fontStyle: 'normal' | 'italic';
-    color: string;
-    textAlign: 'left' | 'center' | 'right';
-    maxLines?: number;
-  }[];
-
-  // Icon/logo elements
-  iconElements: {
-    id: string;
-    type: 'source-logo' | 'custom-icon';
-    iconPath?: string; // For custom icons, service logo is dynamic
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    grayscale: boolean;
-  }[];
-
-  // Content grid for collection items
-  contentGrid?: {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    columns: number;
-    rows: number;
-    spacing: number;
-    cornerRadius: number;
-  };
+  // Unified layering system
+  elements: LayeredElement[]; // Unified element list with layer ordering
+  migrated: boolean; // Migration completion flag (always true after v1.3.2)
 }
 
 @Entity()

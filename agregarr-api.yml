@@ -7916,8 +7916,102 @@ paths:
                                 secondaryColor:
                                   type: string
                                   example: "#1e1b4b"
+                                useSourceColors:
+                                  type: boolean
+                                  example: false
+                            # New unified layering system (preferred)
+                            elements:
+                              type: array
+                              description: "Unified element list with custom layer ordering (used when migrated=true)"
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "element-1"
+                                  layerOrder:
+                                    type: number
+                                    description: "Layer order - lower numbers render behind higher numbers"
+                                    example: 20
+                                  type:
+                                    type: string
+                                    enum: [text, raster, svg, content-grid]
+                                    example: "text"
+                                  x:
+                                    type: number
+                                    example: 50
+                                  y:
+                                    type: number
+                                    example: 100
+                                  width:
+                                    type: number
+                                    example: 400
+                                  height:
+                                    type: number
+                                    example: 60
+                                  properties:
+                                    type: object
+                                    description: "Type-specific properties based on element type"
+                                    oneOf:
+                                      - type: object
+                                        title: "Text Element Properties"
+                                        properties:
+                                          elementType:
+                                            type: string
+                                            enum: [collection-title, custom-text]
+                                          text:
+                                            type: string
+                                          fontSize:
+                                            type: number
+                                          fontFamily:
+                                            type: string
+                                          fontWeight:
+                                            type: string
+                                            enum: [normal, bold]
+                                          fontStyle:
+                                            type: string
+                                            enum: [normal, italic]
+                                          color:
+                                            type: string
+                                          textAlign:
+                                            type: string
+                                            enum: [left, center, right]
+                                          maxLines:
+                                            type: number
+                                      - type: object
+                                        title: "Raster Element Properties"
+                                        properties:
+                                          imagePath:
+                                            type: string
+                                      - type: object
+                                        title: "SVG Element Properties"
+                                        properties:
+                                          iconType:
+                                            type: string
+                                            enum: [source-logo, svg-icon]
+                                          iconPath:
+                                            type: string
+                                          grayscale:
+                                            type: boolean
+                                      - type: object
+                                        title: "Content Grid Properties"
+                                        properties:
+                                          columns:
+                                            type: number
+                                          rows:
+                                            type: number
+                                          spacing:
+                                            type: number
+                                          cornerRadius:
+                                            type: number
+                            migrated:
+                              type: boolean
+                              description: "Flag indicating if template has been migrated to unified layering system"
+                              example: true
+                            # Legacy structure (for backward compatibility)
                             textElements:
                               type: array
+                              description: "Legacy text elements (used when migrated=false)"
                               items:
                                 type: object
                                 properties:
@@ -7926,6 +8020,7 @@ paths:
                                     example: "text-1"
                                   type:
                                     type: string
+                                    enum: [collection-title, custom-text]
                                     example: "collection-title"
                                   text:
                                     type: string
@@ -7968,6 +8063,7 @@ paths:
                                     example: 2
                             iconElements:
                               type: array
+                              description: "Legacy icon elements (used when migrated=false)"
                               items:
                                 type: object
                                 properties:
@@ -7996,8 +8092,68 @@ paths:
                                   grayscale:
                                     type: boolean
                                     example: false
+                            rasterElements:
+                              type: array
+                              description: "Legacy raster image elements (used when migrated=false)"
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "raster-1"
+                                  type:
+                                    type: string
+                                    enum: [raster-image]
+                                    example: "raster-image"
+                                  imagePath:
+                                    type: string
+                                    example: "/uploads/background.jpg"
+                                  x:
+                                    type: number
+                                    example: 0
+                                  y:
+                                    type: number
+                                    example: 0
+                                  width:
+                                    type: number
+                                    example: 500
+                                  height:
+                                    type: number
+                                    example: 300
+                            svgElements:
+                              type: array
+                              description: "Legacy SVG elements (used when migrated=false)"
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "svg-1"
+                                  type:
+                                    type: string
+                                    enum: [source-logo, svg-icon]
+                                    example: "svg-icon"
+                                  iconPath:
+                                    type: string
+                                    example: "/icons/custom.svg"
+                                  x:
+                                    type: number
+                                    example: 25
+                                  y:
+                                    type: number
+                                    example: 25
+                                  width:
+                                    type: number
+                                    example: 50
+                                  height:
+                                    type: number
+                                    example: 50
+                                  grayscale:
+                                    type: boolean
+                                    example: false
                             contentGrid:
                               type: object
+                              description: "Legacy content grid (used when migrated=false)"
                               properties:
                                 id:
                                   type: string
@@ -8211,6 +8367,11 @@ paths:
             enum: [movie, tv]
             default: movie
           description: Media type
+        - name: t
+          in: query
+          schema:
+            type: string
+          description: Cache-busting timestamp parameter
       responses:
         '200':
           description: Preview image generated successfully
@@ -8270,6 +8431,91 @@ paths:
           description: Template data is required
         '500':
           description: Failed to validate template data
+
+  /posters/templates/{id}/export:
+    get:
+      summary: Export template as ZIP with assets
+      description: Exports a poster template as a downloadable ZIP file containing the template JSON and all required custom assets (icons, images).
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Template ID
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Template exported successfully as ZIP file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+                description: ZIP file containing template.json and assets/ folder with custom icons and images
+        '400':
+          description: Invalid template ID
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to export template
+
+  /posters/templates/import:
+    post:
+      summary: Import template from ZIP
+      description: Imports a poster template from a ZIP file exported from Agregarr. The ZIP file must contain template.json and any required custom assets.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: ZIP file containing template.json and assets
+      responses:
+        '201':
+          description: Template imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 5
+                  name:
+                    type: string
+                    example: "Imported Template"
+                  description:
+                    type: string
+                    example: "A template imported from another instance"
+                  isDefault:
+                    type: boolean
+                    example: false
+                  templateData:
+                    type: object
+                    description: "Complete template configuration data"
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid template data or unsupported version
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to import template
 
   /posters/saved:
     get:
@@ -8603,6 +8849,45 @@ paths:
         '500':
           description: Failed to list icons
 
+  /fonts:
+    get:
+      summary: Get available system fonts
+      description: Retrieves all available font families from the system for use in poster templates.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Fonts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fonts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        family:
+                          type: string
+                          example: DejaVu Sans
+                        availableWeights:
+                          type: array
+                          items:
+                            type: string
+                          example: ["Regular", "Bold", "Light", "Medium"]
+                        cssValue:
+                          type: string
+                          example: "'DejaVu Sans'"
+                        fontUrl:
+                          type: string
+                          description: URL to font file for web loading
+                          example: "/fonts/truetype/dejavu/DejaVuSans.ttf"
+                  count:
+                    type: integer
+                    example: 25
+        '500':
+          description: Failed to retrieve fonts
   /posters/icons/categories:
     get:
       summary: List icon categories
@@ -8952,6 +9237,108 @@ paths:
                           type: string
         '500':
           description: Failed to reset source colors
+
+  /source-colors/export:
+    get:
+      summary: Export source colors as JSON
+      description: Exports all source color schemes as a downloadable JSON file for sharing.
+      tags:
+        - source-colors
+      responses:
+        '200':
+          description: Source colors exported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sourceColors:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        primaryColor:
+                          type: string
+                          example: "#ed2224"
+                        secondaryColor:
+                          type: string
+                          example: "#1f1a1a"
+                        textColor:
+                          type: string
+                          example: "#ffffff"
+                  exportedAt:
+                    type: string
+                    format: date-time
+                    example: "2023-10-25T10:30:00.000Z"
+                  version:
+                    type: string
+                    example: "1.0"
+        '500':
+          description: Failed to export source colors
+
+  /source-colors/import:
+    post:
+      summary: Import source colors from JSON
+      description: Imports source color schemes from a JSON file exported from Agregarr.
+      tags:
+        - source-colors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceColors
+              properties:
+                sourceColors:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      primaryColor:
+                        type: string
+                        example: "#ed2224"
+                      secondaryColor:
+                        type: string
+                        example: "#1f1a1a"
+                      textColor:
+                        type: string
+                        example: "#ffffff"
+                version:
+                  type: string
+                  example: "1.0"
+      responses:
+        '200':
+          description: Source colors imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully imported 5 source color schemes"
+                  importCount:
+                    type: integer
+                    example: 5
+                  sourceColors:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        primaryColor:
+                          type: string
+                        secondaryColor:
+                          type: string
+                        textColor:
+                          type: string
+        '400':
+          description: Invalid source colors data or unsupported version
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to import source colors
 
 security:
   - cookieAuth: []

@@ -862,7 +862,7 @@ export class MultiSourceOrchestrator {
 
       // Convert collection items to poster items format
       const posterItems: CollectionItemWithPoster[] = items
-        .slice(0, 4)
+        .slice(0, 100) // Reasonable upper limit for performance
         .map((item) => ({
           title: item.title,
           type: item.type as 'movie' | 'tv',

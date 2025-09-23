@@ -39,6 +39,9 @@ config/posters/*.json
 config/*.json
 config/random-lists/*.txt
 config/icons/*.svg
+config/icons/*.jpg
+config/icons/*.jpeg
+config/icons/*.png
 config/icons/*.json
 config/temp/*.png
 
