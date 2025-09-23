@@ -87,10 +87,10 @@ const customUrlValidations = {
       type === 'tmdb' && subtype === 'custom',
     then: (schema) =>
       schema
-        .required('TMDb collection/list URL is required')
+        .required('TMDB collection/list URL is required')
         .matches(
           /themoviedb\.org\/(collection|list)\/\d+/,
-          'Please enter a valid TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
+          'Please enter a valid TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
         ),
     otherwise: (schema) => schema,
   }),

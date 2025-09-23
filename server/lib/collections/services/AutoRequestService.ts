@@ -19,7 +19,7 @@ import { syncCacheService } from './SyncCacheService';
  * Shared auto-request service for all collection sync implementations
  *
  * Handles the common auto-request functionality that can be reused across
- * different collection sources (Trakt, TMDb, IMDb, etc.)
+ * different collection sources (Trakt, TMDB, IMDb, etc.)
  */
 export class AutoRequestService {
   private serviceUserManager: ServiceUserManager;

@@ -39,7 +39,7 @@ export function generateServiceUserConfig(
 ): ServiceUserConfig {
   const serviceInfo = {
     trakt: { name: 'Trakt', avatar: '/trakt-logo.svg' },
-    tmdb: { name: 'TMDb', avatar: '/tmdb-logo.svg' },
+    tmdb: { name: 'TMDB', avatar: '/tmdb-logo.svg' },
     imdb: { name: 'IMDb', avatar: '/imdb-logo.svg' },
     mdblist: { name: 'MDBList', avatar: '/services/mdblist.svg' },
     letterboxd: { name: 'Letterboxd', avatar: '/letterboxd-logo.svg' },

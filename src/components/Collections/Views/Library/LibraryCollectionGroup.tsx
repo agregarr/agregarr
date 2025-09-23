@@ -603,7 +603,7 @@ const SortableItem = ({
                     collection.type === 'trakt'
                       ? 'Trakt'
                       : collection.type === 'tmdb'
-                      ? 'TMDb'
+                      ? 'TMDB'
                       : collection.type === 'imdb'
                       ? 'IMDb'
                       : collection.type === 'mdblist'

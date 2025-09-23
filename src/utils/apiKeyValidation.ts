@@ -100,7 +100,7 @@ export function getServiceDisplayName(serviceType: string): string {
     mdblist: 'MDBList',
     tautulli: 'Tautulli',
     overseerr: 'Overseerr',
-    tmdb: 'TMDb',
+    tmdb: 'TMDB',
     imdb: 'IMDb',
     letterboxd: 'Letterboxd',
     networks: 'Networks',

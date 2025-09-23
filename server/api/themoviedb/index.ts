@@ -867,7 +867,7 @@ class TheMovieDb extends ExternalAPI {
     total_results: number;
   }> {
     try {
-      // Note: TMDb doesn't have a direct popular collections endpoint
+      // Note: TMDB doesn't have a direct popular collections endpoint
       // We'll discover collections through popular movies that belong to collections
 
       // Get movie details to access belongs_to_collection data

@@ -639,7 +639,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
           tmdbId: lookup.tmdbId,
           metadata: {
             libraryKey: plexItem.libraryKey,
-            showTmdbId: lookup.showTmdbId, // Preserve show TMDb ID for episodes
+            showTmdbId: lookup.showTmdbId, // Preserve show TMDB ID for episodes
           },
           episodeInfo: lookup.episodeInfo,
         };

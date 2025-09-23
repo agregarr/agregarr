@@ -928,7 +928,7 @@ const AllCollectionsView: React.FC = () => {
                             config.type === 'trakt'
                               ? 'Trakt'
                               : config.type === 'tmdb'
-                              ? 'TMDb'
+                              ? 'TMDB'
                               : config.type === 'imdb'
                               ? 'IMDb'
                               : config.type === 'mdblist'

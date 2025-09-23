@@ -221,8 +221,8 @@ export interface CollectionFormConfig {
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
-  // TMDb custom list fields
-  readonly tmdbCustomListUrl?: string; // Custom TMDb list/collection URL
+  // TMDB custom list fields
+  readonly tmdbCustomListUrl?: string; // Custom TMDB list/collection URL
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
@@ -577,7 +577,7 @@ export interface CollectionSourceConfig {
   readonly id: string; // Unique identifier for this source within the collection
   readonly type: CollectionSourceType;
   readonly subtype?: string;
-  readonly customUrl?: string; // For custom lists (Trakt, TMDb, IMDb, Letterboxd)
+  readonly customUrl?: string; // For custom lists (Trakt, TMDB, IMDb, Letterboxd)
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
   readonly priority: number; // Order priority when combining (0 = highest)
   readonly isExpanded?: boolean; // UI state for expandable sections

@@ -41,7 +41,7 @@ const messages = defineMessages({
   partiallyAvailable: 'Partially Available',
   allSources: 'All Sources',
   trakt: 'Trakt',
-  tmdb: 'TMDb',
+  tmdb: 'TMDB',
   imdb: 'IMDb',
   letterboxd: 'Letterboxd',
   allServices: 'All Services',

@@ -200,10 +200,10 @@ const CollectionFormConfigForm = ({
         type === 'tmdb' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('TMDb collection/list URL is required')
+          .required('TMDB collection/list URL is required')
           .matches(
             /themoviedb\.org\/(collection|list)\/\d+/,
-            'Please enter a valid TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
+            'Please enter a valid TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
           ),
       otherwise: (schema) => schema,
     }),
@@ -440,7 +440,7 @@ const CollectionFormConfigForm = ({
         }
       }
     } catch (error) {
-      // Failed to fetch TMDb title - silently continue
+      // Failed to fetch TMDB title - silently continue
     } finally {
       setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
     }
@@ -1389,7 +1389,7 @@ const CollectionFormConfigForm = ({
       }
     }
 
-    // TMDb collection presets
+    // TMDB collection presets
     if (values.type === 'tmdb') {
       switch (values.subtype) {
         case 'trending_day':
@@ -1481,24 +1481,24 @@ const CollectionFormConfigForm = ({
               value: 'DYNAMIC_RANDOM_TITLE',
             },
             {
-              label: 'Random TMDb Collection',
-              value: 'Random TMDb Collection',
+              label: 'Random TMDB Collection',
+              value: 'Random TMDB Collection',
             },
             {
-              label: 'Random TMDb {mediaType}s',
-              value: 'Random TMDb {mediaType}s',
+              label: 'Random TMDB {mediaType}s',
+              value: 'Random TMDB {mediaType}s',
             },
             {
-              label: 'Curated {mediaType}s from TMDb',
-              value: 'Curated {mediaType}s from TMDb',
+              label: 'Curated {mediaType}s from TMDB',
+              value: 'Curated {mediaType}s from TMDB',
             },
             { label: 'Custom', value: 'custom' },
           ];
         default:
           return [
             {
-              label: 'TMDb Collection',
-              value: 'TMDb Collection',
+              label: 'TMDB Collection',
+              value: 'TMDB Collection',
             },
             { label: 'Custom', value: 'custom' },
           ];
@@ -2599,7 +2599,7 @@ const CollectionFormConfigForm = ({
                             customMovieTemplate: 'Custom Movie Template',
                             customTVTemplate: 'Custom TV Template',
                             traktCustomListUrl: 'Trakt List URL',
-                            tmdbCustomCollectionUrl: 'TMDb Collection/List URL',
+                            tmdbCustomCollectionUrl: 'TMDB Collection/List URL',
                             imdbCustomListUrl: 'IMDb List URL',
                             letterboxdCustomListUrl: 'Letterboxd List URL',
                             maxSeasonsToRequest: 'Max Seasons to Request',

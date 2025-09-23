@@ -362,7 +362,7 @@ components:
           nullable: true
         tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          description: "Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
           example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
@@ -682,7 +682,7 @@ components:
           nullable: true
         tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          description: "Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
           example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
@@ -1003,7 +1003,7 @@ components:
           nullable: true
         tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          description: "Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
           example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
@@ -1187,7 +1187,7 @@ components:
           nullable: true
         customUrl:
           type: string
-          description: "Custom URL for list-based sources (Trakt, TMDb, IMDb, Letterboxd)"
+          description: "Custom URL for list-based sources (Trakt, TMDB, IMDb, Letterboxd)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
         timePeriod:
@@ -4119,7 +4119,7 @@ paths:
   /collections/fetch-title:
     post:
       summary: Quick validation and title extraction from external collection URL
-      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDb, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
+      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDB, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
       tags:
         - collection
       requestBody:

@@ -23,7 +23,7 @@ import logger from '@server/logger';
 // TmdbSourceData interface is now imported from types.ts
 
 /**
- * TMDb Collection Sync - Simple implementation for trending/popular/top-rated content
+ * TMDB Collection Sync - Simple implementation for trending/popular/top-rated content
  */
 export class TmdbCollectionSync extends BaseCollectionSync {
   private tmdbClient: TmdbAPI;
@@ -40,7 +40,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     } catch (error) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'TMDb API is not accessible'
+        'TMDB API is not accessible'
       );
     }
   }
@@ -143,7 +143,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         if (!config.tmdbCustomCollectionUrl) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            'Custom TMDb URL required'
+            'Custom TMDB URL required'
           );
         }
 
@@ -158,7 +158,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         );
 
         if (collectionMatch) {
-          // Handle TMDb Collection
+          // Handle TMDB Collection
           const collectionData = await this.tmdbClient.getCollection({
             collectionId: parseInt(collectionMatch[1], 10),
           });
@@ -171,7 +171,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
             );
           }
         } else if (listMatch) {
-          // Handle TMDb List with pagination (fetch ALL items like Trakt does)
+          // Handle TMDB List with pagination (fetch ALL items like Trakt does)
           const listId = listMatch[1];
           let currentPage = 1;
           const allItems: TmdbSourceData[] = [];
@@ -213,7 +213,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         } else {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            'Invalid TMDb URL - must be a collection or list URL'
+            'Invalid TMDB URL - must be a collection or list URL'
           );
         }
         break;
@@ -230,7 +230,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         if (!randomResult) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            `No random TMDb collections available with ${mediaType} content`
+            `No random TMDB collections available with ${mediaType} content`
           );
         }
 
@@ -242,19 +242,19 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           this.updateCollectionConfigField(config.id, { name: listTitle });
         }
 
-        logger.info(`Using random TMDb collection: ${randomUrl}`, {
-          label: 'TMDb Collections',
+        logger.info(`Using random TMDB collection: ${randomUrl}`, {
+          label: 'TMDB Collections',
           collection: config.name,
           randomUrl,
           listTitle,
         });
 
-        // Parse TMDb collection URL to get collection ID (same as custom)
+        // Parse TMDB collection URL to get collection ID (same as custom)
         const urlMatch = randomUrl.match(/themoviedb\.org\/collection\/(\d+)/);
         if (!urlMatch) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            `Invalid TMDb collection URL: ${randomUrl}`
+            `Invalid TMDB collection URL: ${randomUrl}`
           );
         }
 
@@ -332,7 +332,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {
-        label: 'TMDb Collections',
+        label: 'TMDB Collections',
       });
     }
 
@@ -352,7 +352,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           },
         });
       } else {
-        // Item exists in TMDb but not in Plex
+        // Item exists in TMDB but not in Plex
         missingItems.push({
           tmdbId: lookup.tmdbId,
           mediaType: lookup.mediaType,
@@ -426,8 +426,8 @@ export class TmdbCollectionSync extends BaseCollectionSync {
 
     // Log processing stats if available
     if (mappingStats || filteringStats) {
-      logger.debug('TMDb collection processing stats', {
-        label: 'TMDb Collections',
+      logger.debug('TMDB collection processing stats', {
+        label: 'TMDB Collections',
         collection: config.name,
         mappingStats,
         filteringStats,

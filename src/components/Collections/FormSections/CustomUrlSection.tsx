@@ -5,7 +5,7 @@ import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
   customTraktListUrl: 'Custom Trakt List URL',
-  customTmdbCollectionUrl: 'Custom TMDb Collection/List URL',
+  customTmdbCollectionUrl: 'Custom TMDB Collection/List URL',
   customImdbListUrl: 'Custom IMDb List URL',
   customLetterboxdListUrl: 'Custom Letterboxd List URL',
   customMdblistListUrl: 'Custom MDBList List URL',
@@ -137,7 +137,7 @@ const CustomUrlSection = ({
     );
   }
 
-  // Custom TMDb Collection/List URL
+  // Custom TMDB Collection/List URL
   if (values.type === 'tmdb' && values.subtype === 'custom') {
     return (
       <div>

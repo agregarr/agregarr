@@ -215,9 +215,9 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         }
       );
 
-      // Convert to LetterboxdSourceData and resolve TMDb IDs
+      // Convert to LetterboxdSourceData and resolve TMDB IDs
       logger.info(
-        `Starting TMDb ID resolution for ${letterboxdData.length} items`,
+        `Starting TMDB ID resolution for ${letterboxdData.length} items`,
         {
           label: 'Letterboxd Collections',
           configName: config.name,
@@ -237,7 +237,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
           ((i + batch.length) / letterboxdData.length) * 100
         );
         logger.info(
-          `Resolving TMDb IDs: ${Math.min(
+          `Resolving TMDB IDs: ${Math.min(
             i + batch.length,
             letterboxdData.length
           )}/${letterboxdData.length} (${percentage}%)`,
@@ -254,7 +254,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         // Process batch concurrently
         const batchPromises = batch.map(async (item) => {
           try {
-            // Search for the movie on TMDb using title and year
+            // Search for the movie on TMDB using title and year
             const searchResults = await this.tmdbClient.searchMovies({
               query: item.title,
               year: item.year,
@@ -271,7 +271,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
               };
             } else {
               logger.warn(
-                `No TMDb match found for Letterboxd item: ${item.title} (${item.year})`,
+                `No TMDB match found for Letterboxd item: ${item.title} (${item.year})`,
                 {
                   label: 'Letterboxd Collections',
                   configName: config.name,
@@ -282,7 +282,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
               return null;
             }
           } catch (error) {
-            logger.warn(`Error resolving TMDb ID for ${item.title}:`, {
+            logger.warn(`Error resolving TMDB ID for ${item.title}:`, {
               label: 'Letterboxd Collections',
               configName: config.name,
               error: error instanceof Error ? error.message : 'Unknown error',
@@ -301,7 +301,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       }
 
       logger.info(
-        `TMDb ID resolution complete: ${sourceData.length}/${letterboxdData.length} items resolved`,
+        `TMDB ID resolution complete: ${sourceData.length}/${letterboxdData.length} items resolved`,
         {
           label: 'Letterboxd Collections',
           configName: config.name,
@@ -350,9 +350,9 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     for (let index = 0; index < sourceData.length; index++) {
       const item = sourceData[index];
       if (!item.tmdbId) {
-        // Skip items without TMDb ID as we can't map them to Plex
+        // Skip items without TMDB ID as we can't map them to Plex
         logger.debug(
-          `Skipping Letterboxd item ${item.letterboxdUrl} (${item.title}) - no TMDb ID found`
+          `Skipping Letterboxd item ${item.letterboxdUrl} (${item.title}) - no TMDB ID found`
         );
         continue;
       }

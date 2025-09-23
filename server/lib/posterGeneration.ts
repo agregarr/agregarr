@@ -196,7 +196,7 @@ async function fetchTMDbPosterUrls(
             logger.debug(`No poster_path found for movie ${item.title}`);
           }
         } else if (item.type === 'tv') {
-          // Check if this is an episode with season info and show TMDb ID
+          // Check if this is an episode with season info and show TMDB ID
           if (item.episodeInfo?.season && item.metadata?.showTmdbId) {
             try {
               // Try to get season poster first

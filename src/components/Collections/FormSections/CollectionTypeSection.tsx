@@ -81,7 +81,7 @@ const CollectionTypeSection = ({
     { value: 'tautulli', label: 'Tautulli Statistics' },
     { value: 'trakt', label: 'Trakt Lists' },
     { value: 'letterboxd', label: 'Letterboxd Lists' },
-    { value: 'tmdb', label: 'TMDb Lists' },
+    { value: 'tmdb', label: 'TMDB Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
     { value: 'mdblist', label: 'MDBList Lists' },
     { value: 'networks', label: 'Networks' },
@@ -177,7 +177,7 @@ const CollectionTypeSection = ({
           {
             value: 'random',
             label: 'Random Lists',
-            description: 'Randomly select from configured TMDb lists',
+            description: 'Randomly select from configured TMDB lists',
           },
         ];
       case 'imdb':

@@ -119,7 +119,7 @@ function validateExternalUrl(
           return {
             isValid: false,
             error:
-              'Invalid TMDb URL format. Expected: https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310',
+              'Invalid TMDB URL format. Expected: https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310',
           };
         }
         break;
@@ -1428,7 +1428,7 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
             const collectionId = parseInt(collectionMatch[1]);
             const collection = await tmdbClient.getCollection({ collectionId });
             title = collection.name;
-            mediaType = 'movie'; // TMDb collections are always movies
+            mediaType = 'movie'; // TMDB collections are always movies
           } else if (listMatch) {
             const listId = listMatch[1];
             const list = await tmdbClient.getList({ listId });
@@ -1457,13 +1457,13 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           } else {
             return res.status(400).json({
               status: 'error',
-              message: 'Invalid TMDb URL format',
+              message: 'Invalid TMDB URL format',
             });
           }
         } catch (error) {
           return res.status(400).json({
             status: 'error',
-            message: 'Invalid TMDb collection/list ID or not found',
+            message: 'Invalid TMDB collection/list ID or not found',
           });
         }
         break;
@@ -1978,7 +1978,7 @@ collectionsRoutes.post(
         }
 
         case 'tmdb': {
-          // TMDb collections are always movies
+          // TMDB collections are always movies
           mediaType = 'movie';
           break;
         }

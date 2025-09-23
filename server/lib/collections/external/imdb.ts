@@ -184,8 +184,8 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         // Predefined list parsed
       }
 
-      // Convert ImdbListItem to ImdbSourceData and resolve TMDb IDs
-      logger.info(`Starting TMDb ID resolution for ${imdbData.length} items`, {
+      // Convert ImdbListItem to ImdbSourceData and resolve TMDB IDs
+      logger.info(`Starting TMDB ID resolution for ${imdbData.length} items`, {
         label: 'IMDb Collections',
         configName: config.name,
         itemsToProcess: imdbData.length,
@@ -204,7 +204,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         );
         if (percentage % 25 === 0 || i + batch.length === imdbData.length) {
           logger.info(
-            `Resolving TMDb IDs: ${Math.min(
+            `Resolving TMDB IDs: ${Math.min(
               i + batch.length,
               imdbData.length
             )}/${imdbData.length} (${percentage}%)`,
@@ -222,13 +222,13 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         // Process batch concurrently
         const batchPromises = batch.map(async (item) => {
           try {
-            // Use enhanced resolution to get both episode and show TMDb IDs
+            // Use enhanced resolution to get both episode and show TMDB IDs
             const { episodeTmdbId, showTmdbId, seasonNumber, episodeNumber } =
               await this.resolveEpisodeAndShowTmdbIds(item.imdbId);
 
             if (episodeTmdbId && showTmdbId) {
               logger.debug(
-                `Found episode TMDb ID ${episodeTmdbId} and show TMDb ID ${showTmdbId} for ${item.title}`
+                `Found episode TMDB ID ${episodeTmdbId} and show TMDB ID ${showTmdbId} for ${item.title}`
               );
             }
 
@@ -250,11 +250,11 @@ export class ImdbCollectionSync extends BaseCollectionSync {
               tmdbId: episodeTmdbId,
               isEpisode: item.isEpisode,
               episodeInfo: updatedEpisodeInfo,
-              showTmdbId, // Store show TMDb ID for episodes
+              showTmdbId, // Store show TMDB ID for episodes
             };
           } catch (error) {
             logger.warn(
-              `Failed to resolve TMDb ID for IMDb ${item.imdbId} (${
+              `Failed to resolve TMDB ID for IMDb ${item.imdbId} (${
                 item.title
               }): ${error instanceof Error ? error.message : 'Unknown error'}`,
               {
@@ -264,7 +264,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
                 title: item.title,
               }
             );
-            // Still include the item without TMDb ID - might be resolved later
+            // Still include the item without TMDB ID - might be resolved later
             return {
               imdbId: item.imdbId,
               title: item.title,
@@ -272,7 +272,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
               type: item.type,
               isEpisode: item.isEpisode,
               episodeInfo: item.episodeInfo,
-              showTmdbId: undefined, // No show TMDb ID if episode lookup failed
+              showTmdbId: undefined, // No show TMDB ID if episode lookup failed
             };
           }
         });
@@ -539,7 +539,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
       }
       tmdbLookups.push({
         tmdbId: item.tmdbId,
-        showTmdbId: item.showTmdbId, // For episodes: parent show's TMDb ID
+        showTmdbId: item.showTmdbId, // For episodes: parent show's TMDB ID
         mediaType: item.type,
         title: item.title,
         originalPosition: index + 1, // 1-based position
@@ -549,7 +549,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
 
     // Log summary of skipped items
     if (skippedItems.length > 0) {
-      logger.info(`IMDb items skipped due to missing TMDb IDs`, {
+      logger.info(`IMDb items skipped due to missing TMDB IDs`, {
         label: 'IMDb Collections',
         configName: config.name,
         count: skippedItems.length,
@@ -604,7 +604,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
           tmdbId: lookup.tmdbId,
           metadata: {
             libraryKey: plexItem.libraryKey,
-            showTmdbId: lookup.showTmdbId, // Preserve show TMDb ID for episodes
+            showTmdbId: lookup.showTmdbId, // Preserve show TMDB ID for episodes
           },
           episodeInfo: lookup.episodeInfo,
         });
@@ -803,7 +803,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
   }
 
   /**
-   * Enhanced resolve that returns both episode and show TMDb IDs for episodes
+   * Enhanced resolve that returns both episode and show TMDB IDs for episodes
    */
   public async resolveEpisodeAndShowTmdbIds(imdbId: string): Promise<{
     episodeTmdbId?: number;
@@ -843,7 +843,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
 
       return {};
     } catch (error) {
-      logger.warn(`Failed to resolve TMDb IDs for IMDb ID ${imdbId}:`, {
+      logger.warn(`Failed to resolve TMDB IDs for IMDb ID ${imdbId}:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return {};

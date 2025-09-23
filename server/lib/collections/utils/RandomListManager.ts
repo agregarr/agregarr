@@ -30,7 +30,7 @@ export class RandomListManager {
   > = new Map();
   private static readonly DISCOVERY_CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-  // TMDb filtered collections cache
+  // TMDB filtered collections cache
   private static tmdbFilteredCache: {
     collections: { id: number; name: string }[];
     lastFiltered: number;
@@ -77,9 +77,9 @@ https://trakt.tv/users/sp1ti/lists/best-of-2023
 https://trakt.tv/users/hdlists/lists/popular-tv-shows
 https://trakt.tv/users/movistapp/lists/oscar-winners
 `,
-      tmdb: `# TMDb Random Collections Configuration
+      tmdb: `# TMDB Random Collections Configuration
 #
-# Add one TMDb collection URL per line below to override the default true random search
+# Add one TMDB collection URL per line below to override the default true random search
 # Set enabled=true and add custom URLs below to use your own collections instead
 
 enabled=false
@@ -285,7 +285,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
             const collection = await tmdbClient.getCollection({ collectionId });
             return collection.name;
           }
-          return 'TMDb Collection';
+          return 'TMDB Collection';
         }
 
         case 'imdb': {
@@ -737,14 +737,14 @@ https://letterboxd.com/cinema/list/criterion-collection/
   }
 
   /**
-   * Discover TMDb collections using daily exports with quality pre-filtering
+   * Discover TMDB collections using daily exports with quality pre-filtering
    * Strategy: Download daily collection IDs export, filter for quality, cache results
    */
   private static async discoverTmdbCollections(): Promise<string[]> {
     // Check if we have valid cached filtered collections
     const now = Date.now();
     if (this.tmdbFilteredCache && now < this.tmdbFilteredCache.nextRefresh) {
-      logger.debug('Using cached filtered TMDb collections', {
+      logger.debug('Using cached filtered TMDB collections', {
         label: 'RandomListManager',
         cachedCount: this.tmdbFilteredCache.collections.length,
         cacheAge: Math.round(
@@ -773,7 +773,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
       )}_${yesterday.getFullYear()}`;
       const exportUrl = `http://files.tmdb.org/p/exports/collection_ids_${dateStr}.json.gz`;
 
-      logger.debug('Fetching TMDb collection IDs from daily export', {
+      logger.debug('Fetching TMDB collection IDs from daily export', {
         label: 'RandomListManager',
         url: exportUrl,
       });
@@ -816,7 +816,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
       }
 
       logger.info(
-        `Loaded ${collections.length} collections from TMDb daily export`,
+        `Loaded ${collections.length} collections from TMDB daily export`,
         {
           label: 'RandomListManager',
           totalCollections: collections.length,
@@ -830,7 +830,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
         nextRefresh: now + this.TMDB_FILTERED_CACHE_TTL,
       };
 
-      logger.info(`TMDb collections cached for 30 days`, {
+      logger.info(`TMDB collections cached for 30 days`, {
         label: 'RandomListManager',
         cachedCount: collections.length,
       });
@@ -840,7 +840,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
         (c) => `https://www.themoviedb.org/collection/${c.id}`
       );
     } catch (error) {
-      logger.error('Failed to discover TMDb collections from daily export', {
+      logger.error('Failed to discover TMDB collections from daily export', {
         label: 'RandomListManager',
         error: error instanceof Error ? error.message : String(error),
       });
@@ -1439,7 +1439,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
   }
 
   /**
-   * Validate TMDb URL for media type compatibility
+   * Validate TMDB URL for media type compatibility
    */
   private static async validateTmdbUrl(
     url: string,
@@ -1448,7 +1448,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
     libraryCache?: LibraryItemsCache
   ): Promise<boolean> {
     try {
-      // TMDb collections are movie-only by design
+      // TMDB collections are movie-only by design
       if (targetMediaType === 'tv') {
         return false;
       }
@@ -1461,7 +1461,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
 
       const collectionId = collectionIdMatch[1];
 
-      // Import TMDb API to check the collection
+      // Import TMDB API to check the collection
       const { default: TmdbAPI } = await import('@server/api/themoviedb');
       const tmdbClient = new TmdbAPI();
 
@@ -1697,7 +1697,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
           }
         }
 
-        // For Letterboxd validation, we need to resolve TMDb IDs like the actual sync process does
+        // For Letterboxd validation, we need to resolve TMDB IDs like the actual sync process does
         const { default: TmdbAPI } = await import('@server/api/themoviedb');
         const tmdbClient = new TmdbAPI();
 
@@ -1705,7 +1705,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
 
         for (const item of letterboxdItems) {
           try {
-            // Search for the movie on TMDb using title and year (same logic as actual sync)
+            // Search for the movie on TMDB using title and year (same logic as actual sync)
             const searchResults = await tmdbClient.searchMovies({
               query: item.title,
               year: item.year,
@@ -1714,7 +1714,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
             if (searchResults.results && searchResults.results.length > 0) {
               const tmdbMovie = searchResults.results[0];
 
-              // Check if this TMDb ID exists in user's Plex library
+              // Check if this TMDB ID exists in user's Plex library
               if (tmdbMovie.id && userTmdbIds.has(tmdbMovie.id)) {
                 plexMatchCount++;
                 if (plexMatchCount >= 4) {
@@ -1723,7 +1723,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
               }
             }
           } catch (error) {
-            // Skip items that fail TMDb lookup
+            // Skip items that fail TMDB lookup
             continue;
           }
         }
@@ -1740,7 +1740,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
   }
 
   /**
-   * Determine if a TMDb collection meets quality criteria
+   * Determine if a TMDB collection meets quality criteria
    */
   private static isQualityTmdbCollection(
     collectionData: { parts?: unknown[] },

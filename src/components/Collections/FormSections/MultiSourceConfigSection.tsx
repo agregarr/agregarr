@@ -253,7 +253,7 @@ const MultiSourceConfigSection = ({
           {
             value: 'random',
             label: 'Random Lists',
-            description: 'Randomly select from configured TMDb lists',
+            description: 'Randomly select from configured TMDB lists',
           },
         ];
       case 'imdb':
@@ -382,7 +382,7 @@ const MultiSourceConfigSection = ({
                 <option value="tautulli">Tautulli Statistics</option>
                 <option value="trakt">Trakt Lists</option>
                 <option value="letterboxd">Letterboxd Lists</option>
-                <option value="tmdb">TMDb Lists</option>
+                <option value="tmdb">TMDB Lists</option>
                 <option value="imdb">IMDb Lists</option>
                 <option value="mdblist">MDBList Lists</option>
                 <option value="networks">Networks</option>

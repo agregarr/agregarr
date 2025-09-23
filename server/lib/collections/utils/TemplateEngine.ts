@@ -295,7 +295,7 @@ export class TemplateEngine {
   }
 
   /**
-   * Create context for TMDb collections
+   * Create context for TMDB collections
    */
   public createTmdbContext(
     mediaType: 'movie' | 'tv',
@@ -594,7 +594,7 @@ export class TemplateEngine {
   }
 
   /**
-   * Get human-readable label for TMDb subtype
+   * Get human-readable label for TMDB subtype
    */
   private getTmdbSubtypeLabel(subtype: string): string {
     switch (subtype) {
