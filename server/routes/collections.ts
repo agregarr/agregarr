@@ -115,11 +115,11 @@ function validateExternalUrl(
         }
         break;
       case 'tmdb':
-        if (!urlObj.pathname.match(/^\/collection\/\d+/)) {
+        if (!urlObj.pathname.match(/^\/(collection|list)\/\d+/)) {
           return {
             isValid: false,
             error:
-              'Invalid TMDb collection URL format. Expected: https://www.themoviedb.org/collection/123456',
+              'Invalid TMDb URL format. Expected: https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310',
           };
         }
         break;
@@ -1417,24 +1417,53 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
         const tmdbClient = new TheMovieDb();
 
         try {
-          const urlMatch = sanitizedUrl.match(
+          // Check if it's a collection URL
+          const collectionMatch = sanitizedUrl.match(
             /themoviedb\.org\/collection\/(\d+)/
           );
-          if (!urlMatch) {
+          // Check if it's a list URL
+          const listMatch = sanitizedUrl.match(/themoviedb\.org\/list\/(\d+)/);
+
+          if (collectionMatch) {
+            const collectionId = parseInt(collectionMatch[1]);
+            const collection = await tmdbClient.getCollection({ collectionId });
+            title = collection.name;
+            mediaType = 'movie'; // TMDb collections are always movies
+          } else if (listMatch) {
+            const listId = listMatch[1];
+            const list = await tmdbClient.getList({ listId });
+            title = list.name;
+
+            // Detect media type from list content (similar to Trakt)
+            if (list.items && list.items.length > 0) {
+              const hasMovies = list.items.some(
+                (item) => item.media_type === 'movie' || item.title
+              );
+              const hasShows = list.items.some(
+                (item) => item.media_type === 'tv' || item.name
+              );
+              if (hasMovies && hasShows) {
+                mediaType = 'both';
+              } else if (hasMovies) {
+                mediaType = 'movie';
+              } else if (hasShows) {
+                mediaType = 'tv';
+              } else {
+                mediaType = 'both'; // Fallback if we can't determine
+              }
+            } else {
+              mediaType = 'both'; // Fallback for empty lists
+            }
+          } else {
             return res.status(400).json({
               status: 'error',
-              message: 'Invalid TMDb collection URL format',
+              message: 'Invalid TMDb URL format',
             });
           }
-
-          const collectionId = parseInt(urlMatch[1]);
-          const collection = await tmdbClient.getCollection({ collectionId });
-          title = collection.name;
-          mediaType = 'movie'; // TMDb collections are always movies
         } catch (error) {
           return res.status(400).json({
             status: 'error',
-            message: 'Invalid TMDb collection ID or collection not found',
+            message: 'Invalid TMDb collection/list ID or not found',
           });
         }
         break;

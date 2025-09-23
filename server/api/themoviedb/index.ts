@@ -11,6 +11,7 @@ import type {
   TmdbKeyword,
   TmdbKeywordSearchResponse,
   TmdbLanguage,
+  TmdbList,
   TmdbMovieDetails,
   TmdbNetwork,
   TmdbPersonCombinedCredits,
@@ -820,6 +821,29 @@ class TheMovieDb extends ExternalAPI {
       return data;
     } catch (e) {
       throw new Error(`[TMDB] Failed to fetch collection: ${e.message}`);
+    }
+  }
+
+  public async getList({
+    listId,
+    language = 'en',
+    page = 1,
+  }: {
+    listId: string;
+    language?: string;
+    page?: number;
+  }): Promise<TmdbList> {
+    try {
+      const data = await this.get<TmdbList>(`/list/${listId}`, {
+        params: {
+          language,
+          page,
+        },
+      });
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch list: ${e.message}`);
     }
   }
 

@@ -195,15 +195,15 @@ const CollectionFormConfigForm = ({
       otherwise: (schema) => schema,
     }),
 
-    tmdbCustomListUrl: Yup.string().when(['type', 'subtype'], {
+    tmdbCustomCollectionUrl: Yup.string().when(['type', 'subtype'], {
       is: (type: string, subtype: string) =>
         type === 'tmdb' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('TMDb collection URL is required')
+          .required('TMDb collection/list URL is required')
           .matches(
-            /themoviedb\.org\/collection\/\d+/,
-            'Please enter a valid TMDb collection URL (e.g., https://www.themoviedb.org/collection/12345)'
+            /themoviedb\.org\/(collection|list)\/\d+/,
+            'Please enter a valid TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
           ),
       otherwise: (schema) => schema,
     }),
@@ -1849,7 +1849,7 @@ const CollectionFormConfigForm = ({
                   timePeriod: existingConfig.timePeriod,
                   customUrl:
                     existingConfig.traktCustomListUrl ||
-                    existingConfig.tmdbCustomListUrl ||
+                    existingConfig.tmdbCustomCollectionUrl ||
                     existingConfig.imdbCustomListUrl ||
                     existingConfig.letterboxdCustomListUrl,
                   customDays: existingConfig.customDays,
@@ -2291,7 +2291,8 @@ const CollectionFormConfigForm = ({
                         (values as CollectionFormConfig).traktCustomListUrl) &&
                       (values.type !== 'tmdb' ||
                         values.subtype !== 'custom' ||
-                        (values as CollectionFormConfig).tmdbCustomListUrl) &&
+                        (values as CollectionFormConfig)
+                          .tmdbCustomCollectionUrl) &&
                       (values.type !== 'imdb' ||
                         values.subtype !== 'custom' ||
                         (values as CollectionFormConfig).imdbCustomListUrl) && (
@@ -2598,7 +2599,7 @@ const CollectionFormConfigForm = ({
                             customMovieTemplate: 'Custom Movie Template',
                             customTVTemplate: 'Custom TV Template',
                             traktCustomListUrl: 'Trakt List URL',
-                            tmdbCustomListUrl: 'TMDb Collection URL',
+                            tmdbCustomCollectionUrl: 'TMDb Collection/List URL',
                             imdbCustomListUrl: 'IMDb List URL',
                             letterboxdCustomListUrl: 'Letterboxd List URL',
                             maxSeasonsToRequest: 'Max Seasons to Request',

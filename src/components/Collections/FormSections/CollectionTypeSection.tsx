@@ -173,7 +173,7 @@ const CollectionTypeSection = ({
           { value: 'trending_week', label: 'Trending This Week' },
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
-          { value: 'custom', label: 'Custom Collection' },
+          { value: 'custom', label: 'Custom Collection/List' },
           {
             value: 'random',
             label: 'Random Lists',

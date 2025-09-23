@@ -140,30 +140,80 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         break;
       }
       case 'custom': {
-        if (!config.tmdbCustomListUrl) {
+        if (!config.tmdbCustomCollectionUrl) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
             'Custom TMDb URL required'
           );
         }
-        const urlMatch = config.tmdbCustomListUrl.match(
+
+        // Check if it's a collection URL
+        const collectionMatch = config.tmdbCustomCollectionUrl.match(
           /themoviedb\.org\/collection\/(\d+)/
         );
-        if (!urlMatch) {
+
+        // Check if it's a list URL
+        const listMatch = config.tmdbCustomCollectionUrl.match(
+          /themoviedb\.org\/list\/(\d+)/
+        );
+
+        if (collectionMatch) {
+          // Handle TMDb Collection
+          const collectionData = await this.tmdbClient.getCollection({
+            collectionId: parseInt(collectionMatch[1], 10),
+          });
+          if (collectionData.parts) {
+            tmdbData.push(
+              ...collectionData.parts.map((item) => ({
+                ...item,
+                media_type: 'movie' as const,
+              }))
+            );
+          }
+        } else if (listMatch) {
+          // Handle TMDb List with pagination (fetch ALL items like Trakt does)
+          const listId = listMatch[1];
+          let currentPage = 1;
+          const allItems: TmdbSourceData[] = [];
+
+          // Fetch ALL pages of the list (maxItems filtering happens later in applyFilteringToMappedItems)
+          let hasMorePages = true;
+          while (hasMorePages) {
+            const listData = await this.tmdbClient.getList({
+              listId,
+              page: currentPage,
+            });
+
+            if (!listData.items || listData.items.length === 0) {
+              hasMorePages = false;
+              break; // No more items
+            }
+
+            // Add items from this page
+            const normalizedItems = listData.items.map((item) => ({
+              ...item,
+              // Normalize media_type - lists can contain both movies and TV shows
+              media_type:
+                item.media_type === 'movie' || item.media_type === 'tv'
+                  ? item.media_type
+                  : ((item.title ? 'movie' : 'tv') as 'movie' | 'tv'),
+            }));
+
+            allItems.push(...normalizedItems);
+
+            // Stop if this page had fewer items than expected (last page)
+            if (listData.items.length < 20) {
+              hasMorePages = false;
+            }
+
+            currentPage++;
+          }
+
+          tmdbData.push(...allItems);
+        } else {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            'Invalid TMDb collection URL'
-          );
-        }
-        const collectionData = await this.tmdbClient.getCollection({
-          collectionId: parseInt(urlMatch[1], 10),
-        });
-        if (collectionData.parts) {
-          tmdbData.push(
-            ...collectionData.parts.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
+            'Invalid TMDb URL - must be a collection or list URL'
           );
         }
         break;

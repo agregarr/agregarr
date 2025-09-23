@@ -5,7 +5,7 @@ import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
   customTraktListUrl: 'Custom Trakt List URL',
-  customTmdbCollectionUrl: 'Custom TMDb Collection URL',
+  customTmdbCollectionUrl: 'Custom TMDb Collection/List URL',
   customImdbListUrl: 'Custom IMDb List URL',
   customLetterboxdListUrl: 'Custom Letterboxd List URL',
   customMdblistListUrl: 'Custom MDBList List URL',
@@ -67,7 +67,8 @@ const CustomUrlSection = ({
   const handleFetchTitle = async (
     type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist'
   ) => {
-    const urlField = `${type}CustomListUrl`;
+    const urlField =
+      type === 'tmdb' ? 'tmdbCustomCollectionUrl' : `${type}CustomListUrl`;
     const url = String((values as Record<string, unknown>)[urlField] || '');
 
     if (!url) return;
@@ -136,12 +137,12 @@ const CustomUrlSection = ({
     );
   }
 
-  // Custom TMDb Collection URL
+  // Custom TMDb Collection/List URL
   if (values.type === 'tmdb' && values.subtype === 'custom') {
     return (
       <div>
         <label
-          htmlFor="tmdbCustomListUrl"
+          htmlFor="tmdbCustomCollectionUrl"
           className="mb-2 block text-sm text-gray-300"
         >
           {intl.formatMessage(messages.customTmdbCollectionUrl)}{' '}
@@ -150,16 +151,16 @@ const CustomUrlSection = ({
         <div className="flex gap-2">
           <Field
             type="url"
-            id="tmdbCustomListUrl"
-            name="tmdbCustomListUrl"
-            placeholder="https://www.themoviedb.org/collection/12345"
+            id="tmdbCustomCollectionUrl"
+            name="tmdbCustomCollectionUrl"
+            placeholder="https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310"
             className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTmdbTitle && (
             <button
               type="button"
               onClick={() => handleFetchTitle('tmdb')}
-              disabled={!values.tmdbCustomListUrl || isLoadingTitle.tmdb}
+              disabled={!values.tmdbCustomCollectionUrl || isLoadingTitle.tmdb}
               className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoadingTitle.tmdb
@@ -169,12 +170,13 @@ const CustomUrlSection = ({
           )}
         </div>
         <ErrorMessage
-          name="tmdbCustomListUrl"
+          name="tmdbCustomCollectionUrl"
           component="div"
           className="mt-1 text-sm text-red-500"
         />
         <p className="mt-1 text-xs text-gray-400">
-          Example: https://www.themoviedb.org/collection/12345-collection-name
+          Examples: https://www.themoviedb.org/collection/12345-collection-name
+          or https://www.themoviedb.org/list/310-my-movie-list
         </p>
       </div>
     );

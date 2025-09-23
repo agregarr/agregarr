@@ -360,10 +360,10 @@ components:
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
-        tmdbCustomListUrl:
+        tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)"
-          example: "https://www.themoviedb.org/collection/123456"
+          description: "Custom TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -680,10 +680,10 @@ components:
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
-        tmdbCustomListUrl:
+        tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)"
-          example: "https://www.themoviedb.org/collection/123456"
+          description: "Custom TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -1001,10 +1001,10 @@ components:
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
-        tmdbCustomListUrl:
+        tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)"
-          example: "https://www.themoviedb.org/collection/123456"
+          description: "Custom TMDb collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
           type: string
