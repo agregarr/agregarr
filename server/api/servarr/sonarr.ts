@@ -208,42 +208,17 @@ class SonarrAPI extends ServarrBase<{
         return series;
       }
 
-      // Series exists in Sonarr but is not monitored and has no episodes
+      // Series exists in Sonarr but is unmonitored - respect user's choice to keep it unmonitored
       if (series.id && !series.monitored) {
-        series.monitored = options.monitored ?? true;
-        series.tags = options.tags
-          ? Array.from(new Set([...series.tags, ...options.tags]))
-          : series.tags;
-        series.seasons = this.buildSeasonList(options.seasons, series.seasons);
-
-        const newSeriesResponse = await this.axios.put<SonarrSeries>(
-          '/series',
-          series
-        );
-
-        if (newSeriesResponse.data.id) {
-          logger.info('Updated existing unmonitored series in Sonarr.', {
+        logger.info(
+          'Series exists in Sonarr but is unmonitored. Respecting user choice and skipping.',
+          {
             label: 'Sonarr',
-            seriesId: newSeriesResponse.data.id,
-            seriesTitle: newSeriesResponse.data.title,
-          });
-          logger.debug('Sonarr update details', {
-            label: 'Sonarr',
-            movie: newSeriesResponse.data,
-          });
-
-          if (options.searchNow) {
-            this.searchSeries(newSeriesResponse.data.id);
+            seriesId: series.id,
+            seriesTitle: series.title,
           }
-
-          return newSeriesResponse.data;
-        } else {
-          logger.error('Failed to update series in Sonarr', {
-            label: 'Sonarr',
-            options,
-          });
-          throw new Error('Failed to update series in Sonarr');
-        }
+        );
+        return series;
       }
 
       // Series exists and is already monitored - skip adding
