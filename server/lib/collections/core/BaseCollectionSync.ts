@@ -1486,9 +1486,23 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     const { filteredItems: items, stats: filteringStats } =
       this.applyCommonFiltering(mappedResult.items, config);
 
+    // Filter missing items by the same maxItems limit applied to collection items
+    // This ensures we only create requests for missing items from the first maxItems positions
+    let filteredMissingItems = mappedResult.missingItems;
+    if (
+      filteredMissingItems &&
+      config.maxItems &&
+      config.maxItems > 0 &&
+      filteredMissingItems.length > 0
+    ) {
+      filteredMissingItems = filteredMissingItems.filter(
+        (item) => item.originalPosition <= config.maxItems
+      );
+    }
+
     return {
       items,
-      missingItems: mappedResult.missingItems,
+      missingItems: filteredMissingItems,
       mappingStats: mappedResult.stats,
       filteringStats,
     };
