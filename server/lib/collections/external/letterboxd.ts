@@ -1,5 +1,6 @@
 import type PlexAPI from '@server/api/plexapi';
 import TmdbAPI from '@server/api/themoviedb';
+import type { TmdbMovieResult } from '@server/api/themoviedb/interfaces';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
   findPlexItemsByTmdbIds,
@@ -261,26 +262,33 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
             });
 
             if (searchResults.results && searchResults.results.length > 0) {
-              const tmdbMovie = searchResults.results[0];
-              return {
-                title: item.title,
-                year: item.year,
-                letterboxdUrl: item.letterboxdUrl,
-                tmdbId: tmdbMovie.id,
-                mediaType: 'movie' as const,
-              };
-            } else {
-              logger.warn(
-                `No TMDB match found for Letterboxd item: ${item.title} (${item.year})`,
-                {
-                  label: 'Letterboxd Collections',
-                  configName: config.name,
-                  itemTitle: item.title,
-                  itemYear: item.year,
-                }
+              const tmdbMovie = this.findBestTmdbMatch(
+                searchResults.results,
+                item.title,
+                item.year
               );
-              return null;
+
+              if (tmdbMovie) {
+                return {
+                  title: item.title,
+                  year: item.year,
+                  letterboxdUrl: item.letterboxdUrl,
+                  tmdbId: tmdbMovie.id,
+                  mediaType: 'movie' as const,
+                };
+              }
             }
+
+            logger.warn(
+              `No TMDB match found for Letterboxd item: ${item.title} (${item.year})`,
+              {
+                label: 'Letterboxd Collections',
+                configName: config.name,
+                itemTitle: item.title,
+                itemYear: item.year,
+              }
+            );
+            return null;
           } catch (error) {
             logger.warn(`Error resolving TMDB ID for ${item.title}:`, {
               label: 'Letterboxd Collections',
@@ -864,5 +872,135 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       });
       return '';
     }
+  }
+
+  /**
+   * Find the best TMDB match from search results using intelligent scoring
+   */
+  private findBestTmdbMatch(
+    results: TmdbMovieResult[],
+    targetTitle: string,
+    targetYear: number
+  ): TmdbMovieResult | null {
+    if (!results || results.length === 0) return null;
+
+    let bestMatch = null;
+    let bestScore = -1;
+
+    for (const result of results) {
+      const score = this.calculateMatchScore(result, targetTitle, targetYear);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = result;
+      }
+    }
+
+    // Only return a match if it meets a minimum threshold
+    if (bestScore >= 0.3) {
+      logger.debug(`Best TMDB match found`, {
+        label: 'Letterboxd Collections',
+        targetTitle,
+        targetYear,
+        matchedTitle: bestMatch?.title || bestMatch?.original_title,
+        matchedYear: this.extractYearFromDate(bestMatch?.release_date),
+        score: bestScore,
+      });
+      return bestMatch;
+    }
+
+    logger.warn(`No good TMDB match found (best score: ${bestScore})`, {
+      label: 'Letterboxd Collections',
+      targetTitle,
+      targetYear,
+      resultCount: results.length,
+    });
+    return null;
+  }
+
+  /**
+   * Calculate match score for a TMDB result
+   */
+  private calculateMatchScore(
+    result: TmdbMovieResult,
+    targetTitle: string,
+    targetYear: number
+  ): number {
+    let score = 0;
+
+    // Get titles and year from TMDB result
+    const tmdbTitle = result.title || '';
+    const tmdbOriginalTitle = result.original_title || '';
+    const tmdbYear = this.extractYearFromDate(result.release_date);
+
+    // Title matching (70% of score)
+    const titleScore = Math.max(
+      this.calculateTitleSimilarity(targetTitle, tmdbTitle),
+      this.calculateTitleSimilarity(targetTitle, tmdbOriginalTitle)
+    );
+    score += titleScore * 0.7;
+
+    // Year matching (25% of score)
+    if (tmdbYear && Math.abs(tmdbYear - targetYear) === 0) {
+      score += 0.25; // Exact year match
+    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 1) {
+      score += 0.15; // Close year match (±1 year)
+    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 2) {
+      score += 0.05; // Somewhat close year match (±2 years)
+    }
+
+    // Popularity boost (5% of score) - normalized by typical TMDB popularity ranges
+    const popularityScore = Math.min(result.popularity / 100, 1) * 0.05;
+    score += popularityScore;
+
+    return score;
+  }
+
+  /**
+   * Calculate title similarity using multiple methods
+   */
+  private calculateTitleSimilarity(title1: string, title2: string): number {
+    const clean1 = this.cleanTitle(title1);
+    const clean2 = this.cleanTitle(title2);
+
+    // Exact match
+    if (clean1 === clean2) return 1.0;
+
+    // Check if one title contains the other (for cases like "Movie" vs "Movie: Subtitle")
+    if (clean1.includes(clean2) || clean2.includes(clean1)) {
+      return 0.9;
+    }
+
+    // Simple word-based similarity
+    const words1 = clean1.split(' ').filter((w) => w.length > 2);
+    const words2 = clean2.split(' ').filter((w) => w.length > 2);
+
+    if (words1.length === 0 || words2.length === 0) return 0;
+
+    const commonWords = words1.filter((word) => words2.includes(word));
+    const similarity =
+      commonWords.length / Math.max(words1.length, words2.length);
+
+    return similarity;
+  }
+
+  /**
+   * Clean title for comparison
+   */
+  private cleanTitle(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '') // Remove punctuation
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  }
+
+  /**
+   * Extract year from TMDB date string
+   */
+  private extractYearFromDate(dateString?: string): number | null {
+    if (!dateString) return null;
+    const year = parseInt(dateString.substring(0, 4));
+    return isNaN(year) ? null : year;
   }
 }
