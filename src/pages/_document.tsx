@@ -13,7 +13,13 @@ class MyDocument extends Document {
   render(): JSX.Element {
     return (
       <Html>
-        <Head>{/* Local fonts will be loaded dynamically */}</Head>
+        <Head>
+          <link rel="preconnect" href="https://fonts.gstatic.com" />
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+          />
+        </Head>
         <body>
           <Main />
           <NextScript />

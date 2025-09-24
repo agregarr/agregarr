@@ -9,6 +9,7 @@ import type {
   FormConfigType,
   Library,
 } from '@app/types/collections';
+import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
   closestCenter,
   DndContext,
@@ -677,6 +678,20 @@ const SortableItem = ({
                 Time Restrictions Set
               </Badge>
             )}
+
+            {/* Custom Sync Schedule Badge (only for Agregarr collections) */}
+            {isCollection &&
+              (() => {
+                const collection = config as CollectionFormConfig;
+                const syncBadgeText = formatSyncScheduleBadge(
+                  collection.customSyncSchedule
+                );
+                return syncBadgeText ? (
+                  <Badge badgeType="warning" className="!bg-opacity-40">
+                    {syncBadgeText}
+                  </Badge>
+                ) : null;
+              })()}
           </div>
         </div>
       </div>

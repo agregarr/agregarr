@@ -42,7 +42,7 @@ const messages = defineMessages({
     'Choose from predefined sync intervals, or select "Custom" to specify a cron expression.',
   customSyncStartNow: 'Start immediately',
   customSyncStartNowHelp:
-    'Uncheck to set a specific start date/time for the sync cycle (e.g., yearly collections that should start on January 1st). You can still use Manual Sync to populate the collection before the scheduled time.',
+    'Uncheck to set a specific date/time for the sync cycle to based off (e.g. "Best Movies This Year" collection that should be updated on January 1st). You can still use Manual Sync to populate the collection before the scheduled time.',
   customSyncStartDate: 'Start date',
   customSyncStartTime: 'Start time',
 });

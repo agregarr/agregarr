@@ -193,13 +193,20 @@ export class ServiceUserManager {
               }
             );
           } catch (error) {
-            logger.error(
-              `Failed to update external permissions for: ${config.displayName}`,
+            // If permission update fails (likely due to stale user ID), re-ensure external user
+            logger.warn(
+              `Permission update failed for external user ${serviceUser.externalOverseerrId}, re-ensuring user: ${config.displayName}`,
               {
                 label: 'Service User Manager',
+                externalUserId: serviceUser.externalOverseerrId,
                 error: error instanceof Error ? error.message : String(error),
               }
             );
+
+            // Clear stale external user ID and re-ensure external user
+            serviceUser.externalOverseerrId = undefined;
+            await this.userRepository.save(serviceUser);
+            await this.ensureExternalUser(serviceUser, config);
           }
         }
 
@@ -473,13 +480,45 @@ export class ServiceUserManager {
           overseerrPermissions
         );
       } catch (error) {
-        logger.error(
-          `Failed to update external permissions for: ${config.username}`,
+        // If permission update fails (likely due to stale user ID), clear and recreate
+        logger.warn(
+          `Permission update failed for external user ${user.externalOverseerrId}, recreating user: ${config.username}`,
           {
             label: 'Service User Manager',
             externalUserId: user.externalOverseerrId,
             error: error instanceof Error ? error.message : String(error),
           }
+        );
+
+        // Clear stale external user ID and recreate
+        user.externalOverseerrId = undefined;
+        await this.userRepository.save(user);
+
+        // Try to find existing user by email first, or create new one
+        let externalUser = await this.findExistingUserByEmail(config.email);
+
+        if (!externalUser) {
+          // External user doesn't exist, create it
+          const password = this.generateSecurePassword();
+          externalUser = await overseerrAPI.createUser({
+            username: config.username,
+            email: config.email,
+            password: password,
+            displayName: config.displayName,
+          });
+        }
+
+        // Update internal user with external ID
+        user.externalOverseerrId = externalUser.id;
+        await this.userRepository.save(user);
+
+        // Set appropriate permissions for the external user
+        const overseerrPermissions = this.mapToOverseerrPermissions(
+          config.permissions
+        );
+        await overseerrAPI.updateUserPermissions(
+          externalUser.id,
+          overseerrPermissions
         );
       }
     }

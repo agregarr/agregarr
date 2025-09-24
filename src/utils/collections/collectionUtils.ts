@@ -1,4 +1,9 @@
-import type { CollectionFormConfig, Library } from '@app/types/collections';
+import type {
+  CollectionFormConfig,
+  CustomSyncSchedule,
+  Library,
+} from '@app/types/collections';
+import { SYNC_SCHEDULE_PRESETS } from '@app/types/collections';
 
 /**
  * Frontend utility functions for collection configuration management
@@ -336,3 +341,87 @@ export const prepareLinkedConfigForEditing = <
     return config;
   }
 };
+
+/**
+ * Format custom sync schedule for badge display
+ */
+export function formatSyncScheduleBadge(
+  customSyncSchedule?: CustomSyncSchedule
+): string | null {
+  if (!customSyncSchedule?.enabled) {
+    return null; // No badge when sync schedule is disabled
+  }
+
+  if (
+    customSyncSchedule.scheduleType === 'preset' &&
+    customSyncSchedule.preset
+  ) {
+    // Find the matching preset
+    const preset = SYNC_SCHEDULE_PRESETS.find(
+      (p) => p.key === customSyncSchedule.preset
+    );
+    if (preset) {
+      // Convert preset label to badge format
+      // "Every 2 hours" -> "Sync: 2 hourly"
+      // "Once daily" -> "Sync: 1 daily"
+      // "Once weekly" -> "Sync: 1 weekly"
+      // "Once yearly" -> "Sync: 1 yearly"
+      const label = preset.label.toLowerCase();
+
+      if (label.includes('every') && label.includes('hour')) {
+        const match = label.match(/every (\d+) hours?/);
+        return match ? `Sync: ${match[1]} hourly` : 'Sync: hourly';
+      }
+
+      if (label.includes('every') && label.includes('minute')) {
+        const match = label.match(/every (\d+) minutes?/);
+        return match ? `Sync: ${match[1]} min` : 'Sync: minutes';
+      }
+
+      if (label.includes('every') && label.includes('day')) {
+        const match = label.match(/every (\d+) days?/);
+        return match ? `Sync: ${match[1]} daily` : 'Sync: daily';
+      }
+
+      if (label.includes('every') && label.includes('week')) {
+        const match = label.match(/every (\d+) weeks?/);
+        return match ? `Sync: ${match[1]} weekly` : 'Sync: weekly';
+      }
+
+      if (label.includes('every') && label.includes('month')) {
+        const match = label.match(/every (\d+) months?/);
+        return match ? `Sync: ${match[1]} monthly` : 'Sync: monthly';
+      }
+
+      if (label.includes('once daily')) {
+        return 'Sync: 1 daily';
+      }
+
+      if (label.includes('once weekly')) {
+        return 'Sync: 1 weekly';
+      }
+
+      if (label.includes('once monthly')) {
+        return 'Sync: 1 monthly';
+      }
+
+      if (label.includes('once yearly')) {
+        return 'Sync: 1 yearly';
+      }
+
+      // Fallback for other preset formats
+      return `Sync: ${preset.label}`;
+    }
+  }
+
+  if (
+    customSyncSchedule.scheduleType === 'custom' &&
+    customSyncSchedule.customCron
+  ) {
+    // For custom cron, just show "Sync: Custom"
+    return 'Sync: Custom';
+  }
+
+  // Fallback
+  return 'Sync: Custom';
+}

@@ -101,15 +101,6 @@ const AutoRequestSection = ({
       ? sonarrServers[0].id
       : !sonarrLoading && sonarrServers?.find((s) => s.isDefault)?.id);
 
-  // Debug logging - remove after fixing
-  console.log('Debug dropdown issue:', {
-    radarrLoading,
-    radarrServers: radarrServers?.length,
-    radarrDefault: radarrServers?.find((s) => s.isDefault),
-    effectiveRadarrServerId,
-    directDownloadRadarrServerId: values.directDownloadRadarrServerId,
-  });
-
   // Fetch profiles for selected servers or default/single server
   const { data: radarrProfiles } = useSWR<{ id: number; name: string }[]>(
     effectiveRadarrServerId !== undefined

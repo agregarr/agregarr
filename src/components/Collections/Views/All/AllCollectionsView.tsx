@@ -9,6 +9,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import { useCollectionEdit } from '@app/hooks/collections/useCollectionEdit';
 import type { CollectionFormConfig, Library } from '@app/types/collections';
+import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -986,6 +987,24 @@ const AllCollectionsView: React.FC = () => {
                           Time Restrictions Set
                         </Badge>
                       )}
+
+                      {/* Custom Sync Schedule Badge (only for Agregarr collections) */}
+                      {isCollection &&
+                        (() => {
+                          const collectionConfig =
+                            collection.originalConfig as CollectionFormConfig;
+                          const syncBadgeText = formatSyncScheduleBadge(
+                            collectionConfig.customSyncSchedule
+                          );
+                          return syncBadgeText ? (
+                            <Badge
+                              badgeType="warning"
+                              className="!bg-opacity-40"
+                            >
+                              {syncBadgeText}
+                            </Badge>
+                          ) : null;
+                        })()}
                     </div>
                   </div>
                 </div>
