@@ -300,6 +300,22 @@ const CollectionSettings = ({
           ...(collectionConfig.downloadMode && {
             downloadMode: collectionConfig.downloadMode,
           }),
+          ...(collectionConfig.directDownloadRadarrServerId !== undefined && {
+            directDownloadRadarrServerId:
+              collectionConfig.directDownloadRadarrServerId,
+          }),
+          ...(collectionConfig.directDownloadRadarrProfileId !== undefined && {
+            directDownloadRadarrProfileId:
+              collectionConfig.directDownloadRadarrProfileId,
+          }),
+          ...(collectionConfig.directDownloadSonarrServerId !== undefined && {
+            directDownloadSonarrServerId:
+              collectionConfig.directDownloadSonarrServerId,
+          }),
+          ...(collectionConfig.directDownloadSonarrProfileId !== undefined && {
+            directDownloadSonarrProfileId:
+              collectionConfig.directDownloadSonarrProfileId,
+          }),
           ...(collectionConfig.searchMissingMovies !== undefined && {
             searchMissingMovies: collectionConfig.searchMissingMovies,
           }),
@@ -497,6 +513,18 @@ const CollectionSettings = ({
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
           ...(config.downloadMode && { downloadMode: config.downloadMode }),
+          ...(config.directDownloadRadarrServerId !== undefined && {
+            directDownloadRadarrServerId: config.directDownloadRadarrServerId,
+          }),
+          ...(config.directDownloadRadarrProfileId !== undefined && {
+            directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
+          }),
+          ...(config.directDownloadSonarrServerId !== undefined && {
+            directDownloadSonarrServerId: config.directDownloadSonarrServerId,
+          }),
+          ...(config.directDownloadSonarrProfileId !== undefined && {
+            directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
+          }),
           ...(config.isLinked !== undefined && { isLinked: config.isLinked }),
           ...(config.linkId !== undefined && { linkId: config.linkId }),
           ...(config.isUnlinked !== undefined && {
@@ -1681,6 +1709,14 @@ const CollectionSettings = ({
               visibilityConfig: masterConfig.visibilityConfig,
               maxItems: masterConfig.maxItems,
               downloadMode: masterConfig.downloadMode,
+              directDownloadRadarrServerId:
+                masterConfig.directDownloadRadarrServerId,
+              directDownloadRadarrProfileId:
+                masterConfig.directDownloadRadarrProfileId,
+              directDownloadSonarrServerId:
+                masterConfig.directDownloadSonarrServerId,
+              directDownloadSonarrProfileId:
+                masterConfig.directDownloadSonarrProfileId,
               searchMissingMovies: masterConfig.searchMissingMovies,
               searchMissingTV: masterConfig.searchMissingTV,
               autoApproveMovies: masterConfig.autoApproveMovies,

@@ -855,6 +855,32 @@ components:
               example: '2024-01-01T09:00:00.000Z'
               nullable: true
           nullable: true
+        downloadMode:
+          type: string
+          enum: ['overseerr', 'direct']
+          description: "Download method: overseerr (requests) or direct (*arr)"
+          example: 'overseerr'
+          nullable: true
+        directDownloadRadarrServerId:
+          type: integer
+          description: "Selected Radarr server ID for movies (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadRadarrProfileId:
+          type: integer
+          description: "Selected Radarr profile ID for movies (when downloadMode is 'direct')"
+          example: 3
+          nullable: true
+        directDownloadSonarrServerId:
+          type: integer
+          description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadSonarrProfileId:
+          type: integer
+          description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
+          example: 2
+          nullable: true
       required:
         - id
         - name
@@ -1233,6 +1259,32 @@ components:
               description: "ISO timestamp of when this schedule was first created (for persistence across restarts)"
               example: '2024-01-01T09:00:00.000Z'
               nullable: true
+          nullable: true
+        downloadMode:
+          type: string
+          enum: ['overseerr', 'direct']
+          description: "Download method: overseerr (requests) or direct (*arr)"
+          example: 'overseerr'
+          nullable: true
+        directDownloadRadarrServerId:
+          type: integer
+          description: "Selected Radarr server ID for movies (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadRadarrProfileId:
+          type: integer
+          description: "Selected Radarr profile ID for movies (when downloadMode is 'direct')"
+          example: 3
+          nullable: true
+        directDownloadSonarrServerId:
+          type: integer
+          description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadSonarrProfileId:
+          type: integer
+          description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
+          example: 2
           nullable: true
       required:
         - id

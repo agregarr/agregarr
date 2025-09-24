@@ -79,6 +79,12 @@ export interface CollectionConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
+
+  // Direct download server selection (for downloadMode: 'direct')
+  readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
+  readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
+  readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
+  readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
   // TMDB custom list fields

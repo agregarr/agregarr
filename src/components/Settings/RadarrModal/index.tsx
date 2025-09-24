@@ -105,9 +105,9 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
     tags: [],
   });
   const RadarrSettingsSchema = Yup.object().shape({
-    // name: Yup.string().required( // Removed since name field is removed
-    //   intl.formatMessage(messages.validationNameRequired)
-    // ),
+    name: Yup.string().required(
+      intl.formatMessage(messages.validationNameRequired)
+    ),
     hostname: Yup.string()
       .required(intl.formatMessage(messages.validationHostnameRequired))
       .matches(
@@ -236,8 +236,7 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
           rootFolder: radarr?.activeDirectory,
           minimumAvailability: radarr?.minimumAvailability ?? 'released',
           tags: radarr?.tags ?? [],
-          // isDefault: radarr?.isDefault ?? false,
-          // is4k: radarr?.is4k ?? false,
+          isDefault: radarr?.isDefault ?? false,
           externalUrl: radarr?.externalUrl,
           // syncEnabled: radarr?.syncEnabled ?? false, // Removed field
           // enableSearch: !radarr?.preventSearch, // Removed field
@@ -260,10 +259,10 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               activeProfileId: Number(values.activeProfileId),
               activeProfileName: profileName,
               activeDirectory: values.rootFolder,
-              // is4k: values.is4k,
               minimumAvailability: values.minimumAvailability,
               tags: values.tags,
-              isDefault: true, // Always default since no 4K option
+              isDefault: values.isDefault,
+              is4k: false,
               externalUrl: values.externalUrl,
               // syncEnabled: values.syncEnabled, // Removed field
               // preventSearch: !values.enableSearch, // Removed field
@@ -340,27 +339,30 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               }
             >
               <div className="mb-6">
-                {/* <div className="form-row">
+                <div className="form-row">
                   <label htmlFor="isDefault" className="checkbox-label">
-                    {intl.formatMessage(
-                      values.is4k
-                        ? messages.default4kserver
-                        : messages.defaultserver
-                    )}
+                    {intl.formatMessage(messages.defaultserver)}
                   </label>
                   <div className="form-input-area">
                     <Field type="checkbox" id="isDefault" name="isDefault" />
                   </div>
                 </div>
                 <div className="form-row">
-                  <label htmlFor="is4k" className="checkbox-label">
-                    {intl.formatMessage(messages.server4k)}
+                  <label htmlFor="name" className="text-label">
+                    {intl.formatMessage(messages.servername)}
+                    <span className="label-required">*</span>
                   </label>
                   <div className="form-input-area">
-                    <Field type="checkbox" id="is4k" name="is4k" />
+                    <div className="form-input-field">
+                      <Field id="name" name="name" type="text" />
+                    </div>
+                    {errors.name &&
+                      touched.name &&
+                      typeof errors.name === 'string' && (
+                        <div className="error">{errors.name}</div>
+                      )}
                   </div>
-                </div> */}
-                {/* Server name field removed */}
+                </div>
                 <div className="form-row">
                   <label htmlFor="hostname" className="text-label">
                     {intl.formatMessage(messages.hostname)}

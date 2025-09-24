@@ -301,6 +301,13 @@ const CollectionFormConfigForm = ({
       ),
       firstSyncAt: Yup.string(),
     }),
+
+    // Direct download field validation
+    downloadMode: Yup.string().oneOf(['overseerr', 'direct']),
+    directDownloadRadarrServerId: Yup.number().positive().integer(),
+    directDownloadRadarrProfileId: Yup.number().positive().integer(),
+    directDownloadSonarrServerId: Yup.number().positive().integer(),
+    directDownloadSonarrProfileId: Yup.number().positive().integer(),
   });
 
   // Safety check for undefined config
@@ -1824,6 +1831,19 @@ const CollectionFormConfigForm = ({
           maxPositionToProcess:
             (config as CollectionFormConfig).maxPositionToProcess || 0,
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
+          // Direct download server selection
+          directDownloadRadarrServerId:
+            (config as CollectionFormConfig).directDownloadRadarrServerId ||
+            undefined,
+          directDownloadRadarrProfileId:
+            (config as CollectionFormConfig).directDownloadRadarrProfileId ||
+            undefined,
+          directDownloadSonarrServerId:
+            (config as CollectionFormConfig).directDownloadSonarrServerId ||
+            undefined,
+          directDownloadSonarrProfileId:
+            (config as CollectionFormConfig).directDownloadSonarrProfileId ||
+            undefined,
           visibilityConfig: {
             usersHome: config.visibilityConfig?.usersHome ?? false,
             serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? true,
@@ -1991,6 +2011,27 @@ const CollectionFormConfigForm = ({
             minimumYear: values.enableGrabMissingItems
               ? values.minimumYear
               : undefined,
+            // Direct download server selection
+            directDownloadRadarrServerId:
+              values.enableGrabMissingItems &&
+              values.directDownloadRadarrServerId
+                ? parseInt(values.directDownloadRadarrServerId.toString(), 10)
+                : undefined,
+            directDownloadRadarrProfileId:
+              values.enableGrabMissingItems &&
+              values.directDownloadRadarrProfileId
+                ? parseInt(values.directDownloadRadarrProfileId.toString(), 10)
+                : undefined,
+            directDownloadSonarrServerId:
+              values.enableGrabMissingItems &&
+              values.directDownloadSonarrServerId
+                ? parseInt(values.directDownloadSonarrServerId.toString(), 10)
+                : undefined,
+            directDownloadSonarrProfileId:
+              values.enableGrabMissingItems &&
+              values.directDownloadSonarrProfileId
+                ? parseInt(values.directDownloadSonarrProfileId.toString(), 10)
+                : undefined,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
             // Ensure customSyncSchedule is explicitly included
@@ -2523,6 +2564,7 @@ const CollectionFormConfigForm = ({
                                     errors={errors as Record<string, string>}
                                     touched={touched as Record<string, boolean>}
                                     libraries={libraries}
+                                    setFieldValue={setFieldValue}
                                   />
                                 </div>
                               </div>

@@ -23,45 +23,59 @@ export class DirectDownloadService {
   private sonarrAPI: SonarrAPI | null = null;
 
   /**
-   * Get or initialize Radarr API client
+   * Get or initialize Radarr API client for specific server
    */
-  private getRadarrAPI(): RadarrAPI {
-    if (!this.radarrAPI) {
-      const settings = getSettings();
-      // Find default Radarr instance (4K support was removed but can be re-added by filtering r.is4k === false)
-      const radarrSettings = settings.radarr.find((r) => r.isDefault);
+  private getRadarrAPI(serverId?: number): RadarrAPI {
+    const settings = getSettings();
+    let radarrSettings: RadarrSettings | undefined;
 
+    if (serverId) {
+      // Find specific server by ID
+      radarrSettings = settings.radarr.find((r) => r.id === serverId);
+      if (!radarrSettings) {
+        throw new Error(`Radarr server with ID ${serverId} not found`);
+      }
+    } else {
+      // Fall back to default instance for backwards compatibility
+      radarrSettings = settings.radarr.find((r) => r.isDefault);
       if (!radarrSettings) {
         throw new Error('No default Radarr instance configured');
       }
-
-      this.radarrAPI = new RadarrAPI({
-        url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
-        apiKey: radarrSettings.apiKey,
-      });
     }
-    return this.radarrAPI;
+
+    // Always create a new instance to ensure we're using the correct server
+    return new RadarrAPI({
+      url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+      apiKey: radarrSettings.apiKey,
+    });
   }
 
   /**
-   * Get or initialize Sonarr API client
+   * Get or initialize Sonarr API client for specific server
    */
-  private getSonarrAPI(): SonarrAPI {
-    if (!this.sonarrAPI) {
-      const settings = getSettings();
-      // Find default Sonarr instance (4K support was removed but can be re-added by filtering s.is4k === false)
-      const sonarrSettings = settings.sonarr.find((s) => s.isDefault);
+  private getSonarrAPI(serverId?: number): SonarrAPI {
+    const settings = getSettings();
+    let sonarrSettings: SonarrSettings | undefined;
 
+    if (serverId) {
+      // Find specific server by ID
+      sonarrSettings = settings.sonarr.find((s) => s.id === serverId);
+      if (!sonarrSettings) {
+        throw new Error(`Sonarr server with ID ${serverId} not found`);
+      }
+    } else {
+      // Fall back to default instance for backwards compatibility
+      sonarrSettings = settings.sonarr.find((s) => s.isDefault);
       if (!sonarrSettings) {
         throw new Error('No default Sonarr instance configured');
       }
-
-      this.sonarrAPI = new SonarrAPI({
-        url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
-        apiKey: sonarrSettings.apiKey,
-      });
     }
-    return this.sonarrAPI;
+
+    // Always create a new instance to ensure we're using the correct server
+    return new SonarrAPI({
+      url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+      apiKey: sonarrSettings.apiKey,
+    });
   }
 
   /**
@@ -136,7 +150,7 @@ export class DirectDownloadService {
           }
 
           // Check if item is excluded in *arr service
-          if (await this.isItemExcluded(item)) {
+          if (await this.isItemExcluded(item, config)) {
             logger.debug(
               `Skipping ${item.title}: Item is excluded in ${
                 item.mediaType === 'movie' ? 'Radarr' : 'Sonarr'
@@ -151,7 +165,7 @@ export class DirectDownloadService {
           }
 
           // Check if already exists in *arr
-          if (await this.checkAlreadyDownloaded(item)) {
+          if (await this.checkAlreadyDownloaded(item, config)) {
             alreadyDownloadedCount++;
             continue;
           }
@@ -252,7 +266,7 @@ export class DirectDownloadService {
     const tags = [...(radarrSettings.tags || [])];
 
     if (radarrSettings.tagRequests) {
-      const radarrAPI = this.getRadarrAPI();
+      const radarrAPI = this.getRadarrAPI(radarrSettings.id);
       const collectionTagName = this.generateCollectionTag(config.name);
 
       let collectionTag = (await radarrAPI.getTags()).find(
@@ -265,9 +279,23 @@ export class DirectDownloadService {
           collection: config.name,
           newTag: collectionTagName,
         });
-        collectionTag = await radarrAPI.createTag({
-          label: collectionTagName,
-        });
+        try {
+          collectionTag = await radarrAPI.createTag({
+            label: collectionTagName,
+          });
+        } catch (error) {
+          logger.error(
+            `Failed to create tag for collection - continuing without tag`,
+            {
+              label: 'Direct Download Service',
+              collection: config.name,
+              tagName: collectionTagName,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }
+          );
+          // Continue without the collection tag rather than blocking downloads
+          return tags;
+        }
       }
 
       if (collectionTag.id) {
@@ -296,7 +324,7 @@ export class DirectDownloadService {
     const tags = [...(sonarrSettings.tags || [])];
 
     if (sonarrSettings.tagRequests) {
-      const sonarrAPI = this.getSonarrAPI();
+      const sonarrAPI = this.getSonarrAPI(sonarrSettings.id);
       const collectionTagName = this.generateCollectionTag(config.name);
 
       let collectionTag = (await sonarrAPI.getTags()).find(
@@ -309,9 +337,23 @@ export class DirectDownloadService {
           collection: config.name,
           newTag: collectionTagName,
         });
-        collectionTag = await sonarrAPI.createTag({
-          label: collectionTagName,
-        });
+        try {
+          collectionTag = await sonarrAPI.createTag({
+            label: collectionTagName,
+          });
+        } catch (error) {
+          logger.error(
+            `Failed to create tag for collection - continuing without tag`,
+            {
+              label: 'Direct Download Service',
+              collection: config.name,
+              tagName: collectionTagName,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }
+          );
+          // Continue without the collection tag rather than blocking downloads
+          return tags;
+        }
       }
 
       if (collectionTag.id) {
@@ -337,22 +379,38 @@ export class DirectDownloadService {
     item: MissingItem,
     config: CollectionConfig
   ): Promise<void> {
-    const radarrAPI = this.getRadarrAPI();
     const settings = getSettings();
-    const radarrSettings = settings.radarr.find(
-      (r) => r.isDefault // TODO: Add 4K support - && r.is4k === false
-    );
 
-    if (!radarrSettings) {
-      throw new Error('No default Radarr configuration found');
+    // Use collection-specific server or fall back to default
+    let radarrSettings: RadarrSettings | undefined;
+    if (config.directDownloadRadarrServerId) {
+      radarrSettings = settings.radarr.find(
+        (r) => r.id === config.directDownloadRadarrServerId
+      );
+      if (!radarrSettings) {
+        throw new Error(
+          `Radarr server with ID ${config.directDownloadRadarrServerId} not found`
+        );
+      }
+    } else {
+      radarrSettings = settings.radarr.find((r) => r.isDefault);
+      if (!radarrSettings) {
+        throw new Error('No default Radarr configuration found');
+      }
     }
+
+    const radarrAPI = this.getRadarrAPI(radarrSettings.id);
+
+    // Use collection-specific profile or fall back to server default
+    const profileId =
+      config.directDownloadRadarrProfileId || radarrSettings.activeProfileId;
 
     await radarrAPI.addMovie({
       title: item.title,
-      qualityProfileId: radarrSettings.activeProfileId,
+      qualityProfileId: profileId,
       minimumAvailability: radarrSettings.minimumAvailability,
       tags: await this.getRadarrTagsWithCollection(radarrSettings, config),
-      profileId: radarrSettings.activeProfileId,
+      profileId: profileId,
       year: item.year || new Date().getFullYear(), // Use item year or current year as fallback
       rootFolderPath: radarrSettings.activeDirectory,
       tmdbId: item.tmdbId,
@@ -365,6 +423,8 @@ export class DirectDownloadService {
       collection: config.name,
       movie: item.title,
       tmdbId: item.tmdbId,
+      radarrServer: `${radarrSettings.hostname}:${radarrSettings.port}`,
+      profileId: profileId,
       tags: await this.getRadarrTagsWithCollection(radarrSettings, config),
     });
   }
@@ -377,15 +437,31 @@ export class DirectDownloadService {
     config: CollectionConfig,
     maxSeasons: number
   ): Promise<void> {
-    const sonarrAPI = this.getSonarrAPI();
     const settings = getSettings();
-    const sonarrSettings = settings.sonarr.find(
-      (s) => s.isDefault // TODO: Add 4K support - && s.is4k === false
-    );
 
-    if (!sonarrSettings) {
-      throw new Error('No default Sonarr configuration found');
+    // Use collection-specific server or fall back to default
+    let sonarrSettings: SonarrSettings | undefined;
+    if (config.directDownloadSonarrServerId) {
+      sonarrSettings = settings.sonarr.find(
+        (s) => s.id === config.directDownloadSonarrServerId
+      );
+      if (!sonarrSettings) {
+        throw new Error(
+          `Sonarr server with ID ${config.directDownloadSonarrServerId} not found`
+        );
+      }
+    } else {
+      sonarrSettings = settings.sonarr.find((s) => s.isDefault);
+      if (!sonarrSettings) {
+        throw new Error('No default Sonarr configuration found');
+      }
     }
+
+    const sonarrAPI = this.getSonarrAPI(sonarrSettings.id);
+
+    // Use collection-specific profile or fall back to server default
+    const profileId =
+      config.directDownloadSonarrProfileId || sonarrSettings.activeProfileId;
 
     // Get TV show details to get TVDB ID (required by Sonarr)
     const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
@@ -412,29 +488,53 @@ export class DirectDownloadService {
     await sonarrAPI.addSeries({
       tvdbid: tvdbId,
       title: item.title,
-      profileId: sonarrSettings.activeProfileId,
+      profileId: profileId,
       languageProfileId: sonarrSettings.activeLanguageProfileId,
       seasons: Array.from({ length: seasonsToMonitor }, (_, i) => i + 1),
       tags: await this.getSonarrTagsWithCollection(sonarrSettings, config),
       rootFolderPath: sonarrSettings.activeDirectory,
       monitored: true,
       seasonFolder: sonarrSettings.enableSeasonFolders,
-      seriesType: 'standard', // Default to standard series type
+      seriesType: sonarrSettings.seriesType || 'standard',
       searchNow: true, // Immediately start searching for episodes
+    });
+
+    logger.debug('Added TV series to Sonarr for collection', {
+      label: 'Direct Download Service',
+      collection: config.name,
+      series: item.title,
+      tmdbId: item.tmdbId,
+      tvdbId: tvdbId,
+      sonarrServer: `${sonarrSettings.hostname}:${sonarrSettings.port}`,
+      profileId: profileId,
+      seasonsToMonitor: seasonsToMonitor,
     });
   }
 
   /**
    * Check if an item is excluded in the appropriate *arr service
    */
-  private async isItemExcluded(item: MissingItem): Promise<boolean> {
+  private async isItemExcluded(
+    item: MissingItem,
+    config: CollectionConfig
+  ): Promise<boolean> {
     try {
       if (item.mediaType === 'movie') {
-        const radarrAPI = this.getRadarrAPI();
+        const settings = getSettings();
+        const radarrServerId =
+          config.directDownloadRadarrServerId ||
+          settings.radarr.find((r) => r.isDefault)?.id;
+
+        const radarrAPI = this.getRadarrAPI(radarrServerId);
         const exclusions = await radarrAPI.getExclusions();
         return exclusions.some((exclusion) => exclusion.tmdbId === item.tmdbId);
       } else if (item.mediaType === 'tv') {
-        const sonarrAPI = this.getSonarrAPI();
+        const settings = getSettings();
+        const sonarrServerId =
+          config.directDownloadSonarrServerId ||
+          settings.sonarr.find((s) => s.isDefault)?.id;
+
+        const sonarrAPI = this.getSonarrAPI(sonarrServerId);
         const exclusions = await sonarrAPI.getExclusions();
         const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
         return tvdbId
@@ -457,14 +557,27 @@ export class DirectDownloadService {
   /**
    * Check if an item is already downloaded in the appropriate *arr service
    */
-  private async checkAlreadyDownloaded(item: MissingItem): Promise<boolean> {
+  private async checkAlreadyDownloaded(
+    item: MissingItem,
+    config: CollectionConfig
+  ): Promise<boolean> {
     try {
       if (item.mediaType === 'movie') {
-        const radarrAPI = this.getRadarrAPI();
+        const settings = getSettings();
+        const radarrServerId =
+          config.directDownloadRadarrServerId ||
+          settings.radarr.find((r) => r.isDefault)?.id;
+
+        const radarrAPI = this.getRadarrAPI(radarrServerId);
         const existingMovie = await radarrAPI.getMovieByTmdbId(item.tmdbId);
         return existingMovie && existingMovie.hasFile;
       } else if (item.mediaType === 'tv') {
-        const sonarrAPI = this.getSonarrAPI();
+        const settings = getSettings();
+        const sonarrServerId =
+          config.directDownloadSonarrServerId ||
+          settings.sonarr.find((s) => s.isDefault)?.id;
+
+        const sonarrAPI = this.getSonarrAPI(sonarrServerId);
         const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
         if (!tvdbId) return false;
 

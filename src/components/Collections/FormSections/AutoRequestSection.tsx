@@ -1,5 +1,7 @@
+import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { Field } from 'formik';
 import { defineMessages, useIntl } from 'react-intl';
+import useSWR from 'swr';
 
 const messages = defineMessages({
   grabMissingItems: 'Grab Missing Items',
@@ -36,6 +38,16 @@ const messages = defineMessages({
   autoApproveMissingTV: 'Auto-approve TV show requests',
   autoApproveHelp:
     'Automatically approve requests instead of requiring manual approval',
+
+  // Direct download server selection
+  directDownloadOptions: 'Direct Download Configuration',
+  selectRadarrServer: 'Radarr Server (Movies)',
+  selectRadarrProfile: 'Radarr Quality Profile (Movies)',
+  selectSonarrServer: 'Sonarr Server (TV Shows)',
+  selectSonarrProfile: 'Sonarr Quality Profile (TV Shows)',
+  selectServer: 'Select server...',
+  selectProfile: 'Select quality profile...',
+  selectServerFirst: 'Select a server first',
 });
 
 interface AutoRequestSectionProps {
@@ -43,12 +55,20 @@ interface AutoRequestSectionProps {
     libraryIds?: string[];
     libraryId?: string | string[];
     mediaType?: string;
+    downloadMode?: 'overseerr' | 'direct';
+    searchMissingMovies?: boolean;
+    searchMissingTV?: boolean;
+    directDownloadRadarrServerId?: number;
+    directDownloadRadarrProfileId?: number;
+    directDownloadSonarrServerId?: number;
+    directDownloadSonarrProfileId?: number;
     [key: string]: unknown;
   };
   errors: Record<string, string>;
   touched: Record<string, boolean>;
   libraries: { key: string; name: string; type: string }[];
   isVisible?: boolean;
+  setFieldValue?: (field: string, value: unknown) => void;
 }
 
 const AutoRequestSection = ({
@@ -57,8 +77,50 @@ const AutoRequestSection = ({
   touched,
   libraries = [],
   isVisible = true,
+  setFieldValue,
 }: AutoRequestSectionProps) => {
   const intl = useIntl();
+
+  // Fetch Radarr and Sonarr servers
+  const { data: radarrServers, isLoading: radarrLoading } = useSWR<
+    RadarrSettings[]
+  >('/api/v1/settings/radarr');
+  const { data: sonarrServers, isLoading: sonarrLoading } = useSWR<
+    SonarrSettings[]
+  >('/api/v1/settings/sonarr');
+
+  // Get the effective server IDs (only when server data has loaded)
+  const effectiveRadarrServerId =
+    values.directDownloadRadarrServerId ||
+    (!radarrLoading && radarrServers?.length === 1
+      ? radarrServers[0].id
+      : !radarrLoading && radarrServers?.find((s) => s.isDefault)?.id);
+  const effectiveSonarrServerId =
+    values.directDownloadSonarrServerId ||
+    (!sonarrLoading && sonarrServers?.length === 1
+      ? sonarrServers[0].id
+      : !sonarrLoading && sonarrServers?.find((s) => s.isDefault)?.id);
+
+  // Debug logging - remove after fixing
+  console.log('Debug dropdown issue:', {
+    radarrLoading,
+    radarrServers: radarrServers?.length,
+    radarrDefault: radarrServers?.find((s) => s.isDefault),
+    effectiveRadarrServerId,
+    directDownloadRadarrServerId: values.directDownloadRadarrServerId,
+  });
+
+  // Fetch profiles for selected servers or default/single server
+  const { data: radarrProfiles } = useSWR<{ id: number; name: string }[]>(
+    effectiveRadarrServerId !== undefined
+      ? `/api/v1/settings/radarr/${effectiveRadarrServerId}/profiles`
+      : null
+  );
+  const { data: sonarrProfiles } = useSWR<{ id: number; name: string }[]>(
+    effectiveSonarrServerId !== undefined
+      ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/profiles`
+      : null
+  );
 
   if (!isVisible) return null;
 
@@ -391,6 +453,172 @@ const AutoRequestSection = ({
               </div>
               <div className="label-tip mt-2">
                 {intl.formatMessage(messages.autoApproveHelp)}
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Direct Download Configuration (only show when direct mode is selected) */}
+          {values.downloadMode === 'direct' && (
+            <div className="mb-6">
+              <div className="mb-3 text-sm font-medium text-gray-200">
+                {intl.formatMessage(messages.directDownloadOptions)}
+              </div>
+              <div className="space-y-4">
+                {/* Radarr Server and Profile Selection - only show if movie processing is enabled */}
+                {values.searchMissingMovies && shouldShowMovieSettings() && (
+                  <>
+                    {/* Radarr Server Selection - only show if 2+ servers */}
+                    {radarrServers && radarrServers.length > 1 && (
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(messages.selectRadarrServer)}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="directDownloadRadarrServerId"
+                            onChange={(
+                              e: React.ChangeEvent<HTMLSelectElement>
+                            ) => {
+                              const serverId = e.target.value
+                                ? Number(e.target.value)
+                                : undefined;
+                              setFieldValue?.(
+                                'directDownloadRadarrServerId',
+                                serverId
+                              );
+                              // Clear profile selection when server changes
+                              setFieldValue?.(
+                                'directDownloadRadarrProfileId',
+                                undefined
+                              );
+                            }}
+                          >
+                            <option value="">
+                              {intl.formatMessage(messages.selectServer)}
+                            </option>
+                            {radarrServers.map((server) => (
+                              <option key={server.id} value={server.id}>
+                                {server.name ||
+                                  `${server.hostname}:${server.port}`}
+                                {server.isDefault && ' (Default)'}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Radarr Profile Selection - always show */}
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-gray-300">
+                        {intl.formatMessage(messages.selectRadarrProfile)}
+                      </div>
+                      <div className="form-input-field">
+                        <Field
+                          as="select"
+                          name="directDownloadRadarrProfileId"
+                          disabled={radarrLoading || !radarrProfiles}
+                        >
+                          <option value="">
+                            {radarrLoading
+                              ? 'Loading...'
+                              : effectiveRadarrServerId !== undefined
+                              ? intl.formatMessage(messages.selectProfile)
+                              : intl.formatMessage(messages.selectServerFirst)}
+                          </option>
+                          {radarrProfiles?.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.name}
+                            </option>
+                          ))}
+                        </Field>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Sonarr Server and Profile Selection - only show if TV processing is enabled */}
+                {values.searchMissingTV && shouldShowTvSettings() && (
+                  <>
+                    {/* Sonarr Server Selection - only show if 2+ servers */}
+                    {sonarrServers && sonarrServers.length > 1 && (
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(messages.selectSonarrServer)}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="directDownloadSonarrServerId"
+                            onChange={(
+                              e: React.ChangeEvent<HTMLSelectElement>
+                            ) => {
+                              const serverId = e.target.value
+                                ? Number(e.target.value)
+                                : undefined;
+                              setFieldValue?.(
+                                'directDownloadSonarrServerId',
+                                serverId
+                              );
+                              // Clear profile selection when server changes
+                              setFieldValue?.(
+                                'directDownloadSonarrProfileId',
+                                undefined
+                              );
+                            }}
+                          >
+                            <option value="">
+                              {intl.formatMessage(messages.selectServer)}
+                            </option>
+                            {sonarrServers.map((server) => (
+                              <option key={server.id} value={server.id}>
+                                {server.name ||
+                                  `${server.hostname}:${server.port}`}
+                                {server.isDefault && ' (Default)'}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sonarr Profile Selection - always show */}
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-gray-300">
+                        {intl.formatMessage(messages.selectSonarrProfile)}
+                      </div>
+                      <div className="form-input-field">
+                        <Field
+                          as="select"
+                          name="directDownloadSonarrProfileId"
+                          disabled={sonarrLoading || !sonarrProfiles}
+                        >
+                          <option value="">
+                            {sonarrLoading
+                              ? 'Loading...'
+                              : effectiveSonarrServerId !== undefined
+                              ? intl.formatMessage(messages.selectProfile)
+                              : intl.formatMessage(messages.selectServerFirst)}
+                          </option>
+                          {sonarrProfiles?.map((profile) => (
+                            <option key={profile.id} value={profile.id}>
+                              {profile.name}
+                            </option>
+                          ))}
+                        </Field>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Show message if no processing options are enabled */}
+                {!values.searchMissingMovies && !values.searchMissingTV && (
+                  <div className="text-sm text-gray-400">
+                    Enable movie or TV processing above to configure server and
+                    profile options.
+                  </div>
+                )}
               </div>
             </div>
           )}

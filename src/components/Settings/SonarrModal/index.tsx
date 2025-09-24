@@ -116,9 +116,9 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
     tags: [],
   });
   const SonarrSettingsSchema = Yup.object().shape({
-    // name: Yup.string().required( // Removed since name field is removed
-    //   intl.formatMessage(messages.validationNameRequired)
-    // ),
+    name: Yup.string().required(
+      intl.formatMessage(messages.validationNameRequired)
+    ),
     hostname: Yup.string()
       .required(intl.formatMessage(messages.validationHostnameRequired))
       .matches(
@@ -244,8 +244,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
           rootFolder: sonarr?.activeDirectory,
           seriesType: sonarr?.seriesType,
           tags: sonarr?.tags ?? [],
-          // isDefault: sonarr?.isDefault ?? false,
-          // is4k: sonarr?.is4k ?? false,
+          isDefault: sonarr?.isDefault ?? false,
           externalUrl: sonarr?.externalUrl,
           // syncEnabled: sonarr?.syncEnabled ?? false, // Removed field
           // enableSearch: !sonarr?.preventSearch, // Removed field
@@ -270,8 +269,8 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               activeDirectory: values.rootFolder,
               seriesType: values.seriesType,
               tags: values.tags,
-              // is4k: values.is4k,
-              isDefault: true, // Always default since no 4K option
+              isDefault: values.isDefault,
+              is4k: false,
               externalUrl: values.externalUrl,
               // syncEnabled: values.syncEnabled, // Removed field
               // preventSearch: !values.enableSearch, // Removed field
@@ -348,27 +347,30 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               }
             >
               <div className="mb-6">
-                {/* <div className="form-row">
+                <div className="form-row">
                   <label htmlFor="isDefault" className="checkbox-label">
-                    {intl.formatMessage(
-                      values.is4k
-                        ? messages.default4kserver
-                        : messages.defaultserver
-                    )}
+                    {intl.formatMessage(messages.defaultserver)}
                   </label>
                   <div className="form-input-area">
                     <Field type="checkbox" id="isDefault" name="isDefault" />
                   </div>
                 </div>
                 <div className="form-row">
-                  <label htmlFor="is4k" className="checkbox-label">
-                    {intl.formatMessage(messages.server4k)}
+                  <label htmlFor="name" className="text-label">
+                    {intl.formatMessage(messages.servername)}
+                    <span className="label-required">*</span>
                   </label>
                   <div className="form-input-area">
-                    <Field type="checkbox" id="is4k" name="is4k" />
+                    <div className="form-input-field">
+                      <Field id="name" name="name" type="text" />
+                    </div>
+                    {errors.name &&
+                      touched.name &&
+                      typeof errors.name === 'string' && (
+                        <div className="error">{errors.name}</div>
+                      )}
                   </div>
-                </div> */}
-                {/* Server name field removed */}
+                </div>
                 <div className="form-row">
                   <label htmlFor="hostname" className="text-label">
                     {intl.formatMessage(messages.hostname)}

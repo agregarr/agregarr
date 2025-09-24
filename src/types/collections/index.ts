@@ -219,6 +219,11 @@ export interface CollectionFormConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
+  // Direct download server selection (for downloadMode: 'direct')
+  readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
+  readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
+  readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
+  readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDB custom list fields
@@ -308,12 +313,19 @@ export interface CollectionConfigCreateRequest {
   readonly customDays?: number;
   readonly minimumPlays?: number;
   readonly tautulliStatType?: 'plays' | 'duration';
+  // Download mode settings
+  readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
   readonly searchMissingTV?: boolean;
   readonly autoApproveMovies?: boolean;
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly minimumYear?: number;
+  // Direct download server selection (for downloadMode: 'direct')
+  readonly directDownloadRadarrServerId?: number;
+  readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadSonarrServerId?: number;
+  readonly directDownloadSonarrProfileId?: number;
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomListUrl?: string;
   readonly imdbCustomListUrl?: string;
@@ -379,12 +391,17 @@ export const toCollectionCreateRequest = (
     customDays: config.customDays,
     minimumPlays: config.minimumPlays,
     tautulliStatType: config.tautulliStatType,
+    downloadMode: config.downloadMode,
     searchMissingMovies: config.searchMissingMovies,
     searchMissingTV: config.searchMissingTV,
     autoApproveMovies: config.autoApproveMovies,
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
     minimumYear: config.minimumYear,
+    directDownloadRadarrServerId: config.directDownloadRadarrServerId,
+    directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
+    directDownloadSonarrServerId: config.directDownloadSonarrServerId,
+    directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomListUrl: config.tmdbCustomListUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
