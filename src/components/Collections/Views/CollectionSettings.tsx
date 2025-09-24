@@ -316,6 +316,15 @@ const CollectionSettings = ({
             directDownloadSonarrProfileId:
               collectionConfig.directDownloadSonarrProfileId,
           }),
+          ...(collectionConfig.isMultiSource !== undefined && {
+            isMultiSource: collectionConfig.isMultiSource,
+          }),
+          ...(collectionConfig.sources !== undefined && {
+            sources: collectionConfig.sources,
+          }),
+          ...(collectionConfig.combineMode !== undefined && {
+            combineMode: collectionConfig.combineMode,
+          }),
           ...(collectionConfig.searchMissingMovies !== undefined && {
             searchMissingMovies: collectionConfig.searchMissingMovies,
           }),
@@ -539,6 +548,15 @@ const CollectionSettings = ({
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
           ...(config.libraryNames && { libraryNames: config.libraryNames }),
+          ...(config.isMultiSource !== undefined && {
+            isMultiSource: config.isMultiSource,
+          }),
+          ...(config.sources !== undefined && {
+            sources: config.sources,
+          }),
+          ...(config.combineMode !== undefined && {
+            combineMode: config.combineMode,
+          }),
         };
         await axios.put(
           `/api/v1/collections/${config.id}/settings`,
@@ -1736,6 +1754,9 @@ const CollectionSettings = ({
               mediaType: masterConfig.mediaType,
               customDays: masterConfig.customDays,
               tautulliStatType: masterConfig.tautulliStatType,
+              isMultiSource: masterConfig.isMultiSource,
+              sources: masterConfig.sources,
+              combineMode: masterConfig.combineMode,
               // Set link status
               isLinked: true,
               isUnlinked: undefined, // Clear any unlinked flag

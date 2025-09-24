@@ -1262,8 +1262,9 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
                 priority: source.priority,
               })) || [],
             combineMode:
-              (extendedConfig.combineMode as MultiSourceCombineMode) ||
-              'list_order',
+              (extendedConfig.combineMode as
+                | MultiSourceCombineMode
+                | undefined) ?? 'list_order',
           };
 
           result = await orchestrator.processMultiSourceCollection(
@@ -1388,7 +1389,8 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
     const sanitizedUrl = validation.sanitizedUrl;
 
     let title: string | null = null;
-    let mediaType: 'movie' | 'tv' | 'both' | null = null;
+    let mediaType: 'movie' | 'tv' | 'both' | 'mixed' | null = null;
+    let contentTypes: string[] = [];
 
     switch (type) {
       case 'trakt': {
@@ -1419,14 +1421,20 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
                 (item) => item.type === 'movie' || item.movie
               );
               const hasShows = listData.some(
-                (item) => item.type === 'show' || item.show
+                (item) => (item.type === 'show' || item.show) && !item.episode
               );
+              const hasEpisodes = listData.some((item) => item.episode);
 
-              if (hasMovies && hasShows) {
-                mediaType = 'both';
+              contentTypes = [];
+              if (hasMovies) contentTypes.push('movies');
+              if (hasShows) contentTypes.push('shows');
+              if (hasEpisodes) contentTypes.push('episodes');
+
+              if (contentTypes.length > 1) {
+                mediaType = 'mixed'; // New type for mixed content
               } else if (hasMovies) {
                 mediaType = 'movie';
-              } else if (hasShows) {
+              } else if (hasShows || hasEpisodes) {
                 mediaType = 'tv';
               }
             }
@@ -1562,7 +1570,8 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           }
 
           let movieCount = 0;
-          let tvCount = 0;
+          let showCount = 0;
+          let episodeCount = 0;
 
           // Analyze up to 1000 items to determine media type accurately
           listItemMatches.slice(0, 1000).forEach((item: string) => {
@@ -1581,31 +1590,46 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
             ) {
               movieCount++;
             }
-
-            // Check for TV indicators
-            if (
+            // Check for episode indicators (more specific than shows)
+            else if (
+              lowerItem.includes('tv episode') ||
+              lowerItem.includes('"@type":"episode"') ||
+              lowerItem.includes('"@type":"tvepisode"') ||
+              lowerItem.includes('(tv episode)') ||
+              (lowerItem.includes('season') && lowerItem.includes('episode'))
+            ) {
+              episodeCount++;
+            }
+            // Check for TV show indicators (but not episodes)
+            else if (
               lowerItem.includes('titletype-tv') ||
               lowerItem.includes('tv series') ||
-              lowerItem.includes('tv episode') ||
               lowerItem.includes('tv mini-series') ||
               lowerItem.includes('tv movie') ||
               lowerItem.includes('"@type":"tvseries"') ||
-              lowerItem.includes('"@type":"episode"') ||
               lowerItem.includes('(tv series)') ||
-              lowerItem.includes('(tv episode)') ||
               lowerItem.includes('television')
             ) {
-              tvCount++;
+              showCount++;
             }
           });
 
-          // Determine media type based on what we found
-          if (movieCount > 0 && tvCount === 0) {
+          // Determine media type and content types based on what we found
+          contentTypes = [];
+          if (movieCount > 0) contentTypes.push('movies');
+          if (showCount > 0) contentTypes.push('shows');
+          if (episodeCount > 0) contentTypes.push('episodes');
+
+          const totalTvContent = showCount + episodeCount;
+
+          if (contentTypes.length > 1) {
+            mediaType = 'mixed';
+          } else if (movieCount > 0 && totalTvContent === 0) {
             mediaType = 'movie';
-          } else if (tvCount > 0 && movieCount === 0) {
+          } else if (totalTvContent > 0 && movieCount === 0) {
             mediaType = 'tv';
-          } else if (movieCount > 0 && tvCount > 0) {
-            mediaType = 'both';
+          } else if (movieCount > 0 && totalTvContent > 0) {
+            mediaType = 'mixed';
           } else {
             // Fallback: try to detect from page title or description
             const lowerContent = htmlContent.toLowerCase();
@@ -1614,14 +1638,17 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
               lowerContent.includes('film list')
             ) {
               mediaType = 'movie';
+              contentTypes = ['movies'];
             } else if (
               lowerContent.includes('tv list') ||
               lowerContent.includes('television list') ||
               lowerContent.includes('series list')
             ) {
               mediaType = 'tv';
+              contentTypes = ['shows'];
             } else {
-              mediaType = 'both'; // Default when we can't determine
+              mediaType = 'movie'; // Default when we can't determine
+              contentTypes = ['movies'];
             }
           }
         } catch (error) {
@@ -1798,6 +1825,7 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
       status: 'success',
       title: title,
       mediaType: mediaType,
+      contentTypes: contentTypes,
     });
   } catch (error) {
     logger.error('Error fetching collection title', {

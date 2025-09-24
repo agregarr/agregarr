@@ -454,6 +454,97 @@ export class MultiSourceOrchestrator {
   }
 
   /**
+   * Check if an existing collection needs to be recreated due to type mismatch
+   * This handles cases like cycle_lists mode switching between shows and episodes
+   */
+  private async shouldRecreateCollection(
+    plexClient: PlexAPI,
+    collectionRatingKey: string,
+    currentContainsEpisodes: boolean,
+    mediaType: 'movie' | 'tv'
+  ): Promise<boolean> {
+    // Only need to check TV collections (movies can't have episode content)
+    if (mediaType !== 'tv') {
+      return false;
+    }
+
+    try {
+      // Get current collection items to analyze their type
+      const currentItemRatingKeys = await plexClient.getCollectionItems(
+        collectionRatingKey
+      );
+
+      // For empty collections, we need to check the collection's inherent type
+      // Unfortunately, Plex doesn't directly expose this, but we can infer it by
+      // attempting a test operation or checking collection metadata
+      if (currentItemRatingKeys.length === 0) {
+        // For empty collections, we'll be conservative and recreate if we suspect a mismatch
+        // This is better than failing to add items due to type incompatibility
+        logger.debug(
+          `Empty collection found - will recreate to ensure correct type`,
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionRatingKey,
+            currentContainsEpisodes,
+          }
+        );
+        return true; // Always recreate empty collections to be safe
+      }
+
+      // Sample first few items to determine current collection type
+      const sampleSize = Math.min(currentItemRatingKeys.length, 3);
+      let existingContainsEpisodes = false;
+
+      for (let i = 0; i < sampleSize; i++) {
+        try {
+          const itemDetails = await plexClient.getMetadata(
+            currentItemRatingKeys[i]
+          );
+          // Check if item is an episode (type === 'episode' or has parentRatingKey indicating it's a child item)
+          if (itemDetails?.type === 'episode' || itemDetails?.parentRatingKey) {
+            existingContainsEpisodes = true;
+            break;
+          }
+        } catch (error) {
+          // If we can't get item details, skip this check
+          logger.debug(
+            `Could not check item type for recreation decision: ${error}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              itemRatingKey: currentItemRatingKeys[i],
+            }
+          );
+        }
+      }
+
+      // Return true if there's a type mismatch
+      const needsRecreation =
+        existingContainsEpisodes !== currentContainsEpisodes;
+
+      if (needsRecreation) {
+        logger.debug(`Collection type mismatch detected`, {
+          label: 'Multi-Source Orchestrator',
+          collectionRatingKey,
+          existingContainsEpisodes,
+          currentContainsEpisodes,
+        });
+      }
+
+      return needsRecreation;
+    } catch (error) {
+      logger.warn(
+        `Could not determine if collection needs recreation: ${error}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          collectionRatingKey,
+        }
+      );
+      // If we can't determine, err on the side of recreating to avoid update failures
+      return true;
+    }
+  }
+
+  /**
    * Remove duplicates from items array by ratingKey
    */
   private removeDuplicates(items: CollectionItem[]): CollectionItem[] {
@@ -624,33 +715,90 @@ export class MultiSourceOrchestrator {
 
     if (existingCollection) {
       // UPDATE PATH
-      logger.info(
-        `Updating existing multi-source collection: ${collectionName}`,
-        {
-          label: 'Multi-Source Orchestrator',
-          configId: options.config.id,
-          collectionRatingKey: existingCollection.ratingKey,
-          itemCount: plexItems.length,
-        }
+      // Check if we need to recreate the collection due to type mismatch
+      const currentContainsEpisodes = validItems.some(
+        (item) => item.episodeInfo
       );
 
-      collectionRatingKey = existingCollection.ratingKey;
-      await plexClient.updateCollectionContents(collectionRatingKey, plexItems);
-      updated = 1;
+      // Check the existing collection type by attempting to get its details
+      // We'll detect mismatch by checking if update would fail
+      const needsRecreation = await this.shouldRecreateCollection(
+        plexClient,
+        existingCollection.ratingKey,
+        currentContainsEpisodes,
+        mediaType
+      );
+
+      if (needsRecreation) {
+        logger.info(
+          `Collection type mismatch detected - recreating multi-source collection: ${collectionName}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: options.config.id,
+            oldCollectionRatingKey: existingCollection.ratingKey,
+            currentContainsEpisodes,
+            mediaType,
+          }
+        );
+
+        // Delete existing collection
+        await plexClient.deleteCollection(existingCollection.ratingKey);
+
+        // Create new collection with correct type
+        const newCollectionRatingKey = await plexClient.createEmptyCollection(
+          collectionName,
+          options.libraryKey,
+          mediaType,
+          currentContainsEpisodes
+        );
+
+        if (!newCollectionRatingKey) {
+          throw new Error(`Failed to recreate collection ${collectionName}`);
+        }
+
+        collectionRatingKey = newCollectionRatingKey;
+        await plexClient.updateCollectionContents(
+          collectionRatingKey,
+          plexItems
+        );
+        created = 1; // Mark as created since we recreated it
+      } else {
+        logger.info(
+          `Updating existing multi-source collection: ${collectionName}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: options.config.id,
+            collectionRatingKey: existingCollection.ratingKey,
+            itemCount: plexItems.length,
+          }
+        );
+
+        collectionRatingKey = existingCollection.ratingKey;
+        await plexClient.updateCollectionContents(
+          collectionRatingKey,
+          plexItems
+        );
+        updated = 1;
+      }
     } else {
       // CREATE PATH
+      // Check if any items are episodes to determine collection type (same logic as BaseCollectionSync)
+      const containsEpisodes = validItems.some((item) => item.episodeInfo);
+
       logger.info(`Creating new multi-source collection: ${collectionName}`, {
         label: 'Multi-Source Orchestrator',
         configId: options.config.id,
         libraryId: options.libraryKey,
         itemCount: plexItems.length,
         mediaType,
+        containsEpisodes,
       });
 
       const newCollectionRatingKey = await plexClient.createEmptyCollection(
         collectionName,
         options.libraryKey,
-        mediaType
+        mediaType,
+        containsEpisodes
       );
 
       if (!newCollectionRatingKey) {
@@ -860,7 +1008,7 @@ export class MultiSourceOrchestrator {
       // Determine media type from items or config
       const mediaType = items[0]?.type || config.mediaType || 'movie';
 
-      // Convert collection items to poster items format
+      // Convert collection items to poster items format (same logic as BaseCollectionSync)
       const posterItems: CollectionItemWithPoster[] = items
         .slice(0, 100) // Reasonable upper limit for performance
         .map((item) => ({
@@ -868,6 +1016,8 @@ export class MultiSourceOrchestrator {
           type: item.type as 'movie' | 'tv',
           tmdbId: item.tmdbId,
           year: item.year,
+          episodeInfo: item.episodeInfo, // Essential for episode poster generation
+          metadata: item.metadata, // Contains showTmdbId for episodes
         }));
 
       // Generate the poster using multi-source type

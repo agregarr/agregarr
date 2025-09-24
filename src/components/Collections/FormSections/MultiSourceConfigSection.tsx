@@ -12,7 +12,7 @@ import type {
   TraktSettings,
 } from '@server/lib/settings';
 import { Field } from 'formik';
-import type React from 'react';
+import React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -37,6 +37,12 @@ const messages = defineMessages({
   combineMode: 'Combine Mode',
   addSource: 'Add Source',
   removeSource: 'Remove',
+  validateUrl: 'Validate URL',
+  validatingUrl: 'Validating...',
+  urlValid: 'Valid',
+  urlInvalid: 'Invalid',
+  mixedContentWarning:
+    'Warning: Conflicting episodes/TV show lists detected across sources. Only "Cycle Lists" mode is available to prevent collection type conflicts.',
 });
 
 interface SubtypeOption {
@@ -109,6 +115,15 @@ const NetworksPlatformSelect = ({
   );
 };
 
+interface SourceValidation {
+  isValidating: boolean;
+  isValid: boolean | null;
+  title: string | null;
+  mediaType: 'movie' | 'tv' | 'both' | 'mixed' | null;
+  contentTypes: string[];
+  error: string | null;
+}
+
 interface MultiSourceConfigSectionProps {
   values: MultiSourceCollectionConfig;
   setFieldValue: (
@@ -145,8 +160,156 @@ const MultiSourceConfigSection = ({
     '/api/v1/settings/overseerr'
   );
 
+  // State for tracking validation status of each source (must be before early return)
+  const [sourceValidations, setSourceValidations] = React.useState<
+    Record<string, SourceValidation>
+  >({});
+
+  const sources = React.useMemo(() => values.sources || [], [values.sources]);
+
+  // Validate a source URL using the existing /fetch-title endpoint
+  const validateSourceUrl = React.useCallback(
+    async (sourceId: string, url: string, type: string) => {
+      if (!url?.trim()) return;
+
+      // Set validating state
+      setSourceValidations((prev) => ({
+        ...prev,
+        [sourceId]: {
+          isValidating: true,
+          isValid: null,
+          title: null,
+          mediaType: null,
+          contentTypes: [],
+          error: null,
+        },
+      }));
+
+      try {
+        const response = await fetch('/api/v1/collections/fetch-title', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url, type }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || `Failed to validate ${type} URL`
+          );
+        }
+
+        const data = await response.json();
+
+        // Update validation state with results
+        setSourceValidations((prev) => ({
+          ...prev,
+          [sourceId]: {
+            isValidating: false,
+            isValid: true,
+            title: data.title || null,
+            mediaType: data.mediaType || null,
+            contentTypes: data.contentTypes || [],
+            error: null,
+          },
+        }));
+      } catch (error) {
+        // Update validation state with error
+        setSourceValidations((prev) => ({
+          ...prev,
+          [sourceId]: {
+            isValidating: false,
+            isValid: false,
+            title: null,
+            mediaType: null,
+            contentTypes: [],
+            error: error instanceof Error ? error.message : 'Validation failed',
+          },
+        }));
+      }
+    },
+    []
+  );
+
+  // Detect actual mixed content - episodes vs movies/shows across sources
+  const detectMixedContent = React.useCallback(() => {
+    if (sources.length < 2)
+      return { hasMixedContent: false, allContentTypes: [] };
+
+    // Check if any custom URL contains episodes (requires validation)
+    const hasEpisodes = sources.some((source) => {
+      const validation = sourceValidations[source.id];
+      return (
+        validation?.isValid && validation.contentTypes.includes('episodes')
+      );
+    });
+
+    // Check if any source contains movies/shows
+    const hasMoviesOrShows = sources.some((source) => {
+      const validation = sourceValidations[source.id];
+
+      // If custom URL is validated, check actual content types
+      if (source.subtype === 'custom' && validation?.isValid) {
+        return (
+          validation.contentTypes.includes('movies') ||
+          validation.contentTypes.includes('shows')
+        );
+      }
+
+      // If not custom (preset source), assume it contains movies/shows
+      if (source.subtype !== 'custom' && source.subtype !== '') {
+        return true;
+      }
+
+      return false;
+    });
+
+    // Mixed content exists if we have BOTH episodes AND movies/shows
+    const hasMixedContent = hasEpisodes && hasMoviesOrShows;
+
+    // Collect all content types for display
+    const allContentTypes = new Set<string>();
+
+    // Add content types from validated custom sources
+    sources.forEach((source) => {
+      const validation = sourceValidations[source.id];
+      if (validation?.isValid && validation.contentTypes.length > 0) {
+        validation.contentTypes.forEach((type) => allContentTypes.add(type));
+      }
+    });
+
+    // Add implicit content types for preset sources
+    const hasPresetSources = sources.some(
+      (source) => source.subtype !== 'custom' && source.subtype !== ''
+    );
+    if (hasPresetSources) {
+      allContentTypes.add('movies');
+      allContentTypes.add('shows');
+    }
+
+    return {
+      hasMixedContent,
+      allContentTypes: Array.from(allContentTypes),
+    };
+  }, [sources, sourceValidations]);
+
+  const mixedContentInfo = detectMixedContent();
+
+  // Auto-correct combine mode when mixed content is detected
+  React.useEffect(() => {
+    if (mixedContentInfo.hasMixedContent) {
+      const currentMode = values.combineMode;
+      const disabledModes = ['interleaved', 'list_order', 'randomised'];
+
+      if (disabledModes.includes(currentMode)) {
+        setFieldValue('combineMode', 'cycle_lists');
+      }
+    }
+  }, [mixedContentInfo.hasMixedContent, values.combineMode, setFieldValue]);
+
   if (!isVisible) return null;
-  const sources = values.sources || [];
 
   const addSource = () => {
     const newSource = {
@@ -300,26 +463,31 @@ const MultiSourceConfigSection = ({
     value: MultiSourceCombineMode;
     label: string;
     description: string;
+    disabled?: boolean;
   }[] => [
     {
       value: 'interleaved',
       label: 'Interleaved',
       description: 'Take 1st item from each source, then 2nd from each, etc.',
+      disabled: mixedContentInfo.hasMixedContent,
     },
     {
       value: 'list_order',
       label: 'List Order',
       description: 'All items from source 1, then all from source 2, etc.',
+      disabled: mixedContentInfo.hasMixedContent,
     },
     {
       value: 'randomised',
       label: 'Randomised',
       description: 'Shuffle all items randomly on every sync',
+      disabled: mixedContentInfo.hasMixedContent,
     },
     {
       value: 'cycle_lists',
       label: 'Cycle Lists',
       description: 'Only one source active at a time, rotates each sync',
+      disabled: false, // Always available
     },
   ];
 
@@ -463,21 +631,121 @@ const MultiSourceConfigSection = ({
                   {intl.formatMessage(messages.customUrl)}{' '}
                   <span className="text-red-500">*</span>
                 </label>
-                <Field
-                  type="text"
-                  id={`source-url-${index}`}
-                  name={`sources[${index}].customUrl`}
-                  placeholder={intl.formatMessage(
-                    messages.customUrlPlaceholder
-                  )}
-                  className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    setFieldValue(
-                      `sources[${index}].customUrl`,
-                      e.target.value
+                <div className="flex space-x-2">
+                  <Field
+                    type="text"
+                    id={`source-url-${index}`}
+                    name={`sources[${index}].customUrl`}
+                    placeholder={intl.formatMessage(
+                      messages.customUrlPlaceholder
+                    )}
+                    className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue(
+                        `sources[${index}].customUrl`,
+                        e.target.value
+                      );
+                      // Clear validation when URL changes
+                      setSourceValidations((prev) => ({
+                        ...prev,
+                        [source.id]: {
+                          isValidating: false,
+                          isValid: null,
+                          title: null,
+                          mediaType: null,
+                          contentTypes: [],
+                          error: null,
+                        },
+                      }));
+                    }}
+                  />
+                  <Button
+                    buttonType="ghost"
+                    buttonSize="sm"
+                    disabled={
+                      !source.customUrl?.trim() ||
+                      sourceValidations[source.id]?.isValidating ||
+                      !source.type
+                    }
+                    onClick={() =>
+                      validateSourceUrl(
+                        source.id,
+                        source.customUrl || '',
+                        source.type
+                      )
+                    }
+                  >
+                    {sourceValidations[source.id]?.isValidating
+                      ? intl.formatMessage(messages.validatingUrl)
+                      : intl.formatMessage(messages.validateUrl)}
+                  </Button>
+                </div>
+
+                {/* Validation Status Display */}
+                {(() => {
+                  const validation = sourceValidations[source.id];
+                  if (!validation) return null;
+
+                  if (validation.isValid === true) {
+                    return (
+                      <div className="mt-2 rounded-md border border-green-500/20 bg-green-500/10 p-2">
+                        <div className="flex items-center space-x-2">
+                          <svg
+                            className="h-4 w-4 flex-shrink-0 text-green-400"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-sm text-green-200">
+                              <strong>
+                                {intl.formatMessage(messages.urlValid)}
+                              </strong>
+                              {validation.title && `: ${validation.title}`}
+                            </p>
+                            {validation.contentTypes.length > 0 && (
+                              <p className="text-xs text-green-300">
+                                Contains: {validation.contentTypes.join(', ')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     );
-                  }}
-                />
+                  } else if (validation.isValid === false) {
+                    return (
+                      <div className="mt-2 rounded-md border border-red-500/20 bg-red-500/10 p-2">
+                        <div className="flex items-center space-x-2">
+                          <svg
+                            className="h-4 w-4 flex-shrink-0 text-red-400"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <div className="flex-1">
+                            <p className="text-sm text-red-200">
+                              <strong>
+                                {intl.formatMessage(messages.urlInvalid)}
+                              </strong>
+                              {validation.error && `: ${validation.error}`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             )}
 
@@ -653,11 +921,44 @@ const MultiSourceConfigSection = ({
         <div className="mb-3 block text-sm font-medium text-gray-200">
           {intl.formatMessage(messages.combineMode)}
         </div>
+
+        {/* Mixed Content Warning */}
+        {mixedContentInfo.hasMixedContent && (
+          <div className="mb-4 rounded-md border border-orange-500/20 bg-orange-500/10 p-3">
+            <div className="flex">
+              <svg
+                className="h-5 w-5 flex-shrink-0 text-orange-400"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="ml-3">
+                <p className="text-sm text-orange-200">
+                  {intl.formatMessage(messages.mixedContentWarning)}
+                </p>
+                <p className="mt-1 text-xs text-orange-300">
+                  Detected content types:{' '}
+                  {mixedContentInfo.allContentTypes.join(', ')}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           {getCombineModeOptions().map((option) => (
             <label
               key={option.value}
-              className="flex cursor-pointer items-start space-x-3"
+              className={`flex items-start space-x-3 ${
+                option.disabled
+                  ? 'cursor-not-allowed opacity-50'
+                  : 'cursor-pointer'
+              }`}
               htmlFor={`combineMode-${option.value}`}
             >
               <Field
@@ -666,10 +967,16 @@ const MultiSourceConfigSection = ({
                 value={option.value}
                 id={`combineMode-${option.value}`}
                 className="form-radio mt-1"
+                disabled={option.disabled}
               />
               <div className="flex-1">
                 <div className="text-sm font-medium text-gray-100">
                   {option.label}
+                  {option.disabled && (
+                    <span className="ml-2 text-xs text-orange-500">
+                      (Disabled - mixed content detected)
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-gray-400">
                   {option.description}

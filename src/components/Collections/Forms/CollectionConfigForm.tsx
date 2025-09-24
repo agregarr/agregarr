@@ -308,6 +308,29 @@ const CollectionFormConfigForm = ({
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
     directDownloadSonarrServerId: Yup.number().positive().integer(),
     directDownloadSonarrProfileId: Yup.number().positive().integer(),
+
+    // Multi-source field validation
+    isMultiSource: Yup.boolean(),
+    sources: Yup.array().of(
+      Yup.object().shape({
+        id: Yup.string().required('Source ID is required'),
+        type: Yup.string().required('Source type is required'),
+        subtype: Yup.string(),
+        customUrl: Yup.string(),
+        timePeriod: Yup.string().oneOf(['daily', 'weekly', 'monthly', 'all']),
+        priority: Yup.number().required('Source priority is required'),
+        isExpanded: Yup.boolean(),
+        customDays: Yup.number().min(1).max(365),
+        minimumPlays: Yup.number().min(1).max(100),
+        networksCountry: Yup.string(),
+      })
+    ),
+    combineMode: Yup.string().oneOf([
+      'interleaved',
+      'list_order',
+      'randomised',
+      'cycle_lists',
+    ]),
   });
 
   // Safety check for undefined config

@@ -128,17 +128,24 @@ export interface CollectionConfig {
     };
   };
   // Multi-source specific properties (only present when type === 'multi-source')
+  readonly isMultiSource?: boolean; // Enable multi-source mode
   readonly sources?: readonly {
     readonly id: string;
     readonly type: string;
     readonly subtype?: string;
     readonly customUrl?: string;
-    readonly timePeriod?: string;
+    readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+    readonly priority: number;
+    readonly isExpanded?: boolean; // UI state for expandable sections
     readonly customDays?: number;
     readonly minimumPlays?: number;
-    readonly priority: number;
+    readonly networksCountry?: string; // Selected country for Networks collections
   }[];
-  readonly combineMode?: 'ordered' | 'randomized' | 'cycle';
+  readonly combineMode?:
+    | 'interleaved'
+    | 'list_order'
+    | 'randomised'
+    | 'cycle_lists';
   // Individual sync scheduling
   readonly customSyncSchedule?: CustomSyncSchedule;
 }

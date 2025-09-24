@@ -35,7 +35,7 @@ interface UseCollectionValidationReturn {
 interface UseLibrarySelectionOptions {
   libraries: Library[];
   mediaType?: 'movie' | 'tv' | 'both';
-  detectedMediaType?: 'movie' | 'tv' | 'both' | null;
+  detectedMediaType?: 'movie' | 'tv' | 'both' | 'mixed' | null;
 }
 
 interface UseLibrarySelectionReturn {
@@ -47,7 +47,11 @@ interface UseLibrarySelectionReturn {
 }
 
 interface UseTitleFetchingOptions {
-  onSuccess?: (title: string, mediaType?: 'movie' | 'tv' | 'both') => void;
+  onSuccess?: (
+    title: string,
+    mediaType?: 'movie' | 'tv' | 'both' | 'mixed',
+    contentTypes?: string[]
+  ) => void;
   onError?: (error: string) => void;
 }
 
@@ -328,7 +332,7 @@ export const useTitleFetching = ({
             }
           }
 
-          onSuccess?.(data.title, data.mediaType);
+          onSuccess?.(data.title, data.mediaType, data.contentTypes);
         } else {
           throw new Error(`No title found for ${type} URL`);
         }
