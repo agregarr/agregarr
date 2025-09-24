@@ -2033,6 +2033,8 @@ const CollectionFormConfigForm = ({
               : undefined,
             minimumYear: values.enableGrabMissingItems
               ? values.minimumYear
+                ? parseInt(values.minimumYear.toString(), 10)
+                : 0
               : undefined,
             // Direct download server selection
             directDownloadRadarrServerId:
