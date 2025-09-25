@@ -75,18 +75,6 @@ jobs:
           else
             echo "status=$WORKFLOW_CONCLUSION" >> $GITHUB_OUTPUT
           fi
-      - name: Get commit messages
-        id: commits
-        run: |
-          # Get commits since the previous push (or up to 10 commits max)
-          COMMITS=$(git log --oneline --no-merges ${{ github.event.before }}..${{ github.sha }} --format="• [%h](${{ github.server_url }}/${{ github.repository }}/commit/%H) %s" | head -30)
-          if [ -z "$COMMITS" ]; then
-            # Fallback to just the current commit if no range available
-            COMMITS="• [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}) ${{ github.event.head_commit.message }}"
-          fi
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
       - name: Post Status to Discord
         if: steps.status.outputs.status == 'success'
         uses: sarisia/actions-status-discord@v1
@@ -96,8 +84,7 @@ jobs:
           description: |
             **Repository:** ${{ github.repository }}
             **Branch:** ${{ github.ref_name }}
-            **Commits:**
-            ${{ steps.commits.outputs.commits }}
+            **Commit:** [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
           color: 0x00ff00
           username: "Agregarr Bot"
           url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
