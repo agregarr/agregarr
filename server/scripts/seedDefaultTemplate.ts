@@ -78,7 +78,7 @@ async function seedDefaultTemplate() {
           height: 100,
           properties: {
             elementType: 'collection-title',
-            fontSize: 32,
+            fontSize: 40,
             fontFamily: 'Inter',
             fontWeight: 'bold',
             fontStyle: 'normal',

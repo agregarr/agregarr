@@ -157,6 +157,9 @@ export const PosterEditorCanvas = forwardRef<
             scaleY: scale,
             cornerSize: 8,
             transparentCorners: false,
+            // Fix for uniScaleKey undefined error
+            uniformScaling: true,
+            hasControls: true,
           });
 
           imgObject.id = element.id;
@@ -189,7 +192,7 @@ export const PosterEditorCanvas = forwardRef<
           // If we have a preview collection, show that specific source's logo
           serviceIconPath = `/services/${previewCollectionConfig.type}.svg`;
         } else {
-          // If no preview collection, show Agregarr logo (os_icon.svg) as placeholder
+          // If no preview collection, show Agregarr logo as placeholder
           serviceIconPath = `/services/os_icon.svg`;
         }
 
@@ -209,12 +212,10 @@ export const PosterEditorCanvas = forwardRef<
             scaleY: scale,
             cornerSize: 8,
             transparentCorners: false,
+            // Fix for uniScaleKey undefined error
+            uniformScaling: true,
+            hasControls: true,
           });
-
-          if (props.grayscale) {
-            svgObject.filters = [new fabric.Image.filters.Grayscale()];
-            svgObject.applyFilters();
-          }
 
           svgObject.id = element.id;
           svgObject.elementType = 'svg';
@@ -245,12 +246,10 @@ export const PosterEditorCanvas = forwardRef<
             scaleY: scale,
             cornerSize: 8,
             transparentCorners: false,
+            // Fix for uniScaleKey undefined error
+            uniformScaling: true,
+            hasControls: true,
           });
-
-          if (props.grayscale) {
-            svgObject.filters = [new fabric.Image.filters.Grayscale()];
-            svgObject.applyFilters();
-          }
 
           svgObject.id = element.id;
           svgObject.elementType = 'svg';
@@ -552,6 +551,8 @@ export const PosterEditorCanvas = forwardRef<
         transparentCorners: false,
         selectable: true,
         hasControls: true,
+        // Fix for uniScaleKey undefined error
+        uniformScaling: false, // Text areas can be resized non-uniformly
       });
 
       // Set element properties for identification and updates
@@ -639,10 +640,15 @@ export const PosterEditorCanvas = forwardRef<
       const props = element.properties;
       const gridElements: any[] = [];
 
-      const cellWidth =
-        (element.width - (props.columns - 1) * props.spacing) / props.columns;
-      const cellHeight =
-        (element.height - (props.rows - 1) * props.spacing) / props.rows;
+      // Calculate cell dimensions maintaining poster aspect ratio (2:3)
+      const availableWidth =
+        element.width - (props.columns - 1) * props.spacing;
+      const cellWidth = availableWidth / props.columns;
+      const cellHeight = cellWidth * 1.5; // 2:3 aspect ratio for posters
+
+      // Calculate the actual grid height needed
+      const requiredHeight =
+        cellHeight * props.rows + (props.rows - 1) * props.spacing;
 
       for (let row = 0; row < props.rows; row++) {
         for (let col = 0; col < props.columns; col++) {
@@ -669,12 +675,15 @@ export const PosterEditorCanvas = forwardRef<
         cornerSize: 8,
         transparentCorners: false,
         selectable: true,
+        // Fix for uniScaleKey undefined error
+        uniformScaling: true,
+        hasControls: true,
       });
 
       gridGroup.id = element.id;
       gridGroup.elementType = 'contentGrid';
       gridGroup.originalWidth = element.width;
-      gridGroup.originalHeight = element.height;
+      gridGroup.originalHeight = requiredHeight; // Use calculated height
       gridGroup.gridColumns = props.columns;
       gridGroup.gridRows = props.rows;
       gridGroup.gridSpacing = props.spacing;
@@ -750,6 +759,8 @@ export const PosterEditorCanvas = forwardRef<
       selection: true,
       preserveObjectStacking: true,
       renderOnAddRemove: true,
+      // Fix for uniScaleKey undefined error - set default uniform scaling key
+      uniScaleKey: 'shiftKey',
     });
 
     fabricCanvasRef.current = canvas;
@@ -793,6 +804,11 @@ export const PosterEditorCanvas = forwardRef<
 
       // Update text preview when text area boundary is modified
       const modifiedObj = e.target;
+
+      // Defensive check to prevent uniScaleKey undefined errors
+      if (!modifiedObj || typeof modifiedObj.set !== 'function') {
+        return;
+      }
       if (
         modifiedObj.type === 'rect' &&
         (modifiedObj.elementType === 'collection-title' ||
@@ -1127,6 +1143,11 @@ export const PosterEditorCanvas = forwardRef<
 
     const handleObjectScaling = (e: any) => {
       const scalingObj = e.target;
+
+      // Defensive check to prevent uniScaleKey undefined errors
+      if (!scalingObj || typeof scalingObj.set !== 'function') {
+        return;
+      }
 
       // Apply snap-to-guides for corner dragging if enabled
       if (snapToGuides) {
@@ -1480,10 +1501,13 @@ export const PosterEditorCanvas = forwardRef<
           }
 
           // Apply snapping - only modify scale, let fabric.js handle position
-          scalingObj.set({
-            scaleX: newScaleX,
-            scaleY: newScaleY,
-          });
+          // Defensive check to prevent uniScaleKey errors during scaling
+          if (scalingObj && typeof scalingObj.set === 'function') {
+            scalingObj.set({
+              scaleX: newScaleX,
+              scaleY: newScaleY,
+            });
+          }
 
           // Clear existing snap lines
           canvas.getObjects().forEach((obj: any) => {
@@ -1720,6 +1744,11 @@ export const PosterEditorCanvas = forwardRef<
       return;
     }
 
+    // For templates using source colors, wait for source colors data to be available
+    if (posterData.background.useSourceColors && !sourceColorsData) {
+      return;
+    }
+
     // Only skip re-rendering if we're in the middle of a canvas manipulation
     // AND this is a change that's coming from that same manipulation (not external)
     if (isUserInteracting.current && isExternalUpdate.current === false) {
@@ -1778,6 +1807,11 @@ export const PosterEditorCanvas = forwardRef<
 
     const canvas = fabricCanvasRef.current;
 
+    // Ensure canvas is ready before proceeding
+    if (!canvas) {
+      return;
+    }
+
     const shouldPreserveElements = isBackgroundOnlyChange();
 
     // Only clear and rebuild if elements have changed
@@ -1815,7 +1849,42 @@ export const PosterEditorCanvas = forwardRef<
     }
 
     // Update canvas background after clearing
-    if (posterData.background.type === 'gradient' && fabric) {
+    if (
+      posterData.background.useSourceColors &&
+      !currentlyEditingSource &&
+      !previewCollectionConfig?.type
+    ) {
+      // Show "Source Colours" placeholder when using source colors but not customizing AND no preview collection selected
+      canvas.setBackgroundColor('#374151', () => {
+        // Add repeating "Source Colours" text overlay
+        const textElements: any[] = [];
+        const textSize = 24;
+        const spacing = 120;
+
+        for (let x = 0; x < posterData.width; x += spacing) {
+          for (let y = 0; y < posterData.height; y += spacing) {
+            const text = new fabric.Text('Source Colours', {
+              left: x + spacing / 2,
+              top: y + spacing / 2,
+              fontSize: textSize,
+              fontFamily: 'Arial, sans-serif',
+              fill: '#6b7280',
+              opacity: 0.15,
+              originX: 'center',
+              originY: 'center',
+              angle: -25,
+              selectable: false,
+              evented: false,
+              excludeFromExport: true,
+              isSourceColorOverlay: true, // Custom flag to identify these elements
+            });
+            textElements.push(text);
+            canvas.add(text);
+          }
+        }
+        safeRenderAll(canvas);
+      });
+    } else if (posterData.background.type === 'gradient' && fabric) {
       const intensity = (posterData.background.intensity || 50) / 100; // Convert to 0-1 range
       const centerPoint = 0.5 - intensity * 0.3; // More intense = tighter center
       const gradient = new fabric.Gradient({
@@ -1864,6 +1933,38 @@ export const PosterEditorCanvas = forwardRef<
         );
       }
     }
+
+    // Force a re-render after a short delay to ensure any async elements
+    // (images, SVGs, fonts) that may have failed initially get another chance
+    const forceRenderTimeout = setTimeout(() => {
+      if (
+        fabricCanvasRef.current &&
+        posterData.elements &&
+        posterData.elements.length > 0
+      ) {
+        const canvasObjects = fabricCanvasRef.current
+          .getObjects()
+          .filter(
+            (obj: any) =>
+              !obj.isSnapLine &&
+              !obj.isSelectionOutline &&
+              !obj.isSourceColorOverlay
+          );
+        // If we have elements but no objects rendered (except background and overlays), try rendering again
+        if (canvasObjects.length === 0) {
+          renderUnifiedElements(
+            fabricCanvasRef.current,
+            posterData.elements,
+            previewCollectionConfig
+          );
+        }
+      }
+    }, 100);
+
+    // Cleanup timeout on unmount or re-render
+    return () => {
+      clearTimeout(forceRenderTimeout);
+    };
 
     // Always update selection highlighting (this is lightweight)
     // Clear any existing selection outlines first

@@ -942,6 +942,8 @@ const AllCollectionsView: React.FC = () => {
                               ? 'Overseerr'
                               : config.type === 'networks'
                               ? 'Networks'
+                              : config.type === 'multi-source'
+                              ? 'Multi-Source'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(

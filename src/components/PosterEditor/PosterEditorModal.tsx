@@ -78,7 +78,6 @@ export interface RasterElementProps {
 export interface SVGElementProps {
   iconType: 'source-logo' | 'svg-icon';
   iconPath?: string; // For custom icons, service logo is dynamic
-  grayscale: boolean;
 }
 
 export interface ContentGridProps {
@@ -369,6 +368,30 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       />
                     </div>
 
+                    {/* Action buttons */}
+                    <div className="border-t border-stone-700 pt-4">
+                      <div className="flex flex-col space-y-2">
+                        <button
+                          type="button"
+                          onClick={handleSave}
+                          disabled={!name.trim() || saving}
+                          className="w-full rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {saving
+                            ? intl.formatMessage(messages.saving)
+                            : intl.formatMessage(messages.save)}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancel}
+                          disabled={saving}
+                          className="w-full rounded-md border border-stone-600 px-4 py-2 text-sm font-medium text-stone-300 hover:border-stone-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {intl.formatMessage(messages.cancel)}
+                        </button>
+                      </div>
+                    </div>
+
                     {/* Collection Preview Selector */}
                     <div>
                       <label
@@ -419,30 +442,6 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       <p className="mt-1 text-xs text-stone-500">
                         {intl.formatMessage(messages.sampleCollectionHelp)}
                       </p>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="border-t border-stone-700 pt-4">
-                      <div className="flex flex-col space-y-2">
-                        <button
-                          type="button"
-                          onClick={handleSave}
-                          disabled={!name.trim() || saving}
-                          className="w-full rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {saving
-                            ? intl.formatMessage(messages.saving)
-                            : intl.formatMessage(messages.save)}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancel}
-                          disabled={saving}
-                          className="w-full rounded-md border border-stone-600 px-4 py-2 text-sm font-medium text-stone-300 hover:border-stone-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {intl.formatMessage(messages.cancel)}
-                        </button>
-                      </div>
                     </div>
                   </div>
 

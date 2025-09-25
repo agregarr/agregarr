@@ -61,7 +61,6 @@ const messages = defineMessages({
   // Image/Icon properties
   selectImage: 'Select Image',
   selectIcon: 'Select Icon',
-  grayscale: 'Grayscale',
   // Grid properties
   columns: 'Columns',
   rows: 'Rows',
@@ -904,7 +903,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               iconType:
                 subtype === 'source-logo' ? 'source-logo' : 'custom-icon',
               iconPath: '',
-              grayscale: false,
             } as SVGElementProps,
           };
           break;
@@ -1035,7 +1033,6 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 src={props.iconPath}
                 alt="Preview"
                 className="h-4 w-4 object-contain"
-                style={{ filter: props.grayscale ? 'grayscale(100%)' : 'none' }}
                 onError={(e) => {
                   // Fallback to icon if SVG fails to load
                   const target = e.target as HTMLImageElement;
@@ -1443,7 +1440,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               <button
                 type="button"
                 onClick={() => handleAddElement('text', 'custom-text')}
-                className="flex w-full items-center justify-center gap-1 rounded bg-orange-600 px-2 py-1 text-xs text-white hover:bg-orange-700"
+                className="flex w-full items-center justify-center gap-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
               >
                 <PlusIcon className="h-3 w-3" />
                 Add Custom Text
@@ -1452,7 +1449,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => handleAddElement('text', 'collection-title')}
-                  className="mt-1 flex w-full items-center justify-center gap-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
+                  className="mt-1 flex w-full items-center justify-center gap-1 rounded border border-orange-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
                 >
                   <PlusIcon className="h-3 w-3" />
                   Add Collection Title
@@ -1475,7 +1472,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               <button
                 type="button"
                 onClick={() => handleAddElement('svg', 'source-logo')}
-                className="flex w-full items-center justify-center gap-1 rounded bg-orange-600 px-2 py-1 text-xs text-white hover:bg-orange-700"
+                className="flex w-full items-center justify-center gap-1 rounded border border-orange-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
               >
                 <PlusIcon className="h-3 w-3" />
                 Add Source Logo
@@ -1669,7 +1666,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
                   {/* Text Content */}
                   {(selectedElement.properties as TextElementProps)
-                    .elementType === 'custom-text' && (
+                    .elementType === 'custom-text' ? (
                     <div>
                       <label
                         htmlFor={`text-input-${selectedElement.id}`}
@@ -1700,7 +1697,15 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         placeholder="Enter text"
                       />
                     </div>
-                  )}
+                  ) : (selectedElement.properties as TextElementProps)
+                      .elementType === 'collection-title' ? (
+                    <div>
+                      <p className="mt-1 rounded bg-orange-100 px-2 py-1 text-xs text-orange-800">
+                        This text will automatically display the
+                        collection&apos;s name when used.
+                      </p>
+                    </div>
+                  ) : null}
 
                   {/* Font Size */}
                   <div>
@@ -2087,47 +2092,35 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
               {selectedElement.type === 'svg' && (
                 <div className="space-y-2">
-                  {/* Icon Selection */}
-                  <div>
-                    <label className="mb-1 block text-xs text-stone-400">
-                      {intl.formatMessage(messages.selectIcon)}
-                    </label>
-                    <IconSelector
-                      value={
-                        (selectedElement.properties as SVGElementProps)
-                          .iconPath || ''
-                      }
-                      filter="svg"
-                      onChange={(iconPath) => {
-                        updateElementProperties(selectedElement.id, {
-                          iconPath,
-                        });
-                      }}
-                      addToast={addToast}
-                    />
-                  </div>
-
-                  {/* Grayscale Toggle */}
-                  <div>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={
+                  {/* Icon Selection - Different for source logos vs custom icons */}
+                  {(selectedElement.properties as SVGElementProps).iconType ===
+                  'source-logo' ? (
+                    <div>
+                      <p className="mt-1 rounded bg-orange-100 px-2 py-1 text-xs text-orange-800">
+                        This logo will automatically change based on the
+                        collection&apos;s source when used.
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="mb-1 block text-xs text-stone-400">
+                        {intl.formatMessage(messages.selectIcon)}
+                      </label>
+                      <IconSelector
+                        value={
                           (selectedElement.properties as SVGElementProps)
-                            .grayscale || false
+                            .iconPath || ''
                         }
-                        onChange={(e) => {
+                        filter="svg"
+                        onChange={(iconPath) => {
                           updateElementProperties(selectedElement.id, {
-                            grayscale: e.target.checked,
+                            iconPath,
                           });
                         }}
-                        className="rounded border-stone-600 bg-stone-800 text-orange-600 focus:ring-orange-500"
+                        addToast={addToast}
                       />
-                      <span className="text-xs text-stone-300">
-                        {intl.formatMessage(messages.grayscale)}
-                      </span>
-                    </label>
-                  </div>
+                    </div>
+                  )}
 
                   {/* Lock aspect ratio */}
                   <div>
@@ -2309,20 +2302,56 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             .columns
                         }
                         onInput={(e) => {
+                          const newColumns = Number(
+                            (e.target as HTMLInputElement).value
+                          );
+
+                          // Calculate new grid dimensions for preview
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const currentWidth = selectedElement.width;
+                          const availableWidth =
+                            currentWidth - (newColumns - 1) * props.spacing;
+                          const cellWidth = availableWidth / newColumns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * props.rows +
+                            (props.rows - 1) * props.spacing;
+
                           setLocalSliderValues((prev) => ({
                             ...prev,
-                            [`columns-${selectedElement.id}`]: Number(
-                              (e.target as HTMLInputElement).value
-                            ),
+                            [`columns-${selectedElement.id}`]: newColumns,
+                            [`height-${selectedElement.id}`]:
+                              Math.round(newHeight),
                           }));
                         }}
                         onChange={(e) => {
                           const newColumns = Number(
                             (e.target as HTMLInputElement).value
                           );
+
+                          // Calculate new grid dimensions when columns change
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const currentWidth = selectedElement.width;
+
+                          // Calculate available width for cells after new column count
+                          const availableWidth =
+                            currentWidth - (newColumns - 1) * props.spacing;
+                          const cellWidth = availableWidth / newColumns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * props.rows +
+                            (props.rows - 1) * props.spacing;
+
+                          // Update both columns and dimensions
                           updateElementProperties(selectedElement.id, {
                             columns: newColumns,
                           });
+                          updateElement(selectedElement.id, {
+                            height: Math.round(newHeight),
+                          });
+
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
                             delete newState[`columns-${selectedElement.id}`];
@@ -2348,20 +2377,56 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           (selectedElement.properties as ContentGridProps).rows
                         }
                         onInput={(e) => {
+                          const newRows = Number(
+                            (e.target as HTMLInputElement).value
+                          );
+
+                          // Calculate new grid dimensions for preview
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const currentWidth = selectedElement.width;
+                          const availableWidth =
+                            currentWidth - (props.columns - 1) * props.spacing;
+                          const cellWidth = availableWidth / props.columns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * newRows +
+                            (newRows - 1) * props.spacing;
+
                           setLocalSliderValues((prev) => ({
                             ...prev,
-                            [`rows-${selectedElement.id}`]: Number(
-                              (e.target as HTMLInputElement).value
-                            ),
+                            [`rows-${selectedElement.id}`]: newRows,
+                            [`height-${selectedElement.id}`]:
+                              Math.round(newHeight),
                           }));
                         }}
                         onChange={(e) => {
                           const newRows = Number(
                             (e.target as HTMLInputElement).value
                           );
+
+                          // Calculate new grid dimensions when rows change
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const currentWidth = selectedElement.width;
+
+                          // Calculate available width for cells (unchanged)
+                          const availableWidth =
+                            currentWidth - (props.columns - 1) * props.spacing;
+                          const cellWidth = availableWidth / props.columns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * newRows +
+                            (newRows - 1) * props.spacing;
+
+                          // Update both rows and dimensions
                           updateElementProperties(selectedElement.id, {
                             rows: newRows,
                           });
+                          updateElement(selectedElement.id, {
+                            height: Math.round(newHeight),
+                          });
+
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
                             delete newState[`rows-${selectedElement.id}`];
@@ -2393,20 +2458,56 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             .spacing
                         }
                         onInput={(e) => {
+                          const newSpacing = Number(
+                            (e.target as HTMLInputElement).value
+                          );
+
+                          // Calculate new grid dimensions for preview
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const currentWidth = selectedElement.width;
+                          const availableWidth =
+                            currentWidth - (props.columns - 1) * newSpacing;
+                          const cellWidth = availableWidth / props.columns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * props.rows +
+                            (props.rows - 1) * newSpacing;
+
                           setLocalSliderValues((prev) => ({
                             ...prev,
-                            [`spacing-${selectedElement.id}`]: Number(
-                              (e.target as HTMLInputElement).value
-                            ),
+                            [`spacing-${selectedElement.id}`]: newSpacing,
+                            [`height-${selectedElement.id}`]:
+                              Math.round(newHeight),
                           }));
                         }}
                         onChange={(e) => {
                           const newSpacing = Number(
                             (e.target as HTMLInputElement).value
                           );
+
+                          // Calculate new grid dimensions when spacing changes
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const currentWidth = selectedElement.width;
+
+                          // Calculate available width for cells after new spacing
+                          const availableWidth =
+                            currentWidth - (props.columns - 1) * newSpacing;
+                          const cellWidth = availableWidth / props.columns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * props.rows +
+                            (props.rows - 1) * newSpacing;
+
+                          // Update both spacing and dimensions
                           updateElementProperties(selectedElement.id, {
                             spacing: newSpacing,
                           });
+                          updateElement(selectedElement.id, {
+                            height: Math.round(newHeight),
+                          });
+
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
                             delete newState[`spacing-${selectedElement.id}`];
@@ -2465,8 +2566,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Grid Size Controls */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Grid Size Controls - Width only, height auto-calculated for poster aspect ratio */}
+                  <div>
                     <div>
                       <label className="mb-1 block text-xs text-stone-400">
                         {intl.formatMessage(messages.width)} (
@@ -2483,67 +2584,96 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           selectedElement.width
                         }
                         onInput={(e) => {
+                          const newWidth = Number(
+                            (e.target as HTMLInputElement).value
+                          );
+                          // Calculate height based on poster aspect ratio (2:3) and grid layout
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const availableWidth =
+                            newWidth - (props.columns - 1) * props.spacing;
+                          const cellWidth = availableWidth / props.columns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * props.rows +
+                            (props.rows - 1) * props.spacing;
+
                           setLocalSliderValues((prev) => ({
                             ...prev,
-                            [`width-${selectedElement.id}`]: Number(
-                              (e.target as HTMLInputElement).value
-                            ),
+                            [`width-${selectedElement.id}`]: newWidth,
+                            [`height-${selectedElement.id}`]:
+                              Math.round(newHeight),
                           }));
                         }}
                         onChange={(e) => {
                           const newWidth = Number(
                             (e.target as HTMLInputElement).value
                           );
+                          // Calculate height based on poster aspect ratio (2:3) and grid layout
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+                          const availableWidth =
+                            newWidth - (props.columns - 1) * props.spacing;
+                          const cellWidth = availableWidth / props.columns;
+                          const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+                          const newHeight =
+                            cellHeight * props.rows +
+                            (props.rows - 1) * props.spacing;
+
                           updateElement(selectedElement.id, {
                             width: newWidth,
+                            height: Math.round(newHeight),
                           });
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
                             delete newState[`width-${selectedElement.id}`];
-                            return newState;
-                          });
-                        }}
-                        className="w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs text-stone-400">
-                        {intl.formatMessage(messages.height)} (
-                        {localSliderValues[`height-${selectedElement.id}`] ??
-                          selectedElement.height}
-                        px)
-                      </label>
-                      <input
-                        type="range"
-                        min="50"
-                        max="800"
-                        value={
-                          localSliderValues[`height-${selectedElement.id}`] ??
-                          selectedElement.height
-                        }
-                        onInput={(e) => {
-                          setLocalSliderValues((prev) => ({
-                            ...prev,
-                            [`height-${selectedElement.id}`]: Number(
-                              (e.target as HTMLInputElement).value
-                            ),
-                          }));
-                        }}
-                        onChange={(e) => {
-                          const newHeight = Number(
-                            (e.target as HTMLInputElement).value
-                          );
-                          updateElement(selectedElement.id, {
-                            height: newHeight,
-                          });
-                          setLocalSliderValues((prev) => {
-                            const newState = { ...prev };
                             delete newState[`height-${selectedElement.id}`];
                             return newState;
                           });
                         }}
                         className="w-full"
                       />
+                    </div>
+
+                    {/* Height display (read-only) */}
+                    <div className="mt-2">
+                      <label className="mb-1 block text-xs text-stone-400">
+                        {intl.formatMessage(messages.height)} (
+                        {(() => {
+                          const currentWidth =
+                            localSliderValues[`width-${selectedElement.id}`] ??
+                            selectedElement.width;
+                          const props =
+                            selectedElement.properties as ContentGridProps;
+
+                          // Use local slider values for real-time preview
+                          const currentColumns =
+                            localSliderValues[
+                              `columns-${selectedElement.id}`
+                            ] ?? props.columns;
+                          const currentRows =
+                            localSliderValues[`rows-${selectedElement.id}`] ??
+                            props.rows;
+                          const currentSpacing =
+                            localSliderValues[
+                              `spacing-${selectedElement.id}`
+                            ] ?? props.spacing;
+
+                          const availableWidth =
+                            currentWidth -
+                            (currentColumns - 1) * currentSpacing;
+                          const cellWidth = availableWidth / currentColumns;
+                          const cellHeight = cellWidth * 1.5;
+                          const calculatedHeight =
+                            cellHeight * currentRows +
+                            (currentRows - 1) * currentSpacing;
+                          return Math.round(calculatedHeight);
+                        })()}
+                        px - Auto)
+                      </label>
+                      <div className="flex h-8 items-center justify-center rounded border border-stone-600 bg-stone-800 px-2 text-xs text-stone-400">
+                        Locked to poster aspect ratio (2:3)
+                      </div>
                     </div>
                   </div>
                 </div>

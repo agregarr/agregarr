@@ -617,6 +617,8 @@ const SortableItem = ({
                       ? 'Overseerr'
                       : collection.type === 'networks'
                       ? 'Networks'
+                      : collection.type === 'multi-source'
+                      ? 'Multi-Source'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(
