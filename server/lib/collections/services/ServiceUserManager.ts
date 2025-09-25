@@ -26,6 +26,7 @@ export type ServiceType =
   | 'imdb'
   | 'mdblist'
   | 'letterboxd'
+  | 'networks'
   | 'tautulli'
   | 'overseerr';
 
@@ -43,6 +44,7 @@ export function generateServiceUserConfig(
     imdb: { name: 'IMDb', avatar: '/imdb-logo.svg' },
     mdblist: { name: 'MDBList', avatar: '/services/mdblist.svg' },
     letterboxd: { name: 'Letterboxd', avatar: '/letterboxd-logo.svg' },
+    networks: { name: 'Networks', avatar: '/networks-logo.svg' },
     tautulli: { name: 'Tautulli', avatar: '/tautulli-logo.svg' },
     overseerr: { name: 'Overseerr', avatar: '/os_logo_stacked.svg' },
   }[serviceType];
