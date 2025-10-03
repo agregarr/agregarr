@@ -2,6 +2,7 @@ import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { Field } from 'formik';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
+import GenreExclusion from './GenreExclusion';
 
 const messages = defineMessages({
   grabMissingItems: 'Grab Missing Items',
@@ -58,6 +59,7 @@ interface AutoRequestSectionProps {
     downloadMode?: 'overseerr' | 'direct';
     searchMissingMovies?: boolean;
     searchMissingTV?: boolean;
+    excludedGenres?: number[];
     directDownloadRadarrServerId?: number;
     directDownloadRadarrProfileId?: number;
     directDownloadSonarrServerId?: number;
@@ -277,6 +279,15 @@ const AutoRequestSection = ({
               {intl.formatMessage(messages.minimumYearHelp)}
             </div>
           </div>
+
+          {/* Genre Exclusion */}
+          <GenreExclusion
+            mediaType={values.mediaType}
+            selectedGenres={values.excludedGenres || []}
+            onSelectionChange={(selectedIds) => {
+              setFieldValue?.('excludedGenres', selectedIds);
+            }}
+          />
 
           {/* TV Season Limit - only show when TV processing is enabled */}
           {values.searchMissingTV && (

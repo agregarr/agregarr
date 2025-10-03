@@ -280,6 +280,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       tmdbId: number;
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
       rank?: number;
       platform?: string;
@@ -325,6 +326,12 @@ export class NetworksCollectionSync extends BaseCollectionSync {
               : (bestMatch.result as { first_air_date?: string })
                   .first_air_date;
 
+          // Extract year from release date
+          let year: number | undefined;
+          if (releaseDate) {
+            year = parseInt(releaseDate.substring(0, 4));
+          }
+
           logger.debug(`TMDB match found for: "${item.title}"`, {
             label: 'Networks Collections',
             originalTitle: item.title,
@@ -341,6 +348,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
             tmdbId: bestMatch.result.id,
             mediaType: bestMatch.mediaType,
             title: item.title,
+            year,
             originalPosition: index + 1,
             rank: item.rank,
             platform: item.platform,
@@ -442,6 +450,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
             tmdbId: lookup.tmdbId,
             mediaType: lookup.mediaType,
             title: lookup.title,
+            year: lookup.year,
             originalPosition: lookup.originalPosition,
             metadata: {
               rank: lookup.rank,

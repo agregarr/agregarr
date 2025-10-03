@@ -226,6 +226,7 @@ export interface CollectionFormConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
+  readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
@@ -329,6 +330,7 @@ export interface CollectionConfigCreateRequest {
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly minimumYear?: number;
+  readonly excludedGenres?: number[];
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
@@ -408,6 +410,7 @@ export const toCollectionCreateRequest = (
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
     minimumYear: config.minimumYear,
+    excludedGenres: config.excludedGenres,
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
     directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
     directDownloadSonarrServerId: config.directDownloadSonarrServerId,

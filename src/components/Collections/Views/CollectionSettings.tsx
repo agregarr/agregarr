@@ -353,6 +353,9 @@ const CollectionSettings = ({
           ...(collectionConfig.minimumYear !== undefined && {
             minimumYear: collectionConfig.minimumYear,
           }),
+          ...(collectionConfig.excludedGenres !== undefined && {
+            excludedGenres: collectionConfig.excludedGenres,
+          }),
           ...(collectionConfig.traktCustomListUrl && {
             traktCustomListUrl: collectionConfig.traktCustomListUrl,
           }),
@@ -560,6 +563,9 @@ const CollectionSettings = ({
           }),
           ...(config.minimumYear !== undefined && {
             minimumYear: config.minimumYear,
+          }),
+          ...(config.excludedGenres !== undefined && {
+            excludedGenres: config.excludedGenres,
           }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
@@ -1759,6 +1765,7 @@ const CollectionSettings = ({
               seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
               maxPositionToProcess: masterConfig.maxPositionToProcess,
               minimumYear: masterConfig.minimumYear,
+              excludedGenres: masterConfig.excludedGenres,
               timeRestriction: masterConfig.timeRestriction,
               traktCustomListUrl: masterConfig.traktCustomListUrl,
               tmdbCustomListUrl: masterConfig.tmdbCustomListUrl,

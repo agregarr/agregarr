@@ -1,6 +1,7 @@
 import OverseerrAPI, {
   type OverseerrMediaRequest,
 } from '@server/api/overseerr';
+import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
 import { MissingItemRequest } from '@server/entity/MissingItemRequest';
 import type { User } from '@server/entity/User';
@@ -25,9 +26,11 @@ export class AutoRequestService {
   private serviceUserManager: ServiceUserManager;
   private overseerrAPI: OverseerrAPI | null = null;
   private missingItemRepository = getRepository(MissingItemRequest);
+  private tmdbAPI: TheMovieDb;
 
   constructor() {
     this.serviceUserManager = new ServiceUserManager();
+    this.tmdbAPI = new TheMovieDb();
   }
 
   /**
@@ -72,6 +75,7 @@ export class AutoRequestService {
     }
 
     // Filter items based on config settings
+    const yearFilteredItems: string[] = [];
     const filteredMissingItems = missingItems.filter((item) => {
       // Check media type
       if (item.mediaType === 'movie' && !config.searchMissingMovies)
@@ -80,12 +84,43 @@ export class AutoRequestService {
       if (item.mediaType !== 'movie' && item.mediaType !== 'tv') return false;
 
       // Check minimum year filter
-      if (config.minimumYear && config.minimumYear > 0 && item.year) {
-        if (item.year < config.minimumYear) return false;
+      if (config.minimumYear && config.minimumYear > 0) {
+        if (!item.year) {
+          logger.debug(
+            `Item "${item.title}" has no year data, allowing through year filter`,
+            {
+              label: 'Auto Request Service',
+              collection: config.name,
+              tmdbId: item.tmdbId,
+            }
+          );
+        } else if (item.year < config.minimumYear) {
+          yearFilteredItems.push(
+            `${item.title} (${item.year}) - below minimum ${config.minimumYear}`
+          );
+          return false;
+        }
       }
 
       return true;
     });
+
+    // Log year filtering summary
+    if (yearFilteredItems.length > 0) {
+      logger.info(
+        `Filtered ${yearFilteredItems.length} items due to minimum year (${config.minimumYear})`,
+        {
+          label: 'Auto Request Service',
+          collection: config.name,
+          minimumYear: config.minimumYear,
+          filteredCount: yearFilteredItems.length,
+          examples: yearFilteredItems.slice(0, 5),
+          ...(yearFilteredItems.length > 5 && {
+            additionalCount: yearFilteredItems.length - 5,
+          }),
+        }
+      );
+    }
 
     if (filteredMissingItems.length === 0) {
       return {
@@ -138,6 +173,7 @@ export class AutoRequestService {
       // Track declined items for summary logging
       const previouslyDeclinedItems: string[] = [];
       const tooManySeasons: string[] = [];
+      const excludedGenreItems: string[] = [];
 
       for (const item of filteredMissingItems) {
         try {
@@ -150,6 +186,20 @@ export class AutoRequestService {
           if (existingRequest) {
             alreadyRequestedCount++;
             continue;
+          }
+
+          // Check excluded genres
+          if (config.excludedGenres && config.excludedGenres.length > 0) {
+            const hasExcluded = await this.hasExcludedGenres(
+              item.tmdbId,
+              item.mediaType,
+              config.excludedGenres
+            );
+            if (hasExcluded) {
+              excludedGenreItems.push(item.title);
+              skippedRequests++;
+              continue;
+            }
           }
 
           // Check season limit for ALL TV shows first (regardless of auto-approve setting)
@@ -336,6 +386,21 @@ export class AutoRequestService {
         );
       }
 
+      // Log summary of items excluded by genre
+      if (excludedGenreItems.length > 0) {
+        logger.info(`Items skipped due to excluded genres`, {
+          label: `${
+            source.charAt(0).toUpperCase() + source.slice(1)
+          } Collections`,
+          collection: config.name,
+          count: excludedGenreItems.length,
+          titles: excludedGenreItems.slice(0, 10), // Limit to first 10 titles
+          ...(excludedGenreItems.length > 10 && {
+            additionalCount: excludedGenreItems.length - 10,
+          }),
+        });
+      }
+
       const totalRequests = autoApprovedRequests + manualApprovalRequests;
       if (totalRequests > 0) {
         logger.info(
@@ -467,6 +532,34 @@ export class AutoRequestService {
         }
       );
       return 1; // Default to 1 season if we can't determine
+    }
+  }
+
+  /**
+   * Check if an item has any excluded genres
+   */
+  private async hasExcludedGenres(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedGenres: number[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.genres.some((genre) => excludedGenres.includes(genre.id));
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.genres.some((genre) => excludedGenres.includes(genre.id));
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check genres for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Auto Request Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check genres, don't exclude the item
     }
   }
 

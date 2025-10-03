@@ -230,6 +230,41 @@ router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
   }
 });
 
+router.get('/genres/combined', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb();
+
+  try {
+    const [movieGenres, tvGenres] = await Promise.all([
+      tmdb.getMovieGenres({
+        language: (req.query.language as string) ?? req.locale,
+      }),
+      tmdb.getTvGenres({
+        language: (req.query.language as string) ?? req.locale,
+      }),
+    ]);
+
+    // Merge and deduplicate by ID
+    const genreMap = new Map<number, string>();
+    movieGenres.forEach((g) => genreMap.set(g.id, g.name));
+    tvGenres.forEach((g) => genreMap.set(g.id, g.name));
+
+    const combined = Array.from(genreMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json(combined);
+  } catch (e) {
+    logger.debug('Failed to retrieve combined genres', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve genres.',
+    });
+  }
+});
+
 router.get('/backdrops', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage();
 

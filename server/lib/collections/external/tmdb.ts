@@ -406,6 +406,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       tmdbId: number;
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
     }[] = [];
     for (let index = 0; index < sourceData.length; index++) {
@@ -413,10 +414,20 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       const tmdbId = item.id;
       const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
       const title = item.title || item.name || 'Unknown';
+
+      // Extract year from release_date (movies) or first_air_date (TV shows)
+      let year: number | undefined;
+      if (item.release_date) {
+        year = parseInt(item.release_date.substring(0, 4));
+      } else if (item.first_air_date) {
+        year = parseInt(item.first_air_date.substring(0, 4));
+      }
+
       tmdbLookups.push({
         tmdbId,
         mediaType,
         title,
+        year,
         originalPosition: index + 1,
       });
     }
@@ -473,6 +484,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           tmdbId: lookup.tmdbId,
           mediaType: lookup.mediaType,
           title: lookup.title,
+          year: lookup.year,
           originalPosition: lookup.originalPosition,
         });
       }

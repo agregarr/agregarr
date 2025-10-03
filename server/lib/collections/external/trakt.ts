@@ -508,6 +508,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
       showTmdbId?: number; // For episodes: the parent show's TMDB ID
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
       episodeInfo?: {
         season: number;
@@ -574,6 +575,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
           showTmdbId,
           mediaType: itemMediaType,
           title: mediaItem.title,
+          year: 'year' in mediaItem ? mediaItem.year : undefined,
           originalPosition: index + 1, // 1-based position
           episodeInfo,
         });
@@ -653,6 +655,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             tmdbId: lookup.tmdbId,
             mediaType: lookup.mediaType,
             title: lookup.title,
+            year: lookup.year,
             originalPosition: lookup.originalPosition,
           });
         } else {

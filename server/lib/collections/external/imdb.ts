@@ -223,8 +223,13 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         const batchPromises = batch.map(async (item) => {
           try {
             // Use enhanced resolution to get both episode and show TMDB IDs
-            const { episodeTmdbId, showTmdbId, seasonNumber, episodeNumber } =
-              await this.resolveEpisodeAndShowTmdbIds(item.imdbId);
+            const {
+              episodeTmdbId,
+              showTmdbId,
+              seasonNumber,
+              episodeNumber,
+              year: tmdbYear,
+            } = await this.resolveEpisodeAndShowTmdbIds(item.imdbId);
 
             if (episodeTmdbId && showTmdbId) {
               logger.debug(
@@ -242,10 +247,13 @@ export class ImdbCollectionSync extends BaseCollectionSync {
               };
             }
 
+            // Use TMDB year if available, fallback to IMDb year
+            const finalYear = tmdbYear || item.year;
+
             return {
               imdbId: item.imdbId,
               title: item.title,
-              year: item.year,
+              year: finalYear,
               type: item.type,
               tmdbId: episodeTmdbId,
               isEpisode: item.isEpisode,
@@ -521,6 +529,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
       showTmdbId?: number; // For episodes: the parent show's TMDB ID
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
       episodeInfo?: {
         season?: number;
@@ -542,6 +551,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         showTmdbId: item.showTmdbId, // For episodes: parent show's TMDB ID
         mediaType: item.type,
         title: item.title,
+        year: item.year,
         originalPosition: index + 1, // 1-based position
         episodeInfo: item.episodeInfo,
       });
@@ -616,6 +626,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
             tmdbId: lookup.tmdbId,
             mediaType: lookup.mediaType,
             title: lookup.title,
+            year: lookup.year,
             originalPosition: lookup.originalPosition,
           });
         } else {
@@ -810,6 +821,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     showTmdbId?: number;
     seasonNumber?: number;
     episodeNumber?: number;
+    year?: number;
   }> {
     try {
       // Use the external ID lookup directly to get all result types
@@ -824,21 +836,37 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         extResponse.tv_episode_results.length > 0
       ) {
         const episode = extResponse.tv_episode_results[0];
+        // Extract year from air_date if available
+        let year: number | undefined;
+        if (episode.air_date) {
+          year = parseInt(episode.air_date.substring(0, 4));
+        }
         return {
           episodeTmdbId: episode.id,
           showTmdbId: episode.show_id,
           seasonNumber: episode.season_number,
           episodeNumber: episode.episode_number,
+          year,
         };
       }
 
       // Fallback to regular movie/show handling
       if (extResponse.movie_results && extResponse.movie_results.length > 0) {
-        return { episodeTmdbId: extResponse.movie_results[0].id };
+        const movie = extResponse.movie_results[0];
+        let year: number | undefined;
+        if (movie.release_date) {
+          year = parseInt(movie.release_date.substring(0, 4));
+        }
+        return { episodeTmdbId: movie.id, year };
       }
 
       if (extResponse.tv_results && extResponse.tv_results.length > 0) {
-        return { episodeTmdbId: extResponse.tv_results[0].id };
+        const show = extResponse.tv_results[0];
+        let year: number | undefined;
+        if (show.first_air_date) {
+          year = parseInt(show.first_air_date.substring(0, 4));
+        }
+        return { episodeTmdbId: show.id, year };
       }
 
       return {};

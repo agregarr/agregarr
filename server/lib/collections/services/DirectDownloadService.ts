@@ -1,5 +1,6 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
+import TheMovieDb from '@server/api/themoviedb';
 import type {
   AutoRequestResult,
   MissingItem,
@@ -21,6 +22,11 @@ import logger from '@server/logger';
 export class DirectDownloadService {
   private radarrAPI: RadarrAPI | null = null;
   private sonarrAPI: SonarrAPI | null = null;
+  private tmdbAPI: TheMovieDb;
+
+  constructor() {
+    this.tmdbAPI = new TheMovieDb();
+  }
 
   /**
    * Get or initialize Radarr API client for specific server
@@ -97,6 +103,7 @@ export class DirectDownloadService {
     }
 
     // Filter items based on config settings
+    const yearFilteredItems: string[] = [];
     const filteredMissingItems = missingItems.filter((item) => {
       // Check media type
       if (item.mediaType === 'movie' && !config.searchMissingMovies)
@@ -105,12 +112,43 @@ export class DirectDownloadService {
       if (item.mediaType !== 'movie' && item.mediaType !== 'tv') return false;
 
       // Check minimum year filter
-      if (config.minimumYear && config.minimumYear > 0 && item.year) {
-        if (item.year < config.minimumYear) return false;
+      if (config.minimumYear && config.minimumYear > 0) {
+        if (!item.year) {
+          logger.debug(
+            `Item "${item.title}" has no year data, allowing through year filter`,
+            {
+              label: 'Direct Download Service',
+              collection: config.name,
+              tmdbId: item.tmdbId,
+            }
+          );
+        } else if (item.year < config.minimumYear) {
+          yearFilteredItems.push(
+            `${item.title} (${item.year}) - below minimum ${config.minimumYear}`
+          );
+          return false;
+        }
       }
 
       return true;
     });
+
+    // Log year filtering summary
+    if (yearFilteredItems.length > 0) {
+      logger.info(
+        `Filtered ${yearFilteredItems.length} items due to minimum year (${config.minimumYear})`,
+        {
+          label: 'Direct Download Service',
+          collection: config.name,
+          minimumYear: config.minimumYear,
+          filteredCount: yearFilteredItems.length,
+          examples: yearFilteredItems.slice(0, 5),
+          ...(yearFilteredItems.length > 5 && {
+            additionalCount: yearFilteredItems.length - 5,
+          }),
+        }
+      );
+    }
 
     if (filteredMissingItems.length === 0) {
       return this.emptyResult();
@@ -147,6 +185,23 @@ export class DirectDownloadService {
             // Unknown media type
             skippedRequests++;
             continue;
+          }
+
+          // Check excluded genres
+          if (config.excludedGenres && config.excludedGenres.length > 0) {
+            const hasExcluded = await this.hasExcludedGenres(
+              item.tmdbId,
+              item.mediaType,
+              config.excludedGenres
+            );
+            if (hasExcluded) {
+              logger.debug(`Skipping ${item.title}: Contains excluded genre`, {
+                label: 'Direct Download Service',
+                collection: config.name,
+              });
+              skippedRequests++;
+              continue;
+            }
           }
 
           // Check if item is excluded in *arr service
@@ -641,6 +696,34 @@ export class DirectDownloadService {
         }
       );
       return 1; // Default to 1 season if we can't determine
+    }
+  }
+
+  /**
+   * Check if an item has any excluded genres
+   */
+  private async hasExcludedGenres(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedGenres: number[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.genres.some((genre) => excludedGenres.includes(genre.id));
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.genres.some((genre) => excludedGenres.includes(genre.id));
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check genres for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Direct Download Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check genres, don't exclude the item
     }
   }
 

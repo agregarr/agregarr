@@ -353,6 +353,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       tmdbId: number;
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
     }[] = [];
     for (let index = 0; index < sourceData.length; index++) {
@@ -369,6 +370,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         tmdbId: item.tmdbId,
         mediaType: 'movie',
         title: item.title,
+        year: item.year,
         originalPosition: index + 1, // 1-based position
       });
     }
@@ -425,6 +427,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
           tmdbId: lookup.tmdbId,
           mediaType: lookup.mediaType,
           title: lookup.title,
+          year: lookup.year,
           originalPosition: lookup.originalPosition,
         });
       }

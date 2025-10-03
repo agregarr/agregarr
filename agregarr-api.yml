@@ -360,6 +360,13 @@ components:
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
           nullable: true
+        excludedGenres:
+          type: array
+          items:
+            type: integer
+          description: "TMDB genre IDs to exclude from missing items search"
+          example: [28, 53]
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
@@ -702,6 +709,13 @@ components:
           type: integer
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
+          nullable: true
+        excludedGenres:
+          type: array
+          items:
+            type: integer
+          description: "TMDB genre IDs to exclude from missing items search"
+          example: [28, 53]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -1110,6 +1124,13 @@ components:
           type: integer
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
+          nullable: true
+        excludedGenres:
+          type: array
+          items:
+            type: integer
+          description: "TMDB genre IDs to exclude from missing items search"
+          example: [28, 53]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -3774,6 +3795,28 @@ components:
       name: X-Api-Key
 
 paths:
+  /genres/combined:
+    get:
+      summary: Get combined movie and TV genres
+      description: Returns a merged and deduplicated list of all TMDB movie and TV genres
+      tags:
+        - genres
+      responses:
+        '200':
+          description: Combined genres list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 28
+                    name:
+                      type: string
+                      example: Action
   /status:
     get:
       summary: Get Agregarr status
