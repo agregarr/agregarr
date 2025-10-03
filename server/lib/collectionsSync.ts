@@ -163,6 +163,22 @@ class CollectionsSync {
       );
     }
 
+    // Check if randomize home order is running to prevent conflicts
+    const randomizeHomeOrder = (await import('@server/lib/randomizeHomeOrder'))
+      .default;
+    if (randomizeHomeOrder.status.running) {
+      logger.info(
+        'Randomize Home Order is currently running, waiting for completion...',
+        {
+          label: 'Collections Sync',
+        }
+      );
+      // Wait for randomization to complete
+      while (randomizeHomeOrder.status.running) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
     // Wait for any running individual collection syncs to complete
     const { IndividualCollectionScheduler } = await import(
       '@server/lib/collections/services/IndividualCollectionScheduler'
@@ -367,6 +383,21 @@ class CollectionsSync {
           error: error instanceof Error ? error.message : String(error),
         });
         // Don't fail the sync if discovery fails
+      }
+
+      // Randomize home order for collections with randomizeHomeOrder enabled
+      try {
+        this.setStage('Randomizing home order...');
+        const randomizeHomeOrder = (
+          await import('@server/lib/randomizeHomeOrder')
+        ).default;
+        await randomizeHomeOrder.run();
+      } catch (error) {
+        logger.warn('Failed to randomize home order', {
+          label: 'Collections Sync',
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Don't fail the sync if randomization fails
       }
 
       logger.info('Collections sync completed successfully', {

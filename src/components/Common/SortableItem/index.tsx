@@ -3,6 +3,7 @@ import type { CollectionFormConfig } from '@app/types/collections';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Bars3Icon } from '@heroicons/react/24/solid';
+import { ArrowsCrossingIcon } from '@sidekickicons/react/24/solid';
 import type React from 'react';
 
 interface SortableCollectionItemProps {
@@ -83,13 +84,28 @@ export const SortableCollectionItem: React.FC<SortableCollectionItemProps> = ({
       }
     : {};
 
+  // Determine which icon to show based on randomizeHomeOrder
+  const isRandomized = config.randomizeHomeOrder || false;
+  const ariaLabel = isRandomized
+    ? 'Randomized - Drag to reorder'
+    : 'Drag to reorder';
+
   const DragHandle = showDragHandle ? (
     <div
       {...dragHandleProps}
       className="cursor-grab p-1 text-gray-400 transition-colors hover:text-white active:cursor-grabbing"
-      aria-label="Drag to reorder"
+      aria-label={ariaLabel}
+      title={
+        isRandomized
+          ? 'Position will be shuffled with other randomized collections during sync'
+          : 'Drag to reorder'
+      }
     >
-      <Bars3Icon className="h-4 w-4" />
+      {isRandomized ? (
+        <ArrowsCrossingIcon className="h-4 w-4" />
+      ) : (
+        <Bars3Icon className="h-4 w-4" />
+      )}
     </div>
   ) : null;
 

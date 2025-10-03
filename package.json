@@ -38,6 +38,7 @@
     "@formatjs/intl-utils": "3.8.4",
     "@headlessui/react": "1.7.12",
     "@heroicons/react": "2.2.0",
+    "@sidekickicons/react": "^0.14.0",
     "@supercharge/request-ip": "1.2.0",
     "@svgr/webpack": "6.5.1",
     "@tanem/react-nprogress": "5.0.30",

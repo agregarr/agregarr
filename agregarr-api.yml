@@ -294,6 +294,11 @@ components:
           type: boolean
           description: "true = promoted section (uses exclamation marks), false = A-Z section"
           example: true
+        randomizeHomeOrder:
+          type: boolean
+          description: "If true, randomize position amongst other randomized items on home screen"
+          example: false
+          nullable: true
         parentConfigId:
           type: integer
           description: "Reference to original config when expanded from 'all' libraries"
@@ -641,6 +646,11 @@ components:
           type: integer
           description: "Order for Plex library tab (sortTitle based)"
           example: 0
+          nullable: true
+        randomizeHomeOrder:
+          type: boolean
+          description: "If true, randomize position amongst other randomized items on home screen"
+          example: false
           nullable: true
         customDays:
           type: integer
@@ -1029,6 +1039,11 @@ components:
           type: boolean
           description: "true = promoted section (uses exclamation marks), false = A-Z section"
           example: true
+        randomizeHomeOrder:
+          type: boolean
+          description: "If true, randomize position amongst other randomized items on home screen"
+          example: false
+          nullable: true
         parentConfigId:
           type: integer
           description: "Reference to original config when expanded from 'all' libraries"

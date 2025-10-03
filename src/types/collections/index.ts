@@ -20,6 +20,7 @@ export interface PlexHubConfig {
   sortOrderHome: number; // Position on Plex home screen
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -73,6 +74,7 @@ export interface PreExistingCollectionConfig {
   sortOrderHome: number; // Position on Plex home screen
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -160,6 +162,7 @@ export interface CollectionFormConfig {
   readonly sortOrderHome?: number; // Order for Plex home screen (creation time based)
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
+  readonly randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
   readonly showUnwatchedOnly?: boolean; // Create smart collection that shows only unwatched items
   readonly smartCollectionRatingKey?: string; // Plex smart collection rating key when showUnwatchedOnly is enabled
@@ -314,6 +317,7 @@ export interface CollectionConfigCreateRequest {
   readonly libraryName: string;
   readonly sortOrderHome?: number;
   readonly sortOrderLibrary?: number;
+  readonly randomizeHomeOrder?: boolean;
   readonly customDays?: number;
   readonly minimumPlays?: number;
   readonly tautulliStatType?: 'plays' | 'duration';
@@ -393,6 +397,7 @@ export const toCollectionCreateRequest = (
     libraryName: config.libraryName,
     sortOrderHome: config.sortOrderHome,
     sortOrderLibrary: config.sortOrderLibrary,
+    randomizeHomeOrder: config.randomizeHomeOrder,
     customDays: config.customDays,
     minimumPlays: config.minimumPlays,
     tautulliStatType: config.tautulliStatType,

@@ -1,6 +1,7 @@
 // Availability sync import removed - not needed for collections-only app
 import collectionsSync from '@server/lib/collectionsSync';
 // ImageProxy removed - not needed for collections-only app
+import randomizeHomeOrder from '@server/lib/randomizeHomeOrder';
 import refreshToken from '@server/lib/refreshToken';
 // Scanner imports removed - not needed for collections-only app
 import type { JobId } from '@server/lib/settings';
@@ -64,6 +65,25 @@ export const startJobs = (): void => {
     }),
     running: () => collectionsSync.status.running,
     cancelFn: () => collectionsSync.cancel(),
+  });
+
+  scheduledJobs.push({
+    id: 'plex-randomize-home-order',
+    name: 'Plex Randomize Home Order',
+    type: 'process',
+    interval: 'minutes',
+    cronSchedule: jobs['plex-randomize-home-order'].schedule,
+    job: schedule.scheduleJob(
+      jobs['plex-randomize-home-order'].schedule,
+      () => {
+        logger.info('Starting scheduled job: Plex Randomize Home Order', {
+          label: 'Jobs',
+        });
+        randomizeHomeOrder.run();
+      }
+    ),
+    running: () => randomizeHomeOrder.status.running,
+    cancelFn: () => randomizeHomeOrder.cancel(),
   });
 
   scheduledJobs.push({

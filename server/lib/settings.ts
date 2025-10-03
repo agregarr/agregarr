@@ -63,6 +63,7 @@ export interface CollectionConfig {
   readonly sortOrderHome?: number; // Order for Plex home screen (1+ for positioned items, 0 for void/unpositioned)
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
+  readonly randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
   readonly isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
@@ -174,6 +175,7 @@ export interface PlexHubConfig {
   sortOrderHome: number; // Position on Plex home screen (1+ for positioned items, 0 for void)
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -231,6 +233,7 @@ export interface PreExistingCollectionConfig {
   sortOrderHome: number; // Position on Plex home screen (1+ for positioned items, 0 for void)
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -401,7 +404,10 @@ interface JobSettings {
   schedule: string;
 }
 
-export type JobId = 'plex-refresh-token' | 'plex-collections-sync';
+export type JobId =
+  | 'plex-refresh-token'
+  | 'plex-collections-sync'
+  | 'plex-randomize-home-order';
 
 interface AllSettings {
   clientId: string;
@@ -468,6 +474,9 @@ class Settings {
         },
         'plex-collections-sync': {
           schedule: '0 0 */12 * * *',
+        },
+        'plex-randomize-home-order': {
+          schedule: '0 0 6 * * *',
         },
       },
     };

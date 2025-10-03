@@ -1885,6 +1885,8 @@ const CollectionFormConfigForm = ({
             libraryRecommended:
               config.visibilityConfig?.libraryRecommended ?? false,
           },
+          randomizeHomeOrder:
+            (config as CollectionFormConfig).randomizeHomeOrder ?? false,
           customPoster: (config as CollectionFormConfig).customPoster || '',
           autoPoster: (config as CollectionFormConfig).autoPoster ?? true,
           autoPosterTemplate:
@@ -2078,6 +2080,7 @@ const CollectionFormConfigForm = ({
             autoPosterTemplate: values.autoPosterTemplate,
             showUnwatchedOnly: values.showUnwatchedOnly,
             smartCollectionSort: values.smartCollectionSort,
+            randomizeHomeOrder: values.randomizeHomeOrder,
             // Ensure customSyncSchedule is explicitly included
             customSyncSchedule: values.customSyncSchedule,
             // Remove UI-only fields from the final config
@@ -2520,6 +2523,39 @@ const CollectionFormConfigForm = ({
                             </div>
                           </div>
 
+                          {/* Randomize Home Order */}
+                          <div className="form-row">
+                            <label
+                              htmlFor="randomizeHomeOrder"
+                              className="text-label"
+                            >
+                              Randomize Home Order
+                            </label>
+                            <div className="form-input-area">
+                              <div className="flex items-center">
+                                <Field
+                                  type="checkbox"
+                                  id="randomizeHomeOrder"
+                                  name="randomizeHomeOrder"
+                                  className="form-checkbox"
+                                />
+                                <label
+                                  htmlFor="randomizeHomeOrder"
+                                  className="ml-2 text-sm text-gray-300"
+                                >
+                                  Shuffle position on Home/Recommended screens
+                                </label>
+                              </div>
+                              <div className="label-tip mt-2">
+                                When enabled, this collection&apos;s position
+                                will be randomly shuffled with other collections
+                                that have this option enabled during each sync.
+                                Custom scheduling for shuffling can be set on
+                                the Jobs page.
+                              </div>
+                            </div>
+                          </div>
+
                           {/* Max Items */}
                           <div className="form-row">
                             <label
@@ -2722,6 +2758,39 @@ const CollectionFormConfigForm = ({
                               restrictToLibraryOnly={false}
                               restrictToServerOwnerOnly={false}
                             />
+                          </div>
+                        </div>
+
+                        {/* Randomize Home Order */}
+                        <div className="form-row">
+                          <label
+                            htmlFor="randomizeHomeOrder"
+                            className="text-label"
+                          >
+                            Randomize Home Order
+                          </label>
+                          <div className="form-input-area">
+                            <div className="flex items-center">
+                              <Field
+                                type="checkbox"
+                                id="randomizeHomeOrder"
+                                name="randomizeHomeOrder"
+                                className="form-checkbox"
+                              />
+                              <label
+                                htmlFor="randomizeHomeOrder"
+                                className="ml-2 text-sm text-gray-300"
+                              >
+                                Shuffle position on Home/Recommended screens
+                              </label>
+                            </div>
+                            <div className="label-tip mt-2">
+                              When enabled, this {isHub ? 'hub' : 'collection'}
+                              &apos;s position will be randomly shuffled with
+                              other collections that have this option enabled
+                              during each sync. Custom scheduling for shuffling
+                              can be set on the Jobs page.
+                            </div>
                           </div>
                         </div>
 

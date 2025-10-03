@@ -43,6 +43,7 @@ import type {
   PlexHubConfig,
   PreExistingCollectionConfig,
 } from '@server/lib/settings';
+import { ArrowsCrossingIcon } from '@sidekickicons/react/24/solid';
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
@@ -417,6 +418,11 @@ const SortableItem = ({
         >
           {isDraggingDisabled ? (
             <LockClosedIcon className="h-4 w-4 text-gray-600" />
+          ) : config.randomizeHomeOrder ? (
+            <ArrowsCrossingIcon
+              className="h-5 w-5"
+              title="Position will be shuffled with other randomized collections during sync"
+            />
           ) : (
             <Bars3Icon className="h-5 w-5" />
           )}
