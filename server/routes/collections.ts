@@ -301,6 +301,25 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         context
       );
 
+      // Check for duplicate collection names within this library
+      // Skip duplicate check for DYNAMIC_RANDOM_TITLE as each collection gets a unique title from the random list
+      const templateValue = req.body.template || configToUpdate.template;
+      if (templateValue !== 'DYNAMIC_RANDOM_TITLE') {
+        const duplicateName = configs.find(
+          (config) =>
+            config.id !== configToUpdate.id && // Exclude the collection being updated
+            config.name === processedName &&
+            config.libraryId === configToUpdate.libraryId
+        );
+
+        if (duplicateName) {
+          return res.status(400).json({
+            error: `Collection "${processedName}" already exists in this library`,
+            message: `A collection with the name "${processedName}" already exists in library "${library?.name}". Please choose a different name or template.`,
+          });
+        }
+      }
+
       // For Overseerr user collections, keep {username} and {nickname} as literals
       if (
         (req.body.type || configToUpdate.type) === 'overseerr' &&
@@ -937,16 +956,19 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
       );
 
       // Check for duplicate collection names within this library
-      const duplicateName = existingConfigs.find(
-        (config) =>
-          config.name === processedName && config.libraryId === libraryId
-      );
+      // Skip duplicate check for DYNAMIC_RANDOM_TITLE as each collection gets a unique title from the random list
+      if (req.body.template !== 'DYNAMIC_RANDOM_TITLE') {
+        const duplicateName = existingConfigs.find(
+          (config) =>
+            config.name === processedName && config.libraryId === libraryId
+        );
 
-      if (duplicateName) {
-        return res.status(400).json({
-          error: `Collection "${processedName}" already exists in this library`,
-          message: `A collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
-        });
+        if (duplicateName) {
+          return res.status(400).json({
+            error: `Collection "${processedName}" already exists in this library`,
+            message: `A collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
+          });
+        }
       }
 
       // For Overseerr user collections, keep {username} and {nickname} as literals
