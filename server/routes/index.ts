@@ -265,6 +265,70 @@ router.get('/genres/combined', isAuthenticated(), async (req, res, next) => {
   }
 });
 
+router.get('/countries/combined', isAuthenticated(), async (req, res, next) => {
+  try {
+    // Return a curated list of countries users commonly want to exclude
+    // Focuses on major non-English content producers with distinct styles
+    const commonCountries = [
+      // East Asian - anime, K-dramas, C-dramas
+      'JP',
+      'KR',
+      'CN',
+      'TW',
+      'HK',
+      // South Asian - Bollywood
+      'IN',
+      // Southeast Asian - Thai dramas, Indonesian films
+      'TH',
+      'ID',
+      'MY',
+      'PH',
+      'VN',
+      'SG',
+      // European - major cinema markets
+      'FR',
+      'DE',
+      'IT',
+      'ES',
+      'RU',
+      'SE',
+      'NO',
+      'DK',
+      // Latin American
+      'MX',
+      'BR',
+      'AR',
+      // Middle Eastern - Turkish dramas
+      'TR',
+      'IL',
+      'AE',
+    ];
+
+    // Convert ISO codes to readable names using Intl.DisplayNames
+    const regionNames = new Intl.DisplayNames([req.locale ?? 'en'], {
+      type: 'region',
+    });
+
+    const combined = commonCountries
+      .map((code) => ({
+        code,
+        name: regionNames.of(code) ?? code,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json(combined);
+  } catch (e) {
+    logger.debug('Failed to retrieve combined countries', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve countries.',
+    });
+  }
+});
+
 router.get('/backdrops', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage();
 

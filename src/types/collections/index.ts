@@ -179,6 +179,7 @@ export interface CollectionFormConfig {
     | number
     | boolean
     | string[]
+    | number[]
     | Record<string, string>
     | null
     | {
@@ -227,6 +228,7 @@ export interface CollectionFormConfig {
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
+  readonly excludedCountries?: string[]; // Exclude items with these ISO 3166-1 country codes from missing items search
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
@@ -331,6 +333,7 @@ export interface CollectionConfigCreateRequest {
   readonly maxSeasonsToRequest?: number;
   readonly minimumYear?: number;
   readonly excludedGenres?: number[];
+  readonly excludedCountries?: string[];
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
@@ -411,6 +414,7 @@ export const toCollectionCreateRequest = (
     maxSeasonsToRequest: config.maxSeasonsToRequest,
     minimumYear: config.minimumYear,
     excludedGenres: config.excludedGenres,
+    excludedCountries: config.excludedCountries,
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
     directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
     directDownloadSonarrServerId: config.directDownloadSonarrServerId,

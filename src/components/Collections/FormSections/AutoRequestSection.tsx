@@ -2,6 +2,7 @@ import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { Field } from 'formik';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
+import CountryExclusion from './CountryExclusion';
 import GenreExclusion from './GenreExclusion';
 
 const messages = defineMessages({
@@ -60,6 +61,7 @@ interface AutoRequestSectionProps {
     searchMissingMovies?: boolean;
     searchMissingTV?: boolean;
     excludedGenres?: number[];
+    excludedCountries?: string[];
     directDownloadRadarrServerId?: number;
     directDownloadRadarrProfileId?: number;
     directDownloadSonarrServerId?: number;
@@ -282,10 +284,17 @@ const AutoRequestSection = ({
 
           {/* Genre Exclusion */}
           <GenreExclusion
-            mediaType={values.mediaType}
             selectedGenres={values.excludedGenres || []}
             onSelectionChange={(selectedIds) => {
               setFieldValue?.('excludedGenres', selectedIds);
+            }}
+          />
+
+          {/* Country Exclusion */}
+          <CountryExclusion
+            selectedCountries={values.excludedCountries || []}
+            onSelectionChange={(selectedCodes) => {
+              setFieldValue?.('excludedCountries', selectedCodes);
             }}
           />
 

@@ -160,6 +160,10 @@ export class DirectDownloadService {
       let alreadyDownloadedCount = 0;
       const maxSeasons = Number(config.maxSeasonsToRequest) || 3;
 
+      // Track excluded items for summary logging
+      const excludedGenreItems: string[] = [];
+      const excludedCountryItems: string[] = [];
+
       for (const item of filteredMissingItems) {
         try {
           // Determine if we should download based on media type and season limits only
@@ -195,10 +199,21 @@ export class DirectDownloadService {
               config.excludedGenres
             );
             if (hasExcluded) {
-              logger.debug(`Skipping ${item.title}: Contains excluded genre`, {
-                label: 'Direct Download Service',
-                collection: config.name,
-              });
+              excludedGenreItems.push(item.title);
+              skippedRequests++;
+              continue;
+            }
+          }
+
+          // Check excluded countries
+          if (config.excludedCountries && config.excludedCountries.length > 0) {
+            const hasExcluded = await this.hasExcludedCountries(
+              item.tmdbId,
+              item.mediaType,
+              config.excludedCountries
+            );
+            if (hasExcluded) {
+              excludedCountryItems.push(item.title);
               skippedRequests++;
               continue;
             }
@@ -255,6 +270,36 @@ export class DirectDownloadService {
           );
           skippedRequests++;
         }
+      }
+
+      // Log summary of items excluded by genre
+      if (excludedGenreItems.length > 0) {
+        logger.info(`Items skipped due to excluded genres`, {
+          label: `${
+            source.charAt(0).toUpperCase() + source.slice(1)
+          } Collections`,
+          collection: config.name,
+          count: excludedGenreItems.length,
+          titles: excludedGenreItems.slice(0, 10), // Limit to first 10 titles
+          ...(excludedGenreItems.length > 10 && {
+            additionalCount: excludedGenreItems.length - 10,
+          }),
+        });
+      }
+
+      // Log summary of items excluded by country
+      if (excludedCountryItems.length > 0) {
+        logger.info(`Items skipped due to excluded countries`, {
+          label: `${
+            source.charAt(0).toUpperCase() + source.slice(1)
+          } Collections`,
+          collection: config.name,
+          count: excludedCountryItems.length,
+          titles: excludedCountryItems.slice(0, 10), // Limit to first 10 titles
+          ...(excludedCountryItems.length > 10 && {
+            additionalCount: excludedCountryItems.length - 10,
+          }),
+        });
       }
 
       if (autoApprovedRequests > 0) {
@@ -724,6 +769,46 @@ export class DirectDownloadService {
         }
       );
       return false; // If we can't check genres, don't exclude the item
+    }
+  }
+
+  /**
+   * Check if an item has any excluded origin countries
+   */
+  private async hasExcludedCountries(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedCountries: string[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        // Movies use production_countries array
+        if (movie.production_countries) {
+          return movie.production_countries.some((country) =>
+            excludedCountries.includes(country.iso_3166_1)
+          );
+        }
+        return false;
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        // TV shows use origin_country array
+        if (tvShow.origin_country) {
+          return tvShow.origin_country.some((country) =>
+            excludedCountries.includes(country)
+          );
+        }
+        return false;
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check origin countries for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Direct Download Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check countries, don't exclude the item
     }
   }
 

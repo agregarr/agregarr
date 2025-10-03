@@ -367,6 +367,13 @@ components:
           description: "TMDB genre IDs to exclude from missing items search"
           example: [28, 53]
           nullable: true
+        excludedCountries:
+          type: array
+          items:
+            type: string
+          description: "ISO 3166-1 country codes to exclude from missing items search"
+          example: ["JP", "KR"]
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
@@ -716,6 +723,13 @@ components:
             type: integer
           description: "TMDB genre IDs to exclude from missing items search"
           example: [28, 53]
+          nullable: true
+        excludedCountries:
+          type: array
+          items:
+            type: string
+          description: "ISO 3166-1 country codes to exclude from missing items search"
+          example: ["JP", "KR"]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -1131,6 +1145,13 @@ components:
             type: integer
           description: "TMDB genre IDs to exclude from missing items search"
           example: [28, 53]
+          nullable: true
+        excludedCountries:
+          type: array
+          items:
+            type: string
+          description: "ISO 3166-1 country codes to exclude from missing items search"
+          example: ["JP", "KR"]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -3817,6 +3838,28 @@ paths:
                     name:
                       type: string
                       example: Action
+  /countries/combined:
+    get:
+      summary: Get combined movie and TV origin countries
+      description: Returns a curated list of common origin countries with localized names
+      tags:
+        - countries
+      responses:
+        '200':
+          description: Combined countries list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      example: JP
+                    name:
+                      type: string
+                      example: Japan
   /status:
     get:
       summary: Get Agregarr status

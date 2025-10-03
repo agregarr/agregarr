@@ -174,6 +174,7 @@ export class AutoRequestService {
       const previouslyDeclinedItems: string[] = [];
       const tooManySeasons: string[] = [];
       const excludedGenreItems: string[] = [];
+      const excludedCountryItems: string[] = [];
 
       for (const item of filteredMissingItems) {
         try {
@@ -197,6 +198,20 @@ export class AutoRequestService {
             );
             if (hasExcluded) {
               excludedGenreItems.push(item.title);
+              skippedRequests++;
+              continue;
+            }
+          }
+
+          // Check excluded countries
+          if (config.excludedCountries && config.excludedCountries.length > 0) {
+            const hasExcluded = await this.hasExcludedCountries(
+              item.tmdbId,
+              item.mediaType,
+              config.excludedCountries
+            );
+            if (hasExcluded) {
+              excludedCountryItems.push(item.title);
               skippedRequests++;
               continue;
             }
@@ -401,6 +416,21 @@ export class AutoRequestService {
         });
       }
 
+      // Log summary of items excluded by country
+      if (excludedCountryItems.length > 0) {
+        logger.info(`Items skipped due to excluded countries`, {
+          label: `${
+            source.charAt(0).toUpperCase() + source.slice(1)
+          } Collections`,
+          collection: config.name,
+          count: excludedCountryItems.length,
+          titles: excludedCountryItems.slice(0, 10), // Limit to first 10 titles
+          ...(excludedCountryItems.length > 10 && {
+            additionalCount: excludedCountryItems.length - 10,
+          }),
+        });
+      }
+
       const totalRequests = autoApprovedRequests + manualApprovalRequests;
       if (totalRequests > 0) {
         logger.info(
@@ -560,6 +590,46 @@ export class AutoRequestService {
         }
       );
       return false; // If we can't check genres, don't exclude the item
+    }
+  }
+
+  /**
+   * Check if an item has any excluded origin countries
+   */
+  private async hasExcludedCountries(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedCountries: string[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        // Movies use production_countries array
+        if (movie.production_countries) {
+          return movie.production_countries.some((country) =>
+            excludedCountries.includes(country.iso_3166_1)
+          );
+        }
+        return false;
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        // TV shows use origin_country array
+        if (tvShow.origin_country) {
+          return tvShow.origin_country.some((country) =>
+            excludedCountries.includes(country)
+          );
+        }
+        return false;
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check origin countries for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Auto Request Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check countries, don't exclude the item
     }
   }
 

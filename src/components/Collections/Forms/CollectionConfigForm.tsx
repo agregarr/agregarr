@@ -309,6 +309,7 @@ const CollectionFormConfigForm = ({
     // Direct download field validation
     downloadMode: Yup.string().oneOf(['overseerr', 'direct']),
     excludedGenres: Yup.array().of(Yup.number().positive().integer()),
+    excludedCountries: Yup.array().of(Yup.string()),
     directDownloadRadarrServerId: Yup.number().positive().integer(),
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
     directDownloadSonarrServerId: Yup.number().positive().integer(),
@@ -1868,6 +1869,8 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).maxPositionToProcess || 0,
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
+          excludedCountries:
+            (config as CollectionFormConfig).excludedCountries || [],
           // Direct download server selection
           directDownloadRadarrServerId:
             (config as CollectionFormConfig).directDownloadRadarrServerId ||
@@ -2060,6 +2063,10 @@ const CollectionFormConfigForm = ({
             excludedGenres:
               values.enableGrabMissingItems && values.excludedGenres
                 ? values.excludedGenres
+                : undefined,
+            excludedCountries:
+              values.enableGrabMissingItems && values.excludedCountries
+                ? values.excludedCountries
                 : undefined,
             // Direct download server selection
             directDownloadRadarrServerId:
