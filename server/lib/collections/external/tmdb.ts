@@ -59,83 +59,199 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     switch (statType) {
       case 'trending': {
         const timeWindow = subtype.includes('week') ? 'week' : 'day';
-        if (mediaType === 'movie') {
-          const data = await this.tmdbClient.getMovieTrending({
-            page: 1,
-            timeWindow,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
-          );
-        }
-        if (mediaType === 'tv') {
-          const data = await this.tmdbClient.getTvTrending({
-            page: 1,
-            timeWindow,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'tv' as const,
-            }))
-          );
+        // Fetch pages in batches of 5 (100 items), check if we have enough Plex matches
+        let currentPage = 1;
+        let hasMorePages = true;
+        const BATCH_SIZE = 5; // 5 pages = 100 items per batch
+
+        while (hasMorePages) {
+          // Fetch a batch of pages
+          for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+            if (mediaType === 'movie') {
+              const data = await this.tmdbClient.getMovieTrending({
+                page: currentPage,
+                timeWindow,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'movie' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            if (mediaType === 'tv') {
+              const data = await this.tmdbClient.getTvTrending({
+                page: currentPage,
+                timeWindow,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            currentPage++;
+          }
+
+          // Check if we have enough data - stop if we have 10x maxItems (safety buffer)
+          if (
+            config.maxItems &&
+            config.maxItems > 0 &&
+            tmdbData.length >= config.maxItems * 10
+          ) {
+            break;
+          }
         }
         break;
       }
       case 'popular': {
-        if (mediaType === 'movie') {
-          const data = await this.tmdbClient.getDiscoverMovies({
-            sortBy: 'popularity.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
-          );
-        }
-        if (mediaType === 'tv') {
-          const data = await this.tmdbClient.getDiscoverTv({
-            sortBy: 'popularity.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'tv' as const,
-            }))
-          );
+        // Fetch pages in batches of 5 (100 items), check if we have enough
+        let currentPage = 1;
+        let hasMorePages = true;
+        const BATCH_SIZE = 5;
+
+        while (hasMorePages) {
+          for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+            if (mediaType === 'movie') {
+              const data = await this.tmdbClient.getDiscoverMovies({
+                sortBy: 'popularity.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'movie' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            if (mediaType === 'tv') {
+              const data = await this.tmdbClient.getDiscoverTv({
+                sortBy: 'popularity.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            currentPage++;
+          }
+
+          if (
+            config.maxItems &&
+            config.maxItems > 0 &&
+            tmdbData.length >= config.maxItems * 10
+          ) {
+            break;
+          }
         }
         break;
       }
       case 'top': {
-        if (mediaType === 'movie') {
-          const data = await this.tmdbClient.getDiscoverMovies({
-            sortBy: 'vote_average.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
-          );
-        }
-        if (mediaType === 'tv') {
-          const data = await this.tmdbClient.getDiscoverTv({
-            sortBy: 'vote_average.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'tv' as const,
-            }))
-          );
+        // Fetch pages in batches of 5 (100 items), check if we have enough
+        let currentPage = 1;
+        let hasMorePages = true;
+        const BATCH_SIZE = 5;
+
+        while (hasMorePages) {
+          for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+            if (mediaType === 'movie') {
+              const data = await this.tmdbClient.getDiscoverMovies({
+                sortBy: 'vote_average.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'movie' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            if (mediaType === 'tv') {
+              const data = await this.tmdbClient.getDiscoverTv({
+                sortBy: 'vote_average.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            currentPage++;
+          }
+
+          if (
+            config.maxItems &&
+            config.maxItems > 0 &&
+            tmdbData.length >= config.maxItems * 10
+          ) {
+            break;
+          }
         }
         break;
       }
