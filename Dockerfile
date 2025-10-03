@@ -1,16 +1,18 @@
-FROM node:18.18.2-bullseye-slim AS build_image
+FROM node:18.18.2-alpine AS build_image
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    libcairo2-dev \
-    libpango1.0-dev \
-    libvips-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+ARG TARGETPLATFORM
+ENV TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
+
+RUN apk add --no-cache \
+    python3 make g++ gcc libc6-compat bash \
+    build-base cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
+
+RUN yarn global add node-gyp
 
 COPY package.json yarn.lock ./
-RUN CYPRESS_INSTALL_BINARY=0 yarn install --frozen-lockfile --network-timeout 1000000 --build-from-source
+RUN CYPRESS_INSTALL_BINARY=0 yarn install --frozen-lockfile --network-timeout 1000000
 
 COPY . ./
 
@@ -29,14 +31,14 @@ RUN mkdir -p config && touch config/DOCKER
 RUN echo "{\"commitTag\": \"${COMMIT_TAG}\"}" > committag.json
 
 
-FROM node:18.18.2-bullseye-slim
+FROM node:18.18.2-alpine
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    tzdata tini fontconfig fonts-dejavu-core fonts-noto-color-emoji wget libcairo2 libpango-1.0-0 libvips42 \
-    && rm -rf /var/lib/apt/lists/* && mkdir -p /usr/share/fonts/truetype/poster-fonts && \
-    # Download Google Fonts
+RUN apk add --no-cache \
+    tzdata tini fontconfig ttf-dejavu font-noto-emoji \
+    cairo pango jpeg giflib pixman \
+    && mkdir -p /usr/share/fonts/truetype/poster-fonts && \
     cd /usr/share/fonts/truetype/poster-fonts && \
     wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf && \
     wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf && \
@@ -65,10 +67,9 @@ RUN apt-get update && apt-get install -y \
     fc-cache -fv && \
     rm -rf /tmp/*
 
-# copy from build image
 COPY --from=build_image /app ./
 
-ENTRYPOINT [ "/usr/bin/tini", "--" ]
+ENTRYPOINT [ "/sbin/tini", "--" ]
 CMD [ "yarn", "start" ]
 
 EXPOSE 7171
