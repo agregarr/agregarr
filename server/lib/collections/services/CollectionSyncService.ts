@@ -285,7 +285,9 @@ export class CollectionSyncService {
               plexClient,
               allCollections,
               processedCollectionKeys,
-              libraryCache
+              libraryCache,
+              undefined, // options
+              config // Pass original config for smart collection operations
             );
           } else {
             // Use normal single-source sync

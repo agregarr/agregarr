@@ -19,6 +19,14 @@ export interface Library {
   readonly lastScan?: number;
 }
 
+/**
+ * Smart Collection Sort Options
+ */
+export interface SmartCollectionSortOption {
+  readonly value: string; // The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')
+  readonly label: string; // Human-readable label for the dropdown
+}
+
 export interface CollectionConfig {
   readonly id: string;
   readonly name: string;
@@ -61,6 +69,9 @@ export interface CollectionConfig {
   everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   readonly isPromotedToHub?: boolean; // True if collection exists as a promotable hub in Plex (appears in hub management list)
   readonly collectionRatingKey?: string; // Plex collection rating key (when created)
+  readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
+  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key (when smart collection is created)
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
   // Trakt-specific fields

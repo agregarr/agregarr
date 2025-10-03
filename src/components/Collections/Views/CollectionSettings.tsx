@@ -383,6 +383,12 @@ const CollectionSettings = ({
           ...(collectionConfig.autoPosterTemplate !== undefined && {
             autoPosterTemplate: collectionConfig.autoPosterTemplate,
           }),
+          ...(collectionConfig.showUnwatchedOnly !== undefined && {
+            showUnwatchedOnly: collectionConfig.showUnwatchedOnly,
+          }),
+          ...(collectionConfig.smartCollectionSort !== undefined && {
+            smartCollectionSort: collectionConfig.smartCollectionSort,
+          }),
           ...(collectionConfig.customSyncSchedule && {
             customSyncSchedule: collectionConfig.customSyncSchedule,
           }),
@@ -518,6 +524,8 @@ const CollectionSettings = ({
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
           autoPosterTemplate: config.autoPosterTemplate,
+          showUnwatchedOnly: config.showUnwatchedOnly,
+          smartCollectionSort: config.smartCollectionSort,
           customSyncSchedule: config.customSyncSchedule,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
@@ -1751,6 +1759,8 @@ const CollectionSettings = ({
               reverseOrder: masterConfig.reverseOrder,
               randomizeOrder: masterConfig.randomizeOrder,
               customPoster: masterConfig.customPoster,
+              showUnwatchedOnly: masterConfig.showUnwatchedOnly,
+              smartCollectionSort: masterConfig.smartCollectionSort,
               mediaType: masterConfig.mediaType,
               customDays: masterConfig.customDays,
               tautulliStatType: masterConfig.tautulliStatType,

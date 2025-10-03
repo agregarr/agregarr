@@ -10,6 +10,7 @@ import type {
   MultiSourceType,
   TemplatePreset,
 } from '@app/types/collections';
+import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
 import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
@@ -48,6 +49,9 @@ const messages = defineMessages({
   timeRestrictions: 'Time Restrictions',
   createCollection: 'Create Collection',
   updateCollection: 'Update Collection',
+  showUnwatchedOnly: 'Show Unwatched Items Only',
+  showUnwatchedOnlyDescription: 'Create Smart Collection',
+  smartCollectionSort: 'Smart Collection Sort Order',
   cancel: 'Cancel',
   preview: 'Preview:',
   alwaysActive: 'Always Active',
@@ -311,6 +315,14 @@ const CollectionFormConfigForm = ({
 
     // Multi-source field validation
     isMultiSource: Yup.boolean(),
+    // Smart collection validation
+    showUnwatchedOnly: Yup.boolean(),
+    smartCollectionSort: Yup.object()
+      .shape({
+        value: Yup.string(),
+        label: Yup.string(),
+      })
+      .nullable(),
     sources: Yup.array().of(
       Yup.object().shape({
         id: Yup.string().required('Source ID is required'),
@@ -1877,6 +1889,11 @@ const CollectionFormConfigForm = ({
           autoPoster: (config as CollectionFormConfig).autoPoster ?? true,
           autoPosterTemplate:
             (config as CollectionFormConfig).autoPosterTemplate ?? null,
+          showUnwatchedOnly:
+            (config as CollectionFormConfig).showUnwatchedOnly ?? false,
+          smartCollectionSort:
+            (config as CollectionFormConfig).smartCollectionSort ??
+            SMART_COLLECTION_SORT_OPTIONS[5], // Default to release date (newest first)
           timeRestriction: config.timeRestriction || {
             alwaysActive: true,
             removeFromPlexWhenInactive: false,
@@ -2059,6 +2076,8 @@ const CollectionFormConfigForm = ({
                 : undefined,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
+            showUnwatchedOnly: values.showUnwatchedOnly,
+            smartCollectionSort: values.smartCollectionSort,
             // Ensure customSyncSchedule is explicitly included
             customSyncSchedule: values.customSyncSchedule,
             // Remove UI-only fields from the final config
@@ -2527,6 +2546,97 @@ const CollectionFormConfigForm = ({
                               <div className="label-tip">
                                 Limit the Collection to this many items
                               </div>
+                            </div>
+                          </div>
+
+                          {/* Smart Collection - Show Unwatched Only */}
+                          <div className="form-row">
+                            <label className="text-label">
+                              {intl.formatMessage(messages.showUnwatchedOnly)}
+                            </label>
+                            <div className="form-input-area">
+                              <div className="flex items-center">
+                                <Field
+                                  type="checkbox"
+                                  id="showUnwatchedOnly"
+                                  name="showUnwatchedOnly"
+                                  className="form-checkbox"
+                                />
+                                <label
+                                  htmlFor="showUnwatchedOnly"
+                                  className="ml-2 text-sm text-gray-300"
+                                >
+                                  {intl.formatMessage(
+                                    messages.showUnwatchedOnlyDescription
+                                  )}
+                                </label>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-400">
+                                When enabled, creates a smart collection with
+                                the unwatched filter to show only unwatched
+                                items for the user viewing the collection. The
+                                original collection will be hidden in the
+                                library and pushed to the botton in the
+                                Collections Tab
+                              </div>
+                              {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
+                              {values.showUnwatchedOnly && (
+                                <div className="form-row">
+                                  <label
+                                    htmlFor="smartCollectionSort"
+                                    className="text-label"
+                                  >
+                                    {intl.formatMessage(
+                                      messages.smartCollectionSort
+                                    )}
+                                  </label>
+                                  <div className="form-input-area">
+                                    <div className="form-input-field">
+                                      <Field
+                                        as="select"
+                                        id="smartCollectionSort"
+                                        name="smartCollectionSort"
+                                        value={
+                                          values.smartCollectionSort?.value ||
+                                          SMART_COLLECTION_SORT_OPTIONS[5].value // Default to release date (newest first)
+                                        }
+                                        onChange={(
+                                          e: React.ChangeEvent<HTMLSelectElement>
+                                        ) => {
+                                          const selectedOption =
+                                            SMART_COLLECTION_SORT_OPTIONS.find(
+                                              (option) =>
+                                                option.value === e.target.value
+                                            );
+                                          if (selectedOption) {
+                                            setFieldValue(
+                                              'smartCollectionSort',
+                                              selectedOption
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        {SMART_COLLECTION_SORT_OPTIONS.map(
+                                          (option) => (
+                                            <option
+                                              key={option.value}
+                                              value={option.value}
+                                            >
+                                              {option.label}
+                                            </option>
+                                          )
+                                        )}
+                                      </Field>
+                                    </div>
+                                    <div className="mt-2 text-xs text-gray-400">
+                                      Choose how items in the smart collection
+                                      should be sorted. Due to Plex limiations,
+                                      the original list order cannot be
+                                      preserved when using smart collections.
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
 

@@ -1007,6 +1007,15 @@ const AllCollectionsView: React.FC = () => {
                             </Badge>
                           ) : null;
                         })()}
+
+                      {/* Unwatched Badge (shows when showUnwatchedOnly is enabled) */}
+                      {isCollection &&
+                        (collection.originalConfig as CollectionFormConfig)
+                          .showUnwatchedOnly && (
+                          <Badge badgeType="default" className="!bg-opacity-30">
+                            Unwatched
+                          </Badge>
+                        )}
                     </div>
                   </div>
                 </div>

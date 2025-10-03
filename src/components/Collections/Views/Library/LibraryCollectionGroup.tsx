@@ -694,6 +694,14 @@ const SortableItem = ({
                   </Badge>
                 ) : null;
               })()}
+
+            {/* Unwatched Badge (shows when showUnwatchedOnly is enabled) */}
+            {isCollection &&
+              (config as CollectionFormConfig).showUnwatchedOnly && (
+                <Badge badgeType="default" className="!bg-opacity-30">
+                  Unwatched
+                </Badge>
+              )}
           </div>
         </div>
       </div>

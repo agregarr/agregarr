@@ -702,6 +702,69 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       configsToDelete.push(configToDelete);
     }
 
+    // Clean up smart collections for configs that have them
+    try {
+      // Get admin user for Plex token
+      const { getAdminUser } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
+      const localAdmin = await getAdminUser();
+
+      if (!localAdmin?.plexToken) {
+        logger.warn(
+          'No local admin Plex token found for smart collection cleanup'
+        );
+        // Continue with normal collection deletion even if smart cleanup fails
+      } else {
+        const plexClient = new PlexAPI({
+          plexToken: localAdmin.plexToken,
+          plexSettings: settings.plex,
+        });
+
+        for (const config of configsToDelete) {
+          if (config.smartCollectionRatingKey) {
+            logger.info(
+              `Deleting smart collection for config "${config.name}"`,
+              {
+                label: 'Collections API',
+                configId: config.id,
+                smartCollectionRatingKey: config.smartCollectionRatingKey,
+              }
+            );
+
+            try {
+              await plexClient.deleteSmartCollection(
+                config.smartCollectionRatingKey
+              );
+              logger.debug(
+                `Successfully deleted smart collection ${config.smartCollectionRatingKey}`,
+                {
+                  label: 'Collections API',
+                  configId: config.id,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to delete smart collection ${config.smartCollectionRatingKey}`,
+                {
+                  label: 'Collections API',
+                  configId: config.id,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              // Don't fail the whole deletion if smart collection cleanup fails
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Error during smart collection cleanup', {
+        label: 'Collections API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Don't fail the whole deletion if smart collection cleanup fails
+    }
+
     // Remove the configs
     const deletedConfigIds = configsToDelete.map((c) => c.id);
     const remainingConfigs = configs.filter(

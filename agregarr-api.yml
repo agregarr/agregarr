@@ -506,6 +506,24 @@ components:
           description: "True if collection has been modified and needs to be synced to Plex"
           example: false
           nullable: true
+        showUnwatchedOnly:
+          type: boolean
+          description: "Create a smart collection that shows only unwatched items from this collection"
+          example: false
+          nullable: true
+        smartCollectionSort:
+          type: object
+          description: "Sort option for smart collections"
+          properties:
+            value:
+              type: string
+              description: "The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')"
+              example: "year:desc"
+            label:
+              type: string
+              description: "Human-readable label for the dropdown"
+              example: "Year (Newest First)"
+          nullable: true
       required:
         - id
         - name
@@ -880,6 +898,24 @@ components:
           type: integer
           description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
           example: 2
+          nullable: true
+        showUnwatchedOnly:
+          type: boolean
+          description: "Create a smart collection that shows only unwatched items from this collection"
+          example: false
+          nullable: true
+        smartCollectionSort:
+          type: object
+          description: "Sort option for smart collections"
+          properties:
+            value:
+              type: string
+              description: "The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')"
+              example: "year:desc"
+            label:
+              type: string
+              description: "Human-readable label for the dropdown"
+              example: "Year (Newest First)"
           nullable: true
       required:
         - id
@@ -1285,6 +1321,24 @@ components:
           type: integer
           description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
           example: 2
+          nullable: true
+        showUnwatchedOnly:
+          type: boolean
+          description: "Create a smart collection that shows only unwatched items from this collection"
+          example: false
+          nullable: true
+        smartCollectionSort:
+          type: object
+          description: "Sort option for smart collections"
+          properties:
+            value:
+              type: string
+              description: "The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')"
+              example: "year:desc"
+            label:
+              type: string
+              description: "Human-readable label for the dropdown"
+              example: "Year (Newest First)"
           nullable: true
       required:
         - id

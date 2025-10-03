@@ -161,6 +161,9 @@ export interface CollectionFormConfig {
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
   readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
+  readonly showUnwatchedOnly?: boolean; // Create smart collection that shows only unwatched items
+  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key when showUnwatchedOnly is enabled
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
   readonly customSyncSchedule?: CustomSyncSchedule; // Individual sync timing
@@ -205,6 +208,7 @@ export interface CollectionFormConfig {
     | readonly CollectionSourceConfig[] // Multi-source configs
     | CustomSyncSchedule // Custom sync schedule
     | MultiSourceCombineMode // Combine mode
+    | SmartCollectionSortOption // Smart collection sort option
     | undefined;
   readonly customDays?: number; // Number of days for Tautulli collections
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
@@ -358,7 +362,8 @@ export interface CollectionConfigCreateRequest {
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
-  // Multi-source fields
+  readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   readonly isMultiSource?: boolean;
   readonly sources?: readonly CollectionSourceConfig[];
   readonly combineMode?: MultiSourceCombineMode;
@@ -413,6 +418,9 @@ export const toCollectionCreateRequest = (
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
     autoPosterTemplate: config.autoPosterTemplate,
+    // Smart collection support
+    showUnwatchedOnly: config.showUnwatchedOnly,
+    smartCollectionSort: config.smartCollectionSort,
     // Multi-source fields
     isMultiSource: config.isMultiSource,
     sources: config.sources,
@@ -549,6 +557,54 @@ export type CollectionSourceType =
   | 'networks'
   | 'multi-source';
 export type MediaType = 'movie' | 'tv';
+
+/**
+ * Smart Collection Sort Options
+ */
+export interface SmartCollectionSortOption {
+  readonly value: string; // The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')
+  readonly label: string; // Human-readable label for the dropdown
+}
+
+/**
+ * Available smart collection sort options
+ */
+export const SMART_COLLECTION_SORT_OPTIONS: readonly SmartCollectionSortOption[] =
+  [
+    { value: 'titleSort', label: 'Title (A-Z)' },
+    { value: 'titleSort:desc', label: 'Title (Z-A)' },
+    { value: 'year', label: 'Year (Oldest First)' },
+    { value: 'year:desc', label: 'Year (Newest First)' },
+    { value: 'originallyAvailableAt', label: 'Release Date (Oldest First)' },
+    {
+      value: 'originallyAvailableAt:desc',
+      label: 'Release Date (Newest First)',
+    },
+    { value: 'rating', label: 'Rating (Lowest First)' },
+    { value: 'rating:desc', label: 'Rating (Highest First)' },
+    { value: 'audienceRating', label: 'Audience Rating (Lowest First)' },
+    { value: 'audienceRating:desc', label: 'Audience Rating (Highest First)' },
+    { value: 'userRating', label: 'User Rating (Lowest First)' },
+    { value: 'userRating:desc', label: 'User Rating (Highest First)' },
+    { value: 'contentRating', label: 'Content Rating (Lowest First)' },
+    { value: 'contentRating:desc', label: 'Content Rating (Highest First)' },
+    { value: 'duration', label: 'Duration (Shortest First)' },
+    { value: 'duration:desc', label: 'Duration (Longest First)' },
+    { value: 'viewOffset', label: 'Progress (Least Watched)' },
+    { value: 'viewOffset:desc', label: 'Progress (Most Watched)' },
+    { value: 'viewCount', label: 'View Count (Least Watched)' },
+    { value: 'viewCount:desc', label: 'View Count (Most Watched)' },
+    { value: 'addedAt', label: 'Date Added (Oldest First)' },
+    { value: 'addedAt:desc', label: 'Date Added (Newest First)' },
+    { value: 'lastViewedAt', label: 'Last Viewed (Oldest First)' },
+    { value: 'lastViewedAt:desc', label: 'Last Viewed (Newest First)' },
+    { value: 'mediaHeight', label: 'Resolution (Lowest First)' },
+    { value: 'mediaHeight:desc', label: 'Resolution (Highest First)' },
+    { value: 'mediaBitrate', label: 'Bitrate (Lowest First)' },
+    { value: 'mediaBitrate:desc', label: 'Bitrate (Highest First)' },
+    { value: 'random', label: 'Random' },
+    { value: 'random:desc', label: 'Random (Reverse)' },
+  ] as const;
 
 /**
  * Collection config for API submission - excludes read-only fields computed by backend

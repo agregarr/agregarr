@@ -897,6 +897,18 @@ export class DiscoveryService {
                 collectionWithLabels &&
                 this.isAgregarrManagedCollection(collectionWithLabels)
               ) {
+                // Skip smart collections - they are managed separately and shouldn't be deleted here
+                const isSmartCollection = collectionWithLabels.smart === '1';
+
+                // Skip base collections for smart collections (they have dash prefix titles)
+                const isBaseCollectionForSmart =
+                  collectionWithLabels.title?.startsWith('-');
+
+                if (isSmartCollection || isBaseCollectionForSmart) {
+                  // Skip - these are part of the smart collection system
+                  continue;
+                }
+
                 // This is an Agregarr-managed collection - check visibility
                 const hasVisibility =
                   hub.promotedToSharedHome ||
@@ -1605,7 +1617,11 @@ export class DiscoveryService {
         ];
 
         for (const { type, config } of allLibraryCollections) {
-          const hubIdentifier = `custom.collection.${library.key}.${config.collectionRatingKey}`;
+          // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
+          const targetRatingKey =
+            (config as CollectionConfig).smartCollectionRatingKey ||
+            config.collectionRatingKey;
+          const hubIdentifier = `custom.collection.${library.key}.${targetRatingKey}`;
 
           // Skip if already in hub management
           if (existingHubIdentifiers.has(hubIdentifier)) {
@@ -1623,15 +1639,18 @@ export class DiscoveryService {
                 configId: config.id,
                 libraryId: library.key,
                 collectionRatingKey: config.collectionRatingKey,
+                smartCollectionRatingKey: (config as CollectionConfig)
+                  .smartCollectionRatingKey,
+                targetRatingKey,
                 type,
               }
             );
 
             try {
-              // Promote collection to hub management
-              if (config.collectionRatingKey) {
+              // Promote collection to hub management (use target rating key - smart if exists, otherwise base)
+              if (targetRatingKey) {
                 await plexClient.promoteCollectionToHub(
-                  config.collectionRatingKey,
+                  targetRatingKey,
                   library.key
                 );
               }

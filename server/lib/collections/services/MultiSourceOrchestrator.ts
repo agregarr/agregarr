@@ -58,6 +58,7 @@ interface CollectionUpdateOptions {
   processedCollectionKeys?: Set<string>;
   libraryKey: string;
   config: MultiSourceCollectionConfig;
+  originalConfig?: CollectionConfig;
 }
 
 interface MetadataUpdateOptions {
@@ -96,7 +97,8 @@ export class MultiSourceOrchestrator {
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
     libraryCache?: LibraryItemsCache,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    originalConfig?: CollectionConfig // Original config for smart collection operations
   ): Promise<{ created: number; updated: number }> {
     try {
       // 1. Time Restrictions - check if collection should be active
@@ -257,7 +259,8 @@ export class MultiSourceOrchestrator {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        originalConfig
       );
     } catch (error) {
       // 4. Error Handling - use standard pipeline utilities
@@ -631,7 +634,8 @@ export class MultiSourceOrchestrator {
     config: MultiSourceCollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>
+    processedCollectionKeys?: Set<string>,
+    originalConfig?: CollectionConfig
   ): Promise<{ created: number; updated: number }> {
     const mediaType = getMediaTypeFromLibrary(config.libraryId);
     const customLabel = createCollectionLabel(
@@ -662,6 +666,7 @@ export class MultiSourceOrchestrator {
         processedCollectionKeys,
         libraryKey: config.libraryId,
         config,
+        originalConfig,
       }
     );
   }
@@ -852,6 +857,55 @@ export class MultiSourceOrchestrator {
       collectionRatingKey,
       options.libraryKey
     );
+
+    // 6. Handle smart collection creation/cleanup if feature is enabled
+    // CRITICAL: This must happen AFTER the base collection is labeled and has rating key
+    if (collectionRatingKey && options.originalConfig) {
+      if (options.originalConfig.showUnwatchedOnly) {
+        // Create or update smart collection using the base collection we just labeled
+        // Use TraktCollectionSync as a concrete implementation to access smart collection methods
+        const smartCollectionHandler = new TraktCollectionSync();
+        await smartCollectionHandler.handleSmartCollectionCreation(
+          plexClient,
+          collectionRatingKey, // Base collection is guaranteed to exist and be labeled at this point
+          options.collectionName,
+          options.mediaType,
+          options.libraryKey,
+          options.originalConfig // Use original config which has smart collection properties
+        );
+      } else if (options.originalConfig.smartCollectionRatingKey) {
+        // User disabled the feature but smart collection exists - clean it up
+        const smartCollectionHandler = new TraktCollectionSync();
+        await smartCollectionHandler.handleSmartCollectionCleanup(
+          plexClient,
+          options.originalConfig
+        );
+      }
+    }
+
+    // 7. Apply metadata to the target collection (smart collection if enabled, base otherwise)
+    // CRITICAL: If smart collection is enabled, apply additional metadata to smart collection
+    // Re-determine target after smart collection creation to use updated rating key
+    const targetCollectionRatingKey =
+      options.originalConfig?.showUnwatchedOnly &&
+      options.originalConfig?.smartCollectionRatingKey
+        ? options.originalConfig.smartCollectionRatingKey
+        : collectionRatingKey;
+
+    // Only apply metadata to smart collection if it's different from base
+    if (targetCollectionRatingKey !== collectionRatingKey) {
+      await this.updateCollectionMetadataStandardized(
+        plexClient,
+        targetCollectionRatingKey,
+        options,
+        items
+      );
+    }
+
+    // 8. Track processed collection (track the collection users actually see)
+    if (options.processedCollectionKeys) {
+      options.processedCollectionKeys.add(targetCollectionRatingKey);
+    }
 
     return { created, updated };
   }

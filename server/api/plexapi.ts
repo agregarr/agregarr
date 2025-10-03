@@ -119,6 +119,7 @@ interface PlexCollectionMetadata extends PlexCollection {
   thumb?: string;
   art?: string;
   titleSort?: string;
+  smart?: string; // Smart collections have smart="1" attribute (Plex returns string)
 }
 
 interface PlexCollectionResponse {
@@ -213,6 +214,34 @@ class PlexAPI {
 
   public async getStatus() {
     return await this.plexClient.query('/');
+  }
+
+  /**
+   * Check if a collection is a smart collection
+   * @param collectionRatingKey The rating key of the collection to check
+   * @returns true if the collection is smart, false otherwise
+   */
+  private async isSmartCollection(
+    collectionRatingKey: string
+  ): Promise<boolean> {
+    try {
+      const metadata = await this.getCollectionMetadata(collectionRatingKey);
+      if (!metadata) {
+        return false;
+      }
+
+      // Smart collections have smart="1" attribute in Plex API
+      return metadata.smart === '1';
+    } catch (error) {
+      logger.warn(
+        `Failed to check if collection ${collectionRatingKey} is smart`,
+        {
+          label: 'Plex API',
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return false;
+    }
   }
 
   public async checkPlexPass(): Promise<boolean> {
@@ -819,6 +848,23 @@ class PlexAPI {
       return;
     }
 
+    // PROTECTION: Never add items to smart collections - they are auto-populated by Plex
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.error(
+        `PROTECTION: Attempted to add items to smart collection ${collectionRatingKey}. This could corrupt the Plex database!`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemCount: items.length,
+          protection: 'SMART_COLLECTION_BLOCK',
+        }
+      );
+      throw new Error(
+        `Cannot add items to smart collection ${collectionRatingKey}. Smart collections are auto-populated by Plex.`
+      );
+    }
+
     const machineId = getSettings().plex.machineId;
 
     // Check if any items are episodes by querying their metadata
@@ -930,6 +976,22 @@ class PlexAPI {
   public async removeItemsFromCollection(
     collectionRatingKey: string
   ): Promise<void> {
+    // PROTECTION: Never remove items from smart collections - they are auto-populated by Plex
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.error(
+        `PROTECTION: Attempted to remove items from smart collection ${collectionRatingKey}. This could corrupt the Plex database!`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          protection: 'SMART_COLLECTION_BLOCK',
+        }
+      );
+      throw new Error(
+        `Cannot remove items from smart collection ${collectionRatingKey}. Smart collections are auto-populated by Plex.`
+      );
+    }
+
     try {
       const response = await this.plexClient.query({
         uri: `/library/collections/${collectionRatingKey}/children`,
@@ -1199,11 +1261,46 @@ class PlexAPI {
     }
   }
 
+  public async hideCollectionFromLibrary(
+    collectionRatingKey: string
+  ): Promise<void> {
+    try {
+      // Set collectionMode=0 to hide collection from Library tab
+      // collectionMode: 0 = hide, 1 = default (visible)
+      const editUrl = `/library/metadata/${collectionRatingKey}/prefs?collectionMode=0`;
+      await this.safePutQuery(editUrl);
+    } catch (error) {
+      logger.error(
+        `Error hiding collection ${collectionRatingKey} from library`,
+        {
+          label: 'Plex API',
+          error,
+        }
+      );
+      throw error;
+    }
+  }
+
   public async moveItemInCollection(
     collectionRatingKey: string,
     itemRatingKey: string,
     afterItemRatingKey: string
   ): Promise<boolean> {
+    // PROTECTION: Never move items in smart collections - they have their own ordering
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.debug(
+        `PROTECTION: Attempted to move item in smart collection ${collectionRatingKey}. Skipping move for smart collection.`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemRatingKey,
+          protection: 'SMART_COLLECTION_SKIP',
+        }
+      );
+      return false; // Just return false for smart collections, don't throw error
+    }
+
     try {
       // Use the exact API endpoint discovered from Python PlexAPI debug output:
       // PUT /library/collections/{collectionRatingKey}/items/{itemRatingKey}/move?after={afterItemRatingKey}
@@ -1223,6 +1320,21 @@ class PlexAPI {
   ): Promise<void> {
     if (orderedItems.length <= 1) {
       return; // No need to arrange single item or empty collections
+    }
+
+    // PROTECTION: Never arrange items in smart collections - they have their own ordering
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.warn(
+        `PROTECTION: Attempted to arrange items in smart collection ${collectionRatingKey}. Skipping arrangement for smart collection.`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemCount: orderedItems.length,
+          protection: 'SMART_COLLECTION_SKIP',
+        }
+      );
+      return; // Just skip arrangement for smart collections, don't throw error
     }
 
     let failCount = 0;
@@ -1563,6 +1675,23 @@ class PlexAPI {
     let successful = 0;
     let failed = 0;
 
+    // PROTECTION: Never remove items from smart collections - they are auto-populated by Plex
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.error(
+        `PROTECTION: Attempted to remove specific items from smart collection ${collectionRatingKey}. This could corrupt the Plex database!`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemCount: itemsToRemove.length,
+          protection: 'SMART_COLLECTION_BLOCK',
+        }
+      );
+      throw new Error(
+        `Cannot remove items from smart collection ${collectionRatingKey}. Smart collections are auto-populated by Plex.`
+      );
+    }
+
     for (const ratingKey of itemsToRemove) {
       const removeUrl = `/library/collections/${collectionRatingKey}/items/${ratingKey}`;
 
@@ -1604,6 +1733,23 @@ class PlexAPI {
     let added = 0;
     let removed = 0;
     let reordered = false;
+
+    // PROTECTION: Never update smart collections - they are auto-populated by Plex
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.error(
+        `PROTECTION: Attempted to update contents of smart collection ${collectionRatingKey}. This could corrupt the Plex database!`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemCount: desiredItems.length,
+          protection: 'SMART_COLLECTION_BLOCK',
+        }
+      );
+      throw new Error(
+        `Cannot update smart collection ${collectionRatingKey}. Smart collections are auto-populated by Plex.`
+      );
+    }
 
     try {
       // Get current collection contents (returns array of rating keys)
@@ -1678,6 +1824,23 @@ class PlexAPI {
   ): Promise<{ successful: number; failed: number }> {
     let successful = 0;
     let failed = 0;
+
+    // PROTECTION: Never add items to smart collections - they are auto-populated by Plex
+    const isSmart = await this.isSmartCollection(collectionRatingKey);
+    if (isSmart) {
+      logger.error(
+        `PROTECTION: Attempted to add specific items to smart collection ${collectionRatingKey}. This could corrupt the Plex database!`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemCount: itemsToAdd.length,
+          protection: 'SMART_COLLECTION_BLOCK',
+        }
+      );
+      throw new Error(
+        `Cannot add items to smart collection ${collectionRatingKey}. Smart collections are auto-populated by Plex.`
+      );
+    }
 
     // Validate all items exist before attempting to add them
     const validItems = await this.getItemsByRatingKeys(itemsToAdd);
@@ -2473,6 +2636,292 @@ class PlexAPI {
       );
       throw error;
     }
+  }
+
+  // SMART COLLECTION METHODS
+  /**
+   * Create a smart collection for unwatched items based on a regular collection
+   * @param title - Title for the smart collection
+   * @param libraryKey - Library section key (e.g., "1" for movies)
+   * @param baseCollectionRatingKey - Rating key of the base collection to filter
+   * @param mediaType - 'movie' or 'tv'
+   * @returns The rating key of the created smart collection or null if failed
+   */
+  public async createSmartCollection(
+    title: string,
+    libraryKey: string,
+    baseCollectionRatingKey: string,
+    mediaType: 'movie' | 'tv' = 'movie',
+    sortOption?: string
+  ): Promise<string | null> {
+    try {
+      logger.debug(
+        `Creating smart collection "${title}" for library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          title,
+          libraryKey,
+          baseCollectionRatingKey,
+          mediaType,
+        }
+      );
+
+      // Step 1: Get the collection's index field which is used for smart collection filters
+      const collectionMetadata = await this.getCollectionMetadata(
+        baseCollectionRatingKey
+      );
+      if (!collectionMetadata) {
+        logger.error(
+          `Could not get metadata for base collection ${baseCollectionRatingKey}`,
+          {
+            label: 'Plex API',
+            baseCollectionRatingKey,
+          }
+        );
+        return null;
+      }
+
+      // Use the index field for the collection filter, not the ratingKey
+      const indexField = (
+        collectionMetadata as PlexCollectionMetadata & {
+          index?: string | number;
+        }
+      ).index;
+      const collectionFilterId = indexField
+        ? String(indexField)
+        : baseCollectionRatingKey;
+
+      logger.debug(
+        `Using collection filter ID ${collectionFilterId} for smart collection (base collection rating key: ${baseCollectionRatingKey})`,
+        {
+          label: 'Plex API',
+          baseCollectionRatingKey,
+          collectionFilterId,
+        }
+      );
+
+      // Step 2: Create the smart collection with uri parameter (like Plex Web UI does)
+      const type = mediaType === 'movie' ? 1 : 2;
+      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first) if no sort option provided
+
+      // TV shows use different filter parameters than movies
+      let filterUri: string;
+      if (mediaType === 'tv') {
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&show.collection=${collectionFilterId}`;
+      } else {
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&collection=${collectionFilterId}`;
+      }
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
+
+      const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
+        title
+      )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
+
+      const createResponse = await this.safePostQuery(createUrl);
+
+      if (
+        !createResponse ||
+        typeof createResponse !== 'object' ||
+        !('MediaContainer' in createResponse)
+      ) {
+        logger.error('Invalid response when creating smart collection', {
+          label: 'Plex API',
+          response: createResponse,
+        });
+        return null;
+      }
+
+      const mediaContainer = createResponse.MediaContainer as {
+        Metadata?: { ratingKey: string }[];
+      };
+
+      if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
+        logger.error('No metadata returned when creating smart collection', {
+          label: 'Plex API',
+          response: createResponse,
+        });
+        return null;
+      }
+
+      const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
+
+      // Step 3: Set the collection to be filtered by user
+      await this.setCollectionUserFilter(smartCollectionRatingKey);
+
+      // Step 4: Add the same Agregarr label as the base collection so it's not discovered as pre-existing
+      const baseCollectionMetadata = await this.getCollectionMetadata(
+        baseCollectionRatingKey
+      );
+      if (baseCollectionMetadata?.labels) {
+        const agregarrLabel = baseCollectionMetadata.labels.find(
+          (label) =>
+            typeof label === 'string' &&
+            label.toLowerCase().startsWith('agregarr')
+        );
+        if (agregarrLabel) {
+          await this.addLabelToCollection(
+            smartCollectionRatingKey,
+            agregarrLabel
+          );
+        }
+      }
+
+      logger.info(
+        `Successfully created smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          title,
+          smartCollectionRatingKey,
+          baseCollectionRatingKey,
+        }
+      );
+
+      return smartCollectionRatingKey;
+    } catch (error) {
+      logger.error(`Error creating smart collection "${title}"`, {
+        label: 'Plex API',
+        title,
+        libraryKey,
+        baseCollectionRatingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Set collection filtering to be based on the current user viewing the content
+   * @param collectionRatingKey - The rating key of the collection to configure
+   */
+  public async setCollectionUserFilter(
+    collectionRatingKey: string
+  ): Promise<void> {
+    try {
+      await this.safePutQuery(
+        `/library/metadata/${collectionRatingKey}/prefs?collectionFilterBasedOnUser=1`
+      );
+
+      logger.debug(
+        `Set user-based filtering for collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error setting user filter for collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Update a smart collection's URI (including sort parameters)
+   * @param smartCollectionRatingKey - The rating key of the smart collection to update
+   * @param libraryKey - Library section key (e.g., "1" for movies)
+   * @param baseCollectionRatingKey - Rating key of the base collection to filter
+   * @param mediaType - 'movie' or 'tv'
+   * @param sortOption - Sort parameter (e.g., 'year:desc', 'titleSort')
+   * @returns Promise<void>
+   */
+  public async updateSmartCollectionUri(
+    smartCollectionRatingKey: string,
+    libraryKey: string,
+    baseCollectionRatingKey: string,
+    mediaType: 'movie' | 'tv' = 'movie',
+    sortOption?: string
+  ): Promise<void> {
+    try {
+      logger.debug(
+        `Updating smart collection URI for collection ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          smartCollectionRatingKey,
+          libraryKey,
+          baseCollectionRatingKey,
+          mediaType,
+          sortOption,
+        }
+      );
+
+      // Get the collection's index field which is used for smart collection filters
+      const collectionMetadata = await this.getCollectionMetadata(
+        baseCollectionRatingKey
+      );
+      if (!collectionMetadata) {
+        throw new Error(
+          `Could not get metadata for base collection ${baseCollectionRatingKey}`
+        );
+      }
+
+      // Use the index field for the collection filter, not the ratingKey
+      const indexField = (
+        collectionMetadata as PlexCollectionMetadata & {
+          index?: string | number;
+        }
+      ).index;
+      const collectionFilterId = indexField
+        ? String(indexField)
+        : baseCollectionRatingKey;
+
+      // Build the filter URI with the specified sort option
+      const type = mediaType === 'movie' ? 1 : 2;
+      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first) if no sort option provided
+
+      // TV shows use different filter parameters than movies
+      let filterUri: string;
+      if (mediaType === 'tv') {
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&show.collection=${collectionFilterId}`;
+      } else {
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&collection=${collectionFilterId}`;
+      }
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
+
+      // Update the smart collection URI using PUT request
+      const updateUrl = `/library/collections/${smartCollectionRatingKey}/items?uri=${encodeURIComponent(
+        uri
+      )}`;
+      await this.safePutQuery(updateUrl);
+
+      logger.debug(
+        `Successfully updated smart collection URI for collection ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          smartCollectionRatingKey,
+          sortParam,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error updating smart collection URI for collection ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          smartCollectionRatingKey,
+          error: error.message,
+        }
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a smart collection (same as regular collection deletion)
+   * @param smartCollectionRatingKey - The rating key of the smart collection to delete
+   */
+  public async deleteSmartCollection(
+    smartCollectionRatingKey: string
+  ): Promise<void> {
+    return this.deleteCollection(smartCollectionRatingKey);
   }
 }
 
