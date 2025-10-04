@@ -353,6 +353,20 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for Originals collections
+   */
+  public createOriginalsContext(
+    mediaType: 'movie' | 'tv',
+    platform: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getOriginalsSubtypeLabel(platform),
+    };
+  }
+
+  /**
    * Create context for Overseerr collections
    */
   public createOverseerrContext(
@@ -688,6 +702,14 @@ export class TemplateEngine {
           })
           .join(' ');
     }
+  }
+
+  /**
+   * Get human-readable label for Originals platform
+   */
+  private getOriginalsSubtypeLabel(platform: string): string {
+    // Reuse Networks labeling since they use the same platforms
+    return this.getNetworksSubtypeLabel(platform);
   }
 
   /**

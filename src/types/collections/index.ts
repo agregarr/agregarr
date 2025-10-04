@@ -135,6 +135,7 @@ export interface CollectionFormConfig {
     | 'letterboxd'
     | 'mdblist'
     | 'networks'
+    | 'originals'
     | 'multi-source';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
@@ -303,6 +304,7 @@ export interface CollectionConfigCreateRequest {
     | 'letterboxd'
     | 'mdblist'
     | 'networks'
+    | 'originals'
     | 'multi-source';
   readonly subtype?: string;
   readonly template?: string;
@@ -567,6 +569,7 @@ export type CollectionSourceType =
   | 'imdb'
   | 'letterboxd'
   | 'networks'
+  | 'originals'
   | 'multi-source';
 export type MediaType = 'movie' | 'tv';
 
@@ -772,7 +775,8 @@ export type MultiSourceType =
   | 'letterboxd'
   | 'tautulli'
   | 'overseerr'
-  | 'networks';
+  | 'networks'
+  | 'originals';
 
 /**
  * Source definition for multi-source collections

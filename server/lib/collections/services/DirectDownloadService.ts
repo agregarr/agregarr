@@ -95,7 +95,14 @@ export class DirectDownloadService {
   public async processDirectDownloads(
     missingItems: MissingItem[],
     config: CollectionConfig,
-    source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist' | 'networks'
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
   ): Promise<AutoRequestResult> {
     // Only proceed if direct download is enabled (we'll add this setting later)
     if (!config.searchMissingMovies && !config.searchMissingTV) {

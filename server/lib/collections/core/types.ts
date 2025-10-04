@@ -143,7 +143,8 @@ export type CollectionSource =
   | 'imdb'
   | 'letterboxd'
   | 'mdblist'
-  | 'networks';
+  | 'networks'
+  | 'originals';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -349,6 +350,11 @@ export interface NetworksTemplateContext extends TemplateContext {
   statType?: 'top_10';
 }
 
+export interface OriginalsTemplateContext extends TemplateContext {
+  /** Streaming platform */
+  platform?: string;
+}
+
 /**
  * Union type for all possible template contexts
  */
@@ -360,7 +366,8 @@ export type SourceTemplateContext =
   | TmdbTemplateContext
   | ImdbTemplateContext
   | LetterboxdTemplateContext
-  | NetworksTemplateContext;
+  | NetworksTemplateContext
+  | OriginalsTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types

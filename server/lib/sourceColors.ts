@@ -97,6 +97,16 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#0d1f16',
     textColor: '#ffffff',
   },
+  max: {
+    primaryColor: '#0024ff',
+    secondaryColor: '#0d1326',
+    textColor: '#ffffff',
+  },
+  discovery: {
+    primaryColor: '#005aff',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
   'multi-source': {
     primaryColor: '#e65100', // Agregarr orange/brand color
     secondaryColor: '#1c1917', // Matches UI bg-stone-900

@@ -601,6 +601,21 @@ const SortableItem = ({
                             return word.charAt(0).toUpperCase() + word.slice(1);
                           })
                           .join(' ');
+                      case 'originals':
+                        // Format provider names like "netflix_originals" -> "Netflix"
+                        // and "apple_originals" -> "Apple TV+"
+                        return subtype
+                          .replace('_originals', '') // Remove "_originals" suffix
+                          .split('_')[0] // Take first part before underscore
+                          .split('-') // Split on dashes
+                          .map((word) => {
+                            // Special case for TV to maintain proper capitalization
+                            if (word.toLowerCase() === 'tv') {
+                              return 'TV+';
+                            }
+                            return word.charAt(0).toUpperCase() + word.slice(1);
+                          })
+                          .join(' ');
                       default:
                         return subtype;
                     }
@@ -623,6 +638,8 @@ const SortableItem = ({
                       ? 'Overseerr'
                       : collection.type === 'networks'
                       ? 'Networks'
+                      : collection.type === 'originals'
+                      ? 'Originals'
                       : collection.type === 'multi-source'
                       ? 'Multi-Source'
                       : collection.type || '';

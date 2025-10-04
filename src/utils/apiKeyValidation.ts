@@ -69,6 +69,15 @@ export function validateApiKeysForCollectionType(
       });
       break;
 
+    case 'originals':
+      requirements.push({
+        service: 'MDBList (Originals use MDBList lists)',
+        required: true,
+        configured: !!settings.mdblist?.apiKey,
+        settingsPath: '/settings/sources',
+      });
+      break;
+
     // These don't require API keys
     case 'imdb':
     case 'tmdb':
@@ -104,6 +113,7 @@ export function getServiceDisplayName(serviceType: string): string {
     imdb: 'IMDb',
     letterboxd: 'Letterboxd',
     networks: 'Networks',
+    originals: 'Originals',
   };
 
   return serviceNames[serviceType] || serviceType;

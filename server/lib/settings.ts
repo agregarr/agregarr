@@ -39,6 +39,7 @@ export interface CollectionConfig {
     | 'letterboxd'
     | 'mdblist'
     | 'networks'
+    | 'originals'
     | 'multi-source';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string; // Collection template
@@ -1333,7 +1334,8 @@ export type MultiSourceType =
   | 'mdblist'
   | 'tautulli'
   | 'overseerr'
-  | 'networks';
+  | 'networks'
+  | 'originals';
 
 export interface SourceDefinition {
   readonly id: string;

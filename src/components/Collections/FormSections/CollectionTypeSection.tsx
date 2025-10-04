@@ -84,7 +84,8 @@ const CollectionTypeSection = ({
     { value: 'tmdb', label: 'TMDB Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
     { value: 'mdblist', label: 'MDBList Lists' },
-    { value: 'networks', label: 'Networks' },
+    { value: 'networks', label: 'Networks Top 10' },
+    { value: 'originals', label: 'Networks Originals' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -215,6 +216,8 @@ const CollectionTypeSection = ({
         ];
       case 'networks':
         return []; // Will be populated dynamically based on selected country
+      case 'originals':
+        return []; // Will be populated dynamically with provider options
       case 'multi-source':
         return []; // Multi-source collections don't use subtypes - they configure sources directly
       default:

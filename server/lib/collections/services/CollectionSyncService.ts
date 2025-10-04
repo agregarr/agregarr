@@ -473,6 +473,12 @@ export class CollectionSyncService {
         const { NetworksCollectionSync } = await import('../external/networks');
         return new NetworksCollectionSync();
       }
+      case 'originals': {
+        const { OriginalsCollectionSync } = await import(
+          '../external/originals'
+        );
+        return new OriginalsCollectionSync();
+      }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
           '../external/overseerrSync'

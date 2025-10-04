@@ -27,6 +27,7 @@ import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrl
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
 import MultiSourceConfigSection from '@app/components/Collections/FormSections/MultiSourceConfigSection';
 import NetworksConfigSection from '@app/components/Collections/FormSections/NetworksConfigSection';
+import OriginalsConfigSection from '@app/components/Collections/FormSections/OriginalsConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
@@ -1721,6 +1722,64 @@ const CollectionFormConfigForm = ({
       }
     }
 
+    // Originals collection presets
+    if (values.type === 'originals') {
+      if (values.subtype) {
+        // Get platform name from subtype for display
+        // Handle cases like "netflix_originals" -> "Netflix"
+        // and "disney_originals" -> "Disney"
+        const platformName = values.subtype
+          .replace('_originals', '') // Remove "_originals" suffix
+          .split('_')[0] // Take first part before underscore
+          .split('-') // Split on dashes
+          .map((word) => {
+            // Special case for TV to maintain proper capitalization
+            if (word.toLowerCase() === 'tv') {
+              return 'TV';
+            }
+            return word.charAt(0).toUpperCase() + word.slice(1);
+          })
+          .join(' ');
+
+        return [
+          {
+            label: `${platformName} Originals`,
+            value: `${platformName} Originals`,
+          },
+          {
+            label: `${platformName} Original {mediaType}s`,
+            value: `${platformName} Original {mediaType}s`,
+          },
+          {
+            label: `Original {mediaType}s on ${platformName}`,
+            value: `Original {mediaType}s on ${platformName}`,
+          },
+          {
+            label: `${platformName} Exclusive {mediaType}s`,
+            value: `${platformName} Exclusive {mediaType}s`,
+          },
+          {
+            label: `Best ${platformName} Originals`,
+            value: `Best ${platformName} Originals`,
+          },
+          {
+            label: `${platformName} Originals Collection`,
+            value: `${platformName} Originals Collection`,
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      } else {
+        // No provider selected yet
+        return [
+          {
+            label: 'Select a Streaming Service First',
+            value: 'select-provider',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      }
+    }
+
     // Letterboxd collection presets
     if (values.type === 'letterboxd') {
       switch (values.subtype) {
@@ -2219,6 +2278,18 @@ const CollectionFormConfigForm = ({
                     {/* Networks Config Section - country and platform selection */}
                     {isCollection && values.type === 'networks' && (
                       <NetworksConfigSection
+                        values={typedValues as CollectionFormConfig}
+                        setFieldValue={setFieldValue}
+                        errors={errors as FormikErrors<CollectionFormConfig>}
+                        touched={touched as FormikTouched<CollectionFormConfig>}
+                        isVisible={true}
+                        getTemplatePresets={getTemplatePresets}
+                      />
+                    )}
+
+                    {/* Originals Config Section - streaming provider selection */}
+                    {isCollection && values.type === 'originals' && (
+                      <OriginalsConfigSection
                         values={typedValues as CollectionFormConfig}
                         setFieldValue={setFieldValue}
                         errors={errors as FormikErrors<CollectionFormConfig>}

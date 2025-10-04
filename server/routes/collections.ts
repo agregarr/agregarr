@@ -2,6 +2,7 @@ import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
+import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
@@ -2863,6 +2864,36 @@ collectionsRoutes.get('/networks/platforms', async (req, res) => {
       error: `Failed to load platforms for ${
         req.query.country || 'selected country'
       }`,
+    });
+  }
+});
+
+/**
+ * Get available streaming providers for Originals collections
+ * Based on Kometa's curated MDBList collections
+ */
+collectionsRoutes.get('/originals/providers', async (_req, res) => {
+  try {
+    logger.debug('Fetching available providers for Originals collections', {
+      label: 'Collections API',
+    });
+
+    const providers = OriginalsCollectionSync.getProviderOptions();
+
+    logger.debug(`Returning ${providers.length} originals providers`, {
+      label: 'Collections API',
+      providersCount: providers.length,
+    });
+
+    return res.status(200).json(providers);
+  } catch (error) {
+    logger.error('Failed to fetch originals providers', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to load streaming providers for originals',
     });
   }
 });

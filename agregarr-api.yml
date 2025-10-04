@@ -201,7 +201,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -564,7 +564,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -974,7 +974,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source']
           example: 'overseerr'
         subtype:
           type: string
@@ -1416,7 +1416,7 @@ components:
           example: "source-1234567890"
         type:
           type: string
-          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks']
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals']
           description: "Type of collection source"
           example: 'trakt'
         subtype:
@@ -3775,6 +3775,22 @@ components:
         - value
         - label
 
+    OriginalsPlatformOption:
+      type: object
+      description: "Streaming service provider option for Originals collections"
+      properties:
+        value:
+          type: string
+          description: "Provider identifier for Originals collections"
+          example: "netflix_originals"
+        label:
+          type: string
+          description: "Display name for streaming service provider"
+          example: "Netflix Originals"
+      required:
+        - value
+        - label
+
   responses:
     NotFound:
       description: Resource not found
@@ -4849,6 +4865,31 @@ paths:
                   error:
                     type: string
                     example: "Failed to load platforms for country"
+  /collections/originals/providers:
+    get:
+      summary: Get available streaming providers for Originals collections
+      description: Returns all available streaming service providers for Originals collections (Netflix, Amazon, Disney+, HBO, etc.).
+      tags:
+        - collection
+      responses:
+        '200':
+          description: Providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OriginalsPlatformOption'
+        '500':
+          description: Failed to fetch originals providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to fetch originals providers"
   /collections/preexisting:
     get:
       summary: Get pre-existing Plex collections
