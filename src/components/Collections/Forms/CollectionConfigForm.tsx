@@ -8,6 +8,7 @@ import type {
   MultiSourceCollectionConfig,
   MultiSourceCombineMode,
   MultiSourceType,
+  PlexHubConfig,
   TemplatePreset,
 } from '@app/types/collections';
 import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
@@ -33,7 +34,6 @@ import TemplateSection from '@app/components/Collections/FormSections/TemplateSe
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
 import VisibilitySection from '@app/components/Collections/FormSections/VisibilitySection';
-import { CollectionFormConfigUtils } from '@app/types/collections';
 
 const messages = defineMessages({
   editCollection: 'Edit Collection Configuration',
@@ -66,6 +66,7 @@ const CollectionFormConfigForm = ({
   onLink,
   libraries,
   allCollectionConfigs,
+  allHubConfigs,
 }: CollectionConfigFormProps) => {
   const intl = useIntl();
   const { addToast } = useToasts();
@@ -367,12 +368,36 @@ const CollectionFormConfigForm = ({
 
   // Determine if this config can be linked (for showing link button)
   // Only show link button for existing configs that are unlinked but could be linked
-  const canLink =
-    config.name &&
-    !isLinked &&
-    CollectionFormConfigUtils.canLinkCollection(
-      config as CollectionFormConfigForEditing
-    );
+  const canLink = (() => {
+    if (!config.name || isLinked || isPreExisting) return false;
+
+    if (isHub) {
+      // For hubs: check if there are other unlinked hubs with same linkId
+      // Include hubs with isUnlinked flag - those can be relinked!
+      if (!allHubConfigs) return false;
+      const eligibleHubs = allHubConfigs.filter(
+        (h: PlexHubConfig) =>
+          h.linkId === config.linkId && h.id !== config.id && !h.isLinked
+        // Note: We don't exclude isUnlinked hubs - they can be relinked
+      );
+      return eligibleHubs.length > 0;
+    } else if (isCollection) {
+      // For collections: check if there are other unlinked collections with same type/subtype/linkId
+      if (!allCollectionConfigs) return false;
+      const collectionConfig = config as CollectionFormConfig;
+      const eligibleCollections = allCollectionConfigs.filter(
+        (c: CollectionFormConfig) =>
+          c.type === collectionConfig.type &&
+          c.subtype === collectionConfig.subtype &&
+          c.linkId === collectionConfig.linkId &&
+          !c.isLinked &&
+          c.id !== collectionConfig.id
+      );
+      return eligibleCollections.length > 0;
+    }
+
+    return false;
+  })();
 
   // Button handlers for link/unlink
   const handleUnlinkClick = () => {
@@ -2211,11 +2236,14 @@ const CollectionFormConfigForm = ({
                   ? intl.formatMessage(messages.editCollection)
                   : intl.formatMessage(messages.addCollection)
               }
+              footerMessage={
+                isLinked
+                  ? '🔗 Changes will apply to all linked libraries'
+                  : undefined
+              }
             >
               {/* Direct type-based form rendering */}
               {(() => {
-                const isLinked = config ? Boolean(config.isLinked) : false;
-
                 return (
                   <div className="space-y-4">
                     {/* Info Header - show for hubs and pre-existing collections */}
@@ -2255,11 +2283,6 @@ const CollectionFormConfigForm = ({
                         <h2 className="text-lg font-medium text-white">
                           {values.name || 'Collection Settings'}
                         </h2>
-                        {isLinked && (
-                          <p className="mt-1 text-xs text-orange-300">
-                            🔗 Changes will apply to all linked libraries
-                          </p>
-                        )}
                       </div>
                     )}
 

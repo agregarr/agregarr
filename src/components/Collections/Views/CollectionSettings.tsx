@@ -197,15 +197,9 @@ const CollectionSettings = ({
           sortOrderLibrary: preExistingConfig.sortOrderLibrary,
           isLibraryPromoted: preExistingConfig.isLibraryPromoted,
           visibilityConfig: preExistingConfig.visibilityConfig,
-          ...(preExistingConfig.isLinked !== undefined && {
-            isLinked: preExistingConfig.isLinked,
-          }),
-          ...(preExistingConfig.linkId !== undefined && {
-            linkId: preExistingConfig.linkId,
-          }),
-          ...(preExistingConfig.isUnlinked !== undefined && {
-            isUnlinked: preExistingConfig.isUnlinked,
-          }),
+          isLinked: preExistingConfig.isLinked,
+          linkId: preExistingConfig.linkId,
+          isUnlinked: preExistingConfig.isUnlinked,
           ...(preExistingConfig.timeRestriction && {
             timeRestriction: preExistingConfig.timeRestriction,
           }),
@@ -231,13 +225,9 @@ const CollectionSettings = ({
           sortOrderLibrary: hubConfig.sortOrderLibrary,
           isLibraryPromoted: hubConfig.isLibraryPromoted,
           visibilityConfig: hubConfig.visibilityConfig,
-          ...(hubConfig.isLinked !== undefined && {
-            isLinked: hubConfig.isLinked,
-          }),
-          ...(hubConfig.linkId !== undefined && { linkId: hubConfig.linkId }),
-          ...(hubConfig.isUnlinked !== undefined && {
-            isUnlinked: hubConfig.isUnlinked,
-          }),
+          isLinked: hubConfig.isLinked,
+          linkId: hubConfig.linkId,
+          isUnlinked: hubConfig.isUnlinked,
           ...(hubConfig.timeRestriction && {
             timeRestriction: hubConfig.timeRestriction,
           }),
@@ -289,12 +279,8 @@ const CollectionSettings = ({
           ...(collectionConfig.collectionRatingKey && {
             collectionRatingKey: collectionConfig.collectionRatingKey,
           }),
-          ...(collectionConfig.isLinked !== undefined && {
-            isLinked: collectionConfig.isLinked,
-          }),
-          ...(collectionConfig.linkId !== undefined && {
-            linkId: collectionConfig.linkId,
-          }),
+          isLinked: collectionConfig.isLinked,
+          linkId: collectionConfig.linkId,
           ...(collectionConfig.customDays !== undefined && {
             customDays: collectionConfig.customDays,
           }),
@@ -380,9 +366,7 @@ const CollectionSettings = ({
           ...(collectionConfig.collectionType && {
             collectionType: collectionConfig.collectionType,
           }),
-          ...(collectionConfig.isUnlinked !== undefined && {
-            isUnlinked: collectionConfig.isUnlinked,
-          }),
+          isUnlinked: collectionConfig.isUnlinked,
           ...(collectionConfig.hubIdentifier && {
             hubIdentifier: collectionConfig.hubIdentifier,
           }),
@@ -556,11 +540,9 @@ const CollectionSettings = ({
           ...(config.directDownloadSonarrProfileId !== undefined && {
             directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
           }),
-          ...(config.isLinked !== undefined && { isLinked: config.isLinked }),
-          ...(config.linkId !== undefined && { linkId: config.linkId }),
-          ...(config.isUnlinked !== undefined && {
-            isUnlinked: config.isUnlinked,
-          }),
+          isLinked: config.isLinked,
+          linkId: config.linkId,
+          isUnlinked: config.isUnlinked,
           ...(config.maxPositionToProcess !== undefined && {
             maxPositionToProcess: config.maxPositionToProcess,
           }),
@@ -1070,13 +1052,9 @@ const CollectionSettings = ({
         sortOrderLibrary: hubConfig.sortOrderLibrary,
         isLibraryPromoted: hubConfig.isLibraryPromoted,
         visibilityConfig: hubConfig.visibilityConfig,
-        ...(hubConfig.isLinked !== undefined && {
-          isLinked: hubConfig.isLinked,
-        }),
-        ...(hubConfig.linkId !== undefined && { linkId: hubConfig.linkId }),
-        ...(hubConfig.isUnlinked !== undefined && {
-          isUnlinked: hubConfig.isUnlinked,
-        }),
+        isLinked: hubConfig.isLinked,
+        linkId: hubConfig.linkId,
+        isUnlinked: hubConfig.isUnlinked,
         ...(hubConfig.timeRestriction && {
           timeRestriction: hubConfig.timeRestriction,
         }),
@@ -1117,15 +1095,9 @@ const CollectionSettings = ({
         sortOrderLibrary: preExistingConfig.sortOrderLibrary,
         isLibraryPromoted: preExistingConfig.isLibraryPromoted,
         visibilityConfig: preExistingConfig.visibilityConfig,
-        ...(preExistingConfig.isLinked !== undefined && {
-          isLinked: preExistingConfig.isLinked,
-        }),
-        ...(preExistingConfig.linkId !== undefined && {
-          linkId: preExistingConfig.linkId,
-        }),
-        ...(preExistingConfig.isUnlinked !== undefined && {
-          isUnlinked: preExistingConfig.isUnlinked,
-        }),
+        isLinked: preExistingConfig.isLinked,
+        linkId: preExistingConfig.linkId,
+        isUnlinked: preExistingConfig.isUnlinked,
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
@@ -1655,8 +1627,8 @@ const CollectionSettings = ({
           (h: PlexHubConfig) =>
             h.linkId === currentHub.linkId && // Same linkId group (established during discovery)
             h.id !== config.id &&
-            !h.isLinked && // Only link hubs that aren't already linked
-            !h.isUnlinked // Exclude unlinked hubs
+            !h.isLinked // Only link hubs that aren't already linked
+          // Note: We don't exclude isUnlinked hubs - those can be relinked!
         );
 
         if (eligibleHubs.length === 0) {
@@ -1690,7 +1662,7 @@ const CollectionSettings = ({
               ...updatedHubConfigs[hubIndex],
               isLinked: true,
               linkId: newLinkId,
-              isUnlinked: undefined, // Clear any unlinked flag
+              isUnlinked: false, // Clear any unlinked flag (use false instead of undefined so it survives JSON.stringify)
             };
           }
         });
@@ -1792,7 +1764,7 @@ const CollectionSettings = ({
               combineMode: masterConfig.combineMode,
               // Set link status
               isLinked: true,
-              isUnlinked: undefined, // Clear any unlinked flag
+              isUnlinked: false, // Clear any unlinked flag (use false instead of undefined so it survives JSON.stringify)
               // Preserve library-specific properties
               libraryId: updatedConfigs[configIndex].libraryId,
               libraryName: updatedConfigs[configIndex].libraryName,
@@ -2708,6 +2680,10 @@ const CollectionSettings = ({
           onSave={saveHubConfig}
           onCancel={closeHubModal}
           libraries={libraries}
+          onUnlink={unlinkCollectionConfig}
+          onLink={linkCollectionConfig}
+          allCollectionConfigs={localCollectionConfigs}
+          allHubConfigs={localHubConfigs}
         />
       )}
 
@@ -2718,6 +2694,8 @@ const CollectionSettings = ({
           onSave={savePreExistingConfig}
           onCancel={closePreExistingModal}
           libraries={libraries}
+          allCollectionConfigs={localCollectionConfigs}
+          allHubConfigs={localHubConfigs}
         />
       )}
     </div>

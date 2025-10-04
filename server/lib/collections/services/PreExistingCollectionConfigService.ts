@@ -173,15 +173,12 @@ export class PreExistingCollectionConfigService {
       // Merge settings while preserving computed fields
       const updatedConfig: PreExistingCollectionConfig = {
         ...configToUpdate, // Preserve all existing fields including computed ones
-        ...safeSettings, // Apply user changes (with library-specific fields excluded for linked collections)
+        ...safeSettings, // Apply user changes (with library-specific fields excluded for linked collections, including undefined values to clear fields)
         // Ensure computed fields stay computed:
         id: configToUpdate.id, // ID never changes
         isActive: configToUpdate.isActive, // isActive is computed elsewhere
         collectionType: configToUpdate.collectionType, // Computed field
-        // Business logic fields can be changed by user:
-        isLinked: settings.isLinked ?? configToUpdate.isLinked,
-        linkId: settings.linkId ?? configToUpdate.linkId,
-        isUnlinked: settings.isUnlinked ?? configToUpdate.isUnlinked,
+        // Note: isLinked, linkId, isUnlinked come from safeSettings spread above
       };
 
       // Update the config in place

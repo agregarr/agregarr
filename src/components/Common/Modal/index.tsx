@@ -33,6 +33,7 @@ interface ModalProps {
   backgroundClickable?: boolean;
   loading?: boolean;
   backdrop?: string;
+  footerMessage?: string;
   children?: React.ReactNode;
 }
 
@@ -61,6 +62,7 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
       loading = false,
       onTertiary,
       backdrop,
+      footerMessage,
     },
     parentRef
   ) => {
@@ -182,50 +184,57 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
             </div>
           )}
           {(onCancel || onOk || onSecondary || onTertiary) && (
-            <div className="relative mt-5 flex flex-row-reverse justify-center sm:mt-4 sm:justify-start">
-              {typeof onOk === 'function' && (
-                <Button
-                  buttonType={okButtonType}
-                  onClick={onOk}
-                  className="ml-3"
-                  disabled={okDisabled}
-                  data-testid="modal-ok-button"
-                >
-                  {okText ? okText : 'Ok'}
-                </Button>
-              )}
-              {typeof onSecondary === 'function' && secondaryText && (
-                <Button
-                  buttonType={secondaryButtonType}
-                  onClick={onSecondary}
-                  className="ml-3"
-                  disabled={secondaryDisabled}
-                  data-testid="modal-secondary-button"
-                >
-                  {secondaryText}
-                </Button>
-              )}
-              {typeof onTertiary === 'function' && tertiaryText && (
-                <Button
-                  buttonType={tertiaryButtonType}
-                  onClick={onTertiary}
-                  className="ml-3"
-                  disabled={tertiaryDisabled}
-                >
-                  {tertiaryText}
-                </Button>
-              )}
-              {typeof onCancel === 'function' && (
-                <Button
-                  buttonType={cancelButtonType}
-                  onClick={onCancel}
-                  className="ml-3 sm:ml-0"
-                  data-testid="modal-cancel-button"
-                >
-                  {cancelText
-                    ? cancelText
-                    : intl.formatMessage(globalMessages.cancel)}
-                </Button>
+            <div className="relative mt-5 flex flex-row-reverse items-center justify-center sm:mt-4 sm:justify-between">
+              <div className="flex flex-row-reverse">
+                {typeof onOk === 'function' && (
+                  <Button
+                    buttonType={okButtonType}
+                    onClick={onOk}
+                    className="ml-3"
+                    disabled={okDisabled}
+                    data-testid="modal-ok-button"
+                  >
+                    {okText ? okText : 'Ok'}
+                  </Button>
+                )}
+                {typeof onSecondary === 'function' && secondaryText && (
+                  <Button
+                    buttonType={secondaryButtonType}
+                    onClick={onSecondary}
+                    className="ml-3"
+                    disabled={secondaryDisabled}
+                    data-testid="modal-secondary-button"
+                  >
+                    {secondaryText}
+                  </Button>
+                )}
+                {typeof onTertiary === 'function' && tertiaryText && (
+                  <Button
+                    buttonType={tertiaryButtonType}
+                    onClick={onTertiary}
+                    className="ml-3"
+                    disabled={tertiaryDisabled}
+                  >
+                    {tertiaryText}
+                  </Button>
+                )}
+                {typeof onCancel === 'function' && (
+                  <Button
+                    buttonType={cancelButtonType}
+                    onClick={onCancel}
+                    className="ml-3 sm:ml-0"
+                    data-testid="modal-cancel-button"
+                  >
+                    {cancelText
+                      ? cancelText
+                      : intl.formatMessage(globalMessages.cancel)}
+                  </Button>
+                )}
+              </div>
+              {footerMessage && (
+                <div className="hidden text-xs text-orange-300 sm:block">
+                  {footerMessage}
+                </div>
               )}
             </div>
           )}
