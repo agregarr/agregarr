@@ -1066,12 +1066,11 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
         );
       }
 
-      // Step 4: Hide base collection completely (set high sort title, hide from library, and remove from hub management)
+      // Step 4: Hide base collection completely (set high sort title and remove from hub management)
       await plexClient.updateCollectionSortTitle(
         baseCollectionRatingKey,
         `ZZZZ${collectionName}`
       );
-      await plexClient.hideCollectionFromLibrary(baseCollectionRatingKey);
 
       // Remove base collection from hub management entirely (if it was promoted)
       // Note: Base collections with no visibility config were never promoted, so they won't exist in hub management

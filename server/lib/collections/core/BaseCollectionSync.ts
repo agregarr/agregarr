@@ -1382,10 +1382,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         `ZZZZ${collectionName}`
       );
 
-      // Step 5: Hide base collection from Library tab
-      await plexClient.hideCollectionFromLibrary(baseCollectionRatingKey);
-
-      // Step 6: Remove base collection from hub management completely (if it was promoted)
+      // Step 5: Remove base collection from hub management completely (if it was promoted)
       // Don't use updateCollectionVisibility(false, false, false) - that keeps it in hub management with visibility off
       // Instead, delete it from hub management entirely
       // Note: Base collections with no visibility config were never promoted, so they won't exist in hub management

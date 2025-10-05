@@ -2788,9 +2788,8 @@ const CollectionFormConfigForm = ({
                                   When enabled, creates a smart collection with
                                   the unwatched filter to show only unwatched
                                   items for the user viewing the collection. The
-                                  original collection will be hidden in the
-                                  library and pushed to the botton in the
-                                  Collections Tab
+                                  original collection will be pushed to the
+                                  bottom in the Collections Tab.
                                 </div>
                                 {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
                                 {values.showUnwatchedOnly && (

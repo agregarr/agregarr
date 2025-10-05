@@ -1261,26 +1261,6 @@ class PlexAPI {
     }
   }
 
-  public async hideCollectionFromLibrary(
-    collectionRatingKey: string
-  ): Promise<void> {
-    try {
-      // Set collectionMode=0 to hide collection from Library tab
-      // collectionMode: 0 = hide, 1 = default (visible)
-      const editUrl = `/library/metadata/${collectionRatingKey}/prefs?collectionMode=0`;
-      await this.safePutQuery(editUrl);
-    } catch (error) {
-      logger.error(
-        `Error hiding collection ${collectionRatingKey} from library`,
-        {
-          label: 'Plex API',
-          error,
-        }
-      );
-      throw error;
-    }
-  }
-
   public async moveItemInCollection(
     collectionRatingKey: string,
     itemRatingKey: string,
