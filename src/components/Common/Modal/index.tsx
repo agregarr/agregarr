@@ -1,7 +1,6 @@
 import type { ButtonType } from '@app/components/Common/Button';
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
-import useClickOutside from '@app/hooks/useClickOutside';
 import { useLockBodyScroll } from '@app/hooks/useLockBodyScroll';
 import globalMessages from '@app/i18n/globalMessages';
 import { Transition } from '@headlessui/react';
@@ -34,6 +33,7 @@ interface ModalProps {
   loading?: boolean;
   backdrop?: string;
   footerMessage?: string;
+  customMaxWidth?: string;
   children?: React.ReactNode;
 }
 
@@ -63,26 +63,20 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
       onTertiary,
       backdrop,
       footerMessage,
+      customMaxWidth,
     },
     parentRef
   ) => {
     const intl = useIntl();
     const modalRef = useRef<HTMLDivElement>(null);
-    useClickOutside(modalRef, (e) => {
-      // Don't close modal if clicking on react-select dropdown
-      const target = e.target as Element;
-      if (
-        target.closest('.react-select__menu') ||
-        target.closest('.react-select__menu-portal')
-      ) {
-        return;
-      }
+    useLockBodyScroll(true, disableScrollLock);
 
-      if (onCancel && backgroundClickable) {
+    const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+      // Only close if clicking directly on the backdrop (not on children)
+      if (e.target === e.currentTarget && onCancel && backgroundClickable) {
         onCancel();
       }
-    });
-    useLockBodyScroll(true, disableScrollLock);
+    };
 
     // Don't render portal during SSR
     if (typeof document === 'undefined') {
@@ -93,6 +87,13 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
       <div
         className="fixed top-0 bottom-0 left-0 right-0 z-50 flex h-full w-full items-center justify-center bg-stone-800 bg-opacity-70"
         ref={parentRef}
+        onClick={handleBackdropClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && onCancel && backgroundClickable) {
+            onCancel();
+          }
+        }}
+        role="presentation"
       >
         <Transition
           appear
@@ -110,7 +111,9 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
           </div>
         </Transition>
         <Transition
-          className="hide-scrollbar relative inline-block w-full overflow-auto bg-stone-800 px-4 pt-4 pb-4 text-left align-bottom shadow-xl ring-1 ring-gray-700 transition-all sm:my-8 sm:max-w-2xl sm:rounded-lg sm:align-middle"
+          className={`hide-scrollbar relative inline-block w-full overflow-auto bg-stone-800 px-4 pt-4 pb-4 text-left align-bottom shadow-xl ring-1 ring-gray-700 transition-all sm:my-8 ${
+            customMaxWidth || 'sm:max-w-2xl'
+          } sm:rounded-lg sm:align-middle`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-headline"

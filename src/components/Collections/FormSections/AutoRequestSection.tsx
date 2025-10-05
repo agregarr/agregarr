@@ -45,10 +45,13 @@ const messages = defineMessages({
   directDownloadOptions: 'Direct Download Configuration',
   selectRadarrServer: 'Radarr Server (Movies)',
   selectRadarrProfile: 'Radarr Quality Profile (Movies)',
+  selectRadarrRootFolder: 'Radarr Root Folder (Movies)',
   selectSonarrServer: 'Sonarr Server (TV Shows)',
   selectSonarrProfile: 'Sonarr Quality Profile (TV Shows)',
+  selectSonarrRootFolder: 'Sonarr Root Folder (TV Shows)',
   selectServer: 'Select server...',
   selectProfile: 'Select quality profile...',
+  selectRootFolder: 'Select root folder...',
   selectServerFirst: 'Select a server first',
 });
 
@@ -64,8 +67,10 @@ interface AutoRequestSectionProps {
     excludedCountries?: string[];
     directDownloadRadarrServerId?: number;
     directDownloadRadarrProfileId?: number;
+    directDownloadRadarrRootFolder?: string;
     directDownloadSonarrServerId?: number;
     directDownloadSonarrProfileId?: number;
+    directDownloadSonarrRootFolder?: string;
     [key: string]: unknown;
   };
   errors: Record<string, string>;
@@ -114,6 +119,18 @@ const AutoRequestSection = ({
   const { data: sonarrProfiles } = useSWR<{ id: number; name: string }[]>(
     effectiveSonarrServerId !== undefined
       ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/profiles`
+      : null
+  );
+
+  // Fetch root folders for selected servers or default/single server
+  const { data: radarrRootFolders } = useSWR<{ id: number; path: string }[]>(
+    effectiveRadarrServerId !== undefined
+      ? `/api/v1/settings/radarr/${effectiveRadarrServerId}/rootfolders`
+      : null
+  );
+  const { data: sonarrRootFolders } = useSWR<{ id: number; path: string }[]>(
+    effectiveSonarrServerId !== undefined
+      ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/rootfolders`
       : null
   );
 
@@ -546,6 +563,33 @@ const AutoRequestSection = ({
                         </Field>
                       </div>
                     </div>
+
+                    {/* Radarr Root Folder Selection - always show */}
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-gray-300">
+                        {intl.formatMessage(messages.selectRadarrRootFolder)}
+                      </div>
+                      <div className="form-input-field">
+                        <Field
+                          as="select"
+                          name="directDownloadRadarrRootFolder"
+                          disabled={radarrLoading || !radarrRootFolders}
+                        >
+                          <option value="">
+                            {radarrLoading
+                              ? 'Loading...'
+                              : effectiveRadarrServerId !== undefined
+                              ? intl.formatMessage(messages.selectRootFolder)
+                              : intl.formatMessage(messages.selectServerFirst)}
+                          </option>
+                          {radarrRootFolders?.map((folder) => (
+                            <option key={folder.id} value={folder.path}>
+                              {folder.path}
+                            </option>
+                          ))}
+                        </Field>
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -615,6 +659,33 @@ const AutoRequestSection = ({
                           {sonarrProfiles?.map((profile) => (
                             <option key={profile.id} value={profile.id}>
                               {profile.name}
+                            </option>
+                          ))}
+                        </Field>
+                      </div>
+                    </div>
+
+                    {/* Sonarr Root Folder Selection - always show */}
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-gray-300">
+                        {intl.formatMessage(messages.selectSonarrRootFolder)}
+                      </div>
+                      <div className="form-input-field">
+                        <Field
+                          as="select"
+                          name="directDownloadSonarrRootFolder"
+                          disabled={sonarrLoading || !sonarrRootFolders}
+                        >
+                          <option value="">
+                            {sonarrLoading
+                              ? 'Loading...'
+                              : effectiveSonarrServerId !== undefined
+                              ? intl.formatMessage(messages.selectRootFolder)
+                              : intl.formatMessage(messages.selectServerFirst)}
+                          </option>
+                          {sonarrRootFolders?.map((folder) => (
+                            <option key={folder.id} value={folder.path}>
+                              {folder.path}
                             </option>
                           ))}
                         </Field>

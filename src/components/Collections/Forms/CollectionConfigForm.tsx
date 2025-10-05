@@ -34,6 +34,7 @@ import TemplateSection from '@app/components/Collections/FormSections/TemplateSe
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
 import VisibilitySection from '@app/components/Collections/FormSections/VisibilitySection';
+import PreviewCollectionModal from '@app/components/Collections/PreviewCollectionModal';
 
 const messages = defineMessages({
   editCollection: 'Edit Collection Configuration',
@@ -55,6 +56,7 @@ const messages = defineMessages({
   smartCollectionSort: 'Smart Collection Sort Order',
   cancel: 'Cancel',
   preview: 'Preview:',
+  previewCollection: 'Preview Collection',
   alwaysActive: 'Always Active',
 });
 
@@ -110,6 +112,9 @@ const CollectionFormConfigForm = ({
   // State for confirmation - MUST be before any early returns to avoid React Hooks violation
   const [unlinkConfirmState, setUnlinkConfirmState] = useState(false);
   const [linkConfirmState, setLinkConfirmState] = useState(false);
+
+  // State for preview modal
+  const [showPreview, setShowPreview] = useState(false);
 
   // Validation schema for collections, hubs, and pre-existing configs
   const CollectionFormConfigSchema = Yup.object().shape({
@@ -314,8 +319,10 @@ const CollectionFormConfigForm = ({
     excludedCountries: Yup.array().of(Yup.string()),
     directDownloadRadarrServerId: Yup.number().positive().integer(),
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
+    directDownloadRadarrRootFolder: Yup.string(),
     directDownloadSonarrServerId: Yup.number().positive().integer(),
     directDownloadSonarrProfileId: Yup.number().positive().integer(),
+    directDownloadSonarrRootFolder: Yup.string(),
 
     // Multi-source field validation
     isMultiSource: Yup.boolean(),
@@ -1962,11 +1969,17 @@ const CollectionFormConfigForm = ({
           directDownloadRadarrProfileId:
             (config as CollectionFormConfig).directDownloadRadarrProfileId ||
             undefined,
+          directDownloadRadarrRootFolder:
+            (config as CollectionFormConfig).directDownloadRadarrRootFolder ||
+            undefined,
           directDownloadSonarrServerId:
             (config as CollectionFormConfig).directDownloadSonarrServerId ||
             undefined,
           directDownloadSonarrProfileId:
             (config as CollectionFormConfig).directDownloadSonarrProfileId ||
+            undefined,
+          directDownloadSonarrRootFolder:
+            (config as CollectionFormConfig).directDownloadSonarrRootFolder ||
             undefined,
           visibilityConfig: {
             usersHome: config.visibilityConfig?.usersHome ?? false,
@@ -2163,6 +2176,11 @@ const CollectionFormConfigForm = ({
               values.directDownloadRadarrProfileId
                 ? parseInt(values.directDownloadRadarrProfileId.toString(), 10)
                 : undefined,
+            directDownloadRadarrRootFolder:
+              values.enableGrabMissingItems &&
+              values.directDownloadRadarrRootFolder
+                ? values.directDownloadRadarrRootFolder
+                : undefined,
             directDownloadSonarrServerId:
               values.enableGrabMissingItems &&
               values.directDownloadSonarrServerId
@@ -2172,6 +2190,11 @@ const CollectionFormConfigForm = ({
               values.enableGrabMissingItems &&
               values.directDownloadSonarrProfileId
                 ? parseInt(values.directDownloadSonarrProfileId.toString(), 10)
+                : undefined,
+            directDownloadSonarrRootFolder:
+              values.enableGrabMissingItems &&
+              values.directDownloadSonarrRootFolder
+                ? values.directDownloadSonarrRootFolder
                 : undefined,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
@@ -2199,191 +2222,77 @@ const CollectionFormConfigForm = ({
           const typedValues = values;
 
           return (
-            <Modal
-              onCancel={onCancel}
-              okButtonType="primary"
-              okText={
-                isSubmitting
-                  ? intl.formatMessage(globalMessages.saving)
-                  : config.name
-                  ? intl.formatMessage(messages.updateCollection)
-                  : intl.formatMessage(messages.createCollection)
-              }
-              okDisabled={!isValid || isSubmitting}
-              onOk={() => handleSubmit()}
-              // Add unlink button if linked, or link button if can be linked
-              onSecondary={
-                isLinked && onUnlink
-                  ? handleUnlinkClick
-                  : canLink && onLink
-                  ? handleLinkClick
-                  : undefined
-              }
-              secondaryText={
-                isLinked
-                  ? unlinkConfirmState
-                    ? 'Confirm Unlink'
-                    : 'Unlink'
-                  : canLink
-                  ? linkConfirmState
-                    ? 'Confirm Link'
-                    : 'Link'
-                  : undefined
-              }
-              secondaryButtonType={isLinked ? 'warning' : 'primary'}
-              title={
-                config.name
-                  ? intl.formatMessage(messages.editCollection)
-                  : intl.formatMessage(messages.addCollection)
-              }
-              footerMessage={
-                isLinked
-                  ? '🔗 Changes will apply to all linked libraries'
-                  : undefined
-              }
-            >
-              {/* Direct type-based form rendering */}
-              {(() => {
-                return (
-                  <div className="space-y-4">
-                    {/* Info Header - show for hubs and pre-existing collections */}
-                    {(isHub || isPreExisting) && (
-                      <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
-                        <div className="flex">
-                          <svg
-                            className="mt-0.5 mr-3 h-5 w-5 flex-shrink-0 text-gray-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <div>
-                            <h4 className="mb-1 text-sm font-medium text-gray-300">
-                              {isPreExisting
-                                ? 'Pre-existing Collection'
-                                : 'Default Plex Hub'}
-                            </h4>
-                            <p className="text-sm text-gray-400">
-                              {isPreExisting
-                                ? 'This is an existing collection detected in Plex. Limited configuration options are available to preserve existing content.'
-                                : 'This is a built-in Plex hub. Limited configuration options are available - the content is managed by Plex.'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Collection/Hub Title - show for hubs and pre-existing */}
-                    {(isHub || isPreExisting) && (
-                      <div className="mb-6">
-                        <h2 className="text-lg font-medium text-white">
-                          {values.name || 'Collection Settings'}
-                        </h2>
-                      </div>
-                    )}
-
-                    {/* Collection Type Section - appears above multi-source config */}
-                    {isCollection && (
-                      <CollectionTypeSection
-                        values={typedValues as CollectionFormConfig}
-                        setFieldValue={setFieldValue}
-                        errors={errors as FormikErrors<CollectionFormConfig>}
-                        touched={touched as FormikTouched<CollectionFormConfig>}
-                        isVisible={true}
-                        getTemplatePresets={getTemplatePresets}
-                      />
-                    )}
-
-                    {/* Networks Config Section - country and platform selection */}
-                    {isCollection && values.type === 'networks' && (
-                      <NetworksConfigSection
-                        values={typedValues as CollectionFormConfig}
-                        setFieldValue={setFieldValue}
-                        errors={errors as FormikErrors<CollectionFormConfig>}
-                        touched={touched as FormikTouched<CollectionFormConfig>}
-                        isVisible={true}
-                        getTemplatePresets={getTemplatePresets}
-                      />
-                    )}
-
-                    {/* Originals Config Section - streaming provider selection */}
-                    {isCollection && values.type === 'originals' && (
-                      <OriginalsConfigSection
-                        values={typedValues as CollectionFormConfig}
-                        setFieldValue={setFieldValue}
-                        errors={errors as FormikErrors<CollectionFormConfig>}
-                        touched={touched as FormikTouched<CollectionFormConfig>}
-                        isVisible={true}
-                        getTemplatePresets={getTemplatePresets}
-                      />
-                    )}
-
-                    {/* Time Period Section - conditional for Trakt time-based subtypes */}
-                    {isCollection &&
-                      values.type === 'trakt' &&
-                      ['played', 'watched', 'collected', 'favorited'].includes(
-                        values.subtype || ''
-                      ) && (
-                        <TimePeriodSection
-                          values={typedValues as CollectionFormConfig}
-                          setFieldValue={setFieldValue}
-                          errors={errors as FormikErrors<CollectionFormConfig>}
-                          touched={
-                            touched as FormikTouched<CollectionFormConfig>
-                          }
-                          baseSubtype={
-                            values.subtype as
-                              | 'played'
-                              | 'watched'
-                              | 'collected'
-                              | 'favorited'
-                          }
-                          isVisible={true}
-                          getTemplatePresets={getTemplatePresets}
-                        />
-                      )}
-
-                    {/* Multi-Source Configuration - New approach for type='multi-source' */}
-                    {isCollection &&
-                      (values as CollectionFormConfig & { type?: string })
-                        .type === 'multi-source' && (
-                        <MultiSourceConfigSection
-                          values={
-                            {
-                              ...values,
-                              type: 'multi-source',
-                              sources:
-                                values.sources?.map((source) => ({
-                                  id: source.id,
-                                  type: source.type as MultiSourceType,
-                                  subtype: source.subtype || '',
-                                  customUrl: source.customUrl,
-                                  timePeriod: source.timePeriod as
-                                    | 'daily'
-                                    | 'weekly'
-                                    | 'monthly'
-                                    | 'all'
-                                    | undefined,
-                                  customDays: source.customDays,
-                                  minimumPlays: source.minimumPlays,
-                                  priority: source.priority,
-                                  networksCountry: source.networksCountry,
-                                })) || [],
-                              combineMode: values.combineMode || 'list_order',
-                            } as MultiSourceCollectionConfig
-                          }
-                          setFieldValue={setFieldValue}
-                        />
-                      )}
-
-                    {/* Simple explanation for Overseerr Users Collections */}
-                    {isCollection &&
-                      values.type === 'overseerr' &&
-                      values.subtype === 'users' && (
+            <>
+              <Modal
+                onCancel={onCancel}
+                okButtonType="primary"
+                okText={
+                  isSubmitting
+                    ? intl.formatMessage(globalMessages.saving)
+                    : config.name
+                    ? intl.formatMessage(messages.updateCollection)
+                    : intl.formatMessage(messages.createCollection)
+                }
+                okDisabled={!isValid || isSubmitting}
+                onOk={() => handleSubmit()}
+                // Add unlink button if linked, or link button if can be linked
+                onSecondary={
+                  isLinked && onUnlink
+                    ? handleUnlinkClick
+                    : canLink && onLink
+                    ? handleLinkClick
+                    : undefined
+                }
+                secondaryText={
+                  isLinked
+                    ? unlinkConfirmState
+                      ? 'Confirm Unlink'
+                      : 'Unlink'
+                    : canLink
+                    ? linkConfirmState
+                      ? 'Confirm Link'
+                      : 'Link'
+                    : undefined
+                }
+                secondaryButtonType={isLinked ? 'warning' : 'primary'}
+                // Add preview button for collections (not hubs or pre-existing)
+                // Disable for overseerr individual user requests (type=overseerr, subtype=users)
+                onTertiary={
+                  isCollection &&
+                  values.type &&
+                  values.libraryIds &&
+                  values.libraryIds.length > 0 &&
+                  !(values.type === 'overseerr' && values.subtype === 'users')
+                    ? () => setShowPreview(true)
+                    : undefined
+                }
+                tertiaryText={
+                  isCollection &&
+                  values.type &&
+                  values.libraryIds &&
+                  values.libraryIds.length > 0 &&
+                  !(values.type === 'overseerr' && values.subtype === 'users')
+                    ? intl.formatMessage(messages.previewCollection)
+                    : undefined
+                }
+                tertiaryButtonType="default"
+                title={
+                  config.name
+                    ? intl.formatMessage(messages.editCollection)
+                    : intl.formatMessage(messages.addCollection)
+                }
+                footerMessage={
+                  isLinked
+                    ? '🔗 Changes will apply to all linked libraries'
+                    : undefined
+                }
+              >
+                {/* Direct type-based form rendering */}
+                {(() => {
+                  return (
+                    <div className="space-y-4">
+                      {/* Info Header - show for hubs and pre-existing collections */}
+                      {(isHub || isPreExisting) && (
                         <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
                           <div className="flex">
                             <svg
@@ -2398,218 +2307,634 @@ const CollectionFormConfigForm = ({
                               />
                             </svg>
                             <div>
+                              <h4 className="mb-1 text-sm font-medium text-gray-300">
+                                {isPreExisting
+                                  ? 'Pre-existing Collection'
+                                  : 'Default Plex Hub'}
+                              </h4>
                               <p className="text-sm text-gray-400">
-                                Creates a collection for each Overseerr user
-                                based off their Overseerr requests, and uses
-                                labels and restrictions to ensure only the
-                                requesting user can see their requests. Because
-                                server owners can&apos;t have restrictions, all
-                                collections will be visible to them.
+                                {isPreExisting
+                                  ? 'This is an existing collection detected in Plex. Limited configuration options are available to preserve existing content.'
+                                  : 'This is a built-in Plex hub. Limited configuration options are available - the content is managed by Plex.'}
                               </p>
                             </div>
                           </div>
                         </div>
                       )}
 
-                    {/* Custom URL Section - show after type/subtype selection, before library selection */}
-                    {isCollection && (
-                      <CustomUrlSection
-                        values={typedValues as CollectionFormConfig}
-                        setFieldValue={setFieldValue}
-                        errors={errors as FormikErrors<CollectionFormConfig>}
-                        fetchTraktTitle={fetchTraktTitle}
-                        fetchTmdbTitle={fetchTmdbTitle}
-                        fetchImdbTitle={fetchImdbTitle}
-                        fetchLetterboxdTitle={fetchLetterboxdTitle}
-                        fetchMdblistTitle={fetchMdblistTitle}
-                      />
-                    )}
+                      {/* Collection/Hub Title - show for hubs and pre-existing */}
+                      {(isHub || isPreExisting) && (
+                        <div className="mb-6">
+                          <h2 className="text-lg font-medium text-white">
+                            {values.name || 'Collection Settings'}
+                          </h2>
+                        </div>
+                      )}
 
-                    {/* Library Selection - only show for regular collections */}
-                    {isCollection && (
-                      <LibrarySelectionSection
-                        values={typedValues as CollectionFormConfig}
-                        libraries={libraries}
-                        setFieldValue={setFieldValue}
-                        errors={errors as FormikErrors<CollectionFormConfig>}
-                        isEnhancedForm={false}
-                        isVisible={Boolean(
-                          isCollection &&
-                            values.type &&
-                            (values.type === 'multi-source'
-                              ? values.sources && values.sources.length >= 2
-                              : values.subtype) &&
-                            // For Trakt time-period subtypes, also require timePeriod to be selected
-                            (values.type !== 'trakt' ||
-                              ![
-                                'played',
-                                'watched',
-                                'collected',
-                                'favorited',
-                              ].includes(values.subtype) ||
-                              values.timePeriod) &&
-                            // For custom types, show after title is fetched OR when editing existing config with a name
-                            (values.subtype !== 'custom' ||
-                              (values.type === 'trakt' &&
-                                values.subtype === 'custom' &&
-                                (fetchedTitles.trakt || config?.name)) ||
-                              (values.type === 'tmdb' &&
-                                values.subtype === 'custom' &&
-                                (fetchedTitles.tmdb || config?.name)) ||
-                              (values.type === 'imdb' &&
-                                values.subtype === 'custom' &&
-                                (fetchedTitles.imdb || config?.name)) ||
-                              (values.type === 'letterboxd' &&
-                                values.subtype === 'custom' &&
-                                (fetchedTitles.letterboxd || config?.name)) ||
-                              (values.type === 'mdblist' &&
-                                values.subtype === 'custom' &&
-                                (fetchedTitles.mdblist || config?.name)))
+                      {/* Collection Type Section - appears above multi-source config */}
+                      {isCollection && (
+                        <CollectionTypeSection
+                          values={typedValues as CollectionFormConfig}
+                          setFieldValue={setFieldValue}
+                          errors={errors as FormikErrors<CollectionFormConfig>}
+                          touched={
+                            touched as FormikTouched<CollectionFormConfig>
+                          }
+                          isVisible={true}
+                          getTemplatePresets={getTemplatePresets}
+                        />
+                      )}
+
+                      {/* Networks Config Section - country and platform selection */}
+                      {isCollection && values.type === 'networks' && (
+                        <NetworksConfigSection
+                          values={typedValues as CollectionFormConfig}
+                          setFieldValue={setFieldValue}
+                          errors={errors as FormikErrors<CollectionFormConfig>}
+                          touched={
+                            touched as FormikTouched<CollectionFormConfig>
+                          }
+                          isVisible={true}
+                          getTemplatePresets={getTemplatePresets}
+                        />
+                      )}
+
+                      {/* Originals Config Section - streaming provider selection */}
+                      {isCollection && values.type === 'originals' && (
+                        <OriginalsConfigSection
+                          values={typedValues as CollectionFormConfig}
+                          setFieldValue={setFieldValue}
+                          errors={errors as FormikErrors<CollectionFormConfig>}
+                          touched={
+                            touched as FormikTouched<CollectionFormConfig>
+                          }
+                          isVisible={true}
+                          getTemplatePresets={getTemplatePresets}
+                        />
+                      )}
+
+                      {/* Time Period Section - conditional for Trakt time-based subtypes */}
+                      {isCollection &&
+                        values.type === 'trakt' &&
+                        [
+                          'played',
+                          'watched',
+                          'collected',
+                          'favorited',
+                        ].includes(values.subtype || '') && (
+                          <TimePeriodSection
+                            values={typedValues as CollectionFormConfig}
+                            setFieldValue={setFieldValue}
+                            errors={
+                              errors as FormikErrors<CollectionFormConfig>
+                            }
+                            touched={
+                              touched as FormikTouched<CollectionFormConfig>
+                            }
+                            baseSubtype={
+                              values.subtype as
+                                | 'played'
+                                | 'watched'
+                                | 'collected'
+                                | 'favorited'
+                            }
+                            isVisible={true}
+                            getTemplatePresets={getTemplatePresets}
+                          />
                         )}
-                        detectedMediaType={(() => {
-                          // Return detected media type for custom lists
-                          if (values.subtype === 'custom') {
-                            return detectedMediaTypes?.[
-                              values.type as keyof typeof detectedMediaTypes
-                            ];
-                          }
 
-                          // Return media type for known single-type collection types
-                          if (
-                            values.type === 'trakt' &&
-                            values.subtype === 'boxoffice'
-                          ) {
-                            return 'movie';
-                          }
-                          if (values.type === 'letterboxd') {
-                            return 'movie';
-                          }
+                      {/* Multi-Source Configuration - New approach for type='multi-source' */}
+                      {isCollection &&
+                        (values as CollectionFormConfig & { type?: string })
+                          .type === 'multi-source' && (
+                          <MultiSourceConfigSection
+                            values={
+                              {
+                                ...values,
+                                type: 'multi-source',
+                                sources:
+                                  values.sources?.map((source) => ({
+                                    id: source.id,
+                                    type: source.type as MultiSourceType,
+                                    subtype: source.subtype || '',
+                                    customUrl: source.customUrl,
+                                    timePeriod: source.timePeriod as
+                                      | 'daily'
+                                      | 'weekly'
+                                      | 'monthly'
+                                      | 'all'
+                                      | undefined,
+                                    customDays: source.customDays,
+                                    minimumPlays: source.minimumPlays,
+                                    priority: source.priority,
+                                    networksCountry: source.networksCountry,
+                                  })) || [],
+                                combineMode: values.combineMode || 'list_order',
+                              } as MultiSourceCollectionConfig
+                            }
+                            setFieldValue={setFieldValue}
+                          />
+                        )}
 
-                          return undefined;
-                        })()}
-                        isDetectingMediaType={(() => {
-                          // Return detecting state for custom lists
-                          if (values.subtype === 'custom') {
-                            return detectingMediaTypes?.[
-                              values.type as keyof typeof detectingMediaTypes
-                            ];
-                          }
-                          return false;
-                        })()}
-                      />
-                    )}
-
-                    {/* Regular Form - show full form for normal collections */}
-                    {isCollection &&
-                      values.type &&
-                      (values.type === 'multi-source'
-                        ? values.sources && values.sources.length >= 2
-                        : values.subtype) &&
-                      (values.libraryIds?.length > 0 || values.libraryId) &&
-                      (values.type !== 'tautulli' || values.customDays) &&
-                      (values.type !== 'trakt' ||
-                        values.subtype !== 'custom' ||
-                        (values as CollectionFormConfig).traktCustomListUrl) &&
-                      (values.type !== 'tmdb' ||
-                        values.subtype !== 'custom' ||
-                        (values as CollectionFormConfig)
-                          .tmdbCustomCollectionUrl) &&
-                      (values.type !== 'imdb' ||
-                        values.subtype !== 'custom' ||
-                        (values as CollectionFormConfig).imdbCustomListUrl) && (
-                        <>
-                          {/* Collection Title Template */}
-                          <div className="form-row">
-                            <label
-                              htmlFor="collectionTemplate"
-                              className="text-label"
-                            >
-                              Collection Title Template
-                              <span className="label-required">*</span>
-                            </label>
-                            <div className="form-input-area">
-                              <TemplateSection
-                                values={typedValues as CollectionFormConfig}
-                                setFieldValue={setFieldValue}
-                                handleChange={handleChange}
-                                errors={
-                                  errors as FormikErrors<CollectionFormConfig>
-                                }
-                                touched={
-                                  touched as FormikTouched<CollectionFormConfig>
-                                }
-                                fetchedTitles={fetchedTitles}
-                                detectedMediaTypes={detectedMediaTypes}
-                                getTemplatePresets={getTemplatePresets}
-                                isVisible={Boolean(
-                                  isCollection &&
-                                    values.type &&
-                                    (values.type === 'multi-source' ||
-                                      values.subtype)
-                                )}
-                                currentUser={currentUser}
-                                libraries={libraries}
-                              />
+                      {/* Simple explanation for Overseerr Users Collections */}
+                      {isCollection &&
+                        values.type === 'overseerr' &&
+                        values.subtype === 'users' && (
+                          <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
+                            <div className="flex">
+                              <svg
+                                className="mt-0.5 mr-3 h-5 w-5 flex-shrink-0 text-gray-400"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <div>
+                                <p className="text-sm text-gray-400">
+                                  Creates a collection for each Overseerr user
+                                  based off their Overseerr requests, and uses
+                                  labels and restrictions to ensure only the
+                                  requesting user can see their requests.
+                                  Because server owners can&apos;t have
+                                  restrictions, all collections will be visible
+                                  to them.
+                                </p>
+                              </div>
                             </div>
                           </div>
+                        )}
 
-                          {/* Item Order - only for external sources that support ordering */}
-                          {values.type === 'trakt' && (
+                      {/* Custom URL Section - show after type/subtype selection, before library selection */}
+                      {isCollection && (
+                        <CustomUrlSection
+                          values={typedValues as CollectionFormConfig}
+                          setFieldValue={setFieldValue}
+                          errors={errors as FormikErrors<CollectionFormConfig>}
+                          fetchTraktTitle={fetchTraktTitle}
+                          fetchTmdbTitle={fetchTmdbTitle}
+                          fetchImdbTitle={fetchImdbTitle}
+                          fetchLetterboxdTitle={fetchLetterboxdTitle}
+                          fetchMdblistTitle={fetchMdblistTitle}
+                        />
+                      )}
+
+                      {/* Library Selection - only show for regular collections */}
+                      {isCollection && (
+                        <LibrarySelectionSection
+                          values={typedValues as CollectionFormConfig}
+                          libraries={libraries}
+                          setFieldValue={setFieldValue}
+                          errors={errors as FormikErrors<CollectionFormConfig>}
+                          isEnhancedForm={false}
+                          isVisible={Boolean(
+                            isCollection &&
+                              values.type &&
+                              (values.type === 'multi-source'
+                                ? values.sources && values.sources.length >= 2
+                                : values.subtype) &&
+                              // For Trakt time-period subtypes, also require timePeriod to be selected
+                              (values.type !== 'trakt' ||
+                                ![
+                                  'played',
+                                  'watched',
+                                  'collected',
+                                  'favorited',
+                                ].includes(values.subtype) ||
+                                values.timePeriod) &&
+                              // For custom types, show after title is fetched OR when editing existing config with a name
+                              (values.subtype !== 'custom' ||
+                                (values.type === 'trakt' &&
+                                  values.subtype === 'custom' &&
+                                  (fetchedTitles.trakt || config?.name)) ||
+                                (values.type === 'tmdb' &&
+                                  values.subtype === 'custom' &&
+                                  (fetchedTitles.tmdb || config?.name)) ||
+                                (values.type === 'imdb' &&
+                                  values.subtype === 'custom' &&
+                                  (fetchedTitles.imdb || config?.name)) ||
+                                (values.type === 'letterboxd' &&
+                                  values.subtype === 'custom' &&
+                                  (fetchedTitles.letterboxd || config?.name)) ||
+                                (values.type === 'mdblist' &&
+                                  values.subtype === 'custom' &&
+                                  (fetchedTitles.mdblist || config?.name)))
+                          )}
+                          detectedMediaType={(() => {
+                            // Return detected media type for custom lists
+                            if (values.subtype === 'custom') {
+                              return detectedMediaTypes?.[
+                                values.type as keyof typeof detectedMediaTypes
+                              ];
+                            }
+
+                            // Return media type for known single-type collection types
+                            if (
+                              values.type === 'trakt' &&
+                              values.subtype === 'boxoffice'
+                            ) {
+                              return 'movie';
+                            }
+                            if (values.type === 'letterboxd') {
+                              return 'movie';
+                            }
+
+                            return undefined;
+                          })()}
+                          isDetectingMediaType={(() => {
+                            // Return detecting state for custom lists
+                            if (values.subtype === 'custom') {
+                              return detectingMediaTypes?.[
+                                values.type as keyof typeof detectingMediaTypes
+                              ];
+                            }
+                            return false;
+                          })()}
+                        />
+                      )}
+
+                      {/* Regular Form - show full form for normal collections */}
+                      {isCollection &&
+                        values.type &&
+                        (values.type === 'multi-source'
+                          ? values.sources && values.sources.length >= 2
+                          : values.subtype) &&
+                        (values.libraryIds?.length > 0 || values.libraryId) &&
+                        (values.type !== 'tautulli' || values.customDays) &&
+                        (values.type !== 'trakt' ||
+                          values.subtype !== 'custom' ||
+                          (values as CollectionFormConfig)
+                            .traktCustomListUrl) &&
+                        (values.type !== 'tmdb' ||
+                          values.subtype !== 'custom' ||
+                          (values as CollectionFormConfig)
+                            .tmdbCustomCollectionUrl) &&
+                        (values.type !== 'imdb' ||
+                          values.subtype !== 'custom' ||
+                          (values as CollectionFormConfig)
+                            .imdbCustomListUrl) && (
+                          <>
+                            {/* Collection Title Template */}
                             <div className="form-row">
-                              <label htmlFor="itemOrder" className="text-label">
-                                Item Order
+                              <label
+                                htmlFor="collectionTemplate"
+                                className="text-label"
+                              >
+                                Collection Title Template
+                                <span className="label-required">*</span>
+                              </label>
+                              <div className="form-input-area">
+                                <TemplateSection
+                                  values={typedValues as CollectionFormConfig}
+                                  setFieldValue={setFieldValue}
+                                  handleChange={handleChange}
+                                  errors={
+                                    errors as FormikErrors<CollectionFormConfig>
+                                  }
+                                  touched={
+                                    touched as FormikTouched<CollectionFormConfig>
+                                  }
+                                  fetchedTitles={fetchedTitles}
+                                  detectedMediaTypes={detectedMediaTypes}
+                                  getTemplatePresets={getTemplatePresets}
+                                  isVisible={Boolean(
+                                    isCollection &&
+                                      values.type &&
+                                      (values.type === 'multi-source' ||
+                                        values.subtype)
+                                  )}
+                                  currentUser={currentUser}
+                                  libraries={libraries}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Item Order - only for external sources that support ordering */}
+                            {values.type === 'trakt' && (
+                              <div className="form-row">
+                                <label
+                                  htmlFor="itemOrder"
+                                  className="text-label"
+                                >
+                                  Item Order
+                                </label>
+                                <div className="form-input-area">
+                                  <div className="form-input-field">
+                                    <Field
+                                      as="select"
+                                      id="itemOrder"
+                                      name="itemOrder"
+                                      value={(() => {
+                                        if (
+                                          (values as CollectionFormConfig)
+                                            .randomizeOrder
+                                        )
+                                          return 'random';
+                                        if (
+                                          (values as CollectionFormConfig)
+                                            .reverseOrder
+                                        )
+                                          return 'reverse';
+                                        return 'default';
+                                      })()}
+                                      onChange={(
+                                        e: React.ChangeEvent<HTMLSelectElement>
+                                      ) => {
+                                        const selectedValue = e.target.value;
+                                        if (selectedValue === 'random') {
+                                          setFieldValue('randomizeOrder', true);
+                                          setFieldValue('reverseOrder', false);
+                                        } else if (
+                                          selectedValue === 'reverse'
+                                        ) {
+                                          setFieldValue(
+                                            'randomizeOrder',
+                                            false
+                                          );
+                                          setFieldValue('reverseOrder', true);
+                                        } else {
+                                          setFieldValue(
+                                            'randomizeOrder',
+                                            false
+                                          );
+                                          setFieldValue('reverseOrder', false);
+                                        }
+                                      }}
+                                    >
+                                      <option value="default">
+                                        Default order (as provided by source)
+                                      </option>
+                                      <option value="reverse">
+                                        Reverse order
+                                      </option>
+                                      <option value="random">
+                                        Random order (shuffled each sync)
+                                      </option>
+                                    </Field>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Collection Visibility */}
+                            <div className="form-row">
+                              <div className="text-label">Visibility</div>
+                              <div className="form-input-area">
+                                <VisibilitySection
+                                  values={typedValues as CollectionFormConfig}
+                                  setFieldValue={setFieldValue}
+                                  isEnhancedForm={false}
+                                  isDefaultPlexHub={isHub}
+                                  restrictToLibraryOnly={
+                                    values.type === 'overseerr' &&
+                                    values.subtype === 'users'
+                                  }
+                                  restrictToServerOwnerOnly={
+                                    values.type === 'overseerr' &&
+                                    values.subtype === 'server_owner'
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            {/* Randomize Home Order */}
+                            <div className="form-row">
+                              <label
+                                htmlFor="randomizeHomeOrder"
+                                className="text-label"
+                              >
+                                Randomize Home Order
+                              </label>
+                              <div className="form-input-area">
+                                <div className="flex items-center">
+                                  <Field
+                                    type="checkbox"
+                                    id="randomizeHomeOrder"
+                                    name="randomizeHomeOrder"
+                                    className="form-checkbox"
+                                  />
+                                  <label
+                                    htmlFor="randomizeHomeOrder"
+                                    className="ml-2 text-sm text-gray-300"
+                                  >
+                                    Shuffle position on Home/Recommended screens
+                                  </label>
+                                </div>
+                                <div className="label-tip mt-2">
+                                  When enabled, this collection&apos;s position
+                                  will be randomly shuffled with other
+                                  collections that have this option enabled
+                                  during each sync. Custom scheduling for
+                                  shuffling can be set on the Jobs page.
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Max Items */}
+                            <div className="form-row">
+                              <label
+                                htmlFor="collectionMaxItems"
+                                className="text-label"
+                              >
+                                Max Items
                               </label>
                               <div className="form-input-area">
                                 <div className="form-input-field">
                                   <Field
-                                    as="select"
-                                    id="itemOrder"
-                                    name="itemOrder"
-                                    value={(() => {
-                                      if (
-                                        (values as CollectionFormConfig)
-                                          .randomizeOrder
-                                      )
-                                        return 'random';
-                                      if (
-                                        (values as CollectionFormConfig)
-                                          .reverseOrder
-                                      )
-                                        return 'reverse';
-                                      return 'default';
-                                    })()}
-                                    onChange={(
-                                      e: React.ChangeEvent<HTMLSelectElement>
-                                    ) => {
-                                      const selectedValue = e.target.value;
-                                      if (selectedValue === 'random') {
-                                        setFieldValue('randomizeOrder', true);
-                                        setFieldValue('reverseOrder', false);
-                                      } else if (selectedValue === 'reverse') {
-                                        setFieldValue('randomizeOrder', false);
-                                        setFieldValue('reverseOrder', true);
-                                      } else {
-                                        setFieldValue('randomizeOrder', false);
-                                        setFieldValue('reverseOrder', false);
-                                      }
-                                    }}
-                                  >
-                                    <option value="default">
-                                      Default order (as provided by source)
-                                    </option>
-                                    <option value="reverse">
-                                      Reverse order
-                                    </option>
-                                    <option value="random">
-                                      Random order (shuffled each sync)
-                                    </option>
-                                  </Field>
+                                    type="text"
+                                    inputMode="numeric"
+                                    id="collectionMaxItems"
+                                    name="maxItems"
+                                    className="short"
+                                  />
+                                </div>
+                                {errors.maxItems && touched.maxItems && (
+                                  <div className="error">
+                                    {String(errors.maxItems)}
+                                  </div>
+                                )}
+                                <div className="label-tip">
+                                  Limit the Collection to this many items
                                 </div>
                               </div>
                             </div>
-                          )}
 
-                          {/* Collection Visibility */}
+                            {/* Smart Collection - Show Unwatched Only */}
+                            <div className="form-row">
+                              <label className="text-label">
+                                {intl.formatMessage(messages.showUnwatchedOnly)}
+                              </label>
+                              <div className="form-input-area">
+                                <div className="flex items-center">
+                                  <Field
+                                    type="checkbox"
+                                    id="showUnwatchedOnly"
+                                    name="showUnwatchedOnly"
+                                    className="form-checkbox"
+                                  />
+                                  <label
+                                    htmlFor="showUnwatchedOnly"
+                                    className="ml-2 text-sm text-gray-300"
+                                  >
+                                    {intl.formatMessage(
+                                      messages.showUnwatchedOnlyDescription
+                                    )}
+                                  </label>
+                                </div>
+                                <div className="mt-2 text-xs text-gray-400">
+                                  When enabled, creates a smart collection with
+                                  the unwatched filter to show only unwatched
+                                  items for the user viewing the collection. The
+                                  original collection will be hidden in the
+                                  library and pushed to the botton in the
+                                  Collections Tab
+                                </div>
+                                {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
+                                {values.showUnwatchedOnly && (
+                                  <div className="form-row">
+                                    <label
+                                      htmlFor="smartCollectionSort"
+                                      className="text-label"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.smartCollectionSort
+                                      )}
+                                    </label>
+                                    <div className="form-input-area">
+                                      <div className="form-input-field">
+                                        <Field
+                                          as="select"
+                                          id="smartCollectionSort"
+                                          name="smartCollectionSort"
+                                          value={
+                                            values.smartCollectionSort?.value ||
+                                            SMART_COLLECTION_SORT_OPTIONS[5]
+                                              .value // Default to release date (newest first)
+                                          }
+                                          onChange={(
+                                            e: React.ChangeEvent<HTMLSelectElement>
+                                          ) => {
+                                            const selectedOption =
+                                              SMART_COLLECTION_SORT_OPTIONS.find(
+                                                (option) =>
+                                                  option.value ===
+                                                  e.target.value
+                                              );
+                                            if (selectedOption) {
+                                              setFieldValue(
+                                                'smartCollectionSort',
+                                                selectedOption
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          {SMART_COLLECTION_SORT_OPTIONS.map(
+                                            (option) => (
+                                              <option
+                                                key={option.value}
+                                                value={option.value}
+                                              >
+                                                {option.label}
+                                              </option>
+                                            )
+                                          )}
+                                        </Field>
+                                      </div>
+                                      <div className="mt-2 text-xs text-gray-400">
+                                        Choose how items in the smart collection
+                                        should be sorted. Due to Plex
+                                        limiations, the original list order
+                                        cannot be preserved when using smart
+                                        collections.
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Custom Poster Section */}
+                            {isCollection &&
+                              (values.libraryIds?.length > 0 ||
+                                values.libraryId) && (
+                                <div className="form-row">
+                                  <label
+                                    htmlFor="customPoster"
+                                    className="text-label"
+                                  >
+                                    {intl.formatMessage(messages.customPoster)}
+                                  </label>
+                                  <div className="form-input-area">
+                                    <PosterUploadSection
+                                      values={
+                                        typedValues as CollectionFormConfig
+                                      }
+                                      setFieldValue={setFieldValue}
+                                      addToast={addToast}
+                                      fieldId="customPoster"
+                                      libraries={libraries}
+                                      selectedLibraryIds={
+                                        values.libraryIds || []
+                                      }
+                                      isAgregarrCollection={isCollection}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                            <div className="form-row">
+                              <label
+                                htmlFor="timeRestrictions"
+                                className="text-label"
+                              >
+                                {intl.formatMessage(messages.timeRestrictions)}
+                              </label>
+                              <div className="form-input-area">
+                                <TimeRestrictionsSection
+                                  values={typedValues as CollectionFormConfig}
+                                  setFieldValue={setFieldValue}
+                                  isEnhancedForm={false}
+                                  isDefaultPlexHub={isHub}
+                                  isPreExisting={isPreExisting}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Auto-Request Settings - only show for external sources */}
+                            {typedValues.type &&
+                              typedValues.type !== 'overseerr' &&
+                              typedValues.type !== 'tautulli' && (
+                                <div className="form-row">
+                                  <label className="text-label">
+                                    {intl.formatMessage(
+                                      messages.autoRequestSettings
+                                    )}
+                                  </label>
+                                  <div className="form-input-area">
+                                    <AutoRequestSection
+                                      values={
+                                        typedValues as CollectionFormConfig
+                                      }
+                                      errors={errors as Record<string, string>}
+                                      touched={
+                                        touched as Record<string, boolean>
+                                      }
+                                      libraries={libraries}
+                                      setFieldValue={setFieldValue}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                          </>
+                        )}
+
+                      {/* Simple Form - show basic options for hubs and pre-existing collections */}
+                      {(isHub || isPreExisting) && (
+                        <>
+                          {/* Visibility Section */}
                           <div className="form-row">
                             <div className="text-label">Visibility</div>
                             <div className="form-input-area">
@@ -2618,14 +2943,8 @@ const CollectionFormConfigForm = ({
                                 setFieldValue={setFieldValue}
                                 isEnhancedForm={false}
                                 isDefaultPlexHub={isHub}
-                                restrictToLibraryOnly={
-                                  values.type === 'overseerr' &&
-                                  values.subtype === 'users'
-                                }
-                                restrictToServerOwnerOnly={
-                                  values.type === 'overseerr' &&
-                                  values.subtype === 'server_owner'
-                                }
+                                restrictToLibraryOnly={false}
+                                restrictToServerOwnerOnly={false}
                               />
                             </div>
                           </div>
@@ -2654,160 +2973,17 @@ const CollectionFormConfigForm = ({
                                 </label>
                               </div>
                               <div className="label-tip mt-2">
-                                When enabled, this collection&apos;s position
-                                will be randomly shuffled with other collections
-                                that have this option enabled during each sync.
-                                Custom scheduling for shuffling can be set on
-                                the Jobs page.
+                                When enabled, this{' '}
+                                {isHub ? 'hub' : 'collection'}
+                                &apos;s position will be randomly shuffled with
+                                other collections that have this option enabled
+                                during each sync. Custom scheduling for
+                                shuffling can be set on the Jobs page.
                               </div>
                             </div>
                           </div>
 
-                          {/* Max Items */}
-                          <div className="form-row">
-                            <label
-                              htmlFor="collectionMaxItems"
-                              className="text-label"
-                            >
-                              Max Items
-                            </label>
-                            <div className="form-input-area">
-                              <div className="form-input-field">
-                                <Field
-                                  type="text"
-                                  inputMode="numeric"
-                                  id="collectionMaxItems"
-                                  name="maxItems"
-                                  className="short"
-                                />
-                              </div>
-                              {errors.maxItems && touched.maxItems && (
-                                <div className="error">
-                                  {String(errors.maxItems)}
-                                </div>
-                              )}
-                              <div className="label-tip">
-                                Limit the Collection to this many items
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Smart Collection - Show Unwatched Only */}
-                          <div className="form-row">
-                            <label className="text-label">
-                              {intl.formatMessage(messages.showUnwatchedOnly)}
-                            </label>
-                            <div className="form-input-area">
-                              <div className="flex items-center">
-                                <Field
-                                  type="checkbox"
-                                  id="showUnwatchedOnly"
-                                  name="showUnwatchedOnly"
-                                  className="form-checkbox"
-                                />
-                                <label
-                                  htmlFor="showUnwatchedOnly"
-                                  className="ml-2 text-sm text-gray-300"
-                                >
-                                  {intl.formatMessage(
-                                    messages.showUnwatchedOnlyDescription
-                                  )}
-                                </label>
-                              </div>
-                              <div className="mt-2 text-xs text-gray-400">
-                                When enabled, creates a smart collection with
-                                the unwatched filter to show only unwatched
-                                items for the user viewing the collection. The
-                                original collection will be hidden in the
-                                library and pushed to the botton in the
-                                Collections Tab
-                              </div>
-                              {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
-                              {values.showUnwatchedOnly && (
-                                <div className="form-row">
-                                  <label
-                                    htmlFor="smartCollectionSort"
-                                    className="text-label"
-                                  >
-                                    {intl.formatMessage(
-                                      messages.smartCollectionSort
-                                    )}
-                                  </label>
-                                  <div className="form-input-area">
-                                    <div className="form-input-field">
-                                      <Field
-                                        as="select"
-                                        id="smartCollectionSort"
-                                        name="smartCollectionSort"
-                                        value={
-                                          values.smartCollectionSort?.value ||
-                                          SMART_COLLECTION_SORT_OPTIONS[5].value // Default to release date (newest first)
-                                        }
-                                        onChange={(
-                                          e: React.ChangeEvent<HTMLSelectElement>
-                                        ) => {
-                                          const selectedOption =
-                                            SMART_COLLECTION_SORT_OPTIONS.find(
-                                              (option) =>
-                                                option.value === e.target.value
-                                            );
-                                          if (selectedOption) {
-                                            setFieldValue(
-                                              'smartCollectionSort',
-                                              selectedOption
-                                            );
-                                          }
-                                        }}
-                                      >
-                                        {SMART_COLLECTION_SORT_OPTIONS.map(
-                                          (option) => (
-                                            <option
-                                              key={option.value}
-                                              value={option.value}
-                                            >
-                                              {option.label}
-                                            </option>
-                                          )
-                                        )}
-                                      </Field>
-                                    </div>
-                                    <div className="mt-2 text-xs text-gray-400">
-                                      Choose how items in the smart collection
-                                      should be sorted. Due to Plex limiations,
-                                      the original list order cannot be
-                                      preserved when using smart collections.
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Custom Poster Section */}
-                          {isCollection &&
-                            (values.libraryIds?.length > 0 ||
-                              values.libraryId) && (
-                              <div className="form-row">
-                                <label
-                                  htmlFor="customPoster"
-                                  className="text-label"
-                                >
-                                  {intl.formatMessage(messages.customPoster)}
-                                </label>
-                                <div className="form-input-area">
-                                  <PosterUploadSection
-                                    values={typedValues as CollectionFormConfig}
-                                    setFieldValue={setFieldValue}
-                                    addToast={addToast}
-                                    fieldId="customPoster"
-                                    libraries={libraries}
-                                    selectedLibraryIds={values.libraryIds || []}
-                                    isAgregarrCollection={isCollection}
-                                  />
-                                </div>
-                              </div>
-                            )}
-
+                          {/* Time Restrictions */}
                           <div className="form-row">
                             <label
                               htmlFor="timeRestrictions"
@@ -2825,181 +3001,151 @@ const CollectionFormConfigForm = ({
                               />
                             </div>
                           </div>
-
-                          {/* Auto-Request Settings - only show for external sources */}
-                          {typedValues.type &&
-                            typedValues.type !== 'overseerr' &&
-                            typedValues.type !== 'tautulli' && (
-                              <div className="form-row">
-                                <label className="text-label">
-                                  {intl.formatMessage(
-                                    messages.autoRequestSettings
-                                  )}
-                                </label>
-                                <div className="form-input-area">
-                                  <AutoRequestSection
-                                    values={typedValues as CollectionFormConfig}
-                                    errors={errors as Record<string, string>}
-                                    touched={touched as Record<string, boolean>}
-                                    libraries={libraries}
-                                    setFieldValue={setFieldValue}
-                                  />
-                                </div>
+                          {/* Custom Poster Section - Only for pre-existing collections, NOT for default Plex hubs */}
+                          {isPreExisting && (
+                            <div className="form-row">
+                              <label
+                                htmlFor="customPoster"
+                                className="text-label"
+                              >
+                                {intl.formatMessage(messages.customPoster)}
+                              </label>
+                              <div className="form-input-area">
+                                <PosterUploadSection
+                                  values={typedValues as CollectionFormConfig}
+                                  setFieldValue={setFieldValue}
+                                  addToast={addToast}
+                                  fieldId="customPoster"
+                                  libraries={libraries}
+                                  selectedLibraryIds={
+                                    // For linked configs, get all library IDs from the linked group
+                                    // For single configs, just use the current libraryId
+                                    values.isLinked && allCollectionConfigs
+                                      ? allCollectionConfigs
+                                          .filter(
+                                            (c) => c.linkId === values.linkId
+                                          )
+                                          .map((c) => c.libraryId)
+                                      : values.libraryId
+                                      ? [values.libraryId]
+                                      : []
+                                  }
+                                  isAgregarrCollection={false}
+                                />
                               </div>
-                            )}
+                            </div>
+                          )}
                         </>
                       )}
 
-                    {/* Simple Form - show basic options for hubs and pre-existing collections */}
-                    {(isHub || isPreExisting) && (
-                      <>
-                        {/* Visibility Section */}
-                        <div className="form-row">
-                          <div className="text-label">Visibility</div>
-                          <div className="form-input-area">
-                            <VisibilitySection
-                              values={typedValues as CollectionFormConfig}
-                              setFieldValue={setFieldValue}
-                              isEnhancedForm={false}
-                              isDefaultPlexHub={isHub}
-                              restrictToLibraryOnly={false}
-                              restrictToServerOwnerOnly={false}
-                            />
+                      {/* Submit error display - detailed error messages */}
+                      {!isValid && Object.keys(errors).length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          <div className="text-xs font-medium text-red-400">
+                            Please fix the following errors:
                           </div>
+                          {Object.entries(errors).map(([field, error]) => {
+                            // Skip nested object errors - they should be handled by their specific components
+                            if (typeof error === 'object') return null;
+
+                            // Convert field names to user-friendly labels
+                            const fieldLabels: Record<string, string> = {
+                              type: 'Collection Type',
+                              subtype: 'Collection Sub-Type',
+                              template: 'Collection Title Template',
+                              libraryIds: 'Library Selection',
+                              libraryId: 'Library Selection',
+                              maxItems: 'Max Items',
+                              customDays: 'Number of Days',
+                              customMovieTemplate: 'Custom Movie Template',
+                              customTVTemplate: 'Custom TV Template',
+                              traktCustomListUrl: 'Trakt List URL',
+                              tmdbCustomCollectionUrl:
+                                'TMDB Collection/List URL',
+                              imdbCustomListUrl: 'IMDb List URL',
+                              letterboxdCustomListUrl: 'Letterboxd List URL',
+                              maxSeasonsToRequest: 'Max Seasons to Request',
+                              seasonsPerShowLimit: 'Seasons Per Show Limit',
+                              timePeriod: 'Time Period',
+                            };
+
+                            const fieldLabel = fieldLabels[field] || field;
+
+                            return (
+                              <div key={field} className="text-xs text-red-300">
+                                • {fieldLabel}: {String(error)}
+                              </div>
+                            );
+                          })}
                         </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </Modal>
+              {showPreview &&
+                isCollection &&
+                values.type &&
+                values.libraryIds &&
+                values.libraryIds.length > 0 &&
+                (() => {
+                  const valuesRecord = values as Record<string, unknown>;
+                  // Map library IDs to library objects
+                  const selectedLibraries = values.libraryIds
+                    .map((libId) => libraries.find((lib) => lib.key === libId))
+                    .filter(
+                      (lib): lib is NonNullable<typeof lib> => lib !== undefined
+                    )
+                    .map((lib) => ({
+                      id: lib.key,
+                      name: lib.name,
+                      type: lib.type,
+                    }));
 
-                        {/* Randomize Home Order */}
-                        <div className="form-row">
-                          <label
-                            htmlFor="randomizeHomeOrder"
-                            className="text-label"
-                          >
-                            Randomize Home Order
-                          </label>
-                          <div className="form-input-area">
-                            <div className="flex items-center">
-                              <Field
-                                type="checkbox"
-                                id="randomizeHomeOrder"
-                                name="randomizeHomeOrder"
-                                className="form-checkbox"
-                              />
-                              <label
-                                htmlFor="randomizeHomeOrder"
-                                className="ml-2 text-sm text-gray-300"
-                              >
-                                Shuffle position on Home/Recommended screens
-                              </label>
-                            </div>
-                            <div className="label-tip mt-2">
-                              When enabled, this {isHub ? 'hub' : 'collection'}
-                              &apos;s position will be randomly shuffled with
-                              other collections that have this option enabled
-                              during each sync. Custom scheduling for shuffling
-                              can be set on the Jobs page.
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Time Restrictions */}
-                        <div className="form-row">
-                          <label
-                            htmlFor="timeRestrictions"
-                            className="text-label"
-                          >
-                            {intl.formatMessage(messages.timeRestrictions)}
-                          </label>
-                          <div className="form-input-area">
-                            <TimeRestrictionsSection
-                              values={typedValues as CollectionFormConfig}
-                              setFieldValue={setFieldValue}
-                              isEnhancedForm={false}
-                              isDefaultPlexHub={isHub}
-                              isPreExisting={isPreExisting}
-                            />
-                          </div>
-                        </div>
-                        {/* Custom Poster Section - Only for pre-existing collections, NOT for default Plex hubs */}
-                        {isPreExisting && (
-                          <div className="form-row">
-                            <label
-                              htmlFor="customPoster"
-                              className="text-label"
-                            >
-                              {intl.formatMessage(messages.customPoster)}
-                            </label>
-                            <div className="form-input-area">
-                              <PosterUploadSection
-                                values={typedValues as CollectionFormConfig}
-                                setFieldValue={setFieldValue}
-                                addToast={addToast}
-                                fieldId="customPoster"
-                                libraries={libraries}
-                                selectedLibraryIds={
-                                  // For linked configs, get all library IDs from the linked group
-                                  // For single configs, just use the current libraryId
-                                  values.isLinked && allCollectionConfigs
-                                    ? allCollectionConfigs
-                                        .filter(
-                                          (c) => c.linkId === values.linkId
-                                        )
-                                        .map((c) => c.libraryId)
-                                    : values.libraryId
-                                    ? [values.libraryId]
-                                    : []
-                                }
-                                isAgregarrCollection={false}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Submit error display - detailed error messages */}
-                    {!isValid && Object.keys(errors).length > 0 && (
-                      <div className="mt-3 space-y-1">
-                        <div className="text-xs font-medium text-red-400">
-                          Please fix the following errors:
-                        </div>
-                        {Object.entries(errors).map(([field, error]) => {
-                          // Skip nested object errors - they should be handled by their specific components
-                          if (typeof error === 'object') return null;
-
-                          // Convert field names to user-friendly labels
-                          const fieldLabels: Record<string, string> = {
-                            type: 'Collection Type',
-                            subtype: 'Collection Sub-Type',
-                            template: 'Collection Title Template',
-                            libraryIds: 'Library Selection',
-                            libraryId: 'Library Selection',
-                            maxItems: 'Max Items',
-                            customDays: 'Number of Days',
-                            customMovieTemplate: 'Custom Movie Template',
-                            customTVTemplate: 'Custom TV Template',
-                            traktCustomListUrl: 'Trakt List URL',
-                            tmdbCustomCollectionUrl: 'TMDB Collection/List URL',
-                            imdbCustomListUrl: 'IMDb List URL',
-                            letterboxdCustomListUrl: 'Letterboxd List URL',
-                            maxSeasonsToRequest: 'Max Seasons to Request',
-                            seasonsPerShowLimit: 'Seasons Per Show Limit',
-                            timePeriod: 'Time Period',
-                          };
-
-                          const fieldLabel = fieldLabels[field] || field;
-
-                          return (
-                            <div key={field} className="text-xs text-red-300">
-                              • {fieldLabel}: {String(error)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </Modal>
+                  return (
+                    <PreviewCollectionModal
+                      onCancel={() => setShowPreview(false)}
+                      previewConfig={{
+                        type: values.type,
+                        subtype: values.subtype,
+                        libraryIds: values.libraryIds,
+                        libraries: selectedLibraries,
+                        customUrl:
+                          values.type === 'trakt'
+                            ? (valuesRecord.traktCustomListUrl as
+                                | string
+                                | undefined)
+                            : values.type === 'tmdb'
+                            ? (valuesRecord.tmdbCustomListUrl as
+                                | string
+                                | undefined)
+                            : values.type === 'imdb'
+                            ? (valuesRecord.imdbCustomListUrl as
+                                | string
+                                | undefined)
+                            : values.type === 'letterboxd'
+                            ? (valuesRecord.letterboxdCustomListUrl as
+                                | string
+                                | undefined)
+                            : values.type === 'mdblist'
+                            ? (valuesRecord.mdblistCustomListUrl as
+                                | string
+                                | undefined)
+                            : undefined,
+                        maxItems: values.maxItems,
+                        timePeriod: values.timePeriod,
+                        minimumPlays: values.minimumPlays,
+                        customDays: values.customDays,
+                        network: valuesRecord.network as string | undefined,
+                        country: valuesRecord.networksCountry as
+                          | string
+                          | undefined,
+                        provider: valuesRecord.provider as string | undefined,
+                      }}
+                    />
+                  );
+                })()}
+            </>
           );
         }}
       </Formik>

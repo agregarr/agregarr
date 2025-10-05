@@ -27,6 +27,7 @@ import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
+import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
 import sourceColorsRoutes from './sourceColors';
 
@@ -143,6 +144,7 @@ router.use('/fonts', isAuthenticated(), fontsRoutes);
 router.use('/hubs', isAuthenticated(), hubsRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
+router.use('/ratings', isAuthenticated(), ratingsRoutes);
 router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
 router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);

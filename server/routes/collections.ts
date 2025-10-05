@@ -2898,4 +2898,8 @@ collectionsRoutes.get('/originals/providers', async (_req, res) => {
   }
 });
 
+// Mount preview routes
+import collectionsPreviewRoutes from './collections-preview';
+collectionsRoutes.use('/preview', collectionsPreviewRoutes);
+
 export default collectionsRoutes;

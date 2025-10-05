@@ -98,8 +98,10 @@ export interface CollectionConfig {
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
+  readonly directDownloadRadarrRootFolder?: string; // Selected Radarr root folder path for movies
   readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
+  readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
   // TMDB custom list fields

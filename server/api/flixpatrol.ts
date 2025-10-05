@@ -105,6 +105,11 @@ class FlixPatrolAPI extends ExternalAPI {
         url = `/top10/streaming/${region}/${today}/`;
       }
 
+      // This ensures movie/tv/both requests are cached separately
+      if (requestedMediaType) {
+        url += `#${requestedMediaType}`;
+      }
+
       logger.debug(
         `Fetching FlixPatrol streaming overview for platform: ${platform}`,
         {
@@ -1510,6 +1515,12 @@ class FlixPatrolAPI extends ExternalAPI {
         group.movies === platformSection || group.tv === platformSection
     );
 
+    // Determine if this is a movies or TV section
+    const isMoviesSection =
+      platformGroups[currentPlatformGroupIndex]?.movies === platformSection;
+    const isTvSection =
+      platformGroups[currentPlatformGroupIndex]?.tv === platformSection;
+
     if (currentPlatformGroupIndex >= 0) {
       // Each platform gets 2 sequential tables from the global card-table list
       // Filter out country breakdown tables (they have many rows, typically >50)
@@ -1518,8 +1529,24 @@ class FlixPatrolAPI extends ExternalAPI {
         return rows.length <= 20; // Global platform tables have ~10 rows each
       });
 
-      const startTableIndex = currentPlatformGroupIndex * 2;
-      const endTableIndex = startTableIndex + 2;
+      // Each platform has 2 tables in the HTML: TV table first, Movies table second
+      // Calculate the base table index for this platform
+      const platformBaseTableIndex = currentPlatformGroupIndex * 2;
+
+      // Determine which specific table to use based on which heading we matched
+      // TV heading → first table (index 0), Movies heading → second table (index 1)
+      let tableIndex: number;
+      if (isTvSection) {
+        tableIndex = platformBaseTableIndex; // First table = TV
+      } else if (isMoviesSection) {
+        tableIndex = platformBaseTableIndex + 1; // Second table = Movies
+      } else {
+        // Shouldn't happen, but default to first table
+        tableIndex = platformBaseTableIndex;
+      }
+
+      const startTableIndex = tableIndex;
+      const endTableIndex = tableIndex + 1; // Process only one table
 
       logger.debug(
         `Platform ${platform} should use tables ${startTableIndex}-${
@@ -1543,14 +1570,10 @@ class FlixPatrolAPI extends ExternalAPI {
         const table = globalCardTables[i];
         const items = this.parseCardTable(table);
 
-        // FIXED: Use the section header to determine content type, not position
-        // Read what the header actually says instead of assuming table positions
-        const sectionHeaderText =
-          platformSection.textContent?.toLowerCase() || '';
-        const isMovieSection = sectionHeaderText.includes('top movies on');
-        const isTvSection = sectionHeaderText.includes('top tv shows on');
-
-        if (isMovieSection) {
+        // Use the heading we matched to determine if this is movies or TV
+        // Each platform gets 2 tables - all tables for a movies heading are movies,
+        // all tables for a TV heading are TV
+        if (isMoviesSection) {
           result.movies.push(
             ...items.map((item) => ({ ...item, type: 'movie' as const }))
           );
@@ -1560,11 +1583,12 @@ class FlixPatrolAPI extends ExternalAPI {
           );
         } else {
           logger.warn(
-            `Could not determine content type from header: ${sectionHeaderText}`,
+            `Could not determine content type - not movies or TV section`,
             {
               label: 'FlixPatrol API',
               platform,
-              headerText: sectionHeaderText,
+              isMoviesSection,
+              isTvSection,
             }
           );
         }
@@ -1574,12 +1598,11 @@ class FlixPatrolAPI extends ExternalAPI {
           platform,
           tableIndex: i,
           itemsCount: items.length,
-          contentType: isMovieSection
+          contentType: isMoviesSection
             ? 'movies'
             : isTvSection
             ? 'tv'
             : 'unknown',
-          headerText: sectionHeaderText.trim(),
         });
       }
 

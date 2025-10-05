@@ -190,7 +190,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         });
       }
 
-      const country = config.networksCountry || 'world';
+      const country = config.networksCountry || 'global';
       const mediaType = getCollectionMediaType(config);
       const platformData = await this.flixpatrolClient.getPlatformTop10(
         config.subtype || '', // Pass the full subtype (e.g., "neon-tv_top_10")
@@ -652,21 +652,26 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       score: number;
     }[] = [];
 
-    movieResults.forEach((result) => {
-      scoredResults.push({
-        result,
-        mediaType: 'movie',
-        score: calculateScore(result, 'movie'),
+    // Only include results that match the collection media type (unless it's 'both')
+    if (collectionMediaType === 'movie' || collectionMediaType === 'both') {
+      movieResults.forEach((result) => {
+        scoredResults.push({
+          result,
+          mediaType: 'movie',
+          score: calculateScore(result, 'movie'),
+        });
       });
-    });
+    }
 
-    tvResults.forEach((result) => {
-      scoredResults.push({
-        result,
-        mediaType: 'tv',
-        score: calculateScore(result, 'tv'),
+    if (collectionMediaType === 'tv' || collectionMediaType === 'both') {
+      tvResults.forEach((result) => {
+        scoredResults.push({
+          result,
+          mediaType: 'tv',
+          score: calculateScore(result, 'tv'),
+        });
       });
-    });
+    }
 
     // Sort by score (highest first)
     scoredResults.sort((a, b) => b.score - a.score);

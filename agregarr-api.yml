@@ -4890,6 +4890,336 @@ paths:
                   error:
                     type: string
                     example: "Failed to fetch originals providers"
+  /collections/preview:
+    post:
+      summary: Start a collection preview
+      description: Starts an asynchronous preview process and returns a session ID immediately. Client should poll /collections/preview/status/{sessionId} for progress and results.
+      tags:
+        - collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - libraryId
+              properties:
+                type:
+                  type: string
+                  description: Collection source type
+                  enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, multi-source]
+                  example: imdb
+                subtype:
+                  type: string
+                  description: Collection sub-type (e.g., 'top_250' for IMDb)
+                  example: top_250
+                libraryId:
+                  type: string
+                  description: Plex library ID to match items against
+                  example: "1"
+                customUrl:
+                  type: string
+                  description: Custom list URL (for custom list types)
+                  example: "https://www.imdb.com/list/ls123456789/"
+                maxItems:
+                  type: number
+                  description: Maximum number of items to fetch
+                  example: 50
+                timePeriod:
+                  type: string
+                  description: Time period for Tautulli collections
+                  enum: [daily, weekly, monthly, all, custom]
+                  example: weekly
+                minimumPlays:
+                  type: number
+                  description: Minimum play count for Tautulli collections
+                  example: 1
+                customDays:
+                  type: number
+                  description: Number of days for custom time period (Tautulli)
+                  example: 30
+                network:
+                  type: string
+                  description: Network name for network collections
+                  example: "Netflix"
+                country:
+                  type: string
+                  description: Country code for network collections
+                  example: "us"
+                provider:
+                  type: string
+                  description: Provider name for originals collections
+                  example: "netflix"
+      responses:
+        '202':
+          description: Preview started successfully, poll /status/{sessionId} for progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                    example: "preview-1234567890-abc123"
+                  message:
+                    type: string
+                    example: "Preview started, poll /status/:sessionId for progress"
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Missing required fields: type and libraryId are required"
+        '500':
+          description: Failed to start preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to start preview"
+                  message:
+                    type: string
+  /collections/preview/status/{sessionId}:
+    get:
+      summary: Get preview progress status
+      description: Poll this endpoint to get real-time progress updates for a preview session
+      tags:
+        - collection
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Session ID returned from POST /collections/preview
+          schema:
+            type: string
+            example: "preview-1234567890-abc123"
+      responses:
+        '200':
+          description: Preview status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    description: Whether preview is still running
+                    example: true
+                  currentStage:
+                    type: string
+                    description: Current processing stage
+                    example: "Fetching posters (75/250)..."
+                  totalItems:
+                    type: number
+                    description: Total items to process
+                    example: 250
+                  processedItems:
+                    type: number
+                    description: Items processed so far
+                    example: 75
+                  progress:
+                    type: number
+                    description: Progress percentage (0-100)
+                    example: 65
+                  completed:
+                    type: boolean
+                    description: Whether preview is complete
+                    example: false
+                  error:
+                    type: string
+                    description: Error message if preview failed
+                    example: null
+                  result:
+                    type: object
+                    description: Preview results (only present when completed=true)
+                    properties:
+                      items:
+                        type: array
+                        description: All items in original list order
+                        items:
+                          type: object
+                          properties:
+                            ratingKey:
+                              type: string
+                              example: "12345"
+                            title:
+                              type: string
+                              example: "The Shawshank Redemption"
+                            year:
+                              type: number
+                              example: 1994
+                            tmdbId:
+                              type: number
+                              example: 278
+                            mediaType:
+                              type: string
+                              enum: [movie, tv]
+                              example: movie
+                            posterUrl:
+                              type: string
+                              example: "https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg"
+                            inLibrary:
+                              type: boolean
+                              example: true
+                      totalItems:
+                        type: number
+                        example: 250
+                      matchedCount:
+                        type: number
+                        example: 200
+                      missingCount:
+                        type: number
+                        example: 50
+        '404':
+          description: Preview session not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Preview session not found"
+  /collections/preview/download:
+    post:
+      summary: Download a missing item from preview
+      description: Sends a download request for a missing item to Radarr, Sonarr, or Overseerr.
+      tags:
+        - collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tmdbId
+                - mediaType
+                - service
+              properties:
+                tmdbId:
+                  type: number
+                  description: TMDB ID of the item to download
+                  example: 680
+                mediaType:
+                  type: string
+                  description: Media type
+                  enum: [movie, tv]
+                  example: movie
+                service:
+                  type: string
+                  description: Download service to use
+                  enum: [radarr, sonarr, overseerr]
+                  example: radarr
+                serverId:
+                  type: number
+                  description: Server ID for Radarr/Sonarr (optional)
+                  example: 1
+                profileId:
+                  type: number
+                  description: Quality profile ID for Radarr/Sonarr (optional)
+                  example: 1
+                rootFolder:
+                  type: string
+                  description: Root folder path for Radarr/Sonarr (optional)
+                  example: /media/movies
+                seasons:
+                  description: Seasons to download for TV shows (optional, array of season numbers or 'all')
+                  oneOf:
+                    - type: array
+                      items:
+                        type: number
+                      example: [1, 2, 3]
+                    - type: string
+                      enum: [all]
+                      example: all
+                sourceType:
+                  type: string
+                  description: Collection source type for service user determination (optional)
+                  example: trakt
+      responses:
+        '200':
+          description: Download request sent successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Radarr response
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      service:
+                        type: string
+                        example: radarr
+                      autoApproved:
+                        type: number
+                        example: 1
+                      serverId:
+                        type: number
+                        example: 1
+                  - type: object
+                    description: Sonarr response
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      service:
+                        type: string
+                        example: sonarr
+                      autoApproved:
+                        type: number
+                        example: 1
+                      serverId:
+                        type: number
+                        example: 1
+                  - type: object
+                    description: Overseerr response
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      service:
+                        type: string
+                        example: overseerr
+                      requestId:
+                        type: number
+                        example: 12345
+                      status:
+                        type: number
+                        example: 2
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Missing required fields: tmdbId, mediaType, and service"
+        '500':
+          description: Failed to download item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to download item"
+                  message:
+                    type: string
   /collections/preexisting:
     get:
       summary: Get pre-existing Plex collections
@@ -5366,6 +5696,131 @@ paths:
           description: Invalid request body
         '500':
           description: Failed to append pre-existing collection configurations
+  /ratings/movie/{tmdbId}:
+    get:
+      summary: Get movie ratings
+      description: Returns IMDB and Rotten Tomatoes ratings for a movie
+      tags:
+        - other
+      parameters:
+        - in: path
+          name: tmdbId
+          required: true
+          schema:
+            type: integer
+          description: TMDB movie ID
+        - in: query
+          name: title
+          schema:
+            type: string
+          description: Movie title (required for RT rating lookup)
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: Movie release year (required for RT rating lookup)
+        - in: query
+          name: imdbId
+          schema:
+            type: string
+          description: IMDB ID (e.g. tt1234567) for IMDB rating lookup
+      responses:
+        '200':
+          description: Movie ratings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imdb:
+                    type: object
+                    nullable: true
+                    properties:
+                      title:
+                        type: string
+                      url:
+                        type: string
+                      criticsScore:
+                        type: number
+                  rt:
+                    type: object
+                    nullable: true
+                    properties:
+                      title:
+                        type: string
+                      year:
+                        type: number
+                      criticsRating:
+                        type: string
+                        enum: [Certified Fresh, Fresh, Rotten]
+                      criticsScore:
+                        type: number
+                      audienceRating:
+                        type: string
+                        enum: [Upright, Spilled]
+                      audienceScore:
+                        type: number
+                      url:
+                        type: string
+        '400':
+          description: Invalid request
+        '500':
+          description: Failed to fetch ratings
+  /ratings/tv/{tmdbId}:
+    get:
+      summary: Get TV show ratings
+      description: Returns Rotten Tomatoes ratings for a TV show
+      tags:
+        - other
+      parameters:
+        - in: path
+          name: tmdbId
+          required: true
+          schema:
+            type: integer
+          description: TMDB TV show ID
+        - in: query
+          name: title
+          schema:
+            type: string
+          description: TV show title (required for RT rating lookup)
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: First air date year (optional for RT rating lookup)
+      responses:
+        '200':
+          description: TV show ratings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rt:
+                    type: object
+                    nullable: true
+                    properties:
+                      title:
+                        type: string
+                      year:
+                        type: number
+                      criticsRating:
+                        type: string
+                        enum: [Fresh, Rotten]
+                      criticsScore:
+                        type: number
+                      audienceRating:
+                        type: string
+                        enum: [Upright, Spilled]
+                      audienceScore:
+                        type: number
+                      url:
+                        type: string
+        '400':
+          description: Invalid request
+        '500':
+          description: Failed to fetch ratings
   /reorder:
     post:
       summary: True unified reordering for mixed collection lists
