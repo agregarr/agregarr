@@ -1529,17 +1529,43 @@ class FlixPatrolAPI extends ExternalAPI {
         return rows.length <= 20; // Global platform tables have ~10 rows each
       });
 
-      // Each platform has 2 tables in the HTML: TV table first, Movies table second
-      // Calculate the base table index for this platform
+      // Each platform has 2 tables in the HTML following the document order of their headings
+      // We need to determine which heading (movies or TV) appears first in the document
+      // to know which table corresponds to which content type
       const platformBaseTableIndex = currentPlatformGroupIndex * 2;
 
-      // Determine which specific table to use based on which heading we matched
-      // TV heading → first table (index 0), Movies heading → second table (index 1)
+      const currentGroup = platformGroups[currentPlatformGroupIndex];
+
+      // Find the indices of the movies and TV headings in the globalPlatformHeadings array
+      let moviesHeadingIndex = -1;
+      let tvHeadingIndex = -1;
+
+      for (let i = 0; i < globalPlatformHeadings.length; i++) {
+        if (globalPlatformHeadings[i] === currentGroup.movies) {
+          moviesHeadingIndex = i;
+        }
+        if (globalPlatformHeadings[i] === currentGroup.tv) {
+          tvHeadingIndex = i;
+        }
+      }
+
+      // Determine table indices based on document order of headings
+      const moviesComesFirst =
+        moviesHeadingIndex >= 0 &&
+        tvHeadingIndex >= 0 &&
+        moviesHeadingIndex < tvHeadingIndex;
+
       let tableIndex: number;
-      if (isTvSection) {
-        tableIndex = platformBaseTableIndex; // First table = TV
-      } else if (isMoviesSection) {
-        tableIndex = platformBaseTableIndex + 1; // Second table = Movies
+      if (isMoviesSection) {
+        // If movies heading comes first, it gets the first table; otherwise second
+        tableIndex = moviesComesFirst
+          ? platformBaseTableIndex
+          : platformBaseTableIndex + 1;
+      } else if (isTvSection) {
+        // If TV heading comes first, it gets the first table; otherwise second
+        tableIndex = moviesComesFirst
+          ? platformBaseTableIndex + 1
+          : platformBaseTableIndex;
       } else {
         // Shouldn't happen, but default to first table
         tableIndex = platformBaseTableIndex;
