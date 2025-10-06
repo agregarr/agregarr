@@ -66,6 +66,8 @@ export class AutoRequestService {
       | 'tmdb'
       | 'imdb'
       | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
       | 'mdblist'
       | 'networks'
       | 'originals'
@@ -310,6 +312,7 @@ export class AutoRequestService {
 
           await overseerrAPI.createRequest({
             mediaId: item.tmdbId,
+            tvdbId: item.tvdbId, // Include TVDB ID for anime (Overseerr will use it if TMDB ID is invalid)
             mediaType: item.mediaType,
             seasons,
             is4k: false,

@@ -194,7 +194,7 @@ class PlexAPI {
       token: plexToken,
       authenticator: {
         authenticate: (
-          _plexApi,
+          _plexApi: NodePlexAPI,
           cb: (err?: string, token?: string) => void
         ) => {
           if (!plexToken) {

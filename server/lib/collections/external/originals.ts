@@ -598,6 +598,7 @@ export class OriginalsCollectionSync extends BaseCollectionSync {
           title: item.title,
           type: item.type,
           tmdbId: item.tmdbId,
+          posterUrl: item.posterUrl,
           year: item.year,
         }));
       }

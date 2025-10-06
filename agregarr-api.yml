@@ -201,7 +201,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist']
           example: 'overseerr'
         subtype:
           type: string
@@ -564,7 +564,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist']
           example: 'overseerr'
         subtype:
           type: string
@@ -974,7 +974,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist']
           example: 'overseerr'
         subtype:
           type: string
@@ -2294,6 +2294,13 @@ components:
           type: string
           nullable: true
           example: 'your-mdblist-api-key-here'
+    MyAnimeListSettings:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          nullable: true
+          example: 'your-myanimelist-api-key-here'
     OverseerrSettings:
       type: object
       properties:
@@ -3224,7 +3231,7 @@ components:
           example: "Trending Movies"
         collectionSource:
           type: string
-          enum: [trakt, tmdb, imdb, mdblist, letterboxd]
+          enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
           example: "trakt"
         collectionSubtype:
           type: string
@@ -3335,6 +3342,12 @@ components:
                 letterboxd:
                   type: integer
                   example: 15
+                anilist:
+                  type: integer
+                  example: 7
+                myanimelist:
+                  type: integer
+                  example: 5
     DashboardStats:
       type: object
       properties:
@@ -4433,7 +4446,7 @@ paths:
                   example: "https://trakt.tv/users/username/lists/my-list"
                 type:
                   type: string
-                  enum: [trakt, tmdb, imdb, mdblist, letterboxd]
+                  enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
                   example: "trakt"
               required:
                 - url
@@ -5280,6 +5293,62 @@ paths:
           description: Bad request - Plex server not configured or no admin token
         '500':
           description: Failed to fetch pre-existing collections
+  /anilist/test-trending:
+    get:
+      summary: Test AniList trending endpoint
+      description: Test endpoint for fetching trending anime from AniList with detailed logging.
+      tags:
+        - other
+      responses:
+        '200':
+          description: Trending anime fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '500':
+          description: Failed to fetch trending anime
+  /anilist/list:
+    get:
+      summary: Fetch AniList data
+      description: Fetches anime data from AniList based on the specified type (trending or popular).
+      tags:
+        - other
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [trending, popular]
+          required: true
+          description: Type of anime list to fetch
+      responses:
+        '200':
+          description: AniList data fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Invalid type parameter
+        '500':
+          description: Failed to fetch AniList data
   /defaulthubs:
     get:
       summary: Get default Plex hub configurations
@@ -6580,6 +6649,70 @@ paths:
                 apiKey:
                   type: string
                   description: MDBList API key
+              required:
+                - apiKey
+      responses:
+        '200':
+          description: 'Connection test successful'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: 'Missing required parameters'
+        '500':
+          description: 'Connection test failed'
+  /settings/myanimelist:
+    get:
+      summary: Get MyAnimeList settings
+      description: Retrieves current MyAnimeList settings.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyAnimeListSettings'
+    post:
+      summary: Update MyAnimeList settings
+      description: Updates MyAnimeList settings with the provided values.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MyAnimeListSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyAnimeListSettings'
+  /settings/myanimelist/test:
+    post:
+      summary: Test MyAnimeList connection
+      description: Tests connection to MyAnimeList API with the provided API key.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKey:
+                  type: string
+                  description: MyAnimeList API key
               required:
                 - apiKey
       responses:
@@ -8108,7 +8241,7 @@ paths:
           name: collectionSource
           schema:
             type: string
-            enum: [trakt, tmdb, imdb, mdblist, letterboxd]
+            enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
           description: Filter by collection source
         - in: query
           name: requestService

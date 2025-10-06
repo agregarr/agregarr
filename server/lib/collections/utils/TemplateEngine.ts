@@ -281,6 +281,35 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for AniList collections
+   */
+  public createAnilistContext(
+    mediaType: 'movie' | 'tv',
+    subtype: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      // Reuse Trakt subtype labeling for simple human-readable names
+      subtype: this.getAnilistSubtypeLabel(subtype),
+    };
+  }
+
+  /**
+   * Create context for MyAnimeList collections
+   */
+  public createMyAnimeListContext(
+    mediaType: 'movie' | 'tv',
+    rankingType: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getMyAnimeListSubtypeLabel(rankingType),
+    };
+  }
+
+  /**
    * Create context for MDBList collections
    */
   public createMDBListContext(
@@ -582,6 +611,55 @@ export class TemplateEngine {
 
       default:
         return subtype
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for Anilist subtype
+   */
+  private getAnilistSubtypeLabel(subtype: string): string {
+    switch (subtype) {
+      case 'trending':
+        return 'Trending';
+      case 'popular':
+        return 'Popular';
+      case 'top_rated':
+        return 'Top Rated';
+      case 'custom':
+        return 'Custom List';
+
+      default:
+        return subtype
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for MyAnimeList ranking type
+   */
+  private getMyAnimeListSubtypeLabel(rankingType: string): string {
+    switch (rankingType) {
+      case 'all':
+        return 'Top Anime Series';
+      case 'airing':
+        return 'Top Airing Anime';
+      case 'tv':
+        return 'Top TV Series';
+      case 'ova':
+        return 'Top OVA Series';
+      case 'movie':
+        return 'Top Movies';
+      case 'special':
+        return 'Top Specials';
+      case 'bypopularity':
+        return 'Most Popular';
+      case 'favorite':
+        return 'Most Favorited';
+      default:
+        return rankingType
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (l) => l.toUpperCase());
     }

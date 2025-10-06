@@ -587,6 +587,40 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'anilist':
+                        switch (subtype) {
+                          case 'trending':
+                            return 'Trending Anime';
+                          case 'popular':
+                            return 'Popular Anime';
+                          case 'top_rated':
+                            return 'Top Rated Anime';
+                          case 'custom':
+                            return 'Custom List';
+                          default:
+                            return subtype;
+                        }
+                      case 'myanimelist':
+                        switch (subtype) {
+                          case 'all':
+                            return 'Top Anime';
+                          case 'airing':
+                            return 'Top Airing Anime';
+                          case 'tv':
+                            return 'Top TV';
+                          case 'movie':
+                            return 'Top Movies';
+                          case 'ova':
+                            return 'Top OVA';
+                          case 'special':
+                            return 'Top Specials';
+                          case 'bypopularity':
+                            return 'Most Popular Anime';
+                          case 'favorite':
+                            return 'Most Favorited Anime';
+                          default:
+                            return subtype;
+                        }
                       case 'networks':
                         // Format platform names like "netflix_top_10" -> "Netflix"
                         // and "neon-tv" -> "Neon TV"
@@ -632,6 +666,10 @@ const SortableItem = ({
                       ? 'MDBList'
                       : collection.type === 'letterboxd'
                       ? 'Letterboxd'
+                      : collection.type === 'anilist'
+                      ? 'AniList'
+                      : collection.type === 'myanimelist'
+                      ? 'MyAnimeList'
                       : collection.type === 'tautulli'
                       ? 'Tautulli'
                       : collection.type === 'overseerr'

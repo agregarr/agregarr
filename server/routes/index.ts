@@ -16,6 +16,7 @@ import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
+import anilistRoutes from './anilist';
 import authRoutes from './auth';
 import collectionsRoutes from './collections';
 import dashboardRoutes from './dashboard';
@@ -25,6 +26,7 @@ import fontsRoutes from './fonts';
 import hubsRoutes from './hubs';
 import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
+import myanimelistRoutes from './myanimelist';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
@@ -149,6 +151,8 @@ router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
 router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);
 router.use('/auth', authRoutes);
+router.use('/anilist', anilistRoutes);
+router.use('/myanimelist', myanimelistRoutes);
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();

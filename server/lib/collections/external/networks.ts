@@ -745,6 +745,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
           title: item.title,
           type: item.type,
           tmdbId: item.metadata?.tmdbId,
+          posterUrl: item.posterUrl,
           year: item.year,
         }));
       }
