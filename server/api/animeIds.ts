@@ -1,35 +1,45 @@
 // @server/api/animeIds.ts
-// Loads Kometa's Anime-IDs JSON and builds a reverse index by AniList ID.
-// https://github.com/Kometa-Team/Anime-IDs
+// Loads PlexAniBridge Anime ID mappings (improved over Kometa's Anime-IDs)
+// https://github.com/eliasbenb/PlexAniBridge-Mappings
 
 export type AnimeIdsRow = {
-  tvdb_id?: number | string; // Series-level TVDb id
-  imdb_id?: string; // e.g., "tt1234567"
-  mal_id?: string | number; // can be "123" or "123,456"
-  anilist_id?: string | number; // can be "123" or "123,456"
-  tmdb_movie_id?: number | string;
-  tmdb_show_id?: number | string;
+  anidb_id?: number; // AniDB ID
+  anilist_id?: number; // AniList ID (also the primary key)
+  mal_id?: number | number[]; // MyAnimeList ID(s) - can be single or array
+  imdb_id?: string | string[]; // IMDB ID(s) - format: "tt1234567" - can be single or array
+  tmdb_movie_id?: number | number[]; // TMDB Movie ID(s) - can be single or array
+  tmdb_show_id?: number; // TMDB Show ID - always single
+  tvdb_id?: number; // TVDB ID - always single
+  tmdb_mappings?: Record<string, string>; // TMDB season mappings (e.g., {"s1": "e1-e12|2"})
+  tvdb_mappings?: Record<string, string>; // TVDB season mappings
 };
 
-type RawAnimeIds = Record<string, AnimeIdsRow>; // keyed by AniDB id
+type RawAnimeIds = Record<string, AnimeIdsRow>; // keyed by AniList ID
 
 let _loadedAt = 0;
 let _byAniList = new Map<number, AnimeIdsRow>();
 let _byAniDB = new Map<number, AnimeIdsRow>(); // For AniDB lookups
 let _loadInFlight: Promise<void> | null = null;
 
-// Split a comma/space separated id field to ints
-function parseIdList(v?: string | number): number[] {
-  if (v == null) return [];
-  const s = String(v);
-  return s
-    .split(',')
-    .map((x) => parseInt(x.trim(), 10))
-    .filter((n) => Number.isFinite(n) && n > 0);
+// Normalize array fields to always be arrays for consistent handling
+function normalizeToArray<T>(value: T | T[] | undefined): T[] {
+  if (value == null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+// Get first value from a field that can be single value or array
+export function getFirstValue<T>(value: T | T[] | undefined): T | undefined {
+  if (value == null) return undefined;
+  return Array.isArray(value) ? value[0] : value;
+}
+
+// Get all values from a field that can be single value or array
+export function getAllValues<T>(value: T | T[] | undefined): T[] {
+  return normalizeToArray(value);
 }
 
 export async function loadAnimeIds(
-  url = 'https://raw.githubusercontent.com/Kometa-Team/Anime-IDs/master/anime_ids.json'
+  url = 'https://raw.githubusercontent.com/eliasbenb/PlexAniBridge-Mappings/refs/heads/v2/mappings.json'
 ): Promise<void> {
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
@@ -42,31 +52,26 @@ export async function loadAnimeIds(
   const byAniList = new Map<number, AnimeIdsRow>();
   const byAniDB = new Map<number, AnimeIdsRow>();
 
-  // Build both AniList and AniDB indices
-  for (const [anidbIdStr, row] of Object.entries(json)) {
-    const anidbId = parseInt(anidbIdStr);
+  // Build indices - keys are now AniList IDs directly!
+  for (const [anilistIdStr, row] of Object.entries(json)) {
+    // Skip metadata keys like "$includes"
+    if (anilistIdStr.startsWith('$')) continue;
 
-    // Normalize numeric-ish fields to numbers where possible
+    const anilistId = parseInt(anilistIdStr);
+    if (!anilistId || !Number.isFinite(anilistId)) continue;
+
+    // Store the row as-is (already well-structured)
     const normalized: AnimeIdsRow = {
       ...row,
-      tmdb_movie_id:
-        row.tmdb_movie_id != null ? Number(row.tmdb_movie_id) : undefined,
-      tmdb_show_id:
-        row.tmdb_show_id != null ? Number(row.tmdb_show_id) : undefined,
-      tvdb_id: row.tvdb_id != null ? Number(row.tvdb_id) : undefined,
+      anilist_id: anilistId, // Add the key as a field for completeness
     };
 
-    // Store by AniDB ID (the key)
-    if (anidbId) {
-      byAniDB.set(anidbId, normalized);
-    }
+    // Store by AniList ID (primary key)
+    byAniList.set(anilistId, normalized);
 
-    // Store by AniList ID(s)
-    const alIds = parseIdList(row.anilist_id);
-    for (const aid of alIds) {
-      const prev = byAniList.get(aid) ?? {};
-      // merge so we keep the most complete entry we see
-      byAniList.set(aid, { ...prev, ...normalized });
+    // Also index by AniDB ID if present
+    if (row.anidb_id) {
+      byAniDB.set(row.anidb_id, normalized);
     }
   }
 
@@ -89,17 +94,17 @@ export function lookupByAniList(anilistId: number): AnimeIdsRow | undefined {
   return _byAniList.get(anilistId);
 }
 
-/** Lookup Kometa row by MyAnimeList ID (mal_id). Returns first match. */
+/** Lookup PlexAniBridge row by MyAnimeList ID (mal_id). Returns first match. */
 export function lookupByMal(malId: number): AnimeIdsRow | undefined {
   if (!malId) return undefined;
   for (const row of _byAniList.values()) {
-    const malList = parseIdList(row.mal_id);
-    if (malList.includes(malId)) return row;
+    const malIds = normalizeToArray(row.mal_id);
+    if (malIds.includes(malId)) return row;
   }
   return undefined;
 }
 
-/** Lookup Kometa row by AniDB ID (the primary key in anime_ids.json) */
+/** Lookup PlexAniBridge row by AniDB ID */
 export function lookupByAniDB(anidbId: number): AnimeIdsRow | undefined {
   return _byAniDB.get(anidbId);
 }

@@ -1,4 +1,9 @@
-import { ensureAnimeIdsLoaded, lookupByMal } from '@server/api/animeIds';
+import {
+  ensureAnimeIdsLoaded,
+  getAllValues,
+  getFirstValue,
+  lookupByMal,
+} from '@server/api/animeIds';
 import {
   getRankedAnime,
   type MALAnime,
@@ -31,7 +36,7 @@ interface PlexLibraryItem {
   ratingKey: string;
   title: string;
   guid?: string | PlexGuid;
-  guids?: (string | PlexGuid)[];
+  Guid?: PlexGuid[]; // Capital G to match actual Plex API response
 }
 
 export class MyAnimeListCollectionSync extends BaseCollectionSync {
@@ -80,8 +85,12 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
       // Ensure anime IDs are loaded for mapping
       await ensureAnimeIdsLoaded();
 
-      // Fetch source data from MAL
-      const sourceData = await this.fetchSourceData(config);
+      // Fetch source data from MAL (with libraryCache for early matching)
+      const sourceData = await this.fetchSourceData(
+        config,
+        undefined,
+        libraryCache
+      );
 
       // Map source data to collection items
       const mapped = await this.mapSourceDataToItems(
@@ -166,12 +175,48 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
 
   // ---- Fetch ----
   public async fetchSourceData(
-    config: CollectionConfig
+    config: CollectionConfig,
+    options?: { apiTimeout?: number },
+    libraryCache?: LibraryItemsCache
   ): Promise<CollectionSourceData[]> {
     const rankingType = (config.subtype as MALRankingType) || 'all';
     const perPage = 500; // MAL API maximum per request
+    const maxItems = config.maxItems || 9999;
+    const mediaType = getCollectionMediaType(config);
 
-    // Paginate through results like other services (fetch up to 9999 items)
+    // Build library index for early matching checks (if library cache provided)
+    // Filter to target library FIRST, same as mapSourceDataToItems does!
+    let libraryIndex: {
+      imdb: Map<
+        string,
+        { ratingKey: string; title: string; libraryKey: string }
+      >;
+      tmdb: Map<
+        string,
+        { ratingKey: string; title: string; libraryKey: string }
+      >;
+      tvdb: Map<
+        string,
+        { ratingKey: string; title: string; libraryKey: string }
+      >;
+    } | null = null;
+    if (libraryCache) {
+      const targetLibraryId = Array.isArray(config.libraryId)
+        ? config.libraryId[0]
+        : config.libraryId;
+
+      const filteredCache: LibraryItemsCache = {};
+      if (targetLibraryId && libraryCache[targetLibraryId]) {
+        filteredCache[targetLibraryId] = libraryCache[targetLibraryId];
+      }
+
+      const cacheToUse =
+        Object.keys(filteredCache).length > 0 ? filteredCache : libraryCache;
+
+      libraryIndex = this.buildProviderIndex(cacheToUse);
+    }
+
+    // Paginate through results with rate limiting and early matching checks
     const allData: CollectionSourceData[] = [];
     let offset = 0;
     const maxRequests = 20; // Safety limit (20 requests × 500 = 10,000 items)
@@ -181,7 +226,23 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
 
       if (!response.data || response.data.length === 0) break;
 
-      const pageData = response.data.map((item) => ({
+      // Filter results to match target media type
+      const filteredData = response.data.filter((item) => {
+        const itemMediaType = item.node.media_type;
+        if (mediaType === 'movie') {
+          return itemMediaType === 'movie';
+        } else {
+          // For TV libraries, include tv, ova, ona, special (exclude movie and music)
+          return (
+            itemMediaType === 'tv' ||
+            itemMediaType === 'ova' ||
+            itemMediaType === 'ona' ||
+            itemMediaType === 'special'
+          );
+        }
+      });
+
+      const pageData = filteredData.map((item) => ({
         title: item.node.title,
         malId: item.node.id,
         rank: item.ranking.rank,
@@ -190,6 +251,40 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
 
       allData.push(...pageData);
       offset += perPage;
+
+      // Check every 2 requests (1000 items) if we have enough matched items
+      if (libraryIndex && (i + 1) % 2 === 0) {
+        const matchedCount = this.countMatchedItems(allData, libraryIndex);
+
+        logger.debug(
+          `MAL early matching check: ${matchedCount} matched items from ${allData.length} fetched (target: ${maxItems})`,
+          {
+            label: 'MyAnimeList Collections',
+            configName: config.name,
+            matchedCount,
+            fetchedCount: allData.length,
+            maxItems,
+            currentRequest: i + 1,
+          }
+        );
+
+        // If we have enough matched items to satisfy maxItems, stop fetching
+        if (matchedCount >= maxItems) {
+          logger.info(
+            `MAL early termination: Found ${matchedCount} matched items (target: ${maxItems}) after ${
+              i + 1
+            } requests`,
+            {
+              label: 'MyAnimeList Collections',
+              configName: config.name,
+              matchedCount,
+              maxItems,
+              requestsFetched: i + 1,
+            }
+          );
+          break;
+        }
+      }
 
       // If we got less than perPage, we've hit the end
       if (response.data.length < perPage) break;
@@ -231,32 +326,6 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
     } = this.buildProviderIndex(cacheToUse);
     const mediaType = getCollectionMediaType(config);
 
-    // Title fallback index (last resort)
-    const titleLookup = new Map<
-      string,
-      { ratingKey: string; title: string; libraryKey: string }
-    >();
-    if (cacheToUse) {
-      for (const libKey of Object.keys(cacheToUse)) {
-        for (const it of cacheToUse[libKey] || []) {
-          const base = (it.title || '').toLowerCase().trim();
-          if (base)
-            titleLookup.set(base, {
-              ratingKey: it.ratingKey,
-              title: it.title,
-              libraryKey: libKey,
-            });
-          const simplified = base.replace(/\s+\(\d{4}\)$/, '');
-          if (simplified && simplified !== base)
-            titleLookup.set(simplified, {
-              ratingKey: it.ratingKey,
-              title: it.title,
-              libraryKey: libKey,
-            });
-        }
-      }
-    }
-
     for (let i = 0; i < sourceData.length; i++) {
       const entry = sourceData[i];
       if (!('raw' in entry) || !('malId' in entry)) continue;
@@ -274,10 +343,14 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
         if (map) {
           const tmdbShow =
             map.tmdb_show_id != null ? String(map.tmdb_show_id) : undefined;
+          // tmdb_movie_id can be number or number[] - take first value
+          const tmdbMovieFirst = getFirstValue(map.tmdb_movie_id);
           const tmdbMovie =
-            map.tmdb_movie_id != null ? String(map.tmdb_movie_id) : undefined;
+            tmdbMovieFirst != null ? String(tmdbMovieFirst) : undefined;
           const tvdb = map.tvdb_id != null ? String(map.tvdb_id) : undefined;
-          const imdb = map.imdb_id?.toLowerCase();
+          // imdb_id can be string or string[] - take first value and lowercase
+          const imdbFirst = getFirstValue(map.imdb_id);
+          const imdb = imdbFirst?.toLowerCase();
 
           // Prefer TVDB for TV shows
           if (mediaType === 'tv') {
@@ -363,148 +436,126 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
 
       if (matched) continue;
 
-      // Last resort: title matching
-      const candidates: string[] = [];
-      if (raw.title) candidates.push(raw.title);
-      if (raw.alternative_titles?.en)
-        candidates.push(raw.alternative_titles.en);
-      if (raw.alternative_titles?.ja)
-        candidates.push(raw.alternative_titles.ja);
-      if (raw.alternative_titles?.synonyms) {
-        candidates.push(...raw.alternative_titles.synonyms);
-      }
+      // No match found - try to get TMDB ID for auto-request
+      // Try to get TMDB ID from anime mapping
+      let tmdbId = 0;
 
-      const norm = (s: string) =>
-        s
-          .toLowerCase()
-          .trim()
-          .replace(/\s+\(\d{4}\)$/, '');
-      let titleHit:
-        | { ratingKey: string; title: string; libraryKey: string }
-        | undefined;
-      for (const name of candidates) {
-        const hit = titleLookup.get(norm(name));
-        if (hit) {
-          titleHit = hit;
-          break;
+      if (malId) {
+        const map = lookupByMal(malId);
+        if (map) {
+          // PRIORITY 1: Check if PlexAniBridge mapping has TMDB IDs directly (instant, free)
+          if (mediaType === 'tv' && map.tmdb_show_id) {
+            tmdbId = Number(map.tmdb_show_id);
+          } else if (mediaType === 'movie' && map.tmdb_movie_id) {
+            tmdbId = Number(map.tmdb_movie_id);
+          }
+
+          // PRIORITY 2: Only if PlexAniBridge doesn't have TMDB ID, try TVDB → TMDB API lookup
+          const tvdb = map.tvdb_id != null ? String(map.tvdb_id) : undefined;
+          if (tmdbId === 0 && tvdb) {
+            try {
+              const TheMovieDb = (await import('@server/api/themoviedb'))
+                .default;
+              const tmdb = new TheMovieDb();
+              const resp = await tmdb.getByExternalId({
+                externalId: parseInt(tvdb),
+                type: 'tvdb',
+              });
+              const tvResult = resp?.tv_results?.[0];
+              const movieResult = resp?.movie_results?.[0];
+              if (mediaType === 'tv' && tvResult?.id) {
+                tmdbId = tvResult.id;
+              } else if (mediaType === 'movie' && movieResult?.id) {
+                tmdbId = movieResult.id;
+              } else if (tvResult?.id) {
+                tmdbId = tvResult.id;
+              } else if (movieResult?.id) {
+                tmdbId = movieResult.id;
+              }
+            } catch (e) {
+              // TVDB → TMDB lookup failed, continue with TVDB only
+            }
+          }
         }
       }
 
-      if (titleHit) {
-        items.push({
-          ratingKey: titleHit.ratingKey,
-          title: titleHit.title,
-          type: mediaType,
-          posterUrl:
-            raw?.main_picture?.large || raw?.main_picture?.medium || undefined,
-          metadata: { libraryKey: titleHit.libraryKey },
+      // Use anime's actual media_type to determine mediaType (not collection-level mediaType)
+      // MAL media_type: 'movie' → movie, 'tv'|'ova'|'special'|'ona'|'music' → tv
+      const itemMediaType: 'movie' | 'tv' =
+        raw?.media_type === 'movie' ? 'movie' : 'tv';
+
+      // Only add to missing if we have a valid TMDB ID
+      // For anime, we ONLY send TMDB ID to Overseerr (no TVDB, to avoid extra TMDB API calls)
+      if (tmdbId > 0) {
+        missing.push({
+          tmdbId,
+          mediaType: itemMediaType,
+          title: displayTitle,
+          originalPosition: i + 1,
         });
-      } else {
-        // Try to get TVDB and TMDB IDs from anime mapping
-        let tmdbId = 0;
-        let tvdbId: number | undefined;
-
-        if (malId) {
-          const map = lookupByMal(malId);
-          if (map) {
-            // Get TVDB ID directly from Kometa mapping (preferred for anime)
-            const tvdb = map.tvdb_id != null ? String(map.tvdb_id) : undefined;
-            if (tvdb) {
-              tvdbId = parseInt(tvdb);
-
-              // Also try to get TMDB ID for services that need it
-              try {
-                const TheMovieDb = (await import('@server/api/themoviedb'))
-                  .default;
-                const tmdb = new TheMovieDb();
-                const resp = await tmdb.getByExternalId({
-                  externalId: parseInt(tvdb),
-                  type: 'tvdb',
-                });
-                const tvResult = resp?.tv_results?.[0];
-                const movieResult = resp?.movie_results?.[0];
-                if (mediaType === 'tv' && tvResult?.id) {
-                  tmdbId = tvResult.id;
-                } else if (mediaType === 'movie' && movieResult?.id) {
-                  tmdbId = movieResult.id;
-                } else if (tvResult?.id) {
-                  tmdbId = tvResult.id;
-                } else if (movieResult?.id) {
-                  tmdbId = movieResult.id;
-                }
-              } catch (e) {
-                // TVDB → TMDB lookup failed, continue with TVDB only
-              }
-            }
-
-            // Fallback: check if Kometa has direct TMDB IDs
-            if (tmdbId === 0) {
-              if (mediaType === 'tv' && map.tmdb_show_id) {
-                tmdbId = Number(map.tmdb_show_id);
-              } else if (mediaType === 'movie' && map.tmdb_movie_id) {
-                tmdbId = Number(map.tmdb_movie_id);
-              }
-            }
-          }
-        }
-
-        // Use anime's actual media_type to determine mediaType (not collection-level mediaType)
-        // MAL media_type: 'movie' → movie, 'tv'|'ova'|'special'|'ona'|'music' → tv
-        const itemMediaType: 'movie' | 'tv' =
-          raw?.media_type === 'movie' ? 'movie' : 'tv';
-
-        // If no TMDB ID found, try searching TMDB by title and year as fallback
-        if (tmdbId === 0 && raw) {
-          try {
-            const TheMovieDb = (await import('@server/api/themoviedb')).default;
-            const tmdb = new TheMovieDb();
-
-            // Extract year from start_date (format: "2021-01-15")
-            const year = raw.start_date
-              ? parseInt(raw.start_date.split('-')[0])
-              : undefined;
-
-            // Search TMDB based on media type
-            if (itemMediaType === 'movie') {
-              const searchResults = await tmdb.searchMovies({
-                query: displayTitle,
-                year,
-              });
-              if (searchResults.results && searchResults.results.length > 0) {
-                tmdbId = searchResults.results[0].id;
-              }
-            } else {
-              const searchResults = await tmdb.searchTvShows({
-                query: displayTitle,
-                year,
-              });
-              if (searchResults.results && searchResults.results.length > 0) {
-                tmdbId = searchResults.results[0].id;
-              }
-            }
-          } catch (e) {
-            // TMDB search failed, continue with tmdbId = 0
-            logger.debug(`TMDB search failed for ${displayTitle}`, {
-              label: 'MyAnimeList Collections',
-              error: String(e),
-            });
-          }
-        }
-
-        // Only add to missing if we have a valid TMDB ID
-        if (tmdbId > 0) {
-          missing.push({
-            tmdbId,
-            tvdbId,
-            mediaType: itemMediaType,
-            title: displayTitle,
-            originalPosition: i + 1,
-          });
-        }
       }
     }
 
     return { items, missingItems: missing };
+  }
+
+  /**
+   * Count how many items from the provided source data would match items in the library.
+   * This is a lightweight version of the full mapping logic used for early termination checks.
+   */
+  private countMatchedItems(
+    sourceData: CollectionSourceData[],
+    libraryIndex: {
+      imdb: Map<
+        string,
+        { ratingKey: string; title: string; libraryKey: string }
+      >;
+      tmdb: Map<
+        string,
+        { ratingKey: string; title: string; libraryKey: string }
+      >;
+      tvdb: Map<
+        string,
+        { ratingKey: string; title: string; libraryKey: string }
+      >;
+    }
+  ): number {
+    let matchedCount = 0;
+
+    for (const entry of sourceData) {
+      if (!('raw' in entry) || !('malId' in entry)) continue;
+
+      const malId = entry.malId;
+      let matched = false;
+
+      // Check Kometa mapping
+      if (malId) {
+        const map = lookupByMal(malId);
+        if (map) {
+          const tmdbShow =
+            map.tmdb_show_id != null ? String(map.tmdb_show_id) : undefined;
+          // tmdb_movie_id can be number or number[] - take first value
+          const tmdbMovieFirst = getFirstValue(map.tmdb_movie_id);
+          const tmdbMovie =
+            tmdbMovieFirst != null ? String(tmdbMovieFirst) : undefined;
+          const tvdb = map.tvdb_id != null ? String(map.tvdb_id) : undefined;
+          // imdb_id can be string or string[] - take first value and lowercase
+          const imdbFirst = getFirstValue(map.imdb_id);
+          const imdb = imdbFirst?.toLowerCase();
+
+          // Check if any of these IDs exist in library
+          if (tvdb && libraryIndex.tvdb.has(tvdb)) matched = true;
+          else if (tmdbShow && libraryIndex.tmdb.has(tmdbShow)) matched = true;
+          else if (tmdbMovie && libraryIndex.tmdb.has(tmdbMovie))
+            matched = true;
+          else if (imdb && libraryIndex.imdb.has(imdb)) matched = true;
+        }
+      }
+
+      if (matched) matchedCount++;
+    }
+
+    return matchedCount;
   }
 
   // Helper to build provider index from library cache
@@ -535,7 +586,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
       for (const it of libraryCache[libKey] || []) {
         const plexItem = it as PlexLibraryItem;
         const guidField = plexItem.guid;
-        const guidsField = plexItem.guids;
+        const guidsField = plexItem.Guid; // Capital G!
 
         const allGuidStrings: string[] = [
           ...take(extractGuidString(guidField)),
@@ -579,7 +630,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
             const malId = parseInt(mMalAgent[1]);
             const map = lookupByMal(malId);
             if (map) {
-              // Add all available IDs from Kometa mapping
+              // Add all available IDs from PlexAniBridge mapping
               if (map.tvdb_id) {
                 tvdb.set(String(map.tvdb_id), {
                   ratingKey: it.ratingKey,
@@ -594,15 +645,19 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
                   libraryKey: libKey,
                 });
               }
-              if (map.tmdb_movie_id) {
-                tmdb.set(String(map.tmdb_movie_id), {
+              // tmdb_movie_id can be array - add all values
+              const tmdbMovieIds = getAllValues(map.tmdb_movie_id);
+              for (const mid of tmdbMovieIds) {
+                tmdb.set(String(mid), {
                   ratingKey: it.ratingKey,
                   title: it.title,
                   libraryKey: libKey,
                 });
               }
-              if (map.imdb_id) {
-                imdb.set(map.imdb_id.toLowerCase(), {
+              // imdb_id can be array - add all values
+              const imdbIds = getAllValues(map.imdb_id);
+              for (const iid of imdbIds) {
+                imdb.set(iid.toLowerCase(), {
                   ratingKey: it.ratingKey,
                   title: it.title,
                   libraryKey: libKey,

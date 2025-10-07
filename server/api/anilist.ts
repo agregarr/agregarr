@@ -84,7 +84,7 @@ type GraphQLResponse<T> = {
   errors?: GraphQLError[];
 };
 
-// ---- Core fetch with GraphQL error handling ----
+// ---- Core fetch with GraphQL error handling and rate limiting ----
 async function fetchAniListData<T>(
   query: string,
   variables: Record<
@@ -101,6 +101,18 @@ async function fetchAniListData<T>(
     },
     body: JSON.stringify({ query, variables }),
   });
+
+  // Handle rate limiting (429 status)
+  if (res.status === 429) {
+    // Check for Retry-After header, otherwise default to 1 second
+    const retryAfter = res.headers.get('Retry-After');
+    const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 1000;
+
+    await new Promise((resolve) => setTimeout(resolve, waitTime));
+
+    // Retry the request after waiting
+    return fetchAniListData(query, variables);
+  }
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -156,41 +168,64 @@ export async function getPopularAnime(
   filters: FormatFilters = {}
 ) {
   // Build the query based on whether filters are provided
-  const hasFilters = filters.format || filters.formatIn;
+  const hasFormatFilter = !!filters.format;
+  const hasFormatInFilter = !!filters.formatIn;
+  const hasFilters = hasFormatFilter || hasFormatInFilter;
 
-  const query = hasFilters
-    ? `
-        ${MEDIA_FIELDS}
-        query ($page: Int, $perPage: Int, $isAdult: Boolean, $format: MediaFormat, $formatIn: [MediaFormat]) {
-          Page(page: $page, perPage: $perPage) {
-            pageInfo { total perPage currentPage lastPage hasNextPage }
-            media(type: ANIME, isAdult: $isAdult, sort: POPULARITY_DESC, format: $format, format_in: $formatIn) {
-              ...MediaFields
-            }
+  // Build query with only the filter parameters we're actually using
+  let query: string;
+  if (hasFormatFilter) {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int, $isAdult: Boolean, $format: MediaFormat) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, isAdult: $isAdult, sort: POPULARITY_DESC, format: $format) {
+            ...MediaFields
           }
         }
-      `
-    : `
-        ${MEDIA_FIELDS}
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            pageInfo { total perPage currentPage lastPage hasNextPage }
-            media(type: ANIME, sort: POPULARITY_DESC) {
-              ...MediaFields
-            }
-          }
-        }
-      `;
-
-  const variables = hasFilters
-    ? {
-        page,
-        perPage,
-        isAdult,
-        format: filters.format ?? null,
-        formatIn: filters.formatIn ?? null,
       }
-    : { page, perPage };
+    `;
+  } else if (hasFormatInFilter) {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int, $isAdult: Boolean, $formatIn: [MediaFormat]) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, isAdult: $isAdult, sort: POPULARITY_DESC, format_in: $formatIn) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+  } else {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, sort: POPULARITY_DESC) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+  }
+
+  // Build variables with only the parameters we're using
+  const variables: Record<
+    string,
+    string | number | boolean | string[] | null | undefined
+  > = { page, perPage };
+  if (hasFilters) {
+    variables.isAdult = isAdult;
+    if (hasFormatFilter) {
+      variables.format = filters.format;
+    }
+    if (hasFormatInFilter) {
+      variables.formatIn = filters.formatIn;
+    }
+  }
 
   return fetchAniListData<PageMediaResponse>(query, variables);
 }
@@ -203,41 +238,64 @@ export async function getTrendingAnime(
   filters: FormatFilters = {}
 ) {
   // Build the query based on whether filters are provided
-  const hasFilters = filters.format || filters.formatIn;
+  const hasFormatFilter = !!filters.format;
+  const hasFormatInFilter = !!filters.formatIn;
+  const hasFilters = hasFormatFilter || hasFormatInFilter;
 
-  const query = hasFilters
-    ? `
-        ${MEDIA_FIELDS}
-        query ($page: Int, $perPage: Int, $isAdult: Boolean, $format: MediaFormat, $formatIn: [MediaFormat]) {
-          Page(page: $page, perPage: $perPage) {
-            pageInfo { total perPage currentPage lastPage hasNextPage }
-            media(type: ANIME, isAdult: $isAdult, sort: TRENDING_DESC, format: $format, format_in: $formatIn) {
-              ...MediaFields
-            }
+  // Build query with only the filter parameters we're actually using
+  let query: string;
+  if (hasFormatFilter) {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int, $isAdult: Boolean, $format: MediaFormat) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, isAdult: $isAdult, sort: TRENDING_DESC, format: $format) {
+            ...MediaFields
           }
         }
-      `
-    : `
-        ${MEDIA_FIELDS}
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            pageInfo { total perPage currentPage lastPage hasNextPage }
-            media(type: ANIME, sort: TRENDING_DESC) {
-              ...MediaFields
-            }
-          }
-        }
-      `;
-
-  const variables = hasFilters
-    ? {
-        page,
-        perPage,
-        isAdult,
-        format: filters.format ?? null,
-        formatIn: filters.formatIn ?? null,
       }
-    : { page, perPage };
+    `;
+  } else if (hasFormatInFilter) {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int, $isAdult: Boolean, $formatIn: [MediaFormat]) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, isAdult: $isAdult, sort: TRENDING_DESC, format_in: $formatIn) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+  } else {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, sort: TRENDING_DESC) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+  }
+
+  // Build variables with only the parameters we're using
+  const variables: Record<
+    string,
+    string | number | boolean | string[] | null | undefined
+  > = { page, perPage };
+  if (hasFilters) {
+    variables.isAdult = isAdult;
+    if (hasFormatFilter) {
+      variables.format = filters.format;
+    }
+    if (hasFormatInFilter) {
+      variables.formatIn = filters.formatIn;
+    }
+  }
 
   return fetchAniListData<PageMediaResponse>(query, variables);
 }
@@ -250,41 +308,64 @@ export async function getTopRatedAnime(
   filters: FormatFilters = {}
 ) {
   // Build the query based on whether filters are provided
-  const hasFilters = filters.format || filters.formatIn;
+  const hasFormatFilter = !!filters.format;
+  const hasFormatInFilter = !!filters.formatIn;
+  const hasFilters = hasFormatFilter || hasFormatInFilter;
 
-  const query = hasFilters
-    ? `
-        ${MEDIA_FIELDS}
-        query ($page: Int, $perPage: Int, $isAdult: Boolean, $format: MediaFormat, $formatIn: [MediaFormat]) {
-          Page(page: $page, perPage: $perPage) {
-            pageInfo { total perPage currentPage lastPage hasNextPage }
-            media(type: ANIME, isAdult: $isAdult, sort: SCORE_DESC, format: $format, format_in: $formatIn) {
-              ...MediaFields
-            }
+  // Build query with only the filter parameters we're actually using
+  let query: string;
+  if (hasFormatFilter) {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int, $isAdult: Boolean, $format: MediaFormat) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, isAdult: $isAdult, sort: SCORE_DESC, format: $format) {
+            ...MediaFields
           }
         }
-      `
-    : `
-        ${MEDIA_FIELDS}
-        query ($page: Int, $perPage: Int) {
-          Page(page: $page, perPage: $perPage) {
-            pageInfo { total perPage currentPage lastPage hasNextPage }
-            media(type: ANIME, sort: SCORE_DESC) {
-              ...MediaFields
-            }
-          }
-        }
-      `;
-
-  const variables = hasFilters
-    ? {
-        page,
-        perPage,
-        isAdult,
-        format: filters.format ?? null,
-        formatIn: filters.formatIn ?? null,
       }
-    : { page, perPage };
+    `;
+  } else if (hasFormatInFilter) {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int, $isAdult: Boolean, $formatIn: [MediaFormat]) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, isAdult: $isAdult, sort: SCORE_DESC, format_in: $formatIn) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+  } else {
+    query = `
+      ${MEDIA_FIELDS}
+      query ($page: Int, $perPage: Int) {
+        Page(page: $page, perPage: $perPage) {
+          pageInfo { total perPage currentPage lastPage hasNextPage }
+          media(type: ANIME, sort: SCORE_DESC) {
+            ...MediaFields
+          }
+        }
+      }
+    `;
+  }
+
+  // Build variables with only the parameters we're using
+  const variables: Record<
+    string,
+    string | number | boolean | string[] | null | undefined
+  > = { page, perPage };
+  if (hasFilters) {
+    variables.isAdult = isAdult;
+    if (hasFormatFilter) {
+      variables.format = filters.format;
+    }
+    if (hasFormatInFilter) {
+      variables.formatIn = filters.formatIn;
+    }
+  }
 
   return fetchAniListData<PageMediaResponse>(query, variables);
 }

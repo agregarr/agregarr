@@ -228,6 +228,12 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
 
       const sourceData: LetterboxdSourceData[] = [];
       const batchSize = 20; // Process 20 items concurrently (well under 40 req/sec limit)
+      const maxItems = config.maxItems || 9999;
+
+      // Build library index for early matching checks (if library cache provided)
+      const libraryIndex = libraryCache
+        ? this.buildLibraryTmdbIndex(libraryCache, config)
+        : null;
 
       // Process items in concurrent batches
       for (let i = 0; i < letterboxdData.length; i += batchSize) {
@@ -306,6 +312,42 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
           (result): result is LetterboxdSourceData => result !== null
         );
         sourceData.push(...validResults);
+
+        // Check every 5 batches (100 items) if we have enough matched items
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        if (libraryIndex && batchNumber % 5 === 0) {
+          const matchedCount = this.countMatchedLetterboxdItems(
+            sourceData,
+            libraryIndex
+          );
+
+          logger.debug(
+            `Letterboxd early matching check: ${matchedCount} matched items from ${sourceData.length} resolved (target: ${maxItems})`,
+            {
+              label: 'Letterboxd Collections',
+              configName: config.name,
+              matchedCount,
+              resolvedCount: sourceData.length,
+              maxItems,
+              batchNumber,
+            }
+          );
+
+          // If we have enough matched items to satisfy maxItems, stop resolving
+          if (matchedCount >= maxItems) {
+            logger.info(
+              `Letterboxd early termination: Found ${matchedCount} matched items (target: ${maxItems}) after resolving ${sourceData.length} items`,
+              {
+                label: 'Letterboxd Collections',
+                configName: config.name,
+                matchedCount,
+                maxItems,
+                itemsResolved: sourceData.length,
+              }
+            );
+            break;
+          }
+        }
       }
 
       logger.info(
@@ -919,6 +961,63 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       resultCount: results.length,
     });
     return null;
+  }
+
+  /**
+   * Build a TMDB ID index from library cache for fast matching checks.
+   * Only includes items from the target library.
+   */
+  private buildLibraryTmdbIndex(
+    libraryCache: LibraryItemsCache,
+    config: CollectionConfig
+  ): Set<number> {
+    const tmdbIds = new Set<number>();
+
+    // Filter to target library only
+    const targetLibraryId = Array.isArray(config.libraryId)
+      ? config.libraryId[0]
+      : config.libraryId;
+
+    const targetCache = targetLibraryId ? libraryCache[targetLibraryId] : null;
+    if (!targetCache) return tmdbIds;
+
+    for (const item of targetCache) {
+      // Extract TMDB IDs from item Guid (note: capital G in library cache type)
+      const guids = Array.isArray(item.Guid) ? item.Guid : [];
+
+      for (const guid of guids) {
+        const guidStr = guid?.id;
+        if (!guidStr) continue;
+
+        // Match tmdb:// or agents.themoviedb://
+        const tmdbMatch = guidStr.match(
+          /(?:^|agents\.themoviedb:\/\/|tmdb:\/\/)(\d+)\b/i
+        );
+        if (tmdbMatch) {
+          tmdbIds.add(parseInt(tmdbMatch[1]));
+        }
+      }
+    }
+
+    return tmdbIds;
+  }
+
+  /**
+   * Count how many resolved Letterboxd items match the library.
+   */
+  private countMatchedLetterboxdItems(
+    sourceData: LetterboxdSourceData[],
+    libraryIndex: Set<number>
+  ): number {
+    let matchedCount = 0;
+
+    for (const item of sourceData) {
+      if (item.tmdbId && libraryIndex.has(item.tmdbId)) {
+        matchedCount++;
+      }
+    }
+
+    return matchedCount;
   }
 
   /**
