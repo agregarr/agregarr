@@ -3,6 +3,7 @@ import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionU
 import type {
   CollectionItem,
   CollectionSyncOptions,
+  MissingItem,
   PlexCollection,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
@@ -16,13 +17,18 @@ import {
   handleRateLimit,
   incrementCollectionSyncCounter,
   parseConfigIdFromLabel,
+  processMissingItemsWithMode,
   updateConfigWithRatingKey,
   validateAndSanitizeItems,
   validateCollectionItems,
 } from '@server/lib/collections/core/CollectionUtilities';
+import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
 import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
 import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
 import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
+import { MyAnimeListCollectionSync } from '@server/lib/collections/external/myanimelist';
+import { NetworksCollectionSync } from '@server/lib/collections/external/networks';
+import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
 import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
 import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
@@ -151,10 +157,33 @@ export class MultiSourceOrchestrator {
       }
 
       const itemGroups: CollectionItem[][] = [];
+      const missingItemGroups: MissingItem[][] = [];
 
-      // Fetch items from each source
-      for (let i = 0; i < config.sources.length; i++) {
-        const source = config.sources[i];
+      // For cycle_lists mode, only fetch from the active source
+      // For other modes, fetch from all sources
+      const sourcesToFetch =
+        config.combineMode === 'cycle_lists'
+          ? [
+              config.sources[
+                getCollectionSyncCounter(config.id) % config.sources.length
+              ],
+            ]
+          : config.sources;
+
+      logger.debug(
+        `Fetching from ${sourcesToFetch.length} source(s) for ${config.combineMode} mode`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId: config.id,
+          combineMode: config.combineMode,
+          totalSources: config.sources.length,
+          fetchingSources: sourcesToFetch.length,
+        }
+      );
+
+      // Fetch items from sources
+      for (let i = 0; i < sourcesToFetch.length; i++) {
+        const source = sourcesToFetch[i];
 
         try {
           // Apply rate limiting between source fetches
@@ -162,7 +191,7 @@ export class MultiSourceOrchestrator {
             await handleRateLimit(1, 'Multi-Source');
           }
 
-          const items = await this.fetchItemsFromSource(
+          const { items, missingItems } = await this.fetchItemsFromSource(
             source,
             config,
             plexClient,
@@ -171,17 +200,21 @@ export class MultiSourceOrchestrator {
           );
           if (items.length > 0) {
             itemGroups.push(items);
-            logger.debug(
-              `Fetched ${items.length} items from source ${source.id}`,
-              {
-                label: 'Multi-Source Orchestrator',
-                configId: config.id,
-                sourceId: source.id,
-                sourceType: source.type,
-                itemCount: items.length,
-              }
-            );
           }
+          if (missingItems && missingItems.length > 0) {
+            missingItemGroups.push(missingItems);
+          }
+          logger.debug(
+            `Fetched ${items.length} items from source ${source.id}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              sourceId: source.id,
+              sourceType: source.type,
+              itemCount: items.length,
+              missingItemCount: missingItems?.length || 0,
+            }
+          );
         } catch (error) {
           logger.error(`Failed to fetch from source ${source.id}:`, {
             label: 'Multi-Source Orchestrator',
@@ -254,7 +287,7 @@ export class MultiSourceOrchestrator {
       );
 
       // Create/update collection directly in Plex
-      return await this.createOrUpdatePlexCollection(
+      const result = await this.createOrUpdatePlexCollection(
         finalItems,
         config,
         plexClient,
@@ -262,6 +295,83 @@ export class MultiSourceOrchestrator {
         processedCollectionKeys,
         originalConfig
       );
+
+      // Process missing items if enabled
+      logger.debug(
+        `Missing items check for multi-source collection: ${config.name}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId: config.id,
+          missingItemGroupsCount: missingItemGroups.length,
+          totalMissingItems: missingItemGroups.flat().length,
+          searchMissingMovies: config.searchMissingMovies,
+          searchMissingTV: config.searchMissingTV,
+          downloadMode: config.downloadMode,
+        }
+      );
+
+      if (
+        missingItemGroups.length > 0 &&
+        (config.searchMissingMovies || config.searchMissingTV)
+      ) {
+        // Combine missing items based on combine mode
+        const combinedMissingItems = this.combineMissingItems(
+          missingItemGroups,
+          config.combineMode,
+          config
+        );
+
+        if (combinedMissingItems.length > 0) {
+          logger.info(
+            `Processing ${combinedMissingItems.length} missing items for multi-source collection: ${config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              missingItemCount: combinedMissingItems.length,
+            }
+          );
+
+          try {
+            // Cast to CollectionConfig to include missing items fields
+            await processMissingItemsWithMode(
+              combinedMissingItems,
+              config as unknown as CollectionConfig,
+              'multi-source'
+            );
+          } catch (error) {
+            logger.error(
+              `Failed to process missing items for multi-source collection: ${config.name}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        } else {
+          logger.debug(
+            `No missing items after combination for multi-source collection: ${config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+            }
+          );
+        }
+      } else {
+        logger.debug(
+          `Skipping missing items processing for multi-source collection: ${config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            reason:
+              missingItemGroups.length === 0
+                ? 'No missing items found'
+                : 'Search missing items not enabled',
+          }
+        );
+      }
+
+      return result;
     } catch (error) {
       // 4. Error Handling - use standard pipeline utilities
       const syncError = createSyncError(
@@ -295,7 +405,7 @@ export class MultiSourceOrchestrator {
     plexClient: PlexAPI,
     libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
-  ): Promise<CollectionItem[]> {
+  ): Promise<{ items: CollectionItem[]; missingItems?: MissingItem[] }> {
     // Create temporary single-source config
     const tempConfig = this.createTempConfig(source, parentConfig);
 
@@ -315,7 +425,7 @@ export class MultiSourceOrchestrator {
         plexClient,
         libraryCache
       );
-      const { items } = syncService.applyFilteringToMappedItems(
+      const { items, missingItems } = syncService.applyFilteringToMappedItems(
         mappedResult,
         tempConfig
       );
@@ -327,10 +437,11 @@ export class MultiSourceOrchestrator {
           sourceId: source.id,
           sourceType: source.type,
           itemCount: items.length,
+          missingItemCount: missingItems?.length || 0,
         }
       );
 
-      return items;
+      return { items, missingItems };
     } catch (error) {
       logger.error(`Failed to fetch items from ${source.type}:`, {
         label: 'Multi-Source Orchestrator',
@@ -338,7 +449,7 @@ export class MultiSourceOrchestrator {
         sourceType: source.type,
         error: error instanceof Error ? error.message : String(error),
       });
-      return [];
+      return { items: [] };
     }
   }
 
@@ -377,6 +488,10 @@ export class MultiSourceOrchestrator {
         source.customUrl && {
           letterboxdCustomListUrl: source.customUrl,
         }),
+      ...(source.type === 'anilist' &&
+        source.customUrl && {
+          anilistCustomListUrl: source.customUrl,
+        }),
       // Remove multi-source specific fields
       sources: undefined,
       combineMode: undefined,
@@ -411,6 +526,18 @@ export class MultiSourceOrchestrator {
           break;
         case 'overseerr':
           this.syncServices.set(sourceType, new OverseerrCollectionSync());
+          break;
+        case 'networks':
+          this.syncServices.set(sourceType, new NetworksCollectionSync());
+          break;
+        case 'originals':
+          this.syncServices.set(sourceType, new OriginalsCollectionSync());
+          break;
+        case 'anilist':
+          this.syncServices.set(sourceType, new AnilistCollectionSync());
+          break;
+        case 'myanimelist':
+          this.syncServices.set(sourceType, new MyAnimeListCollectionSync());
           break;
         default:
           throw new Error(`Unknown source type: ${sourceType}`);
@@ -453,6 +580,69 @@ export class MultiSourceOrchestrator {
 
       default:
         return this.concatenateItems(itemGroups);
+    }
+  }
+
+  /**
+   * Combine missing items from multiple sources according to the specified mode
+   * For cycle_lists mode, we only fetched from one source, so just return that
+   * For other modes, combines all missing items and removes duplicates
+   */
+  private combineMissingItems(
+    missingItemGroups: MissingItem[][],
+    combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists',
+    parentConfig: MultiSourceCollectionConfig
+  ): MissingItem[] {
+    if (missingItemGroups.length === 0) return [];
+
+    switch (combineMode) {
+      case 'cycle_lists': {
+        // For cycle_lists, we only fetched from the active source
+        // So missingItemGroups should have exactly 1 array
+        const missingItems = missingItemGroups[0] || [];
+
+        logger.debug(`Cycle lists missing items from active source`, {
+          label: 'Multi-Source Orchestrator',
+          configId: parentConfig.id,
+          missingItemCount: missingItems.length,
+        });
+
+        return missingItems;
+      }
+
+      case 'interleaved':
+      case 'list_order':
+      case 'randomised':
+      default: {
+        // For all other modes, combine ALL missing items from ALL sources
+        const allMissingItems = missingItemGroups.flat();
+
+        // Remove duplicates based on tmdbId and mediaType
+        const uniqueMissingItems = allMissingItems.reduce(
+          (acc, item) => {
+            const key = `${item.tmdbId}-${item.mediaType}`;
+            if (!acc.seen.has(key)) {
+              acc.seen.add(key);
+              acc.items.push(item);
+            }
+            return acc;
+          },
+          { seen: new Set<string>(), items: [] as MissingItem[] }
+        ).items;
+
+        logger.debug(
+          `Combined missing items from ${missingItemGroups.length} sources`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: parentConfig.id,
+            combineMode,
+            totalMissingItems: allMissingItems.length,
+            uniqueMissingItems: uniqueMissingItems.length,
+          }
+        );
+
+        return uniqueMissingItems;
+      }
     }
   }
 

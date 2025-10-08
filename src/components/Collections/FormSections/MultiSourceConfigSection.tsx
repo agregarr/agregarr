@@ -7,6 +7,7 @@ import type {
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
 import type {
   MDBListSettings,
+  MyAnimeListSettings,
   OverseerrSettings,
   TautulliSettings,
   TraktSettings,
@@ -158,6 +159,9 @@ const MultiSourceConfigSection = ({
   );
   const { data: overseerrSettings } = useSWR<OverseerrSettings>(
     '/api/v1/settings/overseerr'
+  );
+  const { data: myanimelistSettings } = useSWR<MyAnimeListSettings>(
+    '/api/v1/settings/myanimelist'
   );
 
   // State for tracking validation status of each source (must be before early return)
@@ -454,6 +458,74 @@ const MultiSourceConfigSection = ({
         ];
       case 'networks':
         return []; // Will be populated dynamically based on selected country
+      case 'originals':
+        return [
+          { value: 'netflix_originals', label: 'Netflix Originals' },
+          { value: 'amazon_originals', label: 'Amazon Originals' },
+          { value: 'disney_originals', label: 'Disney+ Originals' },
+          { value: 'hbomax_originals', label: 'HBO Max Originals' },
+          { value: 'paramount_originals', label: 'Paramount+ Originals' },
+          { value: 'hulu_originals', label: 'Hulu Originals' },
+          { value: 'peacock_originals', label: 'Peacock Originals' },
+          { value: 'apple_originals', label: 'Apple TV+ Originals' },
+          { value: 'discovery_originals', label: 'Discovery+ Movies' },
+        ];
+      case 'anilist':
+        return [
+          {
+            value: 'trending',
+            label: 'Trending Anime',
+            description: 'Trending anime on AniList',
+          },
+          {
+            value: 'popular',
+            label: 'Popular Anime',
+            description: 'Most popular anime on AniList',
+          },
+          {
+            value: 'top_rated',
+            label: 'Top Rated Anime',
+            description: 'Highest-rated anime on AniList',
+          },
+          {
+            value: 'custom',
+            label: 'Custom List',
+            description: 'Import a custom AniList list by URL',
+          },
+        ];
+      case 'myanimelist':
+        return [
+          {
+            value: 'all',
+            label: 'Top Anime Series',
+            description: 'Highest-rated anime overall',
+          },
+          {
+            value: 'airing',
+            label: 'Top Airing Anime',
+            description: 'Highest-rated currently airing anime',
+          },
+          {
+            value: 'tv',
+            label: 'Top Anime TV Series',
+            description: 'Highest-rated TV anime series',
+          },
+          {
+            value: 'movie',
+            label: 'Top Anime Movies',
+            description: 'Highest-rated anime movies',
+          },
+          {
+            value: 'ova',
+            label: 'Top OVA Series',
+            description: 'Highest-rated OVA anime',
+          },
+          {
+            value: 'special',
+            label: 'Top Anime Specials',
+            description: 'Highest-rated anime specials',
+          },
+        ];
       default:
         return [];
     }
@@ -554,6 +626,9 @@ const MultiSourceConfigSection = ({
                 <option value="imdb">IMDb Lists</option>
                 <option value="mdblist">MDBList Lists</option>
                 <option value="networks">Networks</option>
+                <option value="originals">Streaming Originals</option>
+                <option value="anilist">AniList</option>
+                <option value="myanimelist">MyAnimeList</option>
               </Field>
 
               {/* API Key Warning for this source */}
@@ -567,6 +642,7 @@ const MultiSourceConfigSection = ({
                       mdblist: mdblistSettings,
                       tautulli: tautulliSettings,
                       overseerr: overseerrSettings,
+                      myanimelist: myanimelistSettings,
                     }
                   );
                   return <ApiKeyWarning validation={apiKeyValidation} />;

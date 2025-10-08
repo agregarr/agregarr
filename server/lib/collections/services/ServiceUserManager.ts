@@ -13,6 +13,7 @@ export interface ServiceUserConfig {
   displayName: string;
   email: string;
   permissions: number;
+  avatar?: string;
   description?: string;
 }
 
@@ -30,7 +31,8 @@ export type ServiceType =
   | 'tautulli'
   | 'overseerr'
   | 'anilist'
-  | 'myanimelist';
+  | 'myanimelist'
+  | 'multi-source';
 
 /**
  * Generate service user configuration dynamically
@@ -52,11 +54,13 @@ export function generateServiceUserConfig(
     overseerr: { name: 'Overseerr' },
     anilist: { name: 'AniList' },
     myanimelist: { name: 'MyAnimeList' },
+    'multi-source': { name: 'MultiSource' },
   }[serviceType];
 
   let username: string;
   let displayName: string;
   let email: string;
+  let avatar: string;
   let description: string;
 
   switch (userCreationMode) {
@@ -65,6 +69,7 @@ export function generateServiceUserConfig(
       username = 'Agregarr';
       displayName = 'Agregarr';
       email = 'donotchangeme@agregarr.invalid';
+      avatar = '/os_icon.svg';
       description = 'Virtual service user for all Agregarr collection requests';
       break;
 
@@ -76,12 +81,14 @@ export function generateServiceUserConfig(
         username = `${serviceInfo.name}${collectionName}Agregarr`;
         displayName = username;
         email = `donotchangeme@${serviceType.toLowerCase()}.${collectionType.toLowerCase()}.agregarr.invalid`;
+        avatar = '/os_icon.svg';
         description = `Virtual service user for ${serviceInfo.name} ${collectionName} collection requests`;
       } else {
         // Fallback to per-service if no collection type
         username = `${serviceInfo.name}Agregarr`;
         displayName = username;
         email = `donotchangeme@${serviceType.toLowerCase()}.agregarr.invalid`;
+        avatar = '/os_icon.svg';
         description = `Virtual service user for ${serviceInfo.name} collection requests`;
       }
       break;
@@ -92,6 +99,7 @@ export function generateServiceUserConfig(
       username = `${serviceInfo.name}Agregarr`;
       displayName = username;
       email = `donotchangeme@${serviceType.toLowerCase()}.agregarr.invalid`;
+      avatar = '/os_icon.svg';
       description = `Virtual service user for ${serviceInfo.name} collection requests`;
       break;
   }
@@ -101,6 +109,7 @@ export function generateServiceUserConfig(
     displayName,
     email,
     permissions: 32, // Start with manual approval permissions (will be changed dynamically)
+    avatar,
     description,
   };
 }
@@ -162,29 +171,49 @@ export class ServiceUserManager {
           }
         );
 
+        // Update internal user email
         serviceUser.email = config.email;
         serviceUser.updatedAt = new Date();
-        await this.userRepository.save(serviceUser);
 
-        // Also update email in external Overseerr if linked
+        // Recreate external Overseerr user with new email (email is read-only, can't be updated)
         if (serviceUser.externalOverseerrId) {
           try {
             const overseerrAPI = this.getOverseerrAPI();
-            await overseerrAPI.updateUserEmail(
-              serviceUser.externalOverseerrId,
-              config.email
+
+            // Create new external user with correct email
+            const password = this.generateSecurePassword();
+            const newExternalUser = await overseerrAPI.createUser({
+              username: config.username,
+              email: config.email,
+              password: password,
+              displayName: config.displayName,
+            });
+
+            // Set appropriate permissions
+            const overseerrPermissions = this.mapToOverseerrPermissions(
+              config.permissions
             );
+            await overseerrAPI.updateUserPermissions(
+              newExternalUser.id,
+              overseerrPermissions
+            );
+
             logger.info(
-              `Updated external Overseerr email for: ${config.displayName}`,
+              `Recreated external Overseerr user with new email for: ${config.displayName}`,
               {
                 label: 'Service User Manager',
-                externalUserId: serviceUser.externalOverseerrId,
+                oldExternalUserId: serviceUser.externalOverseerrId,
+                newExternalUserId: newExternalUser.id,
+                oldEmail: oldEmail,
                 newEmail: config.email,
               }
             );
+
+            // Update internal user to point to new external user
+            serviceUser.externalOverseerrId = newExternalUser.id;
           } catch (error) {
             logger.warn(
-              `Failed to update external Overseerr email for ${config.displayName}, will retry on next sync`,
+              `Failed to recreate external Overseerr user for ${config.displayName}, will retry on next sync`,
               {
                 label: 'Service User Manager',
                 externalUserId: serviceUser.externalOverseerrId,
@@ -193,6 +222,8 @@ export class ServiceUserManager {
             );
           }
         }
+
+        await this.userRepository.save(serviceUser);
       }
     }
 
@@ -435,6 +466,7 @@ export class ServiceUserManager {
       permissions: config.permissions,
       userType: 1, // LOCAL user type
       externalOverseerrId: externalUser.id,
+      avatar: '/os_icon.svg', // Default Agregarr icon for service users
       createdAt: new Date(),
       updatedAt: new Date(),
     });

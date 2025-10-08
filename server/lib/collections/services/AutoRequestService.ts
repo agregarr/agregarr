@@ -71,6 +71,7 @@ export class AutoRequestService {
       | 'mdblist'
       | 'networks'
       | 'originals'
+      | 'multi-source'
   ): Promise<AutoRequestResult> {
     // Only proceed if auto-request is enabled
     if (!config.searchMissingMovies && !config.searchMissingTV) {

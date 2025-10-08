@@ -105,6 +105,7 @@ export class DirectDownloadService {
       | 'mdblist'
       | 'networks'
       | 'originals'
+      | 'multi-source'
   ): Promise<AutoRequestResult> {
     // Only proceed if direct download is enabled (we'll add this setting later)
     if (!config.searchMissingMovies && !config.searchMissingTV) {

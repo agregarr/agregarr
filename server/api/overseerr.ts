@@ -272,15 +272,6 @@ class OverseerrAPI {
   }
 
   /**
-   * Update user email
-   */
-  async updateUserEmail(userId: number, email: string): Promise<void> {
-    await this.axios.put(`/user/${userId}`, {
-      email: email,
-    });
-  }
-
-  /**
    * Get current authenticated user (admin check)
    */
   async getCurrentUser(): Promise<OverseerrUser> {

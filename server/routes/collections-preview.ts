@@ -1,6 +1,7 @@
 import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
+import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
   FilteringStats,
@@ -160,6 +161,657 @@ collectionsPreviewRoutes.post('/', isAuthenticated(), async (req, res) => {
 });
 
 /**
+ * Generate a user-friendly display name for a source
+ */
+function getSourceDisplayName(source: {
+  type: string;
+  subtype?: string;
+  customUrl?: string;
+  timePeriod?: string;
+  customDays?: number;
+  minimumPlays?: number;
+  networksCountry?: string;
+}): string {
+  const { type, subtype, customUrl, timePeriod, customDays, networksCountry } =
+    source;
+
+  // Handle custom URLs
+  if (customUrl) {
+    const sourceNames: Record<string, string> = {
+      trakt: 'Trakt',
+      tmdb: 'TMDb',
+      imdb: 'IMDb',
+      letterboxd: 'Letterboxd',
+      mdblist: 'MDBList',
+      anilist: 'AniList',
+    };
+    return `${sourceNames[type] || type} Custom List`;
+  }
+
+  // Handle specific source types
+  switch (type) {
+    case 'imdb': {
+      const subtypeNames: Record<string, string> = {
+        top_250: 'Top 250',
+        popular_movies: 'Popular Movies',
+        popular_shows: 'Popular Shows',
+      };
+      return `IMDb ${subtypeNames[subtype || ''] || subtype || 'List'}`;
+    }
+
+    case 'trakt': {
+      const subtypeNames: Record<string, string> = {
+        trending: 'Trending',
+        popular: 'Popular',
+        anticipated: 'Anticipated',
+        boxoffice: 'Box Office',
+        watched: 'Most Watched',
+        collected: 'Most Collected',
+      };
+      const baseName = `Trakt ${
+        subtypeNames[subtype || ''] || subtype || 'List'
+      }`;
+      if (timePeriod && timePeriod !== 'all') {
+        const periods: Record<string, string> = {
+          daily: 'Daily',
+          weekly: 'Weekly',
+          monthly: 'Monthly',
+        };
+        return `${baseName} (${periods[timePeriod] || timePeriod})`;
+      }
+      return baseName;
+    }
+
+    case 'tmdb': {
+      const subtypeNames: Record<string, string> = {
+        popular: 'Popular',
+        top_rated: 'Top Rated',
+        upcoming: 'Upcoming',
+        now_playing: 'Now Playing',
+        airing_today: 'Airing Today',
+        on_the_air: 'On The Air',
+      };
+      return `TMDb ${subtypeNames[subtype || ''] || subtype || 'List'}`;
+    }
+
+    case 'letterboxd':
+      return 'Letterboxd List';
+
+    case 'mdblist':
+      return 'MDBList';
+
+    case 'networks': {
+      // Extract network name from subtype (e.g., "netflix_top_10" -> "Netflix")
+      const networkName =
+        subtype
+          ?.replace(/_top_10$/, '')
+          .split('_')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ') || 'Network';
+      const country = networksCountry?.toUpperCase() || '';
+      return `${networkName} Top 10${country ? ` (${country})` : ''}`;
+    }
+
+    case 'originals': {
+      const providerName =
+        subtype
+          ?.split('_')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ') || 'Provider';
+      return `${providerName} Originals`;
+    }
+
+    case 'tautulli': {
+      const subtypeNames: Record<string, string> = {
+        most_popular_plays: 'Most Popular (Plays)',
+        most_popular_duration: 'Most Popular (Duration)',
+      };
+      const baseName = `Tautulli ${
+        subtypeNames[subtype || ''] || subtype || 'Stats'
+      }`;
+      if (timePeriod === 'custom' && customDays) {
+        return `${baseName} (${customDays} days)`;
+      }
+      const periods: Record<string, string> = {
+        daily: 'Daily',
+        weekly: 'Weekly',
+        monthly: 'Monthly',
+        all: 'All Time',
+      };
+      return `${baseName} (${periods[timePeriod || 'all'] || timePeriod})`;
+    }
+
+    case 'overseerr': {
+      const subtypeNames: Record<string, string> = {
+        requests: 'All Requests',
+        users: 'User Requests',
+      };
+      return `Overseerr ${subtypeNames[subtype || ''] || 'Requests'}`;
+    }
+
+    case 'anilist':
+      return subtype
+        ? `AniList ${subtype.charAt(0).toUpperCase() + subtype.slice(1)}`
+        : 'AniList';
+
+    case 'myanimelist':
+      return subtype
+        ? `MyAnimeList ${subtype.charAt(0).toUpperCase() + subtype.slice(1)}`
+        : 'MyAnimeList';
+
+    default:
+      return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+}
+
+/**
+ * Process multi-source preview - fetches from multiple sources and combines them
+ */
+async function processMultiSourcePreview(
+  sessionId: string,
+  sources: {
+    id: string;
+    type: string;
+    subtype?: string;
+    customUrl?: string;
+    timePeriod?: string;
+    priority: number;
+    customDays?: number;
+    minimumPlays?: number;
+    networksCountry?: string;
+  }[],
+  combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists',
+  maxItems: number,
+  libraryId: string,
+  libraryName: string,
+  mediaType: 'movie' | 'tv',
+  plexClient: PlexAPI,
+  libraryCache: LibraryItemsCache,
+  cycleIndex: number
+): Promise<void> {
+  const { collectionSyncService } = await import(
+    '@server/lib/collections/services/CollectionSyncService'
+  );
+  const TmdbAPI = (await import('@server/api/themoviedb')).default;
+  const tmdbClient = new TmdbAPI();
+
+  // For cycle_lists mode, only fetch from the selected source
+  // For other modes, fetch from all sources
+  const sourcesToFetch =
+    combineMode === 'cycle_lists'
+      ? [sources[cycleIndex % sources.length]]
+      : sources;
+
+  // Generate initial status message
+  const initialStage =
+    combineMode === 'cycle_lists'
+      ? `Loading ${getSourceDisplayName(sourcesToFetch[0])}...`
+      : `Fetching from ${sourcesToFetch.length} source(s)...`;
+
+  updatePreviewStatus(sessionId, {
+    currentStage: initialStage,
+    progress: 20,
+  });
+
+  const allItemGroups: CollectionItem[][] = [];
+  const allMissingItemGroups: MissingItem[][] = [];
+
+  // Fetch items from each source
+  for (let i = 0; i < sourcesToFetch.length; i++) {
+    const source = sourcesToFetch[i];
+    const sourceDisplayName = getSourceDisplayName(source);
+
+    try {
+      updatePreviewStatus(sessionId, {
+        currentStage: `Fetching from ${sourceDisplayName}...`,
+        progress: 20 + (i / sourcesToFetch.length) * 20,
+      });
+
+      // Build temp config for this source
+      const sourceConfigRecord: Record<string, unknown> = {
+        id: `preview-${source.id}`,
+        type: source.type,
+        subtype: source.subtype || '',
+        name: `Preview Source ${i + 1}`,
+        libraryId,
+        libraryName,
+        isActive: true,
+        visibilityConfig: {
+          usersHome: false,
+          serverOwnerHome: false,
+          libraryRecommended: false,
+        },
+        maxItems: 0, // Don't limit per-source, we'll limit the combined result
+        template: '',
+        isLibraryPromoted: false,
+        everLibraryPromoted: false,
+      };
+
+      // Add type-specific fields
+      if (source.customUrl) {
+        if (source.type === 'trakt')
+          sourceConfigRecord.traktCustomListUrl = source.customUrl;
+        else if (source.type === 'tmdb')
+          sourceConfigRecord.tmdbCustomListUrl = source.customUrl;
+        else if (source.type === 'imdb')
+          sourceConfigRecord.imdbCustomListUrl = source.customUrl;
+        else if (source.type === 'letterboxd')
+          sourceConfigRecord.letterboxdCustomListUrl = source.customUrl;
+        else if (source.type === 'mdblist')
+          sourceConfigRecord.mdblistCustomListUrl = source.customUrl;
+        else if (source.type === 'anilist')
+          sourceConfigRecord.anilistCustomListUrl = source.customUrl;
+      }
+
+      if (source.type === 'tautulli') {
+        sourceConfigRecord.timePeriod = source.timePeriod || 'all';
+        sourceConfigRecord.minimumPlays = source.minimumPlays;
+        if (source.timePeriod === 'custom') {
+          sourceConfigRecord.customDays = source.customDays;
+        }
+      }
+
+      if (source.type === 'networks') {
+        const extractedNetwork =
+          source.subtype?.replace(/_top_10$/, '') || undefined;
+        sourceConfigRecord.network = extractedNetwork;
+        sourceConfigRecord.networksCountry = source.networksCountry;
+      }
+
+      const sourceConfig = sourceConfigRecord as unknown as CollectionConfig;
+
+      // Fetch items from this source
+      const syncService = await collectionSyncService.createSyncService(
+        source.type
+      );
+      const sourceData = await syncService.fetchSourceData(
+        sourceConfig,
+        undefined,
+        libraryCache
+      );
+
+      if (sourceData && sourceData.length > 0) {
+        // Map to collection items
+        const mappedResult = await syncService.mapSourceDataToItems(
+          sourceData,
+          sourceConfig,
+          plexClient,
+          libraryCache
+        );
+
+        // Filter by media type
+        const mediaFilteredResult = {
+          ...mappedResult,
+          items: mappedResult.items.filter((item) => item.type === mediaType),
+          missingItems: (mappedResult.missingItems || []).filter(
+            (item) => item.mediaType === mediaType
+          ),
+        };
+
+        // Apply filtering
+        const filteredResult = syncService.applyFilteringToMappedItems(
+          mediaFilteredResult,
+          sourceConfig
+        );
+
+        if (filteredResult.items.length > 0) {
+          allItemGroups.push(filteredResult.items);
+        }
+        if (
+          filteredResult.missingItems &&
+          filteredResult.missingItems.length > 0
+        ) {
+          allMissingItemGroups.push(filteredResult.missingItems);
+        }
+
+        logger.debug(
+          `Fetched ${filteredResult.items.length} items from ${sourceDisplayName}`,
+          {
+            label: 'Collections Preview API - Multi-Source',
+            sourceId: source.id,
+            sourceType: source.type,
+            sourceDisplayName,
+          }
+        );
+      }
+    } catch (error) {
+      logger.error(`Failed to fetch from ${sourceDisplayName}:`, {
+        label: 'Collections Preview API - Multi-Source',
+        sourceId: source.id,
+        sourceType: source.type,
+        sourceDisplayName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue with other sources
+    }
+  }
+
+  updatePreviewStatus(sessionId, {
+    currentStage: 'Combining items from all sources...',
+    progress: 40,
+  });
+
+  // Combine items according to mode
+  let combinedItems: CollectionItem[] = [];
+  switch (combineMode) {
+    case 'interleaved': {
+      // Interleave items from all sources
+      const maxLength = Math.max(
+        ...allItemGroups.map((group) => group.length),
+        0
+      );
+      for (let i = 0; i < maxLength; i++) {
+        for (const group of allItemGroups) {
+          if (i < group.length) {
+            combinedItems.push(group[i]);
+          }
+        }
+      }
+      break;
+    }
+    case 'list_order':
+      // Concatenate all sources in order
+      combinedItems = allItemGroups.flat();
+      break;
+    case 'randomised': {
+      // Shuffle all items
+      const allItems = allItemGroups.flat();
+      for (let i = allItems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allItems[i], allItems[j]] = [allItems[j], allItems[i]];
+      }
+      combinedItems = allItems;
+      break;
+    }
+    case 'cycle_lists':
+      // For cycle_lists, we only fetched from one source (at cycleIndex)
+      // So just use that one source's items
+      combinedItems = allItemGroups.flat();
+      break;
+  }
+
+  // Remove duplicates based on ratingKey or tmdbId
+  const seen = new Set<string>();
+  const uniqueItems = combinedItems.filter((item) => {
+    const key = item.ratingKey || `tmdb-${item.tmdbId}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  // Combine missing items (remove duplicates)
+  const allMissingItems = allMissingItemGroups.flat();
+  const seenMissing = new Set<string>();
+  const uniqueMissingItems = allMissingItems.filter((item) => {
+    const key = `${item.tmdbId}-${item.mediaType}`;
+    if (seenMissing.has(key)) {
+      return false;
+    }
+    seenMissing.add(key);
+    return true;
+  });
+
+  // Apply maxItems limit to combined items
+  const limitedItems =
+    maxItems > 0 ? uniqueItems.slice(0, maxItems) : uniqueItems;
+  const limitedMissingItems =
+    maxItems > 0
+      ? uniqueMissingItems.slice(0, Math.max(0, maxItems - limitedItems.length))
+      : uniqueMissingItems;
+
+  // Now process the combined items for preview display (enrich with TMDB data)
+  // This is the same logic as single-source preview
+  updatePreviewStatus(sessionId, {
+    currentStage: 'Matching items with Plex library...',
+    progress: 50,
+  });
+
+  // Build position map from missing items
+  const tmdbToPosition = new Map<number, number>();
+  limitedMissingItems.forEach((item, index) => {
+    tmdbToPosition.set(item.tmdbId, item.originalPosition || index + 1);
+  });
+
+  // Assign positions to matched items
+  let nextPosition = 1;
+  const matchedItemsWithPosition = limitedItems
+    .filter((item) => {
+      const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number) || 0;
+      if (!tmdbId || tmdbId === 0) {
+        logger.debug('Filtering out matched item with invalid tmdbId', {
+          label: 'Collections Preview API - Multi-Source',
+          title: item.title,
+        });
+        return false;
+      }
+      return true;
+    })
+    .map((item) => {
+      const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number) || 0;
+      while (Array.from(tmdbToPosition.values()).includes(nextPosition)) {
+        nextPosition++;
+      }
+      const position = tmdbToPosition.has(tmdbId)
+        ? tmdbToPosition.get(tmdbId) || nextPosition++
+        : nextPosition++;
+
+      return { ...item, tmdbId, originalPosition: position };
+    });
+
+  type EnrichedItem = {
+    ratingKey?: string;
+    tmdbId?: number;
+    title: string;
+    year?: number;
+    mediaType?: 'movie' | 'tv';
+    posterUrl: string;
+    inLibrary: boolean;
+    originalPosition: number;
+    overview?: string;
+    imdbId?: string;
+    tmdbRating?: number;
+  };
+
+  const allItemsWithPosition: EnrichedItem[] = [];
+
+  const totalItemsToProcess =
+    matchedItemsWithPosition.length + limitedMissingItems.length;
+  let processedItemsCount = 0;
+
+  updatePreviewStatus(sessionId, {
+    currentStage: `Fetching posters (0/${totalItemsToProcess})...`,
+    progress: 60,
+    totalItems: totalItemsToProcess,
+    processedItems: 0,
+  });
+
+  // Helper function to fetch TMDB data with retry logic (same as single-source)
+  const fetchTmdbDataWithRetry = async (
+    tmdbId: number,
+    itemMediaType: 'movie' | 'tv',
+    fallbackTitle: string,
+    maxRetries = 3
+  ): Promise<{
+    posterUrl: string;
+    title: string;
+    year?: number;
+    overview?: string;
+    imdbId?: string;
+    tmdbRating?: number;
+  }> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (itemMediaType === 'movie') {
+          const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+          return {
+            posterUrl: movie.poster_path
+              ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+              : '',
+            title: movie.title || fallbackTitle,
+            year: movie.release_date
+              ? new Date(movie.release_date).getFullYear()
+              : undefined,
+            overview: movie.overview,
+            imdbId: movie.imdb_id,
+            tmdbRating: movie.vote_average,
+          };
+        } else {
+          const show = await tmdbClient.getTvShow({ tvId: tmdbId });
+          return {
+            posterUrl: show.poster_path
+              ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+              : '',
+            title: show.name || fallbackTitle,
+            year: show.first_air_date
+              ? new Date(show.first_air_date).getFullYear()
+              : undefined,
+            overview: show.overview,
+            imdbId: show.external_ids?.imdb_id,
+            tmdbRating: show.vote_average,
+          };
+        }
+      } catch (error) {
+        if (attempt < maxRetries) {
+          const delay = 100 * Math.pow(2, attempt - 1);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          logger.warn(
+            `Failed to fetch TMDB data after ${maxRetries} attempts: ${fallbackTitle}`,
+            {
+              label: 'Collections Preview API - Multi-Source',
+              tmdbId,
+              mediaType: itemMediaType,
+            }
+          );
+        }
+      }
+    }
+    return {
+      posterUrl: '',
+      title: fallbackTitle,
+      year: undefined,
+      overview: undefined,
+      imdbId: undefined,
+      tmdbRating: undefined,
+    };
+  };
+
+  // Process matched items
+  for (const item of matchedItemsWithPosition) {
+    let tmdbData: {
+      posterUrl: string;
+      title: string;
+      year?: number;
+      overview?: string;
+      imdbId?: string;
+      tmdbRating?: number;
+    } = {
+      posterUrl: '',
+      title: item.title,
+      year: item.year,
+    };
+
+    if (item.tmdbId && item.tmdbId !== 0 && item.type) {
+      tmdbData = await fetchTmdbDataWithRetry(
+        item.tmdbId,
+        item.type,
+        item.title
+      );
+    }
+
+    allItemsWithPosition.push({
+      ratingKey: item.ratingKey,
+      title: tmdbData.title,
+      year: tmdbData.year,
+      tmdbId: item.tmdbId,
+      mediaType: item.type,
+      posterUrl: tmdbData.posterUrl,
+      inLibrary: true,
+      originalPosition: item.originalPosition,
+      overview: tmdbData.overview,
+      imdbId: tmdbData.imdbId,
+      tmdbRating: tmdbData.tmdbRating,
+    });
+
+    processedItemsCount++;
+    const progress =
+      60 + Math.floor((processedItemsCount / totalItemsToProcess) * 30);
+    updatePreviewStatus(sessionId, {
+      currentStage: `Fetching posters (${processedItemsCount}/${totalItemsToProcess})...`,
+      progress,
+      processedItems: processedItemsCount,
+    });
+  }
+
+  // Process missing items
+  for (const item of limitedMissingItems) {
+    const tmdbData = await fetchTmdbDataWithRetry(
+      item.tmdbId,
+      item.mediaType,
+      item.title
+    );
+
+    allItemsWithPosition.push({
+      tmdbId: item.tmdbId,
+      title: tmdbData.title,
+      year: tmdbData.year,
+      mediaType: item.mediaType,
+      posterUrl: tmdbData.posterUrl,
+      inLibrary: false,
+      originalPosition: item.originalPosition,
+      overview: tmdbData.overview,
+      imdbId: tmdbData.imdbId,
+      tmdbRating: tmdbData.tmdbRating,
+    });
+
+    processedItemsCount++;
+    const progress =
+      60 + Math.floor((processedItemsCount / totalItemsToProcess) * 30);
+    updatePreviewStatus(sessionId, {
+      currentStage: `Fetching posters (${processedItemsCount}/${totalItemsToProcess})...`,
+      progress,
+      processedItems: processedItemsCount,
+    });
+  }
+
+  // Sort by original position
+  const enrichedItems = allItemsWithPosition.sort(
+    (a, b) => a.originalPosition - b.originalPosition
+  );
+
+  const matchedCount = enrichedItems.filter((i) => i.inLibrary).length;
+  const missingCount = enrichedItems.filter((i) => !i.inLibrary).length;
+
+  logger.info(
+    `Multi-source preview complete: ${matchedCount} matched, ${missingCount} missing`,
+    {
+      label: 'Collections Preview API - Multi-Source',
+      sourceCount: sources.length,
+      combineMode,
+      ...(combineMode === 'cycle_lists' && {
+        cycleIndex,
+        activeSource: sources[cycleIndex % sources.length]?.type,
+      }),
+    }
+  );
+
+  updatePreviewStatus(sessionId, {
+    running: false,
+    completed: true,
+    currentStage: 'Complete',
+    progress: 100,
+    result: {
+      items: enrichedItems,
+      totalItems: enrichedItems.length,
+      matchedCount,
+      missingCount,
+    },
+  });
+}
+
+/**
  * Process preview asynchronously with progress updates
  */
 async function processPreviewAsync(
@@ -176,6 +828,21 @@ async function processPreviewAsync(
     network?: string;
     country?: string;
     provider?: string;
+    // Multi-source specific fields
+    isMultiSource?: boolean;
+    sources?: {
+      id: string;
+      type: string;
+      subtype?: string;
+      customUrl?: string;
+      timePeriod?: string;
+      priority: number;
+      customDays?: number;
+      minimumPlays?: number;
+      networksCountry?: string;
+    }[];
+    combineMode?: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists';
+    cycleIndex?: number; // For cycle_lists mode, which source to show
   }
 ): Promise<void> {
   try {
@@ -191,6 +858,10 @@ async function processPreviewAsync(
       network,
       country,
       provider,
+      isMultiSource,
+      sources,
+      combineMode,
+      cycleIndex,
     } = requestBody;
 
     logger.info(
@@ -306,7 +977,27 @@ async function processPreviewAsync(
     // Get library cache for fast matching
     const libraryCache = await libraryCacheService.getCache(plexClient);
 
-    // Create sync service and extract items
+    // Handle multi-source collections differently
+    if (isMultiSource || type === 'multi-source') {
+      if (!sources || sources.length === 0) {
+        throw new Error('Multi-source collection requires at least one source');
+      }
+
+      return await processMultiSourcePreview(
+        sessionId,
+        sources,
+        combineMode || 'interleaved',
+        maxItems || 50,
+        libraryId,
+        library.title,
+        mediaType,
+        plexClient,
+        libraryCache,
+        cycleIndex || 0
+      );
+    }
+
+    // Create sync service and extract items (single source)
     const { collectionSyncService } = await import(
       '@server/lib/collections/services/CollectionSyncService'
     );

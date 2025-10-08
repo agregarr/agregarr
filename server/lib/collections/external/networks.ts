@@ -435,6 +435,8 @@ export class NetworksCollectionSync extends BaseCollectionSync {
             ratingKey: plexItem.ratingKey,
             title: lookup.title,
             type: lookup.mediaType,
+            tmdbId: lookup.tmdbId, // Direct property for poster generation
+            year: lookup.year, // Include year for poster generation
             rank: lookup.rank,
             platform: lookup.platform,
             metadata: {
@@ -744,7 +746,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         posterItems = networksItems.slice(0, 100).map((item) => ({
           title: item.title,
           type: item.type,
-          tmdbId: item.metadata?.tmdbId,
+          tmdbId: item.tmdbId ?? item.metadata?.tmdbId, // Prefer direct property, fallback to metadata
           year: item.year,
         }));
       }

@@ -1366,7 +1366,9 @@ export type MultiSourceType =
   | 'tautulli'
   | 'overseerr'
   | 'networks'
-  | 'originals';
+  | 'originals'
+  | 'anilist'
+  | 'myanimelist';
 
 export interface SourceDefinition {
   readonly id: string;
@@ -1413,6 +1415,24 @@ export interface MultiSourceCollectionConfig {
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Missing items / auto-download settings (same as CollectionConfig)
+  readonly downloadMode?: 'overseerr' | 'direct';
+  readonly searchMissingMovies?: boolean;
+  readonly searchMissingTV?: boolean;
+  readonly autoApproveMovies?: boolean;
+  readonly autoApproveTV?: boolean;
+  readonly maxSeasonsToRequest?: number;
+  readonly seasonsPerShowLimit?: number;
+  readonly maxPositionToProcess?: number;
+  readonly minimumYear?: number;
+  readonly excludedGenres?: number[];
+  readonly excludedCountries?: string[];
+  readonly directDownloadRadarrServerId?: number;
+  readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadSonarrServerId?: number;
+  readonly directDownloadSonarrProfileId?: number;
+  readonly directDownloadSonarrRootFolder?: string;
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {

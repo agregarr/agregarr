@@ -3441,6 +3441,22 @@ const CollectionFormConfigForm = ({
                           | string
                           | undefined,
                         provider: valuesRecord.provider as string | undefined,
+                        // Multi-source specific fields
+                        isMultiSource: values.isMultiSource,
+                        sources: values.sources as
+                          | {
+                              id: string;
+                              type: string;
+                              subtype?: string;
+                              customUrl?: string;
+                              timePeriod?: string;
+                              priority: number;
+                              customDays?: number;
+                              minimumPlays?: number;
+                              networksCountry?: string;
+                            }[]
+                          | undefined,
+                        combineMode: values.combineMode,
                       }}
                     />
                   );

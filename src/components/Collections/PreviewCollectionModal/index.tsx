@@ -26,6 +26,7 @@ const messages = defineMessages({
   close: 'Close',
   viewOnImdb: 'View on IMDb',
   noOverview: 'No overview available',
+  refresh: 'Refresh',
 });
 
 interface PreviewItem {
@@ -79,6 +80,20 @@ interface PreviewCollectionModalProps {
     network?: string;
     country?: string;
     provider?: string;
+    // Multi-source specific fields
+    isMultiSource?: boolean;
+    sources?: {
+      id: string;
+      type: string;
+      subtype?: string;
+      customUrl?: string;
+      timePeriod?: string;
+      priority: number;
+      customDays?: number;
+      minimumPlays?: number;
+      networksCountry?: string;
+    }[];
+    combineMode?: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists';
   };
 }
 
@@ -135,6 +150,7 @@ const PreviewCollectionModal = ({
     {}
   );
   const [loadingRatings, setLoadingRatings] = useState<Set<number>>(new Set());
+  const [cycleIndex, setCycleIndex] = useState(0);
 
   // Load requested items from localStorage on mount
   useEffect(() => {
@@ -164,6 +180,11 @@ const PreviewCollectionModal = ({
           network: previewConfig.network,
           country: previewConfig.country,
           provider: previewConfig.provider,
+          // Multi-source specific fields
+          isMultiSource: previewConfig.isMultiSource,
+          sources: previewConfig.sources,
+          combineMode: previewConfig.combineMode,
+          cycleIndex: cycleIndex,
         });
 
         const sessionId = response.data.sessionId;
@@ -187,7 +208,7 @@ const PreviewCollectionModal = ({
     previewConfig.libraryIds.forEach((libraryId) => {
       startPreviewForLibrary(libraryId);
     });
-  }, [previewConfig]);
+  }, [previewConfig, cycleIndex]);
 
   // Poll for status updates
   useEffect(() => {
@@ -424,12 +445,30 @@ const PreviewCollectionModal = ({
   const currentStage = activeStatus?.currentStage || 'Initializing...';
   const progress = activeStatus?.progress || 0;
 
+  // Handler to refresh/cycle to next source (for cycle_lists mode)
+  const handleRefresh = () => {
+    const { sources } = previewConfig;
+    if (previewConfig.combineMode === 'cycle_lists' && sources) {
+      setCycleIndex((prev) => (prev + 1) % sources.length);
+    }
+  };
+
   return (
     <Modal
       title={intl.formatMessage(messages.previewCollection)}
       onCancel={onCancel}
       cancelText={intl.formatMessage(messages.close)}
       customMaxWidth="sm:max-w-6xl"
+      // Show Refresh button for cycle_lists mode
+      onTertiary={
+        previewConfig.combineMode === 'cycle_lists' ? handleRefresh : undefined
+      }
+      tertiaryText={
+        previewConfig.combineMode === 'cycle_lists'
+          ? intl.formatMessage(messages.refresh)
+          : undefined
+      }
+      tertiaryButtonType="default"
     >
       <div className="w-full">
         {/* Library tabs - only show if multiple libraries */}

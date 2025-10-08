@@ -772,6 +772,24 @@ export interface MultiSourceCollectionConfig {
   };
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
+  // Missing items / auto-download settings (same as CollectionConfig)
+  readonly downloadMode?: 'overseerr' | 'direct';
+  readonly searchMissingMovies?: boolean;
+  readonly searchMissingTV?: boolean;
+  readonly autoApproveMovies?: boolean;
+  readonly autoApproveTV?: boolean;
+  readonly maxSeasonsToRequest?: number;
+  readonly seasonsPerShowLimit?: number;
+  readonly maxPositionToProcess?: number;
+  readonly minimumYear?: number;
+  readonly excludedGenres?: number[];
+  readonly excludedCountries?: string[];
+  readonly directDownloadRadarrServerId?: number;
+  readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadSonarrServerId?: number;
+  readonly directDownloadSonarrProfileId?: number;
+  readonly directDownloadSonarrRootFolder?: string;
 }
 
 /**
@@ -782,10 +800,13 @@ export type MultiSourceType =
   | 'tmdb'
   | 'imdb'
   | 'letterboxd'
+  | 'mdblist'
   | 'tautulli'
   | 'overseerr'
   | 'networks'
-  | 'originals';
+  | 'originals'
+  | 'anilist'
+  | 'myanimelist';
 
 /**
  * Source definition for multi-source collections

@@ -1048,6 +1048,7 @@ export async function processMissingItemsWithMode(
     | 'mdblist'
     | 'networks'
     | 'originals'
+    | 'multi-source'
 ): Promise<AutoRequestResult> {
   // Apply position filtering first
   const filteredItems = filterItemsByPosition(

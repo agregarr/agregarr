@@ -288,6 +288,28 @@ export class CollectionSyncService {
               customPoster: config.customPoster,
               autoPoster: config.autoPoster,
               autoPosterTemplate: config.autoPosterTemplate,
+              // Missing items / auto-download settings
+              downloadMode: config.downloadMode,
+              searchMissingMovies: config.searchMissingMovies,
+              searchMissingTV: config.searchMissingTV,
+              autoApproveMovies: config.autoApproveMovies,
+              autoApproveTV: config.autoApproveTV,
+              maxSeasonsToRequest: config.maxSeasonsToRequest,
+              seasonsPerShowLimit: config.seasonsPerShowLimit,
+              maxPositionToProcess: config.maxPositionToProcess,
+              minimumYear: config.minimumYear,
+              excludedGenres: config.excludedGenres,
+              excludedCountries: config.excludedCountries,
+              directDownloadRadarrServerId: config.directDownloadRadarrServerId,
+              directDownloadRadarrProfileId:
+                config.directDownloadRadarrProfileId,
+              directDownloadRadarrRootFolder:
+                config.directDownloadRadarrRootFolder,
+              directDownloadSonarrServerId: config.directDownloadSonarrServerId,
+              directDownloadSonarrProfileId:
+                config.directDownloadSonarrProfileId,
+              directDownloadSonarrRootFolder:
+                config.directDownloadSonarrRootFolder,
             };
 
             result = await orchestrator.processMultiSourceCollection(

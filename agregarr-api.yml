@@ -4965,6 +4965,68 @@ paths:
                   type: string
                   description: Provider name for originals collections
                   example: "netflix"
+                isMultiSource:
+                  type: boolean
+                  description: Whether this is a multi-source collection
+                  example: true
+                sources:
+                  type: array
+                  description: Array of source configurations for multi-source collections
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - type
+                      - priority
+                    properties:
+                      id:
+                        type: string
+                        description: Unique identifier for this source
+                        example: "source-1"
+                      type:
+                        type: string
+                        description: Collection source type
+                        enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist]
+                        example: "imdb"
+                      subtype:
+                        type: string
+                        description: Collection sub-type
+                        example: "top_250"
+                      customUrl:
+                        type: string
+                        description: Custom list URL for this source
+                        example: "https://www.imdb.com/list/ls123456789/"
+                      timePeriod:
+                        type: string
+                        description: Time period for Tautulli sources
+                        enum: [daily, weekly, monthly, all, custom]
+                        example: "weekly"
+                      priority:
+                        type: number
+                        description: Order priority when combining (0 = highest)
+                        example: 0
+                      customDays:
+                        type: number
+                        description: Number of days for custom time period (Tautulli)
+                        example: 30
+                      minimumPlays:
+                        type: number
+                        description: Minimum play count for Tautulli sources
+                        example: 1
+                      networksCountry:
+                        type: string
+                        description: Country code for network sources
+                        example: "us"
+                combineMode:
+                  type: string
+                  description: How to combine items from multiple sources
+                  enum: [interleaved, list_order, randomised, cycle_lists]
+                  example: "interleaved"
+                cycleIndex:
+                  type: number
+                  description: For cycle_lists mode, which source to show (0-based index)
+                  example: 0
+                  default: 0
       responses:
         '202':
           description: Preview started successfully, poll /status/{sessionId} for progress
