@@ -100,6 +100,8 @@ export class DirectDownloadService {
       | 'tmdb'
       | 'imdb'
       | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
       | 'mdblist'
       | 'networks'
       | 'originals'
@@ -571,7 +573,11 @@ export class DirectDownloadService {
       config.directDownloadSonarrProfileId || sonarrSettings.activeProfileId;
 
     // Get TV show details to get TVDB ID (required by Sonarr)
-    const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+    // Use TVDB ID directly if available (anime), otherwise lookup via TMDB
+    let tvdbId = item.tvdbId;
+    if (!tvdbId) {
+      tvdbId = (await this.getTvdbIdFromTmdb(item.tmdbId)) || undefined;
+    }
     if (!tvdbId) {
       throw new Error(`Could not find TVDB ID for TMDB ID: ${item.tmdbId}`);
     }
@@ -643,7 +649,11 @@ export class DirectDownloadService {
 
         const sonarrAPI = this.getSonarrAPI(sonarrServerId);
         const exclusions = await sonarrAPI.getExclusions();
-        const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+        // Use TVDB ID directly if available (anime), otherwise lookup via TMDB
+        let tvdbId = item.tvdbId;
+        if (!tvdbId) {
+          tvdbId = (await this.getTvdbIdFromTmdb(item.tmdbId)) || undefined;
+        }
         return tvdbId
           ? exclusions.some((exclusion) => exclusion.tvdbId === tvdbId)
           : false;
@@ -685,7 +695,11 @@ export class DirectDownloadService {
           settings.sonarr.find((s) => s.isDefault)?.id;
 
         const sonarrAPI = this.getSonarrAPI(sonarrServerId);
-        const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+        // Use TVDB ID directly if available (anime), otherwise lookup via TMDB
+        let tvdbId = item.tvdbId;
+        if (!tvdbId) {
+          tvdbId = (await this.getTvdbIdFromTmdb(item.tmdbId)) || undefined;
+        }
         if (!tvdbId) return false;
 
         const existingSeries = await sonarrAPI.getSeriesByTvdbId(tvdbId);

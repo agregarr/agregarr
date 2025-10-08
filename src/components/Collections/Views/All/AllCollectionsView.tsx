@@ -903,6 +903,40 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'anilist':
+                                switch (subtype) {
+                                  case 'trending':
+                                    return 'Trending Anime';
+                                  case 'popular':
+                                    return 'Popular Anime';
+                                  case 'top_rated':
+                                    return 'Top Rated Anime';
+                                  case 'custom':
+                                    return 'Custom List';
+                                  default:
+                                    return subtype;
+                                }
+                              case 'myanimelist':
+                                switch (subtype) {
+                                  case 'all':
+                                    return 'Top Anime';
+                                  case 'airing':
+                                    return 'Top Airing Anime';
+                                  case 'tv':
+                                    return 'Top TV';
+                                  case 'movie':
+                                    return 'Top Movies';
+                                  case 'ova':
+                                    return 'Top OVA';
+                                  case 'special':
+                                    return 'Top Specials';
+                                  case 'bypopularity':
+                                    return 'Most Popular Anime';
+                                  case 'favorite':
+                                    return 'Most Favorited Anime';
+                                  default:
+                                    return subtype;
+                                }
                               case 'networks':
                                 // Format platform names like "netflix_top_10" -> "Netflix"
                                 // and "neon-tv" -> "Neon TV"
@@ -954,6 +988,10 @@ const AllCollectionsView: React.FC = () => {
                               ? 'MDBList'
                               : config.type === 'letterboxd'
                               ? 'Letterboxd'
+                              : config.type === 'anilist'
+                              ? 'AniList'
+                              : config.type === 'myanimelist'
+                              ? 'MyAnimeList'
                               : config.type === 'tautulli'
                               ? 'Tautulli'
                               : config.type === 'overseerr'

@@ -66,6 +66,8 @@ export class AutoRequestService {
       | 'tmdb'
       | 'imdb'
       | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
       | 'mdblist'
       | 'networks'
       | 'originals'

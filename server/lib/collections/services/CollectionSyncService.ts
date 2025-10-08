@@ -479,6 +479,16 @@ export class CollectionSyncService {
         );
         return new OriginalsCollectionSync();
       }
+      case 'anilist': {
+        const { AnilistCollectionSync } = await import('../external/anilist');
+        return new AnilistCollectionSync();
+      }
+      case 'myanimelist': {
+        const { MyAnimeListCollectionSync } = await import(
+          '../external/myanimelist'
+        );
+        return new MyAnimeListCollectionSync();
+      }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
           '../external/overseerrSync'

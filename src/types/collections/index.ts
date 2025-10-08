@@ -133,6 +133,8 @@ export interface CollectionFormConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -245,6 +247,8 @@ export interface CollectionFormConfig {
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL
   // Networks fields
   readonly networksCountry?: string; // Selected country for Networks collections
+  // AniList custom list fields
+  readonly anilistCustomListUrl?: string; // Custom AniList list URL
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -302,6 +306,8 @@ export interface CollectionConfigCreateRequest {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -346,6 +352,7 @@ export interface CollectionConfigCreateRequest {
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
   readonly networksCountry?: string;
+  readonly anilistCustomListUrl?: string;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
   readonly timeRestriction?: {
@@ -570,6 +577,8 @@ export type CollectionSourceType =
   | 'letterboxd'
   | 'networks'
   | 'originals'
+  | 'anilist'
+  | 'myanimelist'
   | 'multi-source';
 export type MediaType = 'movie' | 'tv';
 

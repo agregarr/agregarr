@@ -115,6 +115,8 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   letterboxd: 'letterboxd.svg',
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',
+  anilist: 'anilist.svg',
+  myanimelist: 'myanimelist.svg',
   plex: 'plex.svg',
   'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
   // Streaming Platform Logo Mappings

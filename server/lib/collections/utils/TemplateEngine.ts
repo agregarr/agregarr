@@ -281,6 +281,34 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for AniList collections
+   */
+  public createAnilistContext(
+    mediaType: 'movie' | 'tv',
+    subtype: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getAnilistSubtypeLabel(subtype),
+    };
+  }
+
+  /**
+   * Create context for MyAnimeList collections
+   */
+  public createMyAnimeListContext(
+    mediaType: 'movie' | 'tv',
+    rankingType: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getMyAnimeListSubtypeLabel(rankingType),
+    };
+  }
+
+  /**
    * Create context for MDBList collections
    */
   public createMDBListContext(
@@ -582,6 +610,55 @@ export class TemplateEngine {
 
       default:
         return subtype
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for Anilist subtype
+   */
+  private getAnilistSubtypeLabel(subtype: string): string {
+    switch (subtype) {
+      case 'trending':
+        return 'Trending Anime';
+      case 'popular':
+        return 'Popular Anime';
+      case 'top_rated':
+        return 'Top Rated Anime';
+      case 'custom':
+        return 'Custom List';
+
+      default:
+        return subtype
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+    }
+  }
+
+  /**
+   * Get human-readable label for MyAnimeList ranking type
+   */
+  private getMyAnimeListSubtypeLabel(rankingType: string): string {
+    switch (rankingType) {
+      case 'all':
+        return 'Top Anime';
+      case 'airing':
+        return 'Top Airing Anime';
+      case 'tv':
+        return 'Top Anime TV Series';
+      case 'ova':
+        return 'Top OVA Series';
+      case 'movie':
+        return 'Top Anime Movies';
+      case 'special':
+        return 'Top Anime Specials';
+      case 'bypopularity':
+        return 'Most Popular Anime';
+      case 'favorite':
+        return 'Most Favorited Anime';
+      default:
+        return rankingType
           .replace(/_/g, ' ')
           .replace(/\b\w/g, (l) => l.toUpperCase());
     }

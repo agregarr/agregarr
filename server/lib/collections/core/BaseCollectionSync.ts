@@ -2230,6 +2230,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           title: item.title,
           type: item.type,
           tmdbId: item.tmdbId,
+          posterUrl: item.posterUrl,
           year: item.year,
           episodeInfo: item.episodeInfo,
           metadata: item.metadata,

@@ -40,6 +40,8 @@ export interface CollectionConfig {
     | 'mdblist'
     | 'networks'
     | 'originals'
+    | 'myanimelist'
+    | 'anilist'
     | 'multi-source';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string; // Collection template
@@ -114,6 +116,8 @@ export interface CollectionConfig {
   readonly mdblistCustomListUrl?: string; // Custom MDBList list URL (e.g., https://mdblist.com/lists/123456 or https://mdblist.com/lists/username/list-name)
   // Networks (FlixPatrol) fields
   readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
+  // AniList custom list fields
+  readonly anilistCustomListUrl?: string; // Custom AniList list URL
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -306,6 +310,10 @@ export interface MDBListSettings {
   apiKey?: string;
 }
 
+export interface MyAnimeListSettings {
+  apiKey?: string;
+}
+
 export interface TautulliSettings {
   hostname?: string;
   port?: number;
@@ -420,6 +428,7 @@ interface AllSettings {
   plex: PlexSettings;
   tautulli: TautulliSettings;
   overseerr: OverseerrSettings;
+  myanimelist: MyAnimeListSettings;
   serviceUser: ServiceUserSettings;
   trakt: TraktSettings;
   mdblist: MDBListSettings;
@@ -463,6 +472,7 @@ class Settings {
       },
       tautulli: {},
       overseerr: {},
+      myanimelist: {},
       serviceUser: {
         userCreationMode: 'per-service', // Default to per-service users
       },
@@ -540,6 +550,14 @@ class Settings {
 
   set overseerr(data: OverseerrSettings) {
     this.data.overseerr = data;
+  }
+
+  get myanimelist(): MyAnimeListSettings {
+    return this.data.myanimelist;
+  }
+
+  set myanimelist(data: MyAnimeListSettings) {
+    this.data.myanimelist = data;
   }
 
   get serviceUser(): ServiceUserSettings {

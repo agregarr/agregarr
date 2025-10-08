@@ -41,6 +41,16 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#1a1a2e',
     textColor: '#ffffff',
   },
+  anilist: {
+    primaryColor: '#02a9ff',
+    secondaryColor: '#0d1f2e',
+    textColor: '#ffffff',
+  },
+  myanimelist: {
+    primaryColor: '#2e51a2',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
   hub: {
     primaryColor: '#e5a00d',
     secondaryColor: '#1f1c15',

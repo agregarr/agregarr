@@ -1043,6 +1043,8 @@ export async function processMissingItemsWithMode(
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
     | 'mdblist'
     | 'networks'
     | 'originals'

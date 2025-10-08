@@ -83,6 +83,7 @@ const CollectionFormConfigForm = ({
     imdb?: string;
     letterboxd?: string;
     mdblist?: string;
+    anilist?: string;
   }>({});
 
   const [detectedMediaTypes, setDetectedMediaTypes] = useState<{
@@ -91,6 +92,7 @@ const CollectionFormConfigForm = ({
     imdb?: 'movie' | 'tv' | 'both';
     letterboxd?: 'movie' | 'tv' | 'both';
     mdblist?: 'movie' | 'tv' | 'both';
+    anilist?: 'movie' | 'tv' | 'both';
   }>({});
 
   const [detectingMediaTypes, setDetectingMediaTypes] = useState<{
@@ -107,6 +109,7 @@ const CollectionFormConfigForm = ({
     imdb?: boolean;
     letterboxd?: boolean;
     mdblist?: boolean;
+    anilist?: boolean;
   }>({});
 
   // State for confirmation - MUST be before any early returns to avoid React Hooks violation
@@ -241,6 +244,19 @@ const CollectionFormConfigForm = ({
           .matches(
             /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
             'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
+          ),
+      otherwise: (schema) => schema,
+    }),
+
+    anilistCustomListUrl: Yup.string().when(['type', 'subtype'], {
+      is: (type: string, subtype: string) =>
+        type === 'anilist' && subtype === 'custom',
+      then: (schema) =>
+        schema
+          .required('AniList list URL is required')
+          .matches(
+            /anilist\.co\/(?:user\/[^/]+\/animelist\/[^/?]+|anime\/[^/?]+)/,
+            'Please enter a valid AniList list URL (e.g., https://anilist.co/anime/listname or https://anilist.co/user/username/animelist/listname)'
           ),
       otherwise: (schema) => schema,
     }),
@@ -670,6 +686,48 @@ const CollectionFormConfigForm = ({
     }
   };
 
+  const fetchAnilistTitle = async (
+    url: string,
+    setFieldValue?: (field: string, value: string) => void
+  ) => {
+    try {
+      setFetchingTitle((prev) => ({ ...prev, anilist: true }));
+      const response = await fetch(`/api/v1/collections/fetch-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, type: 'anilist' }),
+      });
+      const data = await response.json();
+      if (data.title) {
+        setFetchedTitles((prev) => ({ ...prev, anilist: data.title }));
+        if (data.mediaType) {
+          setDetectedMediaTypes((prev) => ({
+            ...prev,
+            anilist: data.mediaType,
+          }));
+        }
+
+        // Auto-select first template option when title is fetched
+        if (setFieldValue) {
+          setTimeout(() => {
+            // If media type is 'both', use template with {mediaType} placeholder for backend processing
+            if (data.mediaType === 'both') {
+              setFieldValue('template', `${data.title} - {mediaType}s`);
+              // Don't set form mediaType - let backend set it per individual library
+            } else {
+              setFieldValue('template', data.title);
+              // For specific media types, we could set it but backend will override anyway
+            }
+          }, 100); // Small delay to ensure state is updated
+        }
+      }
+    } catch (error) {
+      // Failed to fetch AniList title - silently continue
+    } finally {
+      setFetchingTitle((prev) => ({ ...prev, anilist: false }));
+    }
+  };
+
   // Template presets will be handled within the Formik form
   // Auto-adjustments will be handled via onChange handlers
 
@@ -681,6 +739,7 @@ const CollectionFormConfigForm = ({
       imdb?: string;
       letterboxd?: string;
       mdblist?: string;
+      anilist?: string;
     },
     detectedMediaTypes?: {
       trakt?: 'movie' | 'tv' | 'both';
@@ -688,6 +747,7 @@ const CollectionFormConfigForm = ({
       imdb?: 'movie' | 'tv' | 'both';
       letterboxd?: 'movie' | 'tv' | 'both';
       mdblist?: 'movie' | 'tv' | 'both';
+      anilist?: 'movie' | 'tv' | 'both';
     }
   ): TemplatePreset[] => {
     if (!values?.subtype) return [{ label: 'Custom', value: 'custom' }];
@@ -707,7 +767,13 @@ const CollectionFormConfigForm = ({
     // Helper function to generate preset options for custom URLs
     const getCustomUrlPresets = (
       title: string,
-      serviceType: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist'
+      serviceType:
+        | 'trakt'
+        | 'tmdb'
+        | 'imdb'
+        | 'letterboxd'
+        | 'mdblist'
+        | 'anilist'
     ): TemplatePreset[] => {
       if (!title) {
         return [
@@ -1856,6 +1922,236 @@ const CollectionFormConfigForm = ({
       return [{ label: 'Custom', value: 'custom' }];
     }
 
+    // AniList collection presets
+    if (values.type === 'anilist') {
+      switch (values.subtype) {
+        case 'trending':
+          return [
+            {
+              label: 'Trending Anime',
+              value: 'Trending Anime',
+            },
+            {
+              label: 'Trending Now on AniList',
+              value: 'Trending Now on AniList',
+            },
+            {
+              label: '🔥 Trending Anime',
+              value: '🔥 Trending Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'popular':
+          return [
+            {
+              label: 'Popular Anime',
+              value: 'Popular Anime',
+            },
+            {
+              label: 'Popular on AniList',
+              value: 'Popular on AniList',
+            },
+            {
+              label: 'Popular Anime',
+              value: 'Popular Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'top_rated':
+          return [
+            {
+              label: 'Top Rated Anime',
+              value: 'Top Rated Anime',
+            },
+            {
+              label: 'Highest Rated on AniList',
+              value: 'Highest Rated on AniList',
+            },
+            {
+              label: 'Top Rated Anime',
+              value: 'Top Rated Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'custom':
+          return getCustomUrlPresets(fetchedTitles?.anilist || '', 'anilist');
+        default:
+          return [
+            {
+              label: 'AniList Collection',
+              value: 'AniList Collection',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+      }
+    }
+
+    // MyAnimeList collection presets
+    if (values.type === 'myanimelist') {
+      switch (values.subtype) {
+        case 'all':
+          return [
+            {
+              label: 'Top Anime Series',
+              value: 'Top Anime Series',
+            },
+            {
+              label: 'Top Anime on MyAnimeList',
+              value: 'Top Anime on MyAnimeList',
+            },
+            {
+              label: 'Highest Rated Anime',
+              value: 'Highest Rated Anime',
+            },
+            {
+              label: 'Top Anime',
+              value: 'Top Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'airing':
+          return [
+            {
+              label: 'Top Airing Anime',
+              value: 'Top Airing Anime',
+            },
+            {
+              label: 'Currently Airing - Top Rated',
+              value: 'Currently Airing - Top Rated',
+            },
+            {
+              label: 'Best Airing Shows',
+              value: 'Best Airing Shows',
+            },
+            {
+              label: 'Top Airing Anime',
+              value: 'Top Airing Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'tv':
+          return [
+            {
+              label: 'Top TV Series',
+              value: 'Top TV Series',
+            },
+            {
+              label: 'Top Anime TV Shows',
+              value: 'Top Anime TV Shows',
+            },
+            {
+              label: 'Best TV Anime',
+              value: 'Best TV Anime',
+            },
+            {
+              label: 'Top Anime Series',
+              value: 'Top Anime Series',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'movie':
+          return [
+            {
+              label: 'Top Anime Movies',
+              value: 'Top Anime Movies',
+            },
+            {
+              label: 'Best Anime Films',
+              value: 'Best Anime Films',
+            },
+            {
+              label: 'Highest Rated Anime Movies',
+              value: 'Highest Rated Anime Movies',
+            },
+            {
+              label: 'Top Anime Movies',
+              value: 'Top Anime Movies',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'ova':
+          return [
+            {
+              label: 'Top OVA Series',
+              value: 'Top OVA Series',
+            },
+            {
+              label: 'Best Anime OVAs',
+              value: 'Best Anime OVAs',
+            },
+            {
+              label: 'Highest Rated OVAs',
+              value: 'Highest Rated OVAs',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'special':
+          return [
+            {
+              label: 'Top Anime Specials',
+              value: 'Top Anime Specials',
+            },
+            {
+              label: 'Best Anime Specials',
+              value: 'Best Anime Specials',
+            },
+            {
+              label: 'Highest Rated Specials',
+              value: 'Highest Rated Specials',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'bypopularity':
+          return [
+            {
+              label: 'Most Popular Anime',
+              value: 'Most Popular Anime',
+            },
+            {
+              label: 'Popular on MyAnimeList',
+              value: 'Popular on MyAnimeList',
+            },
+            {
+              label: 'Fan Favorites',
+              value: 'Fan Favorites',
+            },
+            {
+              label: 'Most Popular Anime',
+              value: 'Most Popular Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'favorite':
+          return [
+            {
+              label: 'Most Favorited Anime',
+              value: 'Most Favorited Anime',
+            },
+            {
+              label: 'Top Favorited on MyAnimeList',
+              value: 'Top Favorited on MyAnimeList',
+            },
+            {
+              label: 'Community Favorites',
+              value: 'Community Favorites',
+            },
+            {
+              label: 'Most Favorited Anime',
+              value: 'Most Favorited Anime',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        default:
+          return [
+            {
+              label: 'MyAnimeList Collection',
+              value: 'MyAnimeList Collection',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+      }
+    }
+
     // Fallback for unknown types
     return [
       {
@@ -2479,6 +2775,7 @@ const CollectionFormConfigForm = ({
                           fetchImdbTitle={fetchImdbTitle}
                           fetchLetterboxdTitle={fetchLetterboxdTitle}
                           fetchMdblistTitle={fetchMdblistTitle}
+                          fetchAnilistTitle={fetchAnilistTitle}
                         />
                       )}
 
@@ -2521,7 +2818,10 @@ const CollectionFormConfigForm = ({
                                   (fetchedTitles.letterboxd || config?.name)) ||
                                 (values.type === 'mdblist' &&
                                   values.subtype === 'custom' &&
-                                  (fetchedTitles.mdblist || config?.name)))
+                                  (fetchedTitles.mdblist || config?.name)) ||
+                                (values.type === 'anilist' &&
+                                  values.subtype === 'custom' &&
+                                  (fetchedTitles.anilist || config?.name)))
                           )}
                           detectedMediaType={(() => {
                             // Return detected media type for custom lists
@@ -3062,6 +3362,7 @@ const CollectionFormConfigForm = ({
                               tmdbCustomCollectionUrl:
                                 'TMDB Collection/List URL',
                               imdbCustomListUrl: 'IMDb List URL',
+                              anilistCustomListUrl: 'AniList List URL',
                               letterboxdCustomListUrl: 'Letterboxd List URL',
                               maxSeasonsToRequest: 'Max Seasons to Request',
                               seasonsPerShowLimit: 'Seasons Per Show Limit',

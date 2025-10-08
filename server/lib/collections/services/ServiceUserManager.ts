@@ -13,7 +13,6 @@ export interface ServiceUserConfig {
   displayName: string;
   email: string;
   permissions: number;
-  avatar?: string;
   description?: string;
 }
 
@@ -29,7 +28,9 @@ export type ServiceType =
   | 'networks'
   | 'originals'
   | 'tautulli'
-  | 'overseerr';
+  | 'overseerr'
+  | 'anilist'
+  | 'myanimelist';
 
 /**
  * Generate service user configuration dynamically
@@ -40,21 +41,22 @@ export function generateServiceUserConfig(
   userCreationMode: 'single' | 'per-service' | 'granular' = 'per-service'
 ): ServiceUserConfig {
   const serviceInfo = {
-    trakt: { name: 'Trakt', avatar: '/trakt-logo.svg' },
-    tmdb: { name: 'TMDB', avatar: '/tmdb-logo.svg' },
-    imdb: { name: 'IMDb', avatar: '/imdb-logo.svg' },
-    mdblist: { name: 'MDBList', avatar: '/services/mdblist.svg' },
-    letterboxd: { name: 'Letterboxd', avatar: '/letterboxd-logo.svg' },
-    networks: { name: 'Networks', avatar: '/networks-logo.svg' },
-    originals: { name: 'Originals', avatar: '/logo_stacked.svg' },
-    tautulli: { name: 'Tautulli', avatar: '/tautulli-logo.svg' },
-    overseerr: { name: 'Overseerr', avatar: '/os_logo_stacked.svg' },
+    trakt: { name: 'Trakt' },
+    tmdb: { name: 'TMDB' },
+    imdb: { name: 'IMDb' },
+    mdblist: { name: 'MDBList' },
+    letterboxd: { name: 'Letterboxd' },
+    networks: { name: 'Networks' },
+    originals: { name: 'Originals' },
+    tautulli: { name: 'Tautulli' },
+    overseerr: { name: 'Overseerr' },
+    anilist: { name: 'AniList' },
+    myanimelist: { name: 'MyAnimeList' },
   }[serviceType];
 
   let username: string;
   let displayName: string;
   let email: string;
-  let avatar: string;
   let description: string;
 
   switch (userCreationMode) {
@@ -63,7 +65,6 @@ export function generateServiceUserConfig(
       username = 'Agregarr';
       displayName = 'Agregarr';
       email = 'donotchangeme@agregarr';
-      avatar = '/logo_stacked.svg';
       description = 'Virtual service user for all Agregarr collection requests';
       break;
 
@@ -75,14 +76,12 @@ export function generateServiceUserConfig(
         username = `${serviceInfo.name}${collectionName}Agregarr`;
         displayName = username;
         email = `donotchangeme@${serviceType.toLowerCase()}.${collectionType.toLowerCase()}.agregarr`;
-        avatar = serviceInfo.avatar;
         description = `Virtual service user for ${serviceInfo.name} ${collectionName} collection requests`;
       } else {
         // Fallback to per-service if no collection type
         username = `${serviceInfo.name}Agregarr`;
         displayName = username;
         email = `donotchangeme@${serviceType.toLowerCase()}.agregarr`;
-        avatar = serviceInfo.avatar;
         description = `Virtual service user for ${serviceInfo.name} collection requests`;
       }
       break;
@@ -93,7 +92,6 @@ export function generateServiceUserConfig(
       username = `${serviceInfo.name}Agregarr`;
       displayName = username;
       email = `donotchangeme@${serviceType.toLowerCase()}.agregarr`;
-      avatar = serviceInfo.avatar;
       description = `Virtual service user for ${serviceInfo.name} collection requests`;
       break;
   }
@@ -103,7 +101,6 @@ export function generateServiceUserConfig(
     displayName,
     email,
     permissions: 32, // Start with manual approval permissions (will be changed dynamically)
-    avatar,
     description,
   };
 }
@@ -386,7 +383,6 @@ export class ServiceUserManager {
       plexTitle: config.displayName,
       permissions: config.permissions,
       userType: 1, // LOCAL user type
-      avatar: config.avatar || '/logo_stacked.svg',
       externalOverseerrId: externalUser.id,
       createdAt: new Date(),
       updatedAt: new Date(),

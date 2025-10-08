@@ -23,6 +23,8 @@ export interface CollectionItem {
   year?: number;
   /** Optional TMDB ID for external identification */
   tmdbId?: number;
+  /** Optional poster URL from source (e.g., AniList coverImage) */
+  posterUrl?: string;
   /** Optional additional metadata */
   metadata?: Record<string, unknown>;
   /** Episode-specific information (for individual episodes in collections) */
@@ -144,7 +146,9 @@ export type CollectionSource =
   | 'letterboxd'
   | 'mdblist'
   | 'networks'
-  | 'originals';
+  | 'originals'
+  | 'anilist'
+  | 'myanimelist';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -214,6 +218,8 @@ export interface AutoRequestConfig {
 export interface MissingItem {
   /** TMDB ID */
   tmdbId: number;
+  /** TVDB ID (primarily for anime) */
+  tvdbId?: number;
   /** Media type */
   mediaType: 'movie' | 'tv';
   /** Display title */
@@ -413,6 +419,7 @@ export type TraktSourceData =
         imdb?: string;
         tmdb: number;
         tvrage?: number;
+        anilist?: number;
       };
     };
 
@@ -491,6 +498,19 @@ export interface LetterboxdSourceData {
   mediaType: 'movie';
 }
 
+export interface AniListSourceData {
+  title: string;
+  anilistId?: number;
+  raw: unknown; // The raw AniListMedia object from the API
+}
+
+export interface MyAnimeListSourceData {
+  title: string;
+  malId: number;
+  rank: number;
+  raw: unknown; // The raw MAL anime object from the API
+}
+
 export interface NetworksSourceData {
   rank: number;
   title: string;
@@ -515,7 +535,9 @@ export type CollectionSourceData =
   | TmdbSourceData
   | ImdbSourceData
   | LetterboxdSourceData
-  | NetworksSourceData;
+  | NetworksSourceData
+  | AniListSourceData
+  | MyAnimeListSourceData;
 
 /**
  * Error types that can occur during collection sync
