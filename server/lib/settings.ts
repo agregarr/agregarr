@@ -424,6 +424,11 @@ export type JobId =
   | 'plex-collections-sync'
   | 'plex-randomize-home-order';
 
+export interface GlobalExclusions {
+  movies: number[]; // TMDB IDs for excluded movies
+  shows: { id: number; type: 'tmdb' | 'tvdb' }[]; // TMDB or TVDB IDs for excluded TV shows
+}
+
 interface AllSettings {
   clientId: string;
   main: MainSettings;
@@ -438,6 +443,7 @@ interface AllSettings {
   sonarr: SonarrSettings[];
   public: PublicSettings;
   jobs: Record<JobId, JobSettings>;
+  globalExclusions?: GlobalExclusions; // Global item exclusions for collections
   completedMigrations?: string[]; // Track completed migrations
 }
 
@@ -495,6 +501,10 @@ class Settings {
         'plex-randomize-home-order': {
           schedule: '0 0 6 * * *',
         },
+      },
+      globalExclusions: {
+        movies: [],
+        shows: [],
       },
     };
     if (initialSettings) {
@@ -619,6 +629,20 @@ class Settings {
 
   set jobs(data: Record<JobId, JobSettings>) {
     this.data.jobs = data;
+  }
+
+  get globalExclusions(): GlobalExclusions {
+    if (!this.data.globalExclusions) {
+      this.data.globalExclusions = {
+        movies: [],
+        shows: [],
+      };
+    }
+    return this.data.globalExclusions;
+  }
+
+  set globalExclusions(data: GlobalExclusions) {
+    this.data.globalExclusions = data;
   }
 
   get clientId(): string {

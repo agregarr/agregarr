@@ -535,15 +535,63 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       return [...acc, item];
     }, [] as CollectionItem[]);
 
+    // Remove globally excluded items
+    const settings = getSettings();
+    const exclusions = settings.globalExclusions;
+    const nonExcludedItems = uniqueItems.filter((item) => {
+      // Check movies (TMDB only)
+      if (item.type === 'movie') {
+        const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number);
+        if (tmdbId && exclusions.movies.includes(tmdbId)) {
+          removalReasons.globalExclusion =
+            (removalReasons.globalExclusion || 0) + 1;
+          return false;
+        }
+      }
+
+      // Check TV shows (TMDB or TVDB)
+      if (item.type === 'tv') {
+        const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number);
+        const tvdbId = item.metadata?.tvdbId as number | undefined;
+
+        // Check TMDB exclusions
+        if (
+          tmdbId &&
+          exclusions.shows.some(
+            (excluded) => excluded.type === 'tmdb' && excluded.id === tmdbId
+          )
+        ) {
+          removalReasons.globalExclusion =
+            (removalReasons.globalExclusion || 0) + 1;
+          return false;
+        }
+
+        // Check TVDB exclusions
+        if (
+          tvdbId &&
+          exclusions.shows.some(
+            (excluded) => excluded.type === 'tvdb' && excluded.id === tvdbId
+          )
+        ) {
+          removalReasons.globalExclusion =
+            (removalReasons.globalExclusion || 0) + 1;
+          return false;
+        }
+      }
+
+      return true;
+    });
+
     // Apply maxItems safety check (most collection types should already be limited efficiently)
-    let finalItems = uniqueItems;
+    let finalItems = nonExcludedItems;
     if (
       config.maxItems &&
       config.maxItems > 0 &&
-      uniqueItems.length > config.maxItems
+      nonExcludedItems.length > config.maxItems
     ) {
-      finalItems = uniqueItems.slice(0, config.maxItems);
-      removalReasons.safetyMaxItemsLimit = uniqueItems.length - config.maxItems;
+      finalItems = nonExcludedItems.slice(0, config.maxItems);
+      removalReasons.safetyMaxItemsLimit =
+        nonExcludedItems.length - config.maxItems;
     }
 
     return {
@@ -1934,18 +1982,56 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     const { filteredItems: items, stats: filteringStats } =
       this.applyCommonFiltering(mappedResult.items, config);
 
-    // Filter missing items by the same maxItems limit applied to collection items
-    // This ensures we only create requests for missing items from the first maxItems positions
+    // Filter missing items by global exclusions and maxItems limit
     let filteredMissingItems = mappedResult.missingItems;
-    if (
-      filteredMissingItems &&
-      config.maxItems &&
-      config.maxItems > 0 &&
-      filteredMissingItems.length > 0
-    ) {
-      filteredMissingItems = filteredMissingItems.filter(
-        (item) => item.originalPosition <= config.maxItems
-      );
+    if (filteredMissingItems && filteredMissingItems.length > 0) {
+      const settings = getSettings();
+      const exclusions = settings.globalExclusions;
+
+      // Remove globally excluded items from missing items
+      filteredMissingItems = filteredMissingItems.filter((item) => {
+        // Check movies (TMDB only)
+        if (item.mediaType === 'movie') {
+          if (exclusions.movies.includes(item.tmdbId)) {
+            return false;
+          }
+        }
+
+        // Check TV shows (TMDB or TVDB)
+        if (item.mediaType === 'tv') {
+          // Check TMDB exclusions
+          if (
+            item.tmdbId &&
+            exclusions.shows.some(
+              (excluded) =>
+                excluded.type === 'tmdb' && excluded.id === item.tmdbId
+            )
+          ) {
+            return false;
+          }
+
+          // Check TVDB exclusions (if item has tvdbId)
+          const tvdbId = (item as { tvdbId?: number }).tvdbId;
+          if (
+            tvdbId &&
+            exclusions.shows.some(
+              (excluded) => excluded.type === 'tvdb' && excluded.id === tvdbId
+            )
+          ) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      // Filter by maxItems limit
+      // This ensures we only create requests for missing items from the first maxItems positions
+      if (config.maxItems && config.maxItems > 0) {
+        filteredMissingItems = filteredMissingItems.filter(
+          (item) => item.originalPosition <= config.maxItems
+        );
+      }
     }
 
     return {

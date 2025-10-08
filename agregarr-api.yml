@@ -44,6 +44,8 @@ tags:
     description: Endpoints related to poster template management, saved posters, and icon assets.
   - name: source-colors
     description: Endpoints related to managing global source color schemes for poster generation.
+  - name: exclusions
+    description: Endpoints related to managing global item exclusions for collections.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -3936,6 +3938,160 @@ paths:
                   appDataPath:
                     type: string
                     example: /app/config
+  /exclusions:
+    get:
+      summary: Get global exclusions with metadata
+      description: Returns all globally excluded items for collections enriched with TMDB metadata (title, year, poster).
+      tags:
+        - exclusions
+      responses:
+        '200':
+          description: Global exclusions retrieved successfully with TMDB metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  movies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tmdbId:
+                          type: integer
+                          example: 550
+                        title:
+                          type: string
+                          example: Fight Club
+                        year:
+                          type: integer
+                          example: 1999
+                        posterPath:
+                          type: string
+                          example: /pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg
+                    description: Array of excluded movies with TMDB metadata
+                  shows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1399
+                        type:
+                          type: string
+                          enum: [tmdb, tvdb]
+                          example: tmdb
+                        title:
+                          type: string
+                          example: Game of Thrones
+                        year:
+                          type: integer
+                          example: 2011
+                        posterPath:
+                          type: string
+                          example: /7WUHnWGx5OO145IRxPDUkQSh4C7.jpg
+                    description: Array of excluded TV shows with metadata
+    post:
+      summary: Add item to global exclusions
+      description: Adds an item to the global exclusions list.
+      tags:
+        - exclusions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mediaType
+              properties:
+                tmdbId:
+                  type: integer
+                  example: 550
+                  description: TMDB ID (required for movies, optional for TV)
+                tvdbId:
+                  type: integer
+                  example: 121361
+                  description: TVDB ID (optional for TV shows)
+                mediaType:
+                  type: string
+                  enum: [movie, tv]
+                  example: movie
+      responses:
+        '200':
+          description: Item added to exclusions successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  movies:
+                    type: array
+                    items:
+                      type: integer
+                  shows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        type:
+                          type: string
+                          enum: [tmdb, tvdb]
+        '400':
+          description: Invalid request parameters
+    delete:
+      summary: Remove item from global exclusions
+      description: Removes an item from the global exclusions list.
+      tags:
+        - exclusions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mediaType
+              properties:
+                tmdbId:
+                  type: integer
+                  example: 550
+                  description: TMDB ID (required for movies, optional for TV)
+                tvdbId:
+                  type: integer
+                  example: 121361
+                  description: TVDB ID (optional for TV shows)
+                mediaType:
+                  type: string
+                  enum: [movie, tv]
+                  example: movie
+      responses:
+        '200':
+          description: Item removed from exclusions successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  movies:
+                    type: array
+                    items:
+                      type: integer
+                  shows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        type:
+                          type: string
+                          enum: [tmdb, tvdb]
+        '400':
+          description: Invalid request parameters
   /collections:
     get:
       summary: Get collection configurations
