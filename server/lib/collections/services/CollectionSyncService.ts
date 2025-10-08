@@ -127,12 +127,14 @@ export class CollectionSyncService {
           }
         );
       }
-    } else {
-      // No Overseerr user configs exist - clean up any existing user filter labels
+    } else if (settings.main.overseerrLabelsApplied !== false) {
+      // No Overseerr user configs exist but labels might be applied - clean them up
+      // This handles: true (labels known to be applied) and undefined (unknown state, be safe for existing users)
       logger.info(
-        'No Overseerr user collections detected - cleaning up user filter labels',
+        'No Overseerr user collections detected but labels might exist - cleaning up user filter labels',
         {
           label: 'Collection Sync Service',
+          labelState: settings.main.overseerrLabelsApplied,
         }
       );
 
@@ -151,6 +153,14 @@ export class CollectionSyncService {
           }
         );
       }
+    } else {
+      // No Overseerr user configs and labels confirmed not applied - skip cleanup entirely
+      logger.debug(
+        'No Overseerr user collections detected and labels confirmed not applied - skipping cleanup',
+        {
+          label: 'Collection Sync Service',
+        }
+      );
     }
 
     // OPTIMIZATION: Use shared library cache for sync optimization
@@ -375,6 +385,10 @@ export class CollectionSyncService {
         hasUsersConfig,
         hasServerOwnerConfig
       );
+
+      // Mark labels as applied
+      const settings = getSettings();
+      settings.setOverseerrLabelsApplied(true);
     } catch (error) {
       throw new Error(
         `Failed to apply pre-sync user restrictions: ${
@@ -428,6 +442,10 @@ export class CollectionSyncService {
           usersProcessed: allPlexUserIds.length,
         }
       );
+
+      // Mark labels as removed
+      const settings = getSettings();
+      settings.setOverseerrLabelsApplied(false);
     } catch (error) {
       throw new Error(
         `Failed to cleanup user filter labels: ${

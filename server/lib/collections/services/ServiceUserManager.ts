@@ -64,7 +64,7 @@ export function generateServiceUserConfig(
       // Single mode: Everything goes to "Agregarr"
       username = 'Agregarr';
       displayName = 'Agregarr';
-      email = 'donotchangeme@agregarr';
+      email = 'donotchangeme@agregarr.invalid';
       description = 'Virtual service user for all Agregarr collection requests';
       break;
 
@@ -75,13 +75,13 @@ export function generateServiceUserConfig(
           collectionType.charAt(0).toUpperCase() + collectionType.slice(1);
         username = `${serviceInfo.name}${collectionName}Agregarr`;
         displayName = username;
-        email = `donotchangeme@${serviceType.toLowerCase()}.${collectionType.toLowerCase()}.agregarr`;
+        email = `donotchangeme@${serviceType.toLowerCase()}.${collectionType.toLowerCase()}.agregarr.invalid`;
         description = `Virtual service user for ${serviceInfo.name} ${collectionName} collection requests`;
       } else {
         // Fallback to per-service if no collection type
         username = `${serviceInfo.name}Agregarr`;
         displayName = username;
-        email = `donotchangeme@${serviceType.toLowerCase()}.agregarr`;
+        email = `donotchangeme@${serviceType.toLowerCase()}.agregarr.invalid`;
         description = `Virtual service user for ${serviceInfo.name} collection requests`;
       }
       break;
@@ -91,7 +91,7 @@ export function generateServiceUserConfig(
       // Per-service mode: TraktAgregarr, TMDbAgregarr, etc.
       username = `${serviceInfo.name}Agregarr`;
       displayName = username;
-      email = `donotchangeme@${serviceType.toLowerCase()}.agregarr`;
+      email = `donotchangeme@${serviceType.toLowerCase()}.agregarr.invalid`;
       description = `Virtual service user for ${serviceInfo.name} collection requests`;
       break;
   }
@@ -144,6 +144,57 @@ export class ServiceUserManager {
     let serviceUser = await this.userRepository.findOne({
       where: { email: config.email },
     });
+
+    // If not found with new format, try old format (migration path)
+    if (!serviceUser && config.email.endsWith('.invalid')) {
+      const oldEmail = config.email.replace('.invalid', '');
+      serviceUser = await this.userRepository.findOne({
+        where: { email: oldEmail },
+      });
+
+      // Migrate to new email format
+      if (serviceUser) {
+        logger.info(
+          `Migrating service user email from old format: ${oldEmail} → ${config.email}`,
+          {
+            label: 'Service User Manager',
+            username: config.username,
+          }
+        );
+
+        serviceUser.email = config.email;
+        serviceUser.updatedAt = new Date();
+        await this.userRepository.save(serviceUser);
+
+        // Also update email in external Overseerr if linked
+        if (serviceUser.externalOverseerrId) {
+          try {
+            const overseerrAPI = this.getOverseerrAPI();
+            await overseerrAPI.updateUserEmail(
+              serviceUser.externalOverseerrId,
+              config.email
+            );
+            logger.info(
+              `Updated external Overseerr email for: ${config.displayName}`,
+              {
+                label: 'Service User Manager',
+                externalUserId: serviceUser.externalOverseerrId,
+                newEmail: config.email,
+              }
+            );
+          } catch (error) {
+            logger.warn(
+              `Failed to update external Overseerr email for ${config.displayName}, will retry on next sync`,
+              {
+                label: 'Service User Manager',
+                externalUserId: serviceUser.externalOverseerrId,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
+      }
+    }
 
     if (!serviceUser) {
       // Create new service user (both internal and external)

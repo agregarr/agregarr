@@ -393,6 +393,8 @@ export interface MainSettings {
   adminNickname?: string; // Admin's Plex title/display name
   externalApplicationUrl?: string; // External Overseerr URL
   externalApplicationTitle?: string; // External Overseerr title
+  // Overseerr user label state tracking
+  overseerrLabelsApplied?: boolean; // True if Overseerr user filter labels are currently applied to Plex users
 }
 
 interface PublicSettings {
@@ -698,6 +700,15 @@ class Settings {
     if (applicationTitle) {
       this.data.main.externalApplicationTitle = applicationTitle;
     }
+    this.save();
+  }
+
+  /**
+   * Set Overseerr user filter label state
+   * Used to track whether labels are currently applied to Plex users
+   */
+  public setOverseerrLabelsApplied(applied: boolean): void {
+    this.data.main.overseerrLabelsApplied = applied;
     this.save();
   }
 
