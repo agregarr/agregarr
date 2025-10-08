@@ -1,4 +1,5 @@
 import Modal from '@app/components/Common/Modal';
+import globalMessages from '@app/i18n/globalMessages';
 import type { SonarrSettings } from '@server/lib/settings';
 import axios from 'axios';
 import type React from 'react';
@@ -9,7 +10,8 @@ import useSWR from 'swr';
 const messages = defineMessages({
   selectSeasons: 'Select Seasons',
   selectSeasonsDescription: 'Choose which seasons to download',
-  season: 'Season {seasonNumber}',
+  season: 'Season',
+  seasonnumber: 'Season {number}',
   download: 'Download',
   cancel: 'Cancel',
   loadingSeasons: 'Loading seasons...',
@@ -24,6 +26,7 @@ const messages = defineMessages({
   rootFolderPlaceholder: 'Choose a root folder...',
   selectServerFirst: 'Select a server first',
   sonarrOptions: 'Sonarr Download Options',
+  numberofepisodes: '# of Episodes',
 });
 
 interface SeasonSelectionModalProps {
@@ -60,6 +63,9 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
     new Set()
   );
   const [loading, setLoading] = useState(true);
+  const [backdropPath, setBackdropPath] = useState<string | undefined>(
+    undefined
+  );
 
   // Sonarr options (only for sonarr service)
   const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
@@ -93,7 +99,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
   const { data: sonarrProfiles, isLoading: profilesLoading } = useSWR<
     { id: number; name: string }[]
   >(
-    service === 'sonarr' && selectedServerId
+    service === 'sonarr' && selectedServerId !== null
       ? `/api/v1/settings/sonarr/${selectedServerId}/profiles`
       : null
   );
@@ -102,7 +108,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
   const { data: sonarrRootFolders, isLoading: rootFoldersLoading } = useSWR<
     { id: number; path: string }[]
   >(
-    service === 'sonarr' && selectedServerId
+    service === 'sonarr' && selectedServerId !== null
       ? `/api/v1/settings/sonarr/${selectedServerId}/rootfolders`
       : null
   );
@@ -149,6 +155,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
           .sort((a: Season, b: Season) => a.season_number - b.season_number);
 
         setSeasons(filteredSeasons);
+        setBackdropPath(response.data.backdrop_path);
 
         // Select all seasons by default
         const allSeasonNumbers = new Set<number>(
@@ -175,15 +182,19 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
     setSelectedSeasons(newSelected);
   };
 
-  const handleSelectAll = () => {
-    const allSeasonNumbers = new Set<number>(
-      seasons.map((s) => s.season_number)
-    );
-    setSelectedSeasons(allSeasonNumbers);
+  const toggleAllSeasons = () => {
+    if (isAllSeasons()) {
+      setSelectedSeasons(new Set());
+    } else {
+      const allSeasonNumbers = new Set<number>(
+        seasons.map((s) => s.season_number)
+      );
+      setSelectedSeasons(allSeasonNumbers);
+    }
   };
 
-  const handleDeselectAll = () => {
-    setSelectedSeasons(new Set());
+  const isAllSeasons = (): boolean => {
+    return seasons.length > 0 && selectedSeasons.size === seasons.length;
   };
 
   const handleConfirm = () => {
@@ -219,6 +230,11 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
       okText={intl.formatMessage(messages.download)}
       cancelText={intl.formatMessage(messages.cancel)}
       okDisabled={selectedSeasons.size === 0 || !isSonarrValid}
+      backdrop={
+        backdropPath
+          ? `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${backdropPath}`
+          : undefined
+      }
     >
       {loading ? (
         <div className="flex items-center justify-center py-8">
@@ -227,10 +243,10 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <>
           {/* Sonarr Options - only show for sonarr service */}
           {service === 'sonarr' && (
-            <div className="space-y-4 border-b border-gray-700 pb-4">
+            <div className="mb-6 space-y-4 border-b border-gray-700 pb-4">
               {/* Server Selection - only show if multiple servers */}
               {sonarrServers && sonarrServers.length > 1 && (
                 <div>
@@ -269,10 +285,10 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                   value={selectedProfileId || ''}
                   onChange={(e) => setSelectedProfileId(Number(e.target.value))}
                   className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
-                  disabled={!selectedServerId || profilesLoading}
+                  disabled={selectedServerId === null || profilesLoading}
                 >
                   <option value="">
-                    {!selectedServerId
+                    {selectedServerId === null
                       ? intl.formatMessage(messages.selectServerFirst)
                       : profilesLoading
                       ? intl.formatMessage(messages.loading)
@@ -295,10 +311,10 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                   value={selectedRootFolder || ''}
                   onChange={(e) => setSelectedRootFolder(e.target.value)}
                   className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
-                  disabled={!selectedServerId || rootFoldersLoading}
+                  disabled={selectedServerId === null || rootFoldersLoading}
                 >
                   <option value="">
-                    {!selectedServerId
+                    {selectedServerId === null
                       ? intl.formatMessage(messages.selectServerFirst)
                       : rootFoldersLoading
                       ? intl.formatMessage(messages.loading)
@@ -314,64 +330,107 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
             </div>
           )}
 
-          <div className="text-sm text-gray-400">
-            {intl.formatMessage(messages.selectSeasonsDescription)}
-          </div>
-
-          {/* Select All / Deselect All buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={handleSelectAll}
-              className="rounded-md bg-gray-700 px-3 py-1 text-sm text-gray-300 transition hover:bg-gray-600"
-            >
-              {intl.formatMessage(messages.selectAll)}
-            </button>
-            <button
-              onClick={handleDeselectAll}
-              className="rounded-md bg-gray-700 px-3 py-1 text-sm text-gray-300 transition hover:bg-gray-600"
-            >
-              {intl.formatMessage(messages.deselectAll)}
-            </button>
-          </div>
-
-          {/* Season checkboxes */}
-          <div className="max-h-96 space-y-2 overflow-y-auto">
-            {seasons.map((season) => (
-              <label
-                key={season.id}
-                className="flex cursor-pointer items-center space-x-3 rounded-md p-2 transition hover:bg-gray-800"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedSeasons.has(season.season_number)}
-                  onChange={() => handleToggleSeason(season.season_number)}
-                  className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-orange-500 focus:ring-orange-500 focus:ring-offset-gray-900"
-                />
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-gray-200">
-                    {season.name ||
-                      intl.formatMessage(messages.season, {
-                        seasonNumber: season.season_number,
-                      })}
-                  </div>
-                  {season.episode_count > 0 && (
-                    <div className="text-xs text-gray-500">
-                      {season.episode_count} episode
-                      {season.episode_count !== 1 ? 's' : ''}
-                    </div>
-                  )}
+          <div className="flex flex-col">
+            <div className="-mx-4 sm:mx-0">
+              <div className="inline-block min-w-full py-2 align-middle">
+                <div className="overflow-hidden border border-gray-700 shadow backdrop-blur sm:rounded-lg">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th className="w-16 bg-gray-700 bg-opacity-80 px-4 py-3">
+                          <span
+                            role="checkbox"
+                            tabIndex={0}
+                            aria-checked={isAllSeasons()}
+                            onClick={() => toggleAllSeasons()}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === 'Space') {
+                                toggleAllSeasons();
+                              }
+                            }}
+                            className="relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer items-center justify-center pt-2 focus:outline-none"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`${
+                                isAllSeasons() ? 'bg-indigo-500' : 'bg-gray-800'
+                              } absolute mx-auto h-4 w-9 rounded-full transition-colors duration-200 ease-in-out`}
+                            />
+                            <span
+                              aria-hidden="true"
+                              className={`${
+                                isAllSeasons()
+                                  ? 'translate-x-5'
+                                  : 'translate-x-0'
+                              } absolute left-0 inline-block h-5 w-5 rounded-full border border-gray-200 bg-white shadow transition-transform duration-200 ease-in-out group-focus:border-blue-300 group-focus:ring`}
+                            />
+                          </span>
+                        </th>
+                        <th className="bg-gray-700 bg-opacity-80 px-1 py-3 text-left text-xs font-medium uppercase leading-4 tracking-wider text-gray-200 md:px-6">
+                          {intl.formatMessage(messages.season)}
+                        </th>
+                        <th className="bg-gray-700 bg-opacity-80 px-5 py-3 text-left text-xs font-medium uppercase leading-4 tracking-wider text-gray-200 md:px-6">
+                          {intl.formatMessage(messages.numberofepisodes)}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {seasons.map((season) => (
+                        <tr key={season.id}>
+                          <td className="whitespace-nowrap px-4 py-4 text-sm font-medium leading-5 text-gray-100">
+                            <span
+                              role="checkbox"
+                              tabIndex={0}
+                              aria-checked={selectedSeasons.has(
+                                season.season_number
+                              )}
+                              onClick={() =>
+                                handleToggleSeason(season.season_number)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === 'Space') {
+                                  handleToggleSeason(season.season_number);
+                                }
+                              }}
+                              className="relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer items-center justify-center pt-2 focus:outline-none"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`${
+                                  selectedSeasons.has(season.season_number)
+                                    ? 'bg-indigo-500'
+                                    : 'bg-gray-700'
+                                } absolute mx-auto h-4 w-9 rounded-full transition-colors duration-200 ease-in-out`}
+                              />
+                              <span
+                                aria-hidden="true"
+                                className={`${
+                                  selectedSeasons.has(season.season_number)
+                                    ? 'translate-x-5'
+                                    : 'translate-x-0'
+                                } absolute left-0 inline-block h-5 w-5 rounded-full border border-gray-200 bg-white shadow transition-transform duration-200 ease-in-out group-focus:border-blue-300 group-focus:ring`}
+                              />
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-1 py-4 text-sm font-medium leading-5 text-gray-100 md:px-6">
+                            {season.season_number === 0
+                              ? intl.formatMessage(globalMessages.specials)
+                              : intl.formatMessage(messages.seasonnumber, {
+                                  number: season.season_number,
+                                })}
+                          </td>
+                          <td className="whitespace-nowrap px-5 py-4 text-sm leading-5 text-gray-200 md:px-6">
+                            {season.episode_count}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </label>
-            ))}
-          </div>
-
-          {selectedSeasons.size > 0 && (
-            <div className="rounded-md bg-gray-800 p-3 text-sm text-gray-300">
-              Selected: {selectedSeasons.size} season
-              {selectedSeasons.size !== 1 ? 's' : ''}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
     </Modal>
   );

@@ -7049,6 +7049,33 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServiceProfile'
+  /settings/radarr/{radarrId}/rootfolders:
+    get:
+      summary: Get available Radarr root folders
+      description: Returns a list of root folders available on the Radarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: radarrId
+          required: true
+          schema:
+            type: integer
+          description: Radarr instance ID
+      responses:
+        '200':
+          description: Returned list of root folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: number
+                    path:
+                      type: string
   /settings/sonarr:
     get:
       summary: Get Sonarr settings
@@ -7169,6 +7196,55 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SonarrSettings'
+  /settings/sonarr/{sonarrId}/profiles:
+    get:
+      summary: Get available Sonarr profiles
+      description: Returns a list of profiles available on the Sonarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      responses:
+        '200':
+          description: Returned list of profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceProfile'
+  /settings/sonarr/{sonarrId}/rootfolders:
+    get:
+      summary: Get available Sonarr root folders
+      description: Returns a list of root folders available on the Sonarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      responses:
+        '200':
+          description: Returned list of root folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: number
+                    path:
+                      type: string
   /settings/public:
     get:
       summary: Get public settings

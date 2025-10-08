@@ -132,14 +132,17 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
           ref={modalRef}
         >
           {backdrop && (
-            <div className="absolute top-0 left-0 right-0 z-0 h-64 max-h-full w-full">
-              <Image
-                alt=""
-                src={backdrop}
-                layout="fill"
-                objectFit="cover"
-                priority
-              />
+            <div className="absolute inset-0 z-0 w-full">
+              <div className="absolute inset-0">
+                <Image
+                  alt=""
+                  src={backdrop}
+                  layout="fill"
+                  objectFit="cover"
+                  objectPosition="top"
+                  priority
+                />
+              </div>
               <div
                 className="absolute inset-0"
                 style={{

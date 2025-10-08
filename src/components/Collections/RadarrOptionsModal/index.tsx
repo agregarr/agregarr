@@ -1,5 +1,6 @@
 import Modal from '@app/components/Common/Modal';
 import type { RadarrSettings } from '@server/lib/settings';
+import type { MovieDetails } from '@server/models/Movie';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
@@ -28,6 +29,7 @@ interface RadarrOptionsModalProps {
 }
 
 const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
+  tmdbId,
   title,
   onCancel,
   onConfirm,
@@ -40,6 +42,9 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   const [selectedRootFolder, setSelectedRootFolder] = useState<string | null>(
     null
   );
+
+  // Fetch movie details for backdrop
+  const { data: movieData } = useSWR<MovieDetails>(`/api/v1/movie/${tmdbId}`);
 
   // Fetch Radarr servers
   const { data: radarrServers, isLoading: serversLoading } = useSWR<
@@ -64,7 +69,7 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   const { data: profiles, isLoading: profilesLoading } = useSWR<
     { id: number; name: string }[]
   >(
-    selectedServerId
+    selectedServerId !== null
       ? `/api/v1/settings/radarr/${selectedServerId}/profiles`
       : null
   );
@@ -73,7 +78,7 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   const { data: rootFolders, isLoading: rootFoldersLoading } = useSWR<
     { id: number; path: string }[]
   >(
-    selectedServerId
+    selectedServerId !== null
       ? `/api/v1/settings/radarr/${selectedServerId}/rootfolders`
       : null
   );
@@ -105,23 +110,22 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   return (
     <Modal
       title={intl.formatMessage(messages.radarrOptions)}
+      subTitle={title}
       onCancel={onCancel}
       cancelText={intl.formatMessage(messages.cancel)}
       onOk={handleConfirm}
       okText={intl.formatMessage(messages.download)}
       okDisabled={!isValid}
+      backdrop={
+        movieData?.backdropPath
+          ? `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${movieData.backdropPath}`
+          : undefined
+      }
     >
-      <div className="w-full max-w-md">
-        <div className="mb-4 text-sm text-gray-400">
-          {intl.formatMessage(messages.radarrOptionsDescription)}
-        </div>
-        <div className="mb-4">
-          <div className="font-semibold text-white">{title}</div>
-        </div>
-
+      <div className="space-y-4">
         {/* Server Selection - only show if multiple servers */}
         {radarrServers && radarrServers.length > 1 && (
-          <div className="mb-4">
+          <div>
             <label className="mb-2 block text-sm font-medium text-gray-300">
               {intl.formatMessage(messages.selectServer)}
             </label>
@@ -129,10 +133,10 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
               value={selectedServerId || ''}
               onChange={(e) => {
                 setSelectedServerId(Number(e.target.value));
-                setSelectedProfileId(null); // Reset profile when server changes
-                setSelectedRootFolder(null); // Reset root folder when server changes
+                setSelectedProfileId(null);
+                setSelectedRootFolder(null);
               }}
-              className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
+              className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
               disabled={serversLoading}
             >
               <option value="">
@@ -149,18 +153,18 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
         )}
 
         {/* Quality Profile Selection */}
-        <div className="mb-4">
+        <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">
             {intl.formatMessage(messages.selectProfile)}
           </label>
           <select
             value={selectedProfileId || ''}
             onChange={(e) => setSelectedProfileId(Number(e.target.value))}
-            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
-            disabled={!selectedServerId || profilesLoading}
+            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            disabled={selectedServerId === null || profilesLoading}
           >
             <option value="">
-              {!selectedServerId
+              {selectedServerId === null
                 ? intl.formatMessage(messages.selectServerFirst)
                 : profilesLoading
                 ? intl.formatMessage(messages.loading)
@@ -175,18 +179,18 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
         </div>
 
         {/* Root Folder Selection */}
-        <div className="mb-4">
+        <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">
             {intl.formatMessage(messages.selectRootFolder)}
           </label>
           <select
             value={selectedRootFolder || ''}
             onChange={(e) => setSelectedRootFolder(e.target.value)}
-            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
-            disabled={!selectedServerId || rootFoldersLoading}
+            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            disabled={selectedServerId === null || rootFoldersLoading}
           >
             <option value="">
-              {!selectedServerId
+              {selectedServerId === null
                 ? intl.formatMessage(messages.selectServerFirst)
                 : rootFoldersLoading
                 ? intl.formatMessage(messages.loading)

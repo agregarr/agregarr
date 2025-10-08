@@ -8,6 +8,7 @@ import Modal from '@app/components/Common/Modal';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 
@@ -129,8 +130,11 @@ const PreviewCollectionModal = ({
   >({});
   const [hoveredItem, setHoveredItem] = useState<number | null>(null);
   const [infoTooltipItem, setInfoTooltipItem] = useState<number | null>(null);
-  const [tooltipOpenLeft, setTooltipOpenLeft] = useState(false);
-  const [tooltipOpenAbove, setTooltipOpenAbove] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
   const iconRef = useRef<HTMLDivElement>(null);
   const tooltipCloseTimer = useRef<NodeJS.Timeout | null>(null);
   const [downloadingItems, setDownloadingItems] = useState<Set<number>>(
@@ -579,100 +583,149 @@ const PreviewCollectionModal = ({
 
                     {/* Info Icon - Shows on hover */}
                     {hoveredItem === item.tmdbId && (
-                      <div
-                        ref={iconRef}
-                        className="absolute right-2 top-2 z-40"
-                      >
-                        <button
-                          className="rounded-full bg-black bg-opacity-70 p-1 transition hover:bg-opacity-90"
-                          onMouseEnter={async (e) => {
-                            // Cancel any pending close
-                            if (tooltipCloseTimer.current) {
-                              clearTimeout(tooltipCloseTimer.current);
-                              tooltipCloseTimer.current = null;
-                            }
-                            setInfoTooltipItem(item.tmdbId);
-                            // Check if tooltip would clip on right/bottom of the modal container
-                            const buttonRect =
-                              e.currentTarget.getBoundingClientRect();
-                            const container =
-                              e.currentTarget.closest('.max-h-\\[70vh\\]');
-                            if (container) {
-                              const containerRect =
-                                container.getBoundingClientRect();
-                              const spaceOnRight =
-                                containerRect.right - buttonRect.right;
-                              const spaceBelow =
-                                containerRect.bottom - buttonRect.bottom;
-                              setTooltipOpenLeft(spaceOnRight < 280); // 280px = 256px tooltip + 24px margin
-                              setTooltipOpenAbove(spaceBelow < 200); // Approximate tooltip height
-                            }
-
-                            // Fetch ratings if not already cached
-                            if (
-                              !ratingsCache[item.tmdbId] &&
-                              !loadingRatings.has(item.tmdbId)
-                            ) {
-                              setLoadingRatings((prev) =>
-                                new Set(prev).add(item.tmdbId)
-                              );
-                              try {
-                                const endpoint =
-                                  item.mediaType === 'movie'
-                                    ? `/api/v1/ratings/movie/${item.tmdbId}`
-                                    : `/api/v1/ratings/tv/${item.tmdbId}`;
-
-                                // Build query string with proper encoding
-                                const queryParams = new URLSearchParams();
-                                if (item.title)
-                                  queryParams.append(
-                                    'title',
-                                    encodeURIComponent(item.title)
-                                  );
-                                if (item.year)
-                                  queryParams.append(
-                                    'year',
-                                    item.year.toString()
-                                  );
-                                if (item.imdbId && item.mediaType === 'movie')
-                                  queryParams.append('imdbId', item.imdbId);
-
-                                const response = await axios.get(
-                                  `${endpoint}?${queryParams.toString()}`
-                                );
-                                setRatingsCache((prev) => ({
-                                  ...prev,
-                                  [item.tmdbId]: response.data,
-                                }));
-                              } catch (err) {
-                                // Silently fail - ratings are optional
-                              } finally {
-                                setLoadingRatings((prev) => {
-                                  const next = new Set(prev);
-                                  next.delete(item.tmdbId);
-                                  return next;
-                                });
-                              }
-                            }
-                          }}
-                          onMouseLeave={() => {
-                            // Delay closing to allow moving to tooltip
-                            tooltipCloseTimer.current = setTimeout(() => {
-                              setInfoTooltipItem(null);
-                            }, 200);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          title="Show info"
+                      <>
+                        <div
+                          ref={iconRef}
+                          className="absolute right-2 top-2 z-40"
                         >
-                          <InformationCircleIcon className="h-5 w-5 text-white" />
-                        </button>
+                          <button
+                            className="rounded-full bg-black bg-opacity-70 p-1 transition hover:bg-opacity-90"
+                            onMouseEnter={async (e) => {
+                              // Cancel any pending close
+                              if (tooltipCloseTimer.current) {
+                                clearTimeout(tooltipCloseTimer.current);
+                                tooltipCloseTimer.current = null;
+                              }
+                              setInfoTooltipItem(item.tmdbId);
 
-                        {/* Info Tooltip - Small popup */}
-                        {infoTooltipItem === item.tmdbId && (
+                              // Simple, clear positioning: left or right of icon, avoid clipping
+                              const buttonRect =
+                                e.currentTarget.getBoundingClientRect();
+                              const tooltipWidth = 320; // w-80 = 320px
+                              const padding = 12;
+
+                              // 1. Choose horizontal position (left or right of icon)
+                              const spaceRight =
+                                window.innerWidth - buttonRect.right;
+                              const spaceLeft = buttonRect.left;
+
+                              let left: number;
+                              if (spaceRight >= tooltipWidth + padding) {
+                                // Position to the right
+                                left = buttonRect.right + padding;
+                              } else if (spaceLeft >= tooltipWidth + padding) {
+                                // Position to the left
+                                left = buttonRect.left - tooltipWidth - padding;
+                              } else {
+                                // Not enough space on either side - center on screen
+                                left = Math.max(
+                                  padding,
+                                  (window.innerWidth - tooltipWidth) / 2
+                                );
+                              }
+
+                              // 2. Choose vertical position and calculate max height
+                              // Start aligned with button
+                              let top = buttonRect.top;
+
+                              // Calculate max height from this position to bottom of screen
+                              let maxHeight =
+                                window.innerHeight - top - padding;
+
+                              // If there's not enough space below, shift up to use space above
+                              const desiredHeight = 500; // reasonable height for most tooltips
+                              if (maxHeight < desiredHeight) {
+                                const spaceAbove = buttonRect.top - padding;
+                                // Shift up to get more height, but don't go past top of screen
+                                const neededShift = Math.min(
+                                  desiredHeight - maxHeight,
+                                  spaceAbove
+                                );
+                                top = buttonRect.top - neededShift;
+                                maxHeight = window.innerHeight - top - padding;
+                              }
+
+                              // Final safety check - don't go off top
+                              top = Math.max(padding, top);
+                              maxHeight = window.innerHeight - top - padding;
+
+                              setTooltipPosition({ top, left, maxHeight });
+
+                              // Fetch ratings if not already cached
+                              if (
+                                !ratingsCache[item.tmdbId] &&
+                                !loadingRatings.has(item.tmdbId)
+                              ) {
+                                setLoadingRatings((prev) =>
+                                  new Set(prev).add(item.tmdbId)
+                                );
+                                try {
+                                  const endpoint =
+                                    item.mediaType === 'movie'
+                                      ? `/api/v1/ratings/movie/${item.tmdbId}`
+                                      : `/api/v1/ratings/tv/${item.tmdbId}`;
+
+                                  // Build query string with proper encoding
+                                  const queryParams = new URLSearchParams();
+                                  if (item.title)
+                                    queryParams.append(
+                                      'title',
+                                      encodeURIComponent(item.title)
+                                    );
+                                  if (item.year)
+                                    queryParams.append(
+                                      'year',
+                                      item.year.toString()
+                                    );
+                                  if (item.imdbId && item.mediaType === 'movie')
+                                    queryParams.append('imdbId', item.imdbId);
+
+                                  const response = await axios.get(
+                                    `${endpoint}?${queryParams.toString()}`
+                                  );
+                                  setRatingsCache((prev) => ({
+                                    ...prev,
+                                    [item.tmdbId]: response.data,
+                                  }));
+                                } catch (err) {
+                                  // Silently fail - ratings are optional
+                                } finally {
+                                  setLoadingRatings((prev) => {
+                                    const next = new Set(prev);
+                                    next.delete(item.tmdbId);
+                                    return next;
+                                  });
+                                }
+                              }
+                            }}
+                            onMouseLeave={() => {
+                              // Delay closing to allow moving to tooltip
+                              tooltipCloseTimer.current = setTimeout(() => {
+                                setInfoTooltipItem(null);
+                                setTooltipPosition(null);
+                              }, 200);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            title="Show info"
+                          >
+                            <InformationCircleIcon className="h-5 w-5 text-white" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Tooltip rendered via portal at document level */}
+                    {infoTooltipItem === item.tmdbId &&
+                    tooltipPosition &&
+                    typeof window !== 'undefined'
+                      ? createPortal(
                           <div
-                            className={`absolute z-50 w-80 rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl ${
-                              tooltipOpenLeft ? 'right-0' : 'left-0'
-                            } ${tooltipOpenAbove ? 'bottom-8' : 'top-8'}`}
+                            className="fixed z-[9999] w-80 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl"
+                            style={{
+                              top: `${tooltipPosition.top}px`,
+                              left: `${tooltipPosition.left}px`,
+                              maxHeight: `${tooltipPosition.maxHeight}px`,
+                            }}
                             onMouseEnter={() => {
                               // Cancel close when hovering tooltip
                               if (tooltipCloseTimer.current) {
@@ -683,6 +736,7 @@ const PreviewCollectionModal = ({
                             onMouseLeave={() => {
                               // Close when leaving tooltip
                               setInfoTooltipItem(null);
+                              setTooltipPosition(null);
                             }}
                           >
                             <div className="text-sm text-white">
@@ -694,7 +748,7 @@ const PreviewCollectionModal = ({
                                   </span>
                                 )}
                               </div>
-                              <div className="mb-4 max-h-40 overflow-y-auto text-gray-300">
+                              <div className="mb-4 text-gray-300">
                                 {item.overview ||
                                   intl.formatMessage(messages.noOverview)}
                               </div>
@@ -762,10 +816,10 @@ const PreviewCollectionModal = ({
                                 </a>
                               )}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          </div>,
+                          document.body
+                        )
+                      : null}
 
                     {/* Download Buttons - Bottom of poster with logos */}
                     {!item.inLibrary && hoveredItem === item.tmdbId && (

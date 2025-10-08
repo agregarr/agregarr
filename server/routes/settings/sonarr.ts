@@ -131,6 +131,32 @@ sonarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
   );
 });
 
+sonarrRoutes.get<{ id: string }>('/:id/rootfolders', async (req, res, next) => {
+  const settings = getSettings();
+
+  const sonarrSettings = settings.sonarr.find(
+    (s) => s.id === Number(req.params.id)
+  );
+
+  if (!sonarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const sonarr = new SonarrAPI({
+    apiKey: sonarrSettings.apiKey,
+    url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+  });
+
+  const folders = await sonarr.getRootFolders();
+
+  return res.status(200).json(
+    folders.map((folder) => ({
+      id: folder.id,
+      path: folder.path,
+    }))
+  );
+});
+
 sonarrRoutes.delete<{ id: string }>('/:id', (req, res) => {
   const settings = getSettings();
 
