@@ -229,7 +229,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
               seasonNumber,
               episodeNumber,
               year: tmdbYear,
-            } = await this.resolveEpisodeAndShowTmdbIds(item.imdbId);
+            } = await this.resolveEpisodeAndShowTmdbIds(item.imdbId, item.type);
 
             if (episodeTmdbId && showTmdbId) {
               logger.debug(
@@ -815,8 +815,13 @@ export class ImdbCollectionSync extends BaseCollectionSync {
 
   /**
    * Enhanced resolve that returns both episode and show TMDB IDs for episodes
+   * @param imdbId - The IMDb ID to resolve
+   * @param expectedMediaType - The expected media type ('movie' or 'tv') to filter results
    */
-  public async resolveEpisodeAndShowTmdbIds(imdbId: string): Promise<{
+  public async resolveEpisodeAndShowTmdbIds(
+    imdbId: string,
+    expectedMediaType: 'movie' | 'tv'
+  ): Promise<{
     episodeTmdbId?: number;
     showTmdbId?: number;
     seasonNumber?: number;
@@ -850,8 +855,12 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         };
       }
 
-      // Fallback to regular movie/show handling
-      if (extResponse.movie_results && extResponse.movie_results.length > 0) {
+      // Fallback to regular movie/show handling - filter by expected media type
+      if (
+        expectedMediaType === 'movie' &&
+        extResponse.movie_results &&
+        extResponse.movie_results.length > 0
+      ) {
         const movie = extResponse.movie_results[0];
         let year: number | undefined;
         if (movie.release_date) {
@@ -860,7 +869,11 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         return { episodeTmdbId: movie.id, year };
       }
 
-      if (extResponse.tv_results && extResponse.tv_results.length > 0) {
+      if (
+        expectedMediaType === 'tv' &&
+        extResponse.tv_results &&
+        extResponse.tv_results.length > 0
+      ) {
         const show = extResponse.tv_results[0];
         let year: number | undefined;
         if (show.first_air_date) {
