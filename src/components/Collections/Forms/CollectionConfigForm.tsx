@@ -499,12 +499,7 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            // If media type is 'both', use template with {mediaType} placeholder for backend processing
-            if (data.mediaType === 'both') {
-              setFieldValue('template', `${data.title} - {mediaType}s`);
-            } else {
-              setFieldValue('template', data.title);
-            }
+            setFieldValue('template', data.title);
           }, 100); // Small delay to ensure state is updated
         }
 
@@ -540,14 +535,7 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            // If media type is 'both', use template with {mediaType} placeholder for backend processing
-            if (data.mediaType === 'both') {
-              setFieldValue('template', `${data.title} - {mediaType}s`);
-              // Don't set form mediaType - let backend set it per individual library
-            } else {
-              setFieldValue('template', data.title);
-              // For specific media types, we could set it but backend will override anyway
-            }
+            setFieldValue('template', data.title);
           }, 100); // Small delay to ensure state is updated
         }
       }
@@ -584,11 +572,7 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            if (data.mediaType === 'both') {
-              setFieldValue('template', `${data.title} - {mediaType}s`);
-            } else {
-              setFieldValue('template', data.title);
-            }
+            setFieldValue('template', data.title);
           }, 100);
         }
 
@@ -626,14 +610,7 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            // If media type is 'both', use template with {mediaType} placeholder for backend processing
-            if (data.mediaType === 'both') {
-              setFieldValue('template', `${data.title} - {mediaType}s`);
-              // Don't set form mediaType - let backend set it per individual library
-            } else {
-              setFieldValue('template', data.title);
-              // For specific media types, we could set it but backend will override anyway
-            }
+            setFieldValue('template', data.title);
           }, 100); // Small delay to ensure state is updated
         }
       }
@@ -668,14 +645,7 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            // If media type is 'both', use template with {mediaType} placeholder for backend processing
-            if (data.mediaType === 'both') {
-              setFieldValue('template', `${data.title} - {mediaType}s`);
-              // Don't set form mediaType - let backend set it per individual library
-            } else {
-              setFieldValue('template', data.title);
-              // For specific media types, we could set it but backend will override anyway
-            }
+            setFieldValue('template', data.title);
           }, 100); // Small delay to ensure state is updated
         }
       }
@@ -710,14 +680,7 @@ const CollectionFormConfigForm = ({
         // Auto-select first template option when title is fetched
         if (setFieldValue) {
           setTimeout(() => {
-            // If media type is 'both', use template with {mediaType} placeholder for backend processing
-            if (data.mediaType === 'both') {
-              setFieldValue('template', `${data.title} - {mediaType}s`);
-              // Don't set form mediaType - let backend set it per individual library
-            } else {
-              setFieldValue('template', data.title);
-              // For specific media types, we could set it but backend will override anyway
-            }
+            setFieldValue('template', data.title);
           }, 100); // Small delay to ensure state is updated
         }
       }
