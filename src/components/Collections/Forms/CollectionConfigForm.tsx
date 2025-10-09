@@ -713,7 +713,26 @@ const CollectionFormConfigForm = ({
       anilist?: 'movie' | 'tv' | 'both';
     }
   ): TemplatePreset[] => {
-    if (!values?.subtype) return [{ label: 'Custom', value: 'custom' }];
+    if (!values) {
+      return [{ label: 'Custom', value: 'custom' }];
+    }
+
+    if (values.type === 'multi-source') {
+      if (values.combineMode === 'cycle_lists') {
+        return [
+          {
+            label: 'Dynamic Title from Active Source',
+            value: 'DYNAMIC_CYCLE_TITLE',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      }
+      return [{ label: 'Custom', value: 'custom' }];
+    }
+
+    if (!values.subtype) {
+      return [{ label: 'Custom', value: 'custom' }];
+    }
 
     // For Trakt time-based collections, combine subtype and timePeriod when both exist
     let effectiveSubtype = values.subtype;
@@ -1878,11 +1897,6 @@ const CollectionFormConfigForm = ({
             { label: 'Custom', value: 'custom' },
           ];
       }
-    }
-
-    // Multi-source collection presets - only custom allowed
-    if (values.type === 'multi-source') {
-      return [{ label: 'Custom', value: 'custom' }];
     }
 
     // AniList collection presets

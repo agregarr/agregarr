@@ -89,6 +89,7 @@ interface MetadataUpdateOptions {
  */
 export class MultiSourceOrchestrator {
   private syncServices = new Map<string, BaseCollectionSync>();
+  private dynamicCycleTitle: string | null = null;
 
   constructor() {
     // Initialize sync services lazily to avoid circular dependencies
@@ -106,6 +107,9 @@ export class MultiSourceOrchestrator {
     options?: CollectionSyncOptions,
     originalConfig?: CollectionConfig // Original config for smart collection operations
   ): Promise<{ created: number; updated: number }> {
+    let configForSync: MultiSourceCollectionConfig = config;
+    let collectionNameForSync = config.name;
+
     try {
       // 1. Time Restrictions - check if collection should be active
       const timeRestrictionResult =
@@ -181,6 +185,44 @@ export class MultiSourceOrchestrator {
         }
       );
 
+      // Handle DYNAMIC_CYCLE_TITLE for cycle_lists mode
+      if (
+        config.combineMode === 'cycle_lists' &&
+        config.template === 'DYNAMIC_CYCLE_TITLE' &&
+        sourcesToFetch.length === 1
+      ) {
+        const activeSource = sourcesToFetch[0];
+        this.dynamicCycleTitle = await this.extractTitleFromSource(
+          activeSource
+        );
+
+        if (this.dynamicCycleTitle) {
+          const previousName = config.name;
+          collectionNameForSync = this.dynamicCycleTitle;
+          configForSync = {
+            ...config,
+            name: this.dynamicCycleTitle,
+          } as MultiSourceCollectionConfig;
+
+          // Persist updated name for subsequent syncs
+          this.updateCollectionConfigField(config.id, {
+            name: this.dynamicCycleTitle,
+          });
+
+          logger.info(
+            `Dynamic cycle title set for collection ${previousName}: ${this.dynamicCycleTitle}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              sourceId: activeSource.id,
+              sourceType: activeSource.type,
+              sourceSubtype: activeSource.subtype,
+              dynamicTitle: this.dynamicCycleTitle,
+            }
+          );
+        }
+      }
+
       // Fetch items from sources
       for (let i = 0; i < sourcesToFetch.length; i++) {
         const source = sourcesToFetch[i];
@@ -231,7 +273,7 @@ export class MultiSourceOrchestrator {
       const combinedItems = this.combineItems(
         itemGroups,
         config.combineMode,
-        config
+        configForSync
       );
 
       // 3. Validation & Filtering - use standard pipeline utilities
@@ -240,7 +282,7 @@ export class MultiSourceOrchestrator {
 
       if (invalidItems.length > 0) {
         logger.debug(
-          `Filtered ${invalidItems.length} invalid items from multi-source collection: ${config.name}`,
+          `Filtered ${invalidItems.length} invalid items from multi-source collection: ${collectionNameForSync}`,
           {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
@@ -257,7 +299,7 @@ export class MultiSourceOrchestrator {
 
       if (finalItems.length === 0) {
         logger.warn(
-          `No valid items found from any source for multi-source collection: ${config.name}`,
+          `No valid items found from any source for multi-source collection: ${collectionNameForSync}`,
           {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
@@ -289,7 +331,7 @@ export class MultiSourceOrchestrator {
       // Create/update collection directly in Plex
       const result = await this.createOrUpdatePlexCollection(
         finalItems,
-        config,
+        configForSync,
         plexClient,
         allCollections,
         processedCollectionKeys,
@@ -298,7 +340,7 @@ export class MultiSourceOrchestrator {
 
       // Process missing items if enabled
       logger.debug(
-        `Missing items check for multi-source collection: ${config.name}`,
+        `Missing items check for multi-source collection: ${collectionNameForSync}`,
         {
           label: 'Multi-Source Orchestrator',
           configId: config.id,
@@ -318,12 +360,12 @@ export class MultiSourceOrchestrator {
         const combinedMissingItems = this.combineMissingItems(
           missingItemGroups,
           config.combineMode,
-          config
+          configForSync
         );
 
         if (combinedMissingItems.length > 0) {
           logger.info(
-            `Processing ${combinedMissingItems.length} missing items for multi-source collection: ${config.name}`,
+            `Processing ${combinedMissingItems.length} missing items for multi-source collection: ${collectionNameForSync}`,
             {
               label: 'Multi-Source Orchestrator',
               configId: config.id,
@@ -335,12 +377,12 @@ export class MultiSourceOrchestrator {
             // Cast to CollectionConfig to include missing items fields
             await processMissingItemsWithMode(
               combinedMissingItems,
-              config as unknown as CollectionConfig,
+              configForSync as unknown as CollectionConfig,
               'multi-source'
             );
           } catch (error) {
             logger.error(
-              `Failed to process missing items for multi-source collection: ${config.name}`,
+              `Failed to process missing items for multi-source collection: ${collectionNameForSync}`,
               {
                 label: 'Multi-Source Orchestrator',
                 configId: config.id,
@@ -350,7 +392,7 @@ export class MultiSourceOrchestrator {
           }
         } else {
           logger.debug(
-            `No missing items after combination for multi-source collection: ${config.name}`,
+            `No missing items after combination for multi-source collection: ${collectionNameForSync}`,
             {
               label: 'Multi-Source Orchestrator',
               configId: config.id,
@@ -359,7 +401,7 @@ export class MultiSourceOrchestrator {
         }
       } else {
         logger.debug(
-          `Skipping missing items processing for multi-source collection: ${config.name}`,
+          `Skipping missing items processing for multi-source collection: ${collectionNameForSync}`,
           {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
@@ -373,11 +415,16 @@ export class MultiSourceOrchestrator {
 
       return result;
     } catch (error) {
+      const safeName =
+        typeof collectionNameForSync === 'string'
+          ? collectionNameForSync
+          : config.name;
+
       // 4. Error Handling - use standard pipeline utilities
       const syncError = createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
-        `Failed to process multi-source collection ${config.name}`,
-        { configId: config.id, configName: config.name },
+        `Failed to process multi-source collection ${safeName}`,
+        { configId: config.id, configName: safeName },
         error instanceof Error ? error : new Error(String(error))
       );
 
@@ -1252,6 +1299,19 @@ export class MultiSourceOrchestrator {
       // Determine media type from items or config
       const mediaType = items[0]?.type || config.mediaType || 'movie';
 
+      // For cycle_lists mode, use the active source's type for the poster
+      // For other modes, use 'multi-source' type
+      let collectionType = 'multi-source';
+      if (config.combineMode === 'cycle_lists') {
+        // Get the active source
+        const activeSourceIndex =
+          getCollectionSyncCounter(config.id) % config.sources.length;
+        const activeSource = config.sources[activeSourceIndex];
+        if (activeSource) {
+          collectionType = activeSource.type;
+        }
+      }
+
       // Convert collection items to poster items format (same logic as BaseCollectionSync)
       const posterItems: CollectionItemWithPoster[] = items
         .slice(0, 100) // Reasonable upper limit for performance
@@ -1264,16 +1324,32 @@ export class MultiSourceOrchestrator {
           metadata: item.metadata, // Contains showTmdbId for episodes
         }));
 
-      // Generate the poster using multi-source type
+      // Generate the poster using source-specific type for cycle_lists, multi-source for others
       const posterFilename = await generatePoster(
         {
           collectionName: config.name,
-          collectionType: 'multi-source', // Use our new color scheme
+          collectionType: collectionType as
+            | 'overseerr'
+            | 'tautulli'
+            | 'trakt'
+            | 'tmdb'
+            | 'imdb'
+            | 'letterboxd'
+            | 'anilist'
+            | 'myanimelist'
+            | 'mdblist'
+            | 'networks'
+            | 'originals'
+            | 'multi-source',
           mediaType,
           items: posterItems,
           autoPosterTemplate: config.autoPosterTemplate, // Use configured template or default
         },
-        `Multi-Source: ${config.name}`,
+        `${
+          config.combineMode === 'cycle_lists'
+            ? collectionType.charAt(0).toUpperCase() + collectionType.slice(1)
+            : 'Multi-Source'
+        }: ${config.name}`,
         config.id
       );
 
@@ -1294,6 +1370,8 @@ export class MultiSourceOrchestrator {
             configId: config.id,
             collectionRatingKey,
             posterFilename,
+            collectionType,
+            combineMode: config.combineMode,
           }
         );
       }
@@ -1441,6 +1519,436 @@ export class MultiSourceOrchestrator {
         }
       );
       // Don't throw - sortTitle update failure shouldn't break collection sync
+    }
+  }
+
+  /**
+   * Extract title from a source for DYNAMIC_CYCLE_TITLE
+   * For preset lists, use the subtype label
+   * For custom lists, fetch the title from the API
+   */
+  private async extractTitleFromSource(
+    source: SourceDefinition
+  ): Promise<string | null> {
+    try {
+      // For custom lists, fetch the title from the API using same logic as fetch-title endpoint
+      if (source.subtype === 'custom' && source.customUrl) {
+        return await this.fetchCustomListTitle(source);
+      }
+
+      // For preset lists, use the subtype label (first option in dropdown)
+      return this.getPresetTitleForSource(source);
+    } catch (error) {
+      logger.error(`Failed to extract title from source:`, {
+        label: 'Multi-Source Orchestrator',
+        sourceId: source.id,
+        sourceType: source.type,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetch custom list title using API clients directly
+   * Based on the /api/v1/collections/fetch-title endpoint logic
+   */
+  private async fetchCustomListTitle(
+    source: SourceDefinition
+  ): Promise<string | null> {
+    if (!source.customUrl) return null;
+
+    try {
+      switch (source.type) {
+        case 'trakt': {
+          const TraktAPI = (await import('@server/api/trakt')).default;
+          const settings = getSettings();
+
+          if (!settings.trakt.apiKey) {
+            logger.warn('Trakt API key not configured for title fetch', {
+              label: 'Multi-Source Orchestrator',
+            });
+            return null;
+          }
+
+          const traktClient = new TraktAPI(settings.trakt.apiKey);
+          const listMetadata = await traktClient.getListMetadata(
+            source.customUrl
+          );
+          return listMetadata.name || 'Trakt List';
+        }
+
+        case 'tmdb': {
+          const TheMovieDb = (await import('@server/api/themoviedb')).default;
+          const tmdbClient = new TheMovieDb();
+
+          // Check if it's a collection URL
+          const collectionMatch = source.customUrl.match(
+            /themoviedb\.org\/collection\/(\d+)/
+          );
+          // Check if it's a list URL
+          const listMatch = source.customUrl.match(
+            /themoviedb\.org\/list\/(\d+)/
+          );
+
+          if (collectionMatch) {
+            const collectionId = parseInt(collectionMatch[1]);
+            const collection = await tmdbClient.getCollection({ collectionId });
+            return collection.name;
+          } else if (listMatch) {
+            const listId = listMatch[1];
+            const list = await tmdbClient.getList({ listId });
+            return list.name;
+          }
+          return null;
+        }
+
+        case 'imdb': {
+          // Scrape title from IMDb HTML page
+          const axios = (await import('axios')).default;
+          const response = await axios.get(source.customUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            let extractedTitle = titleMatch[1].replace(' - IMDb', '').trim();
+            // Decode HTML entities
+            extractedTitle = extractedTitle
+              .replace(/&lrm;/g, '')
+              .replace(/&rlm;/g, '')
+              .replace(/&bull;/g, '•')
+              .replace(/&ndash;/g, '–')
+              .replace(/&mdash;/g, '—')
+              .replace(/&hellip;/g, '…')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&#x27;/g, "'")
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+            return extractedTitle;
+          }
+          return 'IMDb List';
+        }
+
+        case 'letterboxd': {
+          // Scrape title from Letterboxd HTML page
+          const axios = (await import('axios')).default;
+          const response = await axios.get(source.customUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            let rawTitle = titleMatch[1];
+            // Decode HTML entities
+            rawTitle = rawTitle
+              .replace(/&lrm;/g, '')
+              .replace(/&rlm;/g, '')
+              .replace(/&bull;/g, '•')
+              .replace(/&ndash;/g, '–')
+              .replace(/&mdash;/g, '—')
+              .replace(/&hellip;/g, '…')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+
+            // Extract list name
+            const patterns = [
+              /^(.*?),\s*a\s+list\s+of\s+films?\s+by/i,
+              /^(.*?)\s*•\s*Letterboxd/i,
+              /^(.*?)\s*-\s*Letterboxd/i,
+              /^(.*?)\s*\|\s*Letterboxd/i,
+            ];
+
+            for (const pattern of patterns) {
+              const match = rawTitle.match(pattern);
+              if (match && match[1]) {
+                return match[1].trim();
+              }
+            }
+
+            // Fallback cleanup
+            return rawTitle
+              .replace(/\s*•\s*Letterboxd.*$/i, '')
+              .replace(/\s*-\s*Letterboxd.*$/i, '')
+              .replace(/\s*\|\s*Letterboxd.*$/i, '')
+              .trim();
+          }
+          return 'Letterboxd List';
+        }
+
+        case 'anilist': {
+          // Scrape title from AniList HTML page
+          const axios = (await import('axios')).default;
+          const response = await axios.get(source.customUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            let extractedTitle = titleMatch[1].trim();
+            // Remove " · AniList" suffix
+            extractedTitle = extractedTitle
+              .replace(/\s*·\s*AniList.*$/i, '')
+              .replace(/\s*-\s*AniList.*$/i, '')
+              .trim();
+            return extractedTitle;
+          }
+          return 'AniList List';
+        }
+
+        case 'mdblist': {
+          const MDBListAPI = (await import('@server/api/mdblist')).default;
+          const settings = getSettings();
+
+          if (!settings.mdblist.apiKey) {
+            logger.warn('MDBList API key not configured for title fetch', {
+              label: 'Multi-Source Orchestrator',
+            });
+            return null;
+          }
+
+          const mdblistClient = new MDBListAPI(settings.mdblist.apiKey);
+          const parsedUrl = mdblistClient.parseListUrl(source.customUrl);
+
+          if (!parsedUrl) {
+            return 'MDBList List';
+          }
+
+          // Try to get list title from metadata
+          if (
+            parsedUrl.type === 'user' &&
+            parsedUrl.username &&
+            parsedUrl.listName
+          ) {
+            try {
+              // Try getting lists by username first
+              const userLists = await mdblistClient.getUserListsByUsername(
+                parsedUrl.username
+              );
+
+              const targetList = userLists.find(
+                (list) =>
+                  list.slug === parsedUrl.listName ||
+                  list.name.toLowerCase().replace(/\s+/g, '-') ===
+                    parsedUrl.listName
+              );
+
+              if (targetList) {
+                return targetList.name;
+              }
+            } catch (error) {
+              // Try getting own lists as fallback
+              try {
+                const ownLists = await mdblistClient.getUserLists();
+                const targetList = ownLists.find(
+                  (list) =>
+                    list.slug === parsedUrl.listName ||
+                    list.name.toLowerCase().replace(/\s+/g, '-') ===
+                      parsedUrl.listName
+                );
+
+                if (targetList) {
+                  return targetList.name;
+                }
+              } catch (ownListsError) {
+                // Both failed, use fallback
+              }
+            }
+          }
+
+          return 'MDBList List';
+        }
+
+        default:
+          logger.warn(
+            `Custom list title fetching not supported for ${source.type}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceType: source.type,
+            }
+          );
+          return null;
+      }
+    } catch (error) {
+      logger.error(`Failed to fetch custom list title for ${source.type}`, {
+        label: 'Multi-Source Orchestrator',
+        sourceType: source.type,
+        customUrl: source.customUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get preset title for a source based on its type and subtype
+   * This uses the same logic as the frontend dropdown labels
+   */
+  private getPresetTitleForSource(source: SourceDefinition): string {
+    const type = source.type;
+    const subtype = source.subtype;
+
+    // Map subtypes to their human-readable titles (first option in dropdown)
+    const titleMappings: Record<
+      string,
+      Record<string, string | ((source: SourceDefinition) => string)>
+    > = {
+      trakt: {
+        trending: 'Trending Now',
+        popular: 'Popular',
+        played: 'Most Played',
+        watched: 'Most Watched',
+        collected: 'Most Collected',
+        favorited: 'Most Favorited',
+        boxoffice: 'Box Office',
+      },
+      tmdb: {
+        trending_day: 'Trending Today',
+        trending_week: 'Trending This Week',
+        popular: 'Popular',
+        top_rated: 'Top Rated',
+      },
+      imdb: {
+        top_250: 'Top 250',
+        popular: 'Popular (Meter)',
+        boxoffice: 'Box Office',
+      },
+      letterboxd: {
+        random: 'Random Letterboxd Collection',
+      },
+      overseerr: {
+        users: 'Individual Users Requests',
+        server_owner: 'Server Owner Requests',
+        global: 'All Requests',
+      },
+      tautulli: {
+        most_popular_plays: (src) =>
+          `Most Popular (by Play Count)${
+            src.customDays ? ` - ${src.customDays} Days` : ''
+          }`,
+        most_popular_duration: (src) =>
+          `Most Popular (by Watch Duration)${
+            src.customDays ? ` - ${src.customDays} Days` : ''
+          }`,
+      },
+      networks: {},
+      originals: {
+        netflix_originals: 'Netflix Originals',
+        amazon_originals: 'Amazon Originals',
+        disney_originals: 'Disney+ Originals',
+        hbomax_originals: 'HBO Max Originals',
+        paramount_originals: 'Paramount+ Originals',
+        hulu_originals: 'Hulu Originals',
+        peacock_originals: 'Peacock Originals',
+        apple_originals: 'Apple TV+ Originals',
+        discovery_originals: 'Discovery+ Movies',
+      },
+      anilist: {
+        trending: 'Trending Anime',
+        popular: 'Popular Anime',
+        top_rated: 'Top Rated Anime',
+      },
+      myanimelist: {
+        all: 'Top Anime Series',
+        airing: 'Top Airing Anime',
+        tv: 'Top Anime TV Series',
+        movie: 'Top Anime Movies',
+        ova: 'Top OVA Series',
+        special: 'Top Anime Specials',
+      },
+      mdblist: {
+        user_lists: 'My Personal List',
+        top_lists: 'Top Lists Collection',
+      },
+    };
+
+    // Handle Networks dynamically based on platform
+    if (type === 'networks' && subtype) {
+      const platformName = subtype
+        .split('_')[0] // Take first part before underscore
+        .split('-') // Split on dashes
+        .map((word) => {
+          if (word.toLowerCase() === 'tv') {
+            return 'TV';
+          }
+          return word.charAt(0).toUpperCase() + word.slice(1);
+        })
+        .join(' ');
+      return `Popular on ${platformName}`;
+    }
+
+    const typeMapping = titleMappings[type] || {};
+    const titleOrFunc = typeMapping[subtype];
+
+    if (typeof titleOrFunc === 'function') {
+      return titleOrFunc(source);
+    } else if (titleOrFunc) {
+      return titleOrFunc;
+    }
+
+    // Fallback: capitalize subtype
+    return subtype
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  /**
+   * Update collection config field in settings
+   * Based on BaseCollectionSync.updateCollectionConfigField
+   */
+  private updateCollectionConfigField(
+    configId: string,
+    updateConfig: Partial<MultiSourceCollectionConfig>
+  ): void {
+    try {
+      const settings = getSettings();
+      const collectionConfigs = settings.plex.collectionConfigs || [];
+      const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
+
+      if (configIndex !== -1) {
+        collectionConfigs[configIndex] = {
+          ...collectionConfigs[configIndex],
+          ...updateConfig,
+        };
+        settings.plex.collectionConfigs = collectionConfigs;
+        settings.save();
+
+        logger.debug(
+          `Updated multi-source collection config fields: ${configId}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId,
+            updatedFields: Object.keys(updateConfig),
+          }
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to update multi-source collection config fields for ${configId}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   }
 }
