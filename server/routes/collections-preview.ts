@@ -104,7 +104,7 @@ function updatePreviewStatus(
 collectionsPreviewRoutes.post('/', isAuthenticated(), async (req, res) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { type, libraryId, ...rest } = req.body;
+    const { type, libraryId, forceRefresh, ...rest } = req.body;
 
     // Validate required fields
     if (!type || !libraryId) {
@@ -327,7 +327,8 @@ async function processMultiSourcePreview(
   mediaType: 'movie' | 'tv',
   plexClient: PlexAPI,
   libraryCache: LibraryItemsCache,
-  cycleIndex: number
+  cycleIndex: number,
+  forceRefresh = false
 ): Promise<void> {
   const { collectionSyncService } = await import(
     '@server/lib/collections/services/CollectionSyncService'
@@ -424,9 +425,10 @@ async function processMultiSourcePreview(
       const syncService = await collectionSyncService.createSyncService(
         source.type
       );
-      const sourceData = await syncService.fetchSourceData(
+      // Use cached data unless forceRefresh is true
+      const sourceData = await syncService.fetchSourceDataWithCache(
         sourceConfig,
-        undefined,
+        { useCache: !forceRefresh },
         libraryCache
       );
 
@@ -607,6 +609,7 @@ async function processMultiSourcePreview(
     year?: number;
     mediaType?: 'movie' | 'tv';
     posterUrl: string;
+    backdropPath?: string;
     inLibrary: boolean;
     originalPosition: number;
     overview?: string;
@@ -618,7 +621,6 @@ async function processMultiSourcePreview(
 
   const totalItemsToProcess =
     matchedItemsWithPosition.length + limitedMissingItems.length;
-  let processedItemsCount = 0;
 
   updatePreviewStatus(sessionId, {
     currentStage: `Fetching posters (0/${totalItemsToProcess})...`,
@@ -635,6 +637,7 @@ async function processMultiSourcePreview(
     maxRetries = 3
   ): Promise<{
     posterUrl: string;
+    backdropPath?: string;
     title: string;
     year?: number;
     overview?: string;
@@ -647,8 +650,9 @@ async function processMultiSourcePreview(
           const movie = await tmdbClient.getMovie({ movieId: tmdbId });
           return {
             posterUrl: movie.poster_path
-              ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
               : '',
+            backdropPath: movie.backdrop_path || undefined,
             title: movie.title || fallbackTitle,
             year: movie.release_date
               ? new Date(movie.release_date).getFullYear()
@@ -661,8 +665,9 @@ async function processMultiSourcePreview(
           const show = await tmdbClient.getTvShow({ tvId: tmdbId });
           return {
             posterUrl: show.poster_path
-              ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
               : '',
+            backdropPath: show.backdrop_path || undefined,
             title: show.name || fallbackTitle,
             year: show.first_air_date
               ? new Date(show.first_air_date).getFullYear()
@@ -690,6 +695,7 @@ async function processMultiSourcePreview(
     }
     return {
       posterUrl: '',
+      backdropPath: undefined,
       title: fallbackTitle,
       year: undefined,
       overview: undefined,
@@ -698,29 +704,33 @@ async function processMultiSourcePreview(
     };
   };
 
+  // Fetch all TMDB data in parallel - TMDB client handles rate limiting automatically
+  updatePreviewStatus(sessionId, {
+    currentStage: 'Fetching posters...',
+    progress: 60,
+  });
+
+  // Fetch matched items
+  const matchedTmdbDataResults = await Promise.all(
+    matchedItemsWithPosition.map(async (item) => {
+      if (item.tmdbId && item.tmdbId !== 0 && item.type) {
+        return fetchTmdbDataWithRetry(item.tmdbId, item.type, item.title);
+      }
+      return {
+        posterUrl: '',
+        backdropPath: undefined,
+        title: item.title,
+        year: item.year,
+        overview: undefined,
+        imdbId: undefined,
+        tmdbRating: undefined,
+      };
+    })
+  );
+
   // Process matched items
-  for (const item of matchedItemsWithPosition) {
-    let tmdbData: {
-      posterUrl: string;
-      title: string;
-      year?: number;
-      overview?: string;
-      imdbId?: string;
-      tmdbRating?: number;
-    } = {
-      posterUrl: '',
-      title: item.title,
-      year: item.year,
-    };
-
-    if (item.tmdbId && item.tmdbId !== 0 && item.type) {
-      tmdbData = await fetchTmdbDataWithRetry(
-        item.tmdbId,
-        item.type,
-        item.title
-      );
-    }
-
+  matchedItemsWithPosition.forEach((item, index) => {
+    const tmdbData = matchedTmdbDataResults[index];
     allItemsWithPosition.push({
       ratingKey: item.ratingKey,
       title: tmdbData.title,
@@ -728,53 +738,44 @@ async function processMultiSourcePreview(
       tmdbId: item.tmdbId,
       mediaType: item.type,
       posterUrl: tmdbData.posterUrl,
+      backdropPath: tmdbData.backdropPath,
       inLibrary: true,
       originalPosition: item.originalPosition,
       overview: tmdbData.overview,
       imdbId: tmdbData.imdbId,
       tmdbRating: tmdbData.tmdbRating,
     });
+  });
 
-    processedItemsCount++;
-    const progress =
-      60 + Math.floor((processedItemsCount / totalItemsToProcess) * 30);
-    updatePreviewStatus(sessionId, {
-      currentStage: `Fetching posters (${processedItemsCount}/${totalItemsToProcess})...`,
-      progress,
-      processedItems: processedItemsCount,
-    });
-  }
+  updatePreviewStatus(sessionId, {
+    currentStage: 'Fetching posters...',
+    progress: 75,
+  });
+
+  // Fetch missing items
+  const missingTmdbDataResults = await Promise.all(
+    limitedMissingItems.map((item) =>
+      fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
+    )
+  );
 
   // Process missing items
-  for (const item of limitedMissingItems) {
-    const tmdbData = await fetchTmdbDataWithRetry(
-      item.tmdbId,
-      item.mediaType,
-      item.title
-    );
-
+  limitedMissingItems.forEach((item, index) => {
+    const tmdbData = missingTmdbDataResults[index];
     allItemsWithPosition.push({
       tmdbId: item.tmdbId,
       title: tmdbData.title,
       year: tmdbData.year,
       mediaType: item.mediaType,
       posterUrl: tmdbData.posterUrl,
+      backdropPath: tmdbData.backdropPath,
       inLibrary: false,
       originalPosition: item.originalPosition,
       overview: tmdbData.overview,
       imdbId: tmdbData.imdbId,
       tmdbRating: tmdbData.tmdbRating,
     });
-
-    processedItemsCount++;
-    const progress =
-      60 + Math.floor((processedItemsCount / totalItemsToProcess) * 30);
-    updatePreviewStatus(sessionId, {
-      currentStage: `Fetching posters (${processedItemsCount}/${totalItemsToProcess})...`,
-      progress,
-      processedItems: processedItemsCount,
-    });
-  }
+  });
 
   // Sort by original position
   const enrichedItems = allItemsWithPosition.sort(
@@ -828,6 +829,7 @@ async function processPreviewAsync(
     network?: string;
     country?: string;
     provider?: string;
+    forceRefresh?: boolean; // If true, bypass cache and fetch fresh data
     // Multi-source specific fields
     isMultiSource?: boolean;
     sources?: {
@@ -858,6 +860,7 @@ async function processPreviewAsync(
       network,
       country,
       provider,
+      forceRefresh,
       isMultiSource,
       sources,
       combineMode,
@@ -993,7 +996,8 @@ async function processPreviewAsync(
         mediaType,
         plexClient,
         libraryCache,
-        cycleIndex || 0
+        cycleIndex || 0,
+        forceRefresh || false
       );
     }
 
@@ -1004,14 +1008,16 @@ async function processPreviewAsync(
     const syncService = await collectionSyncService.createSyncService(type);
 
     updatePreviewStatus(sessionId, {
-      currentStage: 'Fetching collection items...',
+      currentStage: forceRefresh
+        ? 'Fetching fresh collection items...'
+        : 'Loading collection items...',
       progress: 20,
     });
 
-    // Fetch source data
-    const sourceData = await syncService.fetchSourceData(
+    // Fetch source data - use cached data unless forceRefresh is true
+    const sourceData = await syncService.fetchSourceDataWithCache(
       previewConfig,
-      undefined,
+      { useCache: !forceRefresh },
       libraryCache
     );
 
@@ -1141,6 +1147,7 @@ async function processPreviewAsync(
       year?: number;
       mediaType?: 'movie' | 'tv';
       posterUrl: string;
+      backdropPath?: string;
       inLibrary: boolean;
       originalPosition: number;
       overview?: string;
@@ -1158,6 +1165,7 @@ async function processPreviewAsync(
       maxRetries = 3
     ): Promise<{
       posterUrl: string;
+      backdropPath?: string;
       title: string;
       year?: number;
       overview?: string;
@@ -1170,8 +1178,9 @@ async function processPreviewAsync(
             const movie = await tmdbClient.getMovie({ movieId: tmdbId });
             return {
               posterUrl: movie.poster_path
-                ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
                 : '',
+              backdropPath: movie.backdrop_path || undefined,
               title: movie.title || fallbackTitle,
               year: movie.release_date
                 ? new Date(movie.release_date).getFullYear()
@@ -1184,8 +1193,9 @@ async function processPreviewAsync(
             const show = await tmdbClient.getTvShow({ tvId: tmdbId });
             return {
               posterUrl: show.poster_path
-                ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
                 : '',
+              backdropPath: show.backdrop_path || undefined,
               title: show.name || fallbackTitle,
               year: show.first_air_date
                 ? new Date(show.first_air_date).getFullYear()
@@ -1223,6 +1233,7 @@ async function processPreviewAsync(
       }
       return {
         posterUrl: '',
+        backdropPath: undefined,
         title: fallbackTitle,
         year: undefined,
         overview: undefined,
@@ -1234,7 +1245,6 @@ async function processPreviewAsync(
     const totalItemsToProcess =
       matchedItemsWithPosition.length +
       (filteredResult.missingItems || []).length;
-    let processedItemsCount = 0;
 
     updatePreviewStatus(sessionId, {
       currentStage: `Fetching posters (0/${totalItemsToProcess})...`,
@@ -1243,38 +1253,32 @@ async function processPreviewAsync(
       processedItems: 0,
     });
 
-    // Process matched items with positions
-    for (const item of matchedItemsWithPosition) {
-      let tmdbData: {
-        posterUrl: string;
-        title: string;
-        year?: number;
-        overview?: string;
-        imdbId?: string;
-        tmdbRating?: number;
-      } = {
-        posterUrl: '',
-        title: item.title,
-        year: item.year,
-        overview: undefined,
-        imdbId: undefined,
-        tmdbRating: undefined,
-      };
+    // Fetch all TMDB data in parallel - TMDB client handles rate limiting automatically
+    updatePreviewStatus(sessionId, {
+      currentStage: 'Fetching posters...',
+      progress: 50,
+    });
 
-      if (item.tmdbId && item.tmdbId !== 0 && item.type) {
-        tmdbData = await fetchTmdbDataWithRetry(
-          item.tmdbId,
-          item.type,
-          item.title
-        );
-      } else if (item.tmdbId === 0 || !item.tmdbId) {
-        logger.debug(`Skipping TMDB fetch for item with invalid tmdbId`, {
-          label: 'Collections Preview API',
+    // Fetch matched items
+    const matchedTmdbDataResults = await Promise.all(
+      matchedItemsWithPosition.map(async (item) => {
+        if (item.tmdbId && item.tmdbId !== 0 && item.type) {
+          return fetchTmdbDataWithRetry(item.tmdbId, item.type, item.title);
+        }
+        return {
+          posterUrl: '',
           title: item.title,
-          tmdbId: item.tmdbId,
-        });
-      }
+          year: item.year,
+          overview: undefined,
+          imdbId: undefined,
+          tmdbRating: undefined,
+        };
+      })
+    );
 
+    // Process matched items
+    matchedItemsWithPosition.forEach((item, index) => {
+      const tmdbData = matchedTmdbDataResults[index];
       allItemsWithPosition.push({
         ratingKey: item.ratingKey,
         title: tmdbData.title,
@@ -1288,25 +1292,24 @@ async function processPreviewAsync(
         imdbId: tmdbData.imdbId,
         tmdbRating: tmdbData.tmdbRating,
       });
+    });
 
-      processedItemsCount++;
-      const progress =
-        50 + Math.floor((processedItemsCount / totalItemsToProcess) * 40);
-      updatePreviewStatus(sessionId, {
-        currentStage: `Fetching posters (${processedItemsCount}/${totalItemsToProcess})...`,
-        progress,
-        processedItems: processedItemsCount,
-      });
-    }
+    updatePreviewStatus(sessionId, {
+      currentStage: 'Fetching posters...',
+      progress: 70,
+    });
+
+    // Fetch missing items
+    const missingItems = filteredResult.missingItems || [];
+    const missingTmdbDataResults = await Promise.all(
+      missingItems.map((item) =>
+        fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
+      )
+    );
 
     // Process missing items
-    for (const item of filteredResult.missingItems || []) {
-      const tmdbData = await fetchTmdbDataWithRetry(
-        item.tmdbId,
-        item.mediaType,
-        item.title
-      );
-
+    missingItems.forEach((item, index) => {
+      const tmdbData = missingTmdbDataResults[index];
       allItemsWithPosition.push({
         tmdbId: item.tmdbId,
         title: tmdbData.title,
@@ -1319,16 +1322,7 @@ async function processPreviewAsync(
         imdbId: tmdbData.imdbId,
         tmdbRating: tmdbData.tmdbRating,
       });
-
-      processedItemsCount++;
-      const progress =
-        50 + Math.floor((processedItemsCount / totalItemsToProcess) * 40);
-      updatePreviewStatus(sessionId, {
-        currentStage: `Fetching posters (${processedItemsCount}/${totalItemsToProcess})...`,
-        progress,
-        processedItems: processedItemsCount,
-      });
-    }
+    });
 
     updatePreviewStatus(sessionId, {
       currentStage: 'Finalizing preview...',

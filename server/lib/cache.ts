@@ -10,7 +10,18 @@ export type AvailableCacheIds =
   | 'github'
   | 'plexguid'
   | 'plextv'
-  | 'plexwatchlist';
+  | 'plexwatchlist'
+  | 'trakt-list'
+  | 'imdb-list'
+  | 'letterboxd-list'
+  | 'tmdb-list'
+  | 'mdblist-list'
+  | 'tautulli-list'
+  | 'overseerr-list'
+  | 'networks-list'
+  | 'originals-list'
+  | 'anilist-list'
+  | 'myanimelist-list';
 
 const DEFAULT_TTL = 300;
 const DEFAULT_CHECK_PERIOD = 120;
@@ -75,6 +86,52 @@ class CacheManager {
       checkPeriod: 60,
     }),
     plexwatchlist: new Cache('plexwatchlist', 'Plex Watchlist'),
+    // List caches - cache external list data between syncs for faster preview
+    // 7-day TTL as safety net (syncs normally refresh cache long before expiration)
+    'trakt-list': new Cache('trakt-list', 'Trakt Lists', {
+      stdTtl: 86400 * 7, // 7 day cache - safety net if syncs stop
+      checkPeriod: 60 * 60,
+    }),
+    'imdb-list': new Cache('imdb-list', 'IMDb Lists', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'letterboxd-list': new Cache('letterboxd-list', 'Letterboxd Lists', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'tmdb-list': new Cache('tmdb-list', 'TMDb Lists', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'mdblist-list': new Cache('mdblist-list', 'MDBList Lists', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'tautulli-list': new Cache('tautulli-list', 'Tautulli Stats', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'overseerr-list': new Cache('overseerr-list', 'Overseerr Requests', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'networks-list': new Cache('networks-list', 'Network Top 10', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'originals-list': new Cache('originals-list', 'Provider Originals', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'anilist-list': new Cache('anilist-list', 'AniList Lists', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
+    'myanimelist-list': new Cache('myanimelist-list', 'MyAnimeList Lists', {
+      stdTtl: 86400 * 7, // 7 day cache
+      checkPeriod: 60 * 60,
+    }),
   };
 
   public getCache(id: AvailableCacheIds): Cache {

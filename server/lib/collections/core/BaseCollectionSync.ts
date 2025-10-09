@@ -1,4 +1,5 @@
 import type PlexAPI from '@server/api/plexapi';
+import cacheManager from '@server/lib/cache';
 import type { ServiceUserManager } from '@server/lib/collections/services/ServiceUserManager';
 import { serviceUserManager } from '@server/lib/collections/services/ServiceUserManager';
 import type { TemplateEngine } from '@server/lib/collections/utils/TemplateEngine';
@@ -1922,7 +1923,140 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   ): Promise<SourceTemplateContext>;
 
   /**
+   * Generate a stable cache key for a collection configuration
+   * Used to cache list data between syncs for fast preview
+   */
+  protected generateCacheKey(config: CollectionConfig): string {
+    const parts: string[] = [
+      this.source,
+      config.type,
+      config.subtype || '',
+      config.libraryId || '',
+    ];
+
+    // Add type-specific identifiers for unique caching
+    if (config.traktCustomListUrl) parts.push(config.traktCustomListUrl);
+    if (config.imdbCustomListUrl) parts.push(config.imdbCustomListUrl);
+    if (config.letterboxdCustomListUrl)
+      parts.push(config.letterboxdCustomListUrl);
+    if (config.tmdbCustomListUrl) parts.push(config.tmdbCustomListUrl);
+    if (config.mdblistCustomListUrl) parts.push(config.mdblistCustomListUrl);
+    if (config.anilistCustomListUrl) parts.push(config.anilistCustomListUrl);
+    if (config.timePeriod) parts.push(config.timePeriod);
+    if (config.customDays) parts.push(String(config.customDays));
+    if (config.minimumPlays) parts.push(String(config.minimumPlays));
+    if (config.networksCountry) parts.push(config.networksCountry);
+
+    return parts.join(':');
+  }
+
+  /**
+   * Get the appropriate cache ID for this source type
+   */
+  protected getCacheId():
+    | 'trakt-list'
+    | 'imdb-list'
+    | 'letterboxd-list'
+    | 'tmdb-list'
+    | 'mdblist-list'
+    | 'tautulli-list'
+    | 'overseerr-list'
+    | 'networks-list'
+    | 'originals-list'
+    | 'anilist-list'
+    | 'myanimelist-list' {
+    const cacheIdMap: Partial<Record<CollectionSource, string>> = {
+      trakt: 'trakt-list',
+      imdb: 'imdb-list',
+      letterboxd: 'letterboxd-list',
+      tmdb: 'tmdb-list',
+      mdblist: 'mdblist-list',
+      tautulli: 'tautulli-list',
+      overseerr: 'overseerr-list',
+      networks: 'networks-list',
+      originals: 'originals-list',
+      anilist: 'anilist-list',
+      myanimelist: 'myanimelist-list',
+      // Note: multi-source doesn't have its own cache, it uses individual source caches
+    };
+
+    return (cacheIdMap[this.source] || 'trakt-list') as
+      | 'trakt-list'
+      | 'imdb-list'
+      | 'letterboxd-list'
+      | 'tmdb-list'
+      | 'mdblist-list'
+      | 'tautulli-list'
+      | 'overseerr-list'
+      | 'networks-list'
+      | 'originals-list'
+      | 'anilist-list'
+      | 'myanimelist-list';
+  }
+
+  /**
+   * Wrapper around fetchSourceData that handles caching
+   * - During sync: Always fetches fresh data and caches it
+   * - During preview with useCache=true: Returns cached data if available
+   * - During preview refresh: Fetches fresh and updates cache
+   */
+  public async fetchSourceDataWithCache(
+    config: CollectionConfig,
+    options?: CollectionSyncOptions & { useCache?: boolean },
+    libraryCache?: LibraryItemsCache
+  ): Promise<CollectionSourceData[]> {
+    const cacheKey = this.generateCacheKey(config);
+    const cache = cacheManager.getCache(this.getCacheId());
+    const useCache = options?.useCache ?? false;
+
+    // Try to use cached data if requested
+    if (useCache) {
+      const cachedData = cache.data.get<CollectionSourceData[]>(cacheKey);
+      if (cachedData) {
+        logger.debug(
+          `Using cached list data for ${config.name} (${this.source})`,
+          {
+            label: `${this.source} Collections Cache`,
+            configId: config.id,
+            configName: config.name,
+            cacheKey,
+          }
+        );
+        return cachedData;
+      }
+
+      logger.debug(
+        `No cached data found for ${config.name}, fetching fresh data`,
+        {
+          label: `${this.source} Collections Cache`,
+          configId: config.id,
+          configName: config.name,
+          cacheKey,
+        }
+      );
+    }
+
+    // Fetch fresh data from external source
+    const freshData = await this.fetchSourceData(config, options, libraryCache);
+
+    // Cache the fresh data for future preview use
+    if (freshData && freshData.length > 0) {
+      cache.data.set(cacheKey, freshData);
+      logger.debug(`Cached list data for ${config.name} (${this.source})`, {
+        label: `${this.source} Collections Cache`,
+        configId: config.id,
+        configName: config.name,
+        cacheKey,
+        itemCount: freshData.length,
+      });
+    }
+
+    return freshData;
+  }
+
+  /**
    * Fetch data from the external source (Trakt API, Tautulli API, etc.)
+   * This method should be implemented by each source to fetch fresh data
    */
   public abstract fetchSourceData(
     config: CollectionConfig,

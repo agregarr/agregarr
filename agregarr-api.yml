@@ -3891,6 +3891,88 @@ paths:
                     name:
                       type: string
                       example: Japan
+  /movie/{id}:
+    get:
+      summary: Get movie details
+      description: Returns detailed information about a movie from TMDB
+      tags:
+        - movies
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: TMDB movie ID
+      responses:
+        '200':
+          description: Movie details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  title:
+                    type: string
+                  backdrop_path:
+                    type: string
+                    nullable: true
+                  poster_path:
+                    type: string
+                    nullable: true
+        '500':
+          description: Unable to retrieve movie
+  /tv/{id}:
+    get:
+      summary: Get TV show details
+      description: Returns detailed information about a TV show from TMDB including seasons
+      tags:
+        - tv
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: TMDB TV show ID
+      responses:
+        '200':
+          description: TV show details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  backdrop_path:
+                    type: string
+                    nullable: true
+                  poster_path:
+                    type: string
+                    nullable: true
+                  seasons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        season_number:
+                          type: integer
+                        name:
+                          type: string
+                        episode_count:
+                          type: integer
+                        air_date:
+                          type: string
+                          nullable: true
+        '500':
+          description: Unable to retrieve TV show
   /status:
     get:
       summary: Get Agregarr status

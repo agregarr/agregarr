@@ -1,6 +1,6 @@
 import Modal from '@app/components/Common/Modal';
 import type { RadarrSettings } from '@server/lib/settings';
-import type { MovieDetails } from '@server/models/Movie';
+import axios from 'axios';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
@@ -24,6 +24,7 @@ const messages = defineMessages({
 interface RadarrOptionsModalProps {
   tmdbId: number;
   title: string;
+  backdropPath?: string;
   onCancel: () => void;
   onConfirm: (serverId: number, profileId: number, rootFolder: string) => void;
 }
@@ -31,6 +32,7 @@ interface RadarrOptionsModalProps {
 const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   tmdbId,
   title,
+  backdropPath: cachedBackdropPath,
   onCancel,
   onConfirm,
 }) => {
@@ -42,9 +44,30 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   const [selectedRootFolder, setSelectedRootFolder] = useState<string | null>(
     null
   );
+  const [backdropPath, setBackdropPath] = useState<string | undefined>(
+    cachedBackdropPath
+  );
 
-  // Fetch movie details for backdrop
-  const { data: movieData } = useSWR<MovieDetails>(`/api/v1/movie/${tmdbId}`);
+  // Fetch movie details for backdrop - only if we don't have cached backdrop
+  useEffect(() => {
+    if (cachedBackdropPath) {
+      return; // Already have cached backdrop
+    }
+
+    const fetchMovieBackdrop = async () => {
+      try {
+        const response = await axios.get(`/api/v1/movie/${tmdbId}`);
+
+        if (response.data.backdrop_path) {
+          setBackdropPath(response.data.backdrop_path);
+        }
+      } catch (error) {
+        // Failed to fetch backdrop - will show without backdrop
+      }
+    };
+
+    fetchMovieBackdrop();
+  }, [tmdbId, cachedBackdropPath]);
 
   // Fetch Radarr servers
   const { data: radarrServers, isLoading: serversLoading } = useSWR<
@@ -117,8 +140,8 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
       okText={intl.formatMessage(messages.download)}
       okDisabled={!isValid}
       backdrop={
-        movieData?.backdropPath
-          ? `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${movieData.backdropPath}`
+        backdropPath
+          ? `https://image.tmdb.org/t/p/w1920_and_h800_multi_faces/${backdropPath}`
           : undefined
       }
     >
@@ -130,13 +153,13 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
               {intl.formatMessage(messages.selectServer)}
             </label>
             <select
-              value={selectedServerId || ''}
+              value={selectedServerId !== null ? String(selectedServerId) : ''}
               onChange={(e) => {
                 setSelectedServerId(Number(e.target.value));
                 setSelectedProfileId(null);
                 setSelectedRootFolder(null);
               }}
-              className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
               disabled={serversLoading}
             >
               <option value="">
@@ -160,7 +183,7 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
           <select
             value={selectedProfileId || ''}
             onChange={(e) => setSelectedProfileId(Number(e.target.value))}
-            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             disabled={selectedServerId === null || profilesLoading}
           >
             <option value="">
@@ -186,7 +209,7 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
           <select
             value={selectedRootFolder || ''}
             onChange={(e) => setSelectedRootFolder(e.target.value)}
-            className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             disabled={selectedServerId === null || rootFoldersLoading}
           >
             <option value="">

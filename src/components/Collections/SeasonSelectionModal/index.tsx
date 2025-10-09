@@ -33,6 +33,7 @@ interface SeasonSelectionModalProps {
   tmdbId: number;
   title: string;
   service: 'overseerr' | 'sonarr';
+  backdropPath?: string;
   onCancel: () => void;
   onConfirm: (
     selectedSeasons: number[],
@@ -54,6 +55,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
   tmdbId,
   title,
   service,
+  backdropPath: cachedBackdropPath,
   onCancel,
   onConfirm,
 }) => {
@@ -140,14 +142,13 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
     const fetchSeasons = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(
-          `https://api.themoviedb.org/3/tv/${tmdbId}`,
-          {
-            params: {
-              api_key: 'db55323b8d3e4154498498a75642b381', // Public TMDB key
-            },
-          }
-        );
+
+        // Use cached backdrop if available
+        if (cachedBackdropPath) {
+          setBackdropPath(cachedBackdropPath);
+        }
+
+        const response = await axios.get(`/api/v1/tv/${tmdbId}`);
 
         // Filter out season 0 (specials) and sort by season number
         const filteredSeasons = (response.data.seasons || [])
@@ -155,7 +156,11 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
           .sort((a: Season, b: Season) => a.season_number - b.season_number);
 
         setSeasons(filteredSeasons);
-        setBackdropPath(response.data.backdrop_path);
+
+        // Only set backdrop from API if we don't have a cached one
+        if (!cachedBackdropPath && response.data.backdrop_path) {
+          setBackdropPath(response.data.backdrop_path);
+        }
 
         // Select all seasons by default
         const allSeasonNumbers = new Set<number>(
@@ -170,7 +175,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
     };
 
     fetchSeasons();
-  }, [tmdbId]);
+  }, [tmdbId, cachedBackdropPath]);
 
   const handleToggleSeason = (seasonNumber: number) => {
     const newSelected = new Set(selectedSeasons);
@@ -254,13 +259,15 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                     {intl.formatMessage(messages.selectServer)}
                   </label>
                   <select
-                    value={selectedServerId || ''}
+                    value={
+                      selectedServerId !== null ? String(selectedServerId) : ''
+                    }
                     onChange={(e) => {
                       setSelectedServerId(Number(e.target.value));
                       setSelectedProfileId(null);
                       setSelectedRootFolder(null);
                     }}
-                    className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     disabled={serversLoading}
                   >
                     <option value="">
@@ -284,7 +291,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                 <select
                   value={selectedProfileId || ''}
                   onChange={(e) => setSelectedProfileId(Number(e.target.value))}
-                  className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
+                  className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   disabled={selectedServerId === null || profilesLoading}
                 >
                   <option value="">
@@ -310,7 +317,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                 <select
                   value={selectedRootFolder || ''}
                   onChange={(e) => setSelectedRootFolder(e.target.value)}
-                  className="w-full rounded-md border border-gray-600 bg-gray-700 px-3 py-2 text-white"
+                  className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   disabled={selectedServerId === null || rootFoldersLoading}
                 >
                   <option value="">
@@ -353,7 +360,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                             <span
                               aria-hidden="true"
                               className={`${
-                                isAllSeasons() ? 'bg-indigo-500' : 'bg-gray-800'
+                                isAllSeasons() ? 'bg-orange-500' : 'bg-gray-800'
                               } absolute mx-auto h-4 w-9 rounded-full transition-colors duration-200 ease-in-out`}
                             />
                             <span
@@ -362,7 +369,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                                 isAllSeasons()
                                   ? 'translate-x-5'
                                   : 'translate-x-0'
-                              } absolute left-0 inline-block h-5 w-5 rounded-full border border-gray-200 bg-white shadow transition-transform duration-200 ease-in-out group-focus:border-blue-300 group-focus:ring`}
+                              } absolute left-0 inline-block h-5 w-5 rounded-full border border-gray-200 bg-white shadow transition-transform duration-200 ease-in-out group-focus:border-orange-300 group-focus:ring`}
                             />
                           </span>
                         </th>
@@ -398,7 +405,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                                 aria-hidden="true"
                                 className={`${
                                   selectedSeasons.has(season.season_number)
-                                    ? 'bg-indigo-500'
+                                    ? 'bg-orange-500'
                                     : 'bg-gray-700'
                                 } absolute mx-auto h-4 w-9 rounded-full transition-colors duration-200 ease-in-out`}
                               />
@@ -408,7 +415,7 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                                   selectedSeasons.has(season.season_number)
                                     ? 'translate-x-5'
                                     : 'translate-x-0'
-                                } absolute left-0 inline-block h-5 w-5 rounded-full border border-gray-200 bg-white shadow transition-transform duration-200 ease-in-out group-focus:border-blue-300 group-focus:ring`}
+                                } absolute left-0 inline-block h-5 w-5 rounded-full border border-gray-200 bg-white shadow transition-transform duration-200 ease-in-out group-focus:border-orange-300 group-focus:ring`}
                               />
                             </span>
                           </td>

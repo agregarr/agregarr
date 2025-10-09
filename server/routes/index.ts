@@ -156,6 +156,46 @@ router.use('/auth', authRoutes);
 router.use('/anilist', anilistRoutes);
 router.use('/myanimelist', myanimelistRoutes);
 
+router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
+  const tmdb = new TheMovieDb();
+
+  try {
+    const movie = await tmdb.getMovie({ movieId: Number(req.params.id) });
+
+    return res.status(200).json(movie);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving movie', {
+      label: 'API',
+      errorMessage: e.message,
+      movieId: req.params.id,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie.',
+    });
+  }
+});
+
+router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
+  const tmdb = new TheMovieDb();
+
+  try {
+    const tv = await tmdb.getTvShow({ tvId: Number(req.params.id) });
+
+    return res.status(200).json(tv);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TV show', {
+      label: 'API',
+      errorMessage: e.message,
+      tvId: req.params.id,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TV show.',
+    });
+  }
+});
+
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
 

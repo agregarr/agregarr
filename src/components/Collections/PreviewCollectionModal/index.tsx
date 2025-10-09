@@ -8,6 +8,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
+import Image from 'next/image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { defineMessages, useIntl } from 'react-intl';
@@ -29,6 +30,8 @@ const messages = defineMessages({
   viewOnImdb: 'View on IMDb',
   noOverview: 'No overview available',
   refresh: 'Refresh',
+  refreshConfirm:
+    'This will fetch fresh data from the external source and may take some time. Continue?',
   excludeItem: 'Exclude from all collections',
   itemExcluded: 'Item excluded from all collections',
   excludeError: 'Failed to exclude item',
@@ -42,6 +45,7 @@ interface PreviewItem {
   year?: number;
   mediaType?: 'movie' | 'tv';
   posterUrl: string;
+  backdropPath?: string;
   inLibrary: boolean;
   overview?: string;
   imdbId?: string;
@@ -149,11 +153,13 @@ const PreviewCollectionModal = ({
   const [radarrOptionsItem, setRadarrOptionsItem] = useState<{
     tmdbId: number;
     title: string;
+    backdropPath?: string;
   } | null>(null);
   const [seasonSelectionItem, setSeasonSelectionItem] = useState<{
     tmdbId: number;
     title: string;
     service: 'overseerr' | 'sonarr';
+    backdropPath?: string;
   } | null>(null);
   const [ratingsCache, setRatingsCache] = useState<Record<number, ItemRatings>>(
     {}
@@ -162,6 +168,7 @@ const PreviewCollectionModal = ({
   const [cycleIndex, setCycleIndex] = useState(0);
   const [excludedItems, setExcludedItems] = useState<Set<number>>(new Set());
   const [showExclusionsModal, setShowExclusionsModal] = useState(false);
+  const [forceRefresh, setForceRefresh] = useState(false);
 
   // Load requested items from localStorage on mount
   useEffect(() => {
@@ -184,13 +191,20 @@ const PreviewCollectionModal = ({
           subtype: previewConfig.subtype,
           libraryId,
           customUrl: previewConfig.customUrl,
-          maxItems: previewConfig.maxItems,
+          maxItems: previewConfig.maxItems
+            ? Number(previewConfig.maxItems)
+            : undefined,
           timePeriod: previewConfig.timePeriod,
-          minimumPlays: previewConfig.minimumPlays,
-          customDays: previewConfig.customDays,
+          minimumPlays: previewConfig.minimumPlays
+            ? Number(previewConfig.minimumPlays)
+            : undefined,
+          customDays: previewConfig.customDays
+            ? Number(previewConfig.customDays)
+            : undefined,
           network: previewConfig.network,
           country: previewConfig.country,
           provider: previewConfig.provider,
+          forceRefresh: forceRefresh,
           // Multi-source specific fields
           isMultiSource: previewConfig.isMultiSource,
           sources: previewConfig.sources,
@@ -219,7 +233,7 @@ const PreviewCollectionModal = ({
     previewConfig.libraryIds.forEach((libraryId) => {
       startPreviewForLibrary(libraryId);
     });
-  }, [previewConfig, cycleIndex]);
+  }, [previewConfig, cycleIndex, forceRefresh]);
 
   // Poll for status updates
   useEffect(() => {
@@ -258,11 +272,12 @@ const PreviewCollectionModal = ({
       tmdbId: number,
       title: string,
       mediaType: 'movie' | 'tv',
-      service: 'radarr' | 'sonarr' | 'overseerr'
+      service: 'radarr' | 'sonarr' | 'overseerr',
+      backdropPath?: string
     ) => {
       // For Radarr (movies), show options modal
       if (service === 'radarr' && mediaType === 'movie') {
-        setRadarrOptionsItem({ tmdbId, title });
+        setRadarrOptionsItem({ tmdbId, title, backdropPath });
         return;
       }
 
@@ -271,7 +286,7 @@ const PreviewCollectionModal = ({
         mediaType === 'tv' &&
         (service === 'overseerr' || service === 'sonarr')
       ) {
-        setSeasonSelectionItem({ tmdbId, title, service });
+        setSeasonSelectionItem({ tmdbId, title, service, backdropPath });
         return;
       }
 
@@ -484,11 +499,23 @@ const PreviewCollectionModal = ({
   const currentStage = activeStatus?.currentStage || 'Initializing...';
   const progress = activeStatus?.progress || 0;
 
-  // Handler to refresh/cycle to next source (for cycle_lists mode)
+  // Handler to refresh preview data
   const handleRefresh = () => {
-    const { sources } = previewConfig;
-    if (previewConfig.combineMode === 'cycle_lists' && sources) {
+    const { sources, combineMode } = previewConfig;
+
+    // For cycle_lists mode, just cycle to next source (no confirmation needed)
+    if (combineMode === 'cycle_lists' && sources) {
       setCycleIndex((prev) => (prev + 1) % sources.length);
+      return;
+    }
+
+    // For all other cases, confirm before forcing a refresh
+    if (window.confirm(intl.formatMessage(messages.refreshConfirm))) {
+      // Clear existing sessions and status
+      setSessionIdsByLibrary({});
+      setStatusByLibrary({});
+      // Toggle forceRefresh to trigger the useEffect
+      setForceRefresh((prev) => !prev);
     }
   };
 
@@ -503,17 +530,9 @@ const PreviewCollectionModal = ({
         onOk={() => setShowExclusionsModal(true)}
         okText={intl.formatMessage(messages.viewExclusions)}
         okButtonType="default"
-        // Show Refresh button for cycle_lists mode
-        onTertiary={
-          previewConfig.combineMode === 'cycle_lists'
-            ? handleRefresh
-            : undefined
-        }
-        tertiaryText={
-          previewConfig.combineMode === 'cycle_lists'
-            ? intl.formatMessage(messages.refresh)
-            : undefined
-        }
+        // Show Refresh button for all scenarios
+        onTertiary={handleRefresh}
+        tertiaryText={intl.formatMessage(messages.refresh)}
         tertiaryButtonType="default"
       >
         <div className="w-full">
@@ -609,10 +628,13 @@ const PreviewCollectionModal = ({
                       {/* Image wrapper with overflow hidden */}
                       <div className="absolute inset-0 overflow-hidden rounded-lg">
                         {item.posterUrl ? (
-                          <img
+                          <Image
                             src={item.posterUrl}
                             alt={item.title}
-                            className="h-full w-full object-cover"
+                            layout="fill"
+                            objectFit="cover"
+                            loading="eager"
+                            unoptimized
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center bg-gray-800">
@@ -934,7 +956,8 @@ const PreviewCollectionModal = ({
                                     item.tmdbId,
                                     item.title,
                                     'movie',
-                                    'radarr'
+                                    'radarr',
+                                    item.backdropPath
                                   )
                                 }
                                 disabled={downloadingItems.has(item.tmdbId)}
@@ -982,7 +1005,8 @@ const PreviewCollectionModal = ({
                                     item.tmdbId,
                                     item.title,
                                     'movie',
-                                    'overseerr'
+                                    'overseerr',
+                                    item.backdropPath
                                   )
                                 }
                                 disabled={downloadingItems.has(item.tmdbId)}
@@ -1034,7 +1058,8 @@ const PreviewCollectionModal = ({
                                     item.tmdbId,
                                     item.title,
                                     'tv',
-                                    'sonarr'
+                                    'sonarr',
+                                    item.backdropPath
                                   )
                                 }
                                 disabled={downloadingItems.has(item.tmdbId)}
@@ -1082,7 +1107,8 @@ const PreviewCollectionModal = ({
                                     item.tmdbId,
                                     item.title,
                                     'tv',
-                                    'overseerr'
+                                    'overseerr',
+                                    item.backdropPath
                                   )
                                 }
                                 disabled={downloadingItems.has(item.tmdbId)}
@@ -1147,6 +1173,7 @@ const PreviewCollectionModal = ({
         <RadarrOptionsModal
           tmdbId={radarrOptionsItem.tmdbId}
           title={radarrOptionsItem.title}
+          backdropPath={radarrOptionsItem.backdropPath}
           onCancel={() => setRadarrOptionsItem(null)}
           onConfirm={handleRadarrOptions}
         />
@@ -1158,6 +1185,7 @@ const PreviewCollectionModal = ({
           tmdbId={seasonSelectionItem.tmdbId}
           title={seasonSelectionItem.title}
           service={seasonSelectionItem.service}
+          backdropPath={seasonSelectionItem.backdropPath}
           onCancel={() => setSeasonSelectionItem(null)}
           onConfirm={handleSeasonSelection}
         />
