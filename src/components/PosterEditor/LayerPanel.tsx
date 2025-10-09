@@ -2344,13 +2344,25 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             cellHeight * props.rows +
                             (props.rows - 1) * props.spacing;
 
-                          // Update both columns and dimensions
-                          updateElementProperties(selectedElement.id, {
-                            columns: newColumns,
-                          });
-                          updateElement(selectedElement.id, {
-                            height: Math.round(newHeight),
-                          });
+                          // Update both columns and dimensions in a single state update
+                          const elementIndex = elements.findIndex(
+                            (el) => el.id === selectedElement.id
+                          );
+                          if (elementIndex !== -1) {
+                            const newElements = [...elements];
+                            newElements[elementIndex] = {
+                              ...newElements[elementIndex],
+                              height: Math.round(newHeight),
+                              properties: {
+                                ...newElements[elementIndex].properties,
+                                columns: newColumns,
+                              },
+                            };
+                            onChange({
+                              ...posterData,
+                              elements: newElements,
+                            });
+                          }
 
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
@@ -2419,13 +2431,25 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             cellHeight * newRows +
                             (newRows - 1) * props.spacing;
 
-                          // Update both rows and dimensions
-                          updateElementProperties(selectedElement.id, {
-                            rows: newRows,
-                          });
-                          updateElement(selectedElement.id, {
-                            height: Math.round(newHeight),
-                          });
+                          // Update both rows and dimensions in a single state update
+                          const elementIndex = elements.findIndex(
+                            (el) => el.id === selectedElement.id
+                          );
+                          if (elementIndex !== -1) {
+                            const newElements = [...elements];
+                            newElements[elementIndex] = {
+                              ...newElements[elementIndex],
+                              height: Math.round(newHeight),
+                              properties: {
+                                ...newElements[elementIndex].properties,
+                                rows: newRows,
+                              },
+                            };
+                            onChange({
+                              ...posterData,
+                              elements: newElements,
+                            });
+                          }
 
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
@@ -2462,14 +2486,20 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             (e.target as HTMLInputElement).value
                           );
 
-                          // Calculate new grid dimensions for preview
+                          // Keep cell size constant, adjust grid dimensions
                           const props =
                             selectedElement.properties as ContentGridProps;
                           const currentWidth = selectedElement.width;
-                          const availableWidth =
-                            currentWidth - (props.columns - 1) * newSpacing;
-                          const cellWidth = availableWidth / props.columns;
+                          const currentAvailableWidth =
+                            currentWidth - (props.columns - 1) * props.spacing;
+                          const cellWidth =
+                            currentAvailableWidth / props.columns;
                           const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+
+                          // Calculate new grid dimensions with new spacing but same cell size
+                          const newWidth =
+                            cellWidth * props.columns +
+                            (props.columns - 1) * newSpacing;
                           const newHeight =
                             cellHeight * props.rows +
                             (props.rows - 1) * newSpacing;
@@ -2477,6 +2507,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           setLocalSliderValues((prev) => ({
                             ...prev,
                             [`spacing-${selectedElement.id}`]: newSpacing,
+                            [`width-${selectedElement.id}`]:
+                              Math.round(newWidth),
                             [`height-${selectedElement.id}`]:
                               Math.round(newHeight),
                           }));
@@ -2486,31 +2518,50 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             (e.target as HTMLInputElement).value
                           );
 
-                          // Calculate new grid dimensions when spacing changes
+                          // Keep cell size constant, adjust grid dimensions
                           const props =
                             selectedElement.properties as ContentGridProps;
                           const currentWidth = selectedElement.width;
-
-                          // Calculate available width for cells after new spacing
-                          const availableWidth =
-                            currentWidth - (props.columns - 1) * newSpacing;
-                          const cellWidth = availableWidth / props.columns;
+                          const currentAvailableWidth =
+                            currentWidth - (props.columns - 1) * props.spacing;
+                          const cellWidth =
+                            currentAvailableWidth / props.columns;
                           const cellHeight = cellWidth * 1.5; // 2:3 poster aspect ratio
+
+                          // Calculate new grid dimensions with new spacing but same cell size
+                          const newWidth =
+                            cellWidth * props.columns +
+                            (props.columns - 1) * newSpacing;
                           const newHeight =
                             cellHeight * props.rows +
                             (props.rows - 1) * newSpacing;
 
-                          // Update both spacing and dimensions
-                          updateElementProperties(selectedElement.id, {
-                            spacing: newSpacing,
-                          });
-                          updateElement(selectedElement.id, {
-                            height: Math.round(newHeight),
-                          });
+                          // Update spacing and dimensions in a single state update
+                          const elementIndex = elements.findIndex(
+                            (el) => el.id === selectedElement.id
+                          );
+                          if (elementIndex !== -1) {
+                            const newElements = [...elements];
+                            newElements[elementIndex] = {
+                              ...newElements[elementIndex],
+                              width: Math.round(newWidth),
+                              height: Math.round(newHeight),
+                              properties: {
+                                ...newElements[elementIndex].properties,
+                                spacing: newSpacing,
+                              },
+                            };
+                            onChange({
+                              ...posterData,
+                              elements: newElements,
+                            });
+                          }
 
                           setLocalSliderValues((prev) => {
                             const newState = { ...prev };
                             delete newState[`spacing-${selectedElement.id}`];
+                            delete newState[`width-${selectedElement.id}`];
+                            delete newState[`height-${selectedElement.id}`];
                             return newState;
                           });
                         }}
