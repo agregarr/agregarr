@@ -1907,14 +1907,45 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           }
 
           // Get list metadata to extract title
+          // Try two approaches: first try getting by username (for other users' public lists),
+          // then fallback to getting own lists (for private lists or when username endpoint fails)
           if (
             parsedUrl.type === 'user' &&
             parsedUrl.username &&
             parsedUrl.listName
           ) {
-            const userLists = await mdblistClient.getUserListsByUsername(
-              parsedUrl.username
-            );
+            let userLists: Awaited<
+              ReturnType<typeof mdblistClient.getUserLists>
+            > = [];
+
+            try {
+              // First try: Get lists by username (works for other users' public lists)
+              userLists = await mdblistClient.getUserListsByUsername(
+                parsedUrl.username
+              );
+            } catch (usernameError) {
+              // If that fails (404), try getting own lists (works for private lists)
+              try {
+                userLists = await mdblistClient.getUserLists();
+              } catch (ownListsError) {
+                // Both failed - we'll just skip title extraction
+                logger.debug(
+                  'Could not fetch MDBList metadata, will use fallback title',
+                  {
+                    label: 'Collections API',
+                    usernameError:
+                      usernameError instanceof Error
+                        ? usernameError.message
+                        : String(usernameError),
+                    ownListsError:
+                      ownListsError instanceof Error
+                        ? ownListsError.message
+                        : String(ownListsError),
+                  }
+                );
+              }
+            }
+
             const targetList = userLists.find(
               (list) =>
                 list.slug === parsedUrl.listName ||
