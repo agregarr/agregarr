@@ -207,9 +207,9 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
     if (service === 'sonarr') {
       onConfirm(
         selectedArray,
-        selectedServerId || undefined,
-        selectedProfileId || undefined,
-        selectedRootFolder || undefined
+        selectedServerId !== null ? selectedServerId : undefined,
+        selectedProfileId !== null ? selectedProfileId : undefined,
+        selectedRootFolder ?? undefined
       );
     } else {
       onConfirm(selectedArray);
@@ -263,7 +263,10 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                       selectedServerId !== null ? String(selectedServerId) : ''
                     }
                     onChange={(e) => {
-                      setSelectedServerId(Number(e.target.value));
+                      const rawValue = e.target.value;
+                      setSelectedServerId(
+                        rawValue === '' ? null : Number(rawValue)
+                      );
                       setSelectedProfileId(null);
                       setSelectedRootFolder(null);
                     }}
@@ -289,8 +292,12 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                   {intl.formatMessage(messages.selectProfile)}
                 </label>
                 <select
-                  value={selectedProfileId || ''}
-                  onChange={(e) => setSelectedProfileId(Number(e.target.value))}
+                  value={selectedProfileId ?? ''}
+                  onChange={(e) =>
+                    setSelectedProfileId(
+                      e.target.value === '' ? null : Number(e.target.value)
+                    )
+                  }
                   className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   disabled={selectedServerId === null || profilesLoading}
                 >
@@ -315,8 +322,10 @@ const SeasonSelectionModal: React.FC<SeasonSelectionModalProps> = ({
                   {intl.formatMessage(messages.selectRootFolder)}
                 </label>
                 <select
-                  value={selectedRootFolder || ''}
-                  onChange={(e) => setSelectedRootFolder(e.target.value)}
+                  value={selectedRootFolder ?? ''}
+                  onChange={(e) =>
+                    setSelectedRootFolder(e.target.value || null)
+                  }
                   className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                   disabled={selectedServerId === null || rootFoldersLoading}
                 >

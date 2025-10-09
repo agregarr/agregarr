@@ -1387,6 +1387,8 @@ collectionsPreviewRoutes.post(
         rootFolder,
         seasons,
         sourceType,
+        collectionName,
+        subtype,
       } = req.body;
 
       if (!tmdbId || !mediaType || !service) {
@@ -1417,6 +1419,8 @@ collectionsPreviewRoutes.post(
           serverId,
           seasons,
           sourceType,
+          collectionName,
+          subtype,
         }
       );
 
@@ -1490,8 +1494,10 @@ collectionsPreviewRoutes.post(
 
         const radarrDownloadConfigRecord: Record<string, unknown> = {
           id: String(-1),
-          name: 'Preview Download',
-          type: 'imdb',
+          name: collectionName || 'Preview Download',
+          type: sourceType || 'imdb',
+          subtype,
+          downloadMode: 'direct',
           libraryId: '',
           libraryName: '',
           isActive: true,
@@ -1505,6 +1511,9 @@ collectionsPreviewRoutes.post(
           radarrServerId: serverId,
           radarrProfileId: profileId,
           radarrRootFolder: rootFolder,
+          directDownloadRadarrServerId: serverId,
+          directDownloadRadarrProfileId: profileId,
+          directDownloadRadarrRootFolder: rootFolder,
           isLibraryPromoted: false,
           everLibraryPromoted: false,
         };
@@ -1512,7 +1521,7 @@ collectionsPreviewRoutes.post(
         const result = await downloadService.processDirectDownloads(
           [missingItem],
           radarrDownloadConfigRecord as unknown as CollectionConfig,
-          'imdb'
+          sourceType || 'imdb'
         );
 
         return res.status(200).json({
@@ -1536,8 +1545,10 @@ collectionsPreviewRoutes.post(
 
         const sonarrDownloadConfigRecord: Record<string, unknown> = {
           id: String(-1),
-          name: 'Preview Download',
-          type: 'imdb',
+          name: collectionName || 'Preview Download',
+          type: sourceType || 'imdb',
+          subtype,
+          downloadMode: 'direct',
           libraryId: '',
           libraryName: '',
           isActive: true,
@@ -1552,6 +1563,9 @@ collectionsPreviewRoutes.post(
           sonarrProfileId: profileId,
           sonarrRootFolder: rootFolder,
           seasonsToRequest: seasons || 'all',
+          directDownloadSonarrServerId: serverId,
+          directDownloadSonarrProfileId: profileId,
+          directDownloadSonarrRootFolder: rootFolder,
           isLibraryPromoted: false,
           everLibraryPromoted: false,
         };
@@ -1559,7 +1573,7 @@ collectionsPreviewRoutes.post(
         const result = await downloadService.processDirectDownloads(
           [missingItem],
           sonarrDownloadConfigRecord as unknown as CollectionConfig,
-          'imdb'
+          sourceType || 'imdb'
         );
 
         return res.status(200).json({

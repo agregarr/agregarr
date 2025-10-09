@@ -64,9 +64,13 @@ const messages = defineMessages({
   syncEnabled: 'Enable Scan',
   externalUrl: 'External URL',
   enableSearch: 'Enable Automatic Search',
-  tagRequests: 'Tag Collections',
+  tagRequests: 'Automatic Tag Mode',
   tagRequestsInfo:
-    'Automatically add collection-based tags to downloads (e.g., "TrendingLast7DaysAgregarr")',
+    'Choose how Agregarr tags Sonarr downloads (tags are created if they do not exist).',
+  tagModeOff: 'Do not add automatic tags',
+  tagModeSingle: 'Single tag (agregarr)',
+  tagModePerService: 'Per service tags (trakt-agregarr, tmdb-agregarr)',
+  tagModeGranular: 'Per collection tags (trakt-trending-agregarr)',
   validationApplicationUrl: 'You must provide a valid URL',
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   validationBaseUrlLeadingSlash: 'Base URL must have a leading slash',
@@ -248,7 +252,9 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
           externalUrl: sonarr?.externalUrl,
           // syncEnabled: sonarr?.syncEnabled ?? false, // Removed field
           // enableSearch: !sonarr?.preventSearch, // Removed field
-          tagRequests: sonarr?.tagRequests ?? false,
+          tagRequestsMode:
+            sonarr?.tagRequestsMode ??
+            (sonarr?.tagRequests ? 'per-service' : 'off'),
         }}
         validationSchema={SonarrSettingsSchema}
         onSubmit={async (values) => {
@@ -274,7 +280,8 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               externalUrl: values.externalUrl,
               // syncEnabled: values.syncEnabled, // Removed field
               // preventSearch: !values.enableSearch, // Removed field
-              tagRequests: values.tagRequests,
+              tagRequests: values.tagRequestsMode !== 'off',
+              tagRequestsMode: values.tagRequestsMode,
             };
             if (!sonarr) {
               await axios.post('/api/v1/settings/sonarr', submission);
@@ -669,18 +676,33 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                 </div>
                 {/* syncEnabled and enableSearch fields removed */}
                 <div className="form-row">
-                  <label htmlFor="tagRequests" className="checkbox-label">
+                  <label htmlFor="tagRequestsMode" className="text-label">
                     {intl.formatMessage(messages.tagRequests)}
                     <span className="label-tip">
                       {intl.formatMessage(messages.tagRequestsInfo)}
                     </span>
                   </label>
                   <div className="form-input-area">
-                    <Field
-                      type="checkbox"
-                      id="tagRequests"
-                      name="tagRequests"
-                    />
+                    <div className="form-input-field">
+                      <Field
+                        as="select"
+                        id="tagRequestsMode"
+                        name="tagRequestsMode"
+                      >
+                        <option value="off">
+                          {intl.formatMessage(messages.tagModeOff)}
+                        </option>
+                        <option value="single">
+                          {intl.formatMessage(messages.tagModeSingle)}
+                        </option>
+                        <option value="per-service">
+                          {intl.formatMessage(messages.tagModePerService)}
+                        </option>
+                        <option value="granular">
+                          {intl.formatMessage(messages.tagModeGranular)}
+                        </option>
+                      </Field>
+                    </div>
                   </div>
                 </div>
               </div>

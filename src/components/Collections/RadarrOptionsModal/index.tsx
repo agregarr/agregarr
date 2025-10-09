@@ -120,7 +120,11 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
   }, [rootFolders, selectedRootFolder]);
 
   const handleConfirm = () => {
-    if (selectedServerId && selectedProfileId && selectedRootFolder) {
+    if (
+      selectedServerId !== null &&
+      selectedProfileId !== null &&
+      selectedRootFolder
+    ) {
       onConfirm(selectedServerId, selectedProfileId, selectedRootFolder);
     }
   };
@@ -155,7 +159,8 @@ const RadarrOptionsModal: React.FC<RadarrOptionsModalProps> = ({
             <select
               value={selectedServerId !== null ? String(selectedServerId) : ''}
               onChange={(e) => {
-                setSelectedServerId(Number(e.target.value));
+                const rawValue = e.target.value;
+                setSelectedServerId(rawValue === '' ? null : Number(rawValue));
                 setSelectedProfileId(null);
                 setSelectedRootFolder(null);
               }}

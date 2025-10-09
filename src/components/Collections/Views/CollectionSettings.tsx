@@ -298,6 +298,10 @@ const CollectionSettings = ({
             directDownloadRadarrProfileId:
               collectionConfig.directDownloadRadarrProfileId,
           }),
+          ...(collectionConfig.directDownloadRadarrRootFolder !== undefined && {
+            directDownloadRadarrRootFolder:
+              collectionConfig.directDownloadRadarrRootFolder,
+          }),
           ...(collectionConfig.directDownloadSonarrServerId !== undefined && {
             directDownloadSonarrServerId:
               collectionConfig.directDownloadSonarrServerId,
@@ -305,6 +309,10 @@ const CollectionSettings = ({
           ...(collectionConfig.directDownloadSonarrProfileId !== undefined && {
             directDownloadSonarrProfileId:
               collectionConfig.directDownloadSonarrProfileId,
+          }),
+          ...(collectionConfig.directDownloadSonarrRootFolder !== undefined && {
+            directDownloadSonarrRootFolder:
+              collectionConfig.directDownloadSonarrRootFolder,
           }),
           ...(collectionConfig.isMultiSource !== undefined && {
             isMultiSource: collectionConfig.isMultiSource,
@@ -534,11 +542,19 @@ const CollectionSettings = ({
           ...(config.directDownloadRadarrProfileId !== undefined && {
             directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
           }),
+          ...(config.directDownloadRadarrRootFolder !== undefined && {
+            directDownloadRadarrRootFolder:
+              config.directDownloadRadarrRootFolder,
+          }),
           ...(config.directDownloadSonarrServerId !== undefined && {
             directDownloadSonarrServerId: config.directDownloadSonarrServerId,
           }),
           ...(config.directDownloadSonarrProfileId !== undefined && {
             directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
+          }),
+          ...(config.directDownloadSonarrRootFolder !== undefined && {
+            directDownloadSonarrRootFolder:
+              config.directDownloadSonarrRootFolder,
           }),
           isLinked: config.isLinked,
           linkId: config.linkId,
@@ -1731,10 +1747,14 @@ const CollectionSettings = ({
                 masterConfig.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:
                 masterConfig.directDownloadRadarrProfileId,
+              directDownloadRadarrRootFolder:
+                masterConfig.directDownloadRadarrRootFolder,
               directDownloadSonarrServerId:
                 masterConfig.directDownloadSonarrServerId,
               directDownloadSonarrProfileId:
                 masterConfig.directDownloadSonarrProfileId,
+              directDownloadSonarrRootFolder:
+                masterConfig.directDownloadSonarrRootFolder,
               searchMissingMovies: masterConfig.searchMissingMovies,
               searchMissingTV: masterConfig.searchMissingTV,
               autoApproveMovies: masterConfig.autoApproveMovies,

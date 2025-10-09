@@ -336,6 +336,8 @@ export interface ServiceUserSettings {
   userCreationMode: 'single' | 'per-service' | 'granular'; // How to create service users
 }
 
+export type TagRequestsMode = 'off' | 'single' | 'per-service' | 'granular';
+
 export interface DVRSettings {
   id: number;
   name: string;
@@ -353,7 +355,8 @@ export interface DVRSettings {
   externalUrl?: string;
   syncEnabled: boolean;
   preventSearch: boolean;
-  tagRequests: boolean;
+  tagRequests?: boolean;
+  tagRequestsMode?: TagRequestsMode;
 }
 
 export interface RadarrSettings extends DVRSettings {
@@ -509,6 +512,66 @@ class Settings {
     };
     if (initialSettings) {
       this.data = merge(this.data, initialSettings);
+    }
+
+    this.normalizeTagSettings();
+  }
+
+  private normalizeTagSettings(): void {
+    let modified = false;
+
+    this.data.radarr = this.data.radarr.map((radarrInstance) => {
+      const currentMode =
+        radarrInstance.tagRequestsMode ??
+        (radarrInstance.tagRequests ? 'per-service' : 'off');
+
+      const normalizedMode: TagRequestsMode = (
+        ['off', 'single', 'per-service', 'granular'] as TagRequestsMode[]
+      ).includes(currentMode as TagRequestsMode)
+        ? (currentMode as TagRequestsMode)
+        : 'off';
+
+      if (
+        radarrInstance.tagRequestsMode !== normalizedMode ||
+        (radarrInstance.tagRequests ?? false) !== (normalizedMode !== 'off')
+      ) {
+        modified = true;
+      }
+
+      return {
+        ...radarrInstance,
+        tagRequestsMode: normalizedMode,
+        tagRequests: normalizedMode !== 'off',
+      };
+    });
+
+    this.data.sonarr = this.data.sonarr.map((sonarrInstance) => {
+      const currentMode =
+        sonarrInstance.tagRequestsMode ??
+        (sonarrInstance.tagRequests ? 'per-service' : 'off');
+
+      const normalizedMode: TagRequestsMode = (
+        ['off', 'single', 'per-service', 'granular'] as TagRequestsMode[]
+      ).includes(currentMode as TagRequestsMode)
+        ? (currentMode as TagRequestsMode)
+        : 'off';
+
+      if (
+        sonarrInstance.tagRequestsMode !== normalizedMode ||
+        (sonarrInstance.tagRequests ?? false) !== (normalizedMode !== 'off')
+      ) {
+        modified = true;
+      }
+
+      return {
+        ...sonarrInstance,
+        tagRequestsMode: normalizedMode,
+        tagRequests: normalizedMode !== 'off',
+      };
+    });
+
+    if (modified) {
+      this.save();
     }
   }
 

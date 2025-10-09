@@ -333,10 +333,10 @@ const CollectionFormConfigForm = ({
     downloadMode: Yup.string().oneOf(['overseerr', 'direct']),
     excludedGenres: Yup.array().of(Yup.number().positive().integer()),
     excludedCountries: Yup.array().of(Yup.string()),
-    directDownloadRadarrServerId: Yup.number().positive().integer(),
+    directDownloadRadarrServerId: Yup.number().integer().min(0),
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
     directDownloadRadarrRootFolder: Yup.string(),
-    directDownloadSonarrServerId: Yup.number().positive().integer(),
+    directDownloadSonarrServerId: Yup.number().integer().min(0),
     directDownloadSonarrProfileId: Yup.number().positive().integer(),
     directDownloadSonarrRootFolder: Yup.string(),
 
@@ -2223,22 +2223,22 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).excludedCountries || [],
           // Direct download server selection
           directDownloadRadarrServerId:
-            (config as CollectionFormConfig).directDownloadRadarrServerId ||
+            (config as CollectionFormConfig).directDownloadRadarrServerId ??
             undefined,
           directDownloadRadarrProfileId:
-            (config as CollectionFormConfig).directDownloadRadarrProfileId ||
+            (config as CollectionFormConfig).directDownloadRadarrProfileId ??
             undefined,
           directDownloadRadarrRootFolder:
-            (config as CollectionFormConfig).directDownloadRadarrRootFolder ||
+            (config as CollectionFormConfig).directDownloadRadarrRootFolder ??
             undefined,
           directDownloadSonarrServerId:
-            (config as CollectionFormConfig).directDownloadSonarrServerId ||
+            (config as CollectionFormConfig).directDownloadSonarrServerId ??
             undefined,
           directDownloadSonarrProfileId:
-            (config as CollectionFormConfig).directDownloadSonarrProfileId ||
+            (config as CollectionFormConfig).directDownloadSonarrProfileId ??
             undefined,
           directDownloadSonarrRootFolder:
-            (config as CollectionFormConfig).directDownloadSonarrRootFolder ||
+            (config as CollectionFormConfig).directDownloadSonarrRootFolder ??
             undefined,
           visibilityConfig: {
             usersHome: config.visibilityConfig?.usersHome ?? false,
@@ -2357,6 +2357,45 @@ const CollectionFormConfigForm = ({
             finalSubtype = `${values.subtype}_${values.timePeriod}`;
           }
 
+          const isValueSet = (value: unknown): boolean =>
+            value !== undefined && value !== null && value !== '';
+
+          const optionalNumber = (value: unknown): number | undefined => {
+            if (!isValueSet(value)) {
+              return undefined;
+            }
+            const parsed = Number(value);
+            return Number.isNaN(parsed) ? undefined : parsed;
+          };
+
+          const optionalString = (value: unknown): string | undefined => {
+            if (!isValueSet(value)) {
+              return undefined;
+            }
+            const str = String(value).trim();
+            return str.length > 0 ? str : undefined;
+          };
+
+          const directRadarrServerId = values.enableGrabMissingItems
+            ? optionalNumber(values.directDownloadRadarrServerId)
+            : undefined;
+          const directRadarrProfileId = values.enableGrabMissingItems
+            ? optionalNumber(values.directDownloadRadarrProfileId)
+            : undefined;
+          const directRadarrRootFolder = values.enableGrabMissingItems
+            ? optionalString(values.directDownloadRadarrRootFolder)
+            : undefined;
+
+          const directSonarrServerId = values.enableGrabMissingItems
+            ? optionalNumber(values.directDownloadSonarrServerId)
+            : undefined;
+          const directSonarrProfileId = values.enableGrabMissingItems
+            ? optionalNumber(values.directDownloadSonarrProfileId)
+            : undefined;
+          const directSonarrRootFolder = values.enableGrabMissingItems
+            ? optionalString(values.directDownloadSonarrRootFolder)
+            : undefined;
+
           const configToSave: CollectionFormConfig = {
             ...values,
             // For multi-source collections, ensure type is set correctly
@@ -2425,36 +2464,12 @@ const CollectionFormConfigForm = ({
                 ? values.excludedCountries
                 : undefined,
             // Direct download server selection
-            directDownloadRadarrServerId:
-              values.enableGrabMissingItems &&
-              values.directDownloadRadarrServerId
-                ? parseInt(values.directDownloadRadarrServerId.toString(), 10)
-                : undefined,
-            directDownloadRadarrProfileId:
-              values.enableGrabMissingItems &&
-              values.directDownloadRadarrProfileId
-                ? parseInt(values.directDownloadRadarrProfileId.toString(), 10)
-                : undefined,
-            directDownloadRadarrRootFolder:
-              values.enableGrabMissingItems &&
-              values.directDownloadRadarrRootFolder
-                ? values.directDownloadRadarrRootFolder
-                : undefined,
-            directDownloadSonarrServerId:
-              values.enableGrabMissingItems &&
-              values.directDownloadSonarrServerId
-                ? parseInt(values.directDownloadSonarrServerId.toString(), 10)
-                : undefined,
-            directDownloadSonarrProfileId:
-              values.enableGrabMissingItems &&
-              values.directDownloadSonarrProfileId
-                ? parseInt(values.directDownloadSonarrProfileId.toString(), 10)
-                : undefined,
-            directDownloadSonarrRootFolder:
-              values.enableGrabMissingItems &&
-              values.directDownloadSonarrRootFolder
-                ? values.directDownloadSonarrRootFolder
-                : undefined,
+            directDownloadRadarrServerId: directRadarrServerId,
+            directDownloadRadarrProfileId: directRadarrProfileId,
+            directDownloadRadarrRootFolder: directRadarrRootFolder,
+            directDownloadSonarrServerId: directSonarrServerId,
+            directDownloadSonarrProfileId: directSonarrProfileId,
+            directDownloadSonarrRootFolder: directSonarrRootFolder,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
             showUnwatchedOnly: values.showUnwatchedOnly,
@@ -3371,6 +3386,14 @@ const CollectionFormConfigForm = ({
                       previewConfig={{
                         type: values.type,
                         subtype: values.subtype,
+                        collectionName:
+                          (values.name &&
+                          typeof values.name === 'string' &&
+                          values.name.trim().length > 0
+                            ? values.name
+                            : generateCollectionName(
+                                values as CollectionFormConfig
+                              )) || undefined,
                         libraryIds: values.libraryIds,
                         libraries: selectedLibraries,
                         customUrl:

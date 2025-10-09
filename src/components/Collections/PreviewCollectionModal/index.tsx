@@ -80,6 +80,7 @@ interface PreviewCollectionModalProps {
   previewConfig: {
     type: string;
     subtype?: string;
+    collectionName?: string;
     libraryIds: string[];
     libraries: Library[];
     customUrl?: string;
@@ -299,6 +300,8 @@ const PreviewCollectionModal = ({
           mediaType,
           service,
           sourceType: previewConfig.type,
+          subtype: previewConfig.subtype,
+          collectionName: previewConfig.collectionName,
         });
 
         // Mark as requested and save to localStorage
@@ -337,7 +340,13 @@ const PreviewCollectionModal = ({
         });
       }
     },
-    [addToast, intl, previewConfig.type]
+    [
+      addToast,
+      intl,
+      previewConfig.collectionName,
+      previewConfig.subtype,
+      previewConfig.type,
+    ]
   );
 
   const handleSeasonSelection = useCallback(
@@ -364,6 +373,8 @@ const PreviewCollectionModal = ({
           profileId,
           rootFolder,
           sourceType: previewConfig.type,
+          subtype: previewConfig.subtype,
+          collectionName: previewConfig.collectionName,
         });
 
         // Mark as requested and save to localStorage
@@ -402,7 +413,14 @@ const PreviewCollectionModal = ({
         });
       }
     },
-    [seasonSelectionItem, addToast, intl, previewConfig.type]
+    [
+      seasonSelectionItem,
+      addToast,
+      intl,
+      previewConfig.collectionName,
+      previewConfig.subtype,
+      previewConfig.type,
+    ]
   );
 
   const handleRadarrOptions = useCallback(
@@ -423,6 +441,8 @@ const PreviewCollectionModal = ({
           profileId,
           rootFolder,
           sourceType: previewConfig.type,
+          subtype: previewConfig.subtype,
+          collectionName: previewConfig.collectionName,
         });
 
         // Mark as requested and save to localStorage
@@ -461,7 +481,14 @@ const PreviewCollectionModal = ({
         });
       }
     },
-    [radarrOptionsItem, addToast, intl, previewConfig.type]
+    [
+      radarrOptionsItem,
+      addToast,
+      intl,
+      previewConfig.collectionName,
+      previewConfig.subtype,
+      previewConfig.type,
+    ]
   );
 
   const handleExcludeItem = useCallback(
