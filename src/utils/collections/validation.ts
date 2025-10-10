@@ -8,7 +8,15 @@ import * as Yup from 'yup';
 // Base validation schema for all collection types
 const baseCollectionSchema = {
   type: Yup.string().required('Collection type is required'),
-  subtype: Yup.string().required('Collection sub-type is required'),
+  subtype: Yup.string().when('type', {
+    is: (type?: string) =>
+      !type ||
+      type === 'multi-source' ||
+      type === 'radarrtag' ||
+      type === 'sonarrtag',
+    then: (schema) => schema.notRequired(),
+    otherwise: (schema) => schema.required('Collection sub-type is required'),
+  }),
 
   template: Yup.string().when(['customMovieTemplate', 'customTVTemplate'], {
     is: (movieTemplate: string, tvTemplate: string) =>

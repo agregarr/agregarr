@@ -122,6 +122,16 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#1c1917', // Matches UI bg-stone-900
     textColor: '#ffffff',
   },
+  radarrtag: {
+    primaryColor: '#ffc230', // Radarr yellow/gold
+    secondaryColor: '#1f1c0d',
+    textColor: '#ffffff',
+  },
+  sonarrtag: {
+    primaryColor: '#2c7fb8', // Sonarr blue
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
   default: {
     primaryColor: '#6366f1',
     secondaryColor: '#1e1b4b',

@@ -91,6 +91,11 @@ interface PreviewCollectionModalProps {
     network?: string;
     country?: string;
     provider?: string;
+    // Radarr/Sonarr tag specific fields
+    radarrTagId?: number;
+    sonarrTagId?: number;
+    radarrInstanceId?: number;
+    sonarrInstanceId?: number;
     // Multi-source specific fields
     isMultiSource?: boolean;
     sources?: {
@@ -205,6 +210,11 @@ const PreviewCollectionModal = ({
           network: previewConfig.network,
           country: previewConfig.country,
           provider: previewConfig.provider,
+          // Radarr/Sonarr tag specific fields
+          radarrTagId: previewConfig.radarrTagId,
+          sonarrTagId: previewConfig.sonarrTagId,
+          radarrInstanceId: previewConfig.radarrInstanceId,
+          sonarrInstanceId: previewConfig.sonarrInstanceId,
           forceRefresh: forceRefresh,
           // Multi-source specific fields
           isMultiSource: previewConfig.isMultiSource,

@@ -277,6 +277,13 @@ export class CollectionSyncService {
                   customDays: source.customDays,
                   minimumPlays: source.minimumPlays,
                   priority: source.priority,
+                  networksCountry: source.networksCountry,
+                  radarrTagServerId: source.radarrTagServerId,
+                  radarrTagId: source.radarrTagId,
+                  radarrTagLabel: source.radarrTagLabel,
+                  sonarrTagServerId: source.sonarrTagServerId,
+                  sonarrTagId: source.sonarrTagId,
+                  sonarrTagLabel: source.sonarrTagLabel,
                 })) || [],
               combineMode:
                 (config.combineMode as MultiSourceCombineMode) || 'list_order',
@@ -534,6 +541,18 @@ export class CollectionSyncService {
           '../external/overseerrSync'
         );
         return new OverseerrCollectionSync();
+      }
+      case 'radarrtag': {
+        const { RadarrTagCollectionSync } = await import(
+          '../external/radarrtag'
+        );
+        return new RadarrTagCollectionSync();
+      }
+      case 'sonarrtag': {
+        const { SonarrTagCollectionSync } = await import(
+          '../external/sonarrtag'
+        );
+        return new SonarrTagCollectionSync();
       }
       case 'multi-source':
         throw new Error(

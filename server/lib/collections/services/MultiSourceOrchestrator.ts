@@ -30,6 +30,8 @@ import { MyAnimeListCollectionSync } from '@server/lib/collections/external/myan
 import { NetworksCollectionSync } from '@server/lib/collections/external/networks';
 import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
+import RadarrTagCollectionSync from '@server/lib/collections/external/radarrtag';
+import SonarrTagCollectionSync from '@server/lib/collections/external/sonarrtag';
 import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
 import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
 import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
@@ -258,12 +260,50 @@ export class MultiSourceOrchestrator {
             }
           );
         } catch (error) {
+          // Proper error serialization - handle CollectionSyncError objects
+          let errorMessage: string;
+          const errorDetails: Record<string, unknown> = {};
+
+          if (error instanceof Error) {
+            errorMessage = error.message;
+            if (error.stack) {
+              errorDetails.stack = error.stack;
+            }
+          } else if (
+            typeof error === 'object' &&
+            error !== null &&
+            'message' in error
+          ) {
+            // CollectionSyncError or similar structured error
+            const structuredError = error as {
+              message: string;
+              type?: string;
+              details?: Record<string, unknown>;
+              originalError?: Error;
+            };
+            errorMessage = structuredError.message;
+            if (structuredError.type) {
+              errorDetails.errorType = structuredError.type;
+            }
+            if (structuredError.details) {
+              errorDetails.errorDetails = structuredError.details;
+            }
+            if (structuredError.originalError) {
+              errorDetails.originalError =
+                structuredError.originalError.message;
+              errorDetails.originalStack = structuredError.originalError.stack;
+            }
+          } else {
+            errorMessage = String(error);
+          }
+
           logger.error(`Failed to fetch from source ${source.id}:`, {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
             sourceId: source.id,
             sourceType: source.type,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
+            ...errorDetails,
           });
           // Continue with other sources
         }
@@ -490,11 +530,48 @@ export class MultiSourceOrchestrator {
 
       return { items, missingItems };
     } catch (error) {
+      // Proper error serialization - handle CollectionSyncError objects
+      let errorMessage: string;
+      const errorDetails: Record<string, unknown> = {};
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (error.stack) {
+          errorDetails.stack = error.stack;
+        }
+      } else if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        // CollectionSyncError or similar structured error
+        const structuredError = error as {
+          message: string;
+          type?: string;
+          details?: Record<string, unknown>;
+          originalError?: Error;
+        };
+        errorMessage = structuredError.message;
+        if (structuredError.type) {
+          errorDetails.errorType = structuredError.type;
+        }
+        if (structuredError.details) {
+          errorDetails.errorDetails = structuredError.details;
+        }
+        if (structuredError.originalError) {
+          errorDetails.originalError = structuredError.originalError.message;
+          errorDetails.originalStack = structuredError.originalError.stack;
+        }
+      } else {
+        errorMessage = String(error);
+      }
+
       logger.error(`Failed to fetch items from ${source.type}:`, {
         label: 'Multi-Source Orchestrator',
         sourceId: source.id,
         sourceType: source.type,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
+        ...errorDetails,
       });
       return { items: [] };
     }
@@ -539,6 +616,29 @@ export class MultiSourceOrchestrator {
         source.customUrl && {
           anilistCustomListUrl: source.customUrl,
         }),
+      ...(source.type === 'radarrtag' && {
+        radarrInstanceId:
+          source.radarrTagServerId !== undefined
+            ? Number(source.radarrTagServerId)
+            : undefined,
+        radarrTagId:
+          source.radarrTagId !== undefined
+            ? Number(source.radarrTagId)
+            : undefined,
+      }),
+      ...(source.type === 'sonarrtag' && {
+        sonarrInstanceId:
+          source.sonarrTagServerId !== undefined
+            ? Number(source.sonarrTagServerId)
+            : undefined,
+        sonarrTagId:
+          source.sonarrTagId !== undefined
+            ? Number(source.sonarrTagId)
+            : undefined,
+      }),
+      ...(source.type === 'networks' && {
+        networksCountry: source.networksCountry,
+      }),
       // Remove multi-source specific fields
       sources: undefined,
       combineMode: undefined,
@@ -585,6 +685,12 @@ export class MultiSourceOrchestrator {
           break;
         case 'myanimelist':
           this.syncServices.set(sourceType, new MyAnimeListCollectionSync());
+          break;
+        case 'radarrtag':
+          this.syncServices.set(sourceType, new RadarrTagCollectionSync());
+          break;
+        case 'sonarrtag':
+          this.syncServices.set(sourceType, new SonarrTagCollectionSync());
           break;
         default:
           throw new Error(`Unknown source type: ${sourceType}`);
@@ -1876,6 +1982,12 @@ export class MultiSourceOrchestrator {
       mdblist: {
         user_lists: 'My Personal List',
         top_lists: 'Top Lists Collection',
+      },
+      radarrtag: {
+        tag: 'Radarr Tag Collection',
+      },
+      sonarrtag: {
+        tag: 'Sonarr Tag Collection',
       },
     };
 

@@ -42,7 +42,9 @@ export interface CollectionConfig {
     | 'originals'
     | 'myanimelist'
     | 'anilist'
-    | 'multi-source';
+    | 'multi-source'
+    | 'radarrtag'
+    | 'sonarrtag';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
@@ -118,6 +120,11 @@ export interface CollectionConfig {
   readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
   // AniList custom list fields
   readonly anilistCustomListUrl?: string; // Custom AniList list URL
+  // Radarr/Sonarr tag fields
+  readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
+  readonly radarrInstanceId?: number; // Selected Radarr instance ID for tag-based collections
+  readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
+  readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -161,6 +168,12 @@ export interface CollectionConfig {
     readonly customDays?: number;
     readonly minimumPlays?: number;
     readonly networksCountry?: string; // Selected country for Networks collections
+    readonly radarrTagServerId?: number; // Radarr instance ID for radarrtag sources
+    readonly radarrTagId?: number; // Radarr tag ID for radarrtag sources
+    readonly radarrTagLabel?: string; // Radarr tag label for display
+    readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag sources
+    readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag sources
+    readonly sonarrTagLabel?: string; // Sonarr tag label for display
   }[];
   readonly combineMode?:
     | 'interleaved'
@@ -1455,7 +1468,9 @@ export type MultiSourceType =
   | 'networks'
   | 'originals'
   | 'anilist'
-  | 'myanimelist';
+  | 'myanimelist'
+  | 'radarrtag'
+  | 'sonarrtag';
 
 export interface SourceDefinition {
   readonly id: string;
@@ -1467,6 +1482,12 @@ export interface SourceDefinition {
   readonly minimumPlays?: number;
   readonly priority: number;
   readonly networksCountry?: string;
+  readonly radarrTagServerId?: number;
+  readonly radarrTagId?: number;
+  readonly radarrTagLabel?: string;
+  readonly sonarrTagServerId?: number;
+  readonly sonarrTagId?: number;
+  readonly sonarrTagLabel?: string;
 }
 
 export interface MultiSourceCollectionConfig {

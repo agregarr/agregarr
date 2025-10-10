@@ -119,6 +119,8 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   myanimelist: 'myanimelist.svg',
   plex: 'plex.svg',
   'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
+  radarrtag: 'radarr.svg', // Radarr tag collections use Radarr logo
+  sonarrtag: 'sonarr.svg', // Sonarr tag collections use Sonarr logo
   // Streaming Platform Logo Mappings
   netflix: 'netflix.svg',
   hbo: 'hbo.svg',

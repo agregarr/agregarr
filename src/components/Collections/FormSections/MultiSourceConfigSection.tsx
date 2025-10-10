@@ -9,6 +9,8 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  RadarrSettings,
+  SonarrSettings,
   TautulliSettings,
   TraktSettings,
 } from '@server/lib/settings';
@@ -44,6 +46,16 @@ const messages = defineMessages({
   urlInvalid: 'Invalid',
   mixedContentWarning:
     'Warning: Conflicting episodes/TV show lists detected across sources. Only "Cycle Lists" mode is available to prevent collection type conflicts.',
+  // Radarr/Sonarr tag messages
+  radarrInstance: 'Radarr Instance',
+  sonarrInstance: 'Sonarr Instance',
+  selectInstance: 'Select instance...',
+  loadingInstances: 'Loading instances...',
+  radarrTag: 'Radarr Tag',
+  sonarrTag: 'Sonarr Tag',
+  selectTag: 'Select tag...',
+  loadingTags: 'Loading tags...',
+  selectInstanceFirst: 'Select an instance first',
 });
 
 interface SubtypeOption {
@@ -51,6 +63,16 @@ interface SubtypeOption {
   label: string;
   description?: string;
 }
+
+interface ArrTag {
+  id: number;
+  label: string;
+}
+
+type SetMultiSourceFieldValue = (
+  field: string,
+  value: string | number | boolean | string[] | object | undefined
+) => void;
 
 // Simple component for networks platform selection (follows NetworksConfigSection pattern)
 const NetworksPlatformSelect = ({
@@ -116,6 +138,214 @@ const NetworksPlatformSelect = ({
   );
 };
 
+// Tag selection component for Radarr/Sonarr sources in multi-source configs
+const ArrTagSelect = ({
+  sourceType,
+  sourceIndex,
+  values,
+  setFieldValue,
+}: {
+  sourceType: 'radarrtag' | 'sonarrtag';
+  sourceIndex: number;
+  values: MultiSourceCollectionConfig;
+  setFieldValue: SetMultiSourceFieldValue;
+}) => {
+  const intl = useIntl();
+  const isRadarr = sourceType === 'radarrtag';
+  const isSonarr = sourceType === 'sonarrtag';
+
+  const instanceIdField = isRadarr ? 'radarrTagServerId' : 'sonarrTagServerId';
+  const tagIdField = isRadarr ? 'radarrTagId' : 'sonarrTagId';
+
+  // Read instance ID directly from form values
+  const currentSource = values.sources?.[sourceIndex];
+  const instanceIdRaw = currentSource?.[
+    instanceIdField as keyof typeof currentSource
+  ] as number | string | undefined;
+
+  // Convert to number, handling both string and number inputs
+  let instanceId: number | undefined = undefined;
+  if (
+    instanceIdRaw !== undefined &&
+    instanceIdRaw !== null &&
+    instanceIdRaw !== ''
+  ) {
+    const parsed =
+      typeof instanceIdRaw === 'string'
+        ? parseInt(instanceIdRaw, 10)
+        : instanceIdRaw;
+    instanceId = !Number.isNaN(parsed) ? parsed : undefined;
+  }
+
+  const isInstanceSelected =
+    instanceId !== undefined && !Number.isNaN(instanceId);
+
+  // Reset tag selection when instance changes
+  const previousInstanceIdRef = React.useRef<number | undefined>(instanceId);
+  React.useEffect(() => {
+    if (
+      previousInstanceIdRef.current !== instanceId &&
+      previousInstanceIdRef.current !== undefined
+    ) {
+      setFieldValue(`sources[${sourceIndex}].${tagIdField}`, undefined);
+    }
+    previousInstanceIdRef.current = instanceId;
+  }, [instanceId, sourceIndex, tagIdField, setFieldValue]);
+
+  // Fetch instances
+  const { data: radarrInstances, error: radarrError } = useSWR<
+    RadarrSettings[]
+  >(isRadarr ? '/api/v1/settings/radarr' : null, (url) =>
+    fetch(url).then((res) => res.json())
+  );
+
+  const { data: sonarrInstances, error: sonarrError } = useSWR<
+    SonarrSettings[]
+  >(isSonarr ? '/api/v1/settings/sonarr' : null, (url) =>
+    fetch(url).then((res) => res.json())
+  );
+
+  // Fetch tags for the selected instance
+  const radarrTagsUrl =
+    isRadarr && isInstanceSelected
+      ? `/api/v1/settings/radarr/${instanceId}/tags`
+      : null;
+
+  const sonarrTagsUrl =
+    isSonarr && isInstanceSelected
+      ? `/api/v1/settings/sonarr/${instanceId}/tags`
+      : null;
+
+  const { data: radarrTags, error: radarrTagsError } = useSWR<ArrTag[]>(
+    radarrTagsUrl,
+    radarrTagsUrl ? (url) => fetch(url).then((res) => res.json()) : null
+  );
+
+  const { data: sonarrTags, error: sonarrTagsError } = useSWR<ArrTag[]>(
+    sonarrTagsUrl,
+    sonarrTagsUrl ? (url) => fetch(url).then((res) => res.json()) : null
+  );
+
+  const isLoadingInstances = isRadarr
+    ? !radarrInstances && !radarrError
+    : isSonarr
+    ? !sonarrInstances && !sonarrError
+    : false;
+
+  const isLoadingTags = isRadarr
+    ? isInstanceSelected && !radarrTags && !radarrTagsError
+    : isSonarr
+    ? isInstanceSelected && !sonarrTags && !sonarrTagsError
+    : false;
+
+  const instances = isRadarr
+    ? radarrInstances
+    : isSonarr
+    ? sonarrInstances
+    : [];
+  const tags = isRadarr ? radarrTags : isSonarr ? sonarrTags : [];
+  const instanceError = isRadarr ? radarrError : isSonarr ? sonarrError : null;
+  const tagsError = isRadarr
+    ? radarrTagsError
+    : isSonarr
+    ? sonarrTagsError
+    : null;
+
+  return (
+    <div className="space-y-4">
+      {/* Instance Selection */}
+      <div>
+        <label
+          htmlFor={`source-instance-${sourceIndex}`}
+          className="mb-2 block text-sm text-gray-300"
+        >
+          {isRadarr
+            ? intl.formatMessage(messages.radarrInstance)
+            : intl.formatMessage(messages.sonarrInstance)}{' '}
+          <span className="text-red-500">*</span>
+        </label>
+        <Field
+          as="select"
+          id={`source-instance-${sourceIndex}`}
+          name={`sources[${sourceIndex}].${instanceIdField}`}
+          className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          disabled={isLoadingInstances}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+            const value = e.target.value;
+            const numValue = value ? Number(value) : undefined;
+            setFieldValue(
+              `sources[${sourceIndex}].${instanceIdField}`,
+              numValue
+            );
+          }}
+        >
+          <option value="">
+            {isLoadingInstances
+              ? intl.formatMessage(messages.loadingInstances)
+              : intl.formatMessage(messages.selectInstance)}
+          </option>
+          {Array.isArray(instances) &&
+            instances.map((instance) => (
+              <option key={instance.id} value={instance.id}>
+                {instance.name || `${instance.hostname}:${instance.port}`}
+                {instance.isDefault ? ' (Default)' : ''}
+              </option>
+            ))}
+        </Field>
+        {instanceError && (
+          <p className="mt-1 text-xs text-red-400">
+            Failed to load instances. Please try again.
+          </p>
+        )}
+      </div>
+
+      {/* Tag selection */}
+      <div>
+        <label
+          htmlFor={`source-tag-${sourceIndex}`}
+          className="mb-2 block text-sm text-gray-300"
+        >
+          {isRadarr
+            ? intl.formatMessage(messages.radarrTag)
+            : intl.formatMessage(messages.sonarrTag)}{' '}
+          <span className="text-red-500">*</span>
+        </label>
+        <Field
+          as="select"
+          id={`source-tag-${sourceIndex}`}
+          name={`sources[${sourceIndex}].${tagIdField}`}
+          className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          disabled={isLoadingTags || !isInstanceSelected}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+            const value = e.target.value;
+            const numValue = value ? Number(value) : undefined;
+            setFieldValue(`sources[${sourceIndex}].${tagIdField}`, numValue);
+          }}
+        >
+          <option value="">
+            {!isInstanceSelected
+              ? intl.formatMessage(messages.selectInstanceFirst)
+              : isLoadingTags
+              ? intl.formatMessage(messages.loadingTags)
+              : intl.formatMessage(messages.selectTag)}
+          </option>
+          {Array.isArray(tags) &&
+            tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.label}
+              </option>
+            ))}
+        </Field>
+        {tagsError && (
+          <p className="mt-1 text-xs text-red-400">
+            Failed to load tags. Please try again.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface SourceValidation {
   isValidating: boolean;
   isValid: boolean | null;
@@ -169,7 +399,20 @@ const MultiSourceConfigSection = ({
     Record<string, SourceValidation>
   >({});
 
-  const sources = React.useMemo(() => values.sources || [], [values.sources]);
+  const sources = React.useMemo(() => values.sources ?? [], [values.sources]);
+
+  // Ensure *arr tag sources always have the correct subtype
+  React.useEffect(() => {
+    sources.forEach((source, index) => {
+      if (
+        source &&
+        (source.type === 'radarrtag' || source.type === 'sonarrtag') &&
+        source.subtype !== 'tag'
+      ) {
+        setFieldValue(`sources[${index}].subtype`, 'tag');
+      }
+    });
+  }, [sources, setFieldValue]);
 
   // Validate a source URL using the existing /fetch-title endpoint
   const validateSourceUrl = React.useCallback(
@@ -322,6 +565,11 @@ const MultiSourceConfigSection = ({
       subtype: '',
       priority: sources.length,
       networksCountry: '',
+      // Initialize *arr tag fields
+      radarrTagServerId: undefined,
+      radarrTagId: undefined,
+      sonarrTagServerId: undefined,
+      sonarrTagId: undefined,
     };
     setFieldValue('sources', [...sources, newSource]);
   };
@@ -526,6 +774,10 @@ const MultiSourceConfigSection = ({
             description: 'Highest-rated anime specials',
           },
         ];
+      case 'radarrtag':
+        return [];
+      case 'sonarrtag':
+        return [];
       default:
         return [];
     }
@@ -612,7 +864,34 @@ const MultiSourceConfigSection = ({
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   const newType = e.target.value;
                   setFieldValue(`sources[${index}].type`, newType);
-                  setFieldValue(`sources[${index}].subtype`, ''); // Reset subtype when type changes
+                  if (newType === 'radarrtag' || newType === 'sonarrtag') {
+                    setFieldValue(`sources[${index}].subtype`, 'tag');
+                    if (newType === 'radarrtag') {
+                      setFieldValue(
+                        `sources[${index}].sonarrTagServerId`,
+                        undefined
+                      );
+                      setFieldValue(`sources[${index}].sonarrTagId`, undefined);
+                    } else {
+                      setFieldValue(
+                        `sources[${index}].radarrTagServerId`,
+                        undefined
+                      );
+                      setFieldValue(`sources[${index}].radarrTagId`, undefined);
+                    }
+                  } else {
+                    setFieldValue(`sources[${index}].subtype`, ''); // Reset subtype when type changes
+                    setFieldValue(
+                      `sources[${index}].radarrTagServerId`,
+                      undefined
+                    );
+                    setFieldValue(`sources[${index}].radarrTagId`, undefined);
+                    setFieldValue(
+                      `sources[${index}].sonarrTagServerId`,
+                      undefined
+                    );
+                    setFieldValue(`sources[${index}].sonarrTagId`, undefined);
+                  }
                 }}
               >
                 <option value="">
@@ -627,6 +906,8 @@ const MultiSourceConfigSection = ({
                 <option value="mdblist">MDBList Lists</option>
                 <option value="networks">Networks</option>
                 <option value="originals">Streaming Originals</option>
+                <option value="radarrtag">Radarr Tags</option>
+                <option value="sonarrtag">Sonarr Tags</option>
                 <option value="anilist">AniList</option>
                 <option value="myanimelist">MyAnimeList</option>
               </Field>
@@ -823,6 +1104,19 @@ const MultiSourceConfigSection = ({
                   return null;
                 })()}
               </div>
+            )}
+
+            {/* Radarr/Sonarr Tag Selection */}
+            {(values.sources?.[index]?.type === 'radarrtag' ||
+              values.sources?.[index]?.type === 'sonarrtag') && (
+              <ArrTagSelect
+                sourceType={
+                  values.sources[index].type as 'radarrtag' | 'sonarrtag'
+                }
+                sourceIndex={index}
+                values={values}
+                setFieldValue={setFieldValue}
+              />
             )}
 
             {values.sources?.[index]?.type === 'networks' && (

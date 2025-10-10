@@ -210,8 +210,11 @@ const LibrarySelectionSection = ({
 
   const messageData = getMediaTypeMessage();
 
-  // For custom lists, always show a message area to prevent layout jumping
-  const shouldShowMessageArea = values.subtype === 'custom';
+  // For custom lists and tag collections, always show a message area to prevent layout jumping
+  const shouldShowMessageArea =
+    values.subtype === 'custom' ||
+    values.type === 'radarrtag' ||
+    values.type === 'sonarrtag';
 
   if (isEnhancedForm) {
     // Enhanced form - read-only display
@@ -264,8 +267,8 @@ const LibrarySelectionSection = ({
         <span className="text-red-500">*</span>
       </label>
 
-      {/* Media type detection feedback - always visible for custom lists to prevent layout jumping */}
-      {shouldShowMessageArea && (
+      {/* Media type detection feedback - visible for custom lists and tag collections */}
+      {(shouldShowMessageArea || messageData) && (
         <div className="mb-2 min-h-[1.25rem]">
           {messageData && (
             <p

@@ -93,6 +93,8 @@ const CollectionTypeSection = ({
     { value: 'originals', label: 'Networks Originals' },
     { value: 'anilist', label: 'AniList' },
     { value: 'myanimelist', label: 'MyAnimeList' },
+    { value: 'radarrtag', label: 'Radarr Tag' },
+    { value: 'sonarrtag', label: 'Sonarr Tag' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -293,6 +295,9 @@ const CollectionTypeSection = ({
             description: 'Most favorited anime by users.',
           },
         ];
+      case 'radarrtag':
+      case 'sonarrtag':
+        return []; // These use custom tag selectors instead of subtypes
       default:
         return [];
     }

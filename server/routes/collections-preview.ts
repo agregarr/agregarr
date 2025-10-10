@@ -829,6 +829,11 @@ async function processPreviewAsync(
     network?: string;
     country?: string;
     provider?: string;
+    // Radarr/Sonarr tag specific fields
+    radarrTagId?: number;
+    sonarrTagId?: number;
+    radarrInstanceId?: number;
+    sonarrInstanceId?: number;
     forceRefresh?: boolean; // If true, bypass cache and fetch fresh data
     // Multi-source specific fields
     isMultiSource?: boolean;

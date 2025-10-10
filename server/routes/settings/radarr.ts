@@ -160,6 +160,27 @@ radarrRoutes.get<{ id: string }>('/:id/rootfolders', async (req, res, next) => {
   );
 });
 
+radarrRoutes.get<{ id: string }>('/:id/tags', async (req, res, next) => {
+  const settings = getSettings();
+
+  const radarrSettings = settings.radarr.find(
+    (r) => r.id === Number(req.params.id)
+  );
+
+  if (!radarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const radarr = new RadarrAPI({
+    apiKey: radarrSettings.apiKey,
+    url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+  });
+
+  const tags = await radarr.getTags();
+
+  return res.status(200).json(tags);
+});
+
 radarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
   const settings = getSettings();
 

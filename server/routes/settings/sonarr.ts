@@ -157,6 +157,27 @@ sonarrRoutes.get<{ id: string }>('/:id/rootfolders', async (req, res, next) => {
   );
 });
 
+sonarrRoutes.get<{ id: string }>('/:id/tags', async (req, res, next) => {
+  const settings = getSettings();
+
+  const sonarrSettings = settings.sonarr.find(
+    (s) => s.id === Number(req.params.id)
+  );
+
+  if (!sonarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const sonarr = new SonarrAPI({
+    apiKey: sonarrSettings.apiKey,
+    url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+  });
+
+  const tags = await sonarr.getTags();
+
+  return res.status(200).json(tags);
+});
+
 sonarrRoutes.delete<{ id: string }>('/:id', (req, res) => {
   const settings = getSettings();
 

@@ -771,7 +771,16 @@ export class IndividualCollectionScheduler {
           subtype?: string;
           customUrl?: string;
           timePeriod?: string;
+          customDays?: number;
+          minimumPlays?: number;
           priority: number;
+          networksCountry?: string;
+          radarrTagServerId?: number;
+          radarrTagId?: number;
+          radarrTagLabel?: string;
+          sonarrTagServerId?: number;
+          sonarrTagId?: number;
+          sonarrTagLabel?: string;
         }[];
       };
       const isMultiSource =
@@ -809,6 +818,13 @@ export class IndividualCollectionScheduler {
               customDays: source.customDays,
               minimumPlays: source.minimumPlays,
               priority: source.priority,
+              networksCountry: source.networksCountry,
+              radarrTagServerId: source.radarrTagServerId,
+              radarrTagId: source.radarrTagId,
+              radarrTagLabel: source.radarrTagLabel,
+              sonarrTagServerId: source.sonarrTagServerId,
+              sonarrTagId: source.sonarrTagId,
+              sonarrTagLabel: source.sonarrTagLabel,
             })) || [],
           combineMode:
             (extendedConfig.combineMode as MultiSourceCombineMode) ||

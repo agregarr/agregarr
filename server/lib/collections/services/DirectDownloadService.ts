@@ -36,7 +36,9 @@ export class DirectDownloadService {
     | 'originals'
     | 'multi-source'
     | 'tautulli'
-    | 'overseerr',
+    | 'overseerr'
+    | 'radarrtag'
+    | 'sonarrtag',
     string
   > = {
     trakt: 'Trakt',
@@ -51,6 +53,8 @@ export class DirectDownloadService {
     'multi-source': 'MultiSource',
     tautulli: 'Tautulli',
     overseerr: 'Overseerr',
+    radarrtag: 'RadarrTag',
+    sonarrtag: 'SonarrTag',
   };
 
   constructor() {
@@ -100,7 +104,9 @@ export class DirectDownloadService {
       | 'originals'
       | 'multi-source'
       | 'tautulli'
-      | 'overseerr',
+      | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag',
     mode: TagRequestsMode | undefined,
     legacyEnabled?: boolean
   ): string | null {
@@ -214,6 +220,8 @@ export class DirectDownloadService {
       | 'networks'
       | 'originals'
       | 'multi-source'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<AutoRequestResult> {
     // Only proceed if direct download is enabled (we'll add this setting later)
     if (!config.searchMissingMovies && !config.searchMissingTV) {
@@ -480,6 +488,8 @@ export class DirectDownloadService {
       | 'multi-source'
       | 'tautulli'
       | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<number[]> {
     const tags = [...(radarrSettings.tags || [])];
 
@@ -571,6 +581,8 @@ export class DirectDownloadService {
       | 'multi-source'
       | 'tautulli'
       | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<number[]> {
     const tags = [...(sonarrSettings.tags || [])];
 
@@ -661,6 +673,8 @@ export class DirectDownloadService {
       | 'multi-source'
       | 'tautulli'
       | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<void> {
     const settings = getSettings();
 
@@ -749,6 +763,8 @@ export class DirectDownloadService {
       | 'multi-source'
       | 'tautulli'
       | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<void> {
     const settings = getSettings();
 

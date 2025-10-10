@@ -22,6 +22,7 @@ import useSWR from 'swr';
 import * as Yup from 'yup';
 
 // Form values use CollectionFormConfig with proper initialization
+import ArrTagConfigSection from '@app/components/Collections/FormSections/ArrTagConfigSection';
 import AutoRequestSection from '@app/components/Collections/FormSections/AutoRequestSection';
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
@@ -131,13 +132,16 @@ const CollectionFormConfigForm = ({
       otherwise: (schema) => schema,
     }),
     subtype: Yup.string().when(['hubIdentifier', 'collectionType', 'type'], {
-      is: (hubIdentifier: string, collectionType: string, type: string) =>
+      is: (hubIdentifier: string, collectionType: string, type?: string) =>
         !hubIdentifier &&
         collectionType !== 'default_plex_hub' &&
         collectionType !== 'pre_existing' &&
-        type !== 'multi-source', // Only required if not a hub, pre-existing, or multi-source
+        !!type &&
+        type !== 'multi-source' &&
+        type !== 'radarrtag' &&
+        type !== 'sonarrtag', // Only required if not a hub, pre-existing, multi-source, or tag-based
       then: (schema) => schema.required('Collection sub-type is required'),
-      otherwise: (schema) => schema,
+      otherwise: (schema) => schema.notRequired(),
     }),
 
     // Handle both libraryIds (collections) and libraryId (hubs/pre-existing)
@@ -152,6 +156,74 @@ const CollectionFormConfigForm = ({
         otherwise: (schema) => schema,
       }),
     libraryId: Yup.string(), // Allow single libraryId for hubs/pre-existing
+    radarrInstanceId: Yup.number()
+      .transform((value, originalValue) =>
+        originalValue === null || originalValue === ''
+          ? undefined
+          : Number.isNaN(value)
+          ? undefined
+          : value
+      )
+      .nullable()
+      .when('type', {
+        is: 'radarrtag',
+        then: (schema) =>
+          schema
+            .typeError('Radarr instance is required')
+            .required('Radarr instance is required'),
+        otherwise: (schema) => schema,
+      }),
+    radarrTagId: Yup.number()
+      .transform((value, originalValue) =>
+        originalValue === null || originalValue === ''
+          ? undefined
+          : Number.isNaN(value)
+          ? undefined
+          : value
+      )
+      .nullable()
+      .when('type', {
+        is: 'radarrtag',
+        then: (schema) =>
+          schema
+            .typeError('Radarr tag is required')
+            .required('Radarr tag is required'),
+        otherwise: (schema) => schema,
+      }),
+    sonarrInstanceId: Yup.number()
+      .transform((value, originalValue) =>
+        originalValue === null || originalValue === ''
+          ? undefined
+          : Number.isNaN(value)
+          ? undefined
+          : value
+      )
+      .nullable()
+      .when('type', {
+        is: 'sonarrtag',
+        then: (schema) =>
+          schema
+            .typeError('Sonarr instance is required')
+            .required('Sonarr instance is required'),
+        otherwise: (schema) => schema,
+      }),
+    sonarrTagId: Yup.number()
+      .transform((value, originalValue) =>
+        originalValue === null || originalValue === ''
+          ? undefined
+          : Number.isNaN(value)
+          ? undefined
+          : value
+      )
+      .nullable()
+      .when('type', {
+        is: 'sonarrtag',
+        then: (schema) =>
+          schema
+            .typeError('Sonarr tag is required')
+            .required('Sonarr tag is required'),
+        otherwise: (schema) => schema,
+      }),
     // Template validation - only check when it exists
     template: Yup.string().test(
       'not-fetch-title',
@@ -2129,6 +2201,52 @@ const CollectionFormConfigForm = ({
       }
     }
 
+    // Radarr Tag collection presets
+    if (values.type === 'radarrtag') {
+      return [
+        {
+          label: '{tagLabel} Movies',
+          value: '{tagLabel} Movies',
+        },
+        {
+          label: 'Radarr: {tagLabel}',
+          value: 'Radarr: {tagLabel}',
+        },
+        {
+          label: '{tagLabel} Collection',
+          value: '{tagLabel} Collection',
+        },
+        {
+          label: 'Movies Tagged: {tagLabel}',
+          value: 'Movies Tagged: {tagLabel}',
+        },
+        { label: 'Custom', value: 'custom' },
+      ];
+    }
+
+    // Sonarr Tag collection presets
+    if (values.type === 'sonarrtag') {
+      return [
+        {
+          label: '{tagLabel} TV Shows',
+          value: '{tagLabel} TV Shows',
+        },
+        {
+          label: 'Sonarr: {tagLabel}',
+          value: 'Sonarr: {tagLabel}',
+        },
+        {
+          label: '{tagLabel} Collection',
+          value: '{tagLabel} Collection',
+        },
+        {
+          label: 'Shows Tagged: {tagLabel}',
+          value: 'Shows Tagged: {tagLabel}',
+        },
+        { label: 'Custom', value: 'custom' },
+      ];
+    }
+
     // Fallback for unknown types
     return [
       {
@@ -2235,6 +2353,15 @@ const CollectionFormConfigForm = ({
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
+          // Radarr/Sonarr tag configuration
+          radarrInstanceId:
+            (config as CollectionFormConfig).radarrInstanceId ?? undefined,
+          sonarrInstanceId:
+            (config as CollectionFormConfig).sonarrInstanceId ?? undefined,
+          radarrTagId:
+            (config as CollectionFormConfig).radarrTagId ?? undefined,
+          sonarrTagId:
+            (config as CollectionFormConfig).sonarrTagId ?? undefined,
           // Direct download server selection
           directDownloadRadarrServerId:
             (config as CollectionFormConfig).directDownloadRadarrServerId ??
@@ -2484,6 +2611,11 @@ const CollectionFormConfigForm = ({
             directDownloadSonarrServerId: directSonarrServerId,
             directDownloadSonarrProfileId: directSonarrProfileId,
             directDownloadSonarrRootFolder: directSonarrRootFolder,
+            // Radarr/Sonarr tag configuration (explicitly preserve these fields)
+            radarrInstanceId: values.radarrInstanceId,
+            radarrTagId: values.radarrTagId,
+            sonarrInstanceId: values.sonarrInstanceId,
+            sonarrTagId: values.sonarrTagId,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
             showUnwatchedOnly: values.showUnwatchedOnly,
@@ -2508,6 +2640,9 @@ const CollectionFormConfigForm = ({
           touched,
         }) => {
           const typedValues = values;
+          const { radarrTagId, sonarrTagId } = values as CollectionFormConfig;
+          const hasSelectedRadarrTag = radarrTagId != null;
+          const hasSelectedSonarrTag = sonarrTagId != null;
 
           return (
             <>
@@ -2661,6 +2796,24 @@ const CollectionFormConfigForm = ({
                         />
                       )}
 
+                      {/* Arr Tag Config Section - Radarr/Sonarr tag instance and tag selection */}
+                      {isCollection &&
+                        (values.type === 'radarrtag' ||
+                          values.type === 'sonarrtag') && (
+                          <ArrTagConfigSection
+                            values={typedValues as CollectionFormConfig}
+                            setFieldValue={setFieldValue}
+                            errors={
+                              errors as FormikErrors<CollectionFormConfig>
+                            }
+                            touched={
+                              touched as FormikTouched<CollectionFormConfig>
+                            }
+                            isVisible={true}
+                            getTemplatePresets={getTemplatePresets}
+                          />
+                        )}
+
                       {/* Time Period Section - conditional for Trakt time-based subtypes */}
                       {isCollection &&
                         values.type === 'trakt' &&
@@ -2716,6 +2869,11 @@ const CollectionFormConfigForm = ({
                                     minimumPlays: source.minimumPlays,
                                     priority: source.priority,
                                     networksCountry: source.networksCountry,
+                                    // Radarr/Sonarr tag fields
+                                    radarrTagServerId: source.radarrTagServerId,
+                                    radarrTagId: source.radarrTagId,
+                                    sonarrTagServerId: source.sonarrTagServerId,
+                                    sonarrTagId: source.sonarrTagId,
                                   })) || [],
                                 combineMode: values.combineMode || 'list_order',
                               } as MultiSourceCollectionConfig
@@ -2784,7 +2942,11 @@ const CollectionFormConfigForm = ({
                               values.type &&
                               (values.type === 'multi-source'
                                 ? values.sources && values.sources.length >= 2
-                                : values.subtype) &&
+                                : values.type === 'radarrtag'
+                                ? hasSelectedRadarrTag
+                                : values.type === 'sonarrtag'
+                                ? hasSelectedSonarrTag
+                                : values.subtype) && // Radarr/Sonarr tag collections require a tag instead of subtype
                               // For Trakt time-period subtypes, also require timePeriod to be selected
                               (values.type !== 'trakt' ||
                                 ![
@@ -2833,6 +2995,12 @@ const CollectionFormConfigForm = ({
                             if (values.type === 'letterboxd') {
                               return 'movie';
                             }
+                            if (values.type === 'radarrtag') {
+                              return 'movie';
+                            }
+                            if (values.type === 'sonarrtag') {
+                              return 'tv';
+                            }
 
                             return undefined;
                           })()}
@@ -2853,6 +3021,10 @@ const CollectionFormConfigForm = ({
                         values.type &&
                         (values.type === 'multi-source'
                           ? values.sources && values.sources.length >= 2
+                          : values.type === 'radarrtag'
+                          ? hasSelectedRadarrTag
+                          : values.type === 'sonarrtag'
+                          ? hasSelectedSonarrTag
                           : values.subtype) &&
                         (values.libraryIds?.length > 0 || values.libraryId) &&
                         (values.type !== 'tautulli' || values.customDays) &&
@@ -2896,7 +3068,11 @@ const CollectionFormConfigForm = ({
                                     isCollection &&
                                       values.type &&
                                       (values.type === 'multi-source' ||
-                                        values.subtype)
+                                        (values.type === 'radarrtag'
+                                          ? hasSelectedRadarrTag
+                                          : values.type === 'sonarrtag'
+                                          ? hasSelectedSonarrTag
+                                          : values.subtype))
                                   )}
                                   currentUser={currentUser}
                                   libraries={libraries}
@@ -3441,6 +3617,11 @@ const CollectionFormConfigForm = ({
                           | string
                           | undefined,
                         provider: valuesRecord.provider as string | undefined,
+                        // Radarr/Sonarr tag specific fields
+                        radarrTagId: values.radarrTagId,
+                        sonarrTagId: values.sonarrTagId,
+                        radarrInstanceId: values.radarrInstanceId,
+                        sonarrInstanceId: values.sonarrInstanceId,
                         // Multi-source specific fields
                         isMultiSource: values.isMultiSource,
                         sources: values.sources as

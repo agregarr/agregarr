@@ -138,7 +138,9 @@ export interface CollectionFormConfig {
     | 'mdblist'
     | 'networks'
     | 'originals'
-    | 'multi-source';
+    | 'multi-source'
+    | 'radarrtag'
+    | 'sonarrtag';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -249,6 +251,11 @@ export interface CollectionFormConfig {
   readonly networksCountry?: string; // Selected country for Networks collections
   // AniList custom list fields
   readonly anilistCustomListUrl?: string; // Custom AniList list URL
+  // Radarr/Sonarr tag fields
+  readonly radarrInstanceId?: number; // Selected Radarr instance ID for tag-based collections
+  readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
+  readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
+  readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -311,7 +318,9 @@ export interface CollectionConfigCreateRequest {
     | 'mdblist'
     | 'networks'
     | 'originals'
-    | 'multi-source';
+    | 'multi-source'
+    | 'radarrtag'
+    | 'sonarrtag';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -353,6 +362,10 @@ export interface CollectionConfigCreateRequest {
   readonly letterboxdCustomListUrl?: string;
   readonly networksCountry?: string;
   readonly anilistCustomListUrl?: string;
+  readonly radarrInstanceId?: number;
+  readonly sonarrInstanceId?: number;
+  readonly radarrTagId?: number;
+  readonly sonarrTagId?: number;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
   readonly timeRestriction?: {
@@ -433,6 +446,10 @@ export const toCollectionCreateRequest = (
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,
+    radarrInstanceId: config.radarrInstanceId,
+    sonarrInstanceId: config.sonarrInstanceId,
+    radarrTagId: config.radarrTagId,
+    sonarrTagId: config.sonarrTagId,
     reverseOrder: config.reverseOrder,
     randomizeOrder: config.randomizeOrder,
     timeRestriction: config.timeRestriction,
@@ -579,7 +596,9 @@ export type CollectionSourceType =
   | 'originals'
   | 'anilist'
   | 'myanimelist'
-  | 'multi-source';
+  | 'multi-source'
+  | 'radarrtag'
+  | 'sonarrtag';
 export type MediaType = 'movie' | 'tv';
 
 /**
@@ -684,6 +703,13 @@ export interface CollectionSourceConfig {
   readonly minimumPlays?: number; // Minimum play count required
   // Networks-specific configuration
   readonly networksCountry?: string; // Selected country for Networks collections
+  // Radarr/Sonarr tag source configuration
+  readonly radarrTagServerId?: number;
+  readonly radarrTagId?: number;
+  readonly radarrTagLabel?: string;
+  readonly sonarrTagServerId?: number;
+  readonly sonarrTagId?: number;
+  readonly sonarrTagLabel?: string;
 }
 
 /**
@@ -805,6 +831,8 @@ export type MultiSourceType =
   | 'overseerr'
   | 'networks'
   | 'originals'
+  | 'radarrtag'
+  | 'sonarrtag'
   | 'anilist'
   | 'myanimelist';
 
@@ -822,6 +850,12 @@ export interface SourceDefinition {
   readonly minimumPlays?: number;
   readonly priority: number;
   readonly networksCountry?: string; // Selected country for Networks collections
+  readonly radarrTagServerId?: number; // Radarr instance ID for radarrtag source
+  readonly radarrTagId?: number; // Radarr tag ID for radarrtag source
+  readonly radarrTagLabel?: string; // Radarr tag label for display
+  readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag source
+  readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag source
+  readonly sonarrTagLabel?: string; // Sonarr tag label for display
 }
 
 /**

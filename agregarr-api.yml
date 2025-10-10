@@ -203,7 +203,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           example: 'overseerr'
         subtype:
           type: string
@@ -566,7 +566,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           example: 'overseerr'
         subtype:
           type: string
@@ -976,7 +976,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           example: 'overseerr'
         subtype:
           type: string
@@ -1418,7 +1418,7 @@ components:
           example: "source-1234567890"
         type:
           type: string
-          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals']
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'radarrtag', 'sonarrtag']
           description: "Type of collection source"
           example: 'trakt'
         subtype:
@@ -7314,6 +7314,28 @@ paths:
                       type: number
                     path:
                       type: string
+  /settings/radarr/{radarrId}/tags:
+    get:
+      summary: Get available Radarr tags
+      description: Returns a list of tags available on the Radarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: radarrId
+          required: true
+          schema:
+            type: integer
+          description: Radarr instance ID
+      responses:
+        '200':
+          description: Returned list of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/sonarr:
     get:
       summary: Get Sonarr settings
@@ -7483,6 +7505,28 @@ paths:
                       type: number
                     path:
                       type: string
+  /settings/sonarr/{sonarrId}/tags:
+    get:
+      summary: Get available Sonarr tags
+      description: Returns a list of tags available on the Sonarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      responses:
+        '200':
+          description: Returned list of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/public:
     get:
       summary: Get public settings

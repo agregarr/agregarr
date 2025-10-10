@@ -148,7 +148,9 @@ export type CollectionSource =
   | 'networks'
   | 'originals'
   | 'anilist'
-  | 'myanimelist';
+  | 'myanimelist'
+  | 'radarrtag'
+  | 'sonarrtag';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -361,6 +363,20 @@ export interface OriginalsTemplateContext extends TemplateContext {
   platform?: string;
 }
 
+export interface RadarrTagTemplateContext extends TemplateContext {
+  /** Collection source type */
+  source?: 'radarrtag';
+  /** Tag label from Radarr */
+  tagLabel?: string;
+}
+
+export interface SonarrTagTemplateContext extends TemplateContext {
+  /** Collection source type */
+  source?: 'sonarrtag';
+  /** Tag label from Sonarr */
+  tagLabel?: string;
+}
+
 /**
  * Union type for all possible template contexts
  */
@@ -373,7 +389,9 @@ export type SourceTemplateContext =
   | ImdbTemplateContext
   | LetterboxdTemplateContext
   | NetworksTemplateContext
-  | OriginalsTemplateContext;
+  | OriginalsTemplateContext
+  | RadarrTagTemplateContext
+  | SonarrTagTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types
@@ -525,6 +543,30 @@ export interface NetworksSourceData {
 }
 
 /**
+ * Radarr tag source data (movies with specific tags)
+ */
+export interface RadarrTagSourceData {
+  movie: {
+    ids: { tmdb: number };
+    title: string;
+    year?: number;
+  };
+  tagLabel: string;
+}
+
+/**
+ * Sonarr tag source data (TV shows with specific tags)
+ */
+export interface SonarrTagSourceData {
+  series: {
+    ids: { tvdb: number; tmdb?: number };
+    title: string;
+    year?: number;
+  };
+  tagLabel: string;
+}
+
+/**
  * Union type for all possible source data
  */
 export type CollectionSourceData =
@@ -537,7 +579,9 @@ export type CollectionSourceData =
   | LetterboxdSourceData
   | NetworksSourceData
   | AniListSourceData
-  | MyAnimeListSourceData;
+  | MyAnimeListSourceData
+  | RadarrTagSourceData
+  | SonarrTagSourceData;
 
 /**
  * Error types that can occur during collection sync
