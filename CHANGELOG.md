@@ -1,3 +1,45 @@
+# [1.4.0](https://github.com/agregarr/agregarr/compare/v1.3.1...v1.4.0) (2025-10-11)
+
+
+### Bug Fixes
+
+* **config:** corrects title duplication detection for dynamic title ([91374f2](https://github.com/agregarr/agregarr/commit/91374f272499b771902ebb95c3d84dcbea911ec9))
+* **episode multi-sourse:** adds episodes support to multi-source collections ([078e402](https://github.com/agregarr/agregarr/commit/078e402515bdea0b26eaf760d45d4d6e2f2f6809))
+* **imdb:** adds mediaType to IMDb->TMDB ID resolution ([0382397](https://github.com/agregarr/agregarr/commit/0382397748542195bfc2986626c190e6a04079a8)), closes [#93](https://github.com/agregarr/agregarr/issues/93)
+* **individual sync:** correctly isolates indivudal sync, adds better scheduling ([3d39a7e](https://github.com/agregarr/agregarr/commit/3d39a7e17ade45e3853c90fce11ab940ff50fd76)), closes [#76](https://github.com/agregarr/agregarr/issues/76)
+* **letterboxd:** improves letterboxd tmdb matching ([ea94915](https://github.com/agregarr/agregarr/commit/ea94915ad4d0c79f169722d5d653f04e85d7786b)), closes [#82](https://github.com/agregarr/agregarr/issues/82)
+* **linked collections:** corrects link button displaying on unlinkable collections ([d4703cf](https://github.com/agregarr/agregarr/commit/d4703cf2119c9a44f5a68f1f8adcf41f06b8f0da))
+* **mdblist:** private MDBLists can now be added ([cb05b3f](https://github.com/agregarr/agregarr/commit/cb05b3f98b38fcf42de3196cb4dc45f858483d3f))
+* **missing items:** missing items not being sent for networks ([2f17b3c](https://github.com/agregarr/agregarr/commit/2f17b3c901a86b933f4df13374dc81f2625fd8f7))
+* **multi source:** lists in cycle mode now have dynamic title option ([db9ce78](https://github.com/agregarr/agregarr/commit/db9ce78e0d6f921d60cc698d603324327abf78d5))
+* **multi-source:** adds grab missing items for multi source configs ([60343c5](https://github.com/agregarr/agregarr/commit/60343c5c2ea53a26613b2a2391fac018771cc61b)), closes [#91](https://github.com/agregarr/agregarr/issues/91)
+* **overseerr:** adds .invalid to agregarr generated overseerr user emails ([56f519d](https://github.com/agregarr/agregarr/commit/56f519d5f9e08e63eca452c36ba18cbecac40cbe)), closes [#92](https://github.com/agregarr/agregarr/issues/92)
+* **overseerr:** overseerr user is now correctly recreated if deleted ([f8f7add](https://github.com/agregarr/agregarr/commit/f8f7addf8c1152a7f01a4a26d57b1708df821832)), closes [#73](https://github.com/agregarr/agregarr/issues/73)
+* **poster templates:** add import/export, add fonts, add layers (major rework) ([faa401a](https://github.com/agregarr/agregarr/commit/faa401a0408e99f875caddb54777b8e04ec234e1))
+* **poster templates:** multiple template fixes ([aa82df7](https://github.com/agregarr/agregarr/commit/aa82df760f41b983d553879ff5f47fe30c31002f))
+* **poster templates:** sliders for content grid now work correctly ([9cb4f6b](https://github.com/agregarr/agregarr/commit/9cb4f6b5f3a6d8b1dccd621c800fda07aafdb691))
+* **radarr/sonarr tags:** adds tag options, fixes tags failing after first request ([3e61842](https://github.com/agregarr/agregarr/commit/3e61842200488a05a625e9467bb3d7623df451c3)), closes [#79](https://github.com/agregarr/agregarr/issues/79)
+* **radarr/sonarr:** adds multiple radarr/sonarr servers, adds custom profile selection ([e1fff45](https://github.com/agregarr/agregarr/commit/e1fff45778f3c10b40b6e8802e6953197dc48ad3)), closes [#14](https://github.com/agregarr/agregarr/issues/14) [#71](https://github.com/agregarr/agregarr/issues/71)
+* **radarr/sonarr:** corrects missing items from re-monitoring items in radarr/sonarr ([fb5bc08](https://github.com/agregarr/agregarr/commit/fb5bc0892cdd5cf8f2ad89893cc80131c0cf9319)), closes [#77](https://github.com/agregarr/agregarr/issues/77)
+* **reordering:** removes default size limit to fix 413 errors in large libraries ([f2cde63](https://github.com/agregarr/agregarr/commit/f2cde6311b3fc6a4a37e31b1318cbd5fa1dd92b3)), closes [#95](https://github.com/agregarr/agregarr/issues/95)
+* **sources:** max Items now fills the collection to the specified limit ([954f32b](https://github.com/agregarr/agregarr/commit/954f32bc84526c1b084444849841b676b570488d))
+* **title template:** changes default title to be the same across libraries ([80cebd7](https://github.com/agregarr/agregarr/commit/80cebd793b0a55db8d30361598c2c95e9c0a29f4)), closes [#47](https://github.com/agregarr/agregarr/issues/47)
+* **tmdb presets:** removed single page limit from preset tmdb lists ([0b0381d](https://github.com/agregarr/agregarr/commit/0b0381db754e80a9747da3a60786c8f63f567664)), closes [#86](https://github.com/agregarr/agregarr/issues/86)
+* **tmdb:** add TMDB lists ([a499bf6](https://github.com/agregarr/agregarr/commit/a499bf620aefca66d64846d3ab1f9091c50e117f)), closes [#75](https://github.com/agregarr/agregarr/issues/75)
+
+
+### Features
+
+* **add anilist and mal:** adds AniList and MAL as sources ([908fc52](https://github.com/agregarr/agregarr/commit/908fc52bcf9409c650650f10c9453750df72c677)), closes [#35](https://github.com/agregarr/agregarr/issues/35)
+* **country exclusion:** adds country exclusions for missing items ([6f31352](https://github.com/agregarr/agregarr/commit/6f313521af2003e6034f01f8b218003f9217dcb3))
+* **genres:** adds option to exclude genres from missing items ([2c0ae08](https://github.com/agregarr/agregarr/commit/2c0ae0811c77f2c0b6b3c26b74f62ee33de38997)), closes [#85](https://github.com/agregarr/agregarr/issues/85)
+* **item exclusions:** individual items can now be excluded from lists globally ([cb9774f](https://github.com/agregarr/agregarr/commit/cb9774f5de86119a6ee6ee3b72c7b1e6c3fcb1d4))
+* **networks originals:** adds networks originals source type ([60facc9](https://github.com/agregarr/agregarr/commit/60facc912c38f3a250a0e1a215863b0d63fd4447)), closes [#72](https://github.com/agregarr/agregarr/issues/72)
+* **preview collections:** adds collections preview modal ([a0cd481](https://github.com/agregarr/agregarr/commit/a0cd481fe7cf869091b084c16c3def3edc0ae9ee)), closes [#17](https://github.com/agregarr/agregarr/issues/17)
+* **randomise order:** adds option to randomise collections on the home/recommended screens ([e7704b9](https://github.com/agregarr/agregarr/commit/e7704b90a3d3778dcd34bad70975daa2333462ff)), closes [#89](https://github.com/agregarr/agregarr/issues/89)
+* **sources:** radarr and sonarr tags added as source ([2649962](https://github.com/agregarr/agregarr/commit/264996297eef5b81cf4464691a37f934c68c24e9)), closes [#8](https://github.com/agregarr/agregarr/issues/8)
+* **unwatched filter:** adds unwatched option in config ([5db47da](https://github.com/agregarr/agregarr/commit/5db47da2c69d658088f2cae4707bafabdbe4d270)), closes [#51](https://github.com/agregarr/agregarr/issues/51)
+
 ## [1.3.1](https://github.com/agregarr/agregarr/compare/v1.3.0...v1.3.1) (2025-09-19)
 
 
