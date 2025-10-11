@@ -1105,6 +1105,7 @@ async function embedRasterIconInSVG(
 
     const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
     if (!urlMatch) {
+      logger.warn(`Icon path does not match expected format: ${iconPath}`);
       return null;
     }
 
@@ -1152,7 +1153,7 @@ async function embedRasterIconInSVG(
     const base64 = processedBuffer.toString('base64');
     const dataUrl = `data:${mimeType};base64,${base64}`;
 
-    return `
+    const result = `
       <image
         x="${element.x}"
         y="${element.y}"
@@ -1167,6 +1168,8 @@ async function embedRasterIconInSVG(
         }
       />
     `;
+
+    return result;
   } catch (error) {
     logger.error(`Failed to embed raster icon ${iconPath}:`, error);
     return null;
@@ -1190,6 +1193,7 @@ async function embedSVGIconInSVG(
 
     const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
     if (!urlMatch) {
+      logger.warn(`SVG icon path does not match expected format: ${iconPath}`);
       return null;
     }
 
@@ -1203,17 +1207,63 @@ async function embedSVGIconInSVG(
     const buffer = await loadIconFile(filename, iconType as 'user' | 'system');
     const svgContent = buffer.toString('utf-8');
 
-    // Extract the inner content (remove outer <svg> tag) and wrap in a group
+    // Extract actual SVG dimensions and viewBox from the SVG
+    let svgWidth = 100; // fallback
+    let svgHeight = 100; // fallback
+    let viewBoxMinX = 0;
+    let viewBoxMinY = 0;
+
+    // Try to get dimensions from viewBox first (most reliable)
+    const viewBoxMatch = svgContent.match(/viewBox=["']([^"']+)["']/i);
+    if (viewBoxMatch) {
+      const viewBoxValues = viewBoxMatch[1].split(/[\s,]+/);
+      if (viewBoxValues.length >= 4) {
+        viewBoxMinX = parseFloat(viewBoxValues[0]);
+        viewBoxMinY = parseFloat(viewBoxValues[1]);
+        svgWidth = parseFloat(viewBoxValues[2]);
+        svgHeight = parseFloat(viewBoxValues[3]);
+      }
+    } else {
+      // Fallback to width/height attributes
+      const widthMatch = svgContent.match(/width=["']?([^"'\s>]+)/i);
+      const heightMatch = svgContent.match(/height=["']?([^"'\s>]+)/i);
+      if (widthMatch) svgWidth = parseFloat(widthMatch[1]);
+      if (heightMatch) svgHeight = parseFloat(heightMatch[1]);
+    }
+
+    // Calculate scale to fit the element dimensions while maintaining aspect ratio
+    const scaleX = element.width / svgWidth;
+    const scaleY = element.height / svgHeight;
+    const scale = Math.min(scaleX, scaleY); // Use minimum to ensure it fits within bounds
+
+    // Calculate final dimensions and centering offset
+    const scaledWidth = svgWidth * scale;
+    const scaledHeight = svgHeight * scale;
+    const offsetX = (element.width - scaledWidth) / 2;
+    const offsetY = (element.height - scaledHeight) / 2;
+
+    // Extract the inner content (remove outer <svg> tag)
     const svgMatch = svgContent.match(/<svg[^>]*>(.*)<\/svg>/s);
     const innerSvg = svgMatch ? svgMatch[1] : svgContent;
 
-    return `
-      <g transform="translate(${element.x}, ${element.y})">
-        <g transform="scale(${element.width / 100}, ${element.height / 100})">
-          ${innerSvg}
-        </g>
+    // Clean the SVG content by removing XML declaration, comments, and DOCTYPE
+    const cleanInnerSvg = innerSvg
+      .replace(/<\?xml[^>]*\?>/gi, '') // Remove XML declaration
+      .replace(/<!--[\s\S]*?-->/gi, '') // Remove comments
+      .replace(/<!DOCTYPE[^>]*>/gi, '') // Remove DOCTYPE
+      .trim();
+
+    // Build transform: translate to position, scale, then translate viewBox offset
+    // This ensures the SVG's coordinate system is properly aligned
+    const result = `
+      <g transform="translate(${element.x + offsetX}, ${
+      element.y + offsetY
+    }) scale(${scale}) translate(${-viewBoxMinX}, ${-viewBoxMinY})">
+        ${cleanInnerSvg}
       </g>
     `;
+
+    return result;
   } catch (error) {
     logger.error(`Failed to embed SVG icon ${iconPath}:`, error);
     return null;
@@ -1245,6 +1295,10 @@ async function generateRasterElements(
       if (iconContent) {
         const wrappedContent = `<g filter="url(#iconShadow)">${iconContent}</g>`;
         elements.push(wrappedContent);
+      } else {
+        logger.warn(
+          `Failed to embed raster icon for element ${element.id}: ${element.imagePath}`
+        );
       }
     } catch (error) {
       logger.warn(`Failed to embed raster image ${element.imagePath}:`, error);
@@ -1260,7 +1314,7 @@ async function generateRasterElements(
 async function generateSVGElements(
   svgElements: {
     id: string;
-    type: 'source-logo' | 'svg-icon';
+    type: 'source-logo' | 'svg-icon' | 'custom-icon';
     iconPath?: string;
     x: number;
     y: number;
@@ -1304,7 +1358,10 @@ async function generateSVGElements(
         );
         elements.push(`<g filter="url(#iconShadow)">${placeholder}</g>`);
       }
-    } else if (element.type === 'svg-icon' && element.iconPath) {
+    } else if (
+      (element.type === 'svg-icon' || element.type === 'custom-icon') &&
+      element.iconPath
+    ) {
       // Handle custom SVG icons
       try {
         const iconContent = await embedSVGIconInSVG(element.iconPath, element);

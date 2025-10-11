@@ -247,7 +247,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       setSaving(true);
       await onSave({
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description?.trim() || undefined,
         posterData,
       });
       onClose();
@@ -363,7 +363,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                         placeholder={intl.formatMessage(
                           messages.enterDescription
                         )}
-                        value={description}
+                        value={description || ''}
                         onChange={(e) => setDescription(e.target.value)}
                       />
                     </div>
