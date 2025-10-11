@@ -1418,7 +1418,7 @@ components:
           example: "source-1234567890"
         type:
           type: string
-          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'radarrtag', 'sonarrtag']
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           description: "Type of collection source"
           example: 'trakt'
         subtype:
