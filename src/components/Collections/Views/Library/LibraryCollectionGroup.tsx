@@ -772,7 +772,7 @@ const SortableItem = ({
       </div>
 
       {/* Actions - new ordered layout */}
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Missing indicator - shown when collection no longer exists in Plex */}
         {config.missing && (
           <div

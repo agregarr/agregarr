@@ -494,7 +494,7 @@ const AutoRequestSection = ({
               <div className="space-y-4">
                 {/* Radarr Server and Profile Selection - only show if movie processing is enabled */}
                 {values.searchMissingMovies && shouldShowMovieSettings() && (
-                  <>
+                  <div className="rounded-md border border-gray-700 p-4">
                     {/* Radarr Server Selection - only show if 2+ servers */}
                     {radarrServers && radarrServers.length > 1 && (
                       <div>
@@ -590,12 +590,12 @@ const AutoRequestSection = ({
                         </Field>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* Sonarr Server and Profile Selection - only show if TV processing is enabled */}
                 {values.searchMissingTV && shouldShowTvSettings() && (
-                  <>
+                  <div className="rounded-md border border-gray-700 p-4">
                     {/* Sonarr Server Selection - only show if 2+ servers */}
                     {sonarrServers && sonarrServers.length > 1 && (
                       <div>
@@ -691,7 +691,7 @@ const AutoRequestSection = ({
                         </Field>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* Show message if no processing options are enabled */}
