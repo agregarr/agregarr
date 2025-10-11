@@ -281,6 +281,177 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     const updatedConfigs: CollectionConfig[] = [];
     const affectedLibraryIds: string[] = [];
 
+    // Handle library additions/removals for linked collections
+    if (
+      existingConfig.isLinked &&
+      existingConfig.linkId &&
+      req.body.libraryIds
+    ) {
+      const requestedLibraryIds = Array.isArray(req.body.libraryIds)
+        ? req.body.libraryIds
+        : [req.body.libraryIds];
+
+      // Get current library IDs from existing linked configs
+      const currentLibraryIds = configsToUpdate.map((c) => c.libraryId);
+
+      // Detect additions and removals
+      const addedLibraryIds = requestedLibraryIds.filter(
+        (id: string) => !currentLibraryIds.includes(id)
+      );
+      const removedLibraryIds = currentLibraryIds.filter(
+        (id: string) => !requestedLibraryIds.includes(id)
+      );
+
+      logger.info('Library changes detected for linked collection', {
+        label: 'Collections API',
+        linkId: existingConfig.linkId,
+        currentLibraries: currentLibraryIds,
+        requestedLibraries: requestedLibraryIds,
+        added: addedLibraryIds,
+        removed: removedLibraryIds,
+      });
+
+      // Create new configs for added libraries
+      for (const libraryId of addedLibraryIds) {
+        const library = libraries.find((lib) => lib.key === libraryId);
+        if (!library) {
+          logger.warn('Library not found for addition', {
+            label: 'Collections API',
+            libraryId,
+          });
+          continue;
+        }
+
+        // Determine proper media type based on library type
+        const libraryMediaType: 'movie' | 'tv' =
+          library.type === 'show' ? 'tv' : 'movie';
+
+        // Process template for this library
+        const context = {
+          ...templateEngine.getDefaultContext(),
+          mediaType: libraryMediaType,
+          days: req.body.customDays || existingConfig.customDays,
+          customdays: req.body.customDays || existingConfig.customDays,
+          statType:
+            req.body.tautulliStatType || existingConfig.tautulliStatType,
+          subtype: req.body.subtype || existingConfig.subtype,
+        };
+
+        let templateToProcess =
+          req.body.template || existingConfig.template || existingConfig.name;
+
+        // For custom templates, choose appropriate template based on library type
+        if (templateToProcess === 'custom') {
+          if (libraryMediaType === 'movie' && req.body.customMovieTemplate) {
+            templateToProcess = req.body.customMovieTemplate;
+          } else if (libraryMediaType === 'tv' && req.body.customTVTemplate) {
+            templateToProcess = req.body.customTVTemplate;
+          }
+        }
+
+        let processedName = templateEngine.processTemplate(
+          templateToProcess,
+          context
+        );
+
+        // Handle Overseerr user collections
+        if (
+          (req.body.type || existingConfig.type) === 'overseerr' &&
+          (req.body.subtype || existingConfig.subtype) === 'users'
+        ) {
+          const defaultContext = templateEngine.getDefaultContext();
+          if (defaultContext.username) {
+            processedName = processedName.replace(
+              new RegExp(defaultContext.username, 'g'),
+              '{username}'
+            );
+          }
+          if (defaultContext.nickname) {
+            processedName = processedName.replace(
+              new RegExp(defaultContext.nickname, 'g'),
+              '{nickname}'
+            );
+          }
+        }
+
+        // Extract per-library poster if available
+        let customPosterForNewLibrary: string | undefined;
+        if (req.body.customPoster) {
+          if (typeof req.body.customPoster === 'string') {
+            customPosterForNewLibrary = req.body.customPoster;
+          } else if (typeof req.body.customPoster === 'object') {
+            customPosterForNewLibrary = req.body.customPoster[libraryId] || '';
+          }
+        }
+
+        // Generate new ID for this config
+        const { IdGenerator } = await import('@server/utils/idGenerator');
+        const newConfigId = IdGenerator.generateId();
+
+        // Create new config based on existing config settings
+        const newConfig: CollectionConfig = {
+          ...existingConfig, // Copy all settings from the base config
+          ...req.body, // Apply user changes
+          id: newConfigId,
+          name: processedName,
+          libraryId: libraryId,
+          libraryName: library.name,
+          mediaType: libraryMediaType,
+          customPoster: customPosterForNewLibrary || '',
+          isLinked: true,
+          linkId: existingConfig.linkId,
+          isActive: false, // Will be computed by sync service
+          collectionRatingKey: undefined, // New collection doesn't exist in Plex yet
+          sortOrderHome: existingConfig.sortOrderHome,
+          sortOrderLibrary: existingConfig.sortOrderLibrary,
+        };
+
+        // Add to configs array
+        configs.push(newConfig);
+        configsToUpdate.push(newConfig);
+
+        logger.info('Created new config for added library', {
+          label: 'Collections API',
+          linkId: existingConfig.linkId,
+          libraryId,
+          libraryName: library.name,
+          configId: newConfigId,
+          configName: processedName,
+        });
+      }
+
+      // Delete configs for removed libraries
+      for (const libraryId of removedLibraryIds) {
+        const configToRemove = configsToUpdate.find(
+          (c) => c.libraryId === libraryId
+        );
+        if (configToRemove) {
+          const removeIndex = configs.findIndex(
+            (c) => c.id === configToRemove.id
+          );
+          if (removeIndex >= 0) {
+            configs.splice(removeIndex, 1);
+
+            // Also remove from configsToUpdate so we don't try to update it
+            const updateIndex = configsToUpdate.findIndex(
+              (c) => c.id === configToRemove.id
+            );
+            if (updateIndex >= 0) {
+              configsToUpdate.splice(updateIndex, 1);
+            }
+
+            logger.info('Deleted config for removed library', {
+              label: 'Collections API',
+              linkId: existingConfig.linkId,
+              libraryId,
+              configId: configToRemove.id,
+              configName: configToRemove.name,
+            });
+          }
+        }
+      }
+    }
+
     // Process each config (could be just one, or multiple if linked)
     for (const configToUpdate of configsToUpdate) {
       const configIndex = configs.findIndex((c) => c.id === configToUpdate.id);
