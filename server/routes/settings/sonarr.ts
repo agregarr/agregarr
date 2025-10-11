@@ -105,6 +105,79 @@ sonarrRoutes.put<{ id: string }>('/:id', (req, res) => {
   return res.status(200).json(settings.sonarr[sonarrIndex]);
 });
 
+sonarrRoutes.get<{ id: string }>('/:id/profiles', async (req, res, next) => {
+  const settings = getSettings();
+
+  const sonarrSettings = settings.sonarr.find(
+    (s) => s.id === Number(req.params.id)
+  );
+
+  if (!sonarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const sonarr = new SonarrAPI({
+    apiKey: sonarrSettings.apiKey,
+    url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+  });
+
+  const profiles = await sonarr.getProfiles();
+
+  return res.status(200).json(
+    profiles.map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+    }))
+  );
+});
+
+sonarrRoutes.get<{ id: string }>('/:id/rootfolders', async (req, res, next) => {
+  const settings = getSettings();
+
+  const sonarrSettings = settings.sonarr.find(
+    (s) => s.id === Number(req.params.id)
+  );
+
+  if (!sonarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const sonarr = new SonarrAPI({
+    apiKey: sonarrSettings.apiKey,
+    url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+  });
+
+  const folders = await sonarr.getRootFolders();
+
+  return res.status(200).json(
+    folders.map((folder) => ({
+      id: folder.id,
+      path: folder.path,
+    }))
+  );
+});
+
+sonarrRoutes.get<{ id: string }>('/:id/tags', async (req, res, next) => {
+  const settings = getSettings();
+
+  const sonarrSettings = settings.sonarr.find(
+    (s) => s.id === Number(req.params.id)
+  );
+
+  if (!sonarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const sonarr = new SonarrAPI({
+    apiKey: sonarrSettings.apiKey,
+    url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+  });
+
+  const tags = await sonarr.getTags();
+
+  return res.status(200).json(tags);
+});
+
 sonarrRoutes.delete<{ id: string }>('/:id', (req, res) => {
   const settings = getSettings();
 

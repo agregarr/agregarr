@@ -365,7 +365,11 @@ export class HubSyncService {
       }
 
       // Generate the proper custom collection hub identifier
-      const hubIdentifier = `custom.collection.${collectionConfig.libraryId}.${collectionConfig.collectionRatingKey}`;
+      // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
+      const targetRatingKey =
+        collectionConfig.smartCollectionRatingKey ||
+        collectionConfig.collectionRatingKey;
+      const hubIdentifier = `custom.collection.${collectionConfig.libraryId}.${targetRatingKey}`;
 
       // Skip malformed hub identifiers
       if (!this.isValidHubIdentifier(hubIdentifier)) {
@@ -641,7 +645,9 @@ export class HubSyncService {
           }
 
           // For collections, we need the collectionRatingKey to create proper Plex identifiers
-          const ratingKeyForLibrary = config.collectionRatingKey;
+          // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
+          const ratingKeyForLibrary =
+            config.smartCollectionRatingKey || config.collectionRatingKey;
 
           // If we have a rating key for this library, include it in ordering
           if (ratingKeyForLibrary) {

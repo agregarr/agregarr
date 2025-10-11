@@ -125,6 +125,11 @@ interface OverseerrRequestPayload {
 class OverseerrAPI {
   private axios: AxiosInstance;
   private baseUrl: string;
+  private adminUserCache: {
+    user: OverseerrUser | null;
+    timestamp: number;
+  } | null = null;
+  private readonly ADMIN_USER_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
   constructor(settings: OverseerrSettings) {
     // Build URL from individual settings components
@@ -161,6 +166,53 @@ class OverseerrAPI {
         throw error;
       }
     );
+  }
+
+  /**
+   * Retry helper with exponential backoff for transient network errors
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    maxRetries = 3,
+    initialDelayMs = 1000
+  ): Promise<T> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Only retry on network/timeout errors, not on 4xx client errors
+        const shouldRetry =
+          attempt < maxRetries &&
+          (lastError.message.includes('socket hang up') ||
+            lastError.message.includes('ECONNRESET') ||
+            lastError.message.includes('ETIMEDOUT') ||
+            lastError.message.includes('ECONNREFUSED') ||
+            lastError.message.includes('timeout'));
+
+        if (!shouldRetry) {
+          throw lastError;
+        }
+
+        const delayMs = initialDelayMs * Math.pow(2, attempt);
+        logger.debug(
+          `Retrying Overseerr API call (attempt ${
+            attempt + 1
+          }/${maxRetries}) after ${delayMs}ms`,
+          {
+            label: 'OverseerrAPI',
+            error: lastError.message,
+          }
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw lastError;
   }
 
   /**
@@ -379,15 +431,49 @@ class OverseerrAPI {
   }
 
   /**
-   * Get admin user (typically user ID 1)
+   * Get admin user (typically user ID 1) with caching and retry logic
    */
   async getAdminUser(): Promise<OverseerrUser | null> {
-    try {
-      return await this.getUser(1);
-    } catch (error) {
-      logger.error(`Failed to get admin user: ${error.message}`, {
+    // Check cache first
+    if (
+      this.adminUserCache &&
+      Date.now() - this.adminUserCache.timestamp < this.ADMIN_USER_CACHE_TTL
+    ) {
+      logger.debug('Returning cached admin user', {
         label: 'OverseerrAPI',
+        cacheAge: Math.round(
+          (Date.now() - this.adminUserCache.timestamp) / 1000
+        ),
       });
+      return this.adminUserCache.user;
+    }
+
+    try {
+      // Fetch with retry logic for transient network errors
+      const user = await this.retryWithBackoff(() => this.getUser(1));
+
+      // Cache the result
+      this.adminUserCache = {
+        user,
+        timestamp: Date.now(),
+      };
+
+      logger.debug('Fetched and cached admin user', {
+        label: 'OverseerrAPI',
+        userId: user.id,
+        plexId: user.plexId,
+      });
+
+      return user;
+    } catch (error) {
+      logger.error(
+        `Failed to get admin user after retries: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
       return null;
     }
   }

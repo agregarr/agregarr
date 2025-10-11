@@ -3,6 +3,7 @@ import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionU
 import type {
   CollectionItem,
   CollectionSyncOptions,
+  MissingItem,
   PlexCollection,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
@@ -16,14 +17,21 @@ import {
   handleRateLimit,
   incrementCollectionSyncCounter,
   parseConfigIdFromLabel,
+  processMissingItemsWithMode,
   updateConfigWithRatingKey,
   validateAndSanitizeItems,
   validateCollectionItems,
 } from '@server/lib/collections/core/CollectionUtilities';
+import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
 import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
 import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
 import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
+import { MyAnimeListCollectionSync } from '@server/lib/collections/external/myanimelist';
+import { NetworksCollectionSync } from '@server/lib/collections/external/networks';
+import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
+import RadarrTagCollectionSync from '@server/lib/collections/external/radarrtag';
+import SonarrTagCollectionSync from '@server/lib/collections/external/sonarrtag';
 import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
 import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
 import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
@@ -58,6 +66,7 @@ interface CollectionUpdateOptions {
   processedCollectionKeys?: Set<string>;
   libraryKey: string;
   config: MultiSourceCollectionConfig;
+  originalConfig?: CollectionConfig;
 }
 
 interface MetadataUpdateOptions {
@@ -82,6 +91,7 @@ interface MetadataUpdateOptions {
  */
 export class MultiSourceOrchestrator {
   private syncServices = new Map<string, BaseCollectionSync>();
+  private dynamicCycleTitle: string | null = null;
 
   constructor() {
     // Initialize sync services lazily to avoid circular dependencies
@@ -96,8 +106,12 @@ export class MultiSourceOrchestrator {
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
     libraryCache?: LibraryItemsCache,
-    options?: CollectionSyncOptions
+    options?: CollectionSyncOptions,
+    originalConfig?: CollectionConfig // Original config for smart collection operations
   ): Promise<{ created: number; updated: number }> {
+    let configForSync: MultiSourceCollectionConfig = config;
+    let collectionNameForSync = config.name;
+
     try {
       // 1. Time Restrictions - check if collection should be active
       const timeRestrictionResult =
@@ -149,10 +163,71 @@ export class MultiSourceOrchestrator {
       }
 
       const itemGroups: CollectionItem[][] = [];
+      const missingItemGroups: MissingItem[][] = [];
 
-      // Fetch items from each source
-      for (let i = 0; i < config.sources.length; i++) {
-        const source = config.sources[i];
+      // For cycle_lists mode, only fetch from the active source
+      // For other modes, fetch from all sources
+      const sourcesToFetch =
+        config.combineMode === 'cycle_lists'
+          ? [
+              config.sources[
+                getCollectionSyncCounter(config.id) % config.sources.length
+              ],
+            ]
+          : config.sources;
+
+      logger.debug(
+        `Fetching from ${sourcesToFetch.length} source(s) for ${config.combineMode} mode`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId: config.id,
+          combineMode: config.combineMode,
+          totalSources: config.sources.length,
+          fetchingSources: sourcesToFetch.length,
+        }
+      );
+
+      // Handle DYNAMIC_CYCLE_TITLE for cycle_lists mode
+      if (
+        config.combineMode === 'cycle_lists' &&
+        config.template === 'DYNAMIC_CYCLE_TITLE' &&
+        sourcesToFetch.length === 1
+      ) {
+        const activeSource = sourcesToFetch[0];
+        this.dynamicCycleTitle = await this.extractTitleFromSource(
+          activeSource
+        );
+
+        if (this.dynamicCycleTitle) {
+          const previousName = config.name;
+          collectionNameForSync = this.dynamicCycleTitle;
+          configForSync = {
+            ...config,
+            name: this.dynamicCycleTitle,
+          } as MultiSourceCollectionConfig;
+
+          // Persist updated name for subsequent syncs
+          this.updateCollectionConfigField(config.id, {
+            name: this.dynamicCycleTitle,
+          });
+
+          logger.info(
+            `Dynamic cycle title set for collection ${previousName}: ${this.dynamicCycleTitle}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              sourceId: activeSource.id,
+              sourceType: activeSource.type,
+              sourceSubtype: activeSource.subtype,
+              dynamicTitle: this.dynamicCycleTitle,
+            }
+          );
+        }
+      }
+
+      // Fetch items from sources
+      for (let i = 0; i < sourcesToFetch.length; i++) {
+        const source = sourcesToFetch[i];
 
         try {
           // Apply rate limiting between source fetches
@@ -160,7 +235,7 @@ export class MultiSourceOrchestrator {
             await handleRateLimit(1, 'Multi-Source');
           }
 
-          const items = await this.fetchItemsFromSource(
+          const { items, missingItems } = await this.fetchItemsFromSource(
             source,
             config,
             plexClient,
@@ -169,24 +244,66 @@ export class MultiSourceOrchestrator {
           );
           if (items.length > 0) {
             itemGroups.push(items);
-            logger.debug(
-              `Fetched ${items.length} items from source ${source.id}`,
-              {
-                label: 'Multi-Source Orchestrator',
-                configId: config.id,
-                sourceId: source.id,
-                sourceType: source.type,
-                itemCount: items.length,
-              }
-            );
           }
+          if (missingItems && missingItems.length > 0) {
+            missingItemGroups.push(missingItems);
+          }
+          logger.debug(
+            `Fetched ${items.length} items from source ${source.id}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              sourceId: source.id,
+              sourceType: source.type,
+              itemCount: items.length,
+              missingItemCount: missingItems?.length || 0,
+            }
+          );
         } catch (error) {
+          // Proper error serialization - handle CollectionSyncError objects
+          let errorMessage: string;
+          const errorDetails: Record<string, unknown> = {};
+
+          if (error instanceof Error) {
+            errorMessage = error.message;
+            if (error.stack) {
+              errorDetails.stack = error.stack;
+            }
+          } else if (
+            typeof error === 'object' &&
+            error !== null &&
+            'message' in error
+          ) {
+            // CollectionSyncError or similar structured error
+            const structuredError = error as {
+              message: string;
+              type?: string;
+              details?: Record<string, unknown>;
+              originalError?: Error;
+            };
+            errorMessage = structuredError.message;
+            if (structuredError.type) {
+              errorDetails.errorType = structuredError.type;
+            }
+            if (structuredError.details) {
+              errorDetails.errorDetails = structuredError.details;
+            }
+            if (structuredError.originalError) {
+              errorDetails.originalError =
+                structuredError.originalError.message;
+              errorDetails.originalStack = structuredError.originalError.stack;
+            }
+          } else {
+            errorMessage = String(error);
+          }
+
           logger.error(`Failed to fetch from source ${source.id}:`, {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
             sourceId: source.id,
             sourceType: source.type,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
+            ...errorDetails,
           });
           // Continue with other sources
         }
@@ -196,7 +313,7 @@ export class MultiSourceOrchestrator {
       const combinedItems = this.combineItems(
         itemGroups,
         config.combineMode,
-        config
+        configForSync
       );
 
       // 3. Validation & Filtering - use standard pipeline utilities
@@ -205,7 +322,7 @@ export class MultiSourceOrchestrator {
 
       if (invalidItems.length > 0) {
         logger.debug(
-          `Filtered ${invalidItems.length} invalid items from multi-source collection: ${config.name}`,
+          `Filtered ${invalidItems.length} invalid items from multi-source collection: ${collectionNameForSync}`,
           {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
@@ -222,7 +339,7 @@ export class MultiSourceOrchestrator {
 
       if (finalItems.length === 0) {
         logger.warn(
-          `No valid items found from any source for multi-source collection: ${config.name}`,
+          `No valid items found from any source for multi-source collection: ${collectionNameForSync}`,
           {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
@@ -252,19 +369,102 @@ export class MultiSourceOrchestrator {
       );
 
       // Create/update collection directly in Plex
-      return await this.createOrUpdatePlexCollection(
+      const result = await this.createOrUpdatePlexCollection(
         finalItems,
-        config,
+        configForSync,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        originalConfig
       );
+
+      // Process missing items if enabled
+      logger.debug(
+        `Missing items check for multi-source collection: ${collectionNameForSync}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId: config.id,
+          missingItemGroupsCount: missingItemGroups.length,
+          totalMissingItems: missingItemGroups.flat().length,
+          searchMissingMovies: config.searchMissingMovies,
+          searchMissingTV: config.searchMissingTV,
+          downloadMode: config.downloadMode,
+        }
+      );
+
+      if (
+        missingItemGroups.length > 0 &&
+        (config.searchMissingMovies || config.searchMissingTV)
+      ) {
+        // Combine missing items based on combine mode
+        const combinedMissingItems = this.combineMissingItems(
+          missingItemGroups,
+          config.combineMode,
+          configForSync
+        );
+
+        if (combinedMissingItems.length > 0) {
+          logger.info(
+            `Processing ${combinedMissingItems.length} missing items for multi-source collection: ${collectionNameForSync}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              missingItemCount: combinedMissingItems.length,
+            }
+          );
+
+          try {
+            // Cast to CollectionConfig to include missing items fields
+            await processMissingItemsWithMode(
+              combinedMissingItems,
+              configForSync as unknown as CollectionConfig,
+              'multi-source'
+            );
+          } catch (error) {
+            logger.error(
+              `Failed to process missing items for multi-source collection: ${collectionNameForSync}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        } else {
+          logger.debug(
+            `No missing items after combination for multi-source collection: ${collectionNameForSync}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+            }
+          );
+        }
+      } else {
+        logger.debug(
+          `Skipping missing items processing for multi-source collection: ${collectionNameForSync}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            reason:
+              missingItemGroups.length === 0
+                ? 'No missing items found'
+                : 'Search missing items not enabled',
+          }
+        );
+      }
+
+      return result;
     } catch (error) {
+      const safeName =
+        typeof collectionNameForSync === 'string'
+          ? collectionNameForSync
+          : config.name;
+
       // 4. Error Handling - use standard pipeline utilities
       const syncError = createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
-        `Failed to process multi-source collection ${config.name}`,
-        { configId: config.id, configName: config.name },
+        `Failed to process multi-source collection ${safeName}`,
+        { configId: config.id, configName: safeName },
         error instanceof Error ? error : new Error(String(error))
       );
 
@@ -292,7 +492,7 @@ export class MultiSourceOrchestrator {
     plexClient: PlexAPI,
     libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
-  ): Promise<CollectionItem[]> {
+  ): Promise<{ items: CollectionItem[]; missingItems?: MissingItem[] }> {
     // Create temporary single-source config
     const tempConfig = this.createTempConfig(source, parentConfig);
 
@@ -312,7 +512,7 @@ export class MultiSourceOrchestrator {
         plexClient,
         libraryCache
       );
-      const { items } = syncService.applyFilteringToMappedItems(
+      const { items, missingItems } = syncService.applyFilteringToMappedItems(
         mappedResult,
         tempConfig
       );
@@ -324,18 +524,56 @@ export class MultiSourceOrchestrator {
           sourceId: source.id,
           sourceType: source.type,
           itemCount: items.length,
+          missingItemCount: missingItems?.length || 0,
         }
       );
 
-      return items;
+      return { items, missingItems };
     } catch (error) {
+      // Proper error serialization - handle CollectionSyncError objects
+      let errorMessage: string;
+      const errorDetails: Record<string, unknown> = {};
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (error.stack) {
+          errorDetails.stack = error.stack;
+        }
+      } else if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        // CollectionSyncError or similar structured error
+        const structuredError = error as {
+          message: string;
+          type?: string;
+          details?: Record<string, unknown>;
+          originalError?: Error;
+        };
+        errorMessage = structuredError.message;
+        if (structuredError.type) {
+          errorDetails.errorType = structuredError.type;
+        }
+        if (structuredError.details) {
+          errorDetails.errorDetails = structuredError.details;
+        }
+        if (structuredError.originalError) {
+          errorDetails.originalError = structuredError.originalError.message;
+          errorDetails.originalStack = structuredError.originalError.stack;
+        }
+      } else {
+        errorMessage = String(error);
+      }
+
       logger.error(`Failed to fetch items from ${source.type}:`, {
         label: 'Multi-Source Orchestrator',
         sourceId: source.id,
         sourceType: source.type,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
+        ...errorDetails,
       });
-      return [];
+      return { items: [] };
     }
   }
 
@@ -374,6 +612,33 @@ export class MultiSourceOrchestrator {
         source.customUrl && {
           letterboxdCustomListUrl: source.customUrl,
         }),
+      ...(source.type === 'anilist' &&
+        source.customUrl && {
+          anilistCustomListUrl: source.customUrl,
+        }),
+      ...(source.type === 'radarrtag' && {
+        radarrInstanceId:
+          source.radarrTagServerId !== undefined
+            ? Number(source.radarrTagServerId)
+            : undefined,
+        radarrTagId:
+          source.radarrTagId !== undefined
+            ? Number(source.radarrTagId)
+            : undefined,
+      }),
+      ...(source.type === 'sonarrtag' && {
+        sonarrInstanceId:
+          source.sonarrTagServerId !== undefined
+            ? Number(source.sonarrTagServerId)
+            : undefined,
+        sonarrTagId:
+          source.sonarrTagId !== undefined
+            ? Number(source.sonarrTagId)
+            : undefined,
+      }),
+      ...(source.type === 'networks' && {
+        networksCountry: source.networksCountry,
+      }),
       // Remove multi-source specific fields
       sources: undefined,
       combineMode: undefined,
@@ -408,6 +673,24 @@ export class MultiSourceOrchestrator {
           break;
         case 'overseerr':
           this.syncServices.set(sourceType, new OverseerrCollectionSync());
+          break;
+        case 'networks':
+          this.syncServices.set(sourceType, new NetworksCollectionSync());
+          break;
+        case 'originals':
+          this.syncServices.set(sourceType, new OriginalsCollectionSync());
+          break;
+        case 'anilist':
+          this.syncServices.set(sourceType, new AnilistCollectionSync());
+          break;
+        case 'myanimelist':
+          this.syncServices.set(sourceType, new MyAnimeListCollectionSync());
+          break;
+        case 'radarrtag':
+          this.syncServices.set(sourceType, new RadarrTagCollectionSync());
+          break;
+        case 'sonarrtag':
+          this.syncServices.set(sourceType, new SonarrTagCollectionSync());
           break;
         default:
           throw new Error(`Unknown source type: ${sourceType}`);
@@ -450,6 +733,160 @@ export class MultiSourceOrchestrator {
 
       default:
         return this.concatenateItems(itemGroups);
+    }
+  }
+
+  /**
+   * Combine missing items from multiple sources according to the specified mode
+   * For cycle_lists mode, we only fetched from one source, so just return that
+   * For other modes, combines all missing items and removes duplicates
+   */
+  private combineMissingItems(
+    missingItemGroups: MissingItem[][],
+    combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists',
+    parentConfig: MultiSourceCollectionConfig
+  ): MissingItem[] {
+    if (missingItemGroups.length === 0) return [];
+
+    switch (combineMode) {
+      case 'cycle_lists': {
+        // For cycle_lists, we only fetched from the active source
+        // So missingItemGroups should have exactly 1 array
+        const missingItems = missingItemGroups[0] || [];
+
+        logger.debug(`Cycle lists missing items from active source`, {
+          label: 'Multi-Source Orchestrator',
+          configId: parentConfig.id,
+          missingItemCount: missingItems.length,
+        });
+
+        return missingItems;
+      }
+
+      case 'interleaved':
+      case 'list_order':
+      case 'randomised':
+      default: {
+        // For all other modes, combine ALL missing items from ALL sources
+        const allMissingItems = missingItemGroups.flat();
+
+        // Remove duplicates based on tmdbId and mediaType
+        const uniqueMissingItems = allMissingItems.reduce(
+          (acc, item) => {
+            const key = `${item.tmdbId}-${item.mediaType}`;
+            if (!acc.seen.has(key)) {
+              acc.seen.add(key);
+              acc.items.push(item);
+            }
+            return acc;
+          },
+          { seen: new Set<string>(), items: [] as MissingItem[] }
+        ).items;
+
+        logger.debug(
+          `Combined missing items from ${missingItemGroups.length} sources`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: parentConfig.id,
+            combineMode,
+            totalMissingItems: allMissingItems.length,
+            uniqueMissingItems: uniqueMissingItems.length,
+          }
+        );
+
+        return uniqueMissingItems;
+      }
+    }
+  }
+
+  /**
+   * Check if an existing collection needs to be recreated due to type mismatch
+   * This handles cases like cycle_lists mode switching between shows and episodes
+   */
+  private async shouldRecreateCollection(
+    plexClient: PlexAPI,
+    collectionRatingKey: string,
+    currentContainsEpisodes: boolean,
+    mediaType: 'movie' | 'tv'
+  ): Promise<boolean> {
+    // Only need to check TV collections (movies can't have episode content)
+    if (mediaType !== 'tv') {
+      return false;
+    }
+
+    try {
+      // Get current collection items to analyze their type
+      const currentItemRatingKeys = await plexClient.getCollectionItems(
+        collectionRatingKey
+      );
+
+      // For empty collections, we need to check the collection's inherent type
+      // Unfortunately, Plex doesn't directly expose this, but we can infer it by
+      // attempting a test operation or checking collection metadata
+      if (currentItemRatingKeys.length === 0) {
+        // For empty collections, we'll be conservative and recreate if we suspect a mismatch
+        // This is better than failing to add items due to type incompatibility
+        logger.debug(
+          `Empty collection found - will recreate to ensure correct type`,
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionRatingKey,
+            currentContainsEpisodes,
+          }
+        );
+        return true; // Always recreate empty collections to be safe
+      }
+
+      // Sample first few items to determine current collection type
+      const sampleSize = Math.min(currentItemRatingKeys.length, 3);
+      let existingContainsEpisodes = false;
+
+      for (let i = 0; i < sampleSize; i++) {
+        try {
+          const itemDetails = await plexClient.getMetadata(
+            currentItemRatingKeys[i]
+          );
+          // Check if item is an episode (type === 'episode' or has parentRatingKey indicating it's a child item)
+          if (itemDetails?.type === 'episode' || itemDetails?.parentRatingKey) {
+            existingContainsEpisodes = true;
+            break;
+          }
+        } catch (error) {
+          // If we can't get item details, skip this check
+          logger.debug(
+            `Could not check item type for recreation decision: ${error}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              itemRatingKey: currentItemRatingKeys[i],
+            }
+          );
+        }
+      }
+
+      // Return true if there's a type mismatch
+      const needsRecreation =
+        existingContainsEpisodes !== currentContainsEpisodes;
+
+      if (needsRecreation) {
+        logger.debug(`Collection type mismatch detected`, {
+          label: 'Multi-Source Orchestrator',
+          collectionRatingKey,
+          existingContainsEpisodes,
+          currentContainsEpisodes,
+        });
+      }
+
+      return needsRecreation;
+    } catch (error) {
+      logger.warn(
+        `Could not determine if collection needs recreation: ${error}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          collectionRatingKey,
+        }
+      );
+      // If we can't determine, err on the side of recreating to avoid update failures
+      return true;
     }
   }
 
@@ -540,7 +977,8 @@ export class MultiSourceOrchestrator {
     config: MultiSourceCollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>
+    processedCollectionKeys?: Set<string>,
+    originalConfig?: CollectionConfig
   ): Promise<{ created: number; updated: number }> {
     const mediaType = getMediaTypeFromLibrary(config.libraryId);
     const customLabel = createCollectionLabel(
@@ -571,6 +1009,7 @@ export class MultiSourceOrchestrator {
         processedCollectionKeys,
         libraryKey: config.libraryId,
         config,
+        originalConfig,
       }
     );
   }
@@ -624,33 +1063,90 @@ export class MultiSourceOrchestrator {
 
     if (existingCollection) {
       // UPDATE PATH
-      logger.info(
-        `Updating existing multi-source collection: ${collectionName}`,
-        {
-          label: 'Multi-Source Orchestrator',
-          configId: options.config.id,
-          collectionRatingKey: existingCollection.ratingKey,
-          itemCount: plexItems.length,
-        }
+      // Check if we need to recreate the collection due to type mismatch
+      const currentContainsEpisodes = validItems.some(
+        (item) => item.episodeInfo
       );
 
-      collectionRatingKey = existingCollection.ratingKey;
-      await plexClient.updateCollectionContents(collectionRatingKey, plexItems);
-      updated = 1;
+      // Check the existing collection type by attempting to get its details
+      // We'll detect mismatch by checking if update would fail
+      const needsRecreation = await this.shouldRecreateCollection(
+        plexClient,
+        existingCollection.ratingKey,
+        currentContainsEpisodes,
+        mediaType
+      );
+
+      if (needsRecreation) {
+        logger.info(
+          `Collection type mismatch detected - recreating multi-source collection: ${collectionName}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: options.config.id,
+            oldCollectionRatingKey: existingCollection.ratingKey,
+            currentContainsEpisodes,
+            mediaType,
+          }
+        );
+
+        // Delete existing collection
+        await plexClient.deleteCollection(existingCollection.ratingKey);
+
+        // Create new collection with correct type
+        const newCollectionRatingKey = await plexClient.createEmptyCollection(
+          collectionName,
+          options.libraryKey,
+          mediaType,
+          currentContainsEpisodes
+        );
+
+        if (!newCollectionRatingKey) {
+          throw new Error(`Failed to recreate collection ${collectionName}`);
+        }
+
+        collectionRatingKey = newCollectionRatingKey;
+        await plexClient.updateCollectionContents(
+          collectionRatingKey,
+          plexItems
+        );
+        created = 1; // Mark as created since we recreated it
+      } else {
+        logger.info(
+          `Updating existing multi-source collection: ${collectionName}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: options.config.id,
+            collectionRatingKey: existingCollection.ratingKey,
+            itemCount: plexItems.length,
+          }
+        );
+
+        collectionRatingKey = existingCollection.ratingKey;
+        await plexClient.updateCollectionContents(
+          collectionRatingKey,
+          plexItems
+        );
+        updated = 1;
+      }
     } else {
       // CREATE PATH
+      // Check if any items are episodes to determine collection type (same logic as BaseCollectionSync)
+      const containsEpisodes = validItems.some((item) => item.episodeInfo);
+
       logger.info(`Creating new multi-source collection: ${collectionName}`, {
         label: 'Multi-Source Orchestrator',
         configId: options.config.id,
         libraryId: options.libraryKey,
         itemCount: plexItems.length,
         mediaType,
+        containsEpisodes,
       });
 
       const newCollectionRatingKey = await plexClient.createEmptyCollection(
         collectionName,
         options.libraryKey,
-        mediaType
+        mediaType,
+        containsEpisodes
       );
 
       if (!newCollectionRatingKey) {
@@ -704,6 +1200,55 @@ export class MultiSourceOrchestrator {
       collectionRatingKey,
       options.libraryKey
     );
+
+    // 6. Handle smart collection creation/cleanup if feature is enabled
+    // CRITICAL: This must happen AFTER the base collection is labeled and has rating key
+    if (collectionRatingKey && options.originalConfig) {
+      if (options.originalConfig.showUnwatchedOnly) {
+        // Create or update smart collection using the base collection we just labeled
+        // Use TraktCollectionSync as a concrete implementation to access smart collection methods
+        const smartCollectionHandler = new TraktCollectionSync();
+        await smartCollectionHandler.handleSmartCollectionCreation(
+          plexClient,
+          collectionRatingKey, // Base collection is guaranteed to exist and be labeled at this point
+          options.collectionName,
+          options.mediaType,
+          options.libraryKey,
+          options.originalConfig // Use original config which has smart collection properties
+        );
+      } else if (options.originalConfig.smartCollectionRatingKey) {
+        // User disabled the feature but smart collection exists - clean it up
+        const smartCollectionHandler = new TraktCollectionSync();
+        await smartCollectionHandler.handleSmartCollectionCleanup(
+          plexClient,
+          options.originalConfig
+        );
+      }
+    }
+
+    // 7. Apply metadata to the target collection (smart collection if enabled, base otherwise)
+    // CRITICAL: If smart collection is enabled, apply additional metadata to smart collection
+    // Re-determine target after smart collection creation to use updated rating key
+    const targetCollectionRatingKey =
+      options.originalConfig?.showUnwatchedOnly &&
+      options.originalConfig?.smartCollectionRatingKey
+        ? options.originalConfig.smartCollectionRatingKey
+        : collectionRatingKey;
+
+    // Only apply metadata to smart collection if it's different from base
+    if (targetCollectionRatingKey !== collectionRatingKey) {
+      await this.updateCollectionMetadataStandardized(
+        plexClient,
+        targetCollectionRatingKey,
+        options,
+        items
+      );
+    }
+
+    // 8. Track processed collection (track the collection users actually see)
+    if (options.processedCollectionKeys) {
+      options.processedCollectionKeys.add(targetCollectionRatingKey);
+    }
 
     return { created, updated };
   }
@@ -860,26 +1405,57 @@ export class MultiSourceOrchestrator {
       // Determine media type from items or config
       const mediaType = items[0]?.type || config.mediaType || 'movie';
 
-      // Convert collection items to poster items format
+      // For cycle_lists mode, use the active source's type for the poster
+      // For other modes, use 'multi-source' type
+      let collectionType = 'multi-source';
+      if (config.combineMode === 'cycle_lists') {
+        // Get the active source
+        const activeSourceIndex =
+          getCollectionSyncCounter(config.id) % config.sources.length;
+        const activeSource = config.sources[activeSourceIndex];
+        if (activeSource) {
+          collectionType = activeSource.type;
+        }
+      }
+
+      // Convert collection items to poster items format (same logic as BaseCollectionSync)
       const posterItems: CollectionItemWithPoster[] = items
-        .slice(0, 4)
+        .slice(0, 100) // Reasonable upper limit for performance
         .map((item) => ({
           title: item.title,
           type: item.type as 'movie' | 'tv',
           tmdbId: item.tmdbId,
           year: item.year,
+          episodeInfo: item.episodeInfo, // Essential for episode poster generation
+          metadata: item.metadata, // Contains showTmdbId for episodes
         }));
 
-      // Generate the poster using multi-source type
+      // Generate the poster using source-specific type for cycle_lists, multi-source for others
       const posterFilename = await generatePoster(
         {
           collectionName: config.name,
-          collectionType: 'multi-source', // Use our new color scheme
+          collectionType: collectionType as
+            | 'overseerr'
+            | 'tautulli'
+            | 'trakt'
+            | 'tmdb'
+            | 'imdb'
+            | 'letterboxd'
+            | 'anilist'
+            | 'myanimelist'
+            | 'mdblist'
+            | 'networks'
+            | 'originals'
+            | 'multi-source',
           mediaType,
           items: posterItems,
           autoPosterTemplate: config.autoPosterTemplate, // Use configured template or default
         },
-        `Multi-Source: ${config.name}`,
+        `${
+          config.combineMode === 'cycle_lists'
+            ? collectionType.charAt(0).toUpperCase() + collectionType.slice(1)
+            : 'Multi-Source'
+        }: ${config.name}`,
         config.id
       );
 
@@ -900,6 +1476,8 @@ export class MultiSourceOrchestrator {
             configId: config.id,
             collectionRatingKey,
             posterFilename,
+            collectionType,
+            combineMode: config.combineMode,
           }
         );
       }
@@ -1047,6 +1625,442 @@ export class MultiSourceOrchestrator {
         }
       );
       // Don't throw - sortTitle update failure shouldn't break collection sync
+    }
+  }
+
+  /**
+   * Extract title from a source for DYNAMIC_CYCLE_TITLE
+   * For preset lists, use the subtype label
+   * For custom lists, fetch the title from the API
+   */
+  private async extractTitleFromSource(
+    source: SourceDefinition
+  ): Promise<string | null> {
+    try {
+      // For custom lists, fetch the title from the API using same logic as fetch-title endpoint
+      if (source.subtype === 'custom' && source.customUrl) {
+        return await this.fetchCustomListTitle(source);
+      }
+
+      // For preset lists, use the subtype label (first option in dropdown)
+      return this.getPresetTitleForSource(source);
+    } catch (error) {
+      logger.error(`Failed to extract title from source:`, {
+        label: 'Multi-Source Orchestrator',
+        sourceId: source.id,
+        sourceType: source.type,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Fetch custom list title using API clients directly
+   * Based on the /api/v1/collections/fetch-title endpoint logic
+   */
+  private async fetchCustomListTitle(
+    source: SourceDefinition
+  ): Promise<string | null> {
+    if (!source.customUrl) return null;
+
+    try {
+      switch (source.type) {
+        case 'trakt': {
+          const TraktAPI = (await import('@server/api/trakt')).default;
+          const settings = getSettings();
+
+          if (!settings.trakt.apiKey) {
+            logger.warn('Trakt API key not configured for title fetch', {
+              label: 'Multi-Source Orchestrator',
+            });
+            return null;
+          }
+
+          const traktClient = new TraktAPI(settings.trakt.apiKey);
+          const listMetadata = await traktClient.getListMetadata(
+            source.customUrl
+          );
+          return listMetadata.name || 'Trakt List';
+        }
+
+        case 'tmdb': {
+          const TheMovieDb = (await import('@server/api/themoviedb')).default;
+          const tmdbClient = new TheMovieDb();
+
+          // Check if it's a collection URL
+          const collectionMatch = source.customUrl.match(
+            /themoviedb\.org\/collection\/(\d+)/
+          );
+          // Check if it's a list URL
+          const listMatch = source.customUrl.match(
+            /themoviedb\.org\/list\/(\d+)/
+          );
+
+          if (collectionMatch) {
+            const collectionId = parseInt(collectionMatch[1]);
+            const collection = await tmdbClient.getCollection({ collectionId });
+            return collection.name;
+          } else if (listMatch) {
+            const listId = listMatch[1];
+            const list = await tmdbClient.getList({ listId });
+            return list.name;
+          }
+          return null;
+        }
+
+        case 'imdb': {
+          // Scrape title from IMDb HTML page
+          const axios = (await import('axios')).default;
+          const response = await axios.get(source.customUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            let extractedTitle = titleMatch[1].replace(' - IMDb', '').trim();
+            // Decode HTML entities
+            extractedTitle = extractedTitle
+              .replace(/&lrm;/g, '')
+              .replace(/&rlm;/g, '')
+              .replace(/&bull;/g, '•')
+              .replace(/&ndash;/g, '–')
+              .replace(/&mdash;/g, '—')
+              .replace(/&hellip;/g, '…')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&#x27;/g, "'")
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+            return extractedTitle;
+          }
+          return 'IMDb List';
+        }
+
+        case 'letterboxd': {
+          // Scrape title from Letterboxd HTML page
+          const axios = (await import('axios')).default;
+          const response = await axios.get(source.customUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            let rawTitle = titleMatch[1];
+            // Decode HTML entities
+            rawTitle = rawTitle
+              .replace(/&lrm;/g, '')
+              .replace(/&rlm;/g, '')
+              .replace(/&bull;/g, '•')
+              .replace(/&ndash;/g, '–')
+              .replace(/&mdash;/g, '—')
+              .replace(/&hellip;/g, '…')
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>');
+
+            // Extract list name
+            const patterns = [
+              /^(.*?),\s*a\s+list\s+of\s+films?\s+by/i,
+              /^(.*?)\s*•\s*Letterboxd/i,
+              /^(.*?)\s*-\s*Letterboxd/i,
+              /^(.*?)\s*\|\s*Letterboxd/i,
+            ];
+
+            for (const pattern of patterns) {
+              const match = rawTitle.match(pattern);
+              if (match && match[1]) {
+                return match[1].trim();
+              }
+            }
+
+            // Fallback cleanup
+            return rawTitle
+              .replace(/\s*•\s*Letterboxd.*$/i, '')
+              .replace(/\s*-\s*Letterboxd.*$/i, '')
+              .replace(/\s*\|\s*Letterboxd.*$/i, '')
+              .trim();
+          }
+          return 'Letterboxd List';
+        }
+
+        case 'anilist': {
+          // Scrape title from AniList HTML page
+          const axios = (await import('axios')).default;
+          const response = await axios.get(source.customUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            let extractedTitle = titleMatch[1].trim();
+            // Remove " · AniList" suffix
+            extractedTitle = extractedTitle
+              .replace(/\s*·\s*AniList.*$/i, '')
+              .replace(/\s*-\s*AniList.*$/i, '')
+              .trim();
+            return extractedTitle;
+          }
+          return 'AniList List';
+        }
+
+        case 'mdblist': {
+          const MDBListAPI = (await import('@server/api/mdblist')).default;
+          const settings = getSettings();
+
+          if (!settings.mdblist.apiKey) {
+            logger.warn('MDBList API key not configured for title fetch', {
+              label: 'Multi-Source Orchestrator',
+            });
+            return null;
+          }
+
+          const mdblistClient = new MDBListAPI(settings.mdblist.apiKey);
+          const parsedUrl = mdblistClient.parseListUrl(source.customUrl);
+
+          if (!parsedUrl) {
+            return 'MDBList List';
+          }
+
+          // Try to get list title from metadata
+          if (
+            parsedUrl.type === 'user' &&
+            parsedUrl.username &&
+            parsedUrl.listName
+          ) {
+            try {
+              // Try getting lists by username first
+              const userLists = await mdblistClient.getUserListsByUsername(
+                parsedUrl.username
+              );
+
+              const targetList = userLists.find(
+                (list) =>
+                  list.slug === parsedUrl.listName ||
+                  list.name.toLowerCase().replace(/\s+/g, '-') ===
+                    parsedUrl.listName
+              );
+
+              if (targetList) {
+                return targetList.name;
+              }
+            } catch (error) {
+              // Try getting own lists as fallback
+              try {
+                const ownLists = await mdblistClient.getUserLists();
+                const targetList = ownLists.find(
+                  (list) =>
+                    list.slug === parsedUrl.listName ||
+                    list.name.toLowerCase().replace(/\s+/g, '-') ===
+                      parsedUrl.listName
+                );
+
+                if (targetList) {
+                  return targetList.name;
+                }
+              } catch (ownListsError) {
+                // Both failed, use fallback
+              }
+            }
+          }
+
+          return 'MDBList List';
+        }
+
+        default:
+          logger.warn(
+            `Custom list title fetching not supported for ${source.type}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceType: source.type,
+            }
+          );
+          return null;
+      }
+    } catch (error) {
+      logger.error(`Failed to fetch custom list title for ${source.type}`, {
+        label: 'Multi-Source Orchestrator',
+        sourceType: source.type,
+        customUrl: source.customUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get preset title for a source based on its type and subtype
+   * This uses the same logic as the frontend dropdown labels
+   */
+  private getPresetTitleForSource(source: SourceDefinition): string {
+    const type = source.type;
+    const subtype = source.subtype;
+
+    // Map subtypes to their human-readable titles (first option in dropdown)
+    const titleMappings: Record<
+      string,
+      Record<string, string | ((source: SourceDefinition) => string)>
+    > = {
+      trakt: {
+        trending: 'Trending Now',
+        popular: 'Popular',
+        played: 'Most Played',
+        watched: 'Most Watched',
+        collected: 'Most Collected',
+        favorited: 'Most Favorited',
+        boxoffice: 'Box Office',
+      },
+      tmdb: {
+        trending_day: 'Trending Today',
+        trending_week: 'Trending This Week',
+        popular: 'Popular',
+        top_rated: 'Top Rated',
+      },
+      imdb: {
+        top_250: 'Top 250',
+        popular: 'Popular (Meter)',
+        boxoffice: 'Box Office',
+      },
+      letterboxd: {
+        random: 'Random Letterboxd Collection',
+      },
+      overseerr: {
+        users: 'Individual Users Requests',
+        server_owner: 'Server Owner Requests',
+        global: 'All Requests',
+      },
+      tautulli: {
+        most_popular_plays: (src) =>
+          `Most Popular (by Play Count)${
+            src.customDays ? ` - ${src.customDays} Days` : ''
+          }`,
+        most_popular_duration: (src) =>
+          `Most Popular (by Watch Duration)${
+            src.customDays ? ` - ${src.customDays} Days` : ''
+          }`,
+      },
+      networks: {},
+      originals: {
+        netflix_originals: 'Netflix Originals',
+        amazon_originals: 'Amazon Originals',
+        disney_originals: 'Disney+ Originals',
+        hbomax_originals: 'HBO Max Originals',
+        paramount_originals: 'Paramount+ Originals',
+        hulu_originals: 'Hulu Originals',
+        peacock_originals: 'Peacock Originals',
+        apple_originals: 'Apple TV+ Originals',
+        discovery_originals: 'Discovery+ Movies',
+      },
+      anilist: {
+        trending: 'Trending Anime',
+        popular: 'Popular Anime',
+        top_rated: 'Top Rated Anime',
+      },
+      myanimelist: {
+        all: 'Top Anime Series',
+        airing: 'Top Airing Anime',
+        tv: 'Top Anime TV Series',
+        movie: 'Top Anime Movies',
+        ova: 'Top OVA Series',
+        special: 'Top Anime Specials',
+      },
+      mdblist: {
+        user_lists: 'My Personal List',
+        top_lists: 'Top Lists Collection',
+      },
+      radarrtag: {
+        tag: 'Radarr Tag Collection',
+      },
+      sonarrtag: {
+        tag: 'Sonarr Tag Collection',
+      },
+    };
+
+    // Handle Networks dynamically based on platform
+    if (type === 'networks' && subtype) {
+      const platformName = subtype
+        .split('_')[0] // Take first part before underscore
+        .split('-') // Split on dashes
+        .map((word) => {
+          if (word.toLowerCase() === 'tv') {
+            return 'TV';
+          }
+          return word.charAt(0).toUpperCase() + word.slice(1);
+        })
+        .join(' ');
+      return `Popular on ${platformName}`;
+    }
+
+    const typeMapping = titleMappings[type] || {};
+    const titleOrFunc = typeMapping[subtype];
+
+    if (typeof titleOrFunc === 'function') {
+      return titleOrFunc(source);
+    } else if (titleOrFunc) {
+      return titleOrFunc;
+    }
+
+    // Fallback: capitalize subtype
+    return subtype
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  /**
+   * Update collection config field in settings
+   * Based on BaseCollectionSync.updateCollectionConfigField
+   */
+  private updateCollectionConfigField(
+    configId: string,
+    updateConfig: Partial<MultiSourceCollectionConfig>
+  ): void {
+    try {
+      const settings = getSettings();
+      const collectionConfigs = settings.plex.collectionConfigs || [];
+      const configIndex = collectionConfigs.findIndex((c) => c.id === configId);
+
+      if (configIndex !== -1) {
+        collectionConfigs[configIndex] = {
+          ...collectionConfigs[configIndex],
+          ...updateConfig,
+        };
+        settings.plex.collectionConfigs = collectionConfigs;
+        settings.save();
+
+        logger.debug(
+          `Updated multi-source collection config fields: ${configId}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId,
+            updatedFields: Object.keys(updateConfig),
+          }
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to update multi-source collection config fields for ${configId}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   }
 }

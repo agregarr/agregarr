@@ -3,9 +3,13 @@ import { XMarkIcon } from '@heroicons/react/24/solid';
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
-import { PosterEditorCanvas } from './PosterEditorCanvas';
-import { PosterEditorToolbar } from './PosterEditorToolbar';
+import { LayerPanel } from './LayerPanel';
+import {
+  PosterEditorCanvas,
+  type PosterEditorCanvasRef,
+} from './PosterEditorCanvas';
 
 const messages = defineMessages({
   createPosterTitle: 'Create Poster',
@@ -32,6 +36,57 @@ export type EditorMode =
   | 'edit-poster'
   | 'edit-template';
 
+// Frontend layered element types matching backend structure
+export interface LayeredElement {
+  id: string;
+  layerOrder: number; // 0 = bottom, higher = top
+  type: 'text' | 'raster' | 'svg' | 'content-grid';
+
+  // Common properties
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+
+  // Type-specific properties (discriminated union)
+  properties:
+    | TextElementProps
+    | RasterElementProps
+    | SVGElementProps
+    | ContentGridProps;
+}
+
+export interface TextElementProps {
+  elementType: 'collection-title' | 'custom-text';
+  text?: string; // For custom text, collection title is dynamic
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  color: string;
+  textAlign: 'left' | 'center' | 'right';
+  maxLines?: number;
+  // Text-specific source colors for templates
+  useSourceColors?: boolean;
+  sourceColorType?: string;
+}
+
+export interface RasterElementProps {
+  imagePath: string; // Path to uploaded raster image
+}
+
+export interface SVGElementProps {
+  iconType: 'source-logo' | 'svg-icon';
+  iconPath?: string; // For custom icons, service logo is dynamic
+}
+
+export interface ContentGridProps {
+  columns: number;
+  rows: number;
+  spacing: number;
+  cornerRadius: number;
+}
+
 export interface PosterEditorData {
   width: number;
   height: number;
@@ -49,42 +104,10 @@ export interface PosterEditorData {
       };
     };
   };
-  textElements: {
-    id: string;
-    type: 'collection-title' | 'custom-text';
-    text?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    fontSize: number;
-    fontFamily: string;
-    fontWeight: 'normal' | 'bold';
-    fontStyle: 'normal' | 'italic';
-    color: string;
-    textAlign: 'left' | 'center' | 'right';
-    maxLines?: number;
-  }[];
-  iconElements: {
-    id: string;
-    type: 'source-logo' | 'custom-icon';
-    iconPath?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }[];
-  contentGrid?: {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    columns: number;
-    rows: number;
-    spacing: number;
-    cornerRadius: number;
-  };
+
+  // Unified layering system - all elements in single array
+  elements: LayeredElement[]; // Unified element list with layer ordering
+  migrated: boolean; // Flag to track if template has been migrated to new system
 }
 
 export interface PosterEditorModalProps {
@@ -115,28 +138,13 @@ const DEFAULT_POSTER_DATA: PosterEditorData = {
   width: 500,
   height: 750,
   background: {
-    type: 'gradient',
-    color: '#6366f1',
-    secondaryColor: '#1e1b4b',
+    type: 'radial',
+    color: '#fb923c',
+    secondaryColor: '#c2410c',
+    intensity: 50,
   },
-  textElements: [
-    {
-      id: 'title',
-      type: 'collection-title',
-      x: 30, // (500 - 440) / 2 = 30 for proper centering
-      y: 375,
-      width: 440,
-      height: 100,
-      fontSize: 32,
-      fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
-      fontWeight: 'bold',
-      fontStyle: 'normal',
-      color: '#ffffff',
-      textAlign: 'center',
-      maxLines: 3,
-    },
-  ],
-  iconElements: [],
+  elements: [],
+  migrated: true,
 };
 
 export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
@@ -151,6 +159,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   setPreviewCollectionConfig: externalSetPreviewConfig,
 }) => {
   const intl = useIntl();
+  const { addToast } = useToasts();
   const [posterData, setPosterData] = useState<PosterEditorData>(initialData);
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
@@ -159,9 +168,14 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
     string | undefined
   >();
   const [snapToGuides, setSnapToGuides] = useState(true);
-  const canvasRef = useRef<{ exportAsImage: () => Promise<string> } | null>(
-    null
-  );
+  const [aspectRatioLocked, setAspectRatioLocked] = useState<
+    Record<string, boolean>
+  >({});
+  const [selectedElementId, setSelectedElementId] = useState<
+    string | undefined
+  >();
+  // Unified layering system is now the only system
+  const canvasRef = useRef<PosterEditorCanvasRef | null>(null);
 
   // Internal preview collection state (for template/poster creation from PostersView)
   const [internalPreviewConfig, setInternalPreviewConfig] = useState<
@@ -209,9 +223,18 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
+      // Data should already be migrated by backend
+      if (!initialData.migrated || !initialData.elements) {
+        // For development, show a helpful error
+        throw new Error(
+          'Template data must be migrated by backend before reaching client'
+        );
+      }
+
       setPosterData(initialData);
       setName(initialName);
       setDescription(initialDescription);
+      setSelectedElementId(undefined);
     }
   }, [isOpen, initialData, initialName, initialDescription]);
 
@@ -224,7 +247,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       setSaving(true);
       await onSave({
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description?.trim() || undefined,
         posterData,
       });
       onClose();
@@ -340,9 +363,33 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                         placeholder={intl.formatMessage(
                           messages.enterDescription
                         )}
-                        value={description}
+                        value={description || ''}
                         onChange={(e) => setDescription(e.target.value)}
                       />
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="border-t border-stone-700 pt-4">
+                      <div className="flex flex-col space-y-2">
+                        <button
+                          type="button"
+                          onClick={handleSave}
+                          disabled={!name.trim() || saving}
+                          className="w-full rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {saving
+                            ? intl.formatMessage(messages.saving)
+                            : intl.formatMessage(messages.save)}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancel}
+                          disabled={saving}
+                          className="w-full rounded-md border border-stone-600 px-4 py-2 text-sm font-medium text-stone-300 hover:border-stone-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {intl.formatMessage(messages.cancel)}
+                        </button>
+                      </div>
                     </div>
 
                     {/* Collection Preview Selector */}
@@ -396,30 +443,6 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                         {intl.formatMessage(messages.sampleCollectionHelp)}
                       </p>
                     </div>
-
-                    {/* Action buttons */}
-                    <div className="border-t border-stone-700 pt-4">
-                      <div className="flex flex-col space-y-2">
-                        <button
-                          type="button"
-                          onClick={handleSave}
-                          disabled={!name.trim() || saving}
-                          className="w-full rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {saving
-                            ? intl.formatMessage(messages.saving)
-                            : intl.formatMessage(messages.save)}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancel}
-                          disabled={saving}
-                          className="w-full rounded-md border border-stone-600 px-4 py-2 text-sm font-medium text-stone-300 hover:border-stone-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {intl.formatMessage(messages.cancel)}
-                        </button>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Center - Canvas */}
@@ -432,19 +455,26 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       mode={mode}
                       currentlyEditingSource={currentlyEditingSource}
                       snapToGuides={snapToGuides}
+                      selectedElementId={selectedElementId}
                       sourceColorsData={sourceColorsData}
+                      aspectRatioLocked={aspectRatioLocked}
                     />
                   </div>
 
                   {/* Right sidebar - Tools */}
                   <div className="col-span-3 overflow-y-auto">
-                    <PosterEditorToolbar
+                    <LayerPanel
                       posterData={posterData}
                       onChange={setPosterData}
+                      selectedElementId={selectedElementId}
+                      onElementSelect={setSelectedElementId}
                       mode={mode}
-                      onCurrentlyEditingSourceChange={setCurrentlyEditingSource}
                       snapToGuides={snapToGuides}
                       onSnapToGuidesChange={setSnapToGuides}
+                      onCurrentlyEditingSourceChange={setCurrentlyEditingSource}
+                      addToast={addToast}
+                      aspectRatioLocked={aspectRatioLocked}
+                      onAspectRatioLockedChange={setAspectRatioLocked}
                     />
                   </div>
                 </div>

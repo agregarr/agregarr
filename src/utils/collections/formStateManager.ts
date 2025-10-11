@@ -264,7 +264,7 @@ export const FormStateHelpers = {
   getLoadingMessage: (state: FormState): string | null => {
     if (state.posterUploading) return 'Uploading poster...';
     if (state.isLoadingTitle.trakt) return 'Fetching Trakt list...';
-    if (state.isLoadingTitle.tmdb) return 'Fetching TMDb collection...';
+    if (state.isLoadingTitle.tmdb) return 'Fetching TMDB collection...';
     if (state.isLoadingTitle.imdb) return 'Fetching IMDb list...';
     if (state.isLoadingTitle.letterboxd) return 'Fetching Letterboxd list...';
     return null;

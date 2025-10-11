@@ -23,7 +23,7 @@ import logger from '@server/logger';
 // TmdbSourceData interface is now imported from types.ts
 
 /**
- * TMDb Collection Sync - Simple implementation for trending/popular/top-rated content
+ * TMDB Collection Sync - Simple implementation for trending/popular/top-rated content
  */
 export class TmdbCollectionSync extends BaseCollectionSync {
   private tmdbClient: TmdbAPI;
@@ -40,7 +40,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     } catch (error) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'TMDb API is not accessible'
+        'TMDB API is not accessible'
       );
     }
   }
@@ -59,111 +59,277 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     switch (statType) {
       case 'trending': {
         const timeWindow = subtype.includes('week') ? 'week' : 'day';
-        if (mediaType === 'movie') {
-          const data = await this.tmdbClient.getMovieTrending({
-            page: 1,
-            timeWindow,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
-          );
-        }
-        if (mediaType === 'tv') {
-          const data = await this.tmdbClient.getTvTrending({
-            page: 1,
-            timeWindow,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'tv' as const,
-            }))
-          );
+        // Fetch pages in batches of 5 (100 items), check if we have enough Plex matches
+        let currentPage = 1;
+        let hasMorePages = true;
+        const BATCH_SIZE = 5; // 5 pages = 100 items per batch
+
+        while (hasMorePages) {
+          // Fetch a batch of pages
+          for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+            if (mediaType === 'movie') {
+              const data = await this.tmdbClient.getMovieTrending({
+                page: currentPage,
+                timeWindow,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'movie' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            if (mediaType === 'tv') {
+              const data = await this.tmdbClient.getTvTrending({
+                page: currentPage,
+                timeWindow,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            currentPage++;
+          }
+
+          // Check if we have enough data - stop if we have 10x maxItems (safety buffer)
+          if (
+            config.maxItems &&
+            config.maxItems > 0 &&
+            tmdbData.length >= config.maxItems * 10
+          ) {
+            break;
+          }
         }
         break;
       }
       case 'popular': {
-        if (mediaType === 'movie') {
-          const data = await this.tmdbClient.getDiscoverMovies({
-            sortBy: 'popularity.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
-          );
-        }
-        if (mediaType === 'tv') {
-          const data = await this.tmdbClient.getDiscoverTv({
-            sortBy: 'popularity.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'tv' as const,
-            }))
-          );
+        // Fetch pages in batches of 5 (100 items), check if we have enough
+        let currentPage = 1;
+        let hasMorePages = true;
+        const BATCH_SIZE = 5;
+
+        while (hasMorePages) {
+          for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+            if (mediaType === 'movie') {
+              const data = await this.tmdbClient.getDiscoverMovies({
+                sortBy: 'popularity.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'movie' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            if (mediaType === 'tv') {
+              const data = await this.tmdbClient.getDiscoverTv({
+                sortBy: 'popularity.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            currentPage++;
+          }
+
+          if (
+            config.maxItems &&
+            config.maxItems > 0 &&
+            tmdbData.length >= config.maxItems * 10
+          ) {
+            break;
+          }
         }
         break;
       }
       case 'top': {
-        if (mediaType === 'movie') {
-          const data = await this.tmdbClient.getDiscoverMovies({
-            sortBy: 'vote_average.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
-          );
-        }
-        if (mediaType === 'tv') {
-          const data = await this.tmdbClient.getDiscoverTv({
-            sortBy: 'vote_average.desc',
-            page: 1,
-          });
-          tmdbData.push(
-            ...data.results.map((item) => ({
-              ...item,
-              media_type: 'tv' as const,
-            }))
-          );
+        // Fetch pages in batches of 5 (100 items), check if we have enough
+        let currentPage = 1;
+        let hasMorePages = true;
+        const BATCH_SIZE = 5;
+
+        while (hasMorePages) {
+          for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+            if (mediaType === 'movie') {
+              const data = await this.tmdbClient.getDiscoverMovies({
+                sortBy: 'vote_average.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'movie' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            if (mediaType === 'tv') {
+              const data = await this.tmdbClient.getDiscoverTv({
+                sortBy: 'vote_average.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+            }
+            currentPage++;
+          }
+
+          if (
+            config.maxItems &&
+            config.maxItems > 0 &&
+            tmdbData.length >= config.maxItems * 10
+          ) {
+            break;
+          }
         }
         break;
       }
       case 'custom': {
-        if (!config.tmdbCustomListUrl) {
+        if (!config.tmdbCustomCollectionUrl) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            'Custom TMDb URL required'
+            'Custom TMDB URL required'
           );
         }
-        const urlMatch = config.tmdbCustomListUrl.match(
+
+        // Check if it's a collection URL
+        const collectionMatch = config.tmdbCustomCollectionUrl.match(
           /themoviedb\.org\/collection\/(\d+)/
         );
-        if (!urlMatch) {
+
+        // Check if it's a list URL
+        const listMatch = config.tmdbCustomCollectionUrl.match(
+          /themoviedb\.org\/list\/(\d+)/
+        );
+
+        if (collectionMatch) {
+          // Handle TMDB Collection
+          const collectionData = await this.tmdbClient.getCollection({
+            collectionId: parseInt(collectionMatch[1], 10),
+          });
+          if (collectionData.parts) {
+            tmdbData.push(
+              ...collectionData.parts.map((item) => ({
+                ...item,
+                media_type: 'movie' as const,
+              }))
+            );
+          }
+        } else if (listMatch) {
+          // Handle TMDB List with pagination (fetch ALL items like Trakt does)
+          const listId = listMatch[1];
+          let currentPage = 1;
+          const allItems: TmdbSourceData[] = [];
+
+          // Fetch ALL pages of the list (maxItems filtering happens later in applyFilteringToMappedItems)
+          let hasMorePages = true;
+          while (hasMorePages) {
+            const listData = await this.tmdbClient.getList({
+              listId,
+              page: currentPage,
+            });
+
+            if (!listData.items || listData.items.length === 0) {
+              hasMorePages = false;
+              break; // No more items
+            }
+
+            // Add items from this page
+            const normalizedItems = listData.items.map((item) => ({
+              ...item,
+              // Normalize media_type - lists can contain both movies and TV shows
+              media_type:
+                item.media_type === 'movie' || item.media_type === 'tv'
+                  ? item.media_type
+                  : ((item.title ? 'movie' : 'tv') as 'movie' | 'tv'),
+            }));
+
+            allItems.push(...normalizedItems);
+
+            // Stop if this page had fewer items than expected (last page)
+            if (listData.items.length < 20) {
+              hasMorePages = false;
+            }
+
+            currentPage++;
+          }
+
+          tmdbData.push(...allItems);
+        } else {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            'Invalid TMDb collection URL'
-          );
-        }
-        const collectionData = await this.tmdbClient.getCollection({
-          collectionId: parseInt(urlMatch[1], 10),
-        });
-        if (collectionData.parts) {
-          tmdbData.push(
-            ...collectionData.parts.map((item) => ({
-              ...item,
-              media_type: 'movie' as const,
-            }))
+            'Invalid TMDB URL - must be a collection or list URL'
           );
         }
         break;
@@ -173,14 +339,14 @@ export class TmdbCollectionSync extends BaseCollectionSync {
         const mediaType = getCollectionMediaType(config);
         const randomResult = await RandomListManager.getRandomUrlWithTitle(
           'tmdb',
-          config.maxItems,
+          9999,
           mediaType,
           libraryCache
         );
         if (!randomResult) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            `No random TMDb collections available with ${mediaType} content`
+            `No random TMDB collections available with ${mediaType} content`
           );
         }
 
@@ -192,19 +358,19 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           this.updateCollectionConfigField(config.id, { name: listTitle });
         }
 
-        logger.info(`Using random TMDb collection: ${randomUrl}`, {
-          label: 'TMDb Collections',
+        logger.info(`Using random TMDB collection: ${randomUrl}`, {
+          label: 'TMDB Collections',
           collection: config.name,
           randomUrl,
           listTitle,
         });
 
-        // Parse TMDb collection URL to get collection ID (same as custom)
+        // Parse TMDB collection URL to get collection ID (same as custom)
         const urlMatch = randomUrl.match(/themoviedb\.org\/collection\/(\d+)/);
         if (!urlMatch) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            `Invalid TMDb collection URL: ${randomUrl}`
+            `Invalid TMDB collection URL: ${randomUrl}`
           );
         }
 
@@ -223,7 +389,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       }
     }
 
-    return tmdbData.slice(0, config.maxItems);
+    return tmdbData;
   }
 
   public async mapSourceDataToItems(
@@ -240,6 +406,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       tmdbId: number;
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
     }[] = [];
     for (let index = 0; index < sourceData.length; index++) {
@@ -247,10 +414,20 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       const tmdbId = item.id;
       const mediaType = item.media_type || (item.title ? 'movie' : 'tv');
       const title = item.title || item.name || 'Unknown';
+
+      // Extract year from release_date (movies) or first_air_date (TV shows)
+      let year: number | undefined;
+      if (item.release_date) {
+        year = parseInt(item.release_date.substring(0, 4));
+      } else if (item.first_air_date) {
+        year = parseInt(item.first_air_date.substring(0, 4));
+      }
+
       tmdbLookups.push({
         tmdbId,
         mediaType,
         title,
+        year,
         originalPosition: index + 1,
       });
     }
@@ -282,7 +459,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       );
     } else {
       logger.warn('No Plex client provided to mapSourceDataToItems', {
-        label: 'TMDb Collections',
+        label: 'TMDB Collections',
       });
     }
 
@@ -302,11 +479,12 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           },
         });
       } else {
-        // Item exists in TMDb but not in Plex
+        // Item exists in TMDB but not in Plex
         missingItems.push({
           tmdbId: lookup.tmdbId,
           mediaType: lookup.mediaType,
           title: lookup.title,
+          year: lookup.year,
           originalPosition: lookup.originalPosition,
         });
       }
@@ -376,8 +554,8 @@ export class TmdbCollectionSync extends BaseCollectionSync {
 
     // Log processing stats if available
     if (mappingStats || filteringStats) {
-      logger.debug('TMDb collection processing stats', {
-        label: 'TMDb Collections',
+      logger.debug('TMDB collection processing stats', {
+        label: 'TMDB Collections',
         collection: config.name,
         mappingStats,
         filteringStats,

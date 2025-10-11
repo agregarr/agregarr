@@ -9,6 +9,7 @@ import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import { useCollectionEdit } from '@app/hooks/collections/useCollectionEdit';
 import type { CollectionFormConfig, Library } from '@app/types/collections';
+import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
   ArrowPathIcon,
   CheckIcon,
@@ -902,6 +903,40 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'anilist':
+                                switch (subtype) {
+                                  case 'trending':
+                                    return 'Trending Anime';
+                                  case 'popular':
+                                    return 'Popular Anime';
+                                  case 'top_rated':
+                                    return 'Top Rated Anime';
+                                  case 'custom':
+                                    return 'Custom List';
+                                  default:
+                                    return subtype;
+                                }
+                              case 'myanimelist':
+                                switch (subtype) {
+                                  case 'all':
+                                    return 'Top Anime';
+                                  case 'airing':
+                                    return 'Top Airing Anime';
+                                  case 'tv':
+                                    return 'Top TV';
+                                  case 'movie':
+                                    return 'Top Movies';
+                                  case 'ova':
+                                    return 'Top OVA';
+                                  case 'special':
+                                    return 'Top Specials';
+                                  case 'bypopularity':
+                                    return 'Most Popular Anime';
+                                  case 'favorite':
+                                    return 'Most Favorited Anime';
+                                  default:
+                                    return subtype;
+                                }
                               case 'networks':
                                 // Format platform names like "netflix_top_10" -> "Netflix"
                                 // and "neon-tv" -> "Neon TV"
@@ -919,6 +954,24 @@ const AllCollectionsView: React.FC = () => {
                                     );
                                   })
                                   .join(' ');
+                              case 'originals':
+                                // Format provider names like "netflix_originals" -> "Netflix"
+                                // and "apple_originals" -> "Apple TV+"
+                                return subtype
+                                  .replace('_originals', '') // Remove "_originals" suffix
+                                  .split('_')[0] // Take first part before underscore
+                                  .split('-') // Split on dashes
+                                  .map((word) => {
+                                    // Special case for TV to maintain proper capitalization
+                                    if (word.toLowerCase() === 'tv') {
+                                      return 'TV+';
+                                    }
+                                    return (
+                                      word.charAt(0).toUpperCase() +
+                                      word.slice(1)
+                                    );
+                                  })
+                                  .join(' ');
                               default:
                                 return subtype;
                             }
@@ -928,19 +981,31 @@ const AllCollectionsView: React.FC = () => {
                             config.type === 'trakt'
                               ? 'Trakt'
                               : config.type === 'tmdb'
-                              ? 'TMDb'
+                              ? 'TMDB'
                               : config.type === 'imdb'
                               ? 'IMDb'
                               : config.type === 'mdblist'
                               ? 'MDBList'
                               : config.type === 'letterboxd'
                               ? 'Letterboxd'
+                              : config.type === 'anilist'
+                              ? 'AniList'
+                              : config.type === 'myanimelist'
+                              ? 'MyAnimeList'
                               : config.type === 'tautulli'
                               ? 'Tautulli'
                               : config.type === 'overseerr'
                               ? 'Overseerr'
                               : config.type === 'networks'
                               ? 'Networks'
+                              : config.type === 'radarrtag'
+                              ? 'Radarr Tag'
+                              : config.type === 'sonarrtag'
+                              ? 'Sonarr Tag'
+                              : config.type === 'originals'
+                              ? 'Originals'
+                              : config.type === 'multi-source'
+                              ? 'Multi-Source'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(
@@ -986,6 +1051,33 @@ const AllCollectionsView: React.FC = () => {
                           Time Restrictions Set
                         </Badge>
                       )}
+
+                      {/* Custom Sync Schedule Badge (only for Agregarr collections) */}
+                      {isCollection &&
+                        (() => {
+                          const collectionConfig =
+                            collection.originalConfig as CollectionFormConfig;
+                          const syncBadgeText = formatSyncScheduleBadge(
+                            collectionConfig.customSyncSchedule
+                          );
+                          return syncBadgeText ? (
+                            <Badge
+                              badgeType="warning"
+                              className="!bg-opacity-40"
+                            >
+                              {syncBadgeText}
+                            </Badge>
+                          ) : null;
+                        })()}
+
+                      {/* Unwatched Badge (shows when showUnwatchedOnly is enabled) */}
+                      {isCollection &&
+                        (collection.originalConfig as CollectionFormConfig)
+                          .showUnwatchedOnly && (
+                          <Badge badgeType="default" className="!bg-opacity-30">
+                            Unwatched
+                          </Badge>
+                        )}
                     </div>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import type PlexAPI from '@server/api/plexapi';
+import cacheManager from '@server/lib/cache';
 import type { ServiceUserManager } from '@server/lib/collections/services/ServiceUserManager';
 import { serviceUserManager } from '@server/lib/collections/services/ServiceUserManager';
 import type { TemplateEngine } from '@server/lib/collections/utils/TemplateEngine';
@@ -45,6 +46,11 @@ import type {
   TimeRestrictionResult,
 } from './types';
 import { CollectionSyncErrorType } from './types';
+
+// Extended PlexCollection interface that includes smart collection properties
+interface PlexCollectionWithSmart extends PlexCollection {
+  smart?: string; // Plex returns string "1" for smart collections
+}
 
 // Simple result type - replaces over-engineered MediaTypeStrategies
 interface MediaProcessingResult {
@@ -530,15 +536,63 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       return [...acc, item];
     }, [] as CollectionItem[]);
 
+    // Remove globally excluded items
+    const settings = getSettings();
+    const exclusions = settings.globalExclusions;
+    const nonExcludedItems = uniqueItems.filter((item) => {
+      // Check movies (TMDB only)
+      if (item.type === 'movie') {
+        const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number);
+        if (tmdbId && exclusions.movies.includes(tmdbId)) {
+          removalReasons.globalExclusion =
+            (removalReasons.globalExclusion || 0) + 1;
+          return false;
+        }
+      }
+
+      // Check TV shows (TMDB or TVDB)
+      if (item.type === 'tv') {
+        const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number);
+        const tvdbId = item.metadata?.tvdbId as number | undefined;
+
+        // Check TMDB exclusions
+        if (
+          tmdbId &&
+          exclusions.shows.some(
+            (excluded) => excluded.type === 'tmdb' && excluded.id === tmdbId
+          )
+        ) {
+          removalReasons.globalExclusion =
+            (removalReasons.globalExclusion || 0) + 1;
+          return false;
+        }
+
+        // Check TVDB exclusions
+        if (
+          tvdbId &&
+          exclusions.shows.some(
+            (excluded) => excluded.type === 'tvdb' && excluded.id === tvdbId
+          )
+        ) {
+          removalReasons.globalExclusion =
+            (removalReasons.globalExclusion || 0) + 1;
+          return false;
+        }
+      }
+
+      return true;
+    });
+
     // Apply maxItems safety check (most collection types should already be limited efficiently)
-    let finalItems = uniqueItems;
+    let finalItems = nonExcludedItems;
     if (
       config.maxItems &&
       config.maxItems > 0 &&
-      uniqueItems.length > config.maxItems
+      nonExcludedItems.length > config.maxItems
     ) {
-      finalItems = uniqueItems.slice(0, config.maxItems);
-      removalReasons.safetyMaxItemsLimit = uniqueItems.length - config.maxItems;
+      finalItems = nonExcludedItems.slice(0, config.maxItems);
+      removalReasons.safetyMaxItemsLimit =
+        nonExcludedItems.length - config.maxItems;
     }
 
     return {
@@ -834,22 +888,65 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       }
     }
 
-    // 3. Apply other metadata (title, visibility, poster, etc.)
-    await this.updateCollectionMetadata(
-      plexClient,
-      collectionRatingKey,
-      options
-    );
+    // 3. Apply base collection metadata FIRST so smart collection can copy the label
+    if (collectionRatingKey) {
+      await this.updateCollectionMetadata(
+        plexClient,
+        collectionRatingKey,
+        options
+      );
+    }
 
-    // 4. Track processed collection
+    // SMART COLLECTION HANDLING: Manage smart collection for unwatched filtering
+    // SKIP for Overseerr users subtype - they have custom multi-collection smart collection handling
+    const isOverseerrUsersCollection =
+      options.config?.type === 'overseerr' &&
+      options.config?.subtype === 'users';
+
+    if (collectionRatingKey && options.config && !isOverseerrUsersCollection) {
+      if (options.config.showUnwatchedOnly) {
+        // Create or update smart collection using the base collection we just labeled
+        await this.handleSmartCollectionCreation(
+          plexClient,
+          collectionRatingKey, // Base collection is guaranteed to exist and be labeled at this point
+          collectionName,
+          mediaType,
+          libraryKey,
+          options.config
+        );
+      } else if (options.config.smartCollectionRatingKey) {
+        // User disabled the feature but smart collection exists - clean it up
+        await this.handleSmartCollectionCleanup(plexClient, options.config);
+      }
+    }
+
+    // 4. Apply metadata to the target collection (smart collection if enabled, base otherwise)
+    // CRITICAL: If smart collection is enabled, apply additional metadata to smart collection
+    // Re-determine target after smart collection creation to use updated rating key
+    const targetCollectionRatingKey =
+      options.config?.showUnwatchedOnly &&
+      options.config?.smartCollectionRatingKey
+        ? options.config.smartCollectionRatingKey
+        : collectionRatingKey;
+
+    // Only apply metadata to smart collection if it's different from base
+    if (targetCollectionRatingKey !== collectionRatingKey) {
+      await this.updateCollectionMetadata(
+        plexClient,
+        targetCollectionRatingKey,
+        options
+      );
+    }
+
+    // 4. Track processed collection (track the collection users actually see)
     if (options.processedCollectionKeys) {
-      options.processedCollectionKeys.add(collectionRatingKey);
+      options.processedCollectionKeys.add(targetCollectionRatingKey);
     }
 
     return {
       created,
       updated,
-      collectionRatingKey,
+      collectionRatingKey: collectionRatingKey, // Always return the base collection rating key for config storage
       itemCount: plexItems.length,
     };
   }
@@ -1038,11 +1135,31 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       const metadataResults = await Promise.allSettled(metadataPromises);
 
       // Find the first collection that matches the label
+      // CRITICAL: Skip smart collections - we need the base collection for content updates
       for (let i = 0; i < metadataResults.length; i++) {
         const result = metadataResults[i];
 
         if (result.status === 'fulfilled' && result.value.found) {
           const matchedCollection = result.value;
+
+          // Check if this is a smart collection
+          const isSmartCollection =
+            (matchedCollection.collection as PlexCollectionWithSmart).smart ===
+            '1';
+
+          // Skip smart collections - we need the base collection for updating contents
+          if (isSmartCollection) {
+            logger.debug(
+              `Skipping smart collection with label "${customLabel}": ${matchedCollection.collection.title}`,
+              {
+                label: 'Base Collection Sync',
+                ratingKey: matchedCollection.collection.ratingKey,
+                reason:
+                  'Smart collections cannot have contents updated, looking for base collection',
+              }
+            );
+            continue;
+          }
 
           logger.debug(
             `Found existing collection with label "${customLabel}": ${matchedCollection.collection.title}`,
@@ -1088,39 +1205,70 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             );
 
             if (collection.title === config.name && hasAgregarrLabel) {
-              logger.info(
-                `Found orphaned agregarr collection by title: "${collection.title}" - updating label`,
-                {
-                  label: 'Base Collection Sync',
-                  collectionTitle: collection.title,
-                  ratingKey: collection.ratingKey,
-                  oldLabels: labels,
-                  newLabel: customLabel,
-                }
-              );
+              // CRITICAL: Check if this is a smart collection vs base collection
+              const isSmartCollection =
+                (collection as PlexCollectionWithSmart).smart === '1';
 
-              // Update the collection's label to match the new config ID
-              try {
-                await plexClient.addLabelToCollection(
-                  collection.ratingKey,
-                  customLabel
+              if (isSmartCollection) {
+                logger.info(
+                  `Found orphaned smart collection by title: "${collection.title}" - updating smart rating key`,
+                  {
+                    label: 'Base Collection Sync',
+                    collectionTitle: collection.title,
+                    ratingKey: collection.ratingKey,
+                    collectionType: 'smart',
+                  }
                 );
-                logger.info(`Updated collection label to match new config ID`);
-              } catch (labelError) {
-                logger.warn(`Failed to update collection label, continuing`, {
-                  error:
-                    labelError instanceof Error
-                      ? labelError.message
-                      : String(labelError),
-                });
-              }
 
-              return {
-                ratingKey: collection.ratingKey,
-                title: collection.title,
-                labels: [customLabel],
-                type: collection.type || 'collection',
-              };
+                // Update config with smart collection rating key
+                this.updateConfigWithSmartRatingKey(
+                  config,
+                  collection.ratingKey
+                );
+                (
+                  config as CollectionConfig & {
+                    smartCollectionRatingKey?: string;
+                  }
+                ).smartCollectionRatingKey = collection.ratingKey;
+
+                // Don't return this as the base collection - continue searching for base collection
+              } else {
+                logger.info(
+                  `Found orphaned agregarr collection by title: "${collection.title}" - updating label`,
+                  {
+                    label: 'Base Collection Sync',
+                    collectionTitle: collection.title,
+                    ratingKey: collection.ratingKey,
+                    oldLabels: labels,
+                    newLabel: customLabel,
+                  }
+                );
+
+                // Update the collection's label to match the new config ID
+                try {
+                  await plexClient.addLabelToCollection(
+                    collection.ratingKey,
+                    customLabel
+                  );
+                  logger.info(
+                    `Updated collection label to match new config ID`
+                  );
+                } catch (labelError) {
+                  logger.warn(`Failed to update collection label, continuing`, {
+                    error:
+                      labelError instanceof Error
+                        ? labelError.message
+                        : String(labelError),
+                  });
+                }
+
+                return {
+                  ratingKey: collection.ratingKey,
+                  title: collection.title,
+                  labels: [customLabel],
+                  type: collection.type || 'collection',
+                };
+              }
             }
           }
         }
@@ -1138,6 +1286,355 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         }
       );
       return null;
+    }
+  }
+
+  /**
+   * Handle smart collection creation for unwatched filtering
+   * This creates a smart collection based on the regular collection and sets up appropriate sorting
+   */
+  public async handleSmartCollectionCreation(
+    plexClient: PlexAPI,
+    baseCollectionRatingKey: string,
+    collectionName: string,
+    mediaType: 'movie' | 'tv',
+    libraryKey: string,
+    config: CollectionConfig
+  ): Promise<void> {
+    try {
+      let smartCollectionRatingKey: string | null = null;
+
+      // Step 1: Check if this is an episode collection (smart collections not supported for episodes)
+      const baseCollectionMetadata = await plexClient.getCollectionMetadata(
+        baseCollectionRatingKey
+      );
+      if (
+        baseCollectionMetadata &&
+        (baseCollectionMetadata as { type?: string }).type === '4'
+      ) {
+        logger.warn(
+          `Smart collections are not supported for episode-based collections. Skipping smart collection creation for "${collectionName}"`,
+          {
+            label: 'Smart Collection Creation',
+            collectionName,
+            baseCollectionRatingKey,
+            collectionType: 'episode',
+            reason:
+              'Episode collections do not support smart collection unwatched filtering',
+          }
+        );
+        return;
+      }
+
+      // Step 2: Validate existing smart collection using existing proven validation
+      if (config.smartCollectionRatingKey) {
+        const existingSmartCollection =
+          await plexClient.getCollectionMetadataSafe(
+            config.smartCollectionRatingKey
+          );
+        if (existingSmartCollection) {
+          // Smart collection exists and is valid
+          smartCollectionRatingKey = config.smartCollectionRatingKey;
+          logger.debug(
+            `Found existing smart collection: ${existingSmartCollection.title}`,
+            {
+              label: 'Smart Collection Creation',
+              smartCollectionRatingKey,
+            }
+          );
+
+          // Always update the smart collection's sort option on every sync
+          logger.debug(
+            `Updating smart collection sort option to: ${
+              config.smartCollectionSort?.value || 'titleSort'
+            }`,
+            {
+              label: 'Smart Collection Creation',
+              smartCollectionRatingKey,
+              sortOption: config.smartCollectionSort?.value,
+            }
+          );
+
+          await plexClient.updateSmartCollectionUri(
+            smartCollectionRatingKey,
+            libraryKey,
+            baseCollectionRatingKey,
+            mediaType,
+            config.smartCollectionSort?.value
+          );
+        } else {
+          // Stored rating key is invalid (collection was deleted), clear it
+          logger.debug(
+            `Stored smart collection rating key ${config.smartCollectionRatingKey} not found, will recreate`,
+            {
+              label: 'Smart Collection Creation',
+            }
+          );
+          this.clearSmartCollectionRatingKey(config);
+          (
+            config as CollectionConfig & { smartCollectionRatingKey?: string }
+          ).smartCollectionRatingKey = undefined;
+        }
+      }
+
+      // Step 3: Create smart collection if we don't have a valid one
+      if (!smartCollectionRatingKey) {
+        // Rename the base collection to have a dash prefix to avoid title conflicts
+        const prefixedTitle = `-${collectionName}`;
+        await plexClient.updateCollectionTitle(
+          baseCollectionRatingKey,
+          prefixedTitle
+        );
+
+        // Create the smart collection (this becomes the "visible" collection with original name)
+        smartCollectionRatingKey = await plexClient.createSmartCollection(
+          collectionName, // Smart collection gets the original name
+          libraryKey,
+          baseCollectionRatingKey,
+          mediaType,
+          config.smartCollectionSort?.value // Use the configured sort option
+        );
+
+        if (!smartCollectionRatingKey) {
+          logger.error(
+            `Failed to create smart collection for "${collectionName}"`,
+            {
+              label: 'Smart Collection Creation',
+              baseCollectionRatingKey,
+              collectionName,
+            }
+          );
+          // Restore original title if smart collection creation failed
+          await plexClient.updateCollectionTitle(
+            baseCollectionRatingKey,
+            collectionName
+          );
+          return;
+        }
+
+        this.updateConfigWithSmartRatingKey(config, smartCollectionRatingKey);
+        (
+          config as CollectionConfig & { smartCollectionRatingKey?: string }
+        ).smartCollectionRatingKey = smartCollectionRatingKey;
+      } else {
+        // Smart collection exists, ensure base collection has dash prefix
+        const prefixedTitle = `-${collectionName}`;
+        await plexClient.updateCollectionTitle(
+          baseCollectionRatingKey,
+          prefixedTitle
+        );
+      }
+
+      // Step 4: Hide base collection completely
+      await plexClient.updateCollectionSortTitle(
+        baseCollectionRatingKey,
+        `ZZZZ${collectionName}`
+      );
+
+      // Step 5: Remove base collection from hub management completely (if it was promoted)
+      // Don't use updateCollectionVisibility(false, false, false) - that keeps it in hub management with visibility off
+      // Instead, delete it from hub management entirely
+      // Note: Base collections with no visibility config were never promoted, so they won't exist in hub management
+      const baseCollectionMeta = await plexClient.getCollectionMetadata(
+        baseCollectionRatingKey
+      );
+      if (baseCollectionMeta?.librarySectionID) {
+        const hubIdentifier = `custom.collection.${baseCollectionMeta.librarySectionID}.${baseCollectionRatingKey}`;
+        try {
+          await plexClient.deleteHubItem(
+            String(baseCollectionMeta.librarySectionID),
+            hubIdentifier
+          );
+        } catch (error) {
+          // Ignore 404 errors - base collection was never promoted to hub management
+          // This happens when base collection has no visibility configured (all false)
+          if (error && typeof error === 'object' && 'message' in error) {
+            const errorMessage = String(error.message);
+            if (!errorMessage.includes('404')) {
+              throw error;
+            }
+          }
+        }
+      }
+
+      logger.info(`Smart collection ready for metadata application`, {
+        label: 'Smart Collection Creation',
+        collectionName,
+        baseCollectionRatingKey,
+        smartCollectionRatingKey,
+        wasRecreated: !config.smartCollectionRatingKey,
+      });
+    } catch (error) {
+      logger.error(
+        `Error in smart collection creation for "${collectionName}"`,
+        {
+          label: 'Smart Collection Creation',
+          collectionName,
+          baseCollectionRatingKey,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      // Don't throw - let the base collection still be created successfully
+    }
+  }
+
+  /**
+   * Update config with smart collection rating key
+   * Similar to updateConfigWithRatingKey but for smart collections
+   */
+  private updateConfigWithSmartRatingKey(
+    config: CollectionConfig,
+    smartCollectionRatingKey: string
+  ): void {
+    const settings = getSettings();
+    const plexSettings = settings.plex;
+
+    if (!plexSettings.collectionConfigs) {
+      return;
+    }
+
+    const configIndex = plexSettings.collectionConfigs.findIndex(
+      (c) => c.id === config.id
+    );
+
+    if (configIndex !== -1) {
+      // Create updated config with new smart rating key
+      const updatedConfig = {
+        ...plexSettings.collectionConfigs[configIndex],
+        smartCollectionRatingKey,
+        needsSync: false,
+        lastSyncedAt: new Date().toISOString(),
+      };
+
+      // Update in place
+      plexSettings.collectionConfigs[configIndex] = updatedConfig;
+
+      logger.debug(
+        `Updated config ${config.id} with smart collection rating key`,
+        {
+          label: 'Collection Update',
+          configId: config.id,
+          smartCollectionRatingKey,
+        }
+      );
+    }
+  }
+
+  /**
+   * Handle smart collection cleanup when user disables the unwatched filter
+   * This removes the smart collection and restores the base collection's normal sort title
+   */
+  public async handleSmartCollectionCleanup(
+    plexClient: PlexAPI,
+    config: CollectionConfig
+  ): Promise<void> {
+    if (!config.smartCollectionRatingKey) {
+      return;
+    }
+
+    try {
+      logger.info(`Cleaning up smart collection for config "${config.name}"`, {
+        label: 'Smart Collection Cleanup',
+        configId: config.id,
+        smartCollectionRatingKey: config.smartCollectionRatingKey,
+      });
+
+      // Step 1: Delete the smart collection
+      await plexClient.deleteSmartCollection(config.smartCollectionRatingKey);
+
+      // Step 2: Restore the base collection's original title and normal sort title
+      if (config.collectionRatingKey) {
+        // Restore the original title (remove dash prefix)
+        await plexClient.updateCollectionTitle(
+          config.collectionRatingKey,
+          config.name
+        );
+
+        // Restore the normal sort title
+        const normalSortTitle = config.isLibraryPromoted
+          ? `!${config.name}`
+          : config.name;
+        await plexClient.updateCollectionSortTitle(
+          config.collectionRatingKey,
+          normalSortTitle
+        );
+
+        // Restore the base collection's original visibility settings
+        if (config.visibilityConfig) {
+          const hasAnyVisibility =
+            config.visibilityConfig.usersHome ||
+            config.visibilityConfig.serverOwnerHome ||
+            config.visibilityConfig.libraryRecommended;
+
+          if (hasAnyVisibility) {
+            await plexClient.updateCollectionVisibility(
+              config.collectionRatingKey,
+              config.visibilityConfig.libraryRecommended,
+              config.visibilityConfig.serverOwnerHome,
+              config.visibilityConfig.usersHome
+            );
+          }
+        }
+      }
+
+      // Step 3: Clear the smart collection rating key from the config
+      this.clearSmartCollectionRatingKey(config);
+
+      logger.info(
+        `Successfully cleaned up smart collection for config "${config.name}"`,
+        {
+          label: 'Smart Collection Cleanup',
+          configId: config.id,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error cleaning up smart collection for config "${config.name}"`,
+        {
+          label: 'Smart Collection Cleanup',
+          configId: config.id,
+          smartCollectionRatingKey: config.smartCollectionRatingKey,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      // Don't throw - let the base collection sync continue
+    }
+  }
+
+  /**
+   * Clear smart collection rating key from config
+   */
+  private clearSmartCollectionRatingKey(config: CollectionConfig): void {
+    const settings = getSettings();
+    const plexSettings = settings.plex;
+
+    if (!plexSettings.collectionConfigs) {
+      return;
+    }
+
+    const configIndex = plexSettings.collectionConfigs.findIndex(
+      (c) => c.id === config.id
+    );
+
+    if (configIndex !== -1) {
+      // Create updated config without smart collection rating key
+      const updatedConfig = {
+        ...plexSettings.collectionConfigs[configIndex],
+        smartCollectionRatingKey: undefined,
+        needsSync: false,
+        lastSyncedAt: new Date().toISOString(),
+      };
+
+      // Update in place
+      plexSettings.collectionConfigs[configIndex] = updatedConfig;
+
+      logger.debug(
+        `Cleared smart collection rating key from config ${config.id}`,
+        {
+          label: 'Collection Update',
+          configId: config.id,
+        }
+      );
     }
   }
 
@@ -1426,7 +1923,140 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   ): Promise<SourceTemplateContext>;
 
   /**
+   * Generate a stable cache key for a collection configuration
+   * Used to cache list data between syncs for fast preview
+   */
+  protected generateCacheKey(config: CollectionConfig): string {
+    const parts: string[] = [
+      this.source,
+      config.type,
+      config.subtype || '',
+      config.libraryId || '',
+    ];
+
+    // Add type-specific identifiers for unique caching
+    if (config.traktCustomListUrl) parts.push(config.traktCustomListUrl);
+    if (config.imdbCustomListUrl) parts.push(config.imdbCustomListUrl);
+    if (config.letterboxdCustomListUrl)
+      parts.push(config.letterboxdCustomListUrl);
+    if (config.tmdbCustomListUrl) parts.push(config.tmdbCustomListUrl);
+    if (config.mdblistCustomListUrl) parts.push(config.mdblistCustomListUrl);
+    if (config.anilistCustomListUrl) parts.push(config.anilistCustomListUrl);
+    if (config.timePeriod) parts.push(config.timePeriod);
+    if (config.customDays) parts.push(String(config.customDays));
+    if (config.minimumPlays) parts.push(String(config.minimumPlays));
+    if (config.networksCountry) parts.push(config.networksCountry);
+
+    return parts.join(':');
+  }
+
+  /**
+   * Get the appropriate cache ID for this source type
+   */
+  protected getCacheId():
+    | 'trakt-list'
+    | 'imdb-list'
+    | 'letterboxd-list'
+    | 'tmdb-list'
+    | 'mdblist-list'
+    | 'tautulli-list'
+    | 'overseerr-list'
+    | 'networks-list'
+    | 'originals-list'
+    | 'anilist-list'
+    | 'myanimelist-list' {
+    const cacheIdMap: Partial<Record<CollectionSource, string>> = {
+      trakt: 'trakt-list',
+      imdb: 'imdb-list',
+      letterboxd: 'letterboxd-list',
+      tmdb: 'tmdb-list',
+      mdblist: 'mdblist-list',
+      tautulli: 'tautulli-list',
+      overseerr: 'overseerr-list',
+      networks: 'networks-list',
+      originals: 'originals-list',
+      anilist: 'anilist-list',
+      myanimelist: 'myanimelist-list',
+      // Note: multi-source doesn't have its own cache, it uses individual source caches
+    };
+
+    return (cacheIdMap[this.source] || 'trakt-list') as
+      | 'trakt-list'
+      | 'imdb-list'
+      | 'letterboxd-list'
+      | 'tmdb-list'
+      | 'mdblist-list'
+      | 'tautulli-list'
+      | 'overseerr-list'
+      | 'networks-list'
+      | 'originals-list'
+      | 'anilist-list'
+      | 'myanimelist-list';
+  }
+
+  /**
+   * Wrapper around fetchSourceData that handles caching
+   * - During sync: Always fetches fresh data and caches it
+   * - During preview with useCache=true: Returns cached data if available
+   * - During preview refresh: Fetches fresh and updates cache
+   */
+  public async fetchSourceDataWithCache(
+    config: CollectionConfig,
+    options?: CollectionSyncOptions & { useCache?: boolean },
+    libraryCache?: LibraryItemsCache
+  ): Promise<CollectionSourceData[]> {
+    const cacheKey = this.generateCacheKey(config);
+    const cache = cacheManager.getCache(this.getCacheId());
+    const useCache = options?.useCache ?? false;
+
+    // Try to use cached data if requested
+    if (useCache) {
+      const cachedData = cache.data.get<CollectionSourceData[]>(cacheKey);
+      if (cachedData) {
+        logger.debug(
+          `Using cached list data for ${config.name} (${this.source})`,
+          {
+            label: `${this.source} Collections Cache`,
+            configId: config.id,
+            configName: config.name,
+            cacheKey,
+          }
+        );
+        return cachedData;
+      }
+
+      logger.debug(
+        `No cached data found for ${config.name}, fetching fresh data`,
+        {
+          label: `${this.source} Collections Cache`,
+          configId: config.id,
+          configName: config.name,
+          cacheKey,
+        }
+      );
+    }
+
+    // Fetch fresh data from external source
+    const freshData = await this.fetchSourceData(config, options, libraryCache);
+
+    // Cache the fresh data for future preview use
+    if (freshData && freshData.length > 0) {
+      cache.data.set(cacheKey, freshData);
+      logger.debug(`Cached list data for ${config.name} (${this.source})`, {
+        label: `${this.source} Collections Cache`,
+        configId: config.id,
+        configName: config.name,
+        cacheKey,
+        itemCount: freshData.length,
+      });
+    }
+
+    return freshData;
+  }
+
+  /**
    * Fetch data from the external source (Trakt API, Tautulli API, etc.)
+   * This method should be implemented by each source to fetch fresh data
    */
   public abstract fetchSourceData(
     config: CollectionConfig,
@@ -1486,9 +2116,61 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     const { filteredItems: items, stats: filteringStats } =
       this.applyCommonFiltering(mappedResult.items, config);
 
+    // Filter missing items by global exclusions and maxItems limit
+    let filteredMissingItems = mappedResult.missingItems;
+    if (filteredMissingItems && filteredMissingItems.length > 0) {
+      const settings = getSettings();
+      const exclusions = settings.globalExclusions;
+
+      // Remove globally excluded items from missing items
+      filteredMissingItems = filteredMissingItems.filter((item) => {
+        // Check movies (TMDB only)
+        if (item.mediaType === 'movie') {
+          if (exclusions.movies.includes(item.tmdbId)) {
+            return false;
+          }
+        }
+
+        // Check TV shows (TMDB or TVDB)
+        if (item.mediaType === 'tv') {
+          // Check TMDB exclusions
+          if (
+            item.tmdbId &&
+            exclusions.shows.some(
+              (excluded) =>
+                excluded.type === 'tmdb' && excluded.id === item.tmdbId
+            )
+          ) {
+            return false;
+          }
+
+          // Check TVDB exclusions (if item has tvdbId)
+          const tvdbId = (item as { tvdbId?: number }).tvdbId;
+          if (
+            tvdbId &&
+            exclusions.shows.some(
+              (excluded) => excluded.type === 'tvdb' && excluded.id === tvdbId
+            )
+          ) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      // Filter by maxItems limit
+      // This ensures we only create requests for missing items from the first maxItems positions
+      if (config.maxItems && config.maxItems > 0) {
+        filteredMissingItems = filteredMissingItems.filter(
+          (item) => item.originalPosition <= config.maxItems
+        );
+      }
+    }
+
     return {
       items,
-      missingItems: mappedResult.missingItems,
+      missingItems: filteredMissingItems,
       mappingStats: mappedResult.stats,
       filteringStats,
     };
@@ -1726,11 +2408,32 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
 
             if (template) {
               const templateData = template.getTemplateData();
-              if (templateData.contentGrid) {
-                maxItems =
-                  templateData.contentGrid.columns *
-                  templateData.contentGrid.rows;
+
+              // Calculate grid size for unified system
+              if (templateData.elements) {
+                // Unified system - find content-grid elements and calculate total size
+                const contentGridElements = templateData.elements.filter(
+                  (el) => el.type === 'content-grid'
+                );
+                if (contentGridElements.length > 0) {
+                  // Sum up all content grid sizes (in case there are multiple grids)
+                  maxItems = contentGridElements.reduce((total, element) => {
+                    const props = element.properties as {
+                      columns?: number;
+                      rows?: number;
+                    };
+                    return total + (props.columns || 2) * (props.rows || 2);
+                  }, 0);
+                }
               }
+
+              logger.debug(
+                `Template grid size calculated for collection poster: ${maxItems} items needed`,
+                {
+                  templateId: config.autoPosterTemplate,
+                  hasElements: !!templateData.elements,
+                }
+              );
             }
           } catch (error) {
             logger.warn(
@@ -1747,6 +2450,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           title: item.title,
           type: item.type,
           tmdbId: item.tmdbId,
+          posterUrl: item.posterUrl,
           year: item.year,
           episodeInfo: item.episodeInfo,
           metadata: item.metadata,
@@ -1784,9 +2488,19 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         'posters',
         posterFilename
       );
+
+      // Apply poster to base collection
       await plexClient.updateCollectionPoster(collectionRatingKey, posterPath);
 
-      // Get the Plex poster URL to re-download the recompressed version
+      // If smart collection exists, also apply poster to smart collection
+      if (config.showUnwatchedOnly && config.smartCollectionRatingKey) {
+        await plexClient.updateCollectionPoster(
+          config.smartCollectionRatingKey,
+          posterPath
+        );
+      }
+
+      // Get the full Plex poster URL from the base collection to complete the workflow
       const plexPosterUrl = await plexClient.getCurrentPosterUrl(
         collectionRatingKey
       );

@@ -44,6 +44,8 @@ tags:
     description: Endpoints related to poster template management, saved posters, and icon assets.
   - name: source-colors
     description: Endpoints related to managing global source color schemes for poster generation.
+  - name: exclusions
+    description: Endpoints related to managing global item exclusions for collections.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -201,7 +203,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           example: 'overseerr'
         subtype:
           type: string
@@ -294,6 +296,11 @@ components:
           type: boolean
           description: "true = promoted section (uses exclamation marks), false = A-Z section"
           example: true
+        randomizeHomeOrder:
+          type: boolean
+          description: "If true, randomize position amongst other randomized items on home screen"
+          example: false
+          nullable: true
         parentConfigId:
           type: integer
           description: "Reference to original config when expanded from 'all' libraries"
@@ -355,15 +362,29 @@ components:
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
           nullable: true
+        excludedGenres:
+          type: array
+          items:
+            type: integer
+          description: "TMDB genre IDs to exclude from missing items search"
+          example: [28, 53]
+          nullable: true
+        excludedCountries:
+          type: array
+          items:
+            type: string
+          description: "ISO 3166-1 country codes to exclude from missing items search"
+          example: ["JP", "KR"]
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
-        tmdbCustomListUrl:
+        tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)"
-          example: "https://www.themoviedb.org/collection/123456"
+          description: "Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -506,6 +527,24 @@ components:
           description: "True if collection has been modified and needs to be synced to Plex"
           example: false
           nullable: true
+        showUnwatchedOnly:
+          type: boolean
+          description: "Create a smart collection that shows only unwatched items from this collection"
+          example: false
+          nullable: true
+        smartCollectionSort:
+          type: object
+          description: "Sort option for smart collections"
+          properties:
+            value:
+              type: string
+              description: "The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')"
+              example: "year:desc"
+            label:
+              type: string
+              description: "Human-readable label for the dropdown"
+              example: "Year (Newest First)"
+          nullable: true
       required:
         - id
         - name
@@ -527,7 +566,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           example: 'overseerr'
         subtype:
           type: string
@@ -624,6 +663,11 @@ components:
           description: "Order for Plex library tab (sortTitle based)"
           example: 0
           nullable: true
+        randomizeHomeOrder:
+          type: boolean
+          description: "If true, randomize position amongst other randomized items on home screen"
+          example: false
+          nullable: true
         customDays:
           type: integer
           description: "Number of days for Tautulli collections (required for Tautulli type)"
@@ -675,15 +719,29 @@ components:
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
           nullable: true
+        excludedGenres:
+          type: array
+          items:
+            type: integer
+          description: "TMDB genre IDs to exclude from missing items search"
+          example: [28, 53]
+          nullable: true
+        excludedCountries:
+          type: array
+          items:
+            type: string
+          description: "ISO 3166-1 country codes to exclude from missing items search"
+          example: ["JP", "KR"]
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
-        tmdbCustomListUrl:
+        tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)"
-          example: "https://www.themoviedb.org/collection/123456"
+          description: "Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -810,12 +868,94 @@ components:
               type: boolean
               description: "Enable custom sync schedule"
               example: false
+            scheduleType:
+              type: string
+              enum: ['preset', 'custom']
+              description: "Type of schedule: preset dropdown or custom cron"
+              example: 'preset'
             intervalHours:
               type: number
-              description: "Sync interval in hours (supports decimals)"
+              description: "Legacy field for backward compatibility (when scheduleType === 'preset')"
               example: 24.0
               minimum: 0.1
-              maximum: 168
+              maximum: 8760
+              nullable: true
+            preset:
+              type: string
+              description: "Preset option key (e.g., '10m', '30m', '1h', '6h', '1d', '1w')"
+              example: '1d'
+              nullable: true
+            customCron:
+              type: string
+              description: "Custom cron expression (when scheduleType === 'custom')"
+              example: '0 9 * * MON'
+              nullable: true
+            startNow:
+              type: boolean
+              description: "If true, start immediately; if false, use startDate/startTime"
+              example: true
+            startDate:
+              type: string
+              description: "Start date in DD-MM format (e.g., '01-01' for January 1st)"
+              example: '01-01'
+              pattern: '^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])$'
+              nullable: true
+            startTime:
+              type: string
+              description: "Start time in HH:MM format (e.g., '09:00')"
+              example: '09:00'
+              pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+              nullable: true
+            firstSyncAt:
+              type: string
+              format: date-time
+              description: "ISO timestamp of when this schedule was first created (for persistence across restarts)"
+              example: '2024-01-01T09:00:00.000Z'
+              nullable: true
+          nullable: true
+        downloadMode:
+          type: string
+          enum: ['overseerr', 'direct']
+          description: "Download method: overseerr (requests) or direct (*arr)"
+          example: 'overseerr'
+          nullable: true
+        directDownloadRadarrServerId:
+          type: integer
+          description: "Selected Radarr server ID for movies (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadRadarrProfileId:
+          type: integer
+          description: "Selected Radarr profile ID for movies (when downloadMode is 'direct')"
+          example: 3
+          nullable: true
+        directDownloadSonarrServerId:
+          type: integer
+          description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadSonarrProfileId:
+          type: integer
+          description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
+          example: 2
+          nullable: true
+        showUnwatchedOnly:
+          type: boolean
+          description: "Create a smart collection that shows only unwatched items from this collection"
+          example: false
+          nullable: true
+        smartCollectionSort:
+          type: object
+          description: "Sort option for smart collections"
+          properties:
+            value:
+              type: string
+              description: "The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')"
+              example: "year:desc"
+            label:
+              type: string
+              description: "Human-readable label for the dropdown"
+              example: "Year (Newest First)"
           nullable: true
       required:
         - id
@@ -836,7 +976,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'multi-source']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           example: 'overseerr'
         subtype:
           type: string
@@ -929,6 +1069,11 @@ components:
           type: boolean
           description: "true = promoted section (uses exclamation marks), false = A-Z section"
           example: true
+        randomizeHomeOrder:
+          type: boolean
+          description: "If true, randomize position amongst other randomized items on home screen"
+          example: false
+          nullable: true
         parentConfigId:
           type: integer
           description: "Reference to original config when expanded from 'all' libraries"
@@ -996,15 +1141,29 @@ components:
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
           nullable: true
+        excludedGenres:
+          type: array
+          items:
+            type: integer
+          description: "TMDB genre IDs to exclude from missing items search"
+          example: [28, 53]
+          nullable: true
+        excludedCountries:
+          type: array
+          items:
+            type: string
+          description: "ISO 3166-1 country codes to exclude from missing items search"
+          example: ["JP", "KR"]
+          nullable: true
         traktCustomListUrl:
           type: string
           description: "Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
-        tmdbCustomListUrl:
+        tmdbCustomCollectionUrl:
           type: string
-          description: "Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)"
-          example: "https://www.themoviedb.org/collection/123456"
+          description: "Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)"
+          example: "https://www.themoviedb.org/list/310-my-movie-list"
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -1151,12 +1310,94 @@ components:
               type: boolean
               description: "Enable custom sync schedule"
               example: false
+            scheduleType:
+              type: string
+              enum: ['preset', 'custom']
+              description: "Type of schedule: preset dropdown or custom cron"
+              example: 'preset'
             intervalHours:
               type: number
-              description: "Sync interval in hours (supports decimals)"
+              description: "Legacy field for backward compatibility (when scheduleType === 'preset')"
               example: 24.0
               minimum: 0.1
-              maximum: 168
+              maximum: 8760
+              nullable: true
+            preset:
+              type: string
+              description: "Preset option key (e.g., '10m', '30m', '1h', '6h', '1d', '1w')"
+              example: '1d'
+              nullable: true
+            customCron:
+              type: string
+              description: "Custom cron expression (when scheduleType === 'custom')"
+              example: '0 9 * * MON'
+              nullable: true
+            startNow:
+              type: boolean
+              description: "If true, start immediately; if false, use startDate/startTime"
+              example: true
+            startDate:
+              type: string
+              description: "Start date in DD-MM format (e.g., '01-01' for January 1st)"
+              example: '01-01'
+              pattern: '^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])$'
+              nullable: true
+            startTime:
+              type: string
+              description: "Start time in HH:MM format (e.g., '09:00')"
+              example: '09:00'
+              pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+              nullable: true
+            firstSyncAt:
+              type: string
+              format: date-time
+              description: "ISO timestamp of when this schedule was first created (for persistence across restarts)"
+              example: '2024-01-01T09:00:00.000Z'
+              nullable: true
+          nullable: true
+        downloadMode:
+          type: string
+          enum: ['overseerr', 'direct']
+          description: "Download method: overseerr (requests) or direct (*arr)"
+          example: 'overseerr'
+          nullable: true
+        directDownloadRadarrServerId:
+          type: integer
+          description: "Selected Radarr server ID for movies (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadRadarrProfileId:
+          type: integer
+          description: "Selected Radarr profile ID for movies (when downloadMode is 'direct')"
+          example: 3
+          nullable: true
+        directDownloadSonarrServerId:
+          type: integer
+          description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
+          example: 1
+          nullable: true
+        directDownloadSonarrProfileId:
+          type: integer
+          description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
+          example: 2
+          nullable: true
+        showUnwatchedOnly:
+          type: boolean
+          description: "Create a smart collection that shows only unwatched items from this collection"
+          example: false
+          nullable: true
+        smartCollectionSort:
+          type: object
+          description: "Sort option for smart collections"
+          properties:
+            value:
+              type: string
+              description: "The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')"
+              example: "year:desc"
+            label:
+              type: string
+              description: "Human-readable label for the dropdown"
+              example: "Year (Newest First)"
           nullable: true
       required:
         - id
@@ -1177,7 +1418,7 @@ components:
           example: "source-1234567890"
         type:
           type: string
-          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks']
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'radarrtag', 'sonarrtag']
           description: "Type of collection source"
           example: 'trakt'
         subtype:
@@ -1187,7 +1428,7 @@ components:
           nullable: true
         customUrl:
           type: string
-          description: "Custom URL for list-based sources (Trakt, TMDb, IMDb, Letterboxd)"
+          description: "Custom URL for list-based sources (Trakt, TMDB, IMDb, Letterboxd)"
           example: "https://trakt.tv/users/username/lists/my-list"
           nullable: true
         timePeriod:
@@ -2055,6 +2296,13 @@ components:
           type: string
           nullable: true
           example: 'your-mdblist-api-key-here'
+    MyAnimeListSettings:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          nullable: true
+          example: 'your-myanimelist-api-key-here'
     OverseerrSettings:
       type: object
       properties:
@@ -2985,7 +3233,7 @@ components:
           example: "Trending Movies"
         collectionSource:
           type: string
-          enum: [trakt, tmdb, imdb, mdblist, letterboxd]
+          enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
           example: "trakt"
         collectionSubtype:
           type: string
@@ -3096,6 +3344,12 @@ components:
                 letterboxd:
                   type: integer
                   example: 15
+                anilist:
+                  type: integer
+                  example: 7
+                myanimelist:
+                  type: integer
+                  example: 5
     DashboardStats:
       type: object
       properties:
@@ -3536,6 +3790,22 @@ components:
         - value
         - label
 
+    OriginalsPlatformOption:
+      type: object
+      description: "Streaming service provider option for Originals collections"
+      properties:
+        value:
+          type: string
+          description: "Provider identifier for Originals collections"
+          example: "netflix_originals"
+        label:
+          type: string
+          description: "Display name for streaming service provider"
+          example: "Netflix Originals"
+      required:
+        - value
+        - label
+
   responses:
     NotFound:
       description: Resource not found
@@ -3577,6 +3847,132 @@ components:
       name: X-Api-Key
 
 paths:
+  /genres/combined:
+    get:
+      summary: Get combined movie and TV genres
+      description: Returns a merged and deduplicated list of all TMDB movie and TV genres
+      tags:
+        - genres
+      responses:
+        '200':
+          description: Combined genres list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 28
+                    name:
+                      type: string
+                      example: Action
+  /countries/combined:
+    get:
+      summary: Get combined movie and TV origin countries
+      description: Returns a curated list of common origin countries with localized names
+      tags:
+        - countries
+      responses:
+        '200':
+          description: Combined countries list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      example: JP
+                    name:
+                      type: string
+                      example: Japan
+  /movie/{id}:
+    get:
+      summary: Get movie details
+      description: Returns detailed information about a movie from TMDB
+      tags:
+        - movies
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: TMDB movie ID
+      responses:
+        '200':
+          description: Movie details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  title:
+                    type: string
+                  backdrop_path:
+                    type: string
+                    nullable: true
+                  poster_path:
+                    type: string
+                    nullable: true
+        '500':
+          description: Unable to retrieve movie
+  /tv/{id}:
+    get:
+      summary: Get TV show details
+      description: Returns detailed information about a TV show from TMDB including seasons
+      tags:
+        - tv
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: TMDB TV show ID
+      responses:
+        '200':
+          description: TV show details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  backdrop_path:
+                    type: string
+                    nullable: true
+                  poster_path:
+                    type: string
+                    nullable: true
+                  seasons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        season_number:
+                          type: integer
+                        name:
+                          type: string
+                        episode_count:
+                          type: integer
+                        air_date:
+                          type: string
+                          nullable: true
+        '500':
+          description: Unable to retrieve TV show
   /status:
     get:
       summary: Get Agregarr status
@@ -3624,6 +4020,160 @@ paths:
                   appDataPath:
                     type: string
                     example: /app/config
+  /exclusions:
+    get:
+      summary: Get global exclusions with metadata
+      description: Returns all globally excluded items for collections enriched with TMDB metadata (title, year, poster).
+      tags:
+        - exclusions
+      responses:
+        '200':
+          description: Global exclusions retrieved successfully with TMDB metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  movies:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tmdbId:
+                          type: integer
+                          example: 550
+                        title:
+                          type: string
+                          example: Fight Club
+                        year:
+                          type: integer
+                          example: 1999
+                        posterPath:
+                          type: string
+                          example: /pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg
+                    description: Array of excluded movies with TMDB metadata
+                  shows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1399
+                        type:
+                          type: string
+                          enum: [tmdb, tvdb]
+                          example: tmdb
+                        title:
+                          type: string
+                          example: Game of Thrones
+                        year:
+                          type: integer
+                          example: 2011
+                        posterPath:
+                          type: string
+                          example: /7WUHnWGx5OO145IRxPDUkQSh4C7.jpg
+                    description: Array of excluded TV shows with metadata
+    post:
+      summary: Add item to global exclusions
+      description: Adds an item to the global exclusions list.
+      tags:
+        - exclusions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mediaType
+              properties:
+                tmdbId:
+                  type: integer
+                  example: 550
+                  description: TMDB ID (required for movies, optional for TV)
+                tvdbId:
+                  type: integer
+                  example: 121361
+                  description: TVDB ID (optional for TV shows)
+                mediaType:
+                  type: string
+                  enum: [movie, tv]
+                  example: movie
+      responses:
+        '200':
+          description: Item added to exclusions successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  movies:
+                    type: array
+                    items:
+                      type: integer
+                  shows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        type:
+                          type: string
+                          enum: [tmdb, tvdb]
+        '400':
+          description: Invalid request parameters
+    delete:
+      summary: Remove item from global exclusions
+      description: Removes an item from the global exclusions list.
+      tags:
+        - exclusions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mediaType
+              properties:
+                tmdbId:
+                  type: integer
+                  example: 550
+                  description: TMDB ID (required for movies, optional for TV)
+                tvdbId:
+                  type: integer
+                  example: 121361
+                  description: TVDB ID (optional for TV shows)
+                mediaType:
+                  type: string
+                  enum: [movie, tv]
+                  example: movie
+      responses:
+        '200':
+          description: Item removed from exclusions successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  movies:
+                    type: array
+                    items:
+                      type: integer
+                  shows:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        type:
+                          type: string
+                          enum: [tmdb, tvdb]
+        '400':
+          description: Invalid request parameters
   /collections:
     get:
       summary: Get collection configurations
@@ -4119,7 +4669,7 @@ paths:
   /collections/fetch-title:
     post:
       summary: Quick validation and title extraction from external collection URL
-      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDb, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
+      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDB, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
       tags:
         - collection
       requestBody:
@@ -4134,7 +4684,7 @@ paths:
                   example: "https://trakt.tv/users/username/lists/my-list"
                 type:
                   type: string
-                  enum: [trakt, tmdb, imdb, mdblist, letterboxd]
+                  enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
                   example: "trakt"
               required:
                 - url
@@ -4566,6 +5116,423 @@ paths:
                   error:
                     type: string
                     example: "Failed to load platforms for country"
+  /collections/originals/providers:
+    get:
+      summary: Get available streaming providers for Originals collections
+      description: Returns all available streaming service providers for Originals collections (Netflix, Amazon, Disney+, HBO, etc.).
+      tags:
+        - collection
+      responses:
+        '200':
+          description: Providers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OriginalsPlatformOption'
+        '500':
+          description: Failed to fetch originals providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to fetch originals providers"
+  /collections/preview:
+    post:
+      summary: Start a collection preview
+      description: Starts an asynchronous preview process and returns a session ID immediately. Client should poll /collections/preview/status/{sessionId} for progress and results.
+      tags:
+        - collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - libraryId
+              properties:
+                type:
+                  type: string
+                  description: Collection source type
+                  enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, multi-source]
+                  example: imdb
+                subtype:
+                  type: string
+                  description: Collection sub-type (e.g., 'top_250' for IMDb)
+                  example: top_250
+                libraryId:
+                  type: string
+                  description: Plex library ID to match items against
+                  example: "1"
+                customUrl:
+                  type: string
+                  description: Custom list URL (for custom list types)
+                  example: "https://www.imdb.com/list/ls123456789/"
+                maxItems:
+                  type: number
+                  description: Maximum number of items to fetch
+                  example: 50
+                timePeriod:
+                  type: string
+                  description: Time period for Tautulli collections
+                  enum: [daily, weekly, monthly, all, custom]
+                  example: weekly
+                minimumPlays:
+                  type: number
+                  description: Minimum play count for Tautulli collections
+                  example: 1
+                customDays:
+                  type: number
+                  description: Number of days for custom time period (Tautulli)
+                  example: 30
+                network:
+                  type: string
+                  description: Network name for network collections
+                  example: "Netflix"
+                country:
+                  type: string
+                  description: Country code for network collections
+                  example: "us"
+                provider:
+                  type: string
+                  description: Provider name for originals collections
+                  example: "netflix"
+                isMultiSource:
+                  type: boolean
+                  description: Whether this is a multi-source collection
+                  example: true
+                sources:
+                  type: array
+                  description: Array of source configurations for multi-source collections
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - type
+                      - priority
+                    properties:
+                      id:
+                        type: string
+                        description: Unique identifier for this source
+                        example: "source-1"
+                      type:
+                        type: string
+                        description: Collection source type
+                        enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist]
+                        example: "imdb"
+                      subtype:
+                        type: string
+                        description: Collection sub-type
+                        example: "top_250"
+                      customUrl:
+                        type: string
+                        description: Custom list URL for this source
+                        example: "https://www.imdb.com/list/ls123456789/"
+                      timePeriod:
+                        type: string
+                        description: Time period for Tautulli sources
+                        enum: [daily, weekly, monthly, all, custom]
+                        example: "weekly"
+                      priority:
+                        type: number
+                        description: Order priority when combining (0 = highest)
+                        example: 0
+                      customDays:
+                        type: number
+                        description: Number of days for custom time period (Tautulli)
+                        example: 30
+                      minimumPlays:
+                        type: number
+                        description: Minimum play count for Tautulli sources
+                        example: 1
+                      networksCountry:
+                        type: string
+                        description: Country code for network sources
+                        example: "us"
+                combineMode:
+                  type: string
+                  description: How to combine items from multiple sources
+                  enum: [interleaved, list_order, randomised, cycle_lists]
+                  example: "interleaved"
+                cycleIndex:
+                  type: number
+                  description: For cycle_lists mode, which source to show (0-based index)
+                  example: 0
+                  default: 0
+      responses:
+        '202':
+          description: Preview started successfully, poll /status/{sessionId} for progress
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                    example: "preview-1234567890-abc123"
+                  message:
+                    type: string
+                    example: "Preview started, poll /status/:sessionId for progress"
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Missing required fields: type and libraryId are required"
+        '500':
+          description: Failed to start preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to start preview"
+                  message:
+                    type: string
+  /collections/preview/status/{sessionId}:
+    get:
+      summary: Get preview progress status
+      description: Poll this endpoint to get real-time progress updates for a preview session
+      tags:
+        - collection
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Session ID returned from POST /collections/preview
+          schema:
+            type: string
+            example: "preview-1234567890-abc123"
+      responses:
+        '200':
+          description: Preview status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    description: Whether preview is still running
+                    example: true
+                  currentStage:
+                    type: string
+                    description: Current processing stage
+                    example: "Fetching posters (75/250)..."
+                  totalItems:
+                    type: number
+                    description: Total items to process
+                    example: 250
+                  processedItems:
+                    type: number
+                    description: Items processed so far
+                    example: 75
+                  progress:
+                    type: number
+                    description: Progress percentage (0-100)
+                    example: 65
+                  completed:
+                    type: boolean
+                    description: Whether preview is complete
+                    example: false
+                  error:
+                    type: string
+                    description: Error message if preview failed
+                    example: null
+                  result:
+                    type: object
+                    description: Preview results (only present when completed=true)
+                    properties:
+                      items:
+                        type: array
+                        description: All items in original list order
+                        items:
+                          type: object
+                          properties:
+                            ratingKey:
+                              type: string
+                              example: "12345"
+                            title:
+                              type: string
+                              example: "The Shawshank Redemption"
+                            year:
+                              type: number
+                              example: 1994
+                            tmdbId:
+                              type: number
+                              example: 278
+                            mediaType:
+                              type: string
+                              enum: [movie, tv]
+                              example: movie
+                            posterUrl:
+                              type: string
+                              example: "https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg"
+                            inLibrary:
+                              type: boolean
+                              example: true
+                      totalItems:
+                        type: number
+                        example: 250
+                      matchedCount:
+                        type: number
+                        example: 200
+                      missingCount:
+                        type: number
+                        example: 50
+        '404':
+          description: Preview session not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Preview session not found"
+  /collections/preview/download:
+    post:
+      summary: Download a missing item from preview
+      description: Sends a download request for a missing item to Radarr, Sonarr, or Overseerr.
+      tags:
+        - collection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tmdbId
+                - mediaType
+                - service
+              properties:
+                tmdbId:
+                  type: number
+                  description: TMDB ID of the item to download
+                  example: 680
+                mediaType:
+                  type: string
+                  description: Media type
+                  enum: [movie, tv]
+                  example: movie
+                service:
+                  type: string
+                  description: Download service to use
+                  enum: [radarr, sonarr, overseerr]
+                  example: radarr
+                serverId:
+                  type: number
+                  description: Server ID for Radarr/Sonarr (optional)
+                  example: 1
+                profileId:
+                  type: number
+                  description: Quality profile ID for Radarr/Sonarr (optional)
+                  example: 1
+                rootFolder:
+                  type: string
+                  description: Root folder path for Radarr/Sonarr (optional)
+                  example: /media/movies
+                seasons:
+                  description: Seasons to download for TV shows (optional, array of season numbers or 'all')
+                  oneOf:
+                    - type: array
+                      items:
+                        type: number
+                      example: [1, 2, 3]
+                    - type: string
+                      enum: [all]
+                      example: all
+                sourceType:
+                  type: string
+                  description: Collection source type for service user determination (optional)
+                  example: trakt
+      responses:
+        '200':
+          description: Download request sent successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    description: Radarr response
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      service:
+                        type: string
+                        example: radarr
+                      autoApproved:
+                        type: number
+                        example: 1
+                      serverId:
+                        type: number
+                        example: 1
+                  - type: object
+                    description: Sonarr response
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      service:
+                        type: string
+                        example: sonarr
+                      autoApproved:
+                        type: number
+                        example: 1
+                      serverId:
+                        type: number
+                        example: 1
+                  - type: object
+                    description: Overseerr response
+                    properties:
+                      success:
+                        type: boolean
+                        example: true
+                      service:
+                        type: string
+                        example: overseerr
+                      requestId:
+                        type: number
+                        example: 12345
+                      status:
+                        type: number
+                        example: 2
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Missing required fields: tmdbId, mediaType, and service"
+        '500':
+          description: Failed to download item
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Failed to download item"
+                  message:
+                    type: string
   /collections/preexisting:
     get:
       summary: Get pre-existing Plex collections
@@ -4626,6 +5593,62 @@ paths:
           description: Bad request - Plex server not configured or no admin token
         '500':
           description: Failed to fetch pre-existing collections
+  /anilist/test-trending:
+    get:
+      summary: Test AniList trending endpoint
+      description: Test endpoint for fetching trending anime from AniList with detailed logging.
+      tags:
+        - other
+      responses:
+        '200':
+          description: Trending anime fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '500':
+          description: Failed to fetch trending anime
+  /anilist/list:
+    get:
+      summary: Fetch AniList data
+      description: Fetches anime data from AniList based on the specified type (trending or popular).
+      tags:
+        - other
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [trending, popular]
+          required: true
+          description: Type of anime list to fetch
+      responses:
+        '200':
+          description: AniList data fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Invalid type parameter
+        '500':
+          description: Failed to fetch AniList data
   /defaulthubs:
     get:
       summary: Get default Plex hub configurations
@@ -5042,6 +6065,131 @@ paths:
           description: Invalid request body
         '500':
           description: Failed to append pre-existing collection configurations
+  /ratings/movie/{tmdbId}:
+    get:
+      summary: Get movie ratings
+      description: Returns IMDB and Rotten Tomatoes ratings for a movie
+      tags:
+        - other
+      parameters:
+        - in: path
+          name: tmdbId
+          required: true
+          schema:
+            type: integer
+          description: TMDB movie ID
+        - in: query
+          name: title
+          schema:
+            type: string
+          description: Movie title (required for RT rating lookup)
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: Movie release year (required for RT rating lookup)
+        - in: query
+          name: imdbId
+          schema:
+            type: string
+          description: IMDB ID (e.g. tt1234567) for IMDB rating lookup
+      responses:
+        '200':
+          description: Movie ratings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imdb:
+                    type: object
+                    nullable: true
+                    properties:
+                      title:
+                        type: string
+                      url:
+                        type: string
+                      criticsScore:
+                        type: number
+                  rt:
+                    type: object
+                    nullable: true
+                    properties:
+                      title:
+                        type: string
+                      year:
+                        type: number
+                      criticsRating:
+                        type: string
+                        enum: [Certified Fresh, Fresh, Rotten]
+                      criticsScore:
+                        type: number
+                      audienceRating:
+                        type: string
+                        enum: [Upright, Spilled]
+                      audienceScore:
+                        type: number
+                      url:
+                        type: string
+        '400':
+          description: Invalid request
+        '500':
+          description: Failed to fetch ratings
+  /ratings/tv/{tmdbId}:
+    get:
+      summary: Get TV show ratings
+      description: Returns Rotten Tomatoes ratings for a TV show
+      tags:
+        - other
+      parameters:
+        - in: path
+          name: tmdbId
+          required: true
+          schema:
+            type: integer
+          description: TMDB TV show ID
+        - in: query
+          name: title
+          schema:
+            type: string
+          description: TV show title (required for RT rating lookup)
+        - in: query
+          name: year
+          schema:
+            type: integer
+          description: First air date year (optional for RT rating lookup)
+      responses:
+        '200':
+          description: TV show ratings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rt:
+                    type: object
+                    nullable: true
+                    properties:
+                      title:
+                        type: string
+                      year:
+                        type: number
+                      criticsRating:
+                        type: string
+                        enum: [Fresh, Rotten]
+                      criticsScore:
+                        type: number
+                      audienceRating:
+                        type: string
+                        enum: [Upright, Spilled]
+                      audienceScore:
+                        type: number
+                      url:
+                        type: string
+        '400':
+          description: Invalid request
+        '500':
+          description: Failed to fetch ratings
   /reorder:
     post:
       summary: True unified reordering for mixed collection lists
@@ -5818,6 +6966,70 @@ paths:
           description: 'Missing required parameters'
         '500':
           description: 'Connection test failed'
+  /settings/myanimelist:
+    get:
+      summary: Get MyAnimeList settings
+      description: Retrieves current MyAnimeList settings.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyAnimeListSettings'
+    post:
+      summary: Update MyAnimeList settings
+      description: Updates MyAnimeList settings with the provided values.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MyAnimeListSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyAnimeListSettings'
+  /settings/myanimelist/test:
+    post:
+      summary: Test MyAnimeList connection
+      description: Tests connection to MyAnimeList API with the provided API key.
+      tags:
+        - settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKey:
+                  type: string
+                  description: MyAnimeList API key
+              required:
+                - apiKey
+      responses:
+        '200':
+          description: 'Connection test successful'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: 'Missing required parameters'
+        '500':
+          description: 'Connection test failed'
   /settings/overseerr:
     get:
       summary: Get Overseerr settings
@@ -6075,6 +7287,55 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServiceProfile'
+  /settings/radarr/{radarrId}/rootfolders:
+    get:
+      summary: Get available Radarr root folders
+      description: Returns a list of root folders available on the Radarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: radarrId
+          required: true
+          schema:
+            type: integer
+          description: Radarr instance ID
+      responses:
+        '200':
+          description: Returned list of root folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: number
+                    path:
+                      type: string
+  /settings/radarr/{radarrId}/tags:
+    get:
+      summary: Get available Radarr tags
+      description: Returns a list of tags available on the Radarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: radarrId
+          required: true
+          schema:
+            type: integer
+          description: Radarr instance ID
+      responses:
+        '200':
+          description: Returned list of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/sonarr:
     get:
       summary: Get Sonarr settings
@@ -6195,6 +7456,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SonarrSettings'
+  /settings/sonarr/{sonarrId}/profiles:
+    get:
+      summary: Get available Sonarr profiles
+      description: Returns a list of profiles available on the Sonarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      responses:
+        '200':
+          description: Returned list of profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceProfile'
+  /settings/sonarr/{sonarrId}/rootfolders:
+    get:
+      summary: Get available Sonarr root folders
+      description: Returns a list of root folders available on the Sonarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      responses:
+        '200':
+          description: Returned list of root folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: number
+                    path:
+                      type: string
+  /settings/sonarr/{sonarrId}/tags:
+    get:
+      summary: Get available Sonarr tags
+      description: Returns a list of tags available on the Sonarr server instance in a JSON array.
+      tags:
+        - settings
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      responses:
+        '200':
+          description: Returned list of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/public:
     get:
       summary: Get public settings
@@ -7329,7 +8661,7 @@ paths:
           name: collectionSource
           schema:
             type: string
-            enum: [trakt, tmdb, imdb, mdblist, letterboxd]
+            enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
           description: Filter by collection source
         - in: query
           name: requestService
@@ -7916,8 +9248,102 @@ paths:
                                 secondaryColor:
                                   type: string
                                   example: "#1e1b4b"
+                                useSourceColors:
+                                  type: boolean
+                                  example: false
+                            # New unified layering system (preferred)
+                            elements:
+                              type: array
+                              description: "Unified element list with custom layer ordering (used when migrated=true)"
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "element-1"
+                                  layerOrder:
+                                    type: number
+                                    description: "Layer order - lower numbers render behind higher numbers"
+                                    example: 20
+                                  type:
+                                    type: string
+                                    enum: [text, raster, svg, content-grid]
+                                    example: "text"
+                                  x:
+                                    type: number
+                                    example: 50
+                                  y:
+                                    type: number
+                                    example: 100
+                                  width:
+                                    type: number
+                                    example: 400
+                                  height:
+                                    type: number
+                                    example: 60
+                                  properties:
+                                    type: object
+                                    description: "Type-specific properties based on element type"
+                                    oneOf:
+                                      - type: object
+                                        title: "Text Element Properties"
+                                        properties:
+                                          elementType:
+                                            type: string
+                                            enum: [collection-title, custom-text]
+                                          text:
+                                            type: string
+                                          fontSize:
+                                            type: number
+                                          fontFamily:
+                                            type: string
+                                          fontWeight:
+                                            type: string
+                                            enum: [normal, bold]
+                                          fontStyle:
+                                            type: string
+                                            enum: [normal, italic]
+                                          color:
+                                            type: string
+                                          textAlign:
+                                            type: string
+                                            enum: [left, center, right]
+                                          maxLines:
+                                            type: number
+                                      - type: object
+                                        title: "Raster Element Properties"
+                                        properties:
+                                          imagePath:
+                                            type: string
+                                      - type: object
+                                        title: "SVG Element Properties"
+                                        properties:
+                                          iconType:
+                                            type: string
+                                            enum: [source-logo, svg-icon]
+                                          iconPath:
+                                            type: string
+                                          grayscale:
+                                            type: boolean
+                                      - type: object
+                                        title: "Content Grid Properties"
+                                        properties:
+                                          columns:
+                                            type: number
+                                          rows:
+                                            type: number
+                                          spacing:
+                                            type: number
+                                          cornerRadius:
+                                            type: number
+                            migrated:
+                              type: boolean
+                              description: "Flag indicating if template has been migrated to unified layering system"
+                              example: true
+                            # Legacy structure (for backward compatibility)
                             textElements:
                               type: array
+                              description: "Legacy text elements (used when migrated=false)"
                               items:
                                 type: object
                                 properties:
@@ -7926,6 +9352,7 @@ paths:
                                     example: "text-1"
                                   type:
                                     type: string
+                                    enum: [collection-title, custom-text]
                                     example: "collection-title"
                                   text:
                                     type: string
@@ -7968,6 +9395,7 @@ paths:
                                     example: 2
                             iconElements:
                               type: array
+                              description: "Legacy icon elements (used when migrated=false)"
                               items:
                                 type: object
                                 properties:
@@ -7996,8 +9424,68 @@ paths:
                                   grayscale:
                                     type: boolean
                                     example: false
+                            rasterElements:
+                              type: array
+                              description: "Legacy raster image elements (used when migrated=false)"
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "raster-1"
+                                  type:
+                                    type: string
+                                    enum: [raster-image]
+                                    example: "raster-image"
+                                  imagePath:
+                                    type: string
+                                    example: "/uploads/background.jpg"
+                                  x:
+                                    type: number
+                                    example: 0
+                                  y:
+                                    type: number
+                                    example: 0
+                                  width:
+                                    type: number
+                                    example: 500
+                                  height:
+                                    type: number
+                                    example: 300
+                            svgElements:
+                              type: array
+                              description: "Legacy SVG elements (used when migrated=false)"
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    example: "svg-1"
+                                  type:
+                                    type: string
+                                    enum: [source-logo, svg-icon]
+                                    example: "svg-icon"
+                                  iconPath:
+                                    type: string
+                                    example: "/icons/custom.svg"
+                                  x:
+                                    type: number
+                                    example: 25
+                                  y:
+                                    type: number
+                                    example: 25
+                                  width:
+                                    type: number
+                                    example: 50
+                                  height:
+                                    type: number
+                                    example: 50
+                                  grayscale:
+                                    type: boolean
+                                    example: false
                             contentGrid:
                               type: object
+                              description: "Legacy content grid (used when migrated=false)"
                               properties:
                                 id:
                                   type: string
@@ -8211,6 +9699,11 @@ paths:
             enum: [movie, tv]
             default: movie
           description: Media type
+        - name: t
+          in: query
+          schema:
+            type: string
+          description: Cache-busting timestamp parameter
       responses:
         '200':
           description: Preview image generated successfully
@@ -8270,6 +9763,91 @@ paths:
           description: Template data is required
         '500':
           description: Failed to validate template data
+
+  /posters/templates/{id}/export:
+    get:
+      summary: Export template as ZIP with assets
+      description: Exports a poster template as a downloadable ZIP file containing the template JSON and all required custom assets (icons, images).
+      tags:
+        - posters
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Template ID
+          schema:
+            type: integer
+            example: 1
+      responses:
+        '200':
+          description: Template exported successfully as ZIP file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+                description: ZIP file containing template.json and assets/ folder with custom icons and images
+        '400':
+          description: Invalid template ID
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to export template
+
+  /posters/templates/import:
+    post:
+      summary: Import template from ZIP
+      description: Imports a poster template from a ZIP file exported from Agregarr. The ZIP file must contain template.json and any required custom assets.
+      tags:
+        - posters
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: ZIP file containing template.json and assets
+      responses:
+        '201':
+          description: Template imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 5
+                  name:
+                    type: string
+                    example: "Imported Template"
+                  description:
+                    type: string
+                    example: "A template imported from another instance"
+                  isDefault:
+                    type: boolean
+                    example: false
+                  templateData:
+                    type: object
+                    description: "Complete template configuration data"
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid template data or unsupported version
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to import template
 
   /posters/saved:
     get:
@@ -8603,6 +10181,45 @@ paths:
         '500':
           description: Failed to list icons
 
+  /fonts:
+    get:
+      summary: Get available system fonts
+      description: Retrieves all available font families from the system for use in poster templates.
+      tags:
+        - posters
+      responses:
+        '200':
+          description: Fonts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fonts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        family:
+                          type: string
+                          example: DejaVu Sans
+                        availableWeights:
+                          type: array
+                          items:
+                            type: string
+                          example: ["Regular", "Bold", "Light", "Medium"]
+                        cssValue:
+                          type: string
+                          example: "'DejaVu Sans'"
+                        fontUrl:
+                          type: string
+                          description: URL to font file for web loading
+                          example: "/fonts/truetype/dejavu/DejaVuSans.ttf"
+                  count:
+                    type: integer
+                    example: 25
+        '500':
+          description: Failed to retrieve fonts
   /posters/icons/categories:
     get:
       summary: List icon categories
@@ -8952,6 +10569,108 @@ paths:
                           type: string
         '500':
           description: Failed to reset source colors
+
+  /source-colors/export:
+    get:
+      summary: Export source colors as JSON
+      description: Exports all source color schemes as a downloadable JSON file for sharing.
+      tags:
+        - source-colors
+      responses:
+        '200':
+          description: Source colors exported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sourceColors:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        primaryColor:
+                          type: string
+                          example: "#ed2224"
+                        secondaryColor:
+                          type: string
+                          example: "#1f1a1a"
+                        textColor:
+                          type: string
+                          example: "#ffffff"
+                  exportedAt:
+                    type: string
+                    format: date-time
+                    example: "2023-10-25T10:30:00.000Z"
+                  version:
+                    type: string
+                    example: "1.0"
+        '500':
+          description: Failed to export source colors
+
+  /source-colors/import:
+    post:
+      summary: Import source colors from JSON
+      description: Imports source color schemes from a JSON file exported from Agregarr.
+      tags:
+        - source-colors
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceColors
+              properties:
+                sourceColors:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      primaryColor:
+                        type: string
+                        example: "#ed2224"
+                      secondaryColor:
+                        type: string
+                        example: "#1f1a1a"
+                      textColor:
+                        type: string
+                        example: "#ffffff"
+                version:
+                  type: string
+                  example: "1.0"
+      responses:
+        '200':
+          description: Source colors imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully imported 5 source color schemes"
+                  importCount:
+                    type: integer
+                    example: 5
+                  sourceColors:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        primaryColor:
+                          type: string
+                        secondaryColor:
+                          type: string
+                        textColor:
+                          type: string
+        '400':
+          description: Invalid source colors data or unsupported version
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to import source colors
 
 security:
   - cookieAuth: []

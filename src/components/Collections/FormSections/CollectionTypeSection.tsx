@@ -2,6 +2,7 @@ import type { CollectionFormConfig } from '@app/types/collections';
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
 import type {
   MDBListSettings,
+  MyAnimeListSettings,
   OverseerrSettings,
   TautulliSettings,
   TraktSettings,
@@ -65,6 +66,9 @@ const CollectionTypeSection = ({
   const { data: overseerrSettings } = useSWR<OverseerrSettings>(
     '/api/v1/settings/overseerr'
   );
+  const { data: myanimelistSettings } = useSWR<MyAnimeListSettings>(
+    '/api/v1/settings/myanimelist'
+  );
 
   if (!isVisible) return null;
 
@@ -74,6 +78,7 @@ const CollectionTypeSection = ({
     mdblist: mdblistSettings,
     tautulli: tautulliSettings,
     overseerr: overseerrSettings,
+    myanimelist: myanimelistSettings,
   });
 
   const collectionTypes = [
@@ -81,10 +86,15 @@ const CollectionTypeSection = ({
     { value: 'tautulli', label: 'Tautulli Statistics' },
     { value: 'trakt', label: 'Trakt Lists' },
     { value: 'letterboxd', label: 'Letterboxd Lists' },
-    { value: 'tmdb', label: 'TMDb Lists' },
+    { value: 'tmdb', label: 'TMDB Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
     { value: 'mdblist', label: 'MDBList Lists' },
-    { value: 'networks', label: 'Networks' },
+    { value: 'networks', label: 'Networks Top 10' },
+    { value: 'originals', label: 'Networks Originals' },
+    { value: 'anilist', label: 'AniList' },
+    { value: 'myanimelist', label: 'MyAnimeList' },
+    { value: 'radarrtag', label: 'Radarr Tag' },
+    { value: 'sonarrtag', label: 'Sonarr Tag' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -173,11 +183,11 @@ const CollectionTypeSection = ({
           { value: 'trending_week', label: 'Trending This Week' },
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
-          { value: 'custom', label: 'Custom Collection' },
+          { value: 'custom', label: 'Custom Collection/List' },
           {
             value: 'random',
             label: 'Random Lists',
-            description: 'Randomly select from configured TMDb lists',
+            description: 'Randomly select from configured TMDB lists',
           },
         ];
       case 'imdb':
@@ -215,8 +225,79 @@ const CollectionTypeSection = ({
         ];
       case 'networks':
         return []; // Will be populated dynamically based on selected country
+      case 'originals':
+        return []; // Will be populated dynamically with provider options
       case 'multi-source':
         return []; // Multi-source collections don't use subtypes - they configure sources directly
+      case 'anilist': // Add AniList subtypes
+        return [
+          {
+            value: 'trending',
+            label: 'Trending Anime',
+            description: 'Trending anime on AniList.',
+          },
+          {
+            value: 'popular',
+            label: 'Popular Anime',
+            description: 'Most popular anime on AniList.',
+          },
+          {
+            value: 'top_rated',
+            label: 'Top Rated Anime',
+            description: 'Highest-rated anime on AniList.',
+          },
+          {
+            value: 'custom',
+            label: 'Custom List',
+            description: 'Import a custom AniList list by URL.',
+          },
+        ];
+      case 'myanimelist':
+        return [
+          {
+            value: 'all',
+            label: 'Top Anime Series',
+            description: 'Highest-rated anime overall.',
+          },
+          {
+            value: 'airing',
+            label: 'Top Airing Anime',
+            description: 'Highest-rated currently airing anime.',
+          },
+          {
+            value: 'tv',
+            label: 'Top Anime TV Series',
+            description: 'Highest-rated TV anime series.',
+          },
+          {
+            value: 'movie',
+            label: 'Top Anime Movies',
+            description: 'Highest-rated anime movies.',
+          },
+          {
+            value: 'ova',
+            label: 'Top OVA Series',
+            description: 'Highest-rated OVA anime.',
+          },
+          {
+            value: 'special',
+            label: 'Top Anime Specials',
+            description: 'Highest-rated anime specials.',
+          },
+          {
+            value: 'bypopularity',
+            label: 'Most Popular Anime',
+            description: 'Most popular anime by member count.',
+          },
+          {
+            value: 'favorite',
+            label: 'Most Favorited Anime',
+            description: 'Most favorited anime by users.',
+          },
+        ];
+      case 'radarrtag':
+      case 'sonarrtag':
+        return []; // These use custom tag selectors instead of subtypes
       default:
         return [];
     }

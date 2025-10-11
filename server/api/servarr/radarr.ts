@@ -103,51 +103,17 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
         return movie;
       }
 
-      // movie exists in Radarr but is neither downloaded nor monitored
+      // movie exists in Radarr but is unmonitored - respect user's choice to keep it unmonitored
       if (movie.id && !movie.monitored) {
-        const response = await this.axios.put<RadarrMovie>(`/movie`, {
-          ...movie,
-          title: options.title,
-          qualityProfileId: options.qualityProfileId,
-          profileId: options.profileId,
-          titleSlug: options.tmdbId.toString(),
-          minimumAvailability: options.minimumAvailability,
-          tmdbId: options.tmdbId,
-          year: options.year,
-          tags: Array.from(new Set([...movie.tags, ...options.tags])),
-          rootFolderPath: options.rootFolderPath,
-          monitored: options.monitored,
-          addOptions: {
-            searchForMovie: options.searchNow,
-          },
-        });
-
-        if (response.data.monitored) {
-          logger.info(
-            'Found existing title in Radarr and set it to monitored.',
-            {
-              label: 'Radarr',
-              movieId: response.data.id,
-              movieTitle: response.data.title,
-            }
-          );
-          logger.debug('Radarr update details', {
+        logger.info(
+          'Movie exists in Radarr but is unmonitored. Respecting user choice and skipping.',
+          {
             label: 'Radarr',
-            movie: response.data,
-          });
-
-          if (options.searchNow) {
-            this.searchMovie(response.data.id);
+            movieId: movie.id,
+            movieTitle: movie.title,
           }
-
-          return response.data;
-        } else {
-          logger.error('Failed to update existing movie in Radarr.', {
-            label: 'Radarr',
-            options,
-          });
-          throw new Error('Failed to update existing movie in Radarr');
-        }
+        );
+        return movie;
       }
 
       if (movie.id) {

@@ -11,6 +11,7 @@ import type {
   TmdbKeyword,
   TmdbKeywordSearchResponse,
   TmdbLanguage,
+  TmdbList,
   TmdbMovieDetails,
   TmdbNetwork,
   TmdbPersonCombinedCredits,
@@ -823,6 +824,29 @@ class TheMovieDb extends ExternalAPI {
     }
   }
 
+  public async getList({
+    listId,
+    language = 'en',
+    page = 1,
+  }: {
+    listId: string;
+    language?: string;
+    page?: number;
+  }): Promise<TmdbList> {
+    try {
+      const data = await this.get<TmdbList>(`/list/${listId}`, {
+        params: {
+          language,
+          page,
+        },
+      });
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch list: ${e.message}`);
+    }
+  }
+
   /**
    * Get popular collections for discovery
    */
@@ -843,7 +867,7 @@ class TheMovieDb extends ExternalAPI {
     total_results: number;
   }> {
     try {
-      // Note: TMDb doesn't have a direct popular collections endpoint
+      // Note: TMDB doesn't have a direct popular collections endpoint
       // We'll discover collections through popular movies that belong to collections
 
       // Get movie details to access belongs_to_collection data

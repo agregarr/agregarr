@@ -1,5 +1,6 @@
 import RadarrAPI from '@server/api/servarr/radarr';
 import SonarrAPI from '@server/api/servarr/sonarr';
+import TheMovieDb from '@server/api/themoviedb';
 import type {
   AutoRequestResult,
   MissingItem,
@@ -8,6 +9,7 @@ import type {
   CollectionConfig,
   RadarrSettings,
   SonarrSettings,
+  TagRequestsMode,
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -21,47 +23,179 @@ import logger from '@server/logger';
 export class DirectDownloadService {
   private radarrAPI: RadarrAPI | null = null;
   private sonarrAPI: SonarrAPI | null = null;
+  private tmdbAPI: TheMovieDb;
+  private readonly SOURCE_LABELS: Record<
+    | 'trakt'
+    | 'tmdb'
+    | 'imdb'
+    | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
+    | 'mdblist'
+    | 'networks'
+    | 'originals'
+    | 'multi-source'
+    | 'tautulli'
+    | 'overseerr'
+    | 'radarrtag'
+    | 'sonarrtag',
+    string
+  > = {
+    trakt: 'Trakt',
+    tmdb: 'Tmdb',
+    imdb: 'Imdb',
+    letterboxd: 'Letterboxd',
+    anilist: 'Anilist',
+    myanimelist: 'MyAnimeList',
+    mdblist: 'Mdblist',
+    networks: 'Networks',
+    originals: 'Originals',
+    'multi-source': 'MultiSource',
+    tautulli: 'Tautulli',
+    overseerr: 'Overseerr',
+    radarrtag: 'RadarrTag',
+    sonarrtag: 'SonarrTag',
+  };
 
-  /**
-   * Get or initialize Radarr API client
-   */
-  private getRadarrAPI(): RadarrAPI {
-    if (!this.radarrAPI) {
-      const settings = getSettings();
-      // Find default Radarr instance (4K support was removed but can be re-added by filtering r.is4k === false)
-      const radarrSettings = settings.radarr.find((r) => r.isDefault);
+  constructor() {
+    this.tmdbAPI = new TheMovieDb();
+  }
 
-      if (!radarrSettings) {
-        throw new Error('No default Radarr instance configured');
-      }
-
-      this.radarrAPI = new RadarrAPI({
-        url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
-        apiKey: radarrSettings.apiKey,
-      });
+  private resolveTagMode(
+    mode: TagRequestsMode | undefined,
+    legacyEnabled: boolean | undefined
+  ): TagRequestsMode {
+    if (mode === 'off' || mode === 'single' || mode === 'per-service') {
+      return mode;
     }
-    return this.radarrAPI;
+
+    if (mode === 'granular') {
+      return 'granular';
+    }
+
+    return legacyEnabled ? 'granular' : 'off';
+  }
+
+  private slugifyTagSegment(segment?: string): string {
+    if (!segment) {
+      return '';
+    }
+
+    return segment
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '');
+  }
+
+  private generateCollectionTag(
+    config: CollectionConfig,
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
+      | 'multi-source'
+      | 'tautulli'
+      | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag',
+    mode: TagRequestsMode | undefined,
+    legacyEnabled?: boolean
+  ): string | null {
+    const resolvedMode = this.resolveTagMode(mode, legacyEnabled);
+
+    if (resolvedMode === 'off') {
+      return null;
+    }
+
+    const baseTag = 'agregarr';
+
+    if (resolvedMode === 'single') {
+      return baseTag;
+    }
+
+    const sourceSegment = this.slugifyTagSegment(
+      this.SOURCE_LABELS[source] ?? source
+    );
+
+    if (resolvedMode === 'per-service') {
+      const segments = [sourceSegment, baseTag].filter(Boolean);
+      return segments.join('-') || baseTag;
+    }
+
+    const subtypeSegment = this.slugifyTagSegment(config.subtype);
+    const collectionSegment =
+      subtypeSegment || this.slugifyTagSegment(config.name);
+
+    const segments = [sourceSegment, collectionSegment, baseTag].filter(
+      (value) => value && value.length > 0
+    );
+
+    return segments.join('-') || baseTag;
   }
 
   /**
-   * Get or initialize Sonarr API client
+   * Get or initialize Radarr API client for specific server
    */
-  private getSonarrAPI(): SonarrAPI {
-    if (!this.sonarrAPI) {
-      const settings = getSettings();
-      // Find default Sonarr instance (4K support was removed but can be re-added by filtering s.is4k === false)
-      const sonarrSettings = settings.sonarr.find((s) => s.isDefault);
+  private getRadarrAPI(serverId?: number | null): RadarrAPI {
+    const settings = getSettings();
+    let radarrSettings: RadarrSettings | undefined;
 
+    if (serverId !== undefined && serverId !== null) {
+      // Find specific server by ID
+      radarrSettings = settings.radarr.find((r) => r.id === serverId);
+      if (!radarrSettings) {
+        throw new Error(`Radarr server with ID ${serverId} not found`);
+      }
+    } else {
+      // Fall back to default instance for backwards compatibility
+      radarrSettings = settings.radarr.find((r) => r.isDefault);
+      if (!radarrSettings) {
+        throw new Error('No default Radarr instance configured');
+      }
+    }
+
+    // Always create a new instance to ensure we're using the correct server
+    return new RadarrAPI({
+      url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+      apiKey: radarrSettings.apiKey,
+    });
+  }
+
+  /**
+   * Get or initialize Sonarr API client for specific server
+   */
+  private getSonarrAPI(serverId?: number | null): SonarrAPI {
+    const settings = getSettings();
+    let sonarrSettings: SonarrSettings | undefined;
+
+    if (serverId !== undefined && serverId !== null) {
+      // Find specific server by ID
+      sonarrSettings = settings.sonarr.find((s) => s.id === serverId);
+      if (!sonarrSettings) {
+        throw new Error(`Sonarr server with ID ${serverId} not found`);
+      }
+    } else {
+      // Fall back to default instance for backwards compatibility
+      sonarrSettings = settings.sonarr.find((s) => s.isDefault);
       if (!sonarrSettings) {
         throw new Error('No default Sonarr instance configured');
       }
-
-      this.sonarrAPI = new SonarrAPI({
-        url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
-        apiKey: sonarrSettings.apiKey,
-      });
     }
-    return this.sonarrAPI;
+
+    // Always create a new instance to ensure we're using the correct server
+    return new SonarrAPI({
+      url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+      apiKey: sonarrSettings.apiKey,
+    });
   }
 
   /**
@@ -75,7 +209,19 @@ export class DirectDownloadService {
   public async processDirectDownloads(
     missingItems: MissingItem[],
     config: CollectionConfig,
-    source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist' | 'networks'
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
+      | 'multi-source'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<AutoRequestResult> {
     // Only proceed if direct download is enabled (we'll add this setting later)
     if (!config.searchMissingMovies && !config.searchMissingTV) {
@@ -83,6 +229,7 @@ export class DirectDownloadService {
     }
 
     // Filter items based on config settings
+    const yearFilteredItems: string[] = [];
     const filteredMissingItems = missingItems.filter((item) => {
       // Check media type
       if (item.mediaType === 'movie' && !config.searchMissingMovies)
@@ -91,12 +238,43 @@ export class DirectDownloadService {
       if (item.mediaType !== 'movie' && item.mediaType !== 'tv') return false;
 
       // Check minimum year filter
-      if (config.minimumYear && config.minimumYear > 0 && item.year) {
-        if (item.year < config.minimumYear) return false;
+      if (config.minimumYear && config.minimumYear > 0) {
+        if (!item.year) {
+          logger.debug(
+            `Item "${item.title}" has no year data, allowing through year filter`,
+            {
+              label: 'Direct Download Service',
+              collection: config.name,
+              tmdbId: item.tmdbId,
+            }
+          );
+        } else if (item.year < config.minimumYear) {
+          yearFilteredItems.push(
+            `${item.title} (${item.year}) - below minimum ${config.minimumYear}`
+          );
+          return false;
+        }
       }
 
       return true;
     });
+
+    // Log year filtering summary
+    if (yearFilteredItems.length > 0) {
+      logger.info(
+        `Filtered ${yearFilteredItems.length} items due to minimum year (${config.minimumYear})`,
+        {
+          label: 'Direct Download Service',
+          collection: config.name,
+          minimumYear: config.minimumYear,
+          filteredCount: yearFilteredItems.length,
+          examples: yearFilteredItems.slice(0, 5),
+          ...(yearFilteredItems.length > 5 && {
+            additionalCount: yearFilteredItems.length - 5,
+          }),
+        }
+      );
+    }
 
     if (filteredMissingItems.length === 0) {
       return this.emptyResult();
@@ -107,6 +285,10 @@ export class DirectDownloadService {
       let skippedRequests = 0;
       let alreadyDownloadedCount = 0;
       const maxSeasons = Number(config.maxSeasonsToRequest) || 3;
+
+      // Track excluded items for summary logging
+      const excludedGenreItems: string[] = [];
+      const excludedCountryItems: string[] = [];
 
       for (const item of filteredMissingItems) {
         try {
@@ -135,8 +317,36 @@ export class DirectDownloadService {
             continue;
           }
 
+          // Check excluded genres
+          if (config.excludedGenres && config.excludedGenres.length > 0) {
+            const hasExcluded = await this.hasExcludedGenres(
+              item.tmdbId,
+              item.mediaType,
+              config.excludedGenres
+            );
+            if (hasExcluded) {
+              excludedGenreItems.push(item.title);
+              skippedRequests++;
+              continue;
+            }
+          }
+
+          // Check excluded countries
+          if (config.excludedCountries && config.excludedCountries.length > 0) {
+            const hasExcluded = await this.hasExcludedCountries(
+              item.tmdbId,
+              item.mediaType,
+              config.excludedCountries
+            );
+            if (hasExcluded) {
+              excludedCountryItems.push(item.title);
+              skippedRequests++;
+              continue;
+            }
+          }
+
           // Check if item is excluded in *arr service
-          if (await this.isItemExcluded(item)) {
+          if (await this.isItemExcluded(item, config)) {
             logger.debug(
               `Skipping ${item.title}: Item is excluded in ${
                 item.mediaType === 'movie' ? 'Radarr' : 'Sonarr'
@@ -151,16 +361,16 @@ export class DirectDownloadService {
           }
 
           // Check if already exists in *arr
-          if (await this.checkAlreadyDownloaded(item)) {
+          if (await this.checkAlreadyDownloaded(item, config)) {
             alreadyDownloadedCount++;
             continue;
           }
 
           // Add to appropriate *arr service
           if (item.mediaType === 'movie') {
-            await this.addMovieToRadarr(item, config);
+            await this.addMovieToRadarr(item, config, source);
           } else if (item.mediaType === 'tv') {
-            await this.addSeriesToSonarr(item, config, maxSeasons);
+            await this.addSeriesToSonarr(item, config, maxSeasons, source);
           }
 
           autoApprovedRequests++;
@@ -186,6 +396,36 @@ export class DirectDownloadService {
           );
           skippedRequests++;
         }
+      }
+
+      // Log summary of items excluded by genre
+      if (excludedGenreItems.length > 0) {
+        logger.info(`Items skipped due to excluded genres`, {
+          label: `${
+            source.charAt(0).toUpperCase() + source.slice(1)
+          } Collections`,
+          collection: config.name,
+          count: excludedGenreItems.length,
+          titles: excludedGenreItems.slice(0, 10), // Limit to first 10 titles
+          ...(excludedGenreItems.length > 10 && {
+            additionalCount: excludedGenreItems.length - 10,
+          }),
+        });
+      }
+
+      // Log summary of items excluded by country
+      if (excludedCountryItems.length > 0) {
+        logger.info(`Items skipped due to excluded countries`, {
+          label: `${
+            source.charAt(0).toUpperCase() + source.slice(1)
+          } Collections`,
+          collection: config.name,
+          count: excludedCountryItems.length,
+          titles: excludedCountryItems.slice(0, 10), // Limit to first 10 titles
+          ...(excludedCountryItems.length > 10 && {
+            additionalCount: excludedCountryItems.length - 10,
+          }),
+        });
       }
 
       if (autoApprovedRequests > 0) {
@@ -230,44 +470,80 @@ export class DirectDownloadService {
   }
 
   /**
-   * Generate collection-based tag name from collection title
-   */
-  private generateCollectionTag(collectionName: string): string {
-    // Remove spaces and special characters, keep alphanumeric only
-    const cleanName = collectionName
-      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special chars except spaces
-      .replace(/\s+/g, '') // Remove all spaces
-      .replace(/[^a-zA-Z0-9]/g, ''); // Remove any remaining non-alphanumeric
-
-    return `${cleanName}Agregarr`;
-  }
-
-  /**
    * Get Radarr tags including collection tag if enabled
    */
   private async getRadarrTagsWithCollection(
     radarrSettings: RadarrSettings,
-    config: CollectionConfig
+    config: CollectionConfig,
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
+      | 'multi-source'
+      | 'tautulli'
+      | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<number[]> {
     const tags = [...(radarrSettings.tags || [])];
 
-    if (radarrSettings.tagRequests) {
-      const radarrAPI = this.getRadarrAPI();
-      const collectionTagName = this.generateCollectionTag(config.name);
+    const autoTagLabel = this.generateCollectionTag(
+      config,
+      source,
+      radarrSettings.tagRequestsMode,
+      radarrSettings.tagRequests
+    );
 
-      let collectionTag = (await radarrAPI.getTags()).find(
-        (v) => v.label === collectionTagName
+    const tagMatches = (label?: string): boolean =>
+      !!autoTagLabel && label?.toLowerCase() === autoTagLabel.toLowerCase();
+
+    if (autoTagLabel) {
+      const radarrAPI = this.getRadarrAPI(radarrSettings.id);
+
+      let collectionTag = (await radarrAPI.getTags()).find((tag) =>
+        tagMatches(tag.label)
       );
 
       if (!collectionTag) {
         logger.info(`Collection has no active tag. Creating new`, {
           label: 'Direct Download Service',
           collection: config.name,
-          newTag: collectionTagName,
+          newTag: autoTagLabel,
         });
-        collectionTag = await radarrAPI.createTag({
-          label: collectionTagName,
-        });
+        try {
+          collectionTag = await radarrAPI.createTag({
+            label: autoTagLabel,
+          });
+        } catch (error) {
+          const status = (error as { response?: { status?: number } })?.response
+            ?.status;
+          if (status === 409) {
+            // Tag already exists - fetch again to retrieve its ID
+            collectionTag = (await radarrAPI.getTags()).find((tag) =>
+              tagMatches(tag.label)
+            );
+          }
+
+          if (!collectionTag) {
+            logger.error(
+              `Failed to create tag for collection - continuing without tag`,
+              {
+                label: 'Direct Download Service',
+                collection: config.name,
+                tagName: autoTagLabel,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            );
+            // Continue without the collection tag rather than blocking downloads
+            return tags;
+          }
+        }
       }
 
       if (collectionTag.id) {
@@ -291,27 +567,75 @@ export class DirectDownloadService {
    */
   private async getSonarrTagsWithCollection(
     sonarrSettings: SonarrSettings,
-    config: CollectionConfig
+    config: CollectionConfig,
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
+      | 'multi-source'
+      | 'tautulli'
+      | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<number[]> {
     const tags = [...(sonarrSettings.tags || [])];
 
-    if (sonarrSettings.tagRequests) {
-      const sonarrAPI = this.getSonarrAPI();
-      const collectionTagName = this.generateCollectionTag(config.name);
+    const autoTagLabel = this.generateCollectionTag(
+      config,
+      source,
+      sonarrSettings.tagRequestsMode,
+      sonarrSettings.tagRequests
+    );
 
-      let collectionTag = (await sonarrAPI.getTags()).find(
-        (v) => v.label === collectionTagName
+    const tagMatches = (label?: string): boolean =>
+      !!autoTagLabel && label?.toLowerCase() === autoTagLabel.toLowerCase();
+
+    if (autoTagLabel) {
+      const sonarrAPI = this.getSonarrAPI(sonarrSettings.id);
+
+      let collectionTag = (await sonarrAPI.getTags()).find((tag) =>
+        tagMatches(tag.label)
       );
 
       if (!collectionTag) {
         logger.info(`Collection has no active tag. Creating new`, {
           label: 'Direct Download Service',
           collection: config.name,
-          newTag: collectionTagName,
+          newTag: autoTagLabel,
         });
-        collectionTag = await sonarrAPI.createTag({
-          label: collectionTagName,
-        });
+        try {
+          collectionTag = await sonarrAPI.createTag({
+            label: autoTagLabel,
+          });
+        } catch (error) {
+          const status = (error as { response?: { status?: number } })?.response
+            ?.status;
+          if (status === 409) {
+            collectionTag = (await sonarrAPI.getTags()).find((tag) =>
+              tagMatches(tag.label)
+            );
+          }
+
+          if (!collectionTag) {
+            logger.error(
+              `Failed to create tag for collection - continuing without tag`,
+              {
+                label: 'Direct Download Service',
+                collection: config.name,
+                tagName: autoTagLabel,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            );
+            // Continue without the collection tag rather than blocking downloads
+            return tags;
+          }
+        }
       }
 
       if (collectionTag.id) {
@@ -335,26 +659,73 @@ export class DirectDownloadService {
    */
   private async addMovieToRadarr(
     item: MissingItem,
-    config: CollectionConfig
+    config: CollectionConfig,
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
+      | 'multi-source'
+      | 'tautulli'
+      | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<void> {
-    const radarrAPI = this.getRadarrAPI();
     const settings = getSettings();
-    const radarrSettings = settings.radarr.find(
-      (r) => r.isDefault // TODO: Add 4K support - && r.is4k === false
+
+    // Use collection-specific server or fall back to default
+    let radarrSettings: RadarrSettings | undefined;
+    const selectedRadarrServerId =
+      config.directDownloadRadarrServerId ?? undefined;
+
+    if (selectedRadarrServerId !== undefined) {
+      radarrSettings = settings.radarr.find(
+        (r) => r.id === selectedRadarrServerId
+      );
+      if (!radarrSettings) {
+        throw new Error(
+          `Radarr server with ID ${selectedRadarrServerId} not found`
+        );
+      }
+    } else {
+      radarrSettings = settings.radarr.find((r) => r.isDefault);
+      if (!radarrSettings) {
+        throw new Error('No default Radarr configuration found');
+      }
+    }
+
+    const radarrAPI = this.getRadarrAPI(radarrSettings.id);
+
+    // Use collection-specific profile or fall back to server default
+    const profileId =
+      config.directDownloadRadarrProfileId || radarrSettings.activeProfileId;
+
+    const tagsToSend = await this.getRadarrTagsWithCollection(
+      radarrSettings,
+      config,
+      source
     );
 
-    if (!radarrSettings) {
-      throw new Error('No default Radarr configuration found');
-    }
+    const directRadarrRootFolder = config.directDownloadRadarrRootFolder;
+
+    const rootFolderPath =
+      directRadarrRootFolder ??
+      config.directDownloadRadarrRootFolder ??
+      radarrSettings.activeDirectory;
 
     await radarrAPI.addMovie({
       title: item.title,
-      qualityProfileId: radarrSettings.activeProfileId,
+      qualityProfileId: profileId,
       minimumAvailability: radarrSettings.minimumAvailability,
-      tags: await this.getRadarrTagsWithCollection(radarrSettings, config),
-      profileId: radarrSettings.activeProfileId,
+      tags: tagsToSend,
+      profileId: profileId,
       year: item.year || new Date().getFullYear(), // Use item year or current year as fallback
-      rootFolderPath: radarrSettings.activeDirectory,
+      rootFolderPath,
       tmdbId: item.tmdbId,
       monitored: true,
       searchNow: true, // Immediately start searching for the movie
@@ -365,7 +736,10 @@ export class DirectDownloadService {
       collection: config.name,
       movie: item.title,
       tmdbId: item.tmdbId,
-      tags: await this.getRadarrTagsWithCollection(radarrSettings, config),
+      radarrServer: `${radarrSettings.hostname}:${radarrSettings.port}`,
+      profileId: profileId,
+      rootFolderPath,
+      tags: tagsToSend,
     });
   }
 
@@ -375,20 +749,58 @@ export class DirectDownloadService {
   private async addSeriesToSonarr(
     item: MissingItem,
     config: CollectionConfig,
-    maxSeasons: number
+    maxSeasons: number,
+    source:
+      | 'trakt'
+      | 'tmdb'
+      | 'imdb'
+      | 'letterboxd'
+      | 'anilist'
+      | 'myanimelist'
+      | 'mdblist'
+      | 'networks'
+      | 'originals'
+      | 'multi-source'
+      | 'tautulli'
+      | 'overseerr'
+      | 'radarrtag'
+      | 'sonarrtag'
   ): Promise<void> {
-    const sonarrAPI = this.getSonarrAPI();
     const settings = getSettings();
-    const sonarrSettings = settings.sonarr.find(
-      (s) => s.isDefault // TODO: Add 4K support - && s.is4k === false
-    );
 
-    if (!sonarrSettings) {
-      throw new Error('No default Sonarr configuration found');
+    // Use collection-specific server or fall back to default
+    let sonarrSettings: SonarrSettings | undefined;
+    const selectedSonarrServerId =
+      config.directDownloadSonarrServerId ?? undefined;
+
+    if (selectedSonarrServerId !== undefined) {
+      sonarrSettings = settings.sonarr.find(
+        (s) => s.id === selectedSonarrServerId
+      );
+      if (!sonarrSettings) {
+        throw new Error(
+          `Sonarr server with ID ${selectedSonarrServerId} not found`
+        );
+      }
+    } else {
+      sonarrSettings = settings.sonarr.find((s) => s.isDefault);
+      if (!sonarrSettings) {
+        throw new Error('No default Sonarr configuration found');
+      }
     }
 
+    const sonarrAPI = this.getSonarrAPI(sonarrSettings.id);
+
+    // Use collection-specific profile or fall back to server default
+    const profileId =
+      config.directDownloadSonarrProfileId || sonarrSettings.activeProfileId;
+
     // Get TV show details to get TVDB ID (required by Sonarr)
-    const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+    // Use TVDB ID directly if available (anime), otherwise lookup via TMDB
+    let tvdbId = item.tvdbId;
+    if (!tvdbId) {
+      tvdbId = (await this.getTvdbIdFromTmdb(item.tmdbId)) || undefined;
+    }
     if (!tvdbId) {
       throw new Error(`Could not find TVDB ID for TMDB ID: ${item.tmdbId}`);
     }
@@ -409,34 +821,77 @@ export class DirectDownloadService {
       );
     }
 
+    const tagsToSend = await this.getSonarrTagsWithCollection(
+      sonarrSettings,
+      config,
+      source
+    );
+
+    const directSonarrRootFolder = config.directDownloadSonarrRootFolder;
+
+    const rootFolderPath =
+      directSonarrRootFolder ??
+      config.directDownloadSonarrRootFolder ??
+      sonarrSettings.activeDirectory;
+
     await sonarrAPI.addSeries({
       tvdbid: tvdbId,
       title: item.title,
-      profileId: sonarrSettings.activeProfileId,
+      profileId: profileId,
       languageProfileId: sonarrSettings.activeLanguageProfileId,
       seasons: Array.from({ length: seasonsToMonitor }, (_, i) => i + 1),
-      tags: await this.getSonarrTagsWithCollection(sonarrSettings, config),
-      rootFolderPath: sonarrSettings.activeDirectory,
+      tags: tagsToSend,
+      rootFolderPath,
       monitored: true,
       seasonFolder: sonarrSettings.enableSeasonFolders,
-      seriesType: 'standard', // Default to standard series type
+      seriesType: sonarrSettings.seriesType || 'standard',
       searchNow: true, // Immediately start searching for episodes
+    });
+
+    logger.debug('Added TV series to Sonarr for collection', {
+      label: 'Direct Download Service',
+      collection: config.name,
+      series: item.title,
+      tmdbId: item.tmdbId,
+      tvdbId: tvdbId,
+      sonarrServer: `${sonarrSettings.hostname}:${sonarrSettings.port}`,
+      profileId: profileId,
+      rootFolderPath,
+      seasonsToMonitor: seasonsToMonitor,
+      tags: tagsToSend,
     });
   }
 
   /**
    * Check if an item is excluded in the appropriate *arr service
    */
-  private async isItemExcluded(item: MissingItem): Promise<boolean> {
+  private async isItemExcluded(
+    item: MissingItem,
+    config: CollectionConfig
+  ): Promise<boolean> {
     try {
       if (item.mediaType === 'movie') {
-        const radarrAPI = this.getRadarrAPI();
+        const settings = getSettings();
+        const radarrServerId =
+          config.directDownloadRadarrServerId ??
+          settings.radarr.find((r) => r.isDefault)?.id;
+
+        const radarrAPI = this.getRadarrAPI(radarrServerId);
         const exclusions = await radarrAPI.getExclusions();
         return exclusions.some((exclusion) => exclusion.tmdbId === item.tmdbId);
       } else if (item.mediaType === 'tv') {
-        const sonarrAPI = this.getSonarrAPI();
+        const settings = getSettings();
+        const sonarrServerId =
+          config.directDownloadSonarrServerId ??
+          settings.sonarr.find((s) => s.isDefault)?.id;
+
+        const sonarrAPI = this.getSonarrAPI(sonarrServerId);
         const exclusions = await sonarrAPI.getExclusions();
-        const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+        // Use TVDB ID directly if available (anime), otherwise lookup via TMDB
+        let tvdbId = item.tvdbId;
+        if (!tvdbId) {
+          tvdbId = (await this.getTvdbIdFromTmdb(item.tmdbId)) || undefined;
+        }
         return tvdbId
           ? exclusions.some((exclusion) => exclusion.tvdbId === tvdbId)
           : false;
@@ -457,15 +912,32 @@ export class DirectDownloadService {
   /**
    * Check if an item is already downloaded in the appropriate *arr service
    */
-  private async checkAlreadyDownloaded(item: MissingItem): Promise<boolean> {
+  private async checkAlreadyDownloaded(
+    item: MissingItem,
+    config: CollectionConfig
+  ): Promise<boolean> {
     try {
       if (item.mediaType === 'movie') {
-        const radarrAPI = this.getRadarrAPI();
+        const settings = getSettings();
+        const radarrServerId =
+          config.directDownloadRadarrServerId ??
+          settings.radarr.find((r) => r.isDefault)?.id;
+
+        const radarrAPI = this.getRadarrAPI(radarrServerId);
         const existingMovie = await radarrAPI.getMovieByTmdbId(item.tmdbId);
         return existingMovie && existingMovie.hasFile;
       } else if (item.mediaType === 'tv') {
-        const sonarrAPI = this.getSonarrAPI();
-        const tvdbId = await this.getTvdbIdFromTmdb(item.tmdbId);
+        const settings = getSettings();
+        const sonarrServerId =
+          config.directDownloadSonarrServerId ??
+          settings.sonarr.find((s) => s.isDefault)?.id;
+
+        const sonarrAPI = this.getSonarrAPI(sonarrServerId);
+        // Use TVDB ID directly if available (anime), otherwise lookup via TMDB
+        let tvdbId = item.tvdbId;
+        if (!tvdbId) {
+          tvdbId = (await this.getTvdbIdFromTmdb(item.tmdbId)) || undefined;
+        }
         if (!tvdbId) return false;
 
         const existingSeries = await sonarrAPI.getSeriesByTvdbId(tvdbId);
@@ -528,6 +1000,74 @@ export class DirectDownloadService {
         }
       );
       return 1; // Default to 1 season if we can't determine
+    }
+  }
+
+  /**
+   * Check if an item has any excluded genres
+   */
+  private async hasExcludedGenres(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedGenres: number[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.genres.some((genre) => excludedGenres.includes(genre.id));
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.genres.some((genre) => excludedGenres.includes(genre.id));
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check genres for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Direct Download Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check genres, don't exclude the item
+    }
+  }
+
+  /**
+   * Check if an item has any excluded origin countries
+   */
+  private async hasExcludedCountries(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedCountries: string[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        // Movies use production_countries array
+        if (movie.production_countries) {
+          return movie.production_countries.some((country) =>
+            excludedCountries.includes(country.iso_3166_1)
+          );
+        }
+        return false;
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        // TV shows use origin_country array
+        if (tvShow.origin_country) {
+          return tvShow.origin_country.some((country) =>
+            excludedCountries.includes(country)
+          );
+        }
+        return false;
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check origin countries for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Direct Download Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check countries, don't exclude the item
     }
   }
 

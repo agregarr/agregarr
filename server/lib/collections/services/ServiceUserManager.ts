@@ -26,8 +26,13 @@ export type ServiceType =
   | 'imdb'
   | 'mdblist'
   | 'letterboxd'
+  | 'networks'
+  | 'originals'
   | 'tautulli'
-  | 'overseerr';
+  | 'overseerr'
+  | 'anilist'
+  | 'myanimelist'
+  | 'multi-source';
 
 /**
  * Generate service user configuration dynamically
@@ -38,13 +43,18 @@ export function generateServiceUserConfig(
   userCreationMode: 'single' | 'per-service' | 'granular' = 'per-service'
 ): ServiceUserConfig {
   const serviceInfo = {
-    trakt: { name: 'Trakt', avatar: '/trakt-logo.svg' },
-    tmdb: { name: 'TMDb', avatar: '/tmdb-logo.svg' },
-    imdb: { name: 'IMDb', avatar: '/imdb-logo.svg' },
-    mdblist: { name: 'MDBList', avatar: '/services/mdblist.svg' },
-    letterboxd: { name: 'Letterboxd', avatar: '/letterboxd-logo.svg' },
-    tautulli: { name: 'Tautulli', avatar: '/tautulli-logo.svg' },
-    overseerr: { name: 'Overseerr', avatar: '/os_logo_stacked.svg' },
+    trakt: { name: 'Trakt' },
+    tmdb: { name: 'TMDB' },
+    imdb: { name: 'IMDb' },
+    mdblist: { name: 'MDBList' },
+    letterboxd: { name: 'Letterboxd' },
+    networks: { name: 'Networks' },
+    originals: { name: 'Originals' },
+    tautulli: { name: 'Tautulli' },
+    overseerr: { name: 'Overseerr' },
+    anilist: { name: 'AniList' },
+    myanimelist: { name: 'MyAnimeList' },
+    'multi-source': { name: 'MultiSource' },
   }[serviceType];
 
   let username: string;
@@ -58,8 +68,8 @@ export function generateServiceUserConfig(
       // Single mode: Everything goes to "Agregarr"
       username = 'Agregarr';
       displayName = 'Agregarr';
-      email = 'donotchangeme@agregarr';
-      avatar = '/logo_stacked.svg';
+      email = 'donotchangeme@agregarr.invalid';
+      avatar = '/os_icon.svg';
       description = 'Virtual service user for all Agregarr collection requests';
       break;
 
@@ -70,15 +80,15 @@ export function generateServiceUserConfig(
           collectionType.charAt(0).toUpperCase() + collectionType.slice(1);
         username = `${serviceInfo.name}${collectionName}Agregarr`;
         displayName = username;
-        email = `donotchangeme@${serviceType.toLowerCase()}.${collectionType.toLowerCase()}.agregarr`;
-        avatar = serviceInfo.avatar;
+        email = `donotchangeme@${serviceType.toLowerCase()}.${collectionType.toLowerCase()}.agregarr.invalid`;
+        avatar = '/os_icon.svg';
         description = `Virtual service user for ${serviceInfo.name} ${collectionName} collection requests`;
       } else {
         // Fallback to per-service if no collection type
         username = `${serviceInfo.name}Agregarr`;
         displayName = username;
-        email = `donotchangeme@${serviceType.toLowerCase()}.agregarr`;
-        avatar = serviceInfo.avatar;
+        email = `donotchangeme@${serviceType.toLowerCase()}.agregarr.invalid`;
+        avatar = '/os_icon.svg';
         description = `Virtual service user for ${serviceInfo.name} collection requests`;
       }
       break;
@@ -88,8 +98,8 @@ export function generateServiceUserConfig(
       // Per-service mode: TraktAgregarr, TMDbAgregarr, etc.
       username = `${serviceInfo.name}Agregarr`;
       displayName = username;
-      email = `donotchangeme@${serviceType.toLowerCase()}.agregarr`;
-      avatar = serviceInfo.avatar;
+      email = `donotchangeme@${serviceType.toLowerCase()}.agregarr.invalid`;
+      avatar = '/os_icon.svg';
       description = `Virtual service user for ${serviceInfo.name} collection requests`;
       break;
   }
@@ -144,6 +154,79 @@ export class ServiceUserManager {
       where: { email: config.email },
     });
 
+    // If not found with new format, try old format (migration path)
+    if (!serviceUser && config.email.endsWith('.invalid')) {
+      const oldEmail = config.email.replace('.invalid', '');
+      serviceUser = await this.userRepository.findOne({
+        where: { email: oldEmail },
+      });
+
+      // Migrate to new email format
+      if (serviceUser) {
+        logger.info(
+          `Migrating service user email from old format: ${oldEmail} → ${config.email}`,
+          {
+            label: 'Service User Manager',
+            username: config.username,
+          }
+        );
+
+        // Update internal user email
+        serviceUser.email = config.email;
+        serviceUser.updatedAt = new Date();
+
+        // Recreate external Overseerr user with new email (email is read-only, can't be updated)
+        if (serviceUser.externalOverseerrId) {
+          try {
+            const overseerrAPI = this.getOverseerrAPI();
+
+            // Create new external user with correct email
+            const password = this.generateSecurePassword();
+            const newExternalUser = await overseerrAPI.createUser({
+              username: config.username,
+              email: config.email,
+              password: password,
+              displayName: config.displayName,
+            });
+
+            // Set appropriate permissions
+            const overseerrPermissions = this.mapToOverseerrPermissions(
+              config.permissions
+            );
+            await overseerrAPI.updateUserPermissions(
+              newExternalUser.id,
+              overseerrPermissions
+            );
+
+            logger.info(
+              `Recreated external Overseerr user with new email for: ${config.displayName}`,
+              {
+                label: 'Service User Manager',
+                oldExternalUserId: serviceUser.externalOverseerrId,
+                newExternalUserId: newExternalUser.id,
+                oldEmail: oldEmail,
+                newEmail: config.email,
+              }
+            );
+
+            // Update internal user to point to new external user
+            serviceUser.externalOverseerrId = newExternalUser.id;
+          } catch (error) {
+            logger.warn(
+              `Failed to recreate external Overseerr user for ${config.displayName}, will retry on next sync`,
+              {
+                label: 'Service User Manager',
+                externalUserId: serviceUser.externalOverseerrId,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
+
+        await this.userRepository.save(serviceUser);
+      }
+    }
+
     if (!serviceUser) {
       // Create new service user (both internal and external)
       serviceUser = await this.createServiceUser(config);
@@ -193,13 +276,20 @@ export class ServiceUserManager {
               }
             );
           } catch (error) {
-            logger.error(
-              `Failed to update external permissions for: ${config.displayName}`,
+            // If permission update fails (likely due to stale user ID), re-ensure external user
+            logger.warn(
+              `Permission update failed for external user ${serviceUser.externalOverseerrId}, re-ensuring user: ${config.displayName}`,
               {
                 label: 'Service User Manager',
+                externalUserId: serviceUser.externalOverseerrId,
                 error: error instanceof Error ? error.message : String(error),
               }
             );
+
+            // Clear stale external user ID and re-ensure external user
+            serviceUser.externalOverseerrId = undefined;
+            await this.userRepository.save(serviceUser);
+            await this.ensureExternalUser(serviceUser, config);
           }
         }
 
@@ -375,8 +465,8 @@ export class ServiceUserManager {
       plexTitle: config.displayName,
       permissions: config.permissions,
       userType: 1, // LOCAL user type
-      avatar: config.avatar || '/logo_stacked.svg',
       externalOverseerrId: externalUser.id,
+      avatar: '/os_icon.svg', // Default Agregarr icon for service users
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -473,13 +563,45 @@ export class ServiceUserManager {
           overseerrPermissions
         );
       } catch (error) {
-        logger.error(
-          `Failed to update external permissions for: ${config.username}`,
+        // If permission update fails (likely due to stale user ID), clear and recreate
+        logger.warn(
+          `Permission update failed for external user ${user.externalOverseerrId}, recreating user: ${config.username}`,
           {
             label: 'Service User Manager',
             externalUserId: user.externalOverseerrId,
             error: error instanceof Error ? error.message : String(error),
           }
+        );
+
+        // Clear stale external user ID and recreate
+        user.externalOverseerrId = undefined;
+        await this.userRepository.save(user);
+
+        // Try to find existing user by email first, or create new one
+        let externalUser = await this.findExistingUserByEmail(config.email);
+
+        if (!externalUser) {
+          // External user doesn't exist, create it
+          const password = this.generateSecurePassword();
+          externalUser = await overseerrAPI.createUser({
+            username: config.username,
+            email: config.email,
+            password: password,
+            displayName: config.displayName,
+          });
+        }
+
+        // Update internal user with external ID
+        user.externalOverseerrId = externalUser.id;
+        await this.userRepository.save(user);
+
+        // Set appropriate permissions for the external user
+        const overseerrPermissions = this.mapToOverseerrPermissions(
+          config.permissions
+        );
+        await overseerrAPI.updateUserPermissions(
+          externalUser.id,
+          overseerrPermissions
         );
       }
     }

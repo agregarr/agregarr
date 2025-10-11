@@ -213,7 +213,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
       const customListData: MDBListResponse = await mdblistClient.getCustomList(
         cleanUrl,
         {
-          limit: config.maxItems,
+          limit: 9999,
         }
       );
 
@@ -259,6 +259,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
       tmdbId: number;
       mediaType: 'movie' | 'tv';
       title: string;
+      year?: number;
       originalPosition: number;
     }[] = [];
 
@@ -279,6 +280,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
           tmdbId: item.id,
           mediaType: itemMediaType as 'movie' | 'tv',
           title: item.title,
+          year: item.release_year,
           originalPosition: index + 1, // 1-based position
         });
       } catch (error) {
@@ -355,6 +357,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
           tmdbId: lookup.tmdbId,
           mediaType: lookup.mediaType,
           title: lookup.title,
+          year: lookup.year,
           originalPosition: lookup.originalPosition,
         });
       }

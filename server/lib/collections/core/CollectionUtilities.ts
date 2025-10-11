@@ -414,6 +414,7 @@ export async function syncConfigsWithPlexCollections(
     title: string;
     libraryKey?: string;
     labels?: (string | { tag: string })[];
+    smart?: string; // Plex returns string "1" for smart collections
   }[]
 ): Promise<{
   syncedConfigs: { configId: string; newRatingKey: string }[];
@@ -465,6 +466,23 @@ export async function syncConfigsWithPlexCollections(
           });
 
           if (hasMatchingLabel) {
+            // CRITICAL: Skip smart collections - they should not update the base collectionRatingKey
+            // Smart collections have smart="1" attribute in Plex API
+            const isSmartCollection = collection.smart === '1';
+            if (isSmartCollection) {
+              logger.debug(
+                `Config sync skipping smart collection match for ${config.name}`,
+                {
+                  label: 'Collection Config Sync',
+                  configId: config.id,
+                  smartCollectionRatingKey: collection.ratingKey,
+                  reason:
+                    'smart collections should not update base collectionRatingKey',
+                }
+              );
+              continue; // Skip this collection and keep looking for the base collection
+            }
+
             matchingCollection = collection;
             foundByLabel++;
             break;
@@ -502,17 +520,35 @@ export async function syncConfigsWithPlexCollections(
           return normalizedConfigName === normalizedCollectionTitle;
         });
 
-        if (matchingCollections.length === 1) {
-          matchingCollection = matchingCollections[0];
+        // CRITICAL: Filter out smart collections before processing name matches
+        const baseCollections = matchingCollections.filter((collection) => {
+          const isSmartCollection = collection.smart === '1';
+          if (isSmartCollection) {
+            logger.debug(
+              `Config sync filtering out smart collection from name matches for ${config.name}`,
+              {
+                label: 'Collection Config Sync',
+                configId: config.id,
+                smartCollectionRatingKey: collection.ratingKey,
+                collectionTitle: collection.title,
+              }
+            );
+            return false;
+          }
+          return true;
+        });
+
+        if (baseCollections.length === 1) {
+          matchingCollection = baseCollections[0];
           foundByName++;
-        } else if (matchingCollections.length > 1) {
+        } else if (baseCollections.length > 1) {
           logger.warn(
-            `Multiple Plex collections found matching config "${config.name}" - skipping`,
+            `Multiple base collections found matching config "${config.name}" - skipping`,
             {
               label: 'Collection Config Sync',
               configId: config.id,
               configName: config.name,
-              matchingTitles: matchingCollections.map((c) => c.title),
+              matchingTitles: baseCollections.map((c) => c.title),
             }
           );
           continue;
@@ -1002,7 +1038,17 @@ export function filterItemsByPosition<T extends { originalPosition: number }>(
 export async function processMissingItemsWithMode(
   missingItems: MissingItem[],
   config: CollectionConfig,
-  source: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd' | 'mdblist' | 'networks'
+  source:
+    | 'trakt'
+    | 'tmdb'
+    | 'imdb'
+    | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
+    | 'mdblist'
+    | 'networks'
+    | 'originals'
+    | 'multi-source'
 ): Promise<AutoRequestResult> {
   // Apply position filtering first
   const filteredItems = filterItemsByPosition(

@@ -181,7 +181,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
       timeRangeDays,
       statType,
       collectionType,
-      config.maxItems
+      9999
     );
 
     // Convert TautulliHomeStatRow[] to TautulliSourceData[] - the old code worked directly with the raw data
@@ -247,7 +247,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
       mediaTypeMismatch: [],
     };
 
-    let filteredItems = sourceData.filter((item) => {
+    const filteredItems = sourceData.filter((item) => {
       const hasRatingKey = !!item.rating_key;
 
       // For most_popular stat types, use users_watched field for unique viewer count
@@ -314,10 +314,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
       }
     });
 
-    // Apply position limit if specified in config
-    if (config?.maxItems && config.maxItems > 0) {
-      filteredItems = filteredItems.slice(0, config.maxItems);
-    }
+    // Note: maxItems limit is now applied later in the BaseCollectionSync filtering stage
 
     // First create basic mapped items
     const basicMappedItems: TautulliCollectionItem[] = filteredItems
@@ -485,7 +482,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         timeRangeDays,
         statType,
         collectionType,
-        config.maxItems
+        9999
       );
 
       const movieMappedResult = await this.mapSourceDataToItems(
@@ -556,7 +553,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         timeRangeDays,
         statType,
         collectionType,
-        config.maxItems
+        9999
       );
 
       const tvMappedResult = await this.mapSourceDataToItems(

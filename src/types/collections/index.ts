@@ -20,6 +20,7 @@ export interface PlexHubConfig {
   sortOrderHome: number; // Position on Plex home screen
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -73,6 +74,7 @@ export interface PreExistingCollectionConfig {
   sortOrderHome: number; // Position on Plex home screen
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -131,9 +133,14 @@ export interface CollectionFormConfig {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
     | 'mdblist'
     | 'networks'
-    | 'multi-source';
+    | 'originals'
+    | 'multi-source'
+    | 'radarrtag'
+    | 'sonarrtag';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -160,7 +167,11 @@ export interface CollectionFormConfig {
   readonly sortOrderHome?: number; // Order for Plex home screen (creation time based)
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
+  readonly randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
+  readonly showUnwatchedOnly?: boolean; // Create smart collection that shows only unwatched items
+  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key when showUnwatchedOnly is enabled
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
   readonly customSyncSchedule?: CustomSyncSchedule; // Individual sync timing
@@ -173,6 +184,7 @@ export interface CollectionFormConfig {
     | number
     | boolean
     | string[]
+    | number[]
     | Record<string, string>
     | null
     | {
@@ -203,8 +215,9 @@ export interface CollectionFormConfig {
         };
       }
     | readonly CollectionSourceConfig[] // Multi-source configs
-    | { enabled: boolean; intervalHours: number } // Custom sync schedule
+    | CustomSyncSchedule // Custom sync schedule
     | MultiSourceCombineMode // Combine mode
+    | SmartCollectionSortOption // Smart collection sort option
     | undefined;
   readonly customDays?: number; // Number of days for Tautulli collections
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
@@ -219,16 +232,30 @@ export interface CollectionFormConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
+  readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
+  readonly excludedCountries?: string[]; // Exclude items with these ISO 3166-1 country codes from missing items search
+  // Direct download server selection (for downloadMode: 'direct')
+  readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
+  readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
+  readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
+  readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
-  // TMDb custom list fields
-  readonly tmdbCustomListUrl?: string; // Custom TMDb list/collection URL
+  // TMDB custom list fields
+  readonly tmdbCustomListUrl?: string; // Custom TMDB list/collection URL
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL
   // Networks fields
   readonly networksCountry?: string; // Selected country for Networks collections
+  // AniList custom list fields
+  readonly anilistCustomListUrl?: string; // Custom AniList list URL
+  // Radarr/Sonarr tag fields
+  readonly radarrInstanceId?: number; // Selected Radarr instance ID for tag-based collections
+  readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
+  readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
+  readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -286,9 +313,14 @@ export interface CollectionConfigCreateRequest {
     | 'tmdb'
     | 'imdb'
     | 'letterboxd'
+    | 'anilist'
+    | 'myanimelist'
     | 'mdblist'
     | 'networks'
-    | 'multi-source';
+    | 'originals'
+    | 'multi-source'
+    | 'radarrtag'
+    | 'sonarrtag';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -305,20 +337,35 @@ export interface CollectionConfigCreateRequest {
   readonly libraryName: string;
   readonly sortOrderHome?: number;
   readonly sortOrderLibrary?: number;
+  readonly randomizeHomeOrder?: boolean;
   readonly customDays?: number;
   readonly minimumPlays?: number;
   readonly tautulliStatType?: 'plays' | 'duration';
+  // Download mode settings
+  readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
   readonly searchMissingTV?: boolean;
   readonly autoApproveMovies?: boolean;
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly minimumYear?: number;
+  readonly excludedGenres?: number[];
+  readonly excludedCountries?: string[];
+  // Direct download server selection (for downloadMode: 'direct')
+  readonly directDownloadRadarrServerId?: number;
+  readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadSonarrServerId?: number;
+  readonly directDownloadSonarrProfileId?: number;
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomListUrl?: string;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
   readonly networksCountry?: string;
+  readonly anilistCustomListUrl?: string;
+  readonly radarrInstanceId?: number;
+  readonly sonarrInstanceId?: number;
+  readonly radarrTagId?: number;
+  readonly sonarrTagId?: number;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
   readonly timeRestriction?: {
@@ -346,7 +393,8 @@ export interface CollectionConfigCreateRequest {
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
-  // Multi-source fields
+  readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   readonly isMultiSource?: boolean;
   readonly sources?: readonly CollectionSourceConfig[];
   readonly combineMode?: MultiSourceCombineMode;
@@ -376,26 +424,41 @@ export const toCollectionCreateRequest = (
     libraryName: config.libraryName,
     sortOrderHome: config.sortOrderHome,
     sortOrderLibrary: config.sortOrderLibrary,
+    randomizeHomeOrder: config.randomizeHomeOrder,
     customDays: config.customDays,
     minimumPlays: config.minimumPlays,
     tautulliStatType: config.tautulliStatType,
+    downloadMode: config.downloadMode,
     searchMissingMovies: config.searchMissingMovies,
     searchMissingTV: config.searchMissingTV,
     autoApproveMovies: config.autoApproveMovies,
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
     minimumYear: config.minimumYear,
+    excludedGenres: config.excludedGenres,
+    excludedCountries: config.excludedCountries,
+    directDownloadRadarrServerId: config.directDownloadRadarrServerId,
+    directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
+    directDownloadSonarrServerId: config.directDownloadSonarrServerId,
+    directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomListUrl: config.tmdbCustomListUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,
+    radarrInstanceId: config.radarrInstanceId,
+    sonarrInstanceId: config.sonarrInstanceId,
+    radarrTagId: config.radarrTagId,
+    sonarrTagId: config.sonarrTagId,
     reverseOrder: config.reverseOrder,
     randomizeOrder: config.randomizeOrder,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
     autoPosterTemplate: config.autoPosterTemplate,
+    // Smart collection support
+    showUnwatchedOnly: config.showUnwatchedOnly,
+    smartCollectionSort: config.smartCollectionSort,
     // Multi-source fields
     isMultiSource: config.isMultiSource,
     sources: config.sources,
@@ -530,8 +593,61 @@ export type CollectionSourceType =
   | 'imdb'
   | 'letterboxd'
   | 'networks'
-  | 'multi-source';
+  | 'originals'
+  | 'anilist'
+  | 'myanimelist'
+  | 'multi-source'
+  | 'radarrtag'
+  | 'sonarrtag';
 export type MediaType = 'movie' | 'tv';
+
+/**
+ * Smart Collection Sort Options
+ */
+export interface SmartCollectionSortOption {
+  readonly value: string; // The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')
+  readonly label: string; // Human-readable label for the dropdown
+}
+
+/**
+ * Available smart collection sort options
+ */
+export const SMART_COLLECTION_SORT_OPTIONS: readonly SmartCollectionSortOption[] =
+  [
+    { value: 'titleSort', label: 'Title (A-Z)' },
+    { value: 'titleSort:desc', label: 'Title (Z-A)' },
+    { value: 'year', label: 'Year (Oldest First)' },
+    { value: 'year:desc', label: 'Year (Newest First)' },
+    { value: 'originallyAvailableAt', label: 'Release Date (Oldest First)' },
+    {
+      value: 'originallyAvailableAt:desc',
+      label: 'Release Date (Newest First)',
+    },
+    { value: 'rating', label: 'Rating (Lowest First)' },
+    { value: 'rating:desc', label: 'Rating (Highest First)' },
+    { value: 'audienceRating', label: 'Audience Rating (Lowest First)' },
+    { value: 'audienceRating:desc', label: 'Audience Rating (Highest First)' },
+    { value: 'userRating', label: 'User Rating (Lowest First)' },
+    { value: 'userRating:desc', label: 'User Rating (Highest First)' },
+    { value: 'contentRating', label: 'Content Rating (Lowest First)' },
+    { value: 'contentRating:desc', label: 'Content Rating (Highest First)' },
+    { value: 'duration', label: 'Duration (Shortest First)' },
+    { value: 'duration:desc', label: 'Duration (Longest First)' },
+    { value: 'viewOffset', label: 'Progress (Least Watched)' },
+    { value: 'viewOffset:desc', label: 'Progress (Most Watched)' },
+    { value: 'viewCount', label: 'View Count (Least Watched)' },
+    { value: 'viewCount:desc', label: 'View Count (Most Watched)' },
+    { value: 'addedAt', label: 'Date Added (Oldest First)' },
+    { value: 'addedAt:desc', label: 'Date Added (Newest First)' },
+    { value: 'lastViewedAt', label: 'Last Viewed (Oldest First)' },
+    { value: 'lastViewedAt:desc', label: 'Last Viewed (Newest First)' },
+    { value: 'mediaHeight', label: 'Resolution (Lowest First)' },
+    { value: 'mediaHeight:desc', label: 'Resolution (Highest First)' },
+    { value: 'mediaBitrate', label: 'Bitrate (Lowest First)' },
+    { value: 'mediaBitrate:desc', label: 'Bitrate (Highest First)' },
+    { value: 'random', label: 'Random' },
+    { value: 'random:desc', label: 'Random (Reverse)' },
+  ] as const;
 
 /**
  * Collection config for API submission - excludes read-only fields computed by backend
@@ -577,7 +693,7 @@ export interface CollectionSourceConfig {
   readonly id: string; // Unique identifier for this source within the collection
   readonly type: CollectionSourceType;
   readonly subtype?: string;
-  readonly customUrl?: string; // For custom lists (Trakt, TMDb, IMDb, Letterboxd)
+  readonly customUrl?: string; // For custom lists (Trakt, TMDB, IMDb, Letterboxd)
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
   readonly priority: number; // Order priority when combining (0 = highest)
   readonly isExpanded?: boolean; // UI state for expandable sections
@@ -587,6 +703,13 @@ export interface CollectionSourceConfig {
   readonly minimumPlays?: number; // Minimum play count required
   // Networks-specific configuration
   readonly networksCountry?: string; // Selected country for Networks collections
+  // Radarr/Sonarr tag source configuration
+  readonly radarrTagServerId?: number;
+  readonly radarrTagId?: number;
+  readonly radarrTagLabel?: string;
+  readonly sonarrTagServerId?: number;
+  readonly sonarrTagId?: number;
+  readonly sonarrTagLabel?: string;
 }
 
 /**
@@ -599,11 +722,41 @@ export type MultiSourceCombineMode =
   | 'cycle_lists';
 
 /**
+ * Sync schedule preset options
+ */
+export const SYNC_SCHEDULE_PRESETS = [
+  { key: '10m', label: 'Every 10 minutes', intervalHours: 1 / 6 },
+  { key: '15m', label: 'Every 15 minutes', intervalHours: 1 / 4 },
+  { key: '30m', label: 'Every 30 minutes', intervalHours: 0.5 },
+  { key: '1h', label: 'Every hour', intervalHours: 1 },
+  { key: '2h', label: 'Every 2 hours', intervalHours: 2 },
+  { key: '3h', label: 'Every 3 hours', intervalHours: 3 },
+  { key: '6h', label: 'Every 6 hours', intervalHours: 6 },
+  { key: '12h', label: 'Every 12 hours', intervalHours: 12 },
+  { key: '1d', label: 'Once daily', intervalHours: 24 },
+  { key: '2d', label: 'Every 2 days', intervalHours: 48 },
+  { key: '3d', label: 'Every 3 days', intervalHours: 72 },
+  { key: '1w', label: 'Once weekly', intervalHours: 168 },
+  { key: '2w', label: 'Every 2 weeks', intervalHours: 336 },
+  { key: '1m', label: 'Once monthly', intervalHours: 720 }, // ~30 days
+  { key: '3m', label: 'Every 3 months', intervalHours: 2160 }, // ~90 days
+  { key: '6m', label: 'Every 6 months', intervalHours: 4320 }, // ~180 days
+  { key: '1y', label: 'Once yearly', intervalHours: 8760 }, // ~365 days
+] as const;
+
+/**
  * Custom sync schedule configuration
  */
 export interface CustomSyncSchedule {
   readonly enabled: boolean;
-  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+  readonly scheduleType: 'preset' | 'custom'; // Type of schedule: preset dropdown or custom cron
+  readonly intervalHours?: number; // Legacy field for backward compatibility (when scheduleType === 'preset')
+  readonly preset?: string; // Preset option key (e.g., '10m', '30m', '1h', '6h', '1d', '1w')
+  readonly customCron?: string; // Custom cron expression (when scheduleType === 'custom')
+  readonly startNow: boolean; // If true, start immediately; if false, use startDate
+  readonly startDate?: string; // Start date in DD-MM format (e.g., "01-01" for January 1st)
+  readonly startTime?: string; // Start time in HH:MM format (e.g., "09:00")
+  firstSyncAt?: string; // ISO timestamp of when this schedule was first created (for persistence across restarts) - mutable for system updates
 }
 
 /**
@@ -645,6 +798,24 @@ export interface MultiSourceCollectionConfig {
   };
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
+  // Missing items / auto-download settings (same as CollectionConfig)
+  readonly downloadMode?: 'overseerr' | 'direct';
+  readonly searchMissingMovies?: boolean;
+  readonly searchMissingTV?: boolean;
+  readonly autoApproveMovies?: boolean;
+  readonly autoApproveTV?: boolean;
+  readonly maxSeasonsToRequest?: number;
+  readonly seasonsPerShowLimit?: number;
+  readonly maxPositionToProcess?: number;
+  readonly minimumYear?: number;
+  readonly excludedGenres?: number[];
+  readonly excludedCountries?: string[];
+  readonly directDownloadRadarrServerId?: number;
+  readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadSonarrServerId?: number;
+  readonly directDownloadSonarrProfileId?: number;
+  readonly directDownloadSonarrRootFolder?: string;
 }
 
 /**
@@ -655,9 +826,15 @@ export type MultiSourceType =
   | 'tmdb'
   | 'imdb'
   | 'letterboxd'
+  | 'mdblist'
   | 'tautulli'
   | 'overseerr'
-  | 'networks';
+  | 'networks'
+  | 'originals'
+  | 'radarrtag'
+  | 'sonarrtag'
+  | 'anilist'
+  | 'myanimelist';
 
 /**
  * Source definition for multi-source collections
@@ -673,6 +850,12 @@ export interface SourceDefinition {
   readonly minimumPlays?: number;
   readonly priority: number;
   readonly networksCountry?: string; // Selected country for Networks collections
+  readonly radarrTagServerId?: number; // Radarr instance ID for radarrtag source
+  readonly radarrTagId?: number; // Radarr tag ID for radarrtag source
+  readonly radarrTagLabel?: string; // Radarr tag label for display
+  readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag source
+  readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag source
+  readonly sonarrTagLabel?: string; // Sonarr tag label for display
 }
 
 /**

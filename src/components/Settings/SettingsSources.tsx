@@ -6,6 +6,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
   MDBListSettings,
+  MyAnimeListSettings,
   OverseerrSettings,
   TautulliSettings,
   TraktSettings,
@@ -75,6 +76,16 @@ const messages = defineMessages({
   testMdblistConnection: 'Test Connection',
   mdblistConnectionSuccess: 'Connected to MDBList successfully!',
   mdblistConnectionFailure: 'Failed to connect to MDBList',
+  myanimelistSettings: 'MyAnimeList Settings',
+  myanimelistSettingsDescription:
+    'Configure your MyAnimeList API key to enable MyAnimeList-based anime collections.',
+  myanimelistApiKey: 'MyAnimeList API Key',
+  toastMyanimelistSettingsSuccess: 'MyAnimeList settings saved successfully!',
+  toastMyanimelistSettingsFailure:
+    'Something went wrong while saving MyAnimeList settings.',
+  testMyanimelistConnection: 'Test Connection',
+  myanimelistConnectionSuccess: 'Connected to MyAnimeList successfully!',
+  myanimelistConnectionFailure: 'Failed to connect to MyAnimeList',
   validationHostnameRequired: 'You must provide a valid hostname or IP address',
   validationPortRequired: 'You must provide a valid port number',
   testTautulliConnection: 'Test Connection',
@@ -95,12 +106,15 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const [isTesting, setIsTesting] = useState(false);
   const [traktTestSuccess, setTraktTestSuccess] = useState(false);
   const [mdblistTestSuccess, setMdblistTestSuccess] = useState(false);
+  const [myanimelistTestSuccess, setMyanimelistTestSuccess] = useState(false);
   const [overseerrTestSuccess, setOverseerrTestSuccess] = useState(false);
   const [tautulliTestSuccess, setTautulliTestSuccess] = useState(false);
 
   // Store the values that were successfully tested to detect changes
   const [testedTraktValues, setTestedTraktValues] = useState<string>('');
   const [testedMdblistValues, setTestedMdblistValues] = useState<string>('');
+  const [testedMyanimelistValues, setTestedMyanimelistValues] =
+    useState<string>('');
   const [testedOverseerrValues, setTestedOverseerrValues] =
     useState<string>('');
   const [testedTautulliValues, setTestedTautulliValues] = useState<string>('');
@@ -117,6 +131,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   );
   const { data: dataMdblist, mutate: revalidateMdblist } =
     useSWR<MDBListSettings>('/api/v1/settings/mdblist');
+  const { data: dataMyanimelist, mutate: revalidateMyanimelist } =
+    useSWR<MyAnimeListSettings>('/api/v1/settings/myanimelist');
 
   // Reset test success states when data changes (prevents gaming the system)
   useEffect(() => {
@@ -134,6 +150,10 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   useEffect(() => {
     setTautulliTestSuccess(false);
   }, [dataTautulli?.hostname, dataTautulli?.port, dataTautulli?.apiKey]);
+
+  useEffect(() => {
+    setMyanimelistTestSuccess(false);
+  }, [dataMyanimelist?.apiKey]);
 
   const OverseerrValidationSchema = Yup.object().shape({
     overseerrHostname: Yup.string()
@@ -209,6 +229,10 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
 
   const MdblistSettingsSchema = Yup.object().shape({
     mdblistApiKey: Yup.string().nullable(),
+  });
+
+  const MyanimelistSettingsSchema = Yup.object().shape({
+    myanimelistApiKey: Yup.string().nullable(),
   });
 
   return (
@@ -1168,6 +1192,182 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                           (!tautulliTestSuccess ||
                             testedTautulliValues !==
                               `${values.tautulliHostname}:${values.tautulliPort}:${values.tautulliApiKey}:${values.tautulliUseSsl}:${values.tautulliUrlBase}`))
+                      }
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(messages.saving)
+                          : intl.formatMessage(messages.save)}
+                      </span>
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            </form>
+          );
+        }}
+      </Formik>
+
+      {/* MyAnimeList Settings */}
+      <div className="section">
+        <div className="mt-10 mb-6">
+          <h3 className="heading">
+            {intl.formatMessage(messages.myanimelistSettings)}
+          </h3>
+          <p className="description">
+            {intl.formatMessage(messages.myanimelistSettingsDescription)}
+          </p>
+        </div>
+      </div>
+      <Formik
+        initialValues={{
+          myanimelistApiKey: dataMyanimelist?.apiKey,
+        }}
+        validationSchema={MyanimelistSettingsSchema}
+        enableReinitialize
+        onSubmit={async (values) => {
+          try {
+            await axios.post('/api/v1/settings/myanimelist', {
+              apiKey: values.myanimelistApiKey,
+            });
+            addToast(
+              intl.formatMessage(messages.toastMyanimelistSettingsSuccess),
+              {
+                appearance: 'success',
+                autoDismiss: true,
+              }
+            );
+          } catch (e) {
+            addToast(
+              intl.formatMessage(messages.toastMyanimelistSettingsFailure),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
+          } finally {
+            revalidateMyanimelist();
+          }
+        }}
+      >
+        {({ handleSubmit, isSubmitting, isValid, values }) => {
+          const testMyanimelistConnection = async () => {
+            if (!values.myanimelistApiKey) {
+              return;
+            }
+            try {
+              setIsTesting(true);
+              const response = await axios.post(
+                '/api/v1/settings/myanimelist/test',
+                {
+                  apiKey: values.myanimelistApiKey,
+                }
+              );
+              if (response.data.success) {
+                setMyanimelistTestSuccess(true);
+                setTestedMyanimelistValues(values.myanimelistApiKey || '');
+                addToast(
+                  intl.formatMessage(messages.myanimelistConnectionSuccess),
+                  {
+                    autoDismiss: true,
+                    appearance: 'success',
+                  }
+                );
+              } else {
+                setMyanimelistTestSuccess(false);
+                addToast(
+                  intl.formatMessage(messages.myanimelistConnectionFailure),
+                  {
+                    autoDismiss: true,
+                    appearance: 'error',
+                  }
+                );
+              }
+            } catch (e) {
+              setMyanimelistTestSuccess(false);
+
+              let errorMessage = intl.formatMessage(
+                messages.myanimelistConnectionFailure
+              );
+              if (e.response?.status === 401) {
+                errorMessage +=
+                  ' - Invalid API key. Check your MyAnimeList API key.';
+              } else if (e.response?.status) {
+                errorMessage += ` (HTTP ${e.response.status})`;
+              } else if (e.code === 'ECONNREFUSED') {
+                errorMessage +=
+                  ' - Connection refused. Check network connectivity.';
+              } else if (e.code === 'ENOTFOUND') {
+                errorMessage +=
+                  ' - Unable to reach MyAnimeList API. Check network connectivity.';
+              } else if (e.code === 'ETIMEDOUT') {
+                errorMessage +=
+                  ' - Connection timeout. Check network connectivity.';
+              } else if (e.message) {
+                errorMessage += ` - ${e.message}`;
+              }
+
+              addToast(errorMessage, {
+                autoDismiss: true,
+                appearance: 'error',
+              });
+            } finally {
+              setIsTesting(false);
+            }
+          };
+
+          return (
+            <form className="section" onSubmit={handleSubmit}>
+              <div className="form-row">
+                <label htmlFor="myanimelistApiKey" className="text-label">
+                  {intl.formatMessage(messages.myanimelistApiKey)}
+                  <span className="label-tip mb-2">
+                    Get your API key from MyAnimeList developer settings.
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <SensitiveInput
+                      as="field"
+                      id="myanimelistApiKey"
+                      name="myanimelistApiKey"
+                      autoComplete="one-time-code"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="ml-3 inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="default"
+                      type="button"
+                      disabled={!values.myanimelistApiKey || isTesting}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        testMyanimelistConnection();
+                      }}
+                    >
+                      {isTesting
+                        ? intl.formatMessage(messages.testing)
+                        : intl.formatMessage(
+                            messages.testMyanimelistConnection
+                          )}
+                    </Button>
+                  </span>
+                  <span className="ml-3 inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={
+                        isSubmitting ||
+                        !isValid ||
+                        (isSetupMode &&
+                          !!values.myanimelistApiKey &&
+                          (!myanimelistTestSuccess ||
+                            testedMyanimelistValues !==
+                              (values.myanimelistApiKey || '')))
                       }
                     >
                       <ArrowDownOnSquareIcon />

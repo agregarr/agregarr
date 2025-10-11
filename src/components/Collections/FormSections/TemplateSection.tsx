@@ -134,12 +134,10 @@ const TemplateSection = ({
               detectedMediaTypes
             );
 
-            // Auto-select the only available option if template is empty
-            if (templatePresets.length === 1 && !values.template) {
-              setTimeout(
-                () => setFieldValue('template', templatePresets[0].value),
-                0
-              );
+            // Auto-select the first available option if template is empty
+            // This ensures validation passes on initial render
+            if (!values.template && templatePresets.length > 0) {
+              setFieldValue('template', templatePresets[0].value);
             }
 
             return templatePresets.map((preset) => (

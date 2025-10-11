@@ -19,6 +19,14 @@ export interface Library {
   readonly lastScan?: number;
 }
 
+/**
+ * Smart Collection Sort Options
+ */
+export interface SmartCollectionSortOption {
+  readonly value: string; // The sort parameter value (e.g., 'year:desc', 'titleSort', 'rating:desc')
+  readonly label: string; // Human-readable label for the dropdown
+}
+
 export interface CollectionConfig {
   readonly id: string;
   readonly name: string;
@@ -31,7 +39,12 @@ export interface CollectionConfig {
     | 'letterboxd'
     | 'mdblist'
     | 'networks'
-    | 'multi-source';
+    | 'originals'
+    | 'myanimelist'
+    | 'anilist'
+    | 'multi-source'
+    | 'radarrtag'
+    | 'sonarrtag';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
@@ -55,12 +68,16 @@ export interface CollectionConfig {
   readonly sortOrderHome?: number; // Order for Plex home screen (1+ for positioned items, 0 for void/unpositioned)
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
+  readonly randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)
   readonly isUnlinked?: boolean; // True if this collection was deliberately unlinked and should not be grouped with siblings
   everLibraryPromoted?: boolean; // True if this collection has ever been promoted to the promoted section (once true, stays true until sortTitle reset)
   readonly isPromotedToHub?: boolean; // True if collection exists as a promotable hub in Plex (appears in hub management list)
   readonly collectionRatingKey?: string; // Plex collection rating key (when created)
+  readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
+  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key (when smart collection is created)
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
   // Trakt-specific fields
@@ -79,10 +96,20 @@ export interface CollectionConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
+  readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
+  readonly excludedCountries?: string[]; // Exclude items with these ISO 3166-1 country codes from missing items search
+
+  // Direct download server selection (for downloadMode: 'direct')
+  readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
+  readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
+  readonly directDownloadRadarrRootFolder?: string; // Selected Radarr root folder path for movies
+  readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
+  readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
+  readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
-  // TMDb custom list fields
-  readonly tmdbCustomListUrl?: string; // Custom TMDb list/collection URL (e.g., https://www.themoviedb.org/list/123456)
+  // TMDB custom list fields
+  readonly tmdbCustomListUrl?: string; // Custom TMDB list/collection URL (e.g., https://www.themoviedb.org/list/123456)
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields
@@ -91,6 +118,13 @@ export interface CollectionConfig {
   readonly mdblistCustomListUrl?: string; // Custom MDBList list URL (e.g., https://mdblist.com/lists/123456 or https://mdblist.com/lists/username/list-name)
   // Networks (FlixPatrol) fields
   readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
+  // AniList custom list fields
+  readonly anilistCustomListUrl?: string; // Custom AniList list URL
+  // Radarr/Sonarr tag fields
+  readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
+  readonly radarrInstanceId?: number; // Selected Radarr instance ID for tag-based collections
+  readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
+  readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
@@ -122,17 +156,30 @@ export interface CollectionConfig {
     };
   };
   // Multi-source specific properties (only present when type === 'multi-source')
+  readonly isMultiSource?: boolean; // Enable multi-source mode
   readonly sources?: readonly {
     readonly id: string;
     readonly type: string;
     readonly subtype?: string;
     readonly customUrl?: string;
-    readonly timePeriod?: string;
+    readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all';
+    readonly priority: number;
+    readonly isExpanded?: boolean; // UI state for expandable sections
     readonly customDays?: number;
     readonly minimumPlays?: number;
-    readonly priority: number;
+    readonly networksCountry?: string; // Selected country for Networks collections
+    readonly radarrTagServerId?: number; // Radarr instance ID for radarrtag sources
+    readonly radarrTagId?: number; // Radarr tag ID for radarrtag sources
+    readonly radarrTagLabel?: string; // Radarr tag label for display
+    readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag sources
+    readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag sources
+    readonly sonarrTagLabel?: string; // Sonarr tag label for display
   }[];
-  readonly combineMode?: 'ordered' | 'randomized' | 'cycle';
+  readonly combineMode?:
+    | 'interleaved'
+    | 'list_order'
+    | 'randomised'
+    | 'cycle_lists';
   // Individual sync scheduling
   readonly customSyncSchedule?: CustomSyncSchedule;
 }
@@ -150,6 +197,7 @@ export interface PlexHubConfig {
   sortOrderHome: number; // Position on Plex home screen (1+ for positioned items, 0 for void)
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -207,6 +255,7 @@ export interface PreExistingCollectionConfig {
   sortOrderHome: number; // Position on Plex home screen (1+ for positioned items, 0 for void)
   sortOrderLibrary: number; // Position in library (0 for A-Z section, 1+ for promoted section)
   isLibraryPromoted: boolean; // true = promoted section (uses exclamation marks), false = A-Z section
+  randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   visibilityConfig: {
     usersHome: boolean;
     serverOwnerHome: boolean;
@@ -274,6 +323,10 @@ export interface MDBListSettings {
   apiKey?: string;
 }
 
+export interface MyAnimeListSettings {
+  apiKey?: string;
+}
+
 export interface TautulliSettings {
   hostname?: string;
   port?: number;
@@ -296,6 +349,8 @@ export interface ServiceUserSettings {
   userCreationMode: 'single' | 'per-service' | 'granular'; // How to create service users
 }
 
+export type TagRequestsMode = 'off' | 'single' | 'per-service' | 'granular';
+
 export interface DVRSettings {
   id: number;
   name: string;
@@ -313,7 +368,8 @@ export interface DVRSettings {
   externalUrl?: string;
   syncEnabled: boolean;
   preventSearch: boolean;
-  tagRequests: boolean;
+  tagRequests?: boolean;
+  tagRequestsMode?: TagRequestsMode;
 }
 
 export interface RadarrSettings extends DVRSettings {
@@ -353,6 +409,8 @@ export interface MainSettings {
   adminNickname?: string; // Admin's Plex title/display name
   externalApplicationUrl?: string; // External Overseerr URL
   externalApplicationTitle?: string; // External Overseerr title
+  // Overseerr user label state tracking
+  overseerrLabelsApplied?: boolean; // True if Overseerr user filter labels are currently applied to Plex users
 }
 
 interface PublicSettings {
@@ -377,7 +435,15 @@ interface JobSettings {
   schedule: string;
 }
 
-export type JobId = 'plex-refresh-token' | 'plex-collections-sync';
+export type JobId =
+  | 'plex-refresh-token'
+  | 'plex-collections-sync'
+  | 'plex-randomize-home-order';
+
+export interface GlobalExclusions {
+  movies: number[]; // TMDB IDs for excluded movies
+  shows: { id: number; type: 'tmdb' | 'tvdb' }[]; // TMDB or TVDB IDs for excluded TV shows
+}
 
 interface AllSettings {
   clientId: string;
@@ -385,6 +451,7 @@ interface AllSettings {
   plex: PlexSettings;
   tautulli: TautulliSettings;
   overseerr: OverseerrSettings;
+  myanimelist: MyAnimeListSettings;
   serviceUser: ServiceUserSettings;
   trakt: TraktSettings;
   mdblist: MDBListSettings;
@@ -392,6 +459,7 @@ interface AllSettings {
   sonarr: SonarrSettings[];
   public: PublicSettings;
   jobs: Record<JobId, JobSettings>;
+  globalExclusions?: GlobalExclusions; // Global item exclusions for collections
   completedMigrations?: string[]; // Track completed migrations
 }
 
@@ -428,6 +496,7 @@ class Settings {
       },
       tautulli: {},
       overseerr: {},
+      myanimelist: {},
       serviceUser: {
         userCreationMode: 'per-service', // Default to per-service users
       },
@@ -445,10 +514,77 @@ class Settings {
         'plex-collections-sync': {
           schedule: '0 0 */12 * * *',
         },
+        'plex-randomize-home-order': {
+          schedule: '0 0 6 * * *',
+        },
+      },
+      globalExclusions: {
+        movies: [],
+        shows: [],
       },
     };
     if (initialSettings) {
       this.data = merge(this.data, initialSettings);
+    }
+
+    this.normalizeTagSettings();
+  }
+
+  private normalizeTagSettings(): void {
+    let modified = false;
+
+    this.data.radarr = this.data.radarr.map((radarrInstance) => {
+      const currentMode =
+        radarrInstance.tagRequestsMode ??
+        (radarrInstance.tagRequests ? 'per-service' : 'off');
+
+      const normalizedMode: TagRequestsMode = (
+        ['off', 'single', 'per-service', 'granular'] as TagRequestsMode[]
+      ).includes(currentMode as TagRequestsMode)
+        ? (currentMode as TagRequestsMode)
+        : 'off';
+
+      if (
+        radarrInstance.tagRequestsMode !== normalizedMode ||
+        (radarrInstance.tagRequests ?? false) !== (normalizedMode !== 'off')
+      ) {
+        modified = true;
+      }
+
+      return {
+        ...radarrInstance,
+        tagRequestsMode: normalizedMode,
+        tagRequests: normalizedMode !== 'off',
+      };
+    });
+
+    this.data.sonarr = this.data.sonarr.map((sonarrInstance) => {
+      const currentMode =
+        sonarrInstance.tagRequestsMode ??
+        (sonarrInstance.tagRequests ? 'per-service' : 'off');
+
+      const normalizedMode: TagRequestsMode = (
+        ['off', 'single', 'per-service', 'granular'] as TagRequestsMode[]
+      ).includes(currentMode as TagRequestsMode)
+        ? (currentMode as TagRequestsMode)
+        : 'off';
+
+      if (
+        sonarrInstance.tagRequestsMode !== normalizedMode ||
+        (sonarrInstance.tagRequests ?? false) !== (normalizedMode !== 'off')
+      ) {
+        modified = true;
+      }
+
+      return {
+        ...sonarrInstance,
+        tagRequestsMode: normalizedMode,
+        tagRequests: normalizedMode !== 'off',
+      };
+    });
+
+    if (modified) {
+      this.save();
     }
   }
 
@@ -502,6 +638,14 @@ class Settings {
 
   set overseerr(data: OverseerrSettings) {
     this.data.overseerr = data;
+  }
+
+  get myanimelist(): MyAnimeListSettings {
+    return this.data.myanimelist;
+  }
+
+  set myanimelist(data: MyAnimeListSettings) {
+    this.data.myanimelist = data;
   }
 
   get serviceUser(): ServiceUserSettings {
@@ -561,6 +705,20 @@ class Settings {
 
   set jobs(data: Record<JobId, JobSettings>) {
     this.data.jobs = data;
+  }
+
+  get globalExclusions(): GlobalExclusions {
+    if (!this.data.globalExclusions) {
+      this.data.globalExclusions = {
+        movies: [],
+        shows: [],
+      };
+    }
+    return this.data.globalExclusions;
+  }
+
+  set globalExclusions(data: GlobalExclusions) {
+    this.data.globalExclusions = data;
   }
 
   get clientId(): string {
@@ -642,6 +800,15 @@ class Settings {
     if (applicationTitle) {
       this.data.main.externalApplicationTitle = applicationTitle;
     }
+    this.save();
+  }
+
+  /**
+   * Set Overseerr user filter label state
+   * Used to track whether labels are currently applied to Plex users
+   */
+  public setOverseerrLabelsApplied(applied: boolean): void {
+    this.data.main.overseerrLabelsApplied = applied;
     this.save();
   }
 
@@ -890,6 +1057,46 @@ class Settings {
         stats,
       }
     );
+  }
+
+  /**
+   * Migrate poster templates to unified layering system for v1.3.2
+   */
+  public async migratePosterTemplatesV132(): Promise<void> {
+    const migrationId = 'poster-template-unified-layers-v1.3.2';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Check if migration already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    try {
+      // Import and run the migration
+      const { runPosterTemplateMigration } = await import(
+        './migrations/posterTemplateMigrationV132'
+      );
+      await runPosterTemplateMigration();
+
+      // Mark migration as completed
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+
+      logger.info(
+        'v1.3.2 Migration: Poster templates migrated to unified layering system',
+        {
+          label: 'Settings Migration',
+          migrationId,
+        }
+      );
+    } catch (error) {
+      logger.error('v1.3.2 Migration failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1215,9 +1422,39 @@ export type MultiSourceCombineMode =
   | 'randomised'
   | 'cycle_lists';
 
+/**
+ * Sync schedule preset options
+ */
+export const SYNC_SCHEDULE_PRESETS = [
+  { key: '10m', label: 'Every 10 minutes', intervalHours: 1 / 6 },
+  { key: '15m', label: 'Every 15 minutes', intervalHours: 1 / 4 },
+  { key: '30m', label: 'Every 30 minutes', intervalHours: 0.5 },
+  { key: '1h', label: 'Every hour', intervalHours: 1 },
+  { key: '2h', label: 'Every 2 hours', intervalHours: 2 },
+  { key: '3h', label: 'Every 3 hours', intervalHours: 3 },
+  { key: '6h', label: 'Every 6 hours', intervalHours: 6 },
+  { key: '12h', label: 'Every 12 hours', intervalHours: 12 },
+  { key: '1d', label: 'Once daily', intervalHours: 24 },
+  { key: '2d', label: 'Every 2 days', intervalHours: 48 },
+  { key: '3d', label: 'Every 3 days', intervalHours: 72 },
+  { key: '1w', label: 'Once weekly', intervalHours: 168 },
+  { key: '2w', label: 'Every 2 weeks', intervalHours: 336 },
+  { key: '1m', label: 'Once monthly', intervalHours: 720 }, // ~30 days
+  { key: '3m', label: 'Every 3 months', intervalHours: 2160 }, // ~90 days
+  { key: '6m', label: 'Every 6 months', intervalHours: 4320 }, // ~180 days
+  { key: '1y', label: 'Once yearly', intervalHours: 8760 }, // ~365 days
+] as const;
+
 export interface CustomSyncSchedule {
   readonly enabled: boolean;
-  readonly intervalHours: number; // Supports decimals (e.g., 0.5, 1.5, 2.5)
+  readonly scheduleType: 'preset' | 'custom'; // Type of schedule: preset dropdown or custom cron
+  readonly intervalHours?: number; // Legacy field for backward compatibility (when scheduleType === 'preset')
+  readonly preset?: string; // Preset option key (e.g., '10m', '30m', '1h', '6h', '1d', '1w')
+  readonly customCron?: string; // Custom cron expression (when scheduleType === 'custom')
+  readonly startNow: boolean; // If true, start immediately; if false, use startDate
+  readonly startDate?: string; // Start date in DD-MM format (e.g., "01-01" for January 1st)
+  readonly startTime?: string; // Start time in HH:MM format (e.g., "09:00")
+  firstSyncAt?: string; // ISO timestamp of when this schedule was first created (for persistence across restarts) - mutable for system updates
 }
 
 export type MultiSourceType =
@@ -1228,7 +1465,12 @@ export type MultiSourceType =
   | 'mdblist'
   | 'tautulli'
   | 'overseerr'
-  | 'networks';
+  | 'networks'
+  | 'originals'
+  | 'anilist'
+  | 'myanimelist'
+  | 'radarrtag'
+  | 'sonarrtag';
 
 export interface SourceDefinition {
   readonly id: string;
@@ -1240,6 +1482,12 @@ export interface SourceDefinition {
   readonly minimumPlays?: number;
   readonly priority: number;
   readonly networksCountry?: string;
+  readonly radarrTagServerId?: number;
+  readonly radarrTagId?: number;
+  readonly radarrTagLabel?: string;
+  readonly sonarrTagServerId?: number;
+  readonly sonarrTagId?: number;
+  readonly sonarrTagLabel?: string;
 }
 
 export interface MultiSourceCollectionConfig {
@@ -1275,6 +1523,24 @@ export interface MultiSourceCollectionConfig {
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Missing items / auto-download settings (same as CollectionConfig)
+  readonly downloadMode?: 'overseerr' | 'direct';
+  readonly searchMissingMovies?: boolean;
+  readonly searchMissingTV?: boolean;
+  readonly autoApproveMovies?: boolean;
+  readonly autoApproveTV?: boolean;
+  readonly maxSeasonsToRequest?: number;
+  readonly seasonsPerShowLimit?: number;
+  readonly maxPositionToProcess?: number;
+  readonly minimumYear?: number;
+  readonly excludedGenres?: number[];
+  readonly excludedCountries?: string[];
+  readonly directDownloadRadarrServerId?: number;
+  readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadSonarrServerId?: number;
+  readonly directDownloadSonarrProfileId?: number;
+  readonly directDownloadSonarrRootFolder?: string;
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {

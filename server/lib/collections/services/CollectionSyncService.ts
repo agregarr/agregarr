@@ -127,12 +127,14 @@ export class CollectionSyncService {
           }
         );
       }
-    } else {
-      // No Overseerr user configs exist - clean up any existing user filter labels
+    } else if (settings.main.overseerrLabelsApplied !== false) {
+      // No Overseerr user configs exist but labels might be applied - clean them up
+      // This handles: true (labels known to be applied) and undefined (unknown state, be safe for existing users)
       logger.info(
-        'No Overseerr user collections detected - cleaning up user filter labels',
+        'No Overseerr user collections detected but labels might exist - cleaning up user filter labels',
         {
           label: 'Collection Sync Service',
+          labelState: settings.main.overseerrLabelsApplied,
         }
       );
 
@@ -151,6 +153,14 @@ export class CollectionSyncService {
           }
         );
       }
+    } else {
+      // No Overseerr user configs and labels confirmed not applied - skip cleanup entirely
+      logger.debug(
+        'No Overseerr user collections detected and labels confirmed not applied - skipping cleanup',
+        {
+          label: 'Collection Sync Service',
+        }
+      );
     }
 
     // OPTIMIZATION: Use shared library cache for sync optimization
@@ -209,77 +219,130 @@ export class CollectionSyncService {
           config.libraryId
         );
 
-        // Get the sync service for this config type and process it
-        const allCollections = await plexClient.getAllCollections();
+        // Check if this collection has custom scheduling enabled
+        const hasCustomSchedule = config.customSyncSchedule?.enabled;
 
-        let result: SyncResult;
-        if (config.type === 'multi-source') {
-          // Use new multi-source orchestrator for distinct multi-source collections
-          const { MultiSourceOrchestrator } = await import(
-            './MultiSourceOrchestrator'
+        if (hasCustomSchedule) {
+          // Skip content sync for custom scheduled collections - just ensure it's tracked
+          onProgress?.(
+            processedCount,
+            `Skipping content sync for "${config.name}" (custom scheduled)...`
           );
-          const orchestrator = new MultiSourceOrchestrator();
 
-          // Convert CollectionConfig to MultiSourceCollectionConfig format
-          const multiSourceConfig: MultiSourceCollectionConfig = {
-            id: config.id,
-            name: config.name,
-            type: 'multi-source',
-            visibilityConfig: config.visibilityConfig,
-            mediaType: 'movie', // Default, should be set properly by caller
-            libraryId: config.libraryId,
-            libraryName: config.libraryName,
-            maxItems: config.maxItems ?? 50, // Provide default for multi-source
-            template: config.template || '', // Provide default for multi-source
-            sources:
-              config.sources?.map((source) => ({
-                id: source.id,
-                type: source.type as MultiSourceType,
-                subtype: source.subtype || '',
-                customUrl: source.customUrl,
-                timePeriod: source.timePeriod as
-                  | 'daily'
-                  | 'weekly'
-                  | 'monthly'
-                  | 'all'
-                  | undefined,
-                customDays: source.customDays,
-                minimumPlays: source.minimumPlays,
-                priority: source.priority,
-              })) || [],
-            combineMode:
-              (config.combineMode as MultiSourceCombineMode) || 'list_order',
-            isActive: config.isActive,
-            sortOrderHome: config.sortOrderHome,
-            sortOrderLibrary: config.sortOrderLibrary,
-            isLibraryPromoted: config.isLibraryPromoted,
-            timeRestriction: config.timeRestriction,
-            customPoster: config.customPoster,
-            autoPoster: config.autoPoster,
-            autoPosterTemplate: config.autoPosterTemplate,
-          };
+          const collectionKey = `${config.libraryId}-${config.name}`;
+          processedCollectionKeys.add(collectionKey);
 
-          result = await orchestrator.processMultiSourceCollection(
-            multiSourceConfig,
-            plexClient,
-            allCollections,
-            processedCollectionKeys,
-            libraryCache
+          logger.debug(
+            `Skipped content sync for custom scheduled collection: ${config.name}`,
+            {
+              label: 'Collection Sync Service',
+              configId: config.id,
+            }
           );
         } else {
-          // Use normal single-source sync
-          const syncService = await this.createSyncService(config.type);
-          result = await syncService.processCollections(
-            [config],
-            plexClient,
-            allCollections,
-            processedCollectionKeys,
-            libraryCache
-          );
-        }
+          // Get the sync service for this config type and process it normally
+          const allCollections = await plexClient.getAllCollections();
 
-        created += result.created || 0;
-        updated += result.updated || 0;
+          let result: SyncResult;
+          if (config.type === 'multi-source') {
+            // Use new multi-source orchestrator for distinct multi-source collections
+            const { MultiSourceOrchestrator } = await import(
+              './MultiSourceOrchestrator'
+            );
+            const orchestrator = new MultiSourceOrchestrator();
+
+            // Convert CollectionConfig to MultiSourceCollectionConfig format
+            const multiSourceConfig: MultiSourceCollectionConfig = {
+              id: config.id,
+              name: config.name,
+              type: 'multi-source',
+              visibilityConfig: config.visibilityConfig,
+              mediaType: 'movie', // Default, should be set properly by caller
+              libraryId: config.libraryId,
+              libraryName: config.libraryName,
+              maxItems: config.maxItems ?? 50, // Provide default for multi-source
+              template: config.template || '', // Provide default for multi-source
+              sources:
+                config.sources?.map((source) => ({
+                  id: source.id,
+                  type: source.type as MultiSourceType,
+                  subtype: source.subtype || '',
+                  customUrl: source.customUrl,
+                  timePeriod: source.timePeriod as
+                    | 'daily'
+                    | 'weekly'
+                    | 'monthly'
+                    | 'all'
+                    | undefined,
+                  customDays: source.customDays,
+                  minimumPlays: source.minimumPlays,
+                  priority: source.priority,
+                  networksCountry: source.networksCountry,
+                  radarrTagServerId: source.radarrTagServerId,
+                  radarrTagId: source.radarrTagId,
+                  radarrTagLabel: source.radarrTagLabel,
+                  sonarrTagServerId: source.sonarrTagServerId,
+                  sonarrTagId: source.sonarrTagId,
+                  sonarrTagLabel: source.sonarrTagLabel,
+                })) || [],
+              combineMode:
+                (config.combineMode as MultiSourceCombineMode) || 'list_order',
+              isActive: config.isActive,
+              sortOrderHome: config.sortOrderHome,
+              sortOrderLibrary: config.sortOrderLibrary,
+              isLibraryPromoted: config.isLibraryPromoted,
+              timeRestriction: config.timeRestriction,
+              customPoster: config.customPoster,
+              autoPoster: config.autoPoster,
+              autoPosterTemplate: config.autoPosterTemplate,
+              // Missing items / auto-download settings
+              downloadMode: config.downloadMode,
+              searchMissingMovies: config.searchMissingMovies,
+              searchMissingTV: config.searchMissingTV,
+              autoApproveMovies: config.autoApproveMovies,
+              autoApproveTV: config.autoApproveTV,
+              maxSeasonsToRequest: config.maxSeasonsToRequest,
+              seasonsPerShowLimit: config.seasonsPerShowLimit,
+              maxPositionToProcess: config.maxPositionToProcess,
+              minimumYear: config.minimumYear,
+              excludedGenres: config.excludedGenres,
+              excludedCountries: config.excludedCountries,
+              directDownloadRadarrServerId: config.directDownloadRadarrServerId,
+              directDownloadRadarrProfileId:
+                config.directDownloadRadarrProfileId,
+              directDownloadRadarrRootFolder:
+                config.directDownloadRadarrRootFolder,
+              directDownloadSonarrServerId: config.directDownloadSonarrServerId,
+              directDownloadSonarrProfileId:
+                config.directDownloadSonarrProfileId,
+              directDownloadSonarrRootFolder:
+                config.directDownloadSonarrRootFolder,
+            };
+
+            result = await orchestrator.processMultiSourceCollection(
+              multiSourceConfig,
+              plexClient,
+              allCollections,
+              processedCollectionKeys,
+              libraryCache,
+              undefined, // options
+              config // Pass original config for smart collection operations
+            );
+          } else {
+            // Use normal single-source sync
+            const syncService = await this.createSyncService(config.type);
+            result = await syncService.processCollections(
+              [config],
+              plexClient,
+              allCollections,
+              processedCollectionKeys,
+              libraryCache
+            );
+          }
+
+          created += result.created || 0;
+          updated += result.updated || 0;
+        }
 
         totalCreated += created;
         totalUpdated += updated;
@@ -351,6 +414,10 @@ export class CollectionSyncService {
         hasUsersConfig,
         hasServerOwnerConfig
       );
+
+      // Mark labels as applied
+      const settings = getSettings();
+      settings.setOverseerrLabelsApplied(true);
     } catch (error) {
       throw new Error(
         `Failed to apply pre-sync user restrictions: ${
@@ -404,6 +471,10 @@ export class CollectionSyncService {
           usersProcessed: allPlexUserIds.length,
         }
       );
+
+      // Mark labels as removed
+      const settings = getSettings();
+      settings.setOverseerrLabelsApplied(false);
     } catch (error) {
       throw new Error(
         `Failed to cleanup user filter labels: ${
@@ -449,11 +520,39 @@ export class CollectionSyncService {
         const { NetworksCollectionSync } = await import('../external/networks');
         return new NetworksCollectionSync();
       }
+      case 'originals': {
+        const { OriginalsCollectionSync } = await import(
+          '../external/originals'
+        );
+        return new OriginalsCollectionSync();
+      }
+      case 'anilist': {
+        const { AnilistCollectionSync } = await import('../external/anilist');
+        return new AnilistCollectionSync();
+      }
+      case 'myanimelist': {
+        const { MyAnimeListCollectionSync } = await import(
+          '../external/myanimelist'
+        );
+        return new MyAnimeListCollectionSync();
+      }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
           '../external/overseerrSync'
         );
         return new OverseerrCollectionSync();
+      }
+      case 'radarrtag': {
+        const { RadarrTagCollectionSync } = await import(
+          '../external/radarrtag'
+        );
+        return new RadarrTagCollectionSync();
+      }
+      case 'sonarrtag': {
+        const { SonarrTagCollectionSync } = await import(
+          '../external/sonarrtag'
+        );
+        return new SonarrTagCollectionSync();
       }
       case 'multi-source':
         throw new Error(

@@ -16,16 +16,21 @@ import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
+import anilistRoutes from './anilist';
 import authRoutes from './auth';
 import collectionsRoutes from './collections';
 import dashboardRoutes from './dashboard';
 import defaultHubsRoutes from './defaulthubs';
 import discoveryRoutes from './discovery';
+import exclusionsRoutes from './exclusions';
+import fontsRoutes from './fonts';
 import hubsRoutes from './hubs';
 import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
+import myanimelistRoutes from './myanimelist';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
+import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
 import sourceColorsRoutes from './sourceColors';
 
@@ -138,13 +143,58 @@ router.use('/missing-items', isAuthenticated(), missingItemsRoutes);
 router.use('/collections', isAuthenticated(), collectionsRoutes);
 router.use('/defaulthubs', isAuthenticated(), defaultHubsRoutes);
 router.use('/discovery', isAuthenticated(), discoveryRoutes);
+router.use('/exclusions', isAuthenticated(), exclusionsRoutes);
+router.use('/fonts', isAuthenticated(), fontsRoutes);
 router.use('/hubs', isAuthenticated(), hubsRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
+router.use('/ratings', isAuthenticated(), ratingsRoutes);
 router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
 router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);
 router.use('/auth', authRoutes);
+router.use('/anilist', anilistRoutes);
+router.use('/myanimelist', myanimelistRoutes);
+
+router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
+  const tmdb = new TheMovieDb();
+
+  try {
+    const movie = await tmdb.getMovie({ movieId: Number(req.params.id) });
+
+    return res.status(200).json(movie);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving movie', {
+      label: 'API',
+      errorMessage: e.message,
+      movieId: req.params.id,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie.',
+    });
+  }
+});
+
+router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
+  const tmdb = new TheMovieDb();
+
+  try {
+    const tv = await tmdb.getTvShow({ tvId: Number(req.params.id) });
+
+    return res.status(200).json(tv);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TV show', {
+      label: 'API',
+      errorMessage: e.message,
+      tvId: req.params.id,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TV show.',
+    });
+  }
+});
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb();
@@ -224,6 +274,105 @@ router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
     return next({
       status: 500,
       message: 'Unable to retrieve series genres.',
+    });
+  }
+});
+
+router.get('/genres/combined', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb();
+
+  try {
+    const [movieGenres, tvGenres] = await Promise.all([
+      tmdb.getMovieGenres({
+        language: (req.query.language as string) ?? req.locale,
+      }),
+      tmdb.getTvGenres({
+        language: (req.query.language as string) ?? req.locale,
+      }),
+    ]);
+
+    // Merge and deduplicate by ID
+    const genreMap = new Map<number, string>();
+    movieGenres.forEach((g) => genreMap.set(g.id, g.name));
+    tvGenres.forEach((g) => genreMap.set(g.id, g.name));
+
+    const combined = Array.from(genreMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json(combined);
+  } catch (e) {
+    logger.debug('Failed to retrieve combined genres', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve genres.',
+    });
+  }
+});
+
+router.get('/countries/combined', isAuthenticated(), async (req, res, next) => {
+  try {
+    // Return a curated list of countries users commonly want to exclude
+    // Focuses on major non-English content producers with distinct styles
+    const commonCountries = [
+      // East Asian - anime, K-dramas, C-dramas
+      'JP',
+      'KR',
+      'CN',
+      'TW',
+      'HK',
+      // South Asian - Bollywood
+      'IN',
+      // Southeast Asian - Thai dramas, Indonesian films
+      'TH',
+      'ID',
+      'MY',
+      'PH',
+      'VN',
+      'SG',
+      // European - major cinema markets
+      'FR',
+      'DE',
+      'IT',
+      'ES',
+      'RU',
+      'SE',
+      'NO',
+      'DK',
+      // Latin American
+      'MX',
+      'BR',
+      'AR',
+      // Middle Eastern - Turkish dramas
+      'TR',
+      'IL',
+      'AE',
+    ];
+
+    // Convert ISO codes to readable names using Intl.DisplayNames
+    const regionNames = new Intl.DisplayNames([req.locale ?? 'en'], {
+      type: 'region',
+    });
+
+    const combined = commonCountries
+      .map((code) => ({
+        code,
+        name: regionNames.of(code) ?? code,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json(combined);
+  } catch (e) {
+    logger.debug('Failed to retrieve combined countries', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve countries.',
     });
   }
 });

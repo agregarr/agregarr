@@ -6,17 +6,22 @@ import type {
 } from '@app/components/PosterEditor';
 import { PosterEditorModal } from '@app/components/PosterEditor';
 import {
+  ArrowDownTrayIcon,
   DocumentDuplicateIcon,
   PencilIcon,
   TrashIcon,
 } from '@heroicons/react/24/solid';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 
 const messages = defineMessages({
   edit: 'Edit',
   duplicate: 'Duplicate',
   delete: 'Delete',
+  export: 'Export',
+  exportSuccess: 'Template exported successfully',
+  exportError: 'Failed to export template',
   setDefault: 'Set Default',
   default: 'Default',
   confirmDelete: 'Are you sure you want to delete this template?',
@@ -48,11 +53,39 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
   onTemplateUpdate,
 }) => {
   const intl = useIntl();
+  const { addToast } = useToasts();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<EditorMode>('edit-template');
   const [selectedTemplate, setSelectedTemplate] =
     useState<PosterTemplate | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set());
+  const [imageRefreshKey, setImageRefreshKey] = useState<
+    Record<number, number>
+  >({});
+
+  const handleImageLoad = (templateId: number) => {
+    setLoadedImages((prev) => new Set(prev).add(templateId));
+  };
+
+  const handleImageError = (templateId: number) => {
+    setLoadedImages((prev) => new Set(prev).add(templateId));
+  };
+
+  // Add timeout for any images that haven't loaded within 10 seconds
+  useEffect(() => {
+    const timeouts = templates
+      .filter((template) => !loadedImages.has(template.id))
+      .map((template) => {
+        return setTimeout(() => {
+          setLoadedImages((prev) => new Set(prev).add(template.id));
+        }, 30000); // 30 second timeout
+      });
+
+    return () => {
+      timeouts.forEach(clearTimeout);
+    };
+  }, [templates, loadedImages]);
 
   const handleEdit = (template: PosterTemplate) => {
     setSelectedTemplate(template);
@@ -90,6 +123,41 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
     }
   };
 
+  const handleExport = async (templateId: number, templateName: string) => {
+    try {
+      const response = await fetch(
+        `/api/v1/posters/templates/${templateId}/export`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to export template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${templateName.replace(
+        /[^a-zA-Z0-9]/g,
+        '_'
+      )}_template.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      addToast(intl.formatMessage(messages.exportSuccess), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.exportError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
   const handleSave = async (data: {
     name: string;
     description?: string;
@@ -115,6 +183,12 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
       if (!response.ok) {
         throw new Error('Failed to update template');
       }
+
+      // Force refresh the preview image by updating the refresh key
+      setImageRefreshKey((prev) => ({
+        ...prev,
+        [selectedTemplate.id]: Date.now(),
+      }));
     } else {
       // Create new template (duplicate)
       const response = await fetch('/api/v1/posters/templates', {
@@ -176,11 +250,31 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
           >
             {/* Template Preview */}
             <div className="relative aspect-[2/3] overflow-hidden bg-stone-700">
+              {/* Loading spinner */}
+              {!loadedImages.has(template.id) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-stone-700">
+                  <div className="text-center">
+                    <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent"></div>
+                    <div className="mt-2 text-xs text-stone-400">
+                      Loading preview...
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <img
-                src={`/api/v1/posters/templates/${template.id}/preview?collectionName=Sample Collection&collectionType=multi-source`}
+                src={`/api/v1/posters/templates/${
+                  template.id
+                }/preview?collectionName=Sample Collection&collectionType=multi-source${
+                  imageRefreshKey[template.id]
+                    ? `&t=${imageRefreshKey[template.id]}`
+                    : ''
+                }`}
                 alt={`Preview of ${template.name}`}
                 className="h-full w-full object-cover"
+                onLoad={() => handleImageLoad(template.id)}
                 onError={(e) => {
+                  handleImageError(template.id);
                   // Fallback to placeholder if preview fails
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
@@ -239,6 +333,14 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                 >
                   <DocumentDuplicateIcon className="mr-2 h-3 w-3" />
                   {intl.formatMessage(messages.duplicate)}
+                </button>
+                <button
+                  onClick={() => handleExport(template.id, template.name)}
+                  className="flex items-center rounded-md bg-green-900/50 px-3 py-2 text-xs text-green-400 transition-colors hover:bg-green-900 hover:text-green-300"
+                  title={intl.formatMessage(messages.export)}
+                >
+                  <ArrowDownTrayIcon className="mr-2 h-3 w-3" />
+                  {intl.formatMessage(messages.export)}
                 </button>
                 {!template.isDefault && (
                   <button

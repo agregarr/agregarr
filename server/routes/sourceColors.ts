@@ -135,6 +135,118 @@ sourceColorsRoutes.delete(
 );
 
 /**
+ * GET /api/v1/source-colors/export
+ * Export all source color schemes as JSON
+ */
+sourceColorsRoutes.get('/export', isAuthenticated(), async (req, res) => {
+  try {
+    const sourceColors = await sourceColorsService.getAllSourceColors();
+
+    const exportData = {
+      sourceColors,
+      exportedAt: new Date().toISOString(),
+      version: '1.0',
+    };
+
+    // Set headers for file download
+    res.set({
+      'Content-Type': 'application/json',
+      'Content-Disposition': 'attachment; filename="source_colors.json"',
+    });
+
+    res.json(exportData);
+  } catch (error) {
+    logger.error('Failed to export source colors:', error);
+    res.status(500).json({ error: 'Failed to export source colors' });
+  }
+});
+
+/**
+ * POST /api/v1/source-colors/import
+ * Import source color schemes from JSON
+ */
+sourceColorsRoutes.post('/import', isAuthenticated(), async (req, res) => {
+  try {
+    const { sourceColors, version } = req.body;
+
+    if (!sourceColors) {
+      return res.status(400).json({
+        error: 'Source colors data is required',
+      });
+    }
+
+    // Validate version compatibility
+    if (version && version !== '1.0') {
+      return res.status(400).json({
+        error: `Unsupported version: ${version}. This version of Agregarr supports version 1.0.`,
+      });
+    }
+
+    // Validate sourceColors structure
+    if (typeof sourceColors !== 'object') {
+      return res.status(400).json({
+        error: 'Invalid source colors format',
+      });
+    }
+
+    // Validate each color scheme
+    const hexColorRegex = /^#[0-9a-fA-F]{6}$/;
+    for (const [sourceType, colorScheme] of Object.entries(sourceColors)) {
+      if (typeof colorScheme !== 'object' || !colorScheme) {
+        return res.status(400).json({
+          error: `Invalid color scheme for ${sourceType}`,
+        });
+      }
+
+      const { primaryColor, secondaryColor, textColor } =
+        colorScheme as SourceColorScheme;
+
+      if (!primaryColor || !secondaryColor || !textColor) {
+        return res.status(400).json({
+          error: `Missing color values for ${sourceType}`,
+        });
+      }
+
+      if (
+        !hexColorRegex.test(primaryColor) ||
+        !hexColorRegex.test(secondaryColor) ||
+        !hexColorRegex.test(textColor)
+      ) {
+        return res.status(400).json({
+          error: `Invalid hex color format for ${sourceType}`,
+        });
+      }
+    }
+
+    // Import all color schemes
+    let importCount = 0;
+    for (const [sourceType, colorScheme] of Object.entries(sourceColors)) {
+      const colors = colorScheme as SourceColorScheme;
+      await sourceColorsService.updateSourceColors(sourceType, colors);
+      importCount++;
+    }
+
+    logger.info('Imported source colors', {
+      count: importCount,
+      sourceTypes: Object.keys(sourceColors),
+      userId: req.user?.id,
+    });
+
+    // Return updated colors
+    const updatedColors = await sourceColorsService.getAllSourceColors();
+
+    res.status(200).json({
+      message: `Successfully imported ${importCount} source color schemes`,
+      importCount,
+      sourceColors: updatedColors,
+    });
+  } catch (error) {
+    logger.error('Failed to import source colors:', error);
+    res.status(500).json({ error: 'Failed to import source colors' });
+  }
+});
+
+/**
  * POST /api/v1/source-colors/reset
  * Reset all source colors to defaults
  */

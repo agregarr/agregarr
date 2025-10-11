@@ -2,6 +2,7 @@ import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
+import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
@@ -88,6 +89,7 @@ function validateExternalUrl(
       imdb: ['www.imdb.com', 'imdb.com'],
       mdblist: ['mdblist.com', 'www.mdblist.com'],
       letterboxd: ['letterboxd.com', 'www.letterboxd.com'],
+      anilist: ['anilist.co', 'www.anilist.co'],
     };
 
     const validDomains = allowedDomains[type as keyof typeof allowedDomains];
@@ -115,11 +117,11 @@ function validateExternalUrl(
         }
         break;
       case 'tmdb':
-        if (!urlObj.pathname.match(/^\/collection\/\d+/)) {
+        if (!urlObj.pathname.match(/^\/(collection|list)\/\d+/)) {
           return {
             isValid: false,
             error:
-              'Invalid TMDb collection URL format. Expected: https://www.themoviedb.org/collection/123456',
+              'Invalid TMDB URL format. Expected: https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310',
           };
         }
         break;
@@ -150,6 +152,26 @@ function validateExternalUrl(
           };
         }
         break;
+      case 'anilist': {
+        // Accept a wide range of AniList URL patterns including:
+        // - https://anilist.co/user/:username/animelist/:listname (personal animelists)
+        // - https://anilist.co/list/:listname
+        // - https://anilist.co/search/anime?... or /search/manga?...
+        // - single item pages: /anime/:id and /manga/:id
+        const anilistPattern =
+          /^(?:\/user\/[^/]+\/(?:animelist|list)\/[^/?]+|\/(?:animelist|list)\/[^/?]+|\/search\/(?:anime|manga)(?:\/.*)?|\/anime\/?\d+|\/manga\/?\d+)(?:\/)?$/;
+
+        // Allow the pattern to match either the pathname or a search path with query params
+        if (!urlObj.pathname.match(anilistPattern)) {
+          return {
+            isValid: false,
+            error:
+              'Invalid AniList URL format. Expected one of: user animelist, /list/, /search/anime or /anime/:id',
+          };
+        }
+
+        break;
+      }
       default:
         return { isValid: false, error: 'Unsupported collection type' };
     }
@@ -301,6 +323,28 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         context
       );
 
+      // Check for duplicate collection names within this library
+      // Skip duplicate check for DYNAMIC_RANDOM_TITLE as each collection gets a unique title from the random list
+      const templateValue = req.body.template || configToUpdate.template;
+      if (
+        templateValue !== 'DYNAMIC_RANDOM_TITLE' &&
+        templateValue !== 'DYNAMIC_CYCLE_TITLE'
+      ) {
+        const duplicateName = configs.find(
+          (config) =>
+            config.id !== configToUpdate.id && // Exclude the collection being updated
+            config.name === processedName &&
+            config.libraryId === configToUpdate.libraryId
+        );
+
+        if (duplicateName) {
+          return res.status(400).json({
+            error: `Collection "${processedName}" already exists in this library`,
+            message: `A collection with the name "${processedName}" already exists in library "${library?.name}". Please choose a different name or template.`,
+          });
+        }
+      }
+
       // For Overseerr user collections, keep {username} and {nickname} as literals
       if (
         (req.body.type || configToUpdate.type) === 'overseerr' &&
@@ -352,6 +396,28 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         libraryName: configToUpdate.libraryName, // Don't change the library name
       };
 
+      // Handle firstSyncAt for custom sync schedules
+      if (updatedConfig.customSyncSchedule?.enabled) {
+        const oldSchedule = configToUpdate.customSyncSchedule;
+        const newSchedule = req.body.customSyncSchedule;
+
+        // Set firstSyncAt if this is a new custom schedule with startNow
+        if (!oldSchedule?.enabled && newSchedule?.startNow) {
+          updatedConfig.customSyncSchedule.firstSyncAt =
+            new Date().toISOString();
+        }
+        // Preserve existing firstSyncAt if it exists
+        else if (oldSchedule?.firstSyncAt) {
+          updatedConfig.customSyncSchedule.firstSyncAt =
+            oldSchedule.firstSyncAt;
+        }
+        // If changing to startNow=true and no firstSyncAt exists, set it
+        else if (newSchedule?.startNow && !oldSchedule?.firstSyncAt) {
+          updatedConfig.customSyncSchedule.firstSyncAt =
+            new Date().toISOString();
+        }
+      }
+
       // Update the config in place
       configs[configIndex] = updatedConfig;
       updatedConfigs.push(updatedConfig);
@@ -380,12 +446,11 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       // Update scheduler for each edited collection
       for (const config of updatedConfigs) {
         const customSync = config.customSyncSchedule;
-        if (customSync?.enabled && customSync.intervalHours > 0) {
-          // Schedule or reschedule this collection
-          await IndividualCollectionScheduler.scheduleCollectionSync(
-            config.id,
-            customSync.intervalHours
-          );
+        if (customSync?.enabled) {
+          // Use refreshAllJobs to handle the new format properly
+          // This will re-evaluate all jobs with the new schedule parsing
+          await IndividualCollectionScheduler.refreshAllJobs();
+          break; // Only need to refresh once for all configs
         } else {
           // Cancel scheduling if custom sync was disabled
           IndividualCollectionScheduler.cancelCollectionSync(config.id);
@@ -681,6 +746,69 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       configsToDelete.push(configToDelete);
     }
 
+    // Clean up smart collections for configs that have them
+    try {
+      // Get admin user for Plex token
+      const { getAdminUser } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
+      const localAdmin = await getAdminUser();
+
+      if (!localAdmin?.plexToken) {
+        logger.warn(
+          'No local admin Plex token found for smart collection cleanup'
+        );
+        // Continue with normal collection deletion even if smart cleanup fails
+      } else {
+        const plexClient = new PlexAPI({
+          plexToken: localAdmin.plexToken,
+          plexSettings: settings.plex,
+        });
+
+        for (const config of configsToDelete) {
+          if (config.smartCollectionRatingKey) {
+            logger.info(
+              `Deleting smart collection for config "${config.name}"`,
+              {
+                label: 'Collections API',
+                configId: config.id,
+                smartCollectionRatingKey: config.smartCollectionRatingKey,
+              }
+            );
+
+            try {
+              await plexClient.deleteSmartCollection(
+                config.smartCollectionRatingKey
+              );
+              logger.debug(
+                `Successfully deleted smart collection ${config.smartCollectionRatingKey}`,
+                {
+                  label: 'Collections API',
+                  configId: config.id,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to delete smart collection ${config.smartCollectionRatingKey}`,
+                {
+                  label: 'Collections API',
+                  configId: config.id,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              // Don't fail the whole deletion if smart collection cleanup fails
+            }
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Error during smart collection cleanup', {
+        label: 'Collections API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Don't fail the whole deletion if smart collection cleanup fails
+    }
+
     // Remove the configs
     const deletedConfigIds = configsToDelete.map((c) => c.id);
     const remainingConfigs = configs.filter(
@@ -853,16 +981,22 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
       );
 
       // Check for duplicate collection names within this library
-      const duplicateName = existingConfigs.find(
-        (config) =>
-          config.name === processedName && config.libraryId === libraryId
-      );
+      // Skip duplicate check for DYNAMIC_RANDOM_TITLE as each collection gets a unique title from the random list
+      if (
+        req.body.template !== 'DYNAMIC_RANDOM_TITLE' &&
+        req.body.template !== 'DYNAMIC_CYCLE_TITLE'
+      ) {
+        const duplicateName = existingConfigs.find(
+          (config) =>
+            config.name === processedName && config.libraryId === libraryId
+        );
 
-      if (duplicateName) {
-        return res.status(400).json({
-          error: `Collection "${processedName}" already exists in this library`,
-          message: `A collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
-        });
+        if (duplicateName) {
+          return res.status(400).json({
+            error: `Collection "${processedName}" already exists in this library`,
+            message: `A collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
+          });
+        }
       }
 
       // For Overseerr user collections, keep {username} and {nickname} as literals
@@ -903,6 +1037,14 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         libraryIds: undefined,
         libraryNames: undefined,
       };
+
+      // Set firstSyncAt for custom sync schedules that use startNow
+      if (
+        newConfig.customSyncSchedule?.enabled &&
+        newConfig.customSyncSchedule?.startNow
+      ) {
+        newConfig.customSyncSchedule.firstSyncAt = new Date().toISOString();
+      }
 
       createdConfigs.push(newConfig);
     }
@@ -972,11 +1114,10 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
       // Only schedule newly created collections with custom sync
       for (const config of createdConfigs) {
         const customSync = config.customSyncSchedule;
-        if (customSync?.enabled && customSync.intervalHours > 0) {
-          await IndividualCollectionScheduler.scheduleCollectionSync(
-            config.id,
-            customSync.intervalHours
-          );
+        if (customSync?.enabled) {
+          // Use refreshAllJobs to handle the new format properly
+          await IndividualCollectionScheduler.refreshAllJobs();
+          break; // Only need to refresh once for all configs
         }
       }
     } catch (error) {
@@ -1194,7 +1335,16 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
             subtype?: string;
             customUrl?: string;
             timePeriod?: string;
+            customDays?: number;
+            minimumPlays?: number;
             priority: number;
+            networksCountry?: string;
+            radarrTagServerId?: number;
+            radarrTagId?: number;
+            radarrTagLabel?: string;
+            sonarrTagServerId?: number;
+            sonarrTagId?: number;
+            sonarrTagLabel?: string;
           }[];
           combineMode?: 'ordered' | 'randomized' | 'cycle';
         };
@@ -1232,10 +1382,18 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
                 customDays: source.customDays,
                 minimumPlays: source.minimumPlays,
                 priority: source.priority,
+                networksCountry: source.networksCountry,
+                radarrTagServerId: source.radarrTagServerId,
+                radarrTagId: source.radarrTagId,
+                radarrTagLabel: source.radarrTagLabel,
+                sonarrTagServerId: source.sonarrTagServerId,
+                sonarrTagId: source.sonarrTagId,
+                sonarrTagLabel: source.sonarrTagLabel,
               })) || [],
             combineMode:
-              (extendedConfig.combineMode as MultiSourceCombineMode) ||
-              'list_order',
+              (extendedConfig.combineMode as
+                | MultiSourceCombineMode
+                | undefined) ?? 'list_order',
           };
 
           result = await orchestrator.processMultiSourceCollection(
@@ -1360,7 +1518,8 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
     const sanitizedUrl = validation.sanitizedUrl;
 
     let title: string | null = null;
-    let mediaType: 'movie' | 'tv' | 'both' | null = null;
+    let mediaType: 'movie' | 'tv' | 'both' | 'mixed' | null = null;
+    let contentTypes: string[] = [];
 
     switch (type) {
       case 'trakt': {
@@ -1391,14 +1550,20 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
                 (item) => item.type === 'movie' || item.movie
               );
               const hasShows = listData.some(
-                (item) => item.type === 'show' || item.show
+                (item) => (item.type === 'show' || item.show) && !item.episode
               );
+              const hasEpisodes = listData.some((item) => item.episode);
 
-              if (hasMovies && hasShows) {
-                mediaType = 'both';
+              contentTypes = [];
+              if (hasMovies) contentTypes.push('movies');
+              if (hasShows) contentTypes.push('shows');
+              if (hasEpisodes) contentTypes.push('episodes');
+
+              if (contentTypes.length > 1) {
+                mediaType = 'mixed'; // New type for mixed content
               } else if (hasMovies) {
                 mediaType = 'movie';
-              } else if (hasShows) {
+              } else if (hasShows || hasEpisodes) {
                 mediaType = 'tv';
               }
             }
@@ -1417,24 +1582,53 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
         const tmdbClient = new TheMovieDb();
 
         try {
-          const urlMatch = sanitizedUrl.match(
+          // Check if it's a collection URL
+          const collectionMatch = sanitizedUrl.match(
             /themoviedb\.org\/collection\/(\d+)/
           );
-          if (!urlMatch) {
+          // Check if it's a list URL
+          const listMatch = sanitizedUrl.match(/themoviedb\.org\/list\/(\d+)/);
+
+          if (collectionMatch) {
+            const collectionId = parseInt(collectionMatch[1]);
+            const collection = await tmdbClient.getCollection({ collectionId });
+            title = collection.name;
+            mediaType = 'movie'; // TMDB collections are always movies
+          } else if (listMatch) {
+            const listId = listMatch[1];
+            const list = await tmdbClient.getList({ listId });
+            title = list.name;
+
+            // Detect media type from list content (similar to Trakt)
+            if (list.items && list.items.length > 0) {
+              const hasMovies = list.items.some(
+                (item) => item.media_type === 'movie' || item.title
+              );
+              const hasShows = list.items.some(
+                (item) => item.media_type === 'tv' || item.name
+              );
+              if (hasMovies && hasShows) {
+                mediaType = 'both';
+              } else if (hasMovies) {
+                mediaType = 'movie';
+              } else if (hasShows) {
+                mediaType = 'tv';
+              } else {
+                mediaType = 'both'; // Fallback if we can't determine
+              }
+            } else {
+              mediaType = 'both'; // Fallback for empty lists
+            }
+          } else {
             return res.status(400).json({
               status: 'error',
-              message: 'Invalid TMDb collection URL format',
+              message: 'Invalid TMDB URL format',
             });
           }
-
-          const collectionId = parseInt(urlMatch[1]);
-          const collection = await tmdbClient.getCollection({ collectionId });
-          title = collection.name;
-          mediaType = 'movie'; // TMDb collections are always movies
         } catch (error) {
           return res.status(400).json({
             status: 'error',
-            message: 'Invalid TMDb collection ID or collection not found',
+            message: 'Invalid TMDB collection/list ID or not found',
           });
         }
         break;
@@ -1505,7 +1699,8 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           }
 
           let movieCount = 0;
-          let tvCount = 0;
+          let showCount = 0;
+          let episodeCount = 0;
 
           // Analyze up to 1000 items to determine media type accurately
           listItemMatches.slice(0, 1000).forEach((item: string) => {
@@ -1524,31 +1719,46 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
             ) {
               movieCount++;
             }
-
-            // Check for TV indicators
-            if (
+            // Check for episode indicators (more specific than shows)
+            else if (
+              lowerItem.includes('tv episode') ||
+              lowerItem.includes('"@type":"episode"') ||
+              lowerItem.includes('"@type":"tvepisode"') ||
+              lowerItem.includes('(tv episode)') ||
+              (lowerItem.includes('season') && lowerItem.includes('episode'))
+            ) {
+              episodeCount++;
+            }
+            // Check for TV show indicators (but not episodes)
+            else if (
               lowerItem.includes('titletype-tv') ||
               lowerItem.includes('tv series') ||
-              lowerItem.includes('tv episode') ||
               lowerItem.includes('tv mini-series') ||
               lowerItem.includes('tv movie') ||
               lowerItem.includes('"@type":"tvseries"') ||
-              lowerItem.includes('"@type":"episode"') ||
               lowerItem.includes('(tv series)') ||
-              lowerItem.includes('(tv episode)') ||
               lowerItem.includes('television')
             ) {
-              tvCount++;
+              showCount++;
             }
           });
 
-          // Determine media type based on what we found
-          if (movieCount > 0 && tvCount === 0) {
+          // Determine media type and content types based on what we found
+          contentTypes = [];
+          if (movieCount > 0) contentTypes.push('movies');
+          if (showCount > 0) contentTypes.push('shows');
+          if (episodeCount > 0) contentTypes.push('episodes');
+
+          const totalTvContent = showCount + episodeCount;
+
+          if (contentTypes.length > 1) {
+            mediaType = 'mixed';
+          } else if (movieCount > 0 && totalTvContent === 0) {
             mediaType = 'movie';
-          } else if (tvCount > 0 && movieCount === 0) {
+          } else if (totalTvContent > 0 && movieCount === 0) {
             mediaType = 'tv';
-          } else if (movieCount > 0 && tvCount > 0) {
-            mediaType = 'both';
+          } else if (movieCount > 0 && totalTvContent > 0) {
+            mediaType = 'mixed';
           } else {
             // Fallback: try to detect from page title or description
             const lowerContent = htmlContent.toLowerCase();
@@ -1557,14 +1767,17 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
               lowerContent.includes('film list')
             ) {
               mediaType = 'movie';
+              contentTypes = ['movies'];
             } else if (
               lowerContent.includes('tv list') ||
               lowerContent.includes('television list') ||
               lowerContent.includes('series list')
             ) {
               mediaType = 'tv';
+              contentTypes = ['shows'];
             } else {
-              mediaType = 'both'; // Default when we can't determine
+              mediaType = 'movie'; // Default when we can't determine
+              contentTypes = ['movies'];
             }
           }
         } catch (error) {
@@ -1654,6 +1867,43 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
         }
         break;
       }
+      case 'anilist': {
+        // Fetch the AniList page and extract the HTML title
+        const axios = (await import('axios')).default;
+
+        try {
+          const response = await axios.get(sanitizedUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            },
+            timeout: 10000,
+          });
+
+          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          if (titleMatch) {
+            // Strip common suffixes like " - AniList"
+            title = titleMatch[1].replace(/\s+-\s+AniList$/i, '').trim();
+          }
+
+          // Try to detect media type heuristically by looking for anime/manga links
+          const html = response.data as string;
+          if (html.includes('/anime/')) {
+            mediaType = 'tv';
+          } else if (html.includes('/manga/')) {
+            mediaType = 'movie';
+          } else {
+            mediaType = 'tv'; // default to tv for AniList (anime)
+          }
+        } catch (error) {
+          return res.status(400).json({
+            status: 'error',
+            message: 'Could not fetch AniList list title',
+          });
+        }
+
+        break;
+      }
 
       case 'mdblist': {
         const MDBListAPI = (await import('@server/api/mdblist')).default;
@@ -1679,14 +1929,45 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           }
 
           // Get list metadata to extract title
+          // Try two approaches: first try getting by username (for other users' public lists),
+          // then fallback to getting own lists (for private lists or when username endpoint fails)
           if (
             parsedUrl.type === 'user' &&
             parsedUrl.username &&
             parsedUrl.listName
           ) {
-            const userLists = await mdblistClient.getUserListsByUsername(
-              parsedUrl.username
-            );
+            let userLists: Awaited<
+              ReturnType<typeof mdblistClient.getUserLists>
+            > = [];
+
+            try {
+              // First try: Get lists by username (works for other users' public lists)
+              userLists = await mdblistClient.getUserListsByUsername(
+                parsedUrl.username
+              );
+            } catch (usernameError) {
+              // If that fails (404), try getting own lists (works for private lists)
+              try {
+                userLists = await mdblistClient.getUserLists();
+              } catch (ownListsError) {
+                // Both failed - we'll just skip title extraction
+                logger.debug(
+                  'Could not fetch MDBList metadata, will use fallback title',
+                  {
+                    label: 'Collections API',
+                    usernameError:
+                      usernameError instanceof Error
+                        ? usernameError.message
+                        : String(usernameError),
+                    ownListsError:
+                      ownListsError instanceof Error
+                        ? ownListsError.message
+                        : String(ownListsError),
+                  }
+                );
+              }
+            }
+
             const targetList = userLists.find(
               (list) =>
                 list.slug === parsedUrl.listName ||
@@ -1741,6 +2022,7 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
       status: 'success',
       title: title,
       mediaType: mediaType,
+      contentTypes: contentTypes,
     });
   } catch (error) {
     logger.error('Error fetching collection title', {
@@ -1949,7 +2231,7 @@ collectionsRoutes.post(
         }
 
         case 'tmdb': {
-          // TMDb collections are always movies
+          // TMDB collections are always movies
           mediaType = 'movie';
           break;
         }
@@ -2033,6 +2315,12 @@ collectionsRoutes.post(
             mediaType,
             customDays || 30,
             'plays',
+            subtype || ''
+          );
+          break;
+        case 'anilist':
+          context = templateEngine.createAnilistContext(
+            mediaType,
             subtype || ''
           );
           break;
@@ -2696,5 +2984,39 @@ collectionsRoutes.get('/networks/platforms', async (req, res) => {
     });
   }
 });
+
+/**
+ * Get available streaming providers for Originals collections
+ * Based on Kometa's curated MDBList collections
+ */
+collectionsRoutes.get('/originals/providers', async (_req, res) => {
+  try {
+    logger.debug('Fetching available providers for Originals collections', {
+      label: 'Collections API',
+    });
+
+    const providers = OriginalsCollectionSync.getProviderOptions();
+
+    logger.debug(`Returning ${providers.length} originals providers`, {
+      label: 'Collections API',
+      providersCount: providers.length,
+    });
+
+    return res.status(200).json(providers);
+  } catch (error) {
+    logger.error('Failed to fetch originals providers', {
+      label: 'Collections API',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to load streaming providers for originals',
+    });
+  }
+});
+
+// Mount preview routes
+import collectionsPreviewRoutes from './collections-preview';
+collectionsRoutes.use('/preview', collectionsPreviewRoutes);
 
 export default collectionsRoutes;

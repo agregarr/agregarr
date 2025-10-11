@@ -1,4 +1,5 @@
 import MDBListAPI from '@server/api/mdblist';
+import { getRankedAnime } from '@server/api/myanimelist';
 import PlexAPI from '@server/api/plexapi';
 import PlexTvAPI from '@server/api/plextv';
 import TautulliAPI from '@server/api/tautulli';
@@ -316,6 +317,65 @@ settingsRoutes.get('/tautulli', (_req, res) => {
   const settings = getSettings();
 
   res.status(200).json(settings.tautulli);
+});
+
+// MyAnimeList settings
+settingsRoutes.get('/myanimelist', (_req, res) => {
+  const settings = getSettings();
+  return res.status(200).json(settings.myanimelist || {});
+});
+
+settingsRoutes.post('/myanimelist', (req, res) => {
+  const settings = getSettings();
+  settings.myanimelist = settings.myanimelist || {};
+  settings.myanimelist.apiKey = req.body.apiKey;
+  settings.save();
+
+  return res.status(200).json(settings.myanimelist);
+});
+
+settingsRoutes.post('/myanimelist/test', async (req, res, next) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey) {
+      return next({
+        status: 400,
+        message: 'API key is required',
+      });
+    }
+
+    // Temporarily set the API key for testing
+    const settings = getSettings();
+    const originalApiKey = settings.myanimelist?.apiKey;
+    settings.myanimelist = settings.myanimelist || {};
+    settings.myanimelist.apiKey = apiKey;
+
+    try {
+      // Test by attempting to fetch ranked anime with the provided API key
+      await getRankedAnime('all', 5);
+
+      return res.status(200).json({
+        success: true,
+      });
+    } finally {
+      // Restore original API key
+      if (originalApiKey) {
+        settings.myanimelist.apiKey = originalApiKey;
+      } else {
+        settings.myanimelist.apiKey = undefined;
+      }
+    }
+  } catch (e) {
+    logger.error('MyAnimeList connection test failed', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to connect to MyAnimeList.',
+    });
+  }
 });
 
 settingsRoutes.post('/tautulli', async (req, res) => {

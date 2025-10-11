@@ -5,14 +5,11 @@ WORKDIR /app
 ARG TARGETPLATFORM
 ENV TARGETPLATFORM=${TARGETPLATFORM:-linux/amd64}
 
-RUN \
-  case "${TARGETPLATFORM}" in \
-  'linux/arm64' | 'linux/arm/v7') \
-  apk update && \
-  apk add --no-cache python3 make g++ gcc libc6-compat bash && \
-  yarn global add node-gyp \
-  ;; \
-  esac
+RUN apk add --no-cache \
+    python3 make g++ gcc libc6-compat bash \
+    build-base cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
+
+RUN yarn global add node-gyp
 
 COPY package.json yarn.lock ./
 RUN CYPRESS_INSTALL_BINARY=0 yarn install --frozen-lockfile --network-timeout 1000000
@@ -38,9 +35,38 @@ FROM node:18.18.2-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache tzdata tini fontconfig ttf-dejavu font-noto-emoji && rm -rf /tmp/*
+RUN apk add --no-cache \
+    tzdata tini fontconfig ttf-dejavu font-noto-emoji \
+    cairo pango jpeg giflib pixman \
+    && mkdir -p /usr/share/fonts/truetype/poster-fonts && \
+    cd /usr/share/fonts/truetype/poster-fonts && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/anton/Anton-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/creepster/Creepster-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/bangers/Bangers-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/abrilfatface/AbrilFatface-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/lato/Lato-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/pacifico/Pacifico-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/nosifer/Nosifer-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/bungee/Bungee-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/pressstart2p/PressStart2P-Regular.ttf && \
+    wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/courierprime/CourierPrime-Regular.ttf && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/oswald/Oswald[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/fredoka/Fredoka[wdth,wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/Roboto[wdth,wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter[opsz,wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/dancingscript/DancingScript[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/raleway/Raleway[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/orbitron/Orbitron[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel[wght].ttf" && \
+    wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/CormorantGaramond[wght].ttf" && \
+    fc-cache -fv && \
+    rm -rf /tmp/*
 
-# copy from build image
 COPY --from=build_image /app ./
 
 ENTRYPOINT [ "/sbin/tini", "--" ]

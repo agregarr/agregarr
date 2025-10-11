@@ -7,7 +7,6 @@ import {
   getIconCategories,
   getIcons,
   loadIconFile,
-  uploadIcon,
 } from '@server/lib/iconManager';
 import {
   loadPosterFile,
@@ -26,35 +25,9 @@ import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 import fs from 'fs';
-import multer from 'multer';
 import path from 'path';
 
 const router = Router();
-
-// Configure multer for icon/image uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: (_req, file, cb) => {
-    const allowedMimeTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/svg+xml',
-    ];
-    if (allowedMimeTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(
-          'Invalid file type. Only JPEG, PNG, WebP, and SVG files are allowed.'
-        )
-      );
-    }
-  },
-});
 
 // Apply authentication to all routes
 router.use(isAuthenticated());
@@ -752,7 +725,7 @@ router.get('/templates/:id/preview', async (req, res, next) => {
       res.set({
         'Content-Type': 'image/png',
         'Content-Length': previewBuffer.length,
-        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+        'Cache-Control': 'no-cache', // Don't cache so it updates immediately
       });
 
       return res.send(previewBuffer);
@@ -797,59 +770,6 @@ router.post('/templates/validate', async (req, res, next) => {
     return next({
       status: 500,
       message: 'Failed to validate template data',
-    });
-  }
-});
-
-// POST /api/v1/posters/icons/upload - Upload icon/asset
-router.post('/icons/upload', upload.single('icon'), async (req, res, next) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        error: 'No file uploaded',
-      });
-    }
-
-    const { name, category, tags, description } = req.body;
-
-    try {
-      const iconMetadata = await uploadIcon(
-        req.file.buffer,
-        req.file.mimetype,
-        req.file.originalname,
-        {
-          name,
-          category,
-          tags: tags
-            ? tags.split(',').map((tag: string) => tag.trim())
-            : undefined,
-          description,
-        }
-      );
-
-      logger.info('Icon uploaded successfully', {
-        iconId: iconMetadata.id,
-        name: iconMetadata.name,
-        userId: req.user?.id,
-      });
-
-      return res.status(201).json({
-        icon: iconMetadata,
-      });
-    } catch (uploadError) {
-      logger.error('Failed to upload icon:', uploadError);
-      return res.status(400).json({
-        error:
-          uploadError instanceof Error
-            ? uploadError.message
-            : 'Failed to upload icon',
-      });
-    }
-  } catch (error) {
-    logger.error('Icon upload endpoint error:', error);
-    return next({
-      status: 500,
-      message: 'Failed to upload icon',
     });
   }
 });
@@ -1146,6 +1066,153 @@ router.get('/icons/:type/:filename', async (req, res, next) => {
     });
   }
 });
+
+// GET /api/v1/posters/templates/:id/export - Export template as ZIP with assets
+router.get('/templates/:id/export', async (req, res, next) => {
+  try {
+    const templateId = parseInt(req.params.id);
+
+    if (isNaN(templateId)) {
+      return res.status(400).json({
+        error: 'Invalid template ID',
+      });
+    }
+
+    const templateRepository = getRepository(PosterTemplate);
+    const template = await templateRepository.findOne({
+      where: { id: templateId, isActive: true },
+    });
+
+    if (!template) {
+      return res.status(404).json({
+        error: 'Template not found',
+      });
+    }
+
+    const templateData = template.getTemplateData();
+
+    // Collect all asset paths that need to be included
+    const assetPaths = new Set<string>();
+
+    // Check unified elements for custom assets
+    templateData.elements?.forEach((element) => {
+      if (element.type === 'svg') {
+        const svgProps = element.properties as { iconPath?: string };
+        if (svgProps.iconPath) {
+          assetPaths.add(svgProps.iconPath);
+        }
+      } else if (element.type === 'raster') {
+        const rasterProps = element.properties as { imagePath?: string };
+        if (rasterProps.imagePath) {
+          assetPaths.add(rasterProps.imagePath);
+        }
+      }
+    });
+
+    const archiver = (await import('archiver')).default;
+    const archive = archiver('zip', {
+      zlib: { level: 9 }, // Maximum compression
+    });
+
+    // Set headers for ZIP download
+    const filename = `${template.name.replace(
+      /[^a-zA-Z0-9]/g,
+      '_'
+    )}_template.zip`;
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+
+    // Handle archiver events
+    archive.on('error', (err) => {
+      logger.error('Archive error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to create archive' });
+      }
+    });
+
+    // Pipe archive to response
+    archive.pipe(res);
+
+    // Add template JSON to the archive
+    const exportData = {
+      name: template.name,
+      description: template.description,
+      templateData: templateData,
+      exportedAt: new Date().toISOString(),
+      version: '2.0', // Increment version for zip format
+    };
+
+    archive.append(JSON.stringify(exportData, null, 2), {
+      name: 'template.json',
+    });
+
+    // Add asset files to the archive
+    for (const assetPath of assetPaths) {
+      try {
+        // Check if this is a user icon (starts with icon ID) or raster image
+        if (assetPath.includes('-')) {
+          // This looks like an icon ID, try to find the icon
+          const { getIcons } = await import('@server/lib/iconManager');
+          const icons = await getIcons({ type: 'user' });
+          const icon = icons.find((i) => i.id === assetPath);
+
+          if (icon && icon.type === 'user') {
+            const iconFilePath = path.join(
+              process.cwd(),
+              'config',
+              'icons',
+              icon.filename
+            );
+            if (fs.existsSync(iconFilePath)) {
+              archive.file(iconFilePath, {
+                name: `assets/icons/${icon.filename}`,
+              });
+              logger.debug(`Added icon to archive: ${icon.filename}`);
+            }
+          }
+        } else {
+          // This might be a raster image path - check in different possible locations
+          const possiblePaths = [
+            path.join(process.cwd(), 'config', 'uploads', assetPath),
+            path.join(process.cwd(), 'config', 'posters', assetPath),
+            path.join(process.cwd(), assetPath),
+          ];
+
+          for (const possiblePath of possiblePaths) {
+            if (fs.existsSync(possiblePath)) {
+              const relativeName = `assets/images/${path.basename(assetPath)}`;
+              archive.file(possiblePath, { name: relativeName });
+              logger.debug(`Added raster image to archive: ${relativeName}`);
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn(`Failed to add asset to archive: ${assetPath}`, error);
+      }
+    }
+
+    // Finalize the archive
+    archive.finalize();
+
+    logger.info('Exported template as ZIP with assets', {
+      templateId: template.id,
+      name: template.name,
+      assetCount: assetPaths.size,
+    });
+  } catch (error) {
+    logger.error('Failed to export template:', error);
+    return next({
+      status: 500,
+      message: 'Failed to export template',
+    });
+  }
+});
+
+// Note: Template import functionality has been moved to /template-import endpoint
+// (direct server route) due to middleware conflicts with multer file uploads
 
 // GET /api/v1/posters/source-colors - Get default source colors
 router.get('/source-colors', async (_req, res, next) => {

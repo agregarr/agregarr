@@ -5,49 +5,27 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import type { LayeredElement } from './PosterTemplate';
 
 export interface SavedPosterData {
   // Canvas dimensions
   width: number;
   height: number;
 
-  // All the same structure as PosterTemplateData but with actual values
   // Background configuration
   background: {
     type: 'color' | 'gradient';
     color?: string;
     secondaryColor?: string;
+    useSourceColors?: boolean;
+    intensity?: number;
   };
 
-  // Text elements with actual text content
-  textElements: {
-    id: string;
-    text: string; // Always actual text for saved posters
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    fontSize: number;
-    fontFamily: string;
-    fontWeight: 'normal' | 'bold';
-    fontStyle: 'normal' | 'italic';
-    color: string;
-    textAlign: 'left' | 'center' | 'right';
-    maxLines?: number;
-  }[];
+  // Unified layering system
+  elements: LayeredElement[];
+  migrated: boolean; // Migration completion flag
 
-  // Icon/logo elements with actual paths
-  iconElements: {
-    id: string;
-    iconPath: string; // Always actual path for saved posters
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    grayscale: boolean;
-  }[];
-
-  // Content grid with actual poster URLs
+  // Content items for poster previews
   contentItems?: {
     id: string;
     posterUrl: string;

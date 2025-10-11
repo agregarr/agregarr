@@ -421,7 +421,20 @@ export class CollectionCleanupService {
         return { shouldDelete: true, reason: 'users config removed' };
       }
 
-      if (!currentUserPlexIds.has(userPlexId)) {
+      // Check if this collection was just processed in the current sync
+      // If it's in processedCollectionKeys, it means the user still has requests
+      if (processedCollectionKeys.has(collection.ratingKey)) {
+        return {
+          shouldDelete: false,
+          reason: 'user collection just processed',
+        };
+      }
+
+      // Fallback to userCollections map if provided (legacy support)
+      if (
+        Object.keys(currentUserPlexIds).length > 0 &&
+        !currentUserPlexIds.has(userPlexId)
+      ) {
         return { shouldDelete: true, reason: 'user no longer has requests' };
       }
 

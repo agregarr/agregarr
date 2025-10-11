@@ -8,7 +8,15 @@ import * as Yup from 'yup';
 // Base validation schema for all collection types
 const baseCollectionSchema = {
   type: Yup.string().required('Collection type is required'),
-  subtype: Yup.string().required('Collection sub-type is required'),
+  subtype: Yup.string().when('type', {
+    is: (type?: string) =>
+      !type ||
+      type === 'multi-source' ||
+      type === 'radarrtag' ||
+      type === 'sonarrtag',
+    then: (schema) => schema.notRequired(),
+    otherwise: (schema) => schema.required('Collection sub-type is required'),
+  }),
 
   template: Yup.string().when(['customMovieTemplate', 'customTVTemplate'], {
     is: (movieTemplate: string, tvTemplate: string) =>
@@ -87,10 +95,10 @@ const customUrlValidations = {
       type === 'tmdb' && subtype === 'custom',
     then: (schema) =>
       schema
-        .required('TMDb collection URL is required')
+        .required('TMDB collection/list URL is required')
         .matches(
-          /themoviedb\.org\/collection\/\d+/,
-          'Please enter a valid TMDb collection URL (e.g., https://www.themoviedb.org/collection/12345)'
+          /themoviedb\.org\/(collection|list)\/\d+/,
+          'Please enter a valid TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
         ),
     otherwise: (schema) => schema,
   }),

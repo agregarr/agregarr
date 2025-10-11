@@ -6,4 +6,3 @@ export type {
   PosterEditorData,
   PosterEditorModalProps,
 } from './PosterEditorModal';
-export { PosterEditorToolbar } from './PosterEditorToolbar';

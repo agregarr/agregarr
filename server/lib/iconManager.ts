@@ -13,7 +13,7 @@ const ALLOWED_ICON_TYPES = [
   'image/webp',
   'image/svg+xml',
 ];
-const MAX_ICON_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_ICON_SIZE = 10 * 1024 * 1024; // 10MB
 const ICON_THUMBNAIL_SIZE = 64; // 64x64 thumbnails
 
 export interface IconMetadata {
@@ -217,7 +217,7 @@ export async function uploadIcon(
     if (mimeType !== 'image/svg+xml') {
       // For raster images, ensure reasonable size and create thumbnail
       processedBuffer = await sharp(fileBuffer)
-        .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+        .resize(750, 750, { fit: 'inside', withoutEnlargement: true })
         .png({ quality: 90 })
         .toBuffer();
 

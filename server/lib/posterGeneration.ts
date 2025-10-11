@@ -1,5 +1,12 @@
 import TheMovieDb from '@server/api/themoviedb';
-import type { PosterTemplateData } from '@server/entity/PosterTemplate';
+import type {
+  ContentGridProps,
+  LayeredElement,
+  PosterTemplateData,
+  RasterElementProps,
+  SVGElementProps,
+  TextElementProps,
+} from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs';
@@ -7,6 +14,52 @@ import path from 'path';
 import sharp from 'sharp';
 import { applyTemplate } from './posterTemplates';
 import { sourceColorsService } from './services/SourceColorsService';
+
+// Import Canvas with fallback handling
+interface CanvasModule {
+  createCanvas: (
+    width: number,
+    height: number
+  ) => {
+    getContext: (type: '2d') => {
+      font: string;
+      measureText: (text: string) => {
+        width: number;
+        fontBoundingBoxAscent?: number;
+        fontBoundingBoxDescent?: number;
+      };
+    };
+  };
+}
+
+let canvasModule: CanvasModule | null = null;
+try {
+  canvasModule = require('canvas');
+} catch (error) {
+  logger.debug(
+    'Canvas module not available, text measurement will use estimation fallback'
+  );
+}
+
+// Cache for base64 converted images to avoid re-processing
+// Only cache local files (file:// URLs) to avoid memory bloat with TMDB URLs
+const base64Cache = new Map<string, string>();
+const MAX_CACHE_SIZE = 200; // Limit cache to 200 items
+
+/**
+ * Clear the base64 cache if it gets too large
+ */
+function maintainCacheSize(): void {
+  if (base64Cache.size > MAX_CACHE_SIZE) {
+    // Remove oldest entries (first in, first out)
+    const keysToDelete = Array.from(base64Cache.keys()).slice(
+      0,
+      base64Cache.size - MAX_CACHE_SIZE
+    );
+    keysToDelete.forEach((key) => base64Cache.delete(key));
+    logger.debug(`Cleared ${keysToDelete.length} items from base64 cache`);
+  }
+}
 
 export interface PosterGenerationConfig {
   collectionName: string;
@@ -62,8 +115,12 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   letterboxd: 'letterboxd.svg',
   tautulli: 'tautulli.svg',
   overseerr: 'overseerr.svg',
+  anilist: 'anilist.svg',
+  myanimelist: 'myanimelist.svg',
   plex: 'plex.svg',
   'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
+  radarrtag: 'radarr.svg', // Radarr tag collections use Radarr logo
+  sonarrtag: 'sonarr.svg', // Sonarr tag collections use Sonarr logo
   // Streaming Platform Logo Mappings
   netflix: 'netflix.svg',
   hbo: 'hbo.svg',
@@ -115,6 +172,15 @@ async function fetchTMDbPosterUrls(
   logger.debug(`Fetching TMDB posters for ${items.length} items`);
 
   for (const item of items) {
+    // Skip items that already have a poster URL (e.g., from local storage)
+    if (item.posterUrl) {
+      logger.debug(
+        `Skipping ${item.title} - already has poster URL: ${item.posterUrl}`
+      );
+      itemsWithPosters.push(item);
+      continue;
+    }
+
     let posterUrl: string | undefined;
 
     logger.debug(`Processing item: ${item.title}`, {
@@ -134,7 +200,7 @@ async function fetchTMDbPosterUrls(
             logger.debug(`No poster_path found for movie ${item.title}`);
           }
         } else if (item.type === 'tv') {
-          // Check if this is an episode with season info and show TMDb ID
+          // Check if this is an episode with season info and show TMDB ID
           if (item.episodeInfo?.season && item.metadata?.showTmdbId) {
             try {
               // Try to get season poster first
@@ -213,32 +279,89 @@ async function fetchTMDbPosterUrls(
 
 /**
  * Download and convert image to base64 for SVG embedding with retry logic
+ * Preserves transparency for PNG images
  */
 async function downloadImageAsBase64(
   url: string,
   retries = 2
 ): Promise<string | null> {
+  // Check cache first
+  if (base64Cache.has(url)) {
+    const cachedResult = base64Cache.get(url);
+    if (cachedResult !== undefined) {
+      logger.debug(`Using cached base64 for: ${url}`);
+      return cachedResult;
+    }
+  }
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 10000, // 10 second timeout
-        headers: {
-          'User-Agent': 'Agregarr/1.0',
-        },
-      });
-      const buffer = Buffer.from(response.data);
+      let buffer: Buffer;
 
-      // Convert to JPEG and resize to optimize
-      const processedBuffer = await sharp(buffer)
-        .jpeg({ quality: 85 })
-        .resize(ITEM_POSTER_WIDTH, ITEM_POSTER_HEIGHT, {
-          fit: 'cover',
-          position: 'center',
-        })
-        .toBuffer();
+      // Handle local file:// URLs
+      if (url.startsWith('file://')) {
+        const filePath = url.replace('file://', '');
+        if (!fs.existsSync(filePath)) {
+          logger.warn(`Local poster file not found: ${filePath}`);
+          return null;
+        }
+        buffer = fs.readFileSync(filePath);
+        logger.debug(`Read local file: ${filePath}`);
+      } else {
+        // Handle remote HTTP/HTTPS URLs
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 10000, // 10 second timeout
+          headers: {
+            'User-Agent': 'Agregarr/1.0',
+          },
+        });
+        buffer = Buffer.from(response.data);
+      }
 
-      return `data:image/jpeg;base64,${processedBuffer.toString('base64')}`;
+      // Check if image has alpha channel (transparency)
+      const image = sharp(buffer);
+      const metadata = await image.metadata();
+      const hasAlpha =
+        metadata.channels === 4 ||
+        (metadata.channels === 2 && metadata.format === 'png');
+
+      let processedBuffer: Buffer;
+      let mimeType: string;
+
+      if (hasAlpha || metadata.format === 'png') {
+        // Preserve transparency by using PNG format
+        processedBuffer = await image
+          .png({ quality: 90, compressionLevel: 6 })
+          .resize(ITEM_POSTER_WIDTH, ITEM_POSTER_HEIGHT, {
+            fit: 'cover',
+            position: 'center',
+          })
+          .toBuffer();
+        mimeType = 'image/png';
+      } else {
+        // Use JPEG for images without transparency
+        processedBuffer = await image
+          .jpeg({ quality: 85 })
+          .resize(ITEM_POSTER_WIDTH, ITEM_POSTER_HEIGHT, {
+            fit: 'cover',
+            position: 'center',
+          })
+          .toBuffer();
+        mimeType = 'image/jpeg';
+      }
+
+      const base64Result = `data:${mimeType};base64,${processedBuffer.toString(
+        'base64'
+      )}`;
+
+      // Only cache local files to avoid memory bloat
+      if (url.startsWith('file://')) {
+        base64Cache.set(url, base64Result);
+        maintainCacheSize();
+      }
+
+      return base64Result;
     } catch (error) {
       if (attempt < retries) {
         const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s
@@ -332,7 +455,9 @@ async function createLogoPlaceholder(serviceType: string): Promise<string> {
             fill="${colorScheme.primaryColor}" opacity="0.8"/>
     <text x="0" y="6"
           font-family="Arial, sans-serif" font-size="24" font-weight="bold"
-          text-anchor="middle" fill="${colorScheme.textColor}">
+          text-anchor="middle" dominant-baseline="central" fill="${
+            colorScheme.textColor
+          }">
       ${letter}
     </text>
   `;
@@ -350,122 +475,191 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/**
- * Get actual text width using a more accurate character width mapping for Arial Bold
- */
-function getTextWidth(text: string, fontSize: number): number {
-  // Conservative character width estimation for Arial Bold
-  // Using generous values to prevent clipping - better to wrap early than clip
-  const charWidths: Record<string, number> = {
-    // Wide characters - increased significantly
-    M: 0.85,
-    W: 1.1,
-    m: 0.85,
-    w: 0.85,
-    // Medium-wide characters - increased
-    A: 0.8,
-    B: 0.8,
-    C: 0.85,
-    D: 0.85,
-    G: 0.9,
-    H: 0.85,
-    N: 0.85,
-    O: 0.9,
-    Q: 0.9,
-    R: 0.85,
-    U: 0.85,
-    V: 0.8,
-    X: 0.8,
-    Y: 0.8,
-    Z: 0.8,
-    a: 0.7,
-    b: 0.7,
-    c: 0.65,
-    d: 0.7,
-    e: 0.7,
-    g: 0.7,
-    h: 0.7,
-    n: 0.7,
-    o: 0.7,
-    p: 0.7,
-    q: 0.7,
-    r: 0.45,
-    u: 0.7,
-    v: 0.65,
-    x: 0.65,
-    y: 0.65,
-    z: 0.65,
-    // Numbers - increased
-    '0': 0.7,
-    '1': 0.7,
-    '2': 0.7,
-    '3': 0.7,
-    '4': 0.7,
-    '5': 0.7,
-    '6': 0.7,
-    '7': 0.7,
-    '8': 0.7,
-    '9': 0.7,
-    // Medium characters - increased
-    E: 0.8,
-    F: 0.75,
-    I: 0.4,
-    J: 0.65,
-    K: 0.8,
-    L: 0.7,
-    P: 0.8,
-    S: 0.8,
-    T: 0.75,
-    f: 0.4,
-    i: 0.35,
-    j: 0.35,
-    k: 0.65,
-    l: 0.35,
-    s: 0.65,
-    t: 0.4,
-    // Special characters - increased
-    ' ': 0.4,
-    '.': 0.4,
-    ',': 0.4,
-    ':': 0.4,
-    ';': 0.4,
-    '!': 0.4,
-    '?': 0.7,
-    '&': 0.8,
-    "'": 0.3,
-    '"': 0.5,
-    '-': 0.45,
-    _: 0.7,
-    '(': 0.45,
-    ')': 0.45,
-    '[': 0.4,
-    ']': 0.4,
-    '{': 0.45,
-    '}': 0.45,
-    '|': 0.35,
-    '/': 0.4,
-    '\\': 0.4,
-    '@': 1.2,
-    '#': 0.7,
-    $: 0.7,
-    '%': 1.0,
-    '^': 0.6,
-    '*': 0.5,
-    '+': 0.7,
-    '=': 0.7,
-    '<': 0.7,
-    '>': 0.7,
-  };
+// Cache for text width measurements to avoid re-measuring
+const textWidthCache = new Map<string, number>();
+const MAX_TEXT_CACHE_SIZE = 1000;
 
+/**
+ * Clear text width cache if it gets too large
+ */
+function maintainTextWidthCacheSize(): void {
+  if (textWidthCache.size > MAX_TEXT_CACHE_SIZE) {
+    // Remove oldest entries (first half)
+    const keysToDelete = Array.from(textWidthCache.keys()).slice(
+      0,
+      Math.floor(textWidthCache.size / 2)
+    );
+    keysToDelete.forEach((key) => textWidthCache.delete(key));
+    logger.debug(`Cleared ${keysToDelete.length} items from text width cache`);
+  }
+}
+
+/**
+ * Get accurate text width using Node.js Canvas API
+ * Falls back to estimation if Canvas measurement fails
+ */
+function getTextWidth(
+  text: string,
+  fontSize: number,
+  fontFamily = 'Arial',
+  fontWeight = 'normal'
+): number {
+  // Create cache key
+  const cacheKey = `${text}|${fontSize}|${fontFamily}|${fontWeight}`;
+
+  // Check cache first
+  if (textWidthCache.has(cacheKey)) {
+    const cachedValue = textWidthCache.get(cacheKey);
+    if (cachedValue !== undefined) {
+      return cachedValue;
+    }
+  }
+
+  // Check if canvas module is available
+  if (canvasModule && canvasModule.createCanvas) {
+    try {
+      // Use Canvas for accurate measurement
+      const canvas = canvasModule.createCanvas(1, 1); // Small canvas just for text measurement
+      const ctx = canvas.getContext('2d');
+
+      // Set font properties - quote font family if it contains spaces (same as SVG)
+      const quotedFontFamily = fontFamily.includes(' ')
+        ? `'${fontFamily}'`
+        : fontFamily;
+      const fontStyle = `${fontWeight} ${fontSize}px ${quotedFontFamily}`;
+      ctx.font = fontStyle;
+
+      // Measure text width
+      const metrics = ctx.measureText(text);
+      const measuredWidth = metrics.width;
+
+      // Add 5% safety margin for accurate measurement
+      const finalWidth = measuredWidth * 1.05;
+
+      // Cache the result
+      textWidthCache.set(cacheKey, finalWidth);
+      maintainTextWidthCacheSize();
+
+      logger.debug(
+        `Measured text width: "${text}" with font "${fontStyle}" = ${finalWidth}px`
+      );
+      return finalWidth;
+    } catch (error) {
+      // Fallback to estimation if Canvas measurement fails
+      logger.warn(
+        `Canvas text measurement failed, falling back to estimation:`,
+        error
+      );
+      return getEstimatedTextWidth(text, fontSize);
+    }
+  } else {
+    // Canvas not available, use estimation
+    logger.debug(
+      `Canvas module not available, using text width estimation for: "${text}"`
+    );
+    return getEstimatedTextWidth(text, fontSize);
+  }
+}
+
+/**
+ * Get actual font metrics for precise vertical positioning
+ */
+function getFontMetrics(
+  fontSize: number,
+  fontFamily = 'Arial',
+  fontWeight = 'normal'
+): { ascent: number; descent: number; height: number } {
+  // Check if canvas module is available
+  if (canvasModule && canvasModule.createCanvas) {
+    try {
+      // Use Canvas for accurate font measurement
+      const canvas = canvasModule.createCanvas(1, 1); // Small canvas just for font measurement
+      const ctx = canvas.getContext('2d');
+
+      // Set font properties - quote font family if it contains spaces (same as SVG)
+      const quotedFontFamily = fontFamily.includes(' ')
+        ? `'${fontFamily}'`
+        : fontFamily;
+      const fontStyle = `${fontWeight} ${fontSize}px ${quotedFontFamily}`;
+      ctx.font = fontStyle;
+
+      // Measure a representative character to get font metrics
+      const metrics = ctx.measureText('Àj'); // Character with ascender and descender
+
+      // Extract font metrics from TextMetrics (Node Canvas supports these)
+      if (metrics.fontBoundingBoxAscent && metrics.fontBoundingBoxDescent) {
+        return {
+          ascent: metrics.fontBoundingBoxAscent,
+          descent: metrics.fontBoundingBoxDescent,
+          height:
+            metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent,
+        };
+      }
+
+      // Fallback: estimate from font size for older canvas implementations
+      return {
+        ascent: fontSize * 0.8, // Typical ascender ratio
+        descent: fontSize * 0.2, // Typical descender ratio
+        height: fontSize,
+      };
+    } catch (error) {
+      // Fallback to estimation if Canvas measurement fails
+      logger.warn(
+        `Canvas font metrics measurement failed, falling back to estimation:`,
+        error
+      );
+    }
+  }
+
+  // Final fallback: estimate from font size
+  return {
+    ascent: fontSize * 0.8,
+    descent: fontSize * 0.2,
+    height: fontSize,
+  };
+}
+
+/**
+ * Fallback text width estimation for when Canvas measurement is unavailable
+ */
+function getEstimatedTextWidth(text: string, fontSize: number): number {
+  // Conservative character width estimation that works across different fonts
   let totalWidth = 0;
+
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
-    const charWidth = charWidths[char] || 0.7; // More generous default for unknown characters
+    let charWidth = 0.6; // Conservative default
+
+    // Simplified character width categories for cross-font compatibility
+    if (char === ' ') {
+      charWidth = 0.3; // Space
+    } else if (/[.,;:!]/.test(char)) {
+      charWidth = 0.3; // Punctuation
+    } else if (/['""`]/.test(char)) {
+      charWidth = 0.25; // Quotes
+    } else if (/[il1|]/.test(char)) {
+      charWidth = 0.3; // Narrow characters
+    } else if (/[fjtI]/.test(char)) {
+      charWidth = 0.4; // Semi-narrow characters
+    } else if (/[MW@]/.test(char)) {
+      charWidth = 0.9; // Wide characters
+    } else if (/[mw]/.test(char)) {
+      charWidth = 0.8; // Medium-wide lowercase
+    } else if (/[ABCDEFGHIJKLNOPQRSTUVXYZ]/.test(char)) {
+      charWidth = 0.7; // Regular uppercase
+    } else if (/[abcdefghknopqrsuvxyz]/.test(char)) {
+      charWidth = 0.6; // Regular lowercase
+    } else if (/[0-9]/.test(char)) {
+      charWidth = 0.6; // Numbers (most fonts use tabular figures)
+    } else {
+      charWidth = 0.65; // Everything else (symbols, etc.)
+    }
+
     totalWidth += charWidth * fontSize;
   }
 
-  // Add 10% safety margin to prevent clipping
-  return totalWidth * 1.1;
+  // Add 25% safety margin to account for font differences and prevent clipping
+  return totalWidth * 1.25;
 }
 
 /**
@@ -474,7 +668,9 @@ function getTextWidth(text: string, fontSize: number): number {
 function wrapTextKeepWords(
   text: string,
   maxWidth: number,
-  fontSize: number
+  fontSize: number,
+  fontFamily = 'Arial',
+  fontWeight = 'normal'
 ): string[] {
   const words = text.split(' ');
   const lines: string[] = [];
@@ -482,7 +678,7 @@ function wrapTextKeepWords(
 
   for (const word of words) {
     const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const lineWidth = getTextWidth(testLine, fontSize);
+    const lineWidth = getTextWidth(testLine, fontSize, fontFamily, fontWeight);
 
     if (lineWidth <= maxWidth) {
       currentLine = testLine;
@@ -531,7 +727,13 @@ function createTemplateWrappedText(
 
   // Iteratively reduce font size until text fits within height bounds
   do {
-    lines = wrapTextKeepWords(text, width, currentFontSize);
+    lines = wrapTextKeepWords(
+      text,
+      width,
+      currentFontSize,
+      fontFamily,
+      fontWeight
+    );
     limitedLines = lines.slice(0, maxLines);
     lineHeight = currentFontSize * 1.1;
     totalTextHeight = limitedLines.length * lineHeight;
@@ -550,8 +752,16 @@ function createTemplateWrappedText(
     }
   } while (totalTextHeight > height);
 
-  // Calculate vertical centering - center the text block within the available height
-  const textBlockStartY = y + (height - totalTextHeight) / 2 + currentFontSize;
+  // Calculate precise visual centering using actual font metrics
+  const fontMetrics = getFontMetrics(currentFontSize, fontFamily, fontWeight);
+
+  // Calculate the actual visual height of all text lines using font metrics
+  const totalVisualHeight =
+    (limitedLines.length - 1) * lineHeight + fontMetrics.height;
+
+  // Center the visual text content within the available height
+  const visualCenterY = y + (height - totalVisualHeight) / 2;
+  const textBlockStartY = visualCenterY; // Position at top edge (text-before-edge matches Fabric.js originY: 'top')
 
   let textAnchor = 'start';
   let textX = x;
@@ -568,11 +778,14 @@ function createTemplateWrappedText(
       const lineY = textBlockStartY + index * lineHeight;
       return `
         <text x="${textX}" y="${lineY}"
-              font-family="${fontFamily}"
+              font-family="${
+                fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily
+              }"
               font-size="${currentFontSize}"
               font-weight="${fontWeight}"
               font-style="${fontStyle}"
               text-anchor="${textAnchor}"
+              dominant-baseline="text-before-edge"
               fill="${color}"
               filter="url(#textShadow)">
           ${escapeXml(line)}
@@ -748,8 +961,10 @@ async function generateTemplateTextElements(
       element.type === 'collection-title' ? collectionName : element.text || '';
 
     // Handle text wrapping based on element dimensions
+    // Use line height (fontSize * 1.1) for accurate calculation to match createTemplateWrappedText
+    const lineHeight = element.fontSize * 1.1;
     const maxLines =
-      element.maxLines || Math.floor(element.height / element.fontSize);
+      element.maxLines || Math.floor(element.height / lineHeight);
     const wrappedText = createTemplateWrappedText(
       text,
       element.x,
@@ -766,65 +981,6 @@ async function generateTemplateTextElements(
     );
 
     elements.push(wrappedText);
-  }
-
-  return elements.join('');
-}
-
-/**
- * Generate icon elements from template data
- */
-async function generateTemplateIconElements(
-  iconElements: {
-    id: string;
-    type: 'source-logo' | 'custom-icon';
-    iconPath?: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    grayscale: boolean;
-  }[],
-  collectionType?: string,
-  dynamicLogo?: string
-): Promise<string> {
-  const elements: string[] = [];
-
-  for (const element of iconElements) {
-    if (element.type === 'source-logo' && collectionType) {
-      // Priority: Local assets first, then dynamic logo as fallback
-      let logoSvg = await loadServiceLogo(collectionType);
-
-      // If no local asset found and we have a dynamic logo, use that
-      if (!logoSvg && dynamicLogo) {
-        logoSvg = await loadDynamicLogo(dynamicLogo);
-      }
-
-      if (logoSvg) {
-        const logoContent = embedTemplateServiceLogo(
-          logoSvg,
-          element.x,
-          element.y,
-          element.width,
-          element.height,
-          element.grayscale
-        );
-        elements.push(`<g filter="url(#iconShadow)">${logoContent}</g>`);
-      } else {
-        // Fallback placeholder
-        const placeholder = createTemplateLogoPlaceholder(
-          collectionType,
-          element.x + element.width / 2,
-          element.y + element.height / 2,
-          element.width,
-          element.height
-        );
-        elements.push(`<g filter="url(#iconShadow)">${placeholder}</g>`);
-      }
-    } else if (element.type === 'custom-icon' && element.iconPath) {
-      // Handle custom icons (future feature)
-      // For now, skip custom icons
-    }
   }
 
   return elements.join('');
@@ -932,7 +1088,475 @@ async function generateTemplateContentGrid(
 }
 
 /**
- * Generate SVG poster content with new layout
+ * Embed a raster icon (PNG/JPG) in SVG format
+ */
+async function embedRasterIconInSVG(
+  iconPath: string,
+  element: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    cornerRadius?: number;
+  }
+): Promise<string | null> {
+  try {
+    const { loadIconFile } = await import('./iconManager');
+
+    const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
+    if (!urlMatch) {
+      logger.warn(`Icon path does not match expected format: ${iconPath}`);
+      return null;
+    }
+
+    const [, iconType, filename] = urlMatch;
+
+    // Only process non-SVG files in this function
+    if (filename.toLowerCase().endsWith('.svg')) {
+      return null;
+    }
+
+    const buffer = await loadIconFile(filename, iconType as 'user' | 'system');
+
+    // Check if image has alpha channel (transparency)
+    const image = sharp(buffer);
+    const metadata = await image.metadata();
+    const hasAlpha =
+      metadata.channels === 4 ||
+      (metadata.channels === 2 && metadata.format === 'png');
+
+    let processedBuffer: Buffer;
+    let mimeType: string;
+
+    if (hasAlpha || metadata.format === 'png') {
+      // Preserve transparency by using PNG format
+      processedBuffer = await image
+        .png({ quality: 90, compressionLevel: 6 })
+        .resize(Math.round(element.width), Math.round(element.height), {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .toBuffer();
+      mimeType = 'image/png';
+    } else {
+      // Use JPEG for images without transparency
+      processedBuffer = await image
+        .jpeg({ quality: 85 })
+        .resize(Math.round(element.width), Math.round(element.height), {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .toBuffer();
+      mimeType = 'image/jpeg';
+    }
+
+    const base64 = processedBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    const result = `
+      <image
+        x="${element.x}"
+        y="${element.y}"
+        width="${element.width}"
+        height="${element.height}"
+        xlink:href="${dataUrl}"
+        preserveAspectRatio="xMidYMid meet"
+        ${
+          element.cornerRadius
+            ? `rx="${element.cornerRadius}" ry="${element.cornerRadius}"`
+            : ''
+        }
+      />
+    `;
+
+    return result;
+  } catch (error) {
+    logger.error(`Failed to embed raster icon ${iconPath}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Embed an SVG icon in SVG format
+ */
+async function embedSVGIconInSVG(
+  iconPath: string,
+  element: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }
+): Promise<string | null> {
+  try {
+    const { loadIconFile } = await import('./iconManager');
+
+    const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
+    if (!urlMatch) {
+      logger.warn(`SVG icon path does not match expected format: ${iconPath}`);
+      return null;
+    }
+
+    const [, iconType, filename] = urlMatch;
+
+    // Only process SVG files in this function
+    if (!filename.toLowerCase().endsWith('.svg')) {
+      return null;
+    }
+
+    const buffer = await loadIconFile(filename, iconType as 'user' | 'system');
+    const svgContent = buffer.toString('utf-8');
+
+    // Extract actual SVG dimensions and viewBox from the SVG
+    let svgWidth = 100; // fallback
+    let svgHeight = 100; // fallback
+    let viewBoxMinX = 0;
+    let viewBoxMinY = 0;
+
+    // Try to get dimensions from viewBox first (most reliable)
+    const viewBoxMatch = svgContent.match(/viewBox=["']([^"']+)["']/i);
+    if (viewBoxMatch) {
+      const viewBoxValues = viewBoxMatch[1].split(/[\s,]+/);
+      if (viewBoxValues.length >= 4) {
+        viewBoxMinX = parseFloat(viewBoxValues[0]);
+        viewBoxMinY = parseFloat(viewBoxValues[1]);
+        svgWidth = parseFloat(viewBoxValues[2]);
+        svgHeight = parseFloat(viewBoxValues[3]);
+      }
+    } else {
+      // Fallback to width/height attributes
+      const widthMatch = svgContent.match(/width=["']?([^"'\s>]+)/i);
+      const heightMatch = svgContent.match(/height=["']?([^"'\s>]+)/i);
+      if (widthMatch) svgWidth = parseFloat(widthMatch[1]);
+      if (heightMatch) svgHeight = parseFloat(heightMatch[1]);
+    }
+
+    // Calculate scale to fit the element dimensions while maintaining aspect ratio
+    const scaleX = element.width / svgWidth;
+    const scaleY = element.height / svgHeight;
+    const scale = Math.min(scaleX, scaleY); // Use minimum to ensure it fits within bounds
+
+    // Calculate final dimensions and centering offset
+    const scaledWidth = svgWidth * scale;
+    const scaledHeight = svgHeight * scale;
+    const offsetX = (element.width - scaledWidth) / 2;
+    const offsetY = (element.height - scaledHeight) / 2;
+
+    // Extract the inner content (remove outer <svg> tag)
+    const svgMatch = svgContent.match(/<svg[^>]*>(.*)<\/svg>/s);
+    const innerSvg = svgMatch ? svgMatch[1] : svgContent;
+
+    // Clean the SVG content by removing XML declaration, comments, and DOCTYPE
+    const cleanInnerSvg = innerSvg
+      .replace(/<\?xml[^>]*\?>/gi, '') // Remove XML declaration
+      .replace(/<!--[\s\S]*?-->/gi, '') // Remove comments
+      .replace(/<!DOCTYPE[^>]*>/gi, '') // Remove DOCTYPE
+      .trim();
+
+    // Build transform: translate to position, scale, then translate viewBox offset
+    // This ensures the SVG's coordinate system is properly aligned
+    const result = `
+      <g transform="translate(${element.x + offsetX}, ${
+      element.y + offsetY
+    }) scale(${scale}) translate(${-viewBoxMinX}, ${-viewBoxMinY})">
+        ${cleanInnerSvg}
+      </g>
+    `;
+
+    return result;
+  } catch (error) {
+    logger.error(`Failed to embed SVG icon ${iconPath}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Generate raster elements from the new separated data structure
+ */
+async function generateRasterElements(
+  rasterElements: {
+    id: string;
+    type: 'raster-image';
+    imagePath: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }[]
+): Promise<string> {
+  const elements: string[] = [];
+
+  for (const element of rasterElements) {
+    try {
+      const iconContent = await embedRasterIconInSVG(
+        element.imagePath,
+        element
+      );
+      if (iconContent) {
+        const wrappedContent = `<g filter="url(#iconShadow)">${iconContent}</g>`;
+        elements.push(wrappedContent);
+      } else {
+        logger.warn(
+          `Failed to embed raster icon for element ${element.id}: ${element.imagePath}`
+        );
+      }
+    } catch (error) {
+      logger.warn(`Failed to embed raster image ${element.imagePath}:`, error);
+    }
+  }
+
+  return elements.join('');
+}
+
+/**
+ * Generate SVG elements from the new separated data structure
+ */
+async function generateSVGElements(
+  svgElements: {
+    id: string;
+    type: 'source-logo' | 'svg-icon' | 'custom-icon';
+    iconPath?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    grayscale: boolean;
+  }[],
+  collectionType?: string,
+  dynamicLogo?: string
+): Promise<string> {
+  const elements: string[] = [];
+
+  for (const element of svgElements) {
+    if (element.type === 'source-logo' && collectionType) {
+      // Priority: Local SVG service logo first, then dynamic logo as fallback
+      let logoSvg = await loadServiceLogo(collectionType);
+
+      // If no local SVG found and we have a dynamic logo, use that
+      if (!logoSvg && dynamicLogo) {
+        logoSvg = await loadDynamicLogo(dynamicLogo);
+      }
+
+      if (logoSvg) {
+        const logoContent = embedTemplateServiceLogo(
+          logoSvg,
+          element.x,
+          element.y,
+          element.width,
+          element.height,
+          element.grayscale
+        );
+        elements.push(`<g filter="url(#iconShadow)">${logoContent}</g>`);
+      } else {
+        // Placeholder if no logo found
+        const placeholder = createTemplateLogoPlaceholder(
+          collectionType,
+          element.x + element.width / 2,
+          element.y + element.height / 2,
+          element.width,
+          element.height
+        );
+        elements.push(`<g filter="url(#iconShadow)">${placeholder}</g>`);
+      }
+    } else if (
+      (element.type === 'svg-icon' || element.type === 'custom-icon') &&
+      element.iconPath
+    ) {
+      // Handle custom SVG icons
+      try {
+        const iconContent = await embedSVGIconInSVG(element.iconPath, element);
+        if (iconContent) {
+          const wrappedContent = `<g filter="url(#iconShadow)">${iconContent}</g>`;
+          elements.push(wrappedContent);
+        }
+      } catch (error) {
+        logger.warn(`Failed to embed SVG icon ${element.iconPath}:`, error);
+      }
+    }
+  }
+
+  return elements.join('');
+}
+
+/**
+ * Generate unified layered elements from the new layering system
+ */
+async function generateUnifiedLayeredElements(
+  elements: LayeredElement[],
+  collectionName: string,
+  collectionType?: string,
+  dynamicLogo?: string,
+  itemsWithPosters: CollectionItemWithPoster[] = []
+): Promise<string> {
+  // Sort elements by layer order to ensure proper rendering sequence
+  const sortedElements = [...elements].sort(
+    (a, b) => a.layerOrder - b.layerOrder
+  );
+
+  const renderedElements: string[] = [];
+
+  for (const element of sortedElements) {
+    try {
+      let elementContent = '';
+
+      switch (element.type) {
+        case 'raster': {
+          const props = element.properties as RasterElementProps;
+          elementContent = await generateRasterElement(element, props);
+          break;
+        }
+        case 'svg': {
+          const props = element.properties as SVGElementProps;
+          elementContent = await generateSVGElement(
+            element,
+            props,
+            collectionType,
+            dynamicLogo
+          );
+          break;
+        }
+        case 'text': {
+          const props = element.properties as TextElementProps;
+          elementContent = await generateTextElement(
+            element,
+            props,
+            collectionName
+          );
+          break;
+        }
+        case 'content-grid': {
+          const props = element.properties as ContentGridProps;
+          elementContent = await generateContentGridElement(
+            element,
+            props,
+            itemsWithPosters
+          );
+          break;
+        }
+      }
+
+      if (elementContent) {
+        renderedElements.push(elementContent);
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to render element ${element.id} of type ${element.type}:`,
+        error
+      );
+    }
+  }
+
+  return renderedElements.join('');
+}
+
+/**
+ * Generate raster element content
+ */
+async function generateRasterElement(
+  element: LayeredElement,
+  props: RasterElementProps
+): Promise<string> {
+  if (!props.imagePath) {
+    return '';
+  }
+
+  return await generateRasterElements([
+    {
+      id: element.id,
+      type: 'raster-image',
+      imagePath: props.imagePath,
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+    },
+  ]);
+}
+
+/**
+ * Generate SVG element content
+ */
+async function generateSVGElement(
+  element: LayeredElement,
+  props: SVGElementProps,
+  collectionType?: string,
+  dynamicLogo?: string
+): Promise<string> {
+  return await generateSVGElements(
+    [
+      {
+        id: element.id,
+        type: props.iconType,
+        iconPath: props.iconPath,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        grayscale: props.grayscale,
+      },
+    ],
+    collectionType,
+    dynamicLogo
+  );
+}
+
+/**
+ * Generate text element content
+ */
+async function generateTextElement(
+  element: LayeredElement,
+  props: TextElementProps,
+  collectionName: string
+): Promise<string> {
+  return await generateTemplateTextElements(
+    [
+      {
+        id: element.id,
+        type: props.elementType,
+        text: props.text,
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        fontSize: props.fontSize,
+        fontFamily: props.fontFamily,
+        fontWeight: props.fontWeight,
+        fontStyle: props.fontStyle,
+        color: props.color,
+        textAlign: props.textAlign,
+        maxLines: props.maxLines,
+      },
+    ],
+    collectionName
+  );
+}
+
+/**
+ * Generate content grid element content
+ */
+async function generateContentGridElement(
+  element: LayeredElement,
+  props: ContentGridProps,
+  itemsWithPosters: CollectionItemWithPoster[]
+): Promise<string> {
+  return await generateTemplateContentGrid(
+    {
+      id: element.id,
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height,
+      columns: props.columns,
+      rows: props.rows,
+      spacing: props.spacing,
+      cornerRadius: props.cornerRadius,
+    },
+    itemsWithPosters
+  );
+}
+
+/**
+ * Generate SVG poster content with new unified layering system or legacy layout
  */
 export async function generatePosterSVG(
   config: PosterGenerationConfig
@@ -949,13 +1573,32 @@ export async function generatePosterSVG(
 
   // Fetch and prepare collection items for content grid
 
-  // Fetch poster URLs if items are provided
+  // Fetch poster URLs if items are provided and there's a content grid
   let itemsWithPosters: CollectionItemWithPoster[] = [];
-  if (items.length > 0 && templateData.contentGrid) {
+  let hasContentGrid = false;
+
+  // Check for content grid in unified elements
+  if (templateData.elements) {
+    hasContentGrid = templateData.elements.some(
+      (el) => el.type === 'content-grid'
+    );
+  }
+
+  if (items.length > 0 && hasContentGrid) {
     try {
-      // Limit items to what the grid can display
-      const maxItems =
-        templateData.contentGrid.columns * templateData.contentGrid.rows;
+      // Find grid config to determine max items
+      let maxItems = 12; // Default fallback
+
+      if (templateData.elements) {
+        const gridElement = templateData.elements.find(
+          (el) => el.type === 'content-grid'
+        );
+        if (gridElement) {
+          const gridProps = gridElement.properties as ContentGridProps;
+          maxItems = gridProps.columns * gridProps.rows;
+        }
+      }
+
       itemsWithPosters = await fetchTMDbPosterUrls(items.slice(0, maxItems));
 
       // Download and convert images to base64 for embedding
@@ -984,26 +1627,27 @@ export async function generatePosterSVG(
     colorScheme
   );
 
-  // Generate text elements from template data
-  const textElements = await generateTemplateTextElements(
-    templateData.textElements,
-    collectionName
-  );
+  // Auto-migrate templates to unified system and use unified layering system
+  const migratedTemplateData =
+    templateData.migrated && templateData.elements
+      ? templateData
+      : templateData; // Auto-migration happens in PosterTemplate.getTemplateData()
 
-  // Generate icon elements from template data
-  const iconElements = await generateTemplateIconElements(
-    templateData.iconElements,
+  // Force all templates to use unified layering system
+  if (!migratedTemplateData.elements) {
+    throw new Error(
+      'Template data must have unified elements array. Auto-migration should have occurred.'
+    );
+  }
+
+  logger.debug('Using unified layering system for rendering');
+  const elementsContent = await generateUnifiedLayeredElements(
+    migratedTemplateData.elements,
+    collectionName,
     collectionType,
-    config.dynamicLogo
+    config.dynamicLogo,
+    itemsWithPosters
   );
-
-  // Generate content grid from template data
-  const contentGridContent = templateData.contentGrid
-    ? await generateTemplateContentGrid(
-        templateData.contentGrid,
-        itemsWithPosters
-      )
-    : '';
 
   return `
     <svg width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -1020,17 +1664,11 @@ export async function generatePosterSVG(
         ${backgroundContent.defs}
       </defs>
 
-      <!-- Background -->
+      <!-- Layer 1: Background -->
       ${backgroundContent.background}
 
-      <!-- Text elements -->
-      ${textElements}
-
-      <!-- Icon elements -->
-      ${iconElements}
-
-      <!-- Content grid -->
-      ${contentGridContent}
+      <!-- Elements (unified or legacy layered) -->
+      ${elementsContent}
     </svg>
   `;
 }

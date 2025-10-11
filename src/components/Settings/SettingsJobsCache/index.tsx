@@ -47,6 +47,7 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
   unknownJob: 'Unknown Job',
   'plex-refresh-token': 'Plex Refresh Token',
   'plex-collections-sync': 'Plex Collections Sync',
+  'plex-randomize-home-order': 'Randomize Home Order',
   editJobSchedule: 'Modify Job',
   jobScheduleEditSaved: 'Job edited successfully!',
   jobScheduleEditFailed: 'Something went wrong while saving the job.',
@@ -392,16 +393,18 @@ const SettingsJobs = () => {
                             })
                           }
                         >
-                          {[5, 10, 15, 20, 30, 60].map((v) => (
-                            <option value={v} key={`jobScheduleMinutes-${v}`}>
-                              {intl.formatMessage(
-                                messages.editJobScheduleSelectorMinutes,
-                                {
-                                  jobScheduleMinutes: v,
-                                }
-                              )}
-                            </option>
-                          ))}
+                          {[5, 10, 15, 20, 30, 60, 120, 180, 240, 300, 360].map(
+                            (v) => (
+                              <option value={v} key={`jobScheduleMinutes-${v}`}>
+                                {intl.formatMessage(
+                                  messages.editJobScheduleSelectorMinutes,
+                                  {
+                                    jobScheduleMinutes: v,
+                                  }
+                                )}
+                              </option>
+                            )
+                          )}
                         </select>
                       ) : (
                         <select

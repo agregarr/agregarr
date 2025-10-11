@@ -11,8 +11,10 @@ import type {
 } from '@app/types/collections';
 import { CollectionType } from '@app/types/collections';
 import { prepareLinkedConfigForEditing } from '@app/utils/collections/collectionUtils';
+import { Menu, Transition } from '@headlessui/react';
 import {
   ArrowPathIcon,
+  ChevronDownIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   PlusIcon,
@@ -23,6 +25,7 @@ import type {
   PreExistingCollectionConfig,
 } from '@server/lib/settings';
 import axios from 'axios';
+import { useRouter } from 'next/router';
 // ID generation is now handled by the backend using sequential numbers
 import React, { useMemo, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
@@ -42,6 +45,7 @@ const CollectionSettings = ({
 }: CollectionSettingsProps) => {
   const intl = useIntl();
   const { addToast } = useToasts();
+  const router = useRouter();
   const { mutate: revalidate } = useSWR('/api/v1/settings/plex');
   const { data } = useSWR<PlexSettings>('/api/v1/settings/plex');
 
@@ -193,15 +197,9 @@ const CollectionSettings = ({
           sortOrderLibrary: preExistingConfig.sortOrderLibrary,
           isLibraryPromoted: preExistingConfig.isLibraryPromoted,
           visibilityConfig: preExistingConfig.visibilityConfig,
-          ...(preExistingConfig.isLinked !== undefined && {
-            isLinked: preExistingConfig.isLinked,
-          }),
-          ...(preExistingConfig.linkId !== undefined && {
-            linkId: preExistingConfig.linkId,
-          }),
-          ...(preExistingConfig.isUnlinked !== undefined && {
-            isUnlinked: preExistingConfig.isUnlinked,
-          }),
+          isLinked: preExistingConfig.isLinked,
+          linkId: preExistingConfig.linkId,
+          isUnlinked: preExistingConfig.isUnlinked,
           ...(preExistingConfig.timeRestriction && {
             timeRestriction: preExistingConfig.timeRestriction,
           }),
@@ -227,13 +225,9 @@ const CollectionSettings = ({
           sortOrderLibrary: hubConfig.sortOrderLibrary,
           isLibraryPromoted: hubConfig.isLibraryPromoted,
           visibilityConfig: hubConfig.visibilityConfig,
-          ...(hubConfig.isLinked !== undefined && {
-            isLinked: hubConfig.isLinked,
-          }),
-          ...(hubConfig.linkId !== undefined && { linkId: hubConfig.linkId }),
-          ...(hubConfig.isUnlinked !== undefined && {
-            isUnlinked: hubConfig.isUnlinked,
-          }),
+          isLinked: hubConfig.isLinked,
+          linkId: hubConfig.linkId,
+          isUnlinked: hubConfig.isUnlinked,
           ...(hubConfig.timeRestriction && {
             timeRestriction: hubConfig.timeRestriction,
           }),
@@ -285,12 +279,8 @@ const CollectionSettings = ({
           ...(collectionConfig.collectionRatingKey && {
             collectionRatingKey: collectionConfig.collectionRatingKey,
           }),
-          ...(collectionConfig.isLinked !== undefined && {
-            isLinked: collectionConfig.isLinked,
-          }),
-          ...(collectionConfig.linkId !== undefined && {
-            linkId: collectionConfig.linkId,
-          }),
+          isLinked: collectionConfig.isLinked,
+          linkId: collectionConfig.linkId,
           ...(collectionConfig.customDays !== undefined && {
             customDays: collectionConfig.customDays,
           }),
@@ -299,6 +289,39 @@ const CollectionSettings = ({
           }),
           ...(collectionConfig.downloadMode && {
             downloadMode: collectionConfig.downloadMode,
+          }),
+          ...(collectionConfig.directDownloadRadarrServerId !== undefined && {
+            directDownloadRadarrServerId:
+              collectionConfig.directDownloadRadarrServerId,
+          }),
+          ...(collectionConfig.directDownloadRadarrProfileId !== undefined && {
+            directDownloadRadarrProfileId:
+              collectionConfig.directDownloadRadarrProfileId,
+          }),
+          ...(collectionConfig.directDownloadRadarrRootFolder !== undefined && {
+            directDownloadRadarrRootFolder:
+              collectionConfig.directDownloadRadarrRootFolder,
+          }),
+          ...(collectionConfig.directDownloadSonarrServerId !== undefined && {
+            directDownloadSonarrServerId:
+              collectionConfig.directDownloadSonarrServerId,
+          }),
+          ...(collectionConfig.directDownloadSonarrProfileId !== undefined && {
+            directDownloadSonarrProfileId:
+              collectionConfig.directDownloadSonarrProfileId,
+          }),
+          ...(collectionConfig.directDownloadSonarrRootFolder !== undefined && {
+            directDownloadSonarrRootFolder:
+              collectionConfig.directDownloadSonarrRootFolder,
+          }),
+          ...(collectionConfig.isMultiSource !== undefined && {
+            isMultiSource: collectionConfig.isMultiSource,
+          }),
+          ...(collectionConfig.sources !== undefined && {
+            sources: collectionConfig.sources,
+          }),
+          ...(collectionConfig.combineMode !== undefined && {
+            combineMode: collectionConfig.combineMode,
           }),
           ...(collectionConfig.searchMissingMovies !== undefined && {
             searchMissingMovies: collectionConfig.searchMissingMovies,
@@ -324,6 +347,12 @@ const CollectionSettings = ({
           ...(collectionConfig.minimumYear !== undefined && {
             minimumYear: collectionConfig.minimumYear,
           }),
+          ...(collectionConfig.excludedGenres !== undefined && {
+            excludedGenres: collectionConfig.excludedGenres,
+          }),
+          ...(collectionConfig.excludedCountries !== undefined && {
+            excludedCountries: collectionConfig.excludedCountries,
+          }),
           ...(collectionConfig.traktCustomListUrl && {
             traktCustomListUrl: collectionConfig.traktCustomListUrl,
           }),
@@ -345,9 +374,7 @@ const CollectionSettings = ({
           ...(collectionConfig.collectionType && {
             collectionType: collectionConfig.collectionType,
           }),
-          ...(collectionConfig.isUnlinked !== undefined && {
-            isUnlinked: collectionConfig.isUnlinked,
-          }),
+          isUnlinked: collectionConfig.isUnlinked,
           ...(collectionConfig.hubIdentifier && {
             hubIdentifier: collectionConfig.hubIdentifier,
           }),
@@ -355,6 +382,21 @@ const CollectionSettings = ({
             customPoster: collectionConfig.customPoster,
           }),
           autoPoster: collectionConfig.autoPoster ?? true,
+          ...(collectionConfig.autoPosterTemplate !== undefined && {
+            autoPosterTemplate: collectionConfig.autoPosterTemplate,
+          }),
+          ...(collectionConfig.showUnwatchedOnly !== undefined && {
+            showUnwatchedOnly: collectionConfig.showUnwatchedOnly,
+          }),
+          ...(collectionConfig.smartCollectionSort !== undefined && {
+            smartCollectionSort: collectionConfig.smartCollectionSort,
+          }),
+          ...(collectionConfig.randomizeHomeOrder !== undefined && {
+            randomizeHomeOrder: collectionConfig.randomizeHomeOrder,
+          }),
+          ...(collectionConfig.customSyncSchedule && {
+            customSyncSchedule: collectionConfig.customSyncSchedule,
+          }),
           ...(collectionConfig.timeRestriction && {
             timeRestriction: collectionConfig.timeRestriction,
           }),
@@ -481,29 +523,70 @@ const CollectionSettings = ({
           tmdbCustomListUrl: config.tmdbCustomListUrl,
           imdbCustomListUrl: config.imdbCustomListUrl,
           letterboxdCustomListUrl: config.letterboxdCustomListUrl,
+          radarrInstanceId: config.radarrInstanceId,
+          radarrTagId: config.radarrTagId,
+          sonarrInstanceId: config.sonarrInstanceId,
+          sonarrTagId: config.sonarrTagId,
           reverseOrder: config.reverseOrder,
           randomizeOrder: config.randomizeOrder,
           timeRestriction: config.timeRestriction,
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
           autoPosterTemplate: config.autoPosterTemplate,
+          showUnwatchedOnly: config.showUnwatchedOnly,
+          smartCollectionSort: config.smartCollectionSort,
+          randomizeHomeOrder: config.randomizeHomeOrder,
+          customSyncSchedule: config.customSyncSchedule,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
           ...(config.downloadMode && { downloadMode: config.downloadMode }),
-          ...(config.isLinked !== undefined && { isLinked: config.isLinked }),
-          ...(config.linkId !== undefined && { linkId: config.linkId }),
-          ...(config.isUnlinked !== undefined && {
-            isUnlinked: config.isUnlinked,
+          ...(config.directDownloadRadarrServerId !== undefined && {
+            directDownloadRadarrServerId: config.directDownloadRadarrServerId,
           }),
+          ...(config.directDownloadRadarrProfileId !== undefined && {
+            directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
+          }),
+          ...(config.directDownloadRadarrRootFolder !== undefined && {
+            directDownloadRadarrRootFolder:
+              config.directDownloadRadarrRootFolder,
+          }),
+          ...(config.directDownloadSonarrServerId !== undefined && {
+            directDownloadSonarrServerId: config.directDownloadSonarrServerId,
+          }),
+          ...(config.directDownloadSonarrProfileId !== undefined && {
+            directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
+          }),
+          ...(config.directDownloadSonarrRootFolder !== undefined && {
+            directDownloadSonarrRootFolder:
+              config.directDownloadSonarrRootFolder,
+          }),
+          isLinked: config.isLinked,
+          linkId: config.linkId,
+          isUnlinked: config.isUnlinked,
           ...(config.maxPositionToProcess !== undefined && {
             maxPositionToProcess: config.maxPositionToProcess,
           }),
           ...(config.minimumYear !== undefined && {
             minimumYear: config.minimumYear,
           }),
+          ...(config.excludedGenres !== undefined && {
+            excludedGenres: config.excludedGenres,
+          }),
+          ...(config.excludedCountries !== undefined && {
+            excludedCountries: config.excludedCountries,
+          }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
           ...(config.libraryNames && { libraryNames: config.libraryNames }),
+          ...(config.isMultiSource !== undefined && {
+            isMultiSource: config.isMultiSource,
+          }),
+          ...(config.sources !== undefined && {
+            sources: config.sources,
+          }),
+          ...(config.combineMode !== undefined && {
+            combineMode: config.combineMode,
+          }),
         };
         await axios.put(
           `/api/v1/collections/${config.id}/settings`,
@@ -989,13 +1072,9 @@ const CollectionSettings = ({
         sortOrderLibrary: hubConfig.sortOrderLibrary,
         isLibraryPromoted: hubConfig.isLibraryPromoted,
         visibilityConfig: hubConfig.visibilityConfig,
-        ...(hubConfig.isLinked !== undefined && {
-          isLinked: hubConfig.isLinked,
-        }),
-        ...(hubConfig.linkId !== undefined && { linkId: hubConfig.linkId }),
-        ...(hubConfig.isUnlinked !== undefined && {
-          isUnlinked: hubConfig.isUnlinked,
-        }),
+        isLinked: hubConfig.isLinked,
+        linkId: hubConfig.linkId,
+        isUnlinked: hubConfig.isUnlinked,
         ...(hubConfig.timeRestriction && {
           timeRestriction: hubConfig.timeRestriction,
         }),
@@ -1036,15 +1115,9 @@ const CollectionSettings = ({
         sortOrderLibrary: preExistingConfig.sortOrderLibrary,
         isLibraryPromoted: preExistingConfig.isLibraryPromoted,
         visibilityConfig: preExistingConfig.visibilityConfig,
-        ...(preExistingConfig.isLinked !== undefined && {
-          isLinked: preExistingConfig.isLinked,
-        }),
-        ...(preExistingConfig.linkId !== undefined && {
-          linkId: preExistingConfig.linkId,
-        }),
-        ...(preExistingConfig.isUnlinked !== undefined && {
-          isUnlinked: preExistingConfig.isUnlinked,
-        }),
+        isLinked: preExistingConfig.isLinked,
+        linkId: preExistingConfig.linkId,
+        isUnlinked: preExistingConfig.isUnlinked,
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
@@ -1574,8 +1647,8 @@ const CollectionSettings = ({
           (h: PlexHubConfig) =>
             h.linkId === currentHub.linkId && // Same linkId group (established during discovery)
             h.id !== config.id &&
-            !h.isLinked && // Only link hubs that aren't already linked
-            !h.isUnlinked // Exclude unlinked hubs
+            !h.isLinked // Only link hubs that aren't already linked
+          // Note: We don't exclude isUnlinked hubs - those can be relinked!
         );
 
         if (eligibleHubs.length === 0) {
@@ -1609,7 +1682,7 @@ const CollectionSettings = ({
               ...updatedHubConfigs[hubIndex],
               isLinked: true,
               linkId: newLinkId,
-              isUnlinked: undefined, // Clear any unlinked flag
+              isUnlinked: false, // Clear any unlinked flag (use false instead of undefined so it survives JSON.stringify)
             };
           }
         });
@@ -1674,6 +1747,18 @@ const CollectionSettings = ({
               visibilityConfig: masterConfig.visibilityConfig,
               maxItems: masterConfig.maxItems,
               downloadMode: masterConfig.downloadMode,
+              directDownloadRadarrServerId:
+                masterConfig.directDownloadRadarrServerId,
+              directDownloadRadarrProfileId:
+                masterConfig.directDownloadRadarrProfileId,
+              directDownloadRadarrRootFolder:
+                masterConfig.directDownloadRadarrRootFolder,
+              directDownloadSonarrServerId:
+                masterConfig.directDownloadSonarrServerId,
+              directDownloadSonarrProfileId:
+                masterConfig.directDownloadSonarrProfileId,
+              directDownloadSonarrRootFolder:
+                masterConfig.directDownloadSonarrRootFolder,
               searchMissingMovies: masterConfig.searchMissingMovies,
               searchMissingTV: masterConfig.searchMissingTV,
               autoApproveMovies: masterConfig.autoApproveMovies,
@@ -1682,6 +1767,8 @@ const CollectionSettings = ({
               seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
               maxPositionToProcess: masterConfig.maxPositionToProcess,
               minimumYear: masterConfig.minimumYear,
+              excludedGenres: masterConfig.excludedGenres,
+              excludedCountries: masterConfig.excludedCountries,
               timeRestriction: masterConfig.timeRestriction,
               traktCustomListUrl: masterConfig.traktCustomListUrl,
               tmdbCustomListUrl: masterConfig.tmdbCustomListUrl,
@@ -1690,12 +1777,18 @@ const CollectionSettings = ({
               reverseOrder: masterConfig.reverseOrder,
               randomizeOrder: masterConfig.randomizeOrder,
               customPoster: masterConfig.customPoster,
+              showUnwatchedOnly: masterConfig.showUnwatchedOnly,
+              smartCollectionSort: masterConfig.smartCollectionSort,
+              randomizeHomeOrder: masterConfig.randomizeHomeOrder,
               mediaType: masterConfig.mediaType,
               customDays: masterConfig.customDays,
               tautulliStatType: masterConfig.tautulliStatType,
+              isMultiSource: masterConfig.isMultiSource,
+              sources: masterConfig.sources,
+              combineMode: masterConfig.combineMode,
               // Set link status
               isLinked: true,
-              isUnlinked: undefined, // Clear any unlinked flag
+              isUnlinked: false, // Clear any unlinked flag (use false instead of undefined so it survives JSON.stringify)
               // Preserve library-specific properties
               libraryId: updatedConfigs[configIndex].libraryId,
               libraryName: updatedConfigs[configIndex].libraryName,
@@ -2181,8 +2274,8 @@ const CollectionSettings = ({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex space-x-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button
             buttonType="primary"
             onClick={addCollectionConfig}
@@ -2249,21 +2342,65 @@ const CollectionSettings = ({
               onSyncStart={(refreshFn) => setRefreshSyncStatus(() => refreshFn)}
               onSyncComplete={revalidateAll}
             />
-            <Button
-              buttonType="primary"
-              onClick={syncCollections}
-              disabled={syncing || isFirstTimeUser}
-              className={`flex items-center space-x-2 ${
-                isFirstTimeUser
-                  ? 'pointer-events-none cursor-not-allowed opacity-30'
-                  : ''
-              }`}
-            >
-              <ArrowPathIcon
-                className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`}
-              />
-              <span>{syncing ? 'Syncing...' : 'Sync Collections'}</span>
-            </Button>
+            <div className="relative inline-block">
+              <div className="flex">
+                <Button
+                  buttonType="primary"
+                  onClick={syncCollections}
+                  disabled={syncing || isFirstTimeUser}
+                  className={`flex items-center space-x-2 rounded-r-none ${
+                    isFirstTimeUser
+                      ? 'pointer-events-none cursor-not-allowed opacity-30'
+                      : ''
+                  }`}
+                >
+                  <ArrowPathIcon
+                    className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`}
+                  />
+                  <span>{syncing ? 'Syncing...' : 'Sync Collections'}</span>
+                </Button>
+                <Menu as="div" className="relative inline-block">
+                  <Menu.Button
+                    disabled={syncing || isFirstTimeUser}
+                    className={`focus:ring-orange inline-flex h-full items-center rounded-r-md border-l border-orange-500 bg-orange-500 bg-opacity-80 px-2 text-white transition hover:bg-opacity-100 focus:border-orange-500 focus:outline-none focus:ring ${
+                      syncing || isFirstTimeUser
+                        ? 'cursor-not-allowed opacity-30'
+                        : ''
+                    }`}
+                  >
+                    <ChevronDownIcon className="h-4 w-4" aria-hidden="true" />
+                  </Menu.Button>
+                  <Transition
+                    as={React.Fragment}
+                    enter="transition ease-out duration-100"
+                    enterFrom="transform opacity-0 scale-95"
+                    enterTo="transform opacity-100 scale-100"
+                    leave="transition ease-in duration-75"
+                    leaveFrom="transform opacity-100 scale-100"
+                    leaveTo="transform opacity-0 scale-95"
+                  >
+                    <Menu.Items className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                      <div className="py-1">
+                        <Menu.Item>
+                          {({ active }) => (
+                            <button
+                              onClick={() => router.push('/settings/jobs')}
+                              className={`${
+                                active
+                                  ? 'bg-gray-700 text-white'
+                                  : 'text-gray-300'
+                              } block w-full px-4 py-2 text-left text-sm`}
+                            >
+                              Change Schedule
+                            </button>
+                          )}
+                        </Menu.Item>
+                      </div>
+                    </Menu.Items>
+                  </Transition>
+                </Menu>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -2567,6 +2704,10 @@ const CollectionSettings = ({
           onSave={saveHubConfig}
           onCancel={closeHubModal}
           libraries={libraries}
+          onUnlink={unlinkCollectionConfig}
+          onLink={linkCollectionConfig}
+          allCollectionConfigs={localCollectionConfigs}
+          allHubConfigs={localHubConfigs}
         />
       )}
 
@@ -2577,6 +2718,8 @@ const CollectionSettings = ({
           onSave={savePreExistingConfig}
           onCancel={closePreExistingModal}
           libraries={libraries}
+          allCollectionConfigs={localCollectionConfigs}
+          allHubConfigs={localHubConfigs}
         />
       )}
     </div>

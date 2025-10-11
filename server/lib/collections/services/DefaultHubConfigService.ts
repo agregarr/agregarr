@@ -136,7 +136,7 @@ export class DefaultHubConfigService {
       // Merge settings while preserving computed fields and library-specific fields
       const updatedConfig: PlexHubConfig = {
         ...configToUpdate, // Preserve all existing fields including computed ones
-        ...settings, // Apply user changes
+        ...settings, // Apply user changes (including undefined values to clear fields)
         // Ensure computed fields stay computed:
         id: configToUpdate.id, // ID never changes
         isActive: configToUpdate.isActive, // isActive is computed elsewhere
@@ -146,9 +146,7 @@ export class DefaultHubConfigService {
         libraryName: configToUpdate.libraryName, // Don't change the library name
         hubIdentifier: configToUpdate.hubIdentifier, // Don't change the hub identifier
         mediaType: configToUpdate.mediaType, // Don't change the media type
-        // Business logic fields can be changed by user:
-        isLinked: settings.isLinked ?? configToUpdate.isLinked,
-        linkId: settings.linkId ?? configToUpdate.linkId,
+        // Note: isLinked, linkId, isUnlinked come from settings spread above
       };
 
       // Update the config in place

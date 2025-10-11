@@ -1,5 +1,6 @@
 import type {
   MDBListSettings,
+  MyAnimeListSettings,
   OverseerrSettings,
   TautulliSettings,
   TraktSettings,
@@ -28,6 +29,7 @@ export function validateApiKeysForCollectionType(
     mdblist?: MDBListSettings;
     tautulli?: TautulliSettings;
     overseerr?: OverseerrSettings;
+    myanimelist?: MyAnimeListSettings;
   }
 ): ApiKeyValidationResult {
   const requirements: ApiKeyRequirement[] = [];
@@ -69,11 +71,30 @@ export function validateApiKeysForCollectionType(
       });
       break;
 
+    case 'originals':
+      requirements.push({
+        service: 'MDBList (Originals use MDBList lists)',
+        required: true,
+        configured: !!settings.mdblist?.apiKey,
+        settingsPath: '/settings/sources',
+      });
+      break;
+
+    case 'myanimelist':
+      requirements.push({
+        service: 'MyAnimeList',
+        required: true,
+        configured: !!settings.myanimelist?.apiKey,
+        settingsPath: '/settings/sources',
+      });
+      break;
+
     // These don't require API keys
     case 'imdb':
     case 'tmdb':
     case 'letterboxd':
     case 'networks':
+    case 'anilist':
     case 'multi-source':
     default:
       // No API key requirements
@@ -100,10 +121,13 @@ export function getServiceDisplayName(serviceType: string): string {
     mdblist: 'MDBList',
     tautulli: 'Tautulli',
     overseerr: 'Overseerr',
-    tmdb: 'TMDb',
+    tmdb: 'TMDB',
     imdb: 'IMDb',
     letterboxd: 'Letterboxd',
     networks: 'Networks',
+    originals: 'Originals',
+    anilist: 'AniList',
+    myanimelist: 'MyAnimeList',
   };
 
   return serviceNames[serviceType] || serviceType;

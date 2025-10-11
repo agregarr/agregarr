@@ -9,6 +9,7 @@ import type {
   FormConfigType,
   Library,
 } from '@app/types/collections';
+import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
   closestCenter,
   DndContext,
@@ -42,6 +43,7 @@ import type {
   PlexHubConfig,
   PreExistingCollectionConfig,
 } from '@server/lib/settings';
+import { ArrowsCrossingIcon } from '@sidekickicons/react/24/solid';
 import axios from 'axios';
 import React, { useEffect, useMemo, useState } from 'react';
 import { FormattedMessage } from 'react-intl';
@@ -416,6 +418,11 @@ const SortableItem = ({
         >
           {isDraggingDisabled ? (
             <LockClosedIcon className="h-4 w-4 text-gray-600" />
+          ) : config.randomizeHomeOrder ? (
+            <ArrowsCrossingIcon
+              className="h-5 w-5"
+              title="Position will be shuffled with other randomized collections during sync"
+            />
           ) : (
             <Bars3Icon className="h-5 w-5" />
           )}
@@ -580,6 +587,40 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'anilist':
+                        switch (subtype) {
+                          case 'trending':
+                            return 'Trending Anime';
+                          case 'popular':
+                            return 'Popular Anime';
+                          case 'top_rated':
+                            return 'Top Rated Anime';
+                          case 'custom':
+                            return 'Custom List';
+                          default:
+                            return subtype;
+                        }
+                      case 'myanimelist':
+                        switch (subtype) {
+                          case 'all':
+                            return 'Top Anime';
+                          case 'airing':
+                            return 'Top Airing Anime';
+                          case 'tv':
+                            return 'Top TV';
+                          case 'movie':
+                            return 'Top Movies';
+                          case 'ova':
+                            return 'Top OVA';
+                          case 'special':
+                            return 'Top Specials';
+                          case 'bypopularity':
+                            return 'Most Popular Anime';
+                          case 'favorite':
+                            return 'Most Favorited Anime';
+                          default:
+                            return subtype;
+                        }
                       case 'networks':
                         // Format platform names like "netflix_top_10" -> "Netflix"
                         // and "neon-tv" -> "Neon TV"
@@ -594,6 +635,21 @@ const SortableItem = ({
                             return word.charAt(0).toUpperCase() + word.slice(1);
                           })
                           .join(' ');
+                      case 'originals':
+                        // Format provider names like "netflix_originals" -> "Netflix"
+                        // and "apple_originals" -> "Apple TV+"
+                        return subtype
+                          .replace('_originals', '') // Remove "_originals" suffix
+                          .split('_')[0] // Take first part before underscore
+                          .split('-') // Split on dashes
+                          .map((word) => {
+                            // Special case for TV to maintain proper capitalization
+                            if (word.toLowerCase() === 'tv') {
+                              return 'TV+';
+                            }
+                            return word.charAt(0).toUpperCase() + word.slice(1);
+                          })
+                          .join(' ');
                       default:
                         return subtype;
                     }
@@ -603,19 +659,31 @@ const SortableItem = ({
                     collection.type === 'trakt'
                       ? 'Trakt'
                       : collection.type === 'tmdb'
-                      ? 'TMDb'
+                      ? 'TMDB'
                       : collection.type === 'imdb'
                       ? 'IMDb'
                       : collection.type === 'mdblist'
                       ? 'MDBList'
                       : collection.type === 'letterboxd'
                       ? 'Letterboxd'
+                      : collection.type === 'anilist'
+                      ? 'AniList'
+                      : collection.type === 'myanimelist'
+                      ? 'MyAnimeList'
                       : collection.type === 'tautulli'
                       ? 'Tautulli'
+                      : collection.type === 'radarrtag'
+                      ? 'Radarr Tag'
+                      : collection.type === 'sonarrtag'
+                      ? 'Sonarr Tag'
                       : collection.type === 'overseerr'
                       ? 'Overseerr'
                       : collection.type === 'networks'
                       ? 'Networks'
+                      : collection.type === 'originals'
+                      ? 'Originals'
+                      : collection.type === 'multi-source'
+                      ? 'Multi-Source'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(
@@ -677,12 +745,34 @@ const SortableItem = ({
                 Time Restrictions Set
               </Badge>
             )}
+
+            {/* Custom Sync Schedule Badge (only for Agregarr collections) */}
+            {isCollection &&
+              (() => {
+                const collection = config as CollectionFormConfig;
+                const syncBadgeText = formatSyncScheduleBadge(
+                  collection.customSyncSchedule
+                );
+                return syncBadgeText ? (
+                  <Badge badgeType="warning" className="!bg-opacity-40">
+                    {syncBadgeText}
+                  </Badge>
+                ) : null;
+              })()}
+
+            {/* Unwatched Badge (shows when showUnwatchedOnly is enabled) */}
+            {isCollection &&
+              (config as CollectionFormConfig).showUnwatchedOnly && (
+                <Badge badgeType="default" className="!bg-opacity-30">
+                  Unwatched
+                </Badge>
+              )}
           </div>
         </div>
       </div>
 
       {/* Actions - new ordered layout */}
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Missing indicator - shown when collection no longer exists in Plex */}
         {config.missing && (
           <div

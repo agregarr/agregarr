@@ -41,6 +41,16 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#1a1a2e',
     textColor: '#ffffff',
   },
+  anilist: {
+    primaryColor: '#02a9ff',
+    secondaryColor: '#0d1f2e',
+    textColor: '#ffffff',
+  },
+  myanimelist: {
+    primaryColor: '#2e51a2',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
   hub: {
     primaryColor: '#e5a00d',
     secondaryColor: '#1f1c15',
@@ -97,9 +107,29 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#0d1f16',
     textColor: '#ffffff',
   },
+  max: {
+    primaryColor: '#0024ff',
+    secondaryColor: '#0d1326',
+    textColor: '#ffffff',
+  },
+  discovery: {
+    primaryColor: '#005aff',
+    secondaryColor: '#0d1a2e',
+    textColor: '#ffffff',
+  },
   'multi-source': {
     primaryColor: '#e65100', // Agregarr orange/brand color
     secondaryColor: '#1c1917', // Matches UI bg-stone-900
+    textColor: '#ffffff',
+  },
+  radarrtag: {
+    primaryColor: '#ffc230', // Radarr yellow/gold
+    secondaryColor: '#1f1c0d',
+    textColor: '#ffffff',
+  },
+  sonarrtag: {
+    primaryColor: '#2c7fb8', // Sonarr blue
+    secondaryColor: '#0d1a2e',
     textColor: '#ffffff',
   },
   default: {

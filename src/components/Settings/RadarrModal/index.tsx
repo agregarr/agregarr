@@ -57,9 +57,13 @@ const messages = defineMessages({
   testFirstTags: 'Test connection to load tags',
   tags: 'Tags',
   enableSearch: 'Enable Automatic Search',
-  tagRequests: 'Tag Collections',
+  tagRequests: 'Automatic Tag Mode',
   tagRequestsInfo:
-    'Automatically add collection-based tags to downloads (e.g., "TrendingLast7DaysAgregarr")',
+    'Choose how Agregarr tags Radarr downloads (tags are created if they do not exist).',
+  tagModeOff: 'Do not add automatic tags',
+  tagModeSingle: 'Single tag (agregarr)',
+  tagModePerService: 'Per service tags (trakt-agregarr, tmdb-agregarr)',
+  tagModeGranular: 'Per collection tags (trakt-trending-agregarr)',
   validationApplicationUrl: 'You must provide a valid URL',
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   validationBaseUrlLeadingSlash: 'URL base must have a leading slash',
@@ -105,9 +109,9 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
     tags: [],
   });
   const RadarrSettingsSchema = Yup.object().shape({
-    // name: Yup.string().required( // Removed since name field is removed
-    //   intl.formatMessage(messages.validationNameRequired)
-    // ),
+    name: Yup.string().required(
+      intl.formatMessage(messages.validationNameRequired)
+    ),
     hostname: Yup.string()
       .required(intl.formatMessage(messages.validationHostnameRequired))
       .matches(
@@ -236,12 +240,13 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
           rootFolder: radarr?.activeDirectory,
           minimumAvailability: radarr?.minimumAvailability ?? 'released',
           tags: radarr?.tags ?? [],
-          // isDefault: radarr?.isDefault ?? false,
-          // is4k: radarr?.is4k ?? false,
+          isDefault: radarr?.isDefault ?? false,
           externalUrl: radarr?.externalUrl,
           // syncEnabled: radarr?.syncEnabled ?? false, // Removed field
           // enableSearch: !radarr?.preventSearch, // Removed field
-          tagRequests: radarr?.tagRequests ?? false,
+          tagRequestsMode:
+            radarr?.tagRequestsMode ??
+            (radarr?.tagRequests ? 'granular' : 'off'),
         }}
         validationSchema={RadarrSettingsSchema}
         onSubmit={async (values) => {
@@ -260,14 +265,15 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               activeProfileId: Number(values.activeProfileId),
               activeProfileName: profileName,
               activeDirectory: values.rootFolder,
-              // is4k: values.is4k,
               minimumAvailability: values.minimumAvailability,
               tags: values.tags,
-              isDefault: true, // Always default since no 4K option
+              isDefault: values.isDefault,
+              is4k: false,
               externalUrl: values.externalUrl,
               // syncEnabled: values.syncEnabled, // Removed field
               // preventSearch: !values.enableSearch, // Removed field
-              tagRequests: values.tagRequests,
+              tagRequests: values.tagRequestsMode !== 'off',
+              tagRequestsMode: values.tagRequestsMode,
             };
             if (!radarr) {
               await axios.post('/api/v1/settings/radarr', submission);
@@ -340,27 +346,30 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               }
             >
               <div className="mb-6">
-                {/* <div className="form-row">
+                <div className="form-row">
                   <label htmlFor="isDefault" className="checkbox-label">
-                    {intl.formatMessage(
-                      values.is4k
-                        ? messages.default4kserver
-                        : messages.defaultserver
-                    )}
+                    {intl.formatMessage(messages.defaultserver)}
                   </label>
                   <div className="form-input-area">
                     <Field type="checkbox" id="isDefault" name="isDefault" />
                   </div>
                 </div>
                 <div className="form-row">
-                  <label htmlFor="is4k" className="checkbox-label">
-                    {intl.formatMessage(messages.server4k)}
+                  <label htmlFor="name" className="text-label">
+                    {intl.formatMessage(messages.servername)}
+                    <span className="label-required">*</span>
                   </label>
                   <div className="form-input-area">
-                    <Field type="checkbox" id="is4k" name="is4k" />
+                    <div className="form-input-field">
+                      <Field id="name" name="name" type="text" />
+                    </div>
+                    {errors.name &&
+                      touched.name &&
+                      typeof errors.name === 'string' && (
+                        <div className="error">{errors.name}</div>
+                      )}
                   </div>
-                </div> */}
-                {/* Server name field removed */}
+                </div>
                 <div className="form-row">
                   <label htmlFor="hostname" className="text-label">
                     {intl.formatMessage(messages.hostname)}
@@ -666,18 +675,33 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
                 </div>
                 {/* syncEnabled and enableSearch fields removed */}
                 <div className="form-row">
-                  <label htmlFor="tagRequests" className="checkbox-label">
+                  <label htmlFor="tagRequestsMode" className="text-label">
                     {intl.formatMessage(messages.tagRequests)}
                     <span className="label-tip">
                       {intl.formatMessage(messages.tagRequestsInfo)}
                     </span>
                   </label>
                   <div className="form-input-area">
-                    <Field
-                      type="checkbox"
-                      id="tagRequests"
-                      name="tagRequests"
-                    />
+                    <div className="form-input-field">
+                      <Field
+                        as="select"
+                        id="tagRequestsMode"
+                        name="tagRequestsMode"
+                      >
+                        <option value="off">
+                          {intl.formatMessage(messages.tagModeOff)}
+                        </option>
+                        <option value="single">
+                          {intl.formatMessage(messages.tagModeSingle)}
+                        </option>
+                        <option value="per-service">
+                          {intl.formatMessage(messages.tagModePerService)}
+                        </option>
+                        <option value="granular">
+                          {intl.formatMessage(messages.tagModeGranular)}
+                        </option>
+                      </Field>
+                    </div>
                   </div>
                 </div>
               </div>
