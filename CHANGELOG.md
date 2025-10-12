@@ -1,3 +1,12 @@
+## [1.4.1](https://github.com/agregarr/agregarr/compare/v1.4.0...v1.4.1) (2025-10-12)
+
+
+### Bug Fixes
+
+* **anime:** aniList and MAL configs now update successfully ([a9f7ca2](https://github.com/agregarr/agregarr/commit/a9f7ca2a5d75cd319f27ec4408dbbaf566ec449f))
+* **api key validation:** source API keys/connections now correctly validate and throw proper errors ([a40b1d9](https://github.com/agregarr/agregarr/commit/a40b1d94771e77588d0a7ab64646b609ef85516e))
+* **config:** adding/removing a library from a config now correctly adds/removes the relevant config ([f5a65dd](https://github.com/agregarr/agregarr/commit/f5a65dde439a3590345467a267523e333f30609e)), closes [#80](https://github.com/agregarr/agregarr/issues/80)
+
 # [1.4.0](https://github.com/agregarr/agregarr/compare/v1.3.1...v1.4.0) (2025-10-11)
 
 
