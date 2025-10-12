@@ -179,9 +179,8 @@ class TraktAPI {
           limit,
         }
       );
-      throw new Error(
-        `[Trakt] Failed to fetch trending ${mediaType}: ${e.message}`
-      );
+      // Throw the original error to preserve response status for proper error handling
+      throw e;
     }
   }
 
@@ -527,17 +526,10 @@ class TraktAPI {
   }
 
   public async testConnection(): Promise<boolean> {
-    try {
-      // Test connection with a simple request to trending movies
-      await this.getTrending('movies', 1);
-      return true;
-    } catch (e) {
-      logger.error('Trakt API connection test failed', {
-        label: 'Trakt API',
-        errorMessage: e.message,
-      });
-      return false;
-    }
+    // Test connection with a simple request to trending movies
+    // Throw the original error to preserve response status for proper error handling
+    await this.getTrending('movies', 1);
+    return true;
   }
 }
 

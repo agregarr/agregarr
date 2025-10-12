@@ -235,9 +235,8 @@ class TautulliAPI {
         label: 'Tautulli API',
         errorMessage: e.message,
       });
-      throw new Error(
-        `[Tautulli] Failed to fetch Tautulli server info: ${e.message}`
-      );
+      // Throw the original error to preserve response status codes for proper error handling
+      throw e;
     }
   }
 

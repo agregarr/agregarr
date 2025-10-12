@@ -320,26 +320,25 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             } catch (e) {
               setTraktTestSuccess(false);
 
-              // Provide specific error details to help users diagnose connection issues
-              let errorMessage = intl.formatMessage(
-                messages.traktConnectionFailure
-              );
-              if (e.response?.status === 401) {
-                errorMessage +=
-                  ' - Invalid API key. Check your Trakt Client ID.';
-              } else if (e.response?.status) {
-                errorMessage += ` (HTTP ${e.response.status})`;
-              } else if (e.code === 'ECONNREFUSED') {
-                errorMessage +=
-                  ' - Connection refused. Check network connectivity.';
-              } else if (e.code === 'ENOTFOUND') {
-                errorMessage +=
-                  ' - Unable to reach Trakt API. Check network connectivity.';
-              } else if (e.code === 'ETIMEDOUT') {
-                errorMessage +=
-                  ' - Connection timeout. Check network connectivity.';
-              } else if (e.message) {
-                errorMessage += ` - ${e.message}`;
+              // Use server's detailed error message if available
+              let errorMessage =
+                e.response?.data?.message ||
+                intl.formatMessage(messages.traktConnectionFailure);
+
+              // If no server message, provide client-side diagnostics
+              if (!e.response?.data?.message) {
+                if (e.code === 'ECONNREFUSED') {
+                  errorMessage +=
+                    ' - Connection refused. Check network connectivity.';
+                } else if (e.code === 'ENOTFOUND') {
+                  errorMessage +=
+                    ' - Unable to reach Trakt API. Check network connectivity.';
+                } else if (e.code === 'ETIMEDOUT') {
+                  errorMessage +=
+                    ' - Connection timeout. Check network connectivity.';
+                } else if (e.message) {
+                  errorMessage += ` - ${e.message}`;
+                }
               }
 
               addToast(errorMessage, {
@@ -492,26 +491,25 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             } catch (e) {
               setMdblistTestSuccess(false);
 
-              // Provide specific error details to help users diagnose connection issues
-              let errorMessage = intl.formatMessage(
-                messages.mdblistConnectionFailure
-              );
-              if (e.response?.status === 401) {
-                errorMessage +=
-                  ' - Invalid API key. Check your MDBList API key.';
-              } else if (e.response?.status) {
-                errorMessage += ` (HTTP ${e.response.status})`;
-              } else if (e.code === 'ECONNREFUSED') {
-                errorMessage +=
-                  ' - Connection refused. Check network connectivity.';
-              } else if (e.code === 'ENOTFOUND') {
-                errorMessage +=
-                  ' - Unable to reach MDBList API. Check network connectivity.';
-              } else if (e.code === 'ETIMEDOUT') {
-                errorMessage +=
-                  ' - Connection timeout. Check network connectivity.';
-              } else if (e.message) {
-                errorMessage += ` - ${e.message}`;
+              // Use server's detailed error message if available
+              let errorMessage =
+                e.response?.data?.message ||
+                intl.formatMessage(messages.mdblistConnectionFailure);
+
+              // If no server message, provide client-side diagnostics
+              if (!e.response?.data?.message) {
+                if (e.code === 'ECONNREFUSED') {
+                  errorMessage +=
+                    ' - Connection refused. Check network connectivity.';
+                } else if (e.code === 'ENOTFOUND') {
+                  errorMessage +=
+                    ' - Unable to reach MDBList API. Check network connectivity.';
+                } else if (e.code === 'ETIMEDOUT') {
+                  errorMessage +=
+                    ' - Connection timeout. Check network connectivity.';
+                } else if (e.message) {
+                  errorMessage += ` - ${e.message}`;
+                }
               }
 
               addToast(errorMessage, {
@@ -677,9 +675,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
 
                 // Show success message for connection
                 addToast(
-                  `${intl.formatMessage(
-                    messages.overseerrConnectionSuccess
-                  )} (v${response.data.version || 'unknown'})`,
+                  intl.formatMessage(messages.overseerrConnectionSuccess),
                   {
                     autoDismiss: true,
                     appearance: 'success',
@@ -708,22 +704,24 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             } catch (e) {
               setOverseerrTestSuccess(false);
 
-              // Provide specific error details to help users diagnose connection issues
-              let errorMessage = intl.formatMessage(
-                messages.overseerrConnectionFailure
-              );
-              if (e.response?.status) {
-                errorMessage += ` (HTTP ${e.response.status})`;
-              } else if (e.code === 'ECONNREFUSED') {
-                errorMessage +=
-                  ' - Connection refused. Check hostname and port.';
-              } else if (e.code === 'ENOTFOUND') {
-                errorMessage += ' - Host not found. Check hostname.';
-              } else if (e.code === 'ETIMEDOUT') {
-                errorMessage +=
-                  ' - Connection timeout. Check network connectivity.';
-              } else if (e.message) {
-                errorMessage += ` - ${e.message}`;
+              // Use server's detailed error message if available
+              let errorMessage =
+                e.response?.data?.message ||
+                intl.formatMessage(messages.overseerrConnectionFailure);
+
+              // If no server message, provide client-side diagnostics
+              if (!e.response?.data?.message) {
+                if (e.code === 'ECONNREFUSED') {
+                  errorMessage +=
+                    ' - Connection refused. Check hostname and port.';
+                } else if (e.code === 'ENOTFOUND') {
+                  errorMessage += ' - Host not found. Check hostname.';
+                } else if (e.code === 'ETIMEDOUT') {
+                  errorMessage +=
+                    ' - Connection timeout. Check network connectivity.';
+                } else if (e.message) {
+                  errorMessage += ` - ${e.message}`;
+                }
               }
 
               addToast(errorMessage, {
@@ -992,24 +990,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
 
                 // Show success message for connection
                 addToast(
-                  `${intl.formatMessage(
-                    messages.tautulliConnectionSuccess
-                  )} (v${response.data.version || 'unknown'})`,
+                  intl.formatMessage(messages.tautulliConnectionSuccess),
                   {
                     autoDismiss: true,
                     appearance: 'success',
                   }
                 );
-
-                // Show version compatibility info if available
-                if (response.data.versionCheckMessage) {
-                  addToast(response.data.versionCheckMessage, {
-                    autoDismiss: true,
-                    appearance: response.data.versionCheckSuccess
-                      ? 'success'
-                      : 'warning',
-                  });
-                }
               } else {
                 setTautulliTestSuccess(false);
                 addToast(
@@ -1023,22 +1009,24 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             } catch (error) {
               setTautulliTestSuccess(false);
 
-              // Provide specific error details to help users diagnose connection issues
-              let errorMessage = intl.formatMessage(
-                messages.tautulliConnectionFailure
-              );
-              if (error.response?.status) {
-                errorMessage += ` (HTTP ${error.response.status})`;
-              } else if (error.code === 'ECONNREFUSED') {
-                errorMessage +=
-                  ' - Connection refused. Check hostname and port.';
-              } else if (error.code === 'ENOTFOUND') {
-                errorMessage += ' - Host not found. Check hostname.';
-              } else if (error.code === 'ETIMEDOUT') {
-                errorMessage +=
-                  ' - Connection timeout. Check network connectivity.';
-              } else if (error.message) {
-                errorMessage += ` - ${error.message}`;
+              // Use server's detailed error message if available
+              let errorMessage =
+                error.response?.data?.message ||
+                intl.formatMessage(messages.tautulliConnectionFailure);
+
+              // If no server message, provide client-side diagnostics
+              if (!error.response?.data?.message) {
+                if (error.code === 'ECONNREFUSED') {
+                  errorMessage +=
+                    ' - Connection refused. Check hostname and port.';
+                } else if (error.code === 'ENOTFOUND') {
+                  errorMessage += ' - Host not found. Check hostname.';
+                } else if (error.code === 'ETIMEDOUT') {
+                  errorMessage +=
+                    ' - Connection timeout. Check network connectivity.';
+                } else if (error.message) {
+                  errorMessage += ` - ${error.message}`;
+                }
               }
 
               addToast(errorMessage, {
@@ -1287,25 +1275,26 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             } catch (e) {
               setMyanimelistTestSuccess(false);
 
-              let errorMessage = intl.formatMessage(
-                messages.myanimelistConnectionFailure
-              );
-              if (e.response?.status === 401) {
-                errorMessage +=
-                  ' - Invalid API key. Check your MyAnimeList API key.';
-              } else if (e.response?.status) {
-                errorMessage += ` (HTTP ${e.response.status})`;
-              } else if (e.code === 'ECONNREFUSED') {
-                errorMessage +=
-                  ' - Connection refused. Check network connectivity.';
-              } else if (e.code === 'ENOTFOUND') {
-                errorMessage +=
-                  ' - Unable to reach MyAnimeList API. Check network connectivity.';
-              } else if (e.code === 'ETIMEDOUT') {
-                errorMessage +=
-                  ' - Connection timeout. Check network connectivity.';
-              } else if (e.message) {
-                errorMessage += ` - ${e.message}`;
+              const serverMessage = e.response?.data?.message;
+              let errorMessage =
+                serverMessage ||
+                intl.formatMessage(messages.myanimelistConnectionFailure);
+
+              if (!serverMessage) {
+                if (e.response?.status) {
+                  errorMessage += ` (HTTP ${e.response.status})`;
+                } else if (e.code === 'ECONNREFUSED') {
+                  errorMessage +=
+                    ' - Connection refused. Check network connectivity.';
+                } else if (e.code === 'ENOTFOUND') {
+                  errorMessage +=
+                    ' - Unable to reach MyAnimeList API. Check network connectivity.';
+                } else if (e.code === 'ETIMEDOUT') {
+                  errorMessage +=
+                    ' - Connection timeout. Check network connectivity.';
+                } else if (e.message) {
+                  errorMessage += ` - ${e.message}`;
+                }
               }
 
               addToast(errorMessage, {
@@ -1323,7 +1312,13 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 <label htmlFor="myanimelistApiKey" className="text-label">
                   {intl.formatMessage(messages.myanimelistApiKey)}
                   <span className="label-tip mb-2">
-                    Get your API key from MyAnimeList developer settings.
+                    Get your API key from{' '}
+                    <code>https://myanimelist.net/apiconfig</code> copy the{' '}
+                    <code>Client ID</code>. Critical fields: App Type -{' '}
+                    <code>Web</code>, App Redirect URL -{' '}
+                    <code>http://localhost/</code>, Homepage URL -{' '}
+                    <code>https://github.com/agregarr/agregarr</code>,{' '}
+                    <code>Non-Commerical</code>, <code>Hobbyist</code>
                   </span>
                 </label>
                 <div className="form-input-area">

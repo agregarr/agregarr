@@ -477,14 +477,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                     autoDismiss: true,
                   }
                 );
-              } catch {
-                addToast(
-                  intl.formatMessage(messages.overseerrConnectionFailure),
-                  {
-                    appearance: 'error',
-                    autoDismiss: true,
-                  }
-                );
+              } catch (e) {
+                // Use server's detailed error message if available
+                const errorMessage =
+                  e.response?.data?.message ||
+                  intl.formatMessage(messages.overseerrConnectionFailure);
+
+                addToast(errorMessage, {
+                  appearance: 'error',
+                  autoDismiss: true,
+                });
               } finally {
                 setIsTesting(false);
               }

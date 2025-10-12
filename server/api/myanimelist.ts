@@ -72,20 +72,50 @@ async function fetchMALData<T>(
     url.searchParams.append(key, String(value));
   });
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'X-MAL-Client-ID': apiKey,
-    },
-  });
+  let response: globalThis.Response;
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(
-      `MyAnimeList API responded with status ${res.status}: ${errorText}`
-    );
+  try {
+    response = await fetch(url.toString(), {
+      headers: {
+        'X-MAL-Client-ID': apiKey,
+      },
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const networkError = new Error(
+      `[MyAnimeList] Failed to reach API: ${message}`
+    ) as Error & { status?: number; responseBody?: string };
+    throw networkError;
   }
 
-  return await res.json();
+  if (!response.ok) {
+    const errorText = (await response.text())?.trim() ?? '';
+    let message = `[MyAnimeList] Request failed with status ${response.status}`;
+
+    if (
+      response.status === 400 ||
+      response.status === 401 ||
+      response.status === 403
+    ) {
+      message = 'Invalid API key - Authentication failed';
+    } else if (response.status === 404) {
+      message = 'MyAnimeList API endpoint not found';
+    } else if (response.status === 429) {
+      message = 'Rate limit exceeded - Try again later';
+    } else if (errorText) {
+      message = `[MyAnimeList] Request failed with status ${response.status}: ${errorText}`;
+    }
+
+    const requestError = new Error(message) as Error & {
+      status?: number;
+      responseBody?: string;
+    };
+    requestError.status = response.status;
+    requestError.responseBody = errorText;
+    throw requestError;
+  }
+
+  return (await response.json()) as T;
 }
 
 /**
