@@ -40,9 +40,9 @@ const messages = defineMessages({
     'Specify a custom cron expression (e.g., "0 9 * * MON" for every Monday at 9 AM). Use standard cron format.',
   customSyncPresetHelp:
     'Choose from predefined sync intervals, or select "Custom" to specify a cron expression.',
-  customSyncStartNow: 'Start immediately',
+  customSyncStartNow: 'Start on next sync',
   customSyncStartNowHelp:
-    'Uncheck to set a specific date/time for the sync cycle to based off (e.g. "Best Movies This Year" collection that should be updated on January 1st). You can still use Manual Sync to populate the collection before the scheduled time.',
+    'Uncheck to set a specific date/time for the sync cycle to be based off (e.g. "Best Movies This Year" collection that should be updated on January 1st). You can still use Manual Sync to populate the collection before the scheduled time.',
   customSyncStartDate: 'Start date',
   customSyncStartTime: 'Start time',
 });

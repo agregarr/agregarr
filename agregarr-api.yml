@@ -1418,7 +1418,7 @@ components:
           example: "source-1234567890"
         type:
           type: string
-          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'radarrtag', 'sonarrtag']
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
           description: "Type of collection source"
           example: 'trakt'
         subtype:
@@ -6831,13 +6831,16 @@ paths:
                   success:
                     type: boolean
                     example: true
-                  version:
-                    type: string
-                    example: '2.13.4'
         '400':
-          description: 'Missing required parameters'
+          description: 'Invalid API key - Authentication failed (Tautulli returns 400 for bad API keys)'
+        '401':
+          description: 'Invalid API key - Authentication failed'
+        '403':
+          description: 'API key lacks required permissions'
+        '404':
+          description: 'Tautulli API not found at specified URL'
         '500':
-          description: 'Connection test failed'
+          description: 'Connection test failed - Server error or network issue'
   /settings/trakt:
     get:
       summary: Get Trakt settings
@@ -7105,13 +7108,24 @@ paths:
                   success:
                     type: boolean
                     example: true
-                  version:
+                  templateDataSuccess:
+                    type: boolean
+                    example: true
+                    description: 'Whether template variables were successfully fetched'
+                  templateDataMessage:
                     type: string
-                    example: '1.33.2'
+                    example: 'Template variables updated: Overseerr (https://overseerr.example.com)'
+                    description: 'Message about template variable fetch result'
         '400':
           description: 'Missing required parameters'
+        '401':
+          description: 'Invalid API key - Authentication failed'
+        '403':
+          description: 'API key lacks required permissions'
+        '404':
+          description: 'Overseerr API not found at specified URL'
         '500':
-          description: 'Connection test failed'
+          description: 'Connection test failed - Server error or network issue'
   /settings/serviceuser:
     get:
       summary: Get service user settings

@@ -217,19 +217,14 @@ class OverseerrAPI {
 
   /**
    * Test connection to Overseerr instance
+   * Uses /auth/me endpoint to validate API key authentication
+   * Throws the actual error for proper error handling in routes
    */
-  async testConnection(): Promise<{ success: boolean; version?: string }> {
-    try {
-      const response = await this.axios.get('/status');
-      return {
-        success: true,
-        version: response.data.version,
-      };
-    } catch (error) {
-      return {
-        success: false,
-      };
-    }
+  async testConnection(): Promise<{ success: boolean }> {
+    await this.axios.get('/auth/me');
+    return {
+      success: true,
+    };
   }
 
   /**

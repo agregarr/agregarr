@@ -117,12 +117,27 @@ class MDBListAPI {
         const response = await this.axios.get<MDBListUserInfo>('/user');
         return response.data;
       });
-    } catch (e) {
+    } catch (error: unknown) {
+      const axiosError = error as Error & { response?: { status?: number } };
+
       logger.error('Something went wrong fetching user limits from MDBList', {
         label: 'MDBList API',
-        errorMessage: e.message,
+        errorMessage: axiosError?.message,
       });
-      throw new Error(`[MDBList] Failed to fetch user limits: ${e.message}`);
+
+      const originalMessage = axiosError?.message ?? 'Unknown error';
+      const statusCode = axiosError?.response?.status;
+      const formattedMessage =
+        statusCode === 401 || statusCode === 403
+          ? 'Invalid API key - Authentication failed'
+          : `[MDBList] Failed to fetch user limits: ${originalMessage}`;
+
+      if (error instanceof Error) {
+        error.message = formattedMessage;
+        throw error;
+      }
+
+      throw new Error(formattedMessage);
     }
   }
 
@@ -441,17 +456,10 @@ class MDBListAPI {
    * Test the API connection
    */
   public async testConnection(): Promise<boolean> {
-    try {
-      // Test connection with a simple request to user limits
-      await this.getUserLimits();
-      return true;
-    } catch (e) {
-      logger.error('MDBList API connection test failed', {
-        label: 'MDBList API',
-        errorMessage: e.message,
-      });
-      return false;
-    }
+    // Test connection with a simple request to user limits
+    // Throw the original error to preserve response status for proper error handling
+    await this.getUserLimits();
+    return true;
   }
 }
 

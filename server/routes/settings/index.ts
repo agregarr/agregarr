@@ -32,7 +32,6 @@ import fs from 'fs';
 import { escapeRegExp, merge, set, sortBy } from 'lodash';
 import { rescheduleJob } from 'node-schedule';
 import path from 'path';
-import semver from 'semver';
 import { URL } from 'url';
 // Notification routes removed - not needed for Agregarr
 import radarrRoutes from './radarr';
@@ -366,14 +365,52 @@ settingsRoutes.post('/myanimelist/test', async (req, res, next) => {
         settings.myanimelist.apiKey = undefined;
       }
     }
-  } catch (e) {
+  } catch (error: unknown) {
+    let status = 500;
+    let message = 'Unable to connect to MyAnimeList';
+
+    const statusFromError =
+      typeof error === 'object' &&
+      error !== null &&
+      'status' in error &&
+      typeof (error as { status?: number }).status === 'number'
+        ? (error as { status?: number }).status
+        : undefined;
+
+    if (typeof statusFromError === 'number') {
+      status = statusFromError;
+    }
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message?: string }).message === 'string'
+        ? (error as { message?: string }).message
+        : undefined;
+
+    if (status === 400 || status === 401 || status === 403) {
+      message = 'Invalid API key - Authentication failed';
+    } else if (status === 404) {
+      message = 'MyAnimeList API endpoint not found';
+    } else if (status === 429) {
+      message = 'Rate limit exceeded - Try again later';
+    } else if (errorMessage) {
+      message = errorMessage;
+    }
+
     logger.error('MyAnimeList connection test failed', {
-      label: 'API',
-      errorMessage: e.message,
+      label: 'MyAnimeList Connection',
+      error: errorMessage,
+      errorType: error instanceof Error ? error.constructor?.name : undefined,
+      httpStatus: status,
     });
+
     return next({
-      status: 500,
-      message: 'Unable to connect to MyAnimeList.',
+      status,
+      message,
     });
   }
 });
@@ -432,44 +469,53 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
       throw new Error('Unable to connect to Tautulli');
     }
 
-    // Check version compatibility but don't fail test if unsupported
-    let versionCheckSuccess = false;
-    let versionCheckMessage = '';
-
-    try {
-      if (!semver.gte(semver.coerce(result.tautulli_version) ?? '', '2.9.0')) {
-        versionCheckMessage = `Warning: Tautulli version ${result.tautulli_version} may not be fully supported. Minimum recommended: 2.9.0`;
-      } else {
-        versionCheckSuccess = true;
-        versionCheckMessage = `Version ${result.tautulli_version} is supported`;
-      }
-    } catch (versionError) {
-      versionCheckMessage = `Warning: Could not verify version compatibility - ${versionError.message}`;
-    }
-
     logger.info('Tautulli connection test successful', {
       label: 'Tautulli Connection',
-      version: result.tautulli_version,
       responseTime: Date.now() - startTime,
-      versionCheckSuccess,
     });
 
     return res.status(200).json({
       success: true,
-      version: result.tautulli_version,
-      versionCheckSuccess,
-      versionCheckMessage,
     });
   } catch (e) {
     const connectionUrl = `${req.body.useSsl ? 'https' : 'http'}://${
       req.body.hostname
     }:${req.body.port}${req.body.urlBase || ''}`;
 
+    // Determine appropriate status code and message based on error type
+    let status = 500;
+    let message = 'Unable to connect to Tautulli';
+
+    // Check if it's an axios error with response
+    if (e.response) {
+      status = e.response.status;
+
+      if (status === 400 || status === 401 || status === 403) {
+        // Tautulli returns 400 for invalid API keys
+        message = 'Invalid API key - Authentication failed';
+      } else if (status === 404) {
+        message = 'Tautulli API not found - Check URL base and port';
+      } else {
+        message = `Tautulli returned error: ${
+          e.response.statusText || 'Unknown error'
+        }`;
+      }
+    } else if (e.code === 'ECONNREFUSED') {
+      message = 'Connection refused - Check hostname and port';
+    } else if (e.code === 'ENOTFOUND') {
+      message = 'Host not found - Check hostname';
+    } else if (e.code === 'ETIMEDOUT') {
+      message = 'Connection timeout - Check network connectivity';
+    } else if (e.message) {
+      message = e.message;
+    }
+
     logger.error('Tautulli connection test failed', {
       label: 'Tautulli Connection',
       error: e.message,
       errorType: e.constructor?.name,
       errorCode: e.code,
+      httpStatus: e.response?.status,
       connectionUrl,
       responseTime: Date.now() - startTime,
       requestedSettings: {
@@ -481,8 +527,8 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
     });
 
     return next({
-      status: 500,
-      message: `Unable to connect to Tautulli at ${connectionUrl}: ${e.message}`,
+      status,
+      message: `${message} (${connectionUrl})`,
     });
   }
 });
@@ -503,6 +549,8 @@ settingsRoutes.post('/trakt', async (req, res) => {
 });
 
 settingsRoutes.post('/trakt/test', async (req, res, next) => {
+  const startTime = Date.now();
+
   try {
     const { apiKey } = req.body;
 
@@ -513,24 +561,64 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
       });
     }
 
-    const traktClient = new TraktAPI(apiKey);
-    const success = await traktClient.testConnection();
+    logger.debug('Trakt connection test requested', {
+      label: 'Trakt Connection',
+      apiKeyLength: apiKey.length,
+    });
 
-    if (!success) {
-      throw new Error('Unable to connect to Trakt');
-    }
+    const traktClient = new TraktAPI(apiKey);
+    await traktClient.testConnection();
+
+    logger.info('Trakt connection test successful', {
+      label: 'Trakt Connection',
+      responseTime: Date.now() - startTime,
+    });
 
     return res.status(200).json({
       success: true,
     });
   } catch (e) {
+    // Determine appropriate status code and message based on error type
+    let status = 500;
+    let message = 'Unable to connect to Trakt';
+
+    // Check if it's an axios error with response
+    if (e.response) {
+      status = e.response.status;
+
+      if (status === 401 || status === 403) {
+        message = 'Invalid API key - Authentication failed';
+      } else if (status === 404) {
+        message = 'Trakt API endpoint not found';
+      } else if (status === 429) {
+        message = 'Rate limit exceeded - Try again later';
+      } else {
+        message = `Trakt returned error: ${
+          e.response.statusText || 'Unknown error'
+        }`;
+      }
+    } else if (e.code === 'ECONNREFUSED') {
+      message = 'Connection refused - Check network connectivity';
+    } else if (e.code === 'ENOTFOUND') {
+      message = 'Unable to reach Trakt API - Check network connectivity';
+    } else if (e.code === 'ETIMEDOUT') {
+      message = 'Connection timeout - Check network connectivity';
+    } else if (e.message) {
+      message = e.message;
+    }
+
     logger.error('Trakt connection test failed', {
-      label: 'API',
-      errorMessage: e.message,
+      label: 'Trakt Connection',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      httpStatus: e.response?.status,
+      responseTime: Date.now() - startTime,
     });
+
     return next({
-      status: 500,
-      message: 'Unable to connect to Trakt.',
+      status,
+      message,
     });
   }
 });
@@ -551,6 +639,8 @@ settingsRoutes.post('/mdblist', async (req, res) => {
 });
 
 settingsRoutes.post('/mdblist/test', async (req, res, next) => {
+  const startTime = Date.now();
+
   try {
     const { apiKey } = req.body;
 
@@ -561,24 +651,64 @@ settingsRoutes.post('/mdblist/test', async (req, res, next) => {
       });
     }
 
-    const mdblistClient = new MDBListAPI(apiKey);
-    const success = await mdblistClient.testConnection();
+    logger.debug('MDBList connection test requested', {
+      label: 'MDBList Connection',
+      apiKeyLength: apiKey.length,
+    });
 
-    if (!success) {
-      throw new Error('Unable to connect to MDBList');
-    }
+    const mdblistClient = new MDBListAPI(apiKey);
+    await mdblistClient.testConnection();
+
+    logger.info('MDBList connection test successful', {
+      label: 'MDBList Connection',
+      responseTime: Date.now() - startTime,
+    });
 
     return res.status(200).json({
       success: true,
     });
   } catch (e) {
+    // Determine appropriate status code and message based on error type
+    let status = 500;
+    let message = 'Unable to connect to MDBList';
+
+    // Check if it's an axios error with response
+    if (e.response) {
+      status = e.response.status;
+
+      if (status === 401 || status === 403) {
+        message = 'Invalid API key - Authentication failed';
+      } else if (status === 404) {
+        message = 'MDBList API endpoint not found';
+      } else if (status === 429) {
+        message = 'Rate limit exceeded - Try again later';
+      } else {
+        message = `MDBList returned error: ${
+          e.response.statusText || 'Unknown error'
+        }`;
+      }
+    } else if (e.code === 'ECONNREFUSED') {
+      message = 'Connection refused - Check network connectivity';
+    } else if (e.code === 'ENOTFOUND') {
+      message = 'Unable to reach MDBList API - Check network connectivity';
+    } else if (e.code === 'ETIMEDOUT') {
+      message = 'Connection timeout - Check network connectivity';
+    } else if (e.message) {
+      message = e.message;
+    }
+
     logger.error('MDBList connection test failed', {
-      label: 'API',
-      errorMessage: e.message,
+      label: 'MDBList Connection',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      httpStatus: e.response?.status,
+      responseTime: Date.now() - startTime,
     });
+
     return next({
-      status: 500,
-      message: 'Unable to connect to MDBList.',
+      status,
+      message,
     });
   }
 });

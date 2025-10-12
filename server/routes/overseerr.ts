@@ -44,11 +44,7 @@ router.post('/test', async (req, res, next) => {
     });
 
     const overseerrClient = new OverseerrAPI(settings);
-    const result = await overseerrClient.testConnection();
-
-    if (!result.success) {
-      throw new Error('Unable to connect to Overseerr');
-    }
+    await overseerrClient.testConnection();
 
     // After successful connection, fetch and store Overseerr settings for template variables
     // This is critical data but we don't fail the test if it can't be fetched
@@ -91,14 +87,12 @@ router.post('/test', async (req, res, next) => {
 
     logger.info('Overseerr connection test successful', {
       label: 'Overseerr Connection',
-      version: result.version,
       responseTime: Date.now() - startTime,
       templateDataSuccess,
     });
 
     return res.status(200).json({
       success: true,
-      version: result.version,
       templateDataSuccess,
       templateDataMessage,
     });
@@ -107,11 +101,39 @@ router.post('/test', async (req, res, next) => {
       req.body.hostname
     }:${req.body.port}${req.body.urlBase || ''}`;
 
+    // Determine appropriate status code and message based on error type
+    let status = 500;
+    let message = 'Unable to connect to Overseerr';
+
+    // Check if it's an axios error with response
+    if (e.response) {
+      status = e.response.status;
+
+      if (status === 401 || status === 403) {
+        message = 'Invalid API key - Authentication failed';
+      } else if (status === 404) {
+        message = 'Overseerr API not found - Check URL base and port';
+      } else {
+        message = `Overseerr returned error: ${
+          e.response.statusText || 'Unknown error'
+        }`;
+      }
+    } else if (e.code === 'ECONNREFUSED') {
+      message = 'Connection refused - Check hostname and port';
+    } else if (e.code === 'ENOTFOUND') {
+      message = 'Host not found - Check hostname';
+    } else if (e.code === 'ETIMEDOUT') {
+      message = 'Connection timeout - Check network connectivity';
+    } else if (e.message) {
+      message = e.message;
+    }
+
     logger.error('Overseerr connection test failed', {
       label: 'Overseerr Connection',
       error: e.message,
       errorType: e.constructor?.name,
       errorCode: e.code,
+      httpStatus: e.response?.status,
       connectionUrl,
       responseTime: Date.now() - startTime,
       requestedSettings: {
@@ -123,8 +145,8 @@ router.post('/test', async (req, res, next) => {
     });
 
     return next({
-      status: 500,
-      message: `Unable to connect to Overseerr at ${connectionUrl}: ${e.message}`,
+      status,
+      message: `${message} (${connectionUrl})`,
     });
   }
 });
