@@ -1,6 +1,6 @@
 name: 🐛 Bug Report
 description: Report a problem
-labels: ['type:bug', 'awaiting-triage']
+labels: ['awaiting-triage']
 body:
   - type: markdown
     attributes:
@@ -41,36 +41,8 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: Please copy and paste any relevant log output. (This will be automatically formatted into code, so no need for backticks.)
+      description: Please copy and paste any relevant log output. The logs file can be located in config/logs/agregarr-YYYY-MM-DD. (This will be automatically formatted into code, so no need for backticks.)
       render: shell
-  - type: dropdown
-    id: platform
-    attributes:
-      label: Platform
-      options:
-        - desktop
-        - smartphone
-        - tablet
-    validations:
-      required: true
-  - type: input
-    id: device
-    validations:
-      required: true
-  - type: input
-    id: os
-    attributes:
-      label: Operating System
-      description: e.g., Ubuntu 20.04, Windows 10, MacOS 11.2
-    validations:
-      required: true
-  - type: input
-    id: browser
-    attributes:
-      label: Browser
-      description: e.g., Chrome, Safari, Edge, Firefox
-    validations:
-      required: true
   - type: textarea
     id: additional-context
     attributes:
