@@ -537,18 +537,6 @@ export class IndividualCollectionScheduler {
     collectionId: string
   ): Promise<void> {
     try {
-      // Check if full sync is running
-      if (this.fullSyncRunning) {
-        logger.info(
-          `Skipping individual collection sync: full sync is running`,
-          {
-            label: 'Individual Collection Scheduler',
-            collectionId,
-          }
-        );
-        return;
-      }
-
       // Get collection configuration
       const settings = getSettings();
       const collectionConfig = settings.plex.collectionConfigs?.find(
@@ -618,15 +606,29 @@ export class IndividualCollectionScheduler {
       libraryQueue.queue.push(queuedSync);
       libraryQueue.queue.sort((a, b) => a.priority - b.priority);
 
-      logger.info(
-        `Queued collection sync: ${collectionConfig.name} (queue position: ${libraryQueue.queue.length})`,
-        {
-          label: 'Individual Collection Scheduler',
-          collectionId,
-          libraryId,
-          queueSize: libraryQueue.queue.length,
-        }
-      );
+      // Log differently if queuing during main sync
+      if (this.fullSyncRunning) {
+        logger.info(
+          `Queued collection sync (will process after main sync completes): ${collectionConfig.name} (queue position: ${libraryQueue.queue.length})`,
+          {
+            label: 'Individual Collection Scheduler',
+            collectionId,
+            libraryId,
+            queueSize: libraryQueue.queue.length,
+            deferredUntilMainSyncComplete: true,
+          }
+        );
+      } else {
+        logger.info(
+          `Queued collection sync: ${collectionConfig.name} (queue position: ${libraryQueue.queue.length})`,
+          {
+            label: 'Individual Collection Scheduler',
+            collectionId,
+            libraryId,
+            queueSize: libraryQueue.queue.length,
+          }
+        );
+      }
 
       // Process queue for this library if not already running
       await this.processLibraryQueue(libraryId);
@@ -1029,15 +1031,17 @@ export class IndividualCollectionScheduler {
 
   /**
    * Wait for individual syncs to complete before allowing full sync
+   * No timeout - waits indefinitely (consistent with main sync behavior)
+   * Main sync flag will cause individual syncs to exit their processing loops
    */
-  public static async waitForIndividualSyncsToComplete(
-    timeoutMs = 300000
-  ): Promise<void> {
-    const startTime = Date.now();
+  public static async waitForIndividualSyncsToComplete(): Promise<void> {
     const checkInterval = 1000; // Check every second
+    let lastLogTime = Date.now();
+    const logIntervalMs = 10000; // Log status every 10 seconds to avoid spam
 
-    while (Date.now() - startTime < timeoutMs) {
-      const anyRunning = Array.from(this.libraryQueues.values()).some(
+    let anyRunning = true;
+    while (anyRunning) {
+      anyRunning = Array.from(this.libraryQueues.values()).some(
         (queue) => queue.running || queue.queue.length > 0
       );
 
@@ -1048,30 +1052,73 @@ export class IndividualCollectionScheduler {
         return;
       }
 
-      logger.debug('Waiting for individual collection syncs to complete...', {
-        label: 'Individual Collection Scheduler',
-        runningQueues: Array.from(this.libraryQueues.values())
-          .filter((q) => q.running || q.queue.length > 0)
-          .map((q) => ({
-            libraryId: q.libraryId,
-            queueSize: q.queue.length,
-            running: q.running,
-          })),
-      });
+      // Log status periodically (not every second to avoid spam)
+      const now = Date.now();
+      if (now - lastLogTime >= logIntervalMs) {
+        logger.debug('Waiting for individual collection syncs to complete...', {
+          label: 'Individual Collection Scheduler',
+          runningQueues: Array.from(this.libraryQueues.values())
+            .filter((q) => q.running || q.queue.length > 0)
+            .map((q) => ({
+              libraryId: q.libraryId,
+              queueSize: q.queue.length,
+              running: q.running,
+              currentCollection: q.currentCollection,
+            })),
+        });
+        lastLogTime = now;
+      }
 
       await new Promise((resolve) => setTimeout(resolve, checkInterval));
     }
+  }
 
-    logger.warn('Timeout waiting for individual collection syncs to complete', {
+  /**
+   * Process all pending queues that accumulated during main sync
+   * Called after main sync completes to handle collections that were queued
+   */
+  public static async processPendingQueues(): Promise<void> {
+    const queuesWithPendingItems = Array.from(this.libraryQueues.entries())
+      .filter(([, queue]) => queue.queue.length > 0 && !queue.running)
+      .map(([libraryId]) => libraryId);
+
+    if (queuesWithPendingItems.length === 0) {
+      logger.debug('No pending individual collection syncs to process', {
+        label: 'Individual Collection Scheduler',
+      });
+      return;
+    }
+
+    logger.info(
+      `Processing ${queuesWithPendingItems.length} library queues with pending individual syncs`,
+      {
+        label: 'Individual Collection Scheduler',
+        librariesWithPendingItems: queuesWithPendingItems.length,
+        totalPendingCollections: Array.from(this.libraryQueues.values()).reduce(
+          (sum, queue) => sum + queue.queue.length,
+          0
+        ),
+      }
+    );
+
+    // Process each library queue with pending items
+    for (const libraryId of queuesWithPendingItems) {
+      try {
+        await this.processLibraryQueue(libraryId);
+      } catch (error) {
+        logger.error(
+          `Failed to process pending queue for library ${libraryId}: ${error}`,
+          {
+            label: 'Individual Collection Scheduler',
+            libraryId,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+    }
+
+    logger.info('Finished processing pending individual collection syncs', {
       label: 'Individual Collection Scheduler',
-      timeoutMs,
-      stillRunning: Array.from(this.libraryQueues.values())
-        .filter((q) => q.running || q.queue.length > 0)
-        .map((q) => ({
-          libraryId: q.libraryId,
-          queueSize: q.queue.length,
-          running: q.running,
-        })),
     });
   }
 }
