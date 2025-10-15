@@ -1317,23 +1317,67 @@ class PlexAPI {
       return; // Just skip arrangement for smart collections, don't throw error
     }
 
+    // Fetch current order once
+    const currentOrder = await this.getCollectionItems(collectionRatingKey);
+    const desiredOrder = orderedItems.map((item) => item.ratingKey);
+
+    // Early return optimization: Check if already in correct order
+    if (
+      currentOrder.length === desiredOrder.length &&
+      currentOrder.every(
+        (ratingKey, index) => ratingKey === desiredOrder[index]
+      )
+    ) {
+      logger.debug(
+        `Collection ${collectionRatingKey} is already in correct order. Skipping reordering.`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          itemCount: orderedItems.length,
+        }
+      );
+      return;
+    }
+
+    let moveCount = 0;
     let failCount = 0;
 
-    // Move each item to its correct position (skip the first item as it's already in position)
-    // Items are ordered newest first, so we position each subsequent item after the previous one
-    for (let i = 1; i < orderedItems.length; i++) {
-      const currentItem = orderedItems[i];
-      const previousItem = orderedItems[i - 1];
+    // Selective reordering: Only move items that are out of position
+    for (let i = 0; i < desiredOrder.length; i++) {
+      if (currentOrder[i] !== desiredOrder[i]) {
+        const itemToMove = desiredOrder[i];
+        const afterItem = i > 0 ? desiredOrder[i - 1] : null;
 
-      const success = await this.moveItemInCollection(
-        collectionRatingKey,
-        currentItem.ratingKey,
-        previousItem.ratingKey
-      );
+        if (afterItem) {
+          const success = await this.moveItemInCollection(
+            collectionRatingKey,
+            itemToMove,
+            afterItem
+          );
 
-      if (!success) {
-        failCount++;
+          if (success) {
+            moveCount++;
+            // Update in-memory tracking: remove from old position and insert at new position
+            const oldIndex = currentOrder.indexOf(itemToMove);
+            currentOrder.splice(oldIndex, 1);
+            currentOrder.splice(i, 0, itemToMove);
+          } else {
+            failCount++;
+          }
+        }
       }
+    }
+
+    if (moveCount > 0) {
+      logger.debug(
+        `Selectively moved ${moveCount} items in collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          totalItems: orderedItems.length,
+          movedItems: moveCount,
+        }
+      );
     }
 
     if (failCount > 0) {
