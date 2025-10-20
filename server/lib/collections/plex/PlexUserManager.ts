@@ -1,6 +1,5 @@
 import {
   cleanOverseerrLabels,
-  createFormData,
   extractErrorMessage,
   getAdminUser,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -27,13 +26,99 @@ export interface SharedServerData {
     allowTuners: string;
     allowSubtitleAdmin: string;
     owned: string;
+    filterAll?: string;
     filterMovies?: string;
+    filterMusic?: string;
+    filterPhotos?: string;
     filterTelevision?: string;
   };
 }
 
 // Simple cache for shared server responses
 const sharedServerCache = new Map<string, SharedServerData[]>();
+
+/**
+ * Merge Agregarr labels into an existing Plex filter string
+ * Preserves all existing filter components (contentRating, etc.) and only adds/updates label!= section
+ *
+ * Plex filter syntax: filter1&filter2&filter3
+ * Each filter can be: key=value1,value2|key=value3
+ *
+ * @param existingFilter The current filter string (already cleaned of old Agregarr labels)
+ * @param agregarrLabels Array of Agregarr label names to add to label!= section
+ * @returns Complete filter string with Agregarr labels merged in
+ */
+function mergeAgregarrLabelsIntoFilter(
+  existingFilter: string,
+  agregarrLabels: string[]
+): string {
+  if (agregarrLabels.length === 0) {
+    return existingFilter;
+  }
+
+  // If no existing filter, just create a simple label!= filter
+  if (!existingFilter) {
+    return `label!=${agregarrLabels.join(',')}`;
+  }
+
+  // Split by & to get individual filter groups
+  const filterGroups = existingFilter.split('&');
+
+  // Find if there's already a label!= group and track other groups
+  let labelNotEqualGroup: string | null = null;
+  let labelNotEqualIndex = -1;
+  const otherGroups: string[] = [];
+
+  filterGroups.forEach((group, index) => {
+    // Check if this group contains label!=
+    if (group.includes('label!=')) {
+      // We need to be more careful - check if label!= appears in any OR part
+      const orParts = group.split('|');
+      const hasLabelNotEqual = orParts.some((part) =>
+        part.startsWith('label!=')
+      );
+
+      if (hasLabelNotEqual) {
+        labelNotEqualGroup = group;
+        labelNotEqualIndex = index;
+      } else {
+        otherGroups.push(group);
+      }
+    } else {
+      otherGroups.push(group);
+    }
+  });
+
+  // If there's an existing label!= group, merge our labels into it
+  if (labelNotEqualGroup) {
+    // TypeScript narrowing: we know it's a string now
+    const groupStr: string = labelNotEqualGroup;
+    const orParts = groupStr.split('|');
+    const updatedOrParts = orParts.map((part: string) => {
+      if (part.startsWith('label!=')) {
+        // Extract existing labels
+        const existingLabelsStr = part.substring('label!='.length);
+        const existingLabels = existingLabelsStr
+          ? existingLabelsStr.split(',')
+          : [];
+
+        // Merge with Agregarr labels
+        const allLabels = [...existingLabels, ...agregarrLabels];
+        return `label!=${allLabels.join(',')}`;
+      }
+      return part; // Keep non-label!= OR parts unchanged
+    });
+
+    // Replace the old label!= group with the updated one
+    const mergedLabelGroup = updatedOrParts.join('|');
+    otherGroups.splice(labelNotEqualIndex, 0, mergedLabelGroup);
+  } else {
+    // No existing label!= group, add one at the end
+    otherGroups.push(`label!=${agregarrLabels.join(',')}`);
+  }
+
+  return otherGroups.join('&');
+}
 
 /**
  * Get shared servers data with simple caching
@@ -185,7 +270,7 @@ export async function updateUserFilterSettings(
       currentTvFilter = decodeURIComponent(userServer.$.filterTelevision || '');
     }
 
-    // Clean existing Agregarr labels
+    // Clean existing Agregarr labels from Movies and TV only
     const cleanedMovieFilter = cleanOverseerrLabels(currentMovieFilter);
     const cleanedTvFilter = cleanOverseerrLabels(currentTvFilter);
 
@@ -208,64 +293,72 @@ export async function updateUserFilterSettings(
       agregarrLabels.push(`AgregarrOverseerrOwner${adminUser.plexId}`);
     }
 
-    // Combine filters
+    // Combine filters - merge Agregarr labels into existing filter structure for Movies and TV only
     let finalMovieFilter = cleanedMovieFilter;
     let finalTvFilter = cleanedTvFilter;
 
     if (agregarrLabels.length > 0) {
-      const labelFilter = `label!=${agregarrLabels.join(',')}`;
-
-      if (!finalMovieFilter) {
-        finalMovieFilter = labelFilter;
-      } else if (finalMovieFilter.startsWith('label!=')) {
-        const existingLabels = finalMovieFilter.split('!=')[1];
-        finalMovieFilter = `label!=${existingLabels},${agregarrLabels.join(
-          ','
-        )}`;
-      } else {
-        logger.warn(
-          `Non-label filter detected for user ${targetUserPlexId}: "${finalMovieFilter}". Using only Agregarr labels.`
-        );
-        finalMovieFilter = labelFilter;
-      }
-
-      if (!finalTvFilter) {
-        finalTvFilter = labelFilter;
-      } else if (finalTvFilter.startsWith('label!=')) {
-        const existingLabels = finalTvFilter.split('!=')[1];
-        finalTvFilter = `label!=${existingLabels},${agregarrLabels.join(',')}`;
-      } else {
-        logger.warn(
-          `Non-label filter detected for user ${targetUserPlexId}: "${finalTvFilter}". Using only Agregarr labels.`
-        );
-        finalTvFilter = labelFilter;
-      }
+      finalMovieFilter = mergeAgregarrLabelsIntoFilter(
+        cleanedMovieFilter,
+        agregarrLabels
+      );
+      finalTvFilter = mergeAgregarrLabelsIntoFilter(
+        cleanedTvFilter,
+        agregarrLabels
+      );
     }
 
     // Use persistent server client identifier (following Overseerr pattern)
     const plexClientIdentifier = settings.clientId;
 
-    // Update user restrictions
-    const url = `https://plex.tv/api/friends/${targetUserPlexId}`;
-    const headers = {
-      'X-Plex-Token': admin.plexToken,
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-Plex-Client-Identifier': plexClientIdentifier,
+    // CRITICAL: Must send ALL fields or they will be reset to defaults
+    if (!userServer) {
+      throw new Error(
+        `Cannot update filters: userServer is undefined for user ${targetUserPlexId}`
+      );
+    }
+
+    // Build v2 API payload with complete settings
+    const settingsPayload = {
+      allowChannels: userServer.$.allowChannels === '1',
+      allowSync: userServer.$.allowSync === '1',
+      allowCameraUpload: userServer.$.allowCameraUpload === '1',
+      allowSubtitleAdmin: userServer.$.allowSubtitleAdmin === '1',
+      allowTuners: parseInt(userServer.$.allowTuners || '0', 10),
+      filterAll: userServer.$.filterAll || null,
+      filterMovies: finalMovieFilter || '',
+      filterMusic: userServer.$.filterMusic || '',
+      filterPhotos: userServer.$.filterPhotos || '',
+      filterTelevision: finalTvFilter || '',
     };
 
-    const formData = createFormData({
-      server_id: settings.plex.machineId,
-      filterMovies: finalMovieFilter,
-      filterTelevision: finalTvFilter,
-    });
+    const payload = {
+      settings: settingsPayload,
+      invitedEmail: userServer.$.email || userServer.$.username,
+    };
+
+    logger.debug(
+      `Updating user filters (v2 API) - payload for user ${targetUserPlexId}`,
+      {
+        label: 'Plex User Manager',
+        userPlexId: targetUserPlexId,
+        payload,
+      }
+    );
+
+    // Use v2 API endpoint
+    const url = `https://clients.plex.tv/api/v2/sharing_settings?X-Plex-Product=Agregarr&X-Plex-Client-Identifier=${plexClientIdentifier}&X-Plex-Token=${admin.plexToken}`;
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
 
     // Individual user filter updates logged in batch summary
 
     const response = await fetch(url, {
-      method: 'PUT',
+      method: 'POST',
       headers,
-      body: formData,
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -674,50 +767,55 @@ export async function clearUserFilters(
     // Use persistent server client identifier (following Overseerr pattern)
     const plexClientIdentifier = settings.clientId;
 
-    // Update user restrictions with cleaned filters
-    const url = `https://plex.tv/api/friends/${targetUserPlexId}`;
-    const headers = {
-      'X-Plex-Token': admin.plexToken,
-      Accept: 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-Plex-Client-Identifier': plexClientIdentifier,
+    // CRITICAL: Must send ALL fields or they will be reset to defaults
+    if (!userServer) {
+      throw new Error(
+        `Cannot clear filters: userServer is undefined for user ${targetUserPlexId}`
+      );
+    }
+
+    // Build v2 API payload with complete settings
+    const settingsPayload = {
+      allowChannels: userServer.$.allowChannels === '1',
+      allowSync: userServer.$.allowSync === '1',
+      allowCameraUpload: userServer.$.allowCameraUpload === '1',
+      allowSubtitleAdmin: userServer.$.allowSubtitleAdmin === '1',
+      allowTuners: parseInt(userServer.$.allowTuners || '0', 10),
+      filterAll: userServer.$.filterAll || null,
+      filterMovies: cleanedMovieFilter || '',
+      filterMusic: userServer.$.filterMusic || '',
+      filterPhotos: userServer.$.filterPhotos || '',
+      filterTelevision: cleanedTvFilter || '',
     };
 
-    const formData = createFormData({
-      server_id: settings.plex.machineId,
-      filterMovies: cleanedMovieFilter,
-      filterTelevision: cleanedTvFilter,
-    });
+    const payload = {
+      settings: settingsPayload,
+      invitedEmail: userServer.$.email || userServer.$.username,
+    };
 
     // Log the exact HTTP request data being sent for clear operation
     logger.debug(
-      `Sending Plex.tv CLEAR API request for user ${targetUserPlexId}`,
+      `Sending Plex.tv CLEAR API request (v2) for user ${targetUserPlexId}`,
       {
         label: 'Plex User Manager',
         userPlexId: targetUserPlexId,
-        url,
-        method: 'PUT',
-        headers: {
-          'X-Plex-Token': '[REDACTED]',
-          Accept: headers.Accept,
-          'X-Plex-Client-Identifier': headers['X-Plex-Client-Identifier'],
-        },
-        formDataString: formData,
-        formDataLength: formData.length,
-        rawFormData: {
-          server_id: settings.plex.machineId,
-          filterMovies: cleanedMovieFilter,
-          filterTelevision: cleanedTvFilter,
-        },
+        payload,
         movieFilter: cleanedMovieFilter,
         tvFilter: cleanedTvFilter,
       }
     );
 
+    // Use v2 API endpoint
+    const url = `https://clients.plex.tv/api/v2/sharing_settings?X-Plex-Product=Agregarr&X-Plex-Client-Identifier=${plexClientIdentifier}&X-Plex-Token=${admin.plexToken}`;
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+
     const response = await fetch(url, {
-      method: 'PUT',
+      method: 'POST',
       headers,
-      body: formData,
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {

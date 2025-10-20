@@ -81,14 +81,67 @@ export function generateGlobalCollectionName(): string {
 /**
  * Clean Agregarr-specific labels from filter strings
  * Used to remove auto-generated labels when updating user filters
+ *
+ * Plex filter syntax: filter1&filter2&filter3
+ * Each filter can be: key=value1,value2|key=value3
+ * Examples:
+ * - "label!=X,Y,Z" (negative labels)
+ * - "contentRating=G&label!=X,Y" (content rating + negative labels)
+ * - "contentRating=G|label=kids&label!=X,Y" (OR content/label + negative labels)
  */
 export function cleanOverseerrLabels(filterStr: string): string {
   if (!filterStr) return '';
-  return filterStr
-    .replace(/Agregarr[^,]*/gi, '')
-    .replace(/,,+/g, ',')
-    .replace(/^,|,$/g, '')
-    .replace(/^label!=$/, '');
+
+  // Split by & to get individual filter groups
+  const filterGroups = filterStr.split('&');
+
+  // Process each filter group
+  const cleanedGroups = filterGroups
+    .map((group) => {
+      // Check if this is a label filter (either label= or label!=)
+      if (group.includes('label=') || group.includes('label!=')) {
+        // Split by | to handle OR conditions within the group
+        const orParts = group.split('|');
+
+        const cleanedOrParts = orParts
+          .map((part) => {
+            // Only process label!= (negative filters), leave label= (positive filters) unchanged
+            if (!part.startsWith('label!=')) {
+              return part; // Keep label= and other filters unchanged
+            }
+
+            // Extract the values after label!=
+            const valuesStr = part.substring('label!='.length);
+            if (!valuesStr) return ''; // Empty values
+
+            // Split by comma to get individual labels
+            const labels = valuesStr.split(',');
+
+            // Filter out Agregarr user/owner labels only
+            const nonAgregarrLabels = labels.filter(
+              (label) => !label.toLowerCase().startsWith('agregarr')
+            );
+
+            // Reconstruct the label filter if there are remaining labels
+            if (nonAgregarrLabels.length > 0) {
+              return `label!=${nonAgregarrLabels.join(',')}`;
+            }
+
+            return ''; // All labels were Agregarr labels
+          })
+          .filter((part) => part !== ''); // Remove empty parts
+
+        // Rejoin OR parts if any remain
+        return cleanedOrParts.join('|');
+      }
+
+      // Not a label filter, keep as-is
+      return group;
+    })
+    .filter((group) => group !== ''); // Remove empty groups
+
+  // Rejoin all filter groups
+  return cleanedGroups.join('&');
 }
 
 /**
