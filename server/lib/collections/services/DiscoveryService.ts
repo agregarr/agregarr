@@ -176,10 +176,7 @@ export class DiscoveryService {
       // STEP 4: Promote collections that should be visible but aren't in hub management
       await this.promoteCollectionsThatShouldBeVisible(plexClient, libraries);
 
-      // STEP 5: Report on collections removed from hub management
-      this.reportRemovedFromHubManagement();
-
-      // STEP 3: Sync configs with Plex collections to fix any out-of-sync rating keys/labels
+      // STEP 5: Sync configs with Plex collections to fix any out-of-sync rating keys/labels
       logger.info(
         'Starting config sync process to fix out-of-sync collections',
         {
@@ -1235,47 +1232,6 @@ export class DiscoveryService {
           );
         }
       }
-    }
-  }
-
-  /**
-   * Report on pre-existing collections that were removed from hub management
-   * These collections still exist in Plex but are no longer promoted to hubs
-   */
-  private reportRemovedFromHubManagement(): void {
-    const settings = getSettings();
-    const preExistingConfigs = settings.plex.preExistingCollectionConfigs || [];
-
-    const removedFromHubs = preExistingConfigs.filter(
-      (config) => config.isPromotedToHub === false
-    );
-
-    if (removedFromHubs.length > 0) {
-      logger.info(
-        `Detected ${removedFromHubs.length} pre-existing collections removed from hub management`,
-        {
-          label: 'Discovery Service',
-          removedCount: removedFromHubs.length,
-          removedCollections: removedFromHubs.map((config) => ({
-            name: config.name,
-            libraryId: config.libraryId,
-            ratingKey: config.collectionRatingKey,
-          })),
-        }
-      );
-
-      // These collections will now be handled via DELETE instead of visibility updates
-      removedFromHubs.forEach((config) => {
-        logger.debug(
-          `Collection "${config.name}" is no longer promoted to hub - will be removed from hub management on next sync`,
-          {
-            label: 'Discovery Service',
-            collectionId: config.id,
-            libraryId: config.libraryId,
-            ratingKey: config.collectionRatingKey,
-          }
-        );
-      });
     }
   }
 
