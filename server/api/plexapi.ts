@@ -2372,6 +2372,7 @@ class PlexAPI {
       }
 
       // Check subsequent items - move after their immediate predecessor if wrong
+      let repromoCount = 0;
       for (let i = 1; i < completeDesiredOrder.length; i++) {
         const currentItem = completeDesiredOrder[i];
         const expectedPredecessor = completeDesiredOrder[i - 1];
@@ -2401,12 +2402,98 @@ class PlexAPI {
             await this.moveHub(sectionId, currentItem, expectedPredecessor);
             moveCount++;
 
-            // Update our tracking of current order after the move
-            // Remove item from old position and insert after predecessor
-            const itemToMove = currentOrder.splice(currentPosition, 1)[0];
-            const predecessorNewPosition =
-              currentOrder.indexOf(expectedPredecessor);
-            currentOrder.splice(predecessorNewPosition + 1, 0, itemToMove);
+            // CONVERGENCE SOLUTION: Verify the move worked by fetching actual order
+            const verificationHubManagement = await this.getHubManagement(
+              sectionId
+            );
+            const actualOrder =
+              verificationHubManagement.MediaContainer.Hub.map(
+                (h: { identifier: string }) => h.identifier
+              );
+
+            // Check if item landed immediately after predecessor
+            const actualPredecessorIndex =
+              actualOrder.indexOf(expectedPredecessor);
+            const actualCurrentIndex = actualOrder.indexOf(currentItem);
+            const placementSuccess =
+              actualPredecessorIndex !== -1 &&
+              actualCurrentIndex === actualPredecessorIndex + 1;
+
+            if (!placementSuccess) {
+              // Placement failed - likely due to float precision convergence
+              logger.warn(
+                `Placement verification failed for ${currentItem} - attempting unpromote/re-promote recovery`,
+                {
+                  label: 'Plex API',
+                  sectionId,
+                  hubId: currentItem,
+                  expectedAfter: expectedPredecessor,
+                  actualPredecessorIndex,
+                  actualCurrentIndex,
+                  convergenceDetected: true,
+                }
+              );
+
+              // Extract rating key from identifier for unpromote/re-promote
+              const ratingKey =
+                this.extractRatingKeyFromIdentifier(currentItem);
+
+              if (ratingKey) {
+                // Unpromote the collection (delete from hub management)
+                await this.deleteHubItem(sectionId, currentItem);
+                repromoCount++;
+
+                logger.debug(
+                  `Unpromoted collection ${currentItem}, re-promoting with fresh spacing`,
+                  {
+                    label: 'Plex API',
+                    sectionId,
+                    hubId: currentItem,
+                    ratingKey,
+                  }
+                );
+
+                // Re-promote it (gets fresh 1000-unit spacing at the end)
+                await this.promoteCollectionToHub(ratingKey, sectionId);
+
+                // Update tracking: item is now at the end
+                actualOrder.splice(actualCurrentIndex, 1);
+                actualOrder.push(currentItem);
+                currentOrder.length = 0;
+                currentOrder.push(...actualOrder);
+
+                logger.info(
+                  `Successfully recovered from convergence via unpromote/re-promote for ${currentItem}`,
+                  {
+                    label: 'Plex API',
+                    sectionId,
+                    hubId: currentItem,
+                    ratingKey,
+                    repromoCount,
+                  }
+                );
+              } else {
+                // Can't unpromote built-in hubs or items without rating keys
+                logger.warn(
+                  `Cannot unpromote/re-promote ${currentItem} - no rating key available`,
+                  {
+                    label: 'Plex API',
+                    sectionId,
+                    hubId: currentItem,
+                    note: 'Built-in hubs or invalid identifiers cannot be re-promoted',
+                  }
+                );
+                // Update tracking with actual order anyway
+                currentOrder.length = 0;
+                currentOrder.push(...actualOrder);
+              }
+            } else {
+              // Move succeeded - update our tracking of current order
+              const itemToMove = currentOrder.splice(currentPosition, 1)[0];
+              const predecessorNewPosition =
+                currentOrder.indexOf(expectedPredecessor);
+              currentOrder.splice(predecessorNewPosition + 1, 0, itemToMove);
+            }
           } catch (error) {
             logger.error(
               `Failed to move item ${currentItem} after predecessor ${expectedPredecessor}`,
@@ -2422,13 +2509,21 @@ class PlexAPI {
         }
       }
 
-      logger.info(`Selective reordering completed: ${moveCount} items moved`, {
-        label: 'Plex API',
-        sectionId,
-        moveCount,
-        totalItems: completeDesiredOrder.length,
-        efficiency: `${moveCount}/${completeDesiredOrder.length} moves`,
-      });
+      logger.info(
+        `Selective reordering completed: ${moveCount} items moved${
+          repromoCount > 0
+            ? `, ${repromoCount} items re-promoted for convergence recovery`
+            : ''
+        }`,
+        {
+          label: 'Plex API',
+          sectionId,
+          moveCount,
+          repromoCount,
+          totalItems: completeDesiredOrder.length,
+          efficiency: `${moveCount}/${completeDesiredOrder.length} moves`,
+        }
+      );
 
       // Verify order after moves - detect precision convergence
       if (moveCount > 0) {
@@ -2444,28 +2539,32 @@ class PlexAPI {
 
         if (!orderMatches) {
           logger.error(
-            `Order verification failed after ${moveCount} moves - precision convergence detected`,
+            `Order verification failed after ${moveCount} moves and ${repromoCount} re-promotions - falling back to reset`,
             {
               label: 'Plex API',
               sectionId,
               moveCount,
+              repromoCount,
               expectedOrder: completeDesiredOrder,
               actualOrder,
               convergenceDetected: true,
+              note: 'Unpromote/re-promote recovery was attempted but final order still incorrect',
             }
           );
 
           // Throw a specific error that can be caught and handled with reset
           const convergenceError = new Error(
-            `Precision convergence detected in library ${sectionId}`
+            `Precision convergence detected in library ${sectionId} - unpromote/re-promote recovery failed`
           ) as Error & {
             isPrecisionConvergence: boolean;
             sectionId: string;
             moveCount: number;
+            repromoCount: number;
           };
           convergenceError.isPrecisionConvergence = true;
           convergenceError.sectionId = sectionId;
           convergenceError.moveCount = moveCount;
+          convergenceError.repromoCount = repromoCount;
           throw convergenceError;
         } else {
           logger.info(
@@ -2553,6 +2652,26 @@ class PlexAPI {
       );
       throw error;
     }
+  }
+
+  /**
+   * Extract rating key from a hub identifier for unpromote/re-promote operations
+   * @param identifier Hub identifier (e.g., "custom.collection.1.35954")
+   * @returns Rating key if identifier is a custom collection, null otherwise
+   */
+  private extractRatingKeyFromIdentifier(identifier: string): string | null {
+    // Check if this is a custom collection identifier
+    if (!identifier.startsWith('custom.collection.')) {
+      return null;
+    }
+
+    // Extract rating key from "custom.collection.{libraryId}.{ratingKey}"
+    const parts = identifier.split('.');
+    if (parts.length >= 4) {
+      return parts[3];
+    }
+
+    return null;
   }
 
   /**
