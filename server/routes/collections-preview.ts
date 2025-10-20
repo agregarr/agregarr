@@ -946,6 +946,10 @@ async function processPreviewAsync(
         previewConfigRecord.letterboxdCustomListUrl = customUrl;
       else if (type === 'mdblist')
         previewConfigRecord.mdblistCustomListUrl = customUrl;
+      else if (type === 'anilist')
+        previewConfigRecord.anilistCustomListUrl = customUrl;
+      else if (type === 'myanimelist')
+        previewConfigRecord.myanilistCustomListUrl = customUrl;
     }
 
     if (type === 'tautulli') {

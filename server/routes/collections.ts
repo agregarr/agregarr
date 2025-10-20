@@ -159,7 +159,7 @@ function validateExternalUrl(
         // - https://anilist.co/search/anime?... or /search/manga?...
         // - single item pages: /anime/:id and /manga/:id
         const anilistPattern =
-          /^(?:\/user\/[^/]+\/(?:animelist|list)\/[^/?]+|\/(?:animelist|list)\/[^/?]+|\/search\/(?:anime|manga)(?:\/.*)?|\/anime\/?\d+|\/manga\/?\d+)(?:\/)?$/;
+          /^(?:\/user\/[^/]+\/(?:animelist|list)\/[^/?]+|\/(?:animelist|list)\/[^/?]+|\/search\/(?:anime|manga)|\/anime\/?\d+|\/manga\/?\d+)(?:\/)?$/;
 
         // Allow the pattern to match either the pathname or a search path with query params
         if (!urlObj.pathname.match(anilistPattern)) {
