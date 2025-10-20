@@ -200,6 +200,9 @@ const CollectionSettings = ({
           isLinked: preExistingConfig.isLinked,
           linkId: preExistingConfig.linkId,
           isUnlinked: preExistingConfig.isUnlinked,
+          ...(preExistingConfig.randomizeHomeOrder !== undefined && {
+            randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
+          }),
           ...(preExistingConfig.timeRestriction && {
             timeRestriction: preExistingConfig.timeRestriction,
           }),
@@ -228,6 +231,9 @@ const CollectionSettings = ({
           isLinked: hubConfig.isLinked,
           linkId: hubConfig.linkId,
           isUnlinked: hubConfig.isUnlinked,
+          ...(hubConfig.randomizeHomeOrder !== undefined && {
+            randomizeHomeOrder: hubConfig.randomizeHomeOrder,
+          }),
           ...(hubConfig.timeRestriction && {
             timeRestriction: hubConfig.timeRestriction,
           }),
@@ -1075,6 +1081,9 @@ const CollectionSettings = ({
         isLinked: hubConfig.isLinked,
         linkId: hubConfig.linkId,
         isUnlinked: hubConfig.isUnlinked,
+        ...(hubConfig.randomizeHomeOrder !== undefined && {
+          randomizeHomeOrder: hubConfig.randomizeHomeOrder,
+        }),
         ...(hubConfig.timeRestriction && {
           timeRestriction: hubConfig.timeRestriction,
         }),
@@ -1118,6 +1127,9 @@ const CollectionSettings = ({
         isLinked: preExistingConfig.isLinked,
         linkId: preExistingConfig.linkId,
         isUnlinked: preExistingConfig.isUnlinked,
+        ...(preExistingConfig.randomizeHomeOrder !== undefined && {
+          randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
+        }),
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
