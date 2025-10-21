@@ -128,6 +128,32 @@ const customUrlValidations = {
         ),
     otherwise: (schema) => schema,
   }),
+
+  anilistCustomListUrl: Yup.string().when(['type', 'subtype'], {
+    is: (type: string, subtype: string) =>
+      type === 'anilist' && subtype === 'custom',
+    then: (schema) =>
+      schema
+        .required('AniList list URL is required')
+        .matches(
+          /anilist\.co\/(?:user\/[^/]+\/(?:animelist|list)\/[^/?]+|(?:animelist|list)\/[^/?]+|search\/anime(?:\/[^/?]+)?|anime\/?\d+)/,
+          'Please enter a valid AniList URL (e.g., user lists, search pages, or anime pages)'
+        ),
+    otherwise: (schema) => schema,
+  }),
+
+  myanilistCustomListUrl: Yup.string().when(['type', 'subtype'], {
+    is: (type: string, subtype: string) =>
+      type === 'myanimelist' && subtype === 'custom',
+    then: (schema) =>
+      schema
+        .required('MyAnimeList list URL is required')
+        .matches(
+          /myanimelist\.net\/(?:animelist\/[^/?]+|anime\.php)/,
+          'Please enter a valid MyAnimeList URL'
+        ),
+    otherwise: (schema) => schema,
+  }),
 };
 
 // Auto-request validation
@@ -299,6 +325,8 @@ export const ValidationHelpers = {
       tmdb: 'tmdbCustomCollectionUrl',
       imdb: 'imdbCustomListUrl',
       letterboxd: 'letterboxdCustomListUrl',
+      anilist: 'anilistCustomListUrl',
+      myanimelist: 'myanilistCustomListUrl',
     };
 
     const urlField = urlFieldMap[values.type];
@@ -424,6 +452,8 @@ export const ValidationHelpers = {
         tmdb: 'tmdbCustomCollectionUrl',
         imdb: 'imdbCustomListUrl',
         letterboxd: 'letterboxdCustomListUrl',
+        anilist: 'anilistCustomListUrl',
+        myanimelist: 'myanilistCustomListUrl',
       };
       const field = values.type ? urlFieldMap[values.type] : undefined;
       if (field) {

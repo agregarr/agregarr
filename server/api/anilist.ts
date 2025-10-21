@@ -373,7 +373,7 @@ export async function getTopRatedAnime(
 // ---- Custom Lists (per user) ----
 export async function getUserCustomLists(
   userName: string,
-  type: 'ANIME' | 'MANGA' = 'ANIME'
+  type: 'ANIME' = 'ANIME'
 ) {
   const query = `
     ${MEDIA_FIELDS}
@@ -396,6 +396,207 @@ export async function getUserCustomLists(
     type,
   });
   return data.MediaListCollection.lists || [];
+}
+
+// ---- Search with custom filters ----
+export async function searchAnime(
+  page = 1,
+  perPage = 20,
+  searchParams: {
+    genres?: string[];
+    tags?: string[];
+    season?: string;
+    seasonYear?: number;
+    year?: number;
+    startDateGreater?: number; // year range start
+    startDateLesser?: number; // year range end
+    format?: string;
+    formatIn?: string[];
+    sort?: string;
+    isAdult?: boolean;
+    status?: string; // airing status: FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED
+    licensedById?: number; // streaming service ID
+    countryOfOrigin?: string; // JP, KR, CN, TW
+    source?: string; // source material: ORIGINAL, MANGA, LIGHT_NOVEL, etc.
+    search?: string; // search query
+    isLicensed?: boolean; // doujin filter
+    episodes_greater?: number;
+    episodes_lesser?: number;
+    duration_greater?: number;
+    duration_lesser?: number;
+  } = {}
+) {
+  // Map URL parameter names to AniList GraphQL parameter names
+  const {
+    genres,
+    tags,
+    season,
+    seasonYear,
+    year,
+    startDateGreater,
+    startDateLesser,
+    format,
+    formatIn,
+    sort = 'TRENDING_DESC',
+    isAdult = false,
+    status,
+    licensedById,
+    countryOfOrigin,
+    source,
+    search,
+    isLicensed,
+    episodes_greater,
+    episodes_lesser,
+    duration_greater,
+    duration_lesser,
+  } = searchParams;
+
+  // Build query dynamically based on provided filters
+  const queryParams: string[] = ['$page: Int', '$perPage: Int'];
+  const mediaParams: string[] = ['type: ANIME'];
+  const variables: Record<
+    string,
+    string | number | boolean | string[] | null | undefined
+  > = {
+    page,
+    perPage,
+  };
+
+  if (genres && genres.length > 0) {
+    queryParams.push('$genreIn: [String]');
+    mediaParams.push('genre_in: $genreIn');
+    variables.genreIn = genres;
+  }
+
+  if (tags && tags.length > 0) {
+    queryParams.push('$tagIn: [String]');
+    mediaParams.push('tag_in: $tagIn');
+    variables.tagIn = tags;
+  }
+
+  if (season) {
+    queryParams.push('$season: MediaSeason');
+    mediaParams.push('season: $season');
+    variables.season = season;
+  }
+
+  if (seasonYear) {
+    queryParams.push('$seasonYear: Int');
+    mediaParams.push('seasonYear: $seasonYear');
+    variables.seasonYear = seasonYear;
+  }
+
+  if (year) {
+    queryParams.push('$year: Int');
+    mediaParams.push('seasonYear: $year');
+    variables.year = year;
+  }
+
+  if (startDateGreater) {
+    queryParams.push('$startDateGreater: FuzzyDateInt');
+    mediaParams.push('startDate_greater: $startDateGreater');
+    variables.startDateGreater = startDateGreater;
+  }
+
+  if (startDateLesser) {
+    queryParams.push('$startDateLesser: FuzzyDateInt');
+    mediaParams.push('startDate_lesser: $startDateLesser');
+    variables.startDateLesser = startDateLesser;
+  }
+
+  if (format) {
+    queryParams.push('$format: MediaFormat');
+    mediaParams.push('format: $format');
+    variables.format = format;
+  } else if (formatIn && formatIn.length > 0) {
+    queryParams.push('$formatIn: [MediaFormat]');
+    mediaParams.push('format_in: $formatIn');
+    variables.formatIn = formatIn;
+  }
+
+  if (status) {
+    queryParams.push('$status: MediaStatus');
+    mediaParams.push('status: $status');
+    variables.status = status;
+  }
+
+  if (licensedById !== undefined) {
+    queryParams.push('$licensedById: Int');
+    mediaParams.push('licensedById: $licensedById');
+    variables.licensedById = licensedById;
+  }
+
+  if (countryOfOrigin) {
+    queryParams.push('$countryOfOrigin: CountryCode');
+    mediaParams.push('countryOfOrigin: $countryOfOrigin');
+    variables.countryOfOrigin = countryOfOrigin;
+  }
+
+  if (source) {
+    queryParams.push('$source: MediaSource');
+    mediaParams.push('source: $source');
+    variables.source = source;
+  }
+
+  if (search) {
+    queryParams.push('$search: String');
+    mediaParams.push('search: $search');
+    variables.search = search;
+  }
+
+  if (isLicensed !== undefined) {
+    queryParams.push('$isLicensed: Boolean');
+    mediaParams.push('isLicensed: $isLicensed');
+    variables.isLicensed = isLicensed;
+  }
+
+  if (episodes_greater !== undefined) {
+    queryParams.push('$episodesGreater: Int');
+    mediaParams.push('episodes_greater: $episodesGreater');
+    variables.episodesGreater = episodes_greater;
+  }
+
+  if (episodes_lesser !== undefined) {
+    queryParams.push('$episodesLesser: Int');
+    mediaParams.push('episodes_lesser: $episodesLesser');
+    variables.episodesLesser = episodes_lesser;
+  }
+
+  if (duration_greater !== undefined) {
+    queryParams.push('$durationGreater: Int');
+    mediaParams.push('duration_greater: $durationGreater');
+    variables.durationGreater = duration_greater;
+  }
+
+  if (duration_lesser !== undefined) {
+    queryParams.push('$durationLesser: Int');
+    mediaParams.push('duration_lesser: $durationLesser');
+    variables.durationLesser = duration_lesser;
+  }
+
+  if (sort) {
+    queryParams.push('$sort: [MediaSort]');
+    mediaParams.push('sort: $sort');
+    variables.sort = sort;
+  }
+
+  queryParams.push('$isAdult: Boolean');
+  mediaParams.push('isAdult: $isAdult');
+  variables.isAdult = isAdult;
+
+  const query = `
+    ${MEDIA_FIELDS}
+    query (${queryParams.join(', ')}) {
+      Page(page: $page, perPage: $perPage) {
+        pageInfo { total perPage currentPage lastPage hasNextPage }
+        media(${mediaParams.join(', ')}) {
+          ...MediaFields
+        }
+      }
+    }
+  `;
+
+  return fetchAniListData<PageMediaResponse>(query, variables);
 }
 
 // ---- Convenience ----

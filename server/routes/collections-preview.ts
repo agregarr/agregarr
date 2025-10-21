@@ -578,29 +578,17 @@ async function processMultiSourcePreview(
 
   // Assign positions to matched items
   let nextPosition = 1;
-  const matchedItemsWithPosition = limitedItems
-    .filter((item) => {
-      const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number) || 0;
-      if (!tmdbId || tmdbId === 0) {
-        logger.debug('Filtering out matched item with invalid tmdbId', {
-          label: 'Collections Preview API - Multi-Source',
-          title: item.title,
-        });
-        return false;
-      }
-      return true;
-    })
-    .map((item) => {
-      const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number) || 0;
-      while (Array.from(tmdbToPosition.values()).includes(nextPosition)) {
-        nextPosition++;
-      }
-      const position = tmdbToPosition.has(tmdbId)
-        ? tmdbToPosition.get(tmdbId) || nextPosition++
-        : nextPosition++;
+  const matchedItemsWithPosition = limitedItems.map((item) => {
+    const tmdbId = item.tmdbId || (item.metadata?.tmdbId as number) || 0;
+    while (Array.from(tmdbToPosition.values()).includes(nextPosition)) {
+      nextPosition++;
+    }
+    const position = tmdbToPosition.has(tmdbId)
+      ? tmdbToPosition.get(tmdbId) || nextPosition++
+      : nextPosition++;
 
-      return { ...item, tmdbId, originalPosition: position };
-    });
+    return { ...item, tmdbId, originalPosition: position };
+  });
 
   type EnrichedItem = {
     ratingKey?: string;
@@ -1119,39 +1107,20 @@ async function processPreviewAsync(
       return { ...item, tmdbId };
     });
 
-    // Filter out items with invalid tmdbId (0 or undefined) - these can't have posters fetched
-    const validMatchedItems = itemsWithTmdbId.filter((item) => {
-      if (!item.tmdbId || item.tmdbId === 0) {
-        logger.debug(`Filtering out matched item with invalid tmdbId`, {
-          label: 'Collections Preview API',
-          title: item.title,
-          tmdbId: item.tmdbId,
-          ratingKey: item.ratingKey,
-        });
-        return false;
-      }
-      return true;
-    });
+    // Keep all matched items
+    // Only missing items need TMDB IDs for poster fetching
+    const validMatchedItems = itemsWithTmdbId;
 
-    // Assume matched items fill in the gaps - assign them sequential positions
-    // This is a best-effort approach since CollectionItem doesn't track originalPosition
-    let nextPosition = 1;
+    // Extract originalPosition from metadata (AniList and other sources provide this)
     const matchedItemsWithPosition = validMatchedItems.map((item) => {
-      // If we know the position from missing items map, skip those positions
-      while (Array.from(tmdbToPosition.values()).includes(nextPosition)) {
-        nextPosition++;
-      }
-      const position =
-        item.tmdbId && tmdbToPosition.has(item.tmdbId)
-          ? tmdbToPosition.get(item.tmdbId) || nextPosition++
-          : nextPosition++;
-
-      return { ...item, originalPosition: position };
+      const originalPosition = (item.metadata?.originalPosition as number) || 0;
+      return { ...item, originalPosition };
     });
 
     type EnrichedItem = {
       ratingKey?: string;
       tmdbId?: number;
+      tvdbId?: number;
       title: string;
       year?: number;
       mediaType?: 'movie' | 'tv';
@@ -1339,9 +1308,29 @@ async function processPreviewAsync(
     });
 
     // Sort all items by original position to maintain source list order
-    const enrichedItems = allItemsWithPosition.sort(
+    const sortedItems = allItemsWithPosition.sort(
       (a, b) => a.originalPosition - b.originalPosition
     );
+
+    // Deduplicate by TMDB ID - keep first occurrence (earliest position)
+    // This prevents multiple seasons/variants of the same show from appearing
+    const seenTmdbIds = new Set<number>();
+    const seenRatingKeys = new Set<string>();
+    const enrichedItems = sortedItems.filter((item) => {
+      // For matched items, deduplicate by ratingKey
+      if (item.ratingKey) {
+        if (seenRatingKeys.has(item.ratingKey)) return false;
+        seenRatingKeys.add(item.ratingKey);
+        return true;
+      }
+      // For missing items, deduplicate by tmdbId
+      if (item.tmdbId && item.tmdbId > 0) {
+        if (seenTmdbIds.has(item.tmdbId)) return false;
+        seenTmdbIds.add(item.tmdbId);
+        return true;
+      }
+      return true;
+    });
 
     const matchedCount = enrichedItems.filter((i) => i.inLibrary).length;
     const missingCount = enrichedItems.filter((i) => !i.inLibrary).length;
@@ -1354,6 +1343,19 @@ async function processPreviewAsync(
         subtype,
       }
     );
+
+    logger.debug('Preview final item list', {
+      label: 'Collections Preview API',
+      items: enrichedItems.map((item) => ({
+        title: item.title,
+        tmdbId: item.tmdbId,
+        tvdbId: item.tvdbId,
+        ratingKey: item.ratingKey,
+        inLibrary: item.inLibrary,
+        mediaType: item.mediaType,
+        position: item.originalPosition,
+      })),
+    });
 
     updatePreviewStatus(sessionId, {
       running: false,

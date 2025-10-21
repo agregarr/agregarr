@@ -41,6 +41,7 @@ const messages = defineMessages({
 interface PreviewItem {
   ratingKey?: string;
   tmdbId: number;
+  tvdbId?: number;
   title: string;
   year?: number;
   mediaType?: 'movie' | 'tv';
@@ -985,7 +986,7 @@ const PreviewCollectionModal = ({
                       {/* Download Buttons - Bottom of poster with logos */}
                       {!item.inLibrary && hoveredItem === item.tmdbId && (
                         <div className="absolute bottom-2 left-2 right-2 z-10 flex justify-center gap-2">
-                          {item.mediaType === 'movie' && (
+                          {item.mediaType === 'movie' && item.tmdbId > 0 && (
                             <>
                               <button
                                 onClick={() =>
@@ -1138,55 +1139,58 @@ const PreviewCollectionModal = ({
                                   </>
                                 )}
                               </button>
-                              <button
-                                onClick={() =>
-                                  handleDownload(
-                                    item.tmdbId,
-                                    item.title,
-                                    'tv',
-                                    'overseerr',
-                                    item.backdropPath
-                                  )
-                                }
-                                disabled={downloadingItems.has(item.tmdbId)}
-                                className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
-                                title={intl.formatMessage(
-                                  messages.downloadViaOverseerr
-                                )}
-                              >
-                                {downloadingItems.has(item.tmdbId) ? (
-                                  <span className="text-xs text-white">
-                                    ...
-                                  </span>
-                                ) : (
-                                  <>
-                                    <img
-                                      src="/services/overseerr.svg"
-                                      alt="Overseerr"
-                                      className="h-full w-full"
-                                    />
-                                    {requestedItems.has(
-                                      `${item.tmdbId}-overseerr`
-                                    ) && (
-                                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
-                                        <svg
-                                          className="h-6 w-6 text-white"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </button>
+                              {/* Only show Overseerr button if item has TMDB ID */}
+                              {item.tmdbId > 0 && (
+                                <button
+                                  onClick={() =>
+                                    handleDownload(
+                                      item.tmdbId,
+                                      item.title,
+                                      'tv',
+                                      'overseerr',
+                                      item.backdropPath
+                                    )
+                                  }
+                                  disabled={downloadingItems.has(item.tmdbId)}
+                                  className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
+                                  title={intl.formatMessage(
+                                    messages.downloadViaOverseerr
+                                  )}
+                                >
+                                  {downloadingItems.has(item.tmdbId) ? (
+                                    <span className="text-xs text-white">
+                                      ...
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <img
+                                        src="/services/overseerr.svg"
+                                        alt="Overseerr"
+                                        className="h-full w-full"
+                                      />
+                                      {requestedItems.has(
+                                        `${item.tmdbId}-overseerr`
+                                      ) && (
+                                        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
+                                          <svg
+                                            className="h-6 w-6 text-white"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={3}
+                                              d="M5 13l4 4L19 7"
+                                            />
+                                          </svg>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
