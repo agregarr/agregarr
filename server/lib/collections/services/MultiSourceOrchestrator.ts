@@ -1408,13 +1408,105 @@ export class MultiSourceOrchestrator {
       // For cycle_lists mode, use the active source's type for the poster
       // For other modes, use 'multi-source' type
       let collectionType = 'multi-source';
+      let activeSource = null;
       if (config.combineMode === 'cycle_lists') {
         // Get the active source
         const activeSourceIndex =
           getCollectionSyncCounter(config.id) % config.sources.length;
-        const activeSource = config.sources[activeSourceIndex];
+        activeSource = config.sources[activeSourceIndex];
         if (activeSource) {
           collectionType = activeSource.type;
+
+          // For networks sources, extract the specific platform name from subtype
+          // (e.g., "netflix_top_10" -> "netflix") for correct logo and colors
+          if (
+            activeSource.type === 'networks' &&
+            activeSource.subtype &&
+            activeSource.subtype.endsWith('_top_10')
+          ) {
+            const platformName = activeSource.subtype
+              .replace(/_top_10$/, '') // Remove "_top_10" suffix
+              .replace(/_/g, '-'); // Convert underscores to hyphens for logo compatibility
+            collectionType = platformName;
+
+            logger.debug(
+              `Using platform-specific type for Networks source in cycle_lists mode`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+                originalType: activeSource.type,
+                subtype: activeSource.subtype,
+                resolvedPlatform: platformName,
+              }
+            );
+          }
+        }
+      }
+
+      // Extract dynamic platform logo for network sources
+      let dynamicPlatformLogo: string | undefined;
+      if (
+        collectionType !== 'multi-source' &&
+        activeSource?.type === 'networks' &&
+        items.length > 0
+      ) {
+        const firstItem = items[0];
+        if (
+          firstItem.metadata?.platformLogo &&
+          typeof firstItem.metadata.platformLogo === 'object' &&
+          'spriteUrl' in firstItem.metadata.platformLogo &&
+          'position' in firstItem.metadata.platformLogo
+        ) {
+          try {
+            // Extract platform name from active source subtype
+            const platformName = activeSource.subtype
+              ? activeSource.subtype.replace(/_top_10$/, '').replace(/_/g, '-')
+              : 'unknown';
+
+            logger.debug(
+              `Extracting dynamic platform logo for cycle_lists mode`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+                platform: platformName,
+                spriteUrl: firstItem.metadata.platformLogo.spriteUrl,
+                position: firstItem.metadata.platformLogo.position,
+              }
+            );
+
+            // Use NetworksCollectionSync to extract the logo
+            const networksSync = this.getSyncService(
+              'networks'
+            ) as NetworksCollectionSync;
+            dynamicPlatformLogo =
+              await networksSync.extractPlatformLogoFromSprite(
+                firstItem.metadata.platformLogo.spriteUrl as string,
+                firstItem.metadata.platformLogo.position as string,
+                platformName
+              );
+
+            logger.info(
+              `Successfully extracted dynamic platform logo for multi-source collection`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+                platform: platformName,
+                logoPath: dynamicPlatformLogo,
+              }
+            );
+          } catch (logoError) {
+            logger.warn(
+              `Failed to extract dynamic platform logo, will use static logo`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+                error:
+                  logoError instanceof Error
+                    ? logoError.message
+                    : String(logoError),
+              }
+            );
+          }
         }
       }
 
@@ -1450,6 +1542,7 @@ export class MultiSourceOrchestrator {
           mediaType,
           items: posterItems,
           autoPosterTemplate: config.autoPosterTemplate, // Use configured template or default
+          ...(dynamicPlatformLogo && { dynamicLogo: dynamicPlatformLogo }), // Pass dynamic logo if available
         },
         `${
           config.combineMode === 'cycle_lists'
@@ -1478,8 +1571,38 @@ export class MultiSourceOrchestrator {
             posterFilename,
             collectionType,
             combineMode: config.combineMode,
+            usedDynamicLogo: !!dynamicPlatformLogo,
           }
         );
+      }
+
+      // Clean up the temporary dynamic logo file if created
+      if (dynamicPlatformLogo) {
+        try {
+          const fs = await import('fs');
+          if (fs.existsSync(dynamicPlatformLogo)) {
+            await fs.promises.unlink(dynamicPlatformLogo);
+            logger.debug(
+              `Cleaned up temporary dynamic logo file: ${dynamicPlatformLogo}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+              }
+            );
+          }
+        } catch (cleanupError) {
+          logger.warn(
+            `Failed to cleanup dynamic logo file: ${dynamicPlatformLogo}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              error:
+                cleanupError instanceof Error
+                  ? cleanupError.message
+                  : String(cleanupError),
+            }
+          );
+        }
       }
     } catch (error) {
       logger.error(

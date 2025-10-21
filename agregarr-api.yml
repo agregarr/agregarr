@@ -5160,7 +5160,7 @@ paths:
                 type:
                   type: string
                   description: Collection source type
-                  enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, multi-source]
+                  enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist, multi-source]
                   example: imdb
                 subtype:
                   type: string

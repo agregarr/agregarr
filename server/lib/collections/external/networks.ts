@@ -887,7 +887,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
   /**
    * Extract individual platform logo from FlixPatrol sprite sheet
    */
-  private async extractPlatformLogoFromSprite(
+  public async extractPlatformLogoFromSprite(
     spriteUrl: string,
     positionPercent: string,
     platformName: string

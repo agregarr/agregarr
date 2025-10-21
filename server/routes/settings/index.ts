@@ -283,7 +283,11 @@ settingsRoutes.get('/plex/libraries', async (req, res) => {
     }
 
     const plexapi = new PlexAPI({ plexToken: admin.plexToken });
-    const libraries = await plexapi.getLibraries();
+    const allLibraries = await plexapi.getLibraries();
+    // Filter to only movie and show libraries
+    const libraries = allLibraries.filter(
+      (lib) => lib.type === 'movie' || lib.type === 'show'
+    );
 
     // Return clean library data directly from Plex (no transformation)
     const cleanLibraries = libraries.map((lib) => ({

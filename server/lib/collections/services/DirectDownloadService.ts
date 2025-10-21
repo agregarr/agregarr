@@ -284,7 +284,11 @@ export class DirectDownloadService {
       let autoApprovedRequests = 0;
       let skippedRequests = 0;
       let alreadyDownloadedCount = 0;
-      const maxSeasons = Number(config.maxSeasonsToRequest) || 3;
+      const maxSeasons =
+        config.maxSeasonsToRequest !== undefined &&
+        config.maxSeasonsToRequest !== null
+          ? Number(config.maxSeasonsToRequest)
+          : 0; // 0 = no limit
 
       // Track excluded items for summary logging
       const excludedGenreItems: string[] = [];
@@ -297,19 +301,21 @@ export class DirectDownloadService {
           if (item.mediaType === 'movie') {
             // Movies are always downloaded
           } else if (item.mediaType === 'tv') {
-            // For TV shows, check season count limit only
-            const seasonCount = await this.getTvSeasonCount(item.tmdbId);
+            // For TV shows, check season count limit only if maxSeasons is set (> 0)
+            if (maxSeasons > 0) {
+              const seasonCount = await this.getTvSeasonCount(item.tmdbId);
 
-            if (seasonCount > maxSeasons) {
-              logger.debug(
-                `Skipping ${item.title}: Too many seasons (${seasonCount} > ${maxSeasons})`,
-                {
-                  label: 'Direct Download Service',
-                  collection: config.name,
-                }
-              );
-              skippedRequests++;
-              continue;
+              if (seasonCount > maxSeasons) {
+                logger.debug(
+                  `Skipping ${item.title}: Too many seasons (${seasonCount} > ${maxSeasons})`,
+                  {
+                    label: 'Direct Download Service',
+                    collection: config.name,
+                  }
+                );
+                skippedRequests++;
+                continue;
+              }
             }
           } else {
             // Unknown media type

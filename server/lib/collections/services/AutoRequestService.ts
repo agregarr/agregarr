@@ -178,7 +178,11 @@ export class AutoRequestService {
       let manualApprovalRequests = 0;
       let alreadyRequestedCount = 0;
       let skippedRequests = 0;
-      const maxSeasons = Number(config.maxSeasonsToRequest) || 3;
+      const maxSeasons =
+        config.maxSeasonsToRequest !== undefined &&
+        config.maxSeasonsToRequest !== null
+          ? Number(config.maxSeasonsToRequest)
+          : 0; // 0 = no limit
 
       // Track declined items for summary logging
       const previouslyDeclinedItems: string[] = [];
@@ -228,7 +232,8 @@ export class AutoRequestService {
           }
 
           // Check season limit for ALL TV shows first (regardless of auto-approve setting)
-          if (item.mediaType === 'tv') {
+          // Only skip if maxSeasons is set (> 0)
+          if (item.mediaType === 'tv' && maxSeasons > 0) {
             const seasonCount = await this.getTvSeasonCount(item.tmdbId);
 
             if (seasonCount > maxSeasons) {

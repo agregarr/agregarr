@@ -511,6 +511,18 @@ class FlixPatrolAPI extends ExternalAPI {
       if (currentElement.tagName === 'H3') {
         const h3Text = currentElement.textContent?.toLowerCase() || '';
 
+        // Filter out "Kids" content sections
+        if (h3Text.includes('kids')) {
+          logger.debug(`Skipping Kids content section: "${h3Text}"`, {
+            label: 'FlixPatrol API',
+            platform,
+            section: h3Text,
+            reason: 'kids_content_filter',
+          });
+          currentElement = currentElement.nextElementSibling;
+          continue;
+        }
+
         // Find the table that follows this H3
         let tableElement = currentElement.nextElementSibling;
         let searchDepth = 0;

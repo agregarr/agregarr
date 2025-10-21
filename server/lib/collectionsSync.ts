@@ -427,6 +427,19 @@ class CollectionsSync {
       );
       IndividualCollectionScheduler.setFullSyncRunning(false);
 
+      // Process any individual syncs that were queued during main sync
+      try {
+        await IndividualCollectionScheduler.processPendingQueues();
+      } catch (error) {
+        logger.warn(
+          'Failed to process pending individual collection syncs after main sync',
+          {
+            label: 'Collections Sync',
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+
       // Reset progress tracking
       this.currentStage = '';
       this.totalCollections = 0;

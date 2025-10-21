@@ -4,6 +4,7 @@ import {
   getTopRatedAnime,
   getTrendingAnime,
   getUserCustomLists,
+  searchAnime,
   type AniListCustomList,
   type AniListMedia,
 } from '@server/api/anilist';
@@ -177,6 +178,7 @@ export class AnilistCollectionSync extends BaseCollectionSync {
   /**
    * Count how many items from the provided media array would match items in the library.
    * This is a lightweight version of the full mapping logic used for early termination checks.
+   * Deduplicates by ratingKey to match the final preview behavior.
    */
   private countMatchedItems(
     media: AniListMedia[],
@@ -196,13 +198,13 @@ export class AnilistCollectionSync extends BaseCollectionSync {
     },
     mediaType: 'movie' | 'tv'
   ): number {
-    let matchedCount = 0;
+    const seenRatingKeys = new Set<string>();
 
     for (const m of media) {
       const anilistId = m?.id;
-      let matched = false;
+      let matchedRatingKey: string | undefined;
 
-      // Check Kometa mapping first
+      // Check PlexAniBridge mapping first
       if (anilistId) {
         let map = lookupByAniList(anilistId);
         if (!map && m?.idMal) {
@@ -228,21 +230,24 @@ export class AnilistCollectionSync extends BaseCollectionSync {
           const imdbFirst = getFirstValue(map.imdb_id);
           const imdb = imdbFirst?.toLowerCase();
 
-          // Check if any of these IDs exist in library
+          // Check if any of these IDs exist in library and get ratingKey
           if (mediaType === 'tv') {
-            if (tvdb && libraryIndex.tvdb.has(tvdb)) matched = true;
-            else if (tmdbShow && libraryIndex.tmdb.has(tmdbShow))
-              matched = true;
-            else if (imdb && libraryIndex.imdb.has(imdb)) matched = true;
+            if (tvdb && libraryIndex.tvdb.has(tvdb)) {
+              matchedRatingKey = libraryIndex.tvdb.get(tvdb)?.ratingKey;
+            } else if (tmdbShow && libraryIndex.tmdb.has(tmdbShow)) {
+              matchedRatingKey = libraryIndex.tmdb.get(tmdbShow)?.ratingKey;
+            } else if (imdb && libraryIndex.imdb.has(imdb)) {
+              matchedRatingKey = libraryIndex.imdb.get(imdb)?.ratingKey;
+            }
           }
 
-          if (!matched) {
+          if (!matchedRatingKey) {
             const tryTmdbIds = [tmdbMovie, tmdbShow].filter(
               Boolean
             ) as string[];
             for (const tid of tryTmdbIds) {
               if (libraryIndex.tmdb.has(tid)) {
-                matched = true;
+                matchedRatingKey = libraryIndex.tmdb.get(tid)?.ratingKey;
                 break;
               }
             }
@@ -250,23 +255,26 @@ export class AnilistCollectionSync extends BaseCollectionSync {
         }
       }
 
-      if (!matched) {
+      if (!matchedRatingKey) {
         // Check external links (TMDb/IMDb)
         const tmdbId = this.extractTmdbId(m?.externalLinks ?? undefined);
         if (tmdbId && libraryIndex.tmdb.has(tmdbId)) {
-          matched = true;
+          matchedRatingKey = libraryIndex.tmdb.get(tmdbId)?.ratingKey;
         } else {
           const imdbId = this.extractImdbId(m?.externalLinks ?? undefined);
           if (imdbId && libraryIndex.imdb.has(imdbId)) {
-            matched = true;
+            matchedRatingKey = libraryIndex.imdb.get(imdbId)?.ratingKey;
           }
         }
       }
 
-      if (matched) matchedCount++;
+      // Only count if we haven't seen this ratingKey before (deduplication)
+      if (matchedRatingKey && !seenRatingKeys.has(matchedRatingKey)) {
+        seenRatingKeys.add(matchedRatingKey);
+      }
     }
 
-    return matchedCount;
+    return seenRatingKeys.size;
   }
 
   private buildProviderIndex(libraryCache?: LibraryItemsCache) {
@@ -459,6 +467,9 @@ export class AnilistCollectionSync extends BaseCollectionSync {
     options?: CollectionSyncOptions,
     libraryCache?: LibraryItemsCache
   ): Promise<CollectionSourceData[]> {
+    // Ensure anime IDs are loaded for mapping (needed for preview which bypasses processConfiguration)
+    await ensureAnimeIdsLoaded();
+
     const rawSubtype = (config.subtype || 'trending').toString();
     const subtype = rawSubtype.toLowerCase();
     const perPage = 50; // AniList API maximum per page
@@ -645,11 +656,164 @@ export class AnilistCollectionSync extends BaseCollectionSync {
       // Legacy support: use config.anilistCustomListUrl when subtype === 'custom'
       const customUrl = config.anilistCustomListUrl;
       if (typeof customUrl === 'string' && customUrl.length > 0) {
-        // parse patterns like /user/{username}/animelist/{ListName}
+        // parse patterns like /user/{username}/animelist/{ListName} or /search/anime?params
         try {
           const u = new URL(customUrl);
           const parts = u.pathname.split('/').filter(Boolean);
-          // Expecting ['user', username, 'animelist', maybeList]
+
+          // Handle search URLs: /search/anime?genres=Comedy&sort=TRENDING_DESC or /search/anime/top-100
+          if (parts[0] === 'search' && parts[1] === 'anime') {
+            const searchParams: Parameters<typeof searchAnime>[2] = {};
+
+            // Handle path-based shortcuts (e.g., /search/anime/top-100, /search/anime/this-season)
+            if (parts[2]) {
+              const shortcut = parts[2].toLowerCase();
+              const now = new Date();
+              const currentMonth = now.getMonth() + 1; // 1-12
+              const currentYear = now.getFullYear();
+
+              // Helper to get current season
+              const getCurrentSeason = (): string => {
+                if (currentMonth >= 1 && currentMonth <= 3) return 'WINTER';
+                if (currentMonth >= 4 && currentMonth <= 6) return 'SPRING';
+                if (currentMonth >= 7 && currentMonth <= 9) return 'SUMMER';
+                return 'FALL';
+              };
+
+              // Helper to get next season
+              const getNextSeason = (): { season: string; year: number } => {
+                const currentSeason = getCurrentSeason();
+                if (currentSeason === 'WINTER')
+                  return { season: 'SPRING', year: currentYear };
+                if (currentSeason === 'SPRING')
+                  return { season: 'SUMMER', year: currentYear };
+                if (currentSeason === 'SUMMER')
+                  return { season: 'FALL', year: currentYear };
+                return { season: 'WINTER', year: currentYear + 1 };
+              };
+
+              switch (shortcut) {
+                case 'trending':
+                  searchParams.sort = 'TRENDING_DESC';
+                  break;
+                case 'this-season':
+                  searchParams.season = getCurrentSeason();
+                  searchParams.seasonYear = currentYear;
+                  searchParams.sort = 'POPULARITY_DESC';
+                  break;
+                case 'next-season': {
+                  const next = getNextSeason();
+                  searchParams.season = next.season;
+                  searchParams.seasonYear = next.year;
+                  searchParams.sort = 'POPULARITY_DESC';
+                  break;
+                }
+                case 'popular':
+                  searchParams.sort = 'POPULARITY_DESC';
+                  break;
+                case 'top-100':
+                  searchParams.sort = 'SCORE_DESC';
+                  break;
+              }
+            }
+
+            // Parse query parameters from URL (these override path-based shortcuts)
+            const genresParam = u.searchParams.get('genres');
+            if (genresParam) {
+              searchParams.genres = genresParam.split(',');
+            }
+            const tagsParam = u.searchParams.get('tags');
+            if (tagsParam) {
+              searchParams.tags = tagsParam.split(',');
+            }
+            const seasonParam = u.searchParams.get('season');
+            if (seasonParam) {
+              searchParams.season = seasonParam.toUpperCase();
+            }
+            const seasonYearParam = u.searchParams.get('seasonYear');
+            if (seasonYearParam) {
+              searchParams.seasonYear = parseInt(seasonYearParam);
+            }
+            const yearParam = u.searchParams.get('year');
+            if (yearParam) {
+              searchParams.year = parseInt(yearParam);
+            }
+            const sortParam = u.searchParams.get('sort');
+            if (sortParam) {
+              searchParams.sort = sortParam.toUpperCase();
+            }
+            const formatParam = u.searchParams.get('format');
+            if (formatParam) {
+              searchParams.format = formatParam.toUpperCase();
+            }
+            const statusParam = u.searchParams.get('airing status');
+            if (statusParam) {
+              searchParams.status = statusParam.toUpperCase();
+            }
+            const streamingParam = u.searchParams.get('streaming on');
+            if (streamingParam) {
+              searchParams.licensedById = parseInt(streamingParam);
+            }
+            const countryParam = u.searchParams.get('country of origin');
+            if (countryParam) {
+              searchParams.countryOfOrigin = countryParam.toUpperCase();
+            }
+            const sourceParam = u.searchParams.get('source material');
+            if (sourceParam) {
+              searchParams.source = sourceParam.toUpperCase();
+            }
+            const searchParam = u.searchParams.get('search');
+            if (searchParam) {
+              searchParams.search = searchParam;
+            }
+            if (u.searchParams.get('doujin')) {
+              searchParams.isLicensed = u.searchParams.get('doujin') === 'true';
+            }
+
+            // Handle year range (appears as two separate parameters)
+            const yearRanges = u.searchParams.getAll('year range');
+            if (yearRanges.length >= 2) {
+              searchParams.startDateGreater = parseInt(yearRanges[0]) * 10000; // Convert year to FuzzyDateInt (YYYYMMDD)
+              searchParams.startDateLesser = parseInt(yearRanges[1]) * 10000;
+            }
+
+            // Handle episodes range (appears as two separate parameters)
+            const episodesRanges = u.searchParams.getAll('episodes');
+            if (episodesRanges.length >= 2) {
+              searchParams.episodes_greater = parseInt(episodesRanges[0]);
+              searchParams.episodes_lesser = parseInt(episodesRanges[1]);
+            }
+
+            // Handle duration range (appears as two separate parameters)
+            const durationRanges = u.searchParams.getAll('duration');
+            if (durationRanges.length >= 2) {
+              searchParams.duration_greater = parseInt(durationRanges[0]);
+              searchParams.duration_lesser = parseInt(durationRanges[1]);
+            }
+
+            // Apply format filters based on collection media type (only if not already specified)
+            if (!searchParams.format && !searchParams.formatIn) {
+              if (mediaType === 'movie') {
+                searchParams.format = 'MOVIE';
+              } else {
+                searchParams.formatIn = [
+                  'TV',
+                  'TV_SHORT',
+                  'ONA',
+                  'OVA',
+                  'SPECIAL',
+                ];
+              }
+            }
+
+            // Fetch with pagination (same pattern as trending/popular)
+            const allMedia = await paginateResults((page, perPage) =>
+              searchAnime(page, perPage, searchParams)
+            );
+            return adapt(allMedia);
+          }
+
+          // Handle user list URLs: /user/{username}/animelist/{ListName}
           if (parts[0] === 'user' && parts[1]) {
             const userName = parts[1];
             const maybeList = parts[3];
@@ -673,10 +837,11 @@ export class AnilistCollectionSync extends BaseCollectionSync {
             return adapt(medias.slice(0, perPage));
           }
         } catch (e) {
-          logger.debug('Failed to parse AniList custom URL', {
+          logger.error('Failed to parse AniList custom URL', {
             label: 'AniList Collections',
             url: customUrl,
-            error: String(e),
+            error: e instanceof Error ? e.message : String(e),
+            stack: e instanceof Error ? e.stack : undefined,
           });
         }
       }
@@ -749,10 +914,10 @@ export class AnilistCollectionSync extends BaseCollectionSync {
 
       let matched = false;
 
-      // --- A) Kometa mapping first ---
+      // --- A) PlexAniBridge mapping first ---
       if (anilistId) {
         let map = lookupByAniList(anilistId);
-        // If Kometa has no entry for this AniList id, but AniList provides idMal, try MAL -> Kometa fallback
+        // If no entry for this AniList id, but AniList provides idMal, try MAL fallback
         if (!map && raw?.idMal) {
           try {
             const malId = Number(raw.idMal);
@@ -804,11 +969,15 @@ export class AnilistCollectionSync extends BaseCollectionSync {
                   ratingKey: hit.ratingKey,
                   title: hit.title,
                   type: 'tv',
+                  tmdbId: tmdbShow ? Number(tmdbShow) : undefined,
                   posterUrl:
                     raw?.coverImage?.extraLarge ||
                     raw?.coverImage?.large ||
                     undefined,
-                  metadata: { libraryKey: hit.libraryKey },
+                  metadata: {
+                    libraryKey: hit.libraryKey,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -824,7 +993,10 @@ export class AnilistCollectionSync extends BaseCollectionSync {
                     raw?.coverImage?.extraLarge ||
                     raw?.coverImage?.large ||
                     undefined,
-                  metadata: { libraryKey: hit.libraryKey },
+                  metadata: {
+                    libraryKey: hit.libraryKey,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -835,11 +1007,15 @@ export class AnilistCollectionSync extends BaseCollectionSync {
                   ratingKey: hit.ratingKey,
                   title: hit.title,
                   type: 'tv',
+                  tmdbId: tmdbShow ? Number(tmdbShow) : undefined,
                   posterUrl:
                     raw?.coverImage?.extraLarge ||
                     raw?.coverImage?.large ||
                     undefined,
-                  metadata: { libraryKey: hit.libraryKey },
+                  metadata: {
+                    libraryKey: hit.libraryKey,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -875,7 +1051,10 @@ export class AnilistCollectionSync extends BaseCollectionSync {
                     raw?.coverImage?.extraLarge ||
                     raw?.coverImage?.large ||
                     undefined,
-                  metadata: { libraryKey: normalizedLibraryId },
+                  metadata: {
+                    libraryKey: normalizedLibraryId,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -974,7 +1153,7 @@ export class AnilistCollectionSync extends BaseCollectionSync {
               raw?.coverImage?.extraLarge ||
               raw?.coverImage?.large ||
               undefined,
-            metadata: { libraryKey: hit.libraryKey },
+            metadata: { libraryKey: hit.libraryKey, originalPosition: i + 1 },
           });
           continue;
         }
@@ -993,7 +1172,7 @@ export class AnilistCollectionSync extends BaseCollectionSync {
               raw?.coverImage?.extraLarge ||
               raw?.coverImage?.large ||
               undefined,
-            metadata: { libraryKey: hit.libraryKey },
+            metadata: { libraryKey: hit.libraryKey, originalPosition: i + 1 },
           });
           continue;
         }
@@ -1023,7 +1202,10 @@ export class AnilistCollectionSync extends BaseCollectionSync {
               raw?.coverImage?.extraLarge ||
               raw?.coverImage?.large ||
               undefined,
-            metadata: { libraryKey: normalizedLibraryId },
+            metadata: {
+              libraryKey: normalizedLibraryId,
+              originalPosition: i + 1,
+            },
           });
           continue;
         }
@@ -1032,6 +1214,7 @@ export class AnilistCollectionSync extends BaseCollectionSync {
       // --- C) No match found - try to get TMDB ID for auto-request ---
       // Try to get TMDB ID from anime mapping or external links
       let tmdbId = 0;
+      let tvdbId: number | undefined;
 
       if (anilistId) {
         let map = lookupByAniList(anilistId);
@@ -1051,6 +1234,9 @@ export class AnilistCollectionSync extends BaseCollectionSync {
 
           // PRIORITY 2: Only if PlexAniBridge doesn't have TMDB ID, try TVDB → TMDB API lookup
           const tvdb = map.tvdb_id != null ? String(map.tvdb_id) : undefined;
+          if (tvdb) {
+            tvdbId = parseInt(tvdb); // Save TVDB ID for Sonarr
+          }
           if (tmdbId === 0 && tvdb) {
             try {
               const TheMovieDb = (await import('@server/api/themoviedb'))
@@ -1091,11 +1277,12 @@ export class AnilistCollectionSync extends BaseCollectionSync {
       const itemMediaType: 'movie' | 'tv' =
         raw?.format === 'MOVIE' ? 'movie' : 'tv';
 
-      // Only add to missing if we have a valid TMDB ID
-      // For anime, we ONLY send TMDB ID to Overseerr (no TVDB, to avoid extra TMDB API calls)
-      if (tmdbId > 0) {
+      // Add to missing if we have either TMDB ID or TVDB ID
+      // TMDB ID preferred for Overseerr/Radarr, TVDB ID works for Sonarr
+      if (tmdbId > 0 || tvdbId) {
         missing.push({
-          tmdbId,
+          tmdbId: tmdbId > 0 ? tmdbId : 0, // Use 0 if no TMDB ID (Sonarr will use TVDB)
+          tvdbId,
           mediaType: itemMediaType,
           title: displayTitle,
           originalPosition: i + 1,

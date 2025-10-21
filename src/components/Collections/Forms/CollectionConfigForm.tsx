@@ -327,8 +327,8 @@ const CollectionFormConfigForm = ({
         schema
           .required('AniList list URL is required')
           .matches(
-            /anilist\.co\/(?:user\/[^/]+\/animelist\/[^/?]+|anime\/[^/?]+)/,
-            'Please enter a valid AniList list URL (e.g., https://anilist.co/anime/listname or https://anilist.co/user/username/animelist/listname)'
+            /anilist\.co\/(?:user\/[^/]+\/(?:animelist|list)\/[^/?]+|(?:animelist|list)\/[^/?]+|search\/anime(?:\/[^/?]+)?|anime\/?\d+)/,
+            'Please enter a valid AniList URL (e.g., user lists, search pages, or anime pages)'
           ),
       otherwise: (schema) => schema,
     }),
@@ -2344,11 +2344,11 @@ const CollectionFormConfigForm = ({
           autoApproveTV:
             (config as CollectionFormConfig).autoApproveTV ?? false,
           maxSeasonsToRequest:
-            (config as CollectionFormConfig).maxSeasonsToRequest ?? 3,
+            (config as CollectionFormConfig).maxSeasonsToRequest ?? 0,
           seasonsPerShowLimit:
-            (config as CollectionFormConfig).seasonsPerShowLimit || 0,
+            (config as CollectionFormConfig).seasonsPerShowLimit ?? 0,
           maxPositionToProcess:
-            (config as CollectionFormConfig).maxPositionToProcess || 0,
+            (config as CollectionFormConfig).maxPositionToProcess ?? 0,
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
@@ -3597,6 +3597,10 @@ const CollectionFormConfigForm = ({
                                 | undefined)
                             : values.type === 'mdblist'
                             ? (valuesRecord.mdblistCustomListUrl as
+                                | string
+                                | undefined)
+                            : values.type === 'anilist'
+                            ? (valuesRecord.anilistCustomListUrl as
                                 | string
                                 | undefined)
                             : undefined,
