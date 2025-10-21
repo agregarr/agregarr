@@ -1,3 +1,23 @@
+## [1.4.2](https://github.com/agregarr/agregarr/compare/v1.4.1...v1.4.2) (2025-10-21)
+
+
+### Bug Fixes
+
+* **anilist:** anilist URL's with /search can now be added. fixes preview ([bde31c6](https://github.com/agregarr/agregarr/commit/bde31c67cb1e1defb864724e4e675f65866857ab)), closes [#110](https://github.com/agregarr/agregarr/issues/110)
+* **anilist:** fixes preview collections and custom URL validation ([72238d7](https://github.com/agregarr/agregarr/commit/72238d787f5a4e0fe49fd9cbf56793be091a7e94)), closes [#109](https://github.com/agregarr/agregarr/issues/109)
+* **config:** disables custom sync option for default hubs and pre-existing collections ([a015ee8](https://github.com/agregarr/agregarr/commit/a015ee84984537c522418a92a4d1f1f351db8b47))
+* **config:** enables randomise order for default hubs and pre-existing collections ([0128a4d](https://github.com/agregarr/agregarr/commit/0128a4d17d9744165cf677d64e06218e41eee85a))
+* **config:** fixes max seasons of 0 being treated as undefined and defaulting to 3 ([0d06340](https://github.com/agregarr/agregarr/commit/0d06340ad92e1611e2a7c1c7b01ffd43ac9a6ddd))
+* **individual sync:** adds queue for individual syncs when main sync is running ([6687711](https://github.com/agregarr/agregarr/commit/6687711995dafbd62482548eb96242c21141b687))
+* **item ordering:** improves sync time by selectively reordering items in collections ([bfa0eb8](https://github.com/agregarr/agregarr/commit/bfa0eb8f5f04513d1a881858f1b724c6e3dffaf7))
+* **libraries:** non-show/movie libraries are now consistently ignored ([8ad31bb](https://github.com/agregarr/agregarr/commit/8ad31bb279f7c45180c4eb738452ecf45fe6acd8))
+* **networks top 10:** fixes kids lists being included in list ([a5ecda5](https://github.com/agregarr/agregarr/commit/a5ecda562eaaafa84cfd06c4944c1e86bb9845d1)), closes [#105](https://github.com/agregarr/agregarr/issues/105)
+* **plex libraries:** fixes non TV Show or Movies libraries appearing in UI and logs ([f2138a9](https://github.com/agregarr/agregarr/commit/f2138a959401274def013be271e13bb4bd4fb3ea))
+* **plex restrictions:** fixes existing labels in plex restrictions not being preserved ([5803003](https://github.com/agregarr/agregarr/commit/58030032697f91b4435b76a120782cdb3e56684a)), closes [#107](https://github.com/agregarr/agregarr/issues/107)
+* **posters:** network Top 10 multi source collections in cycle lists mode now uses correct poster ([4c4a656](https://github.com/agregarr/agregarr/commit/4c4a6560a62859c2a8b56039234876aa72b32406))
+* **reordering:** fixes plex home/recommended reordering for large libraries with randomise order set ([9992d8d](https://github.com/agregarr/agregarr/commit/9992d8dd447ea45d40c875b4ed56e976722d0f81)), closes [#102](https://github.com/agregarr/agregarr/issues/102)
+* **sonarr:** list exclusions in sonarr are now respected ([c07adf2](https://github.com/agregarr/agregarr/commit/c07adf23cdb09e6d7d977ba52949747cae2521f9))
+
 ## [1.4.1](https://github.com/agregarr/agregarr/compare/v1.4.0...v1.4.1) (2025-10-12)
 
 
