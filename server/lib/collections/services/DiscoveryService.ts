@@ -120,6 +120,27 @@ export class DiscoveryService {
 
       // Get existing configs to check for duplicates
       const settings = getSettings();
+
+      // Clean up orphaned configs from non-movie/TV libraries
+      // This removes configs referencing libraries that are now filtered out (music, photos, etc.)
+      const cleanupResult = this.cleanupOrphanedLibraryConfigs(
+        settings,
+        libraries
+      );
+      if (cleanupResult.removed > 0) {
+        settings.save();
+        logger.info(
+          `Cleaned up ${cleanupResult.removed} orphaned configs from non-movie/TV libraries`,
+          {
+            label: 'Discovery Service - Cleanup',
+            collectionsRemoved: cleanupResult.collectionsRemoved,
+            hubsRemoved: cleanupResult.hubsRemoved,
+            preExistingRemoved: cleanupResult.preExistingRemoved,
+            orphanedLibraries: cleanupResult.orphanedLibraries,
+          }
+        );
+      }
+
       let collectionConfigs = settings.plex.collectionConfigs || [];
       const existingHubConfigs = settings.plex.hubConfigs || [];
       const existingPreExistingConfigs =
@@ -1493,6 +1514,138 @@ export class DiscoveryService {
     }
 
     return status;
+  }
+
+  /**
+   * Clean up configs that reference libraries no longer in the valid library list
+   * This removes orphaned configs from non-movie/TV libraries (music, photos, etc.)
+   */
+  private cleanupOrphanedLibraryConfigs(
+    settings: ReturnType<typeof getSettings>,
+    validLibraries: PlexLibrary[]
+  ): {
+    removed: number;
+    collectionsRemoved: number;
+    hubsRemoved: number;
+    preExistingRemoved: number;
+    orphanedLibraries: string[];
+  } {
+    const validLibraryIds = new Set(validLibraries.map((lib) => lib.key));
+    const orphanedLibraryIds = new Set<string>();
+
+    let collectionsRemoved = 0;
+    let hubsRemoved = 0;
+    let preExistingRemoved = 0;
+
+    // Clean up collection configs
+    if (settings.plex.collectionConfigs) {
+      settings.plex.collectionConfigs = settings.plex.collectionConfigs.filter(
+        (config) => {
+          // For configs with array of library IDs, check if any are valid
+          if (Array.isArray(config.libraryId)) {
+            const validIds = config.libraryId.filter((id) =>
+              validLibraryIds.has(id)
+            );
+            if (validIds.length === 0) {
+              orphanedLibraryIds.add(config.libraryId.join(','));
+              collectionsRemoved++;
+              logger.debug(
+                `Removing collection config from non-movie/TV libraries: ${config.name}`,
+                {
+                  label: 'Discovery Service - Cleanup',
+                  configId: config.id,
+                  libraryIds: config.libraryId,
+                }
+              );
+              return false;
+            }
+            // If some libraries are valid but some aren't, log but keep the config
+            // (we can't mutate the libraryId array since it's readonly)
+            if (validIds.length !== config.libraryId.length) {
+              logger.debug(
+                `Collection config references some non-movie/TV libraries: ${config.name}`,
+                {
+                  label: 'Discovery Service - Cleanup',
+                  configId: config.id,
+                  allLibraries: config.libraryId,
+                  validLibraries: validIds,
+                }
+              );
+            }
+            return true;
+          }
+
+          // For configs with single library ID
+          if (!validLibraryIds.has(config.libraryId)) {
+            orphanedLibraryIds.add(config.libraryId);
+            collectionsRemoved++;
+            logger.debug(
+              `Removing collection config from non-movie/TV library: ${config.name}`,
+              {
+                label: 'Discovery Service - Cleanup',
+                configId: config.id,
+                libraryId: config.libraryId,
+              }
+            );
+            return false;
+          }
+          return true;
+        }
+      );
+    }
+
+    // Clean up hub configs
+    if (settings.plex.hubConfigs) {
+      settings.plex.hubConfigs = settings.plex.hubConfigs.filter((config) => {
+        if (!validLibraryIds.has(config.libraryId)) {
+          orphanedLibraryIds.add(config.libraryId);
+          hubsRemoved++;
+          logger.debug(
+            `Removing hub config from non-movie/TV library: ${config.name}`,
+            {
+              label: 'Discovery Service - Cleanup',
+              configId: config.id,
+              libraryId: config.libraryId,
+              hubIdentifier: config.hubIdentifier,
+            }
+          );
+          return false;
+        }
+        return true;
+      });
+    }
+
+    // Clean up pre-existing collection configs
+    if (settings.plex.preExistingCollectionConfigs) {
+      settings.plex.preExistingCollectionConfigs =
+        settings.plex.preExistingCollectionConfigs.filter((config) => {
+          if (!validLibraryIds.has(config.libraryId)) {
+            orphanedLibraryIds.add(config.libraryId);
+            preExistingRemoved++;
+            logger.debug(
+              `Removing pre-existing collection config from non-movie/TV library: ${config.name}`,
+              {
+                label: 'Discovery Service - Cleanup',
+                configId: config.id,
+                libraryId: config.libraryId,
+                ratingKey: config.collectionRatingKey,
+              }
+            );
+            return false;
+          }
+          return true;
+        });
+    }
+
+    const totalRemoved = collectionsRemoved + hubsRemoved + preExistingRemoved;
+
+    return {
+      removed: totalRemoved,
+      collectionsRemoved,
+      hubsRemoved,
+      preExistingRemoved,
+      orphanedLibraries: Array.from(orphanedLibraryIds),
+    };
   }
 
   /**
