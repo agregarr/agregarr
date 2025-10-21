@@ -331,7 +331,9 @@ class SonarrAPI extends ServarrBase<{
 
   public getExclusions = async (): Promise<SonarrExclusion[]> => {
     try {
-      const response = await this.axios.get<SonarrExclusion[]>('/exclusions');
+      const response = await this.axios.get<SonarrExclusion[]>(
+        '/importlistexclusion'
+      );
       return response.data;
     } catch (e) {
       logger.error('Error retrieving exclusions from Sonarr', {
