@@ -210,8 +210,11 @@ export async function cleanupOrphanedCollections(
   let deletedCount = 0;
 
   try {
-    // Get all libraries
-    const libraries = await plexClient.getLibraries();
+    // Get all libraries - filter to only movie and show libraries
+    const allLibraries = await plexClient.getLibraries();
+    const libraries = allLibraries.filter(
+      (library) => library.type === 'movie' || library.type === 'show'
+    );
 
     for (const library of libraries) {
       // Get all collections - they're filtered by library key internally
@@ -1341,7 +1344,11 @@ export async function prefetchAllLibraryItems(
   const cache: LibraryItemsCache = {};
 
   try {
-    const libraries = await plexClient.getLibraries();
+    const allLibraries = await plexClient.getLibraries();
+    // Filter to only movie and show libraries
+    const libraries = allLibraries.filter(
+      (library) => library.type === 'movie' || library.type === 'show'
+    );
     let librariesToCache = libraries;
 
     // If targetLibraryId is specified, only cache that library
@@ -1459,7 +1466,11 @@ export async function findPlexItemsByTmdbIds(
       );
     } else {
       // Fallback to fresh API call if no cache
-      libraries = await plexClient.getLibraries();
+      const allLibraries = await plexClient.getLibraries();
+      // Filter to only movie and show libraries
+      libraries = allLibraries.filter(
+        (library) => library.type === 'movie' || library.type === 'show'
+      );
       // No library cache available, fetching fresh data
     }
 

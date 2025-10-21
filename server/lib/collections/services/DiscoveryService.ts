@@ -101,10 +101,16 @@ export class DiscoveryService {
       });
       const startTime = Date.now();
 
-      const libraries = await plexClient.getLibraries();
+      const allLibraries = await plexClient.getLibraries();
+      // Filter to only movie and show libraries - we don't manage music, photo, or other library types
+      const libraries = allLibraries.filter(
+        (library) => library.type === 'movie' || library.type === 'show'
+      );
+
       logger.info('Libraries loaded for discovery', {
         label: 'Hub Discovery',
-        libraryCount: libraries.length,
+        totalLibraryCount: allLibraries.length,
+        filteredLibraryCount: libraries.length,
         libraryNames: libraries.map((l) => `${l.title} (${l.type})`),
       });
 

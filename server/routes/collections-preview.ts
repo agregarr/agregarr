@@ -893,8 +893,11 @@ async function processPreviewAsync(
       progress: 10,
     });
 
-    // Get library info
-    const libraries = await plexClient.getLibraries();
+    // Get library info - filter to only movie and show libraries
+    const allLibraries = await plexClient.getLibraries();
+    const libraries = allLibraries.filter(
+      (lib) => lib.type === 'movie' || lib.type === 'show'
+    );
     const library = libraries.find((lib) => lib.key === libraryId);
 
     if (!library) {
