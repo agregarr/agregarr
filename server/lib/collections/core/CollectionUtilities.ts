@@ -1203,19 +1203,33 @@ export function validateDownloadModeConfig(config: CollectionConfig): {
     );
   }
 
-  // Position limit validation
-  if (config.maxPositionToProcess && config.maxPositionToProcess < 1) {
-    errors.push('Position limit must be at least 1 if specified');
+  // Position limit validation (0 = no limit)
+  if (
+    config.maxPositionToProcess !== undefined &&
+    config.maxPositionToProcess !== null &&
+    config.maxPositionToProcess < 0
+  ) {
+    errors.push('Position limit must be 0 or greater (0 = no limit)');
   }
 
-  // Season limit validation
-  if (config.maxSeasonsToRequest && config.maxSeasonsToRequest < 1) {
-    errors.push('Season limit must be at least 1 if specified');
+  // Season limit validation (0 = no limit)
+  if (
+    config.maxSeasonsToRequest !== undefined &&
+    config.maxSeasonsToRequest !== null &&
+    config.maxSeasonsToRequest < 0
+  ) {
+    errors.push('Season limit must be 0 or greater (0 = no limit)');
   }
 
-  // Seasons per show limit validation
-  if (config.seasonsPerShowLimit && config.seasonsPerShowLimit < 1) {
-    errors.push('Seasons per show limit must be at least 1 if specified');
+  // Seasons per show limit validation (0 = all seasons)
+  if (
+    config.seasonsPerShowLimit !== undefined &&
+    config.seasonsPerShowLimit !== null &&
+    config.seasonsPerShowLimit < 0
+  ) {
+    errors.push(
+      'Seasons per show limit must be 0 or greater (0 = all seasons)'
+    );
   }
 
   // Mode-specific validations

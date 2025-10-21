@@ -2344,11 +2344,11 @@ const CollectionFormConfigForm = ({
           autoApproveTV:
             (config as CollectionFormConfig).autoApproveTV ?? false,
           maxSeasonsToRequest:
-            (config as CollectionFormConfig).maxSeasonsToRequest ?? 3,
+            (config as CollectionFormConfig).maxSeasonsToRequest ?? 0,
           seasonsPerShowLimit:
-            (config as CollectionFormConfig).seasonsPerShowLimit || 0,
+            (config as CollectionFormConfig).seasonsPerShowLimit ?? 0,
           maxPositionToProcess:
-            (config as CollectionFormConfig).maxPositionToProcess || 0,
+            (config as CollectionFormConfig).maxPositionToProcess ?? 0,
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
