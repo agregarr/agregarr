@@ -283,6 +283,10 @@ settingsRoutes.get('/plex/libraries', async (req, res) => {
     }
 
     const plexapi = new PlexAPI({ plexToken: admin.plexToken });
+
+    // Sync libraries to settings so they're available for collection operations
+    await plexapi.syncLibraries();
+
     const allLibraries = await plexapi.getLibraries();
     // Filter to only movie and show libraries
     const libraries = allLibraries.filter(
