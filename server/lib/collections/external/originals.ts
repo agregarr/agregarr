@@ -335,23 +335,17 @@ export class OriginalsCollectionSync extends BaseCollectionSync {
         );
       }
 
-      // Apply ordering modifications (reverse, randomize)
-      const processedData = this.applyOrderingOptions(
-        [...originalsData],
-        config
-      );
-
       logger.info(
-        `Successfully fetched ${processedData.length} items from Kometa's ${platformName} originals list`,
+        `Successfully fetched ${originalsData.length} items from Kometa's ${platformName} originals list`,
         {
           label: 'Originals Collections',
           configName: config.name,
           platform: platformName,
-          itemCount: processedData.length,
+          itemCount: originalsData.length,
         }
       );
 
-      return processedData;
+      return originalsData;
     } catch (error) {
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
@@ -662,42 +656,6 @@ export class OriginalsCollectionSync extends BaseCollectionSync {
       );
       // Don't throw - autoPoster failure shouldn't break collection creation
     }
-  }
-
-  /**
-   * Apply ordering options (reverse, randomize) to data array
-   */
-  private applyOrderingOptions<T>(data: T[], config: CollectionConfig): T[] {
-    let processedData = [...data];
-
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
-
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      for (let i = processedData.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [processedData[i], processedData[j]] = [
-          processedData[j],
-          processedData[i],
-        ];
-      }
-
-      logger.debug(`Applied randomization to ${processedData.length} items`, {
-        label: 'Originals Collections',
-        collection: config.name,
-      });
-    } else if (shouldReverse) {
-      processedData = processedData.reverse();
-
-      logger.debug(`Applied reverse order to ${processedData.length} items`, {
-        label: 'Originals Collections',
-        collection: config.name,
-      });
-    }
-
-    return processedData;
   }
 
   /**

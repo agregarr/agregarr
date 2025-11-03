@@ -3066,6 +3066,33 @@ class PlexAPI {
   ): Promise<void> {
     return this.deleteCollection(smartCollectionRatingKey);
   }
+
+  /**
+   * Trigger a Plex library scan/refresh
+   * @param libraryId - The library section ID to scan
+   */
+  public async scanLibrary(libraryId: string): Promise<void> {
+    try {
+      logger.debug('Triggering Plex library scan', {
+        label: 'Plex API',
+        libraryId,
+      });
+
+      await this.plexClient.query(`/library/sections/${libraryId}/refresh`);
+
+      logger.info('Plex library scan triggered', {
+        label: 'Plex API',
+        libraryId,
+      });
+    } catch (error) {
+      logger.error('Failed to trigger Plex library scan', {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
 }
 
 export default PlexAPI;

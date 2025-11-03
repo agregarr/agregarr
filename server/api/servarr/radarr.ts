@@ -17,6 +17,7 @@ export interface RadarrMovieOptions {
 export interface RadarrMovie {
   id: number;
   title: string;
+  year?: number;
   isAvailable: boolean;
   monitored: boolean;
   tmdbId: number;
@@ -29,6 +30,11 @@ export interface RadarrMovie {
   added: string;
   hasFile: boolean;
   tags: number[];
+  status?: string; // 'released', 'announced', 'inCinemas', etc.
+  releaseDate?: string; // ISO date string
+  digitalRelease?: string; // ISO date string
+  physicalRelease?: string; // ISO date string
+  inCinemas?: string; // ISO date string
 }
 
 export interface RadarrExclusion {

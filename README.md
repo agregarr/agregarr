@@ -6,6 +6,7 @@ Agregarr keeps your Plex Home and Recommended fresh by frequently updating it wi
 
 - **Public Lists**: Add public lists from Trakt, IMDb, TMDB, Letterboxd, MDBList, FlixPatrol (Networks Top 10), AniList and MyAnimeList, with presets and custom list options.
 - **Grab Missing Items**: Missing items from lists can be added via Radarr/Sonarr or Overseerr, with various filters available including release year, season count, list position, genre, and origin country
+- **Coming Soon**: Create Coming Soon Collections based off monitored content in Radarr/Sonarr, or anticipated releases from Trakt, complete with trailers and poster overlays.
 - **Overseerr Requests**: Generate Collections either for each users requests (only visible to that user), or for All Requests
 - **Tautulli Statistics**: Generate Collections based on the Most Popular content on your server
 - **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independetly
@@ -31,12 +32,19 @@ services:
     container_name: agregarr
     volumes:
       - /path/to/config:/app/config
+      # Optional: For Coming Soon feature, mount media matching Radarr/Sonarr paths
+      # Linux/Mac: - /mnt/media/movies:/data/movies
+      #            - /mnt/media/tv:/data/tv
+      # Windows:   - E:\media\movies:/mnt/e/media/movies
+      #            - E:\media\tv:/mnt/e/media/tv
     ports:
       - 7171:7171
     restart: unless-stopped
 ```
 
 The application will be available at `http://localhost:7171`
+
+> **Note**: The Coming Soon feature requires media volumes to be mounted with paths matching your Radarr/Sonarr containers. Without media mounts, Agregarr can run remotely and all other features will work normally.
 
 ## License
 

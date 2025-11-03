@@ -150,7 +150,8 @@ export type CollectionSource =
   | 'anilist'
   | 'myanimelist'
   | 'radarrtag'
-  | 'sonarrtag';
+  | 'sonarrtag'
+  | 'comingsoon';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -377,6 +378,13 @@ export interface SonarrTagTemplateContext extends TemplateContext {
   tagLabel?: string;
 }
 
+export interface ComingSoonTemplateContext extends TemplateContext {
+  /** Collection source type */
+  source?: 'comingsoon';
+  /** Coming Soon specific stat type */
+  statType?: 'monitored' | 'trakt_anticipated';
+}
+
 /**
  * Union type for all possible template contexts
  */
@@ -391,7 +399,8 @@ export type SourceTemplateContext =
   | NetworksTemplateContext
   | OriginalsTemplateContext
   | RadarrTagTemplateContext
-  | SonarrTagTemplateContext;
+  | SonarrTagTemplateContext
+  | ComingSoonTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types
@@ -567,6 +576,36 @@ export interface SonarrTagSourceData {
 }
 
 /**
+ * Coming Soon source data (upcoming/unreleased content)
+ */
+export interface ComingSoonSourceData {
+  tmdbId: number;
+  tvdbId?: number; // For TV shows
+  title: string;
+  year?: number;
+
+  // Movie release dates (from Radarr)
+  releaseDate?: string; // ISO date string - generic/fallback release date
+  digitalRelease?: string; // Digital/streaming release date (Priority 1)
+  physicalRelease?: string; // Blu-ray/DVD release date (Priority 2)
+  inCinemas?: string; // Theatrical release date (Priority 3, optional)
+
+  mediaType: 'movie' | 'tv';
+  source: 'radarr' | 'sonarr' | 'trakt';
+  monitored: boolean; // True if item is in Radarr/Sonarr
+  posterUrl?: string; // Poster URL from source
+  airDate?: string; // Episode air date (S01E01 for new shows, next season premiere for returning shows)
+  releaseType?: 'digital' | 'physical' | 'cinema'; // Movie release type (determined after priority logic)
+  hasFile?: boolean; // Whether episode has file (for NEW detection)
+  downloadedDate?: string; // When file was downloaded (for NEW detection)
+  isReturning?: boolean; // True if this is a returning show (has previous episodes)
+  seasonNumber?: number; // Season number of the upcoming episode
+  episodeNumber?: number; // Episode number of the upcoming episode
+  releaseDateSortValue?: string; // ISO date string for sorting (set during fetchSourceData)
+  isEstimatedDate?: boolean; // True if releaseDate is an estimate (theatrical + 3 months)
+}
+
+/**
  * Union type for all possible source data
  */
 export type CollectionSourceData =
@@ -581,7 +620,8 @@ export type CollectionSourceData =
   | AniListSourceData
   | MyAnimeListSourceData
   | RadarrTagSourceData
-  | SonarrTagSourceData;
+  | SonarrTagSourceData
+  | ComingSoonSourceData;
 
 /**
  * Error types that can occur during collection sync

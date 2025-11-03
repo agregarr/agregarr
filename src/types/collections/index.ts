@@ -140,7 +140,8 @@ export interface CollectionFormConfig {
     | 'originals'
     | 'multi-source'
     | 'radarrtag'
-    | 'sonarrtag';
+    | 'sonarrtag'
+    | 'comingsoon';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -222,6 +223,8 @@ export interface CollectionFormConfig {
   readonly customDays?: number; // Number of days for Tautulli collections
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
   readonly tautulliStatType?: 'plays' | 'duration'; // Tautulli stat type
+  readonly comingSoonDays?: number; // Number of days to look ahead for Coming Soon collections (default: 360)
+  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct'; // Download mode: overseerr (requests) or direct (*arr)
   readonly searchMissingMovies?: boolean; // Auto-request missing movies
@@ -320,7 +323,8 @@ export interface CollectionConfigCreateRequest {
     | 'originals'
     | 'multi-source'
     | 'radarrtag'
-    | 'sonarrtag';
+    | 'sonarrtag'
+    | 'comingsoon';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -341,6 +345,8 @@ export interface CollectionConfigCreateRequest {
   readonly customDays?: number;
   readonly minimumPlays?: number;
   readonly tautulliStatType?: 'plays' | 'duration';
+  readonly comingSoonDays?: number;
+  readonly comingSoonReleasedDays?: number;
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
@@ -598,7 +604,8 @@ export type CollectionSourceType =
   | 'myanimelist'
   | 'multi-source'
   | 'radarrtag'
-  | 'sonarrtag';
+  | 'sonarrtag'
+  | 'comingsoon';
 export type MediaType = 'movie' | 'tv';
 
 /**
@@ -710,6 +717,9 @@ export interface CollectionSourceConfig {
   readonly sonarrTagServerId?: number;
   readonly sonarrTagId?: number;
   readonly sonarrTagLabel?: string;
+  // Coming Soon-specific configuration
+  readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
+  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
 }
 
 /**
@@ -834,7 +844,8 @@ export type MultiSourceType =
   | 'radarrtag'
   | 'sonarrtag'
   | 'anilist'
-  | 'myanimelist';
+  | 'myanimelist'
+  | 'comingsoon';
 
 /**
  * Source definition for multi-source collections
@@ -856,6 +867,8 @@ export interface SourceDefinition {
   readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag source
   readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag source
   readonly sonarrTagLabel?: string; // Sonarr tag label for display
+  readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
+  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
 }
 
 /**

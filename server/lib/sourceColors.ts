@@ -122,6 +122,11 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     secondaryColor: '#1c1917', // Matches UI bg-stone-900
     textColor: '#ffffff',
   },
+  comingsoon: {
+    primaryColor: '#e65100', // Agregarr orange/brand color
+    secondaryColor: '#1c1917', // Matches UI bg-stone-900
+    textColor: '#ffffff',
+  },
   radarrtag: {
     primaryColor: '#ffc230', // Radarr yellow/gold
     secondaryColor: '#1f1c0d',
@@ -133,8 +138,8 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     textColor: '#ffffff',
   },
   default: {
-    primaryColor: '#6366f1',
-    secondaryColor: '#1e1b4b',
+    primaryColor: '#e65100', // Agregarr orange/brand color (fallback for unknown sources)
+    secondaryColor: '#1c1917', // Matches UI bg-stone-900
     textColor: '#ffffff',
   },
 };

@@ -325,13 +325,14 @@ class TraktAPI {
 
   public async getAnticipated(
     mediaType: 'movies' | 'shows',
-    limit = 20
+    limit = 20,
+    page = 1
   ): Promise<TraktPopularResponse[]> {
     try {
       const response = await this.axios.get<TraktPopularResponse[]>(
         `/${mediaType}/anticipated`,
         {
-          params: { limit },
+          params: { limit, page },
         }
       );
       return response.data;
@@ -343,6 +344,7 @@ class TraktAPI {
           errorMessage: e.message,
           mediaType,
           limit,
+          page,
         }
       );
       throw new Error(

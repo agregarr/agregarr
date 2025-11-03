@@ -378,9 +378,6 @@ export class TraktCollectionSync extends BaseCollectionSync {
               (item.show && targetType === 'show')
           );
 
-          // Apply ordering modifications
-          customListData = this.applyOrderingOptions(customListData, config);
-
           traktData.push(...customListData);
           break;
         }
@@ -455,9 +452,6 @@ export class TraktCollectionSync extends BaseCollectionSync {
               (item.movie && targetType === 'movie') ||
               (item.show && targetType === 'show')
           );
-
-          // Apply ordering modifications
-          randomListData = this.applyOrderingOptions(randomListData, config);
 
           traktData.push(...randomListData);
           break;
@@ -781,42 +775,6 @@ export class TraktCollectionSync extends BaseCollectionSync {
   }
 
   // Private helper methods
-
-  /**
-   * Apply ordering options (reverse, randomize) to data array
-   */
-  private applyOrderingOptions<T>(data: T[], config: CollectionConfig): T[] {
-    let processedData = [...data];
-
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
-
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      for (let i = processedData.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [processedData[i], processedData[j]] = [
-          processedData[j],
-          processedData[i],
-        ];
-      }
-
-      logger.debug(`Applied randomization to ${processedData.length} items`, {
-        label: 'Trakt Collections',
-        collection: config.name,
-      });
-    } else if (shouldReverse) {
-      processedData = processedData.reverse();
-
-      logger.debug(`Applied reverse order to ${processedData.length} items`, {
-        label: 'Trakt Collections',
-        collection: config.name,
-      });
-    }
-
-    return processedData;
-  }
 
   private getTraktClient(apiKey: string): TraktAPI {
     if (!this.traktClients.has(apiKey)) {

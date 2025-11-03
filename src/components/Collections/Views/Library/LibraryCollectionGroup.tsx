@@ -621,6 +621,15 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'comingsoon':
+                        switch (subtype) {
+                          case 'monitored':
+                            return 'Monitored';
+                          case 'trakt_anticipated':
+                            return 'Trakt Anticipated';
+                          default:
+                            return subtype;
+                        }
                       case 'networks':
                         // Format platform names like "netflix_top_10" -> "Netflix"
                         // and "neon-tv" -> "Neon TV"
@@ -684,6 +693,8 @@ const SortableItem = ({
                       ? 'Originals'
                       : collection.type === 'multi-source'
                       ? 'Multi-Source'
+                      : collection.type === 'comingsoon'
+                      ? 'Coming Soon'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(

@@ -203,7 +203,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag', 'comingsoon']
           example: 'overseerr'
         subtype:
           type: string
@@ -316,6 +316,16 @@ components:
           description: "Number of days for Tautulli collections (required for Tautulli type)"
           example: 30
           nullable: true
+        comingSoonDays:
+          type: integer
+          description: "Number of days to look ahead for Coming Soon collections (default: 360)"
+          example: 360
+          nullable: true
+        comingSoonReleasedDays:
+          type: integer
+          description: "Days to keep released items with overlay before restoring original poster (default: 7)"
+          example: 7
+          nullable: true
         minimumPlays:
           type: integer
           description: "Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)"
@@ -395,6 +405,11 @@ components:
           type: string
           description: "Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)"
           example: "https://mdblist.com/lists/garycrawfordgc/netflix-shows"
+          nullable: true
+        comingSoonOverlayColor:
+          type: string
+          description: "Hex color for Coming Soon countdown overlay background (e.g., #C21807 for red). Text is always white."
+          example: "#C21807"
           nullable: true
         reverseOrder:
           type: boolean
@@ -566,7 +581,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag', 'comingsoon']
           example: 'overseerr'
         subtype:
           type: string
@@ -673,6 +688,16 @@ components:
           description: "Number of days for Tautulli collections (required for Tautulli type)"
           example: 30
           nullable: true
+        comingSoonDays:
+          type: integer
+          description: "Number of days to look ahead for Coming Soon collections (default: 360)"
+          example: 360
+          nullable: true
+        comingSoonReleasedDays:
+          type: integer
+          description: "Days to keep released items with overlay before restoring original poster (default: 7)"
+          example: 7
+          nullable: true
         minimumPlays:
           type: integer
           description: "Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)"
@@ -752,6 +777,11 @@ components:
           type: string
           description: "Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)"
           example: "https://mdblist.com/lists/garycrawfordgc/netflix-shows"
+          nullable: true
+        comingSoonOverlayColor:
+          type: string
+          description: "Hex color for Coming Soon countdown overlay background (e.g., #C21807 for red). Text is always white."
+          example: "#C21807"
           nullable: true
         reverseOrder:
           type: boolean
@@ -976,7 +1006,7 @@ components:
           example: "User Requests"
         type:
           type: string
-          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
+          enum: ['overseerr', 'tautulli', 'trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'networks', 'originals', 'multi-source', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag', 'comingsoon']
           example: 'overseerr'
         subtype:
           type: string
@@ -1089,6 +1119,16 @@ components:
           description: "Number of days for Tautulli collections (required for Tautulli type)"
           example: 30
           nullable: true
+        comingSoonDays:
+          type: integer
+          description: "Number of days to look ahead for Coming Soon collections (default: 360)"
+          example: 360
+          nullable: true
+        comingSoonReleasedDays:
+          type: integer
+          description: "Days to keep released items with overlay before restoring original poster (default: 7)"
+          example: 7
+          nullable: true
         minimumPlays:
           type: integer
           description: "Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)"
@@ -1179,6 +1219,11 @@ components:
           type: string
           description: "Custom Letterboxd list URL (e.g., https://letterboxd.com/user/list/list-name/)"
           example: "https://letterboxd.com/user/list/my-list/"
+          nullable: true
+        comingSoonOverlayColor:
+          type: string
+          description: "Hex color for Coming Soon countdown overlay background (e.g., #C21807 for red). Text is always white."
+          example: "#C21807"
           nullable: true
         networksCountry:
           type: string
@@ -1418,7 +1463,7 @@ components:
           example: "source-1234567890"
         type:
           type: string
-          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag']
+          enum: ['trakt', 'tmdb', 'imdb', 'mdblist', 'letterboxd', 'tautulli', 'overseerr', 'networks', 'originals', 'anilist', 'myanimelist', 'radarrtag', 'sonarrtag', 'comingsoon']
           description: "Type of collection source"
           example: 'trakt'
         subtype:
@@ -2386,6 +2431,23 @@ components:
         preventSearch:
           type: boolean
           example: false
+        pathMappings:
+          type: array
+          description: 'Path mappings for cross-platform/remote setups (e.g., Windows Radarr → Linux Agregarr)'
+          items:
+            type: object
+            properties:
+              from:
+                type: string
+                description: 'Remote path from Radarr (e.g., "C:\\serverdata\\media")'
+                example: 'C:\\serverdata\\media'
+              to:
+                type: string
+                description: 'Local path accessible by Agregarr (e.g., "/mnt/serverdata/media")'
+                example: '/mnt/serverdata/media'
+            required:
+              - from
+              - to
       required:
         - hostname
         - port
@@ -2460,6 +2522,23 @@ components:
         preventSearch:
           type: boolean
           example: false
+        pathMappings:
+          type: array
+          description: 'Path mappings for cross-platform/remote setups (e.g., Windows Sonarr → Linux Agregarr)'
+          items:
+            type: object
+            properties:
+              from:
+                type: string
+                description: 'Remote path from Sonarr (e.g., "C:\\serverdata\\media")'
+                example: 'C:\\serverdata\\tv'
+              to:
+                type: string
+                description: 'Local path accessible by Agregarr (e.g., "/mnt/serverdata/tv")'
+                example: '/mnt/serverdata/tv'
+            required:
+              - from
+              - to
       required:
         - hostname
         - port
@@ -3233,7 +3312,7 @@ components:
           example: "Trending Movies"
         collectionSource:
           type: string
-          enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
+          enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist, radarrtag, sonarrtag, comingsoon, multi-source]
           example: "trakt"
         collectionSubtype:
           type: string
@@ -5160,7 +5239,7 @@ paths:
                 type:
                   type: string
                   description: Collection source type
-                  enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist, multi-source]
+                  enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist, radarrtag, sonarrtag, comingsoon, multi-source]
                   example: imdb
                 subtype:
                   type: string
@@ -5224,7 +5303,7 @@ paths:
                       type:
                         type: string
                         description: Collection source type
-                        enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist]
+                        enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist, radarrtag, sonarrtag, comingsoon]
                         example: "imdb"
                       subtype:
                         type: string
@@ -8675,7 +8754,7 @@ paths:
           name: collectionSource
           schema:
             type: string
-            enum: [trakt, tmdb, imdb, mdblist, letterboxd, anilist, myanimelist]
+            enum: [trakt, tmdb, imdb, letterboxd, mdblist, tautulli, networks, originals, overseerr, anilist, myanimelist, radarrtag, sonarrtag, comingsoon, multi-source]
           description: Filter by collection source
         - in: query
           name: requestService

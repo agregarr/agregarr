@@ -3,6 +3,7 @@ import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionU
 import type {
   CollectionItem,
   CollectionSyncOptions,
+  ComingSoonSourceData,
   MissingItem,
   PlexCollection,
 } from '@server/lib/collections/core/types';
@@ -23,6 +24,7 @@ import {
   validateCollectionItems,
 } from '@server/lib/collections/core/CollectionUtilities';
 import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
+import { ComingSoonCollectionSync } from '@server/lib/collections/external/comingsoon';
 import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
 import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
 import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
@@ -512,10 +514,236 @@ export class MultiSourceOrchestrator {
         plexClient,
         libraryCache
       );
+
+      // Extract placeholder items before filtering (Coming Soon specific)
+      const placeholderItems: {
+        ratingKey: string;
+        sourceItem: ComingSoonSourceData;
+      }[] =
+        'placeholderItems' in mappedResult
+          ? (mappedResult.placeholderItems as {
+              ratingKey: string;
+              sourceItem: ComingSoonSourceData;
+            }[]) || []
+          : [];
+
       const { items, missingItems } = syncService.applyFilteringToMappedItems(
         mappedResult,
         tempConfig
       );
+
+      // Special handling for Coming Soon: apply overlays to existing placeholders
+      if (source.type === 'comingsoon' && placeholderItems.length > 0) {
+        logger.info(
+          `Applying overlays to ${placeholderItems.length} existing Coming Soon placeholders`,
+          {
+            label: 'Multi-Source Orchestrator',
+            sourceId: source.id,
+            placeholderCount: placeholderItems.length,
+          }
+        );
+
+        try {
+          const comingSoonSync = syncService as ComingSoonCollectionSync;
+          await comingSoonSync.applyOverlaysToExistingPlaceholders(
+            placeholderItems,
+            tempConfig,
+            plexClient
+          );
+
+          logger.info(
+            'Overlay application completed for existing placeholders',
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              appliedCount: placeholderItems.length,
+            }
+          );
+        } catch (error) {
+          logger.error(
+            'Failed to apply overlays to existing placeholders in multi-source',
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
+      // Special handling for Coming Soon: apply overlays to regular items (non-placeholders)
+      // These are items that exist in Plex but aren't placeholders (like returning TV shows)
+      if (source.type === 'comingsoon' && items.length > 0) {
+        try {
+          const comingSoonSync = syncService as ComingSoonCollectionSync;
+
+          // Filter out items that are already in the placeholders list
+          const placeholderRatingKeys = new Set(
+            placeholderItems.map((p) => p.ratingKey)
+          );
+          const regularItemsNeedingOverlays = items
+            .filter((item) => !placeholderRatingKeys.has(item.ratingKey))
+            .map((item) => {
+              const sourceItem = (sourceData as ComingSoonSourceData[]).find(
+                (s) => s.tmdbId === item.tmdbId
+              );
+              return sourceItem
+                ? { ratingKey: item.ratingKey, sourceItem }
+                : null;
+            })
+            .filter(
+              (
+                item
+              ): item is {
+                ratingKey: string;
+                sourceItem: ComingSoonSourceData;
+              } => item !== null
+            );
+
+          if (regularItemsNeedingOverlays.length > 0) {
+            logger.info(
+              `Applying overlays to ${regularItemsNeedingOverlays.length} regular Coming Soon items`,
+              {
+                label: 'Multi-Source Orchestrator',
+                sourceId: source.id,
+                regularItemCount: regularItemsNeedingOverlays.length,
+              }
+            );
+
+            await comingSoonSync.applyOverlaysToExistingPlaceholders(
+              regularItemsNeedingOverlays,
+              tempConfig,
+              plexClient
+            );
+
+            logger.info('Overlay application completed for regular items', {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              appliedCount: regularItemsNeedingOverlays.length,
+            });
+          }
+        } catch (error) {
+          logger.error(
+            'Failed to apply overlays to regular Coming Soon items in multi-source',
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
+      // Special handling for Coming Soon: create placeholders for missing items
+      if (
+        source.type === 'comingsoon' &&
+        missingItems &&
+        missingItems.length > 0
+      ) {
+        logger.info(
+          `Creating placeholders for ${missingItems.length} Coming Soon missing items`,
+          {
+            label: 'Multi-Source Orchestrator',
+            sourceId: source.id,
+            missingCount: missingItems.length,
+          }
+        );
+
+        try {
+          // Cast to ComingSoonCollectionSync to access placeholder creation method
+          const comingSoonSync = syncService as ComingSoonCollectionSync;
+
+          // Call the placeholder creation method
+          // This triggers placeholder file creation and Plex scanning
+          // CRITICAL: Capture the returned placeholder items
+          const newPlaceholderItems =
+            await comingSoonSync.handlePlaceholderCreation(
+              missingItems,
+              sourceData as ComingSoonSourceData[],
+              tempConfig,
+              plexClient
+            );
+
+          // Add the newly created placeholders to the items array
+          items.push(...newPlaceholderItems);
+
+          logger.info('Placeholder creation completed for Coming Soon items', {
+            label: 'Multi-Source Orchestrator',
+            sourceId: source.id,
+            createdCount: newPlaceholderItems.length,
+            totalItemsNow: items.length,
+          });
+        } catch (error) {
+          logger.error(
+            'Failed to create Coming Soon placeholders in multi-source',
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
+      // Special handling for Coming Soon: apply overlays to released items
+      // This handles items with real files within the configured post-release window
+      // (includes returning TV shows, recently released movies, etc.)
+      if (source.type === 'comingsoon') {
+        try {
+          const comingSoonSync = syncService as ComingSoonCollectionSync;
+
+          // Access private method using bracket notation
+          const getReleasedItemsWithinWindow =
+            comingSoonSync['getReleasedItemsWithinWindow'].bind(comingSoonSync);
+          const applyOverlaysToReleasedItems =
+            comingSoonSync['applyOverlaysToReleasedItems'].bind(comingSoonSync);
+
+          // Get released items within the configured window (uses database + library cache)
+          const releasedItems = await getReleasedItemsWithinWindow(
+            tempConfig,
+            sourceData as ComingSoonSourceData[],
+            libraryCache
+          );
+
+          if (releasedItems.length > 0) {
+            logger.info(
+              `Applying overlays to ${releasedItems.length} released Coming Soon items`,
+              {
+                label: 'Multi-Source Orchestrator',
+                sourceId: source.id,
+                releasedCount: releasedItems.length,
+                releasedWindowDays: tempConfig.comingSoonReleasedDays || 7,
+              }
+            );
+
+            // Apply overlays to these released items
+            await applyOverlaysToReleasedItems(
+              releasedItems,
+              tempConfig,
+              plexClient
+            );
+
+            // Add released items to the collection
+            items.push(...releasedItems);
+
+            logger.info('Applied overlays to released Coming Soon items', {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              appliedCount: releasedItems.length,
+              totalItemsNow: items.length,
+            });
+          }
+        } catch (error) {
+          logger.error(
+            'Failed to process released Coming Soon items in multi-source',
+            {
+              label: 'Multi-Source Orchestrator',
+              sourceId: source.id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
 
       logger.debug(
         `Successfully fetched ${items.length} items from ${source.type}`,
@@ -639,6 +867,10 @@ export class MultiSourceOrchestrator {
       ...(source.type === 'networks' && {
         networksCountry: source.networksCountry,
       }),
+      ...(source.type === 'comingsoon' && {
+        comingSoonDays: source.comingSoonDays,
+        comingSoonReleasedDays: source.comingSoonReleasedDays,
+      }),
       // Remove multi-source specific fields
       sources: undefined,
       combineMode: undefined,
@@ -692,6 +924,9 @@ export class MultiSourceOrchestrator {
         case 'sonarrtag':
           this.syncServices.set(sourceType, new SonarrTagCollectionSync());
           break;
+        case 'comingsoon':
+          this.syncServices.set(sourceType, new ComingSoonCollectionSync());
+          break;
         default:
           throw new Error(`Unknown source type: ${sourceType}`);
       }
@@ -705,12 +940,63 @@ export class MultiSourceOrchestrator {
 
   /**
    * Combine items from multiple sources according to the specified mode
+   * Special cases:
+   * - If ALL sources are Coming Soon: default to release date sorting, but allow cycle_lists and randomised
+   * - If SOME sources are Coming Soon: sort those sources by release date, then combine using normal mode
    */
   private combineItems(
     itemGroups: CollectionItem[][],
     combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists',
     parentConfig: MultiSourceCollectionConfig
   ): CollectionItem[] {
+    const sources = parentConfig.sources || [];
+
+    // Check if ALL sources are Coming Soon
+    const allSourcesComingSoon =
+      sources.length > 0 &&
+      sources.every((source) => source.type === 'comingsoon');
+
+    if (allSourcesComingSoon) {
+      // All sources are Coming Soon
+      // Allow cycle_lists and randomised modes, otherwise sort by release date
+      // Note: 360-day filtering already applied by Coming Soon source's applyCommonFiltering
+      if (combineMode === 'cycle_lists') {
+        // Sort each Coming Soon source by release date, then cycle between them
+        const sortedItemGroups = itemGroups.map((group) =>
+          this.sortComingSoonByReleaseDate(group)
+        );
+        return this.cycleListsItems(sortedItemGroups, parentConfig.id);
+      } else if (combineMode === 'randomised') {
+        // Flatten, remove duplicates, then shuffle (already filtered by source)
+        const allItems = itemGroups.flat();
+        const uniqueItems = this.removeDuplicates(allItems);
+        return this.shuffleArray([...uniqueItems]);
+      } else {
+        // Default: flatten and sort by release date (for interleaved, list_order, or any other mode)
+        const allItems = itemGroups.flat();
+        const uniqueItems = this.removeDuplicates(allItems);
+        return this.sortComingSoonByReleaseDate(uniqueItems);
+      }
+    }
+
+    // Check if SOME sources are Coming Soon
+    const someSourcesComingSoon = sources.some(
+      (source) => source.type === 'comingsoon'
+    );
+
+    if (someSourcesComingSoon) {
+      // Sort Coming Soon source groups by release date before combining
+      const sortedItemGroups = itemGroups.map((group, index) => {
+        const source = sources[index];
+        if (source?.type === 'comingsoon') {
+          return this.sortComingSoonByReleaseDate(group);
+        }
+        return group;
+      });
+      itemGroups = sortedItemGroups;
+    }
+
+    // Normal multi-source combine modes (with Coming Soon sources pre-sorted if applicable)
     switch (combineMode) {
       case 'interleaved':
         // Take 1st item from each source, then 2nd from each, etc.
@@ -970,6 +1256,61 @@ export class MultiSourceOrchestrator {
   }
 
   /**
+   * Sort Coming Soon items by release date (closest first)
+   * Items without dates are placed at the end
+   *
+   * Note: This uses releaseDateSortValue from the item's metadata which is
+   * set by the Coming Soon collection sync based on the same priority logic
+   * as banner display (Digital > Physical > Theatrical > Generic)
+   *
+   * Note: 360-day filtering is already applied by the Coming Soon source's applyCommonFiltering
+   */
+  private sortComingSoonByReleaseDate(
+    items: CollectionItem[]
+  ): CollectionItem[] {
+    logger.debug('Sorting Coming Soon items by release date', {
+      label: 'Multi-Source Orchestrator',
+      itemCount: items.length,
+      sampleItems: items.slice(0, 3).map((item) => ({
+        title: item.title,
+        tmdbId: item.tmdbId,
+        releaseDateSortValue: (
+          item as CollectionItem & { releaseDateSortValue?: string }
+        ).releaseDateSortValue,
+      })),
+    });
+
+    const sorted = [...items].sort((a, b) => {
+      // Try to get release date from item metadata
+      // Coming Soon items should have releaseDateSortValue set during sync
+      const dateA = (a as CollectionItem & { releaseDateSortValue?: string })
+        .releaseDateSortValue;
+      const dateB = (b as CollectionItem & { releaseDateSortValue?: string })
+        .releaseDateSortValue;
+
+      // Items without dates go to the end
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+
+      // Sort by closest date first
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+
+    logger.debug('Coming Soon items sorted by release date', {
+      label: 'Multi-Source Orchestrator',
+      sortedSample: sorted.slice(0, 3).map((item) => ({
+        title: item.title,
+        releaseDate: (
+          item as CollectionItem & { releaseDateSortValue?: string }
+        ).releaseDateSortValue,
+      })),
+    });
+
+    return sorted;
+  }
+
+  /**
    * Create or update collection using standard utilities (same pattern as BaseCollectionSync)
    */
   private async createOrUpdatePlexCollection(
@@ -1044,6 +1385,16 @@ export class MultiSourceOrchestrator {
       ratingKey: item.ratingKey,
       title: item.title,
     }));
+
+    logger.debug(`PlexItems order before sending to Plex`, {
+      label: 'Multi-Source Orchestrator',
+      collectionName,
+      itemCount: plexItems.length,
+      first5Items: plexItems.slice(0, 5).map((item) => ({
+        ratingKey: item.ratingKey,
+        title: item.title,
+      })),
+    });
 
     if (plexItems.length === 0) {
       return { created: 0, updated: 0 };
@@ -2111,6 +2462,10 @@ export class MultiSourceOrchestrator {
       },
       sonarrtag: {
         tag: 'Sonarr Tag Collection',
+      },
+      comingsoon: {
+        monitored: 'Coming Soon',
+        trakt_anticipated: 'Coming Soon',
       },
     };
 

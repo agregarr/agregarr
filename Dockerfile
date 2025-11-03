@@ -1,4 +1,4 @@
-FROM node:18.18.2-alpine AS build_image
+FROM node:20-alpine AS build_image
 
 WORKDIR /app
 
@@ -31,13 +31,14 @@ RUN mkdir -p config && touch config/DOCKER
 RUN echo "{\"commitTag\": \"${COMMIT_TAG}\"}" > committag.json
 
 
-FROM node:18.18.2-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
 RUN apk add --no-cache \
     tzdata tini fontconfig ttf-dejavu font-noto-emoji \
     cairo pango jpeg giflib pixman \
+    ffmpeg python3 \
     && mkdir -p /usr/share/fonts/truetype/poster-fonts && \
     cd /usr/share/fonts/truetype/poster-fonts && \
     wget -q https://raw.githubusercontent.com/google/fonts/main/ofl/bebasneue/BebasNeue-Regular.ttf && \
@@ -64,8 +65,16 @@ RUN apk add --no-cache \
     wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/orbitron/Orbitron[wght].ttf" && \
     wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/cinzel/Cinzel[wght].ttf" && \
     wget -q "https://raw.githubusercontent.com/google/fonts/main/ofl/cormorantgaramond/CormorantGaramond[wght].ttf" && \
+    wget -q https://github.com/tonsky/FiraCode/releases/download/6.2/Fira_Code_v6.2.zip && \
+    unzip -q Fira_Code_v6.2.zip && \
+    mv ttf/FiraCode-Bold.ttf . && \
+    rm -rf Fira_Code_v6.2.zip ttf/ woff/ woff2/ variable_ttf/ && \
     fc-cache -fv && \
     rm -rf /tmp/*
+
+# Install latest yt-dlp directly from GitHub releases (more up-to-date than apk package)
+RUN wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
 
 COPY --from=build_image /app ./
 

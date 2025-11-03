@@ -2096,6 +2096,53 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   ): Promise<CollectionOperationResult>;
 
   /**
+   * Apply item ordering options (reverse, randomize) to collection items
+   * This is applied BEFORE filtering to ensure the desired order is preserved through the pipeline
+   *
+   * @param items - Collection items to order
+   * @param config - Collection configuration with ordering options
+   * @returns Ordered collection items
+   */
+  private applyItemOrdering(
+    items: CollectionItem[],
+    config: CollectionConfig
+  ): CollectionItem[] {
+    const shouldReverse = config.reverseOrder ?? false;
+    const shouldRandomize = config.randomizeOrder ?? false;
+
+    // Mutual exclusion: randomize takes precedence over reverse
+    if (shouldRandomize) {
+      // Fisher-Yates shuffle algorithm for true randomization
+      const shuffled = [...items];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      logger.debug(`Applied randomization to ${shuffled.length} items`, {
+        label: `${this.source} Collections`,
+        collection: config.name,
+      });
+
+      return shuffled;
+    }
+
+    if (shouldReverse) {
+      const reversed = [...items].reverse();
+
+      logger.debug(`Applied reverse order to ${reversed.length} items`, {
+        label: `${this.source} Collections`,
+        collection: config.name,
+      });
+
+      return reversed;
+    }
+
+    // No ordering requested, return original
+    return items;
+  }
+
+  /**
    * Apply filtering safety net to already-mapped items (validation, deduplication, maxItems safety check)
    * Use this after calling your specific mapSourceDataToItems implementation.
    */
@@ -2112,9 +2159,13 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     mappingStats?: FilteringStats;
     filteringStats?: FilteringStats;
   } {
+    // Apply ordering FIRST (reverse/randomize) before filtering
+    // This ensures the desired order affects the full result before maxItems is applied
+    const orderedItems = this.applyItemOrdering(mappedResult.items, config);
+
     // Apply common filtering (duplicates, maxItems limit, etc.)
     const { filteredItems: items, stats: filteringStats } =
-      this.applyCommonFiltering(mappedResult.items, config);
+      this.applyCommonFiltering(orderedItems, config);
 
     // Filter missing items by global exclusions and maxItems limit
     let filteredMissingItems = mappedResult.missingItems;

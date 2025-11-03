@@ -290,6 +290,12 @@ const CollectionSettings = ({
           ...(collectionConfig.customDays !== undefined && {
             customDays: collectionConfig.customDays,
           }),
+          ...(collectionConfig.comingSoonDays !== undefined && {
+            comingSoonDays: collectionConfig.comingSoonDays,
+          }),
+          ...(collectionConfig.comingSoonReleasedDays !== undefined && {
+            comingSoonReleasedDays: collectionConfig.comingSoonReleasedDays,
+          }),
           ...(collectionConfig.tautulliStatType && {
             tautulliStatType: collectionConfig.tautulliStatType,
           }),
@@ -518,6 +524,8 @@ const CollectionSettings = ({
           sortOrderHome: config.sortOrderHome,
           sortOrderLibrary: config.sortOrderLibrary,
           customDays: config.customDays,
+          comingSoonDays: config.comingSoonDays,
+          comingSoonReleasedDays: config.comingSoonReleasedDays,
           tautulliStatType: config.tautulliStatType,
           searchMissingMovies: config.searchMissingMovies,
           searchMissingTV: config.searchMissingTV,
@@ -1794,6 +1802,8 @@ const CollectionSettings = ({
               randomizeHomeOrder: masterConfig.randomizeHomeOrder,
               mediaType: masterConfig.mediaType,
               customDays: masterConfig.customDays,
+              comingSoonDays: masterConfig.comingSoonDays,
+              comingSoonReleasedDays: masterConfig.comingSoonReleasedDays,
               tautulliStatType: masterConfig.tautulliStatType,
               isMultiSource: masterConfig.isMultiSource,
               sources: masterConfig.sources,

@@ -37,6 +37,7 @@ const messages = defineMessages({
   timePeriod: 'Time Period',
   customDays: 'Number of Days',
   minimumPlays: 'Minimum Play Count',
+  comingSoonDays: 'Days to Look Ahead',
   combineMode: 'Combine Mode',
   addSource: 'Add Source',
   removeSource: 'Remove',
@@ -556,6 +557,67 @@ const MultiSourceConfigSection = ({
     }
   }, [mixedContentInfo.hasMixedContent, values.combineMode, setFieldValue]);
 
+  const combineModeOptions = React.useMemo(() => {
+    // Check if ALL sources are Coming Soon
+    const allSourcesComingSoon =
+      sources.length > 0 &&
+      sources.every((source) => source.type === 'comingsoon');
+
+    // For Coming Soon-only collections, show Release Date (default), Cycle Lists, and Randomised
+    if (allSourcesComingSoon) {
+      return [
+        {
+          value: 'interleaved' as MultiSourceCombineMode, // Default mode - backend sorts by release date
+          label: 'Release Date',
+          description:
+            'Sort all items by release date (closest first). Default mode for Coming Soon collections.',
+          disabled: false,
+        },
+        {
+          value: 'cycle_lists' as MultiSourceCombineMode,
+          label: 'Cycle Lists',
+          description:
+            'Only one Coming Soon source active at a time, rotates each sync. Each source is sorted by release date.',
+          disabled: false,
+        },
+        {
+          value: 'randomised' as MultiSourceCombineMode,
+          label: 'Randomised',
+          description: 'Shuffle all items randomly on every sync',
+          disabled: false,
+        },
+      ];
+    }
+
+    // Normal combine mode options (Coming Soon sources will be sorted by date before combining)
+    return [
+      {
+        value: 'interleaved' as MultiSourceCombineMode,
+        label: 'Interleaved',
+        description: 'Take 1st item from each source, then 2nd from each, etc.',
+        disabled: mixedContentInfo.hasMixedContent,
+      },
+      {
+        value: 'list_order' as MultiSourceCombineMode,
+        label: 'List Order',
+        description: 'All items from source 1, then all from source 2, etc.',
+        disabled: mixedContentInfo.hasMixedContent,
+      },
+      {
+        value: 'randomised' as MultiSourceCombineMode,
+        label: 'Randomised',
+        description: 'Shuffle all items randomly on every sync',
+        disabled: mixedContentInfo.hasMixedContent,
+      },
+      {
+        value: 'cycle_lists' as MultiSourceCombineMode,
+        label: 'Cycle Lists',
+        description: 'Only one source active at a time, rotates each sync',
+        disabled: false, // Always available
+      },
+    ];
+  }, [sources, mixedContentInfo.hasMixedContent]);
+
   if (!isVisible) return null;
 
   const addSource = () => {
@@ -778,42 +840,23 @@ const MultiSourceConfigSection = ({
         return [];
       case 'sonarrtag':
         return [];
+      case 'comingsoon':
+        return [
+          {
+            value: 'monitored',
+            label: 'Monitored in Radarr/Sonarr',
+            description: 'Items monitored but not yet released',
+          },
+          {
+            value: 'trakt_anticipated',
+            label: 'Trakt Anticipated',
+            description: 'Most anticipated upcoming releases',
+          },
+        ];
       default:
         return [];
     }
   };
-
-  const getCombineModeOptions = (): {
-    value: MultiSourceCombineMode;
-    label: string;
-    description: string;
-    disabled?: boolean;
-  }[] => [
-    {
-      value: 'interleaved',
-      label: 'Interleaved',
-      description: 'Take 1st item from each source, then 2nd from each, etc.',
-      disabled: mixedContentInfo.hasMixedContent,
-    },
-    {
-      value: 'list_order',
-      label: 'List Order',
-      description: 'All items from source 1, then all from source 2, etc.',
-      disabled: mixedContentInfo.hasMixedContent,
-    },
-    {
-      value: 'randomised',
-      label: 'Randomised',
-      description: 'Shuffle all items randomly on every sync',
-      disabled: mixedContentInfo.hasMixedContent,
-    },
-    {
-      value: 'cycle_lists',
-      label: 'Cycle Lists',
-      description: 'Only one source active at a time, rotates each sync',
-      disabled: false, // Always available
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -910,6 +953,7 @@ const MultiSourceConfigSection = ({
                 <option value="sonarrtag">Sonarr Tags</option>
                 <option value="anilist">AniList</option>
                 <option value="myanimelist">MyAnimeList</option>
+                <option value="comingsoon">Coming Soon</option>
               </Field>
 
               {/* API Key Warning for this source */}
@@ -1277,6 +1321,65 @@ const MultiSourceConfigSection = ({
                 </div>
               </div>
             )}
+
+            {values.sources?.[index]?.type === 'comingsoon' && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor={`source-comingsoon-days-${index}`}
+                    className="mb-2 block text-sm text-gray-300"
+                  >
+                    {intl.formatMessage(messages.comingSoonDays)}
+                  </label>
+                  <Field
+                    type="number"
+                    id={`source-comingsoon-days-${index}`}
+                    name={`sources[${index}].comingSoonDays`}
+                    placeholder="360"
+                    min="1"
+                    max="730"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue(
+                        `sources[${index}].comingSoonDays`,
+                        parseInt(e.target.value) || undefined
+                      );
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    Number of days to look ahead for upcoming releases (default:
+                    360)
+                  </p>
+                </div>
+                <div>
+                  <label
+                    htmlFor={`source-comingsoon-released-days-${index}`}
+                    className="mb-2 block text-sm text-gray-300"
+                  >
+                    Released Items Window (Days)
+                  </label>
+                  <Field
+                    type="number"
+                    id={`source-comingsoon-released-days-${index}`}
+                    name={`sources[${index}].comingSoonReleasedDays`}
+                    placeholder="7"
+                    min="1"
+                    max="30"
+                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue(
+                        `sources[${index}].comingSoonReleasedDays`,
+                        parseInt(e.target.value) || undefined
+                      );
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-gray-400">
+                    Days to keep released items with overlay before restoring
+                    original poster (default: 7)
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         ))}
 
@@ -1321,7 +1424,7 @@ const MultiSourceConfigSection = ({
         )}
 
         <div className="space-y-3">
-          {getCombineModeOptions().map((option) => (
+          {combineModeOptions.map((option) => (
             <label
               key={option.value}
               className={`flex items-start space-x-3 ${

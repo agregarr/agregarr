@@ -1803,6 +1803,144 @@ export async function findPlexItemsByTmdbIds(
   return results;
 }
 
+/**
+ * Search Plex library items by title (fallback for unmatched items)
+ * Used when TMDB/TVDB guid matching fails
+ *
+ * @param plexClient - Plex API client
+ * @param title - Title to search for
+ * @param year - Optional release year for better matching
+ * @param libraryId - Library to search in
+ * @param mediaType - Media type (movie or tv)
+ * @param libraryCache - Optional pre-fetched library items cache
+ * @returns Array of matching items with rating keys and guid info
+ */
+export async function findPlexItemsByTitle(
+  plexClient: PlexAPI,
+  title: string,
+  year: number | undefined,
+  libraryId: string,
+  mediaType: 'movie' | 'tv',
+  libraryCache?: LibraryItemsCache
+): Promise<
+  {
+    ratingKey: string;
+    title: string;
+    year?: number;
+    hasTmdbGuid: boolean;
+    hasAnyGuid: boolean;
+  }[]
+> {
+  const results: {
+    ratingKey: string;
+    title: string;
+    year?: number;
+    hasTmdbGuid: boolean;
+    hasAnyGuid: boolean;
+  }[] = [];
+
+  try {
+    // Get library items from cache or fetch fresh
+    let items: {
+      ratingKey: string;
+      title: string;
+      year?: number;
+      Guid?: { id: string }[];
+    }[];
+
+    if (libraryCache && libraryCache[libraryId]) {
+      items = libraryCache[libraryId];
+      logger.debug(
+        `Using cached data for title search in library ${libraryId}`,
+        {
+          label: 'Plex Title Search',
+          libraryId,
+          itemCount: items.length,
+        }
+      );
+    } else {
+      items = await getAllLibraryItems(plexClient, libraryId);
+      logger.debug(
+        `Fetched fresh data for title search in library ${libraryId}`,
+        {
+          label: 'Plex Title Search',
+          libraryId,
+          itemCount: items.length,
+        }
+      );
+    }
+
+    // Normalize search title for comparison
+    const normalizedSearchTitle = title.toLowerCase().trim();
+
+    // Search items by title
+    for (const item of items) {
+      const normalizedItemTitle = item.title.toLowerCase().trim();
+
+      // Exact or close match
+      if (
+        normalizedItemTitle === normalizedSearchTitle ||
+        normalizedItemTitle.includes(normalizedSearchTitle) ||
+        normalizedSearchTitle.includes(normalizedItemTitle)
+      ) {
+        // If year is provided, check for year match to reduce false positives
+        if (year !== undefined && item.year !== undefined) {
+          // Allow +/- 1 year tolerance for release date discrepancies
+          if (Math.abs(item.year - year) > 1) {
+            continue;
+          }
+        }
+
+        // Check if item has TMDB guid
+        const hasTmdbGuid =
+          item.Guid?.some((guid) => guid.id.startsWith('tmdb://')) || false;
+
+        // Check if item has any guid (matched vs unmatched)
+        const hasAnyGuid = (item.Guid?.length || 0) > 0;
+
+        results.push({
+          ratingKey: item.ratingKey,
+          title: item.title,
+          year: item.year,
+          hasTmdbGuid,
+          hasAnyGuid,
+        });
+      }
+    }
+
+    logger.info(
+      `Title search completed: found ${results.length} matches for "${title}"${
+        year ? ` (${year})` : ''
+      }`,
+      {
+        label: 'Plex Title Search',
+        searchTitle: title,
+        searchYear: year,
+        libraryId,
+        mediaType,
+        matchCount: results.length,
+        matches: results.map((r) => ({
+          title: r.title,
+          year: r.year,
+          hasTmdbGuid: r.hasTmdbGuid,
+          hasAnyGuid: r.hasAnyGuid,
+        })),
+      }
+    );
+  } catch (error) {
+    logger.error('Failed to search Plex by title', {
+      label: 'Plex Title Search',
+      searchTitle: title,
+      searchYear: year,
+      libraryId,
+      mediaType,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+
+  return results;
+}
+
 // Multi-source collection sync counter utilities
 
 /**

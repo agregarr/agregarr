@@ -623,11 +623,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       return { created: 0, updated: 0 };
     }
 
-    // Apply ordering options (reverse, randomize) before maxItems
-    const orderedItems = this.applyOrderingOptions(mediaItems, config);
-
-    // Apply maxItems limit after ordering
-    const limitedItems = orderedItems.slice(0, this.getMaxItems(config));
+    // Apply maxItems limit
+    const limitedItems = mediaItems.slice(0, this.getMaxItems(config));
 
     // Process template for global collections
     const collectionName = await this.createGlobalCollectionName(
@@ -677,11 +674,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       return { created: 0, updated: 0 };
     }
 
-    // Apply ordering options (reverse, randomize) before maxItems
-    const orderedItems = this.applyOrderingOptions(mediaItems, config);
-
-    // Apply maxItems limit after ordering
-    const limitedItems = orderedItems.slice(0, this.getMaxItems(config));
+    // Apply maxItems limit
+    const limitedItems = mediaItems.slice(0, this.getMaxItems(config));
 
     const serverOwner = await this.getServerOwnerUser();
     if (!serverOwner) {
@@ -752,11 +746,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       return { created: 0, updated: 0 };
     }
 
-    // Apply ordering options (reverse, randomize) before maxItems
-    const orderedItems = this.applyOrderingOptions(mediaItems, config);
-
-    // Apply maxItems to the ordered items
-    const limitedItems = orderedItems.slice(0, this.getMaxItems(config));
+    // Apply maxItems
+    const limitedItems = mediaItems.slice(0, this.getMaxItems(config));
 
     // Process the collection (simple, direct approach)
     if (limitedItems.length > 0) {
@@ -1521,43 +1512,6 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
   private async getServerOwnerUser(): Promise<OverseerrUser | null> {
     // Get admin user from service layer (already has all necessary fields)
     return await overseerrCollectionService.getAdminUser();
-  }
-
-  /**
-   * Apply ordering options (reverse, randomize) to data array
-   * Similar to other collection sources for consistency
-   */
-  private applyOrderingOptions<T>(data: T[], config: CollectionConfig): T[] {
-    let processedData = [...data];
-
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
-
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      for (let i = processedData.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [processedData[i], processedData[j]] = [
-          processedData[j],
-          processedData[i],
-        ];
-      }
-
-      logger.debug(`Applied randomization to ${processedData.length} items`, {
-        label: 'Overseerr Collections',
-        collection: config.name,
-      });
-    } else if (shouldReverse) {
-      processedData = processedData.reverse();
-
-      logger.debug(`Applied reverse order to ${processedData.length} items`, {
-        label: 'Overseerr Collections',
-        collection: config.name,
-      });
-    }
-
-    return processedData;
   }
 }
 

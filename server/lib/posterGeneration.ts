@@ -119,6 +119,7 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   myanimelist: 'myanimelist.svg',
   plex: 'plex.svg',
   'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
+  comingsoon: 'os_icon.svg', // Use Agregarr icon for coming soon collections
   radarrtag: 'radarr.svg', // Radarr tag collections use Radarr logo
   sonarrtag: 'sonarr.svg', // Sonarr tag collections use Sonarr logo
   // Streaming Platform Logo Mappings
@@ -390,7 +391,15 @@ async function loadServiceLogo(serviceType: string): Promise<string | null> {
   try {
     const logoFilename = SERVICE_LOGO_MAP[serviceType.toLowerCase()];
     if (!logoFilename) {
-      logger.debug(`No logo mapping found for service type: ${serviceType}`);
+      logger.debug(
+        `No logo mapping found for service type: ${serviceType}, using Agregarr logo as fallback`
+      );
+      // Fallback to Agregarr logo for unknown source types
+      const fallbackLogoPath = path.join(LOGOS_PATH, 'os_icon.svg');
+      if (fs.existsSync(fallbackLogoPath)) {
+        const svgContent = await fs.promises.readFile(fallbackLogoPath, 'utf8');
+        return svgContent;
+      }
       return null;
     }
 

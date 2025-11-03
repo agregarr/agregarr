@@ -554,6 +554,12 @@ export class CollectionSyncService {
         );
         return new SonarrTagCollectionSync();
       }
+      case 'comingsoon': {
+        const { ComingSoonCollectionSync } = await import(
+          '../external/comingsoon'
+        );
+        return new ComingSoonCollectionSync();
+      }
       case 'multi-source':
         throw new Error(
           'Multi-source collections should be handled by MultiSourceOrchestrator, not individual sync services'

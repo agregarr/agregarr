@@ -268,6 +268,24 @@ const CollectionFormConfigForm = ({
       otherwise: (schema) => schema,
     }),
 
+    comingSoonDays: Yup.number().when('type', {
+      is: 'comingsoon',
+      then: (schema) =>
+        schema
+          .min(1, 'Must be at least 1 day')
+          .max(730, 'Cannot exceed 730 days'),
+      otherwise: (schema) => schema,
+    }),
+
+    comingSoonReleasedDays: Yup.number().when('type', {
+      is: 'comingsoon',
+      then: (schema) =>
+        schema
+          .min(1, 'Must be at least 1 day')
+          .max(30, 'Cannot exceed 30 days'),
+      otherwise: (schema) => schema,
+    }),
+
     traktCustomListUrl: Yup.string().when(['type', 'subtype'], {
       is: (type: string, subtype: string) =>
         type === 'trakt' && subtype === 'custom',
@@ -790,6 +808,11 @@ const CollectionFormConfigForm = ({
     }
 
     if (values.type === 'multi-source') {
+      // Check if all sources are Coming Soon
+      const allSourcesComingSoon = values.sources?.every(
+        (source) => source.type === 'comingsoon'
+      );
+
       if (values.combineMode === 'cycle_lists') {
         return [
           {
@@ -799,6 +822,18 @@ const CollectionFormConfigForm = ({
           { label: 'Custom', value: 'custom' },
         ];
       }
+
+      // For all Coming Soon sources (sorted by release date when not cycle_lists)
+      if (allSourcesComingSoon) {
+        return [
+          {
+            label: 'Coming Soon',
+            value: 'Coming Soon',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      }
+
       return [{ label: 'Custom', value: 'custom' }];
     }
 
@@ -2247,6 +2282,44 @@ const CollectionFormConfigForm = ({
       ];
     }
 
+    // Coming Soon collection presets
+    if (values.type === 'comingsoon') {
+      switch (values.subtype) {
+        case 'monitored':
+          return [
+            {
+              label: 'Coming Soon',
+              value: 'Coming Soon',
+            },
+            {
+              label: 'Coming Soon - Monitored',
+              value: 'Coming Soon - Monitored',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        case 'trakt_anticipated':
+          return [
+            {
+              label: 'Coming Soon',
+              value: 'Coming Soon',
+            },
+            {
+              label: 'Coming Soon - Trakt Anticipated',
+              value: 'Coming Soon - Trakt Anticipated',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+        default:
+          return [
+            {
+              label: 'Coming Soon',
+              value: 'Coming Soon',
+            },
+            { label: 'Custom', value: 'custom' },
+          ];
+      }
+    }
+
     // Fallback for unknown types
     return [
       {
@@ -2328,6 +2401,10 @@ const CollectionFormConfigForm = ({
           maxItems: (config as CollectionFormConfig).maxItems || 50,
           minimumPlays: (config as CollectionFormConfig).minimumPlays || 3,
           customDays: (config as CollectionFormConfig).customDays || 30,
+          comingSoonDays:
+            (config as CollectionFormConfig).comingSoonDays || 360,
+          comingSoonReleasedDays:
+            (config as CollectionFormConfig).comingSoonReleasedDays || 7,
           // Download mode settings
           enableGrabMissingItems:
             ((config as CollectionFormConfig).searchMissingMovies ||
@@ -2436,6 +2513,8 @@ const CollectionFormConfigForm = ({
                     existingConfig.imdbCustomListUrl ||
                     existingConfig.letterboxdCustomListUrl,
                   customDays: existingConfig.customDays,
+                  comingSoonDays: existingConfig.comingSoonDays,
+                  comingSoonReleasedDays: existingConfig.comingSoonReleasedDays,
                   minimumPlays: existingConfig.minimumPlays,
                   networksCountry: existingConfig.networksCountry,
                   priority: 0,
@@ -2558,6 +2637,12 @@ const CollectionFormConfigForm = ({
             // Convert string numbers to integers
             customDays: values.customDays
               ? parseInt(values.customDays.toString(), 10)
+              : undefined,
+            comingSoonDays: values.comingSoonDays
+              ? parseInt(values.comingSoonDays.toString(), 10)
+              : undefined,
+            comingSoonReleasedDays: values.comingSoonReleasedDays
+              ? parseInt(values.comingSoonReleasedDays.toString(), 10)
               : undefined,
             minimumPlays: values.minimumPlays
               ? parseInt(values.minimumPlays.toString(), 10)
@@ -3080,8 +3165,8 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Item Order - only for external sources that support ordering */}
-                            {values.type === 'trakt' && (
+                            {/* Item Order - available for all collection types except multi-source */}
+                            {values.type !== 'multi-source' && (
                               <div className="form-row">
                                 <label
                                   htmlFor="itemOrder"

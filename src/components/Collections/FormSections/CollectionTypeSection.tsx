@@ -95,6 +95,7 @@ const CollectionTypeSection = ({
     { value: 'myanimelist', label: 'MyAnimeList' },
     { value: 'radarrtag', label: 'Radarr Tag' },
     { value: 'sonarrtag', label: 'Sonarr Tag' },
+    { value: 'comingsoon', label: 'Coming Soon' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -229,6 +230,19 @@ const CollectionTypeSection = ({
         return []; // Will be populated dynamically with provider options
       case 'multi-source':
         return []; // Multi-source collections don't use subtypes - they configure sources directly
+      case 'comingsoon':
+        return [
+          {
+            value: 'monitored',
+            label: 'Monitored in Radarr/Sonarr',
+            description: 'Items monitored but not yet released',
+          },
+          {
+            value: 'trakt_anticipated',
+            label: 'Trakt Anticipated',
+            description: 'Most anticipated upcoming releases',
+          },
+        ];
       case 'anilist': // Add AniList subtypes
         return [
           {
@@ -467,6 +481,53 @@ const CollectionTypeSection = ({
               max="100"
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Coming Soon Configuration - appears when type='comingsoon' and subtype is selected */}
+      {values.type === 'comingsoon' && values.subtype && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="comingSoonDays"
+              className="mb-2 block text-sm text-gray-300"
+            >
+              Days to Look Ahead
+            </label>
+            <Field
+              type="number"
+              id="comingSoonDays"
+              name="comingSoonDays"
+              placeholder="360"
+              min="1"
+              max="730"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Number of days to look ahead for upcoming releases (default: 360)
+            </p>
+          </div>
+          <div>
+            <label
+              htmlFor="comingSoonReleasedDays"
+              className="mb-2 block text-sm text-gray-300"
+            >
+              Released Items Window (Days)
+            </label>
+            <Field
+              type="number"
+              id="comingSoonReleasedDays"
+              name="comingSoonReleasedDays"
+              placeholder="7"
+              min="1"
+              max="30"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Days to keep released items with overlay before restoring original
+              poster (default: 7)
+            </p>
           </div>
         </div>
       )}

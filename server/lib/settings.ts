@@ -44,7 +44,8 @@ export interface CollectionConfig {
     | 'anilist'
     | 'multi-source'
     | 'radarrtag'
-    | 'sonarrtag';
+    | 'sonarrtag'
+    | 'comingsoon';
   readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
@@ -63,6 +64,7 @@ export interface CollectionConfig {
   readonly maxItems: number;
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
+  readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
   readonly libraryId: string; // Library ID this collection belongs to
   readonly libraryName: string; // Library name for display
   readonly sortOrderHome?: number; // Order for Plex home screen (1+ for positioned items, 0 for void/unpositioned)
@@ -132,6 +134,9 @@ export interface CollectionConfig {
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Coming Soon specific settings
+  readonly comingSoonOverlayColor?: string; // Hex color for countdown overlay background (default: #C21807). Text is always white.
+  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -174,6 +179,7 @@ export interface CollectionConfig {
     readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag sources
     readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag sources
     readonly sonarrTagLabel?: string; // Sonarr tag label for display
+    readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
   }[];
   readonly combineMode?:
     | 'interleaved'
@@ -351,6 +357,11 @@ export interface ServiceUserSettings {
 
 export type TagRequestsMode = 'off' | 'single' | 'per-service' | 'granular';
 
+export interface PathMapping {
+  from: string; // Remote path (e.g., "C:\serverdata\media")
+  to: string; // Local path (e.g., "/mnt/serverdata/media")
+}
+
 export interface DVRSettings {
   id: number;
   name: string;
@@ -370,6 +381,7 @@ export interface DVRSettings {
   preventSearch: boolean;
   tagRequests?: boolean;
   tagRequestsMode?: TagRequestsMode;
+  pathMappings?: PathMapping[]; // Optional path mappings for cross-platform/remote setups
 }
 
 export interface RadarrSettings extends DVRSettings {
@@ -1470,7 +1482,8 @@ export type MultiSourceType =
   | 'anilist'
   | 'myanimelist'
   | 'radarrtag'
-  | 'sonarrtag';
+  | 'sonarrtag'
+  | 'comingsoon';
 
 export interface SourceDefinition {
   readonly id: string;
@@ -1488,6 +1501,8 @@ export interface SourceDefinition {
   readonly sonarrTagServerId?: number;
   readonly sonarrTagId?: number;
   readonly sonarrTagLabel?: string;
+  readonly comingSoonDays?: number;
+  readonly comingSoonReleasedDays?: number;
 }
 
 export interface MultiSourceCollectionConfig {

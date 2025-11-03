@@ -221,11 +221,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
       const targetItems: (MDBListMovie | MDBListShow)[] =
         mediaType === 'movie' ? customListData.movies : customListData.shows;
 
-      // Apply ordering modifications
-      const processedItems: (MDBListMovie | MDBListShow)[] =
-        this.applyOrderingOptions([...targetItems], config);
-
-      mdblistData.push(...processedItems.map((item) => ({ item, mediaType })));
+      mdblistData.push(...targetItems.map((item) => ({ item, mediaType })));
 
       return mdblistData;
     } catch (error) {
@@ -424,42 +420,6 @@ export class MDBListCollectionSync extends BaseCollectionSync {
   }
 
   // Private helper methods
-
-  /**
-   * Apply ordering options (reverse, randomize) to data array
-   */
-  private applyOrderingOptions<T>(data: T[], config: CollectionConfig): T[] {
-    let processedData = [...data];
-
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
-
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      for (let i = processedData.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [processedData[i], processedData[j]] = [
-          processedData[j],
-          processedData[i],
-        ];
-      }
-
-      logger.debug(`Applied randomization to ${processedData.length} items`, {
-        label: 'MDBList Collections',
-        collection: config.name,
-      });
-    } else if (shouldReverse) {
-      processedData = processedData.reverse();
-
-      logger.debug(`Applied reverse order to ${processedData.length} items`, {
-        label: 'MDBList Collections',
-        collection: config.name,
-      });
-    }
-
-    return processedData;
-  }
 
   private getMDBListClient(apiKey: string): MDBListAPI {
     if (!this.mdblistClients.has(apiKey)) {
