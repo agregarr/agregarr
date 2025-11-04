@@ -1,0 +1,1061 @@
+import RadarrAPI from '@server/api/servarr/radarr';
+import SonarrAPI from '@server/api/servarr/sonarr';
+import TraktAPI from '@server/api/trakt';
+import type { ComingSoonSourceData } from '@server/lib/collections/core/types';
+import type { CollectionConfig } from '@server/lib/settings';
+import { getSettings } from '@server/lib/settings';
+import logger from '@server/logger';
+
+/**
+ * Check if a movie is truly upcoming (not already released/available)
+ */
+function isMovieUpcoming(movie: {
+  status?: string;
+  releaseDate?: string;
+  digitalRelease?: string;
+  physicalRelease?: string;
+  inCinemas?: string;
+}): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // If status is announced, it's definitely upcoming
+  if (movie.status === 'announced') {
+    return true;
+  }
+
+  // If status is released but movie has no file, check if any release date is in the future
+  // This handles cases where Radarr marks it as "released" but it's not actually available yet
+  const releaseDates = [
+    movie.releaseDate,
+    movie.digitalRelease,
+    movie.physicalRelease,
+    movie.inCinemas,
+  ].filter(Boolean);
+
+  for (const dateStr of releaseDates) {
+    if (dateStr) {
+      const releaseDate = new Date(dateStr);
+      releaseDate.setHours(0, 0, 0, 0);
+      if (releaseDate > today) {
+        return true;
+      }
+    }
+  }
+
+  // If status is "released" and all dates are in the past, not upcoming
+  if (movie.status === 'released') {
+    return false;
+  }
+
+  // If status is inCinemas/tba/etc, consider it upcoming
+  return true;
+}
+
+/**
+ * Fetch monitored but unreleased movies from Radarr
+ * Filters by configurable release window during fetch (default: 360 days)
+ */
+export async function fetchMonitoredMovies(
+  config: CollectionConfig
+): Promise<ComingSoonSourceData[]> {
+  const settings = getSettings();
+  const items: ComingSoonSourceData[] = [];
+
+  if (!settings.radarr || settings.radarr.length === 0) {
+    return items;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const maxDaysAway = config.comingSoonDays || 360;
+  const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+
+  for (const radarrInstance of settings.radarr) {
+    try {
+      const radarrClient = new RadarrAPI({
+        url: `${radarrInstance.useSsl ? 'https' : 'http'}://${
+          radarrInstance.hostname
+        }:${radarrInstance.port}${radarrInstance.baseUrl || ''}/api/v3`,
+        apiKey: radarrInstance.apiKey,
+      });
+
+      const allMovies = await radarrClient.getMovies();
+
+      logger.debug('Processing Radarr movies for Coming Soon', {
+        label: 'Coming Soon Collections',
+        instance: radarrInstance.name,
+        totalMovies: allMovies.length,
+      });
+
+      // Log first movie structure for debugging
+      if (allMovies.length > 0) {
+        logger.debug('Sample Radarr movie structure', {
+          label: 'Coming Soon Collections',
+          sampleMovie: {
+            title: allMovies[0].title,
+            monitored: allMovies[0].monitored,
+            hasFile: allMovies[0].hasFile,
+            monitoredType: typeof allMovies[0].monitored,
+            hasFileType: typeof allMovies[0].hasFile,
+          },
+        });
+      }
+
+      // Filter for monitored movies without files that are upcoming
+      let monitoredCount = 0;
+      let withFilesCount = 0;
+      let upcomingCount = 0;
+
+      for (const movie of allMovies) {
+        if (movie.monitored) {
+          monitoredCount++;
+        }
+
+        if (movie.hasFile) {
+          withFilesCount++;
+        }
+
+        if (!movie.monitored || movie.hasFile) {
+          continue;
+        }
+
+        // Check if movie is actually upcoming (not already released/available)
+        const isUpcoming = isMovieUpcoming(movie);
+        if (!isUpcoming) {
+          continue;
+        }
+
+        // Skip movies without any release date information
+        const hasReleaseDate = Boolean(
+          movie.releaseDate ||
+            movie.digitalRelease ||
+            movie.physicalRelease ||
+            movie.inCinemas
+        );
+
+        if (!hasReleaseDate) {
+          logger.debug('Skipping movie without release date', {
+            label: 'Coming Soon Collections',
+            title: movie.title,
+            tmdbId: movie.tmdbId,
+          });
+          continue;
+        }
+
+        // Check if release date is within 360-day window
+        // CRITICAL: Apply +3 month estimate for theatrical-only releases BEFORE filtering
+        let releaseDate: Date | null = null;
+        let isEstimated = false;
+
+        if (movie.digitalRelease) {
+          releaseDate = new Date(movie.digitalRelease);
+        } else if (movie.physicalRelease) {
+          releaseDate = new Date(movie.physicalRelease);
+        } else if (movie.releaseDate) {
+          // Only theatrical/generic - add 3 months estimate for filtering
+          const baseDate = new Date(movie.releaseDate);
+          baseDate.setDate(baseDate.getDate() + 90);
+          releaseDate = baseDate;
+          isEstimated = true;
+        }
+
+        if (releaseDate && releaseDate > maxDate) {
+          logger.debug('Filtered out movie (too far away)', {
+            label: 'Coming Soon Collections',
+            title: movie.title,
+            releaseDate: releaseDate.toISOString(),
+            isEstimated,
+            daysAway: Math.round(
+              (releaseDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+            ),
+          });
+          continue;
+        }
+
+        upcomingCount++;
+
+        // Pass all release date fields - categorization will determine priority
+        items.push({
+          tmdbId: movie.tmdbId,
+          title: movie.title,
+          mediaType: 'movie',
+          source: 'radarr',
+          monitored: true,
+          // Pass all available release dates for categorization to prioritize
+          releaseDate: movie.releaseDate,
+          digitalRelease: movie.digitalRelease,
+          physicalRelease: movie.physicalRelease,
+          inCinemas: movie.inCinemas,
+          year: movie.year,
+          hasFile: false, // We already filtered for !hasFile
+        });
+      }
+
+      logger.debug('Fetched monitored movies from Radarr', {
+        label: 'Coming Soon Collections',
+        instance: radarrInstance.name,
+        totalMovies: allMovies.length,
+        monitoredMovies: monitoredCount,
+        moviesWithFiles: withFilesCount,
+        upcomingMovies: upcomingCount,
+        comingSoonItems: items.length,
+      });
+    } catch (error) {
+      logger.error('Failed to fetch from Radarr instance', {
+        label: 'Coming Soon Collections',
+        instance: radarrInstance.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Fetch monitored but unreleased TV shows from Sonarr
+ * Check S01E01 air date and file status for new series
+ * Check next monitored season premiere for returning shows (regardless of file status)
+ * Filters by configurable release window during fetch (default: 360 days)
+ */
+export async function fetchMonitoredShows(
+  config: CollectionConfig
+): Promise<ComingSoonSourceData[]> {
+  const settings = getSettings();
+  const items: ComingSoonSourceData[] = [];
+
+  logger.debug('fetchMonitoredShows called', {
+    label: 'Coming Soon Collections',
+    hasSonarr: !!settings.sonarr,
+    sonarrCount: settings.sonarr?.length || 0,
+  });
+
+  if (!settings.sonarr || settings.sonarr.length === 0) {
+    logger.warn('No Sonarr instances configured, skipping TV show fetch', {
+      label: 'Coming Soon Collections',
+    });
+    return items;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const maxDaysAway = config.comingSoonDays || 360;
+  const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+
+  for (const sonarrInstance of settings.sonarr) {
+    try {
+      const sonarrClient = new SonarrAPI({
+        url: `${sonarrInstance.useSsl ? 'https' : 'http'}://${
+          sonarrInstance.hostname
+        }:${sonarrInstance.port}${sonarrInstance.baseUrl || ''}/api/v3`,
+        apiKey: sonarrInstance.apiKey,
+      });
+
+      const allSeries = await sonarrClient.getSeries();
+
+      logger.debug('Processing Sonarr series for Coming Soon', {
+        label: 'Coming Soon Collections',
+        instance: sonarrInstance.name,
+        totalSeries: allSeries.length,
+      });
+
+      for (const series of allSeries) {
+        if (!series.monitored) {
+          continue;
+        }
+
+        if (!series.id) {
+          // Series doesn't have an ID yet (not added to Sonarr), skip
+          continue;
+        }
+
+        try {
+          // Get all episodes for this series
+          const episodes = await sonarrClient.getEpisodesBySeries(series.id);
+
+          // Find all season premieres (episode 1 of each season, excluding specials)
+          const seasonPremieres = episodes.filter(
+            (ep) => ep.episodeNumber === 1 && ep.seasonNumber > 0
+          );
+
+          logger.debug('Checking series for upcoming premiere', {
+            label: 'Coming Soon Collections',
+            seriesTitle: series.title,
+            totalEpisodes: episodes.length,
+            seasonPremieres: seasonPremieres.length,
+            seriesMonitored: series.monitored,
+          });
+
+          // Find the next unaired monitored season premiere
+          const now = new Date();
+          const nextPremiere = seasonPremieres.find((ep) => {
+            if (!ep.airDateUtc || !ep.monitored) {
+              return false;
+            }
+            const airDate = new Date(ep.airDateUtc);
+            const hasFile = ep.episodeFileId > 0;
+            const isFuture = airDate > now;
+
+            logger.debug('Evaluating season premiere', {
+              label: 'Coming Soon Collections',
+              seriesTitle: series.title,
+              season: ep.seasonNumber,
+              episode: ep.episodeNumber,
+              airDate: ep.airDateUtc,
+              monitored: ep.monitored,
+              hasFile,
+              isFuture,
+              episodeFileId: ep.episodeFileId,
+            });
+
+            // Next premiere must be in the future and not downloaded yet
+            return isFuture && !hasFile;
+          });
+
+          if (!nextPremiere || !nextPremiere.airDateUtc) {
+            // No upcoming season premiere for this series
+            logger.debug('No upcoming premiere found for series', {
+              label: 'Coming Soon Collections',
+              seriesTitle: series.title,
+            });
+            continue;
+          }
+
+          // Check if air date is within 360-day window
+          const airDate = new Date(nextPremiere.airDateUtc);
+          if (airDate > maxDate) {
+            logger.debug('Filtered out show (too far away)', {
+              label: 'Coming Soon Collections',
+              seriesTitle: series.title,
+              season: nextPremiere.seasonNumber,
+              airDate: nextPremiere.airDateUtc,
+              daysAway: Math.round(
+                (airDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+              ),
+            });
+            continue;
+          }
+
+          logger.info('Found upcoming season premiere', {
+            label: 'Coming Soon Collections',
+            seriesTitle: series.title,
+            season: nextPremiere.seasonNumber,
+            episode: nextPremiere.episodeNumber,
+            airDate: nextPremiere.airDateUtc,
+          });
+
+          // Convert TVDB ID to TMDB ID
+          let tmdbId = 0;
+          try {
+            const TmdbAPI = (await import('@server/api/themoviedb')).default;
+            const tmdbClient = new TmdbAPI();
+            const externalIdResult = await tmdbClient.getByExternalId({
+              externalId: series.tvdbId,
+              type: 'tvdb',
+            });
+
+            if (
+              externalIdResult.tv_results &&
+              externalIdResult.tv_results.length > 0
+            ) {
+              tmdbId = externalIdResult.tv_results[0].id;
+              logger.debug('Converted TVDB ID to TMDB ID', {
+                label: 'Coming Soon Collections',
+                seriesTitle: series.title,
+                tvdbId: series.tvdbId,
+                tmdbId,
+              });
+            } else {
+              logger.warn('Could not find TMDB ID for TVDB ID', {
+                label: 'Coming Soon Collections',
+                seriesTitle: series.title,
+                tvdbId: series.tvdbId,
+              });
+            }
+          } catch (error) {
+            logger.error('Failed to convert TVDB ID to TMDB ID', {
+              label: 'Coming Soon Collections',
+              seriesTitle: series.title,
+              tvdbId: series.tvdbId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+
+          // Determine if has file and when it was downloaded (for the premiere episode)
+          const hasFile = nextPremiere.episodeFileId > 0;
+          let downloadedDate: string | undefined;
+
+          if (hasFile) {
+            try {
+              // Get the actual episode file to get the real dateAdded
+              const episodeFile = await sonarrClient.getEpisodeFile(
+                nextPremiere.episodeFileId
+              );
+              downloadedDate = episodeFile.dateAdded;
+            } catch (error) {
+              logger.debug(
+                'Could not get episode file date, using series added date as fallback',
+                {
+                  label: 'Coming Soon Collections',
+                  seriesTitle: series.title,
+                  episodeFileId: nextPremiere.episodeFileId,
+                }
+              );
+              // Fallback to series added date if we can't get episode file
+              downloadedDate = series.added;
+            }
+          }
+
+          items.push({
+            tmdbId, // Converted from TVDB ID
+            tvdbId: series.tvdbId,
+            title: series.title,
+            year: series.year,
+            mediaType: 'tv',
+            source: 'sonarr',
+            monitored: true,
+            airDate: nextPremiere.airDateUtc,
+            hasFile,
+            downloadedDate,
+            // isReturning based purely on season number
+            // Season 1 = new show (PREMIERES), Season > 1 = returning show (RETURNING)
+            isReturning: nextPremiere.seasonNumber > 1,
+            seasonNumber: nextPremiere.seasonNumber,
+            episodeNumber: nextPremiere.episodeNumber,
+          });
+        } catch (error) {
+          logger.warn('Failed to get episodes for series', {
+            label: 'Coming Soon Collections',
+            seriesTitle: series.title,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      logger.debug('Fetched monitored shows from Sonarr', {
+        label: 'Coming Soon Collections',
+        instance: sonarrInstance.name,
+        count: items.length,
+      });
+    } catch (error) {
+      logger.error('Failed to fetch from Sonarr instance', {
+        label: 'Coming Soon Collections',
+        instance: sonarrInstance.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Fetch anticipated movies from Trakt
+ * Paginates through results and filters by configurable release window during fetch (default: 360 days)
+ */
+export async function fetchTraktAnticipatedMovies(
+  maxItems: number,
+  config: CollectionConfig
+): Promise<ComingSoonSourceData[]> {
+  const settings = getSettings();
+  const items: ComingSoonSourceData[] = [];
+
+  if (!settings.trakt.apiKey) {
+    return items;
+  }
+
+  try {
+    const traktClient = new TraktAPI(settings.trakt.apiKey);
+    const TmdbAPI = (await import('@server/api/themoviedb')).default;
+    const tmdbClient = new TmdbAPI();
+
+    const perPage = 100; // Fetch 100 per page (Trakt max)
+    const maxDaysAway = config.comingSoonDays || 360;
+    const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+
+    let currentPage = 1;
+    let hasMorePages = true;
+    let totalFetched = 0;
+
+    while (hasMorePages && items.length < maxItems) {
+      const anticipatedMovies = await traktClient.getAnticipated(
+        'movies',
+        perPage,
+        currentPage
+      );
+
+      if (!anticipatedMovies || anticipatedMovies.length === 0) {
+        hasMorePages = false;
+        break;
+      }
+
+      totalFetched += anticipatedMovies.length;
+
+      // Process each movie and check release date
+      for (const item of anticipatedMovies) {
+        const movie = item.movie;
+        if (!movie || !movie.ids?.tmdb) {
+          continue;
+        }
+
+        // Fetch release dates from TMDB to check if within 360-day window
+        // CRITICAL: Apply +3 month estimate for theatrical-only releases BEFORE filtering
+        let releaseDate: Date | null = null;
+        let isEstimated = false;
+        try {
+          const movieDetails = await tmdbClient.getMovie({
+            movieId: movie.ids.tmdb,
+          });
+
+          // Check for digital/physical/generic release dates
+          if (movieDetails.release_dates?.results) {
+            const usRelease = movieDetails.release_dates.results.find(
+              (r) => r.iso_3166_1 === 'US'
+            );
+            if (usRelease?.release_dates) {
+              for (const rd of usRelease.release_dates) {
+                // Type 4 = Digital, Type 5 = Physical
+                if ((rd.type === 4 || rd.type === 5) && rd.release_date) {
+                  releaseDate = new Date(rd.release_date);
+                  break;
+                }
+              }
+            }
+          }
+
+          // Fallback to generic release_date if no digital/physical found
+          // Add 3 months estimate for theatrical-only releases
+          if (!releaseDate && movieDetails.release_date) {
+            const baseDate = new Date(movieDetails.release_date);
+            baseDate.setDate(baseDate.getDate() + 90);
+            releaseDate = baseDate;
+            isEstimated = true;
+          }
+        } catch (error) {
+          // If TMDB fetch fails, skip this item
+          logger.debug('Failed to fetch TMDB data for movie', {
+            label: 'Coming Soon Collections',
+            title: movie.title,
+            tmdbId: movie.ids.tmdb,
+          });
+          continue;
+        }
+
+        // Filter: only include if within 360-day window
+        if (!releaseDate || releaseDate > maxDate) {
+          logger.debug('Filtered out movie (no release date or too far away)', {
+            label: 'Coming Soon Collections',
+            title: movie.title,
+            releaseDate: releaseDate?.toISOString(),
+            isEstimated,
+            daysAway: releaseDate
+              ? Math.round(
+                  (releaseDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+                )
+              : null,
+          });
+          continue;
+        }
+
+        // Add to items
+        items.push({
+          tmdbId: movie.ids.tmdb,
+          title: movie.title,
+          year: movie.year,
+          mediaType: 'movie',
+          source: 'trakt',
+          monitored: false, // Will be updated by markMonitoredStatus
+        });
+
+        // Stop if we've reached maxItems
+        if (items.length >= maxItems) {
+          break;
+        }
+      }
+
+      currentPage++;
+
+      // Check if we should stop pagination
+      if (anticipatedMovies.length < perPage) {
+        hasMorePages = false; // Last page
+      }
+    }
+
+    logger.info('Fetched anticipated movies from Trakt with date filtering', {
+      label: 'Coming Soon Collections',
+      totalFetched,
+      validItems: items.length,
+      pagesFetched: currentPage - 1,
+      maxItems,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch anticipated movies from Trakt', {
+      label: 'Coming Soon Collections',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Fetch anticipated TV shows from Trakt
+ * Paginates through results and filters by configurable release window during fetch (default: 360 days)
+ */
+export async function fetchTraktAnticipatedShows(
+  maxItems: number,
+  config: CollectionConfig
+): Promise<ComingSoonSourceData[]> {
+  const settings = getSettings();
+  const items: ComingSoonSourceData[] = [];
+
+  if (!settings.trakt.apiKey) {
+    return items;
+  }
+
+  try {
+    const traktClient = new TraktAPI(settings.trakt.apiKey);
+    const TmdbAPI = (await import('@server/api/themoviedb')).default;
+    const tmdbClient = new TmdbAPI();
+
+    const perPage = 100; // Fetch 100 per page (Trakt max)
+    const maxDaysAway = config.comingSoonDays || 360;
+    const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+
+    let currentPage = 1;
+    let hasMorePages = true;
+    let totalFetched = 0;
+
+    while (hasMorePages && items.length < maxItems) {
+      const anticipatedShows = await traktClient.getAnticipated(
+        'shows',
+        perPage,
+        currentPage
+      );
+
+      if (!anticipatedShows || anticipatedShows.length === 0) {
+        hasMorePages = false;
+        break;
+      }
+
+      totalFetched += anticipatedShows.length;
+
+      // Process each show and check air date
+      for (const item of anticipatedShows) {
+        const show = item.show;
+        if (!show || !show.ids?.tmdb) {
+          continue;
+        }
+
+        // Fetch air date from TMDB to check if within 360-day window
+        let airDate: Date | null = null;
+        try {
+          const showDetails = await tmdbClient.getTvShow({
+            tvId: show.ids.tmdb,
+          });
+
+          // Use first_air_date for new shows
+          if (showDetails.first_air_date) {
+            airDate = new Date(showDetails.first_air_date);
+          }
+        } catch (error) {
+          // If TMDB fetch fails, skip this item
+          logger.debug('Failed to fetch TMDB data for show', {
+            label: 'Coming Soon Collections',
+            title: show.title,
+            tmdbId: show.ids.tmdb,
+          });
+          continue;
+        }
+
+        // Filter: only include if within 360-day window
+        if (!airDate || airDate > maxDate) {
+          logger.debug('Filtered out show (no air date or too far away)', {
+            label: 'Coming Soon Collections',
+            title: show.title,
+            airDate: airDate?.toISOString(),
+            daysAway: airDate
+              ? Math.round(
+                  (airDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+                )
+              : null,
+          });
+          continue;
+        }
+
+        // Add to items
+        items.push({
+          tmdbId: show.ids.tmdb,
+          tvdbId: show.ids.tvdb,
+          title: show.title,
+          year: show.year,
+          mediaType: 'tv',
+          source: 'trakt',
+          monitored: false, // Will be updated by markMonitoredStatus
+        });
+
+        // Stop if we've reached maxItems
+        if (items.length >= maxItems) {
+          break;
+        }
+      }
+
+      currentPage++;
+
+      // Check if we should stop pagination
+      if (anticipatedShows.length < perPage) {
+        hasMorePages = false; // Last page
+      }
+    }
+
+    logger.info('Fetched anticipated shows from Trakt with date filtering', {
+      label: 'Coming Soon Collections',
+      totalFetched,
+      validItems: items.length,
+      pagesFetched: currentPage - 1,
+      maxItems,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch anticipated shows from Trakt', {
+      label: 'Coming Soon Collections',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Enrich items with TMDB release dates
+ * Adds 3-month estimate for items with only theatrical releases
+ */
+export async function enrichWithTMDBReleaseDates(
+  items: ComingSoonSourceData[]
+): Promise<void> {
+  const TmdbAPI = (await import('@server/api/themoviedb')).default;
+  const tmdbClient = new TmdbAPI();
+
+  for (const item of items) {
+    // For monitored items from Radarr/Sonarr, apply priority logic and estimation
+    if (item.monitored && item.mediaType === 'movie') {
+      // Set releaseDate using priority: Digital > Physical > Theatrical (+3 months)
+      if (item.digitalRelease) {
+        // Use digital release date (highest priority)
+        item.releaseDate = item.digitalRelease.split('T')[0];
+      } else if (item.physicalRelease) {
+        // Use physical release date (second priority)
+        item.releaseDate = item.physicalRelease.split('T')[0];
+      } else if (item.releaseDate) {
+        // Only theatrical/generic - add 3 months estimate
+        const originalDate = item.releaseDate;
+        const baseDate = new Date(originalDate);
+        baseDate.setDate(baseDate.getDate() + 90);
+        item.releaseDate = baseDate.toISOString().split('T')[0];
+        item.isEstimatedDate = true;
+
+        logger.debug('Applied 3-month estimate to monitored item', {
+          label: 'Coming Soon Collections',
+          title: item.title,
+          originalDate,
+          estimatedDate: item.releaseDate,
+        });
+      }
+      continue; // Skip TMDB fetch for monitored items - use Radarr/Sonarr data
+    }
+
+    try {
+      if (item.mediaType === 'movie') {
+        // Fetch movie details from TMDB (includes release_dates in append_to_response)
+        const movieDetails = await tmdbClient.getMovie({
+          movieId: item.tmdbId,
+        });
+
+        // Extract digital/physical/theatrical release dates from release_dates
+        if (movieDetails.release_dates?.results) {
+          // Find US release dates
+          const usRelease = movieDetails.release_dates.results.find(
+            (r) => r.iso_3166_1 === 'US'
+          );
+          if (usRelease?.release_dates) {
+            for (const rd of usRelease.release_dates) {
+              // Type 4 = Digital, Type 5 = Physical, Type 3 = Theatrical
+              if (rd.type === 4 && rd.release_date) {
+                item.digitalRelease = rd.release_date;
+              }
+              if (rd.type === 5 && rd.release_date) {
+                item.physicalRelease = rd.release_date;
+              }
+              if (rd.type === 3 && rd.release_date) {
+                item.inCinemas = rd.release_date;
+              }
+            }
+          }
+        }
+
+        // Set releaseDate using priority: Digital > Physical > Theatrical (+3 months)
+        if (item.digitalRelease) {
+          // Use digital release date (highest priority)
+          item.releaseDate = item.digitalRelease.split('T')[0];
+        } else if (item.physicalRelease) {
+          // Use physical release date (second priority)
+          item.releaseDate = item.physicalRelease.split('T')[0];
+        } else if (movieDetails.release_date) {
+          // No digital/physical - use theatrical + 3 months estimate
+          const baseDate = new Date(movieDetails.release_date);
+          baseDate.setDate(baseDate.getDate() + 90);
+          item.releaseDate = baseDate.toISOString().split('T')[0];
+          item.isEstimatedDate = true;
+
+          logger.debug('Using estimated release date (theatrical + 3 months)', {
+            label: 'Coming Soon Collections',
+            title: item.title,
+            originalDate: movieDetails.release_date,
+            estimatedDate: item.releaseDate,
+          });
+        }
+      } else if (item.mediaType === 'tv') {
+        // Only enrich airDate if not already set (Sonarr already provides season-specific dates)
+        if (!item.airDate) {
+          // Fetch TV show details from TMDB
+          const showDetails = await tmdbClient.getTvShow({
+            tvId: item.tmdbId,
+          });
+
+          // Find the next upcoming season premiere
+          const now = new Date();
+          let nextSeasonAirDate: string | null = null;
+          let nextSeasonNumber = 0;
+
+          if (showDetails.seasons && showDetails.seasons.length > 0) {
+            // Sort seasons by season number
+            const seasons = showDetails.seasons
+              .filter((s) => s.season_number > 0) // Exclude specials (season 0)
+              .sort((a, b) => a.season_number - b.season_number);
+
+            // Find the next season that hasn't aired yet
+            for (const season of seasons) {
+              if (season.air_date) {
+                const airDate = new Date(season.air_date);
+                if (airDate > now) {
+                  nextSeasonAirDate = season.air_date;
+                  nextSeasonNumber = season.season_number;
+                  break;
+                }
+              }
+            }
+          }
+
+          if (nextSeasonAirDate) {
+            item.airDate = nextSeasonAirDate;
+            item.seasonNumber = nextSeasonNumber;
+            item.isReturning = nextSeasonNumber > 1;
+
+            logger.debug('Found upcoming season from TMDB for Trakt item', {
+              label: 'Coming Soon Collections',
+              title: item.title,
+              seasonNumber: nextSeasonNumber,
+              airDate: nextSeasonAirDate,
+            });
+          } else if (showDetails.first_air_date) {
+            // Fallback to first_air_date if no future seasons found
+            item.airDate = showDetails.first_air_date;
+            item.seasonNumber = 1;
+            item.isReturning = false;
+          }
+        }
+      }
+
+      logger.debug('Enriched item with TMDB release date', {
+        label: 'Coming Soon Collections',
+        title: item.title,
+        mediaType: item.mediaType,
+        releaseDate: item.releaseDate || item.airDate,
+      });
+    } catch (error) {
+      logger.warn('Failed to fetch TMDB release date for item', {
+        label: 'Coming Soon Collections',
+        title: item.title,
+        tmdbId: item.tmdbId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  logger.debug('Completed TMDB release date enrichment', {
+    label: 'Coming Soon Collections',
+    enrichedCount: items.filter(
+      (i) => !i.monitored && (i.releaseDate || i.airDate)
+    ).length,
+  });
+}
+
+/**
+ * Cross-reference Trakt items with Radarr/Sonarr to mark monitored status
+ * and enrich with release dates and file status
+ */
+export async function markMonitoredStatus(
+  items: ComingSoonSourceData[]
+): Promise<void> {
+  const settings = getSettings();
+
+  // Build maps of movie data from Radarr (keyed by TMDB ID)
+  const radarrMovieMap = new Map<
+    number,
+    {
+      monitored: boolean;
+      hasFile: boolean;
+      releaseDate?: string;
+      digitalRelease?: string;
+      physicalRelease?: string;
+      inCinemas?: string;
+    }
+  >();
+
+  // Build maps of show data from Sonarr (keyed by TVDB ID)
+  const sonarrShowMap = new Map<
+    number,
+    {
+      monitored: boolean;
+      hasFile: boolean;
+      airDate?: string;
+      downloadedDate?: string;
+    }
+  >();
+
+  // Fetch movie data from Radarr
+  if (settings.radarr && settings.radarr.length > 0) {
+    for (const radarrInstance of settings.radarr) {
+      try {
+        const radarrClient = new RadarrAPI({
+          url: `${radarrInstance.useSsl ? 'https' : 'http'}://${
+            radarrInstance.hostname
+          }:${radarrInstance.port}${radarrInstance.baseUrl || ''}/api/v3`,
+          apiKey: radarrInstance.apiKey,
+        });
+
+        const movies = await radarrClient.getMovies();
+        for (const movie of movies) {
+          radarrMovieMap.set(movie.tmdbId, {
+            monitored: movie.monitored,
+            hasFile: movie.hasFile,
+            releaseDate: movie.releaseDate,
+            digitalRelease: movie.digitalRelease,
+            physicalRelease: movie.physicalRelease,
+            inCinemas: movie.inCinemas,
+          });
+        }
+      } catch (error) {
+        logger.warn('Failed to fetch movies for cross-reference', {
+          label: 'Coming Soon Collections',
+          instance: radarrInstance.name,
+        });
+      }
+    }
+  }
+
+  // Fetch show data from Sonarr
+  if (settings.sonarr && settings.sonarr.length > 0) {
+    for (const sonarrInstance of settings.sonarr) {
+      try {
+        const sonarrClient = new SonarrAPI({
+          url: `${sonarrInstance.useSsl ? 'https' : 'http'}://${
+            sonarrInstance.hostname
+          }:${sonarrInstance.port}${sonarrInstance.baseUrl || ''}/api/v3`,
+          apiKey: sonarrInstance.apiKey,
+        });
+
+        const allSeries = await sonarrClient.getSeries();
+        for (const series of allSeries) {
+          if (!series.id) continue;
+
+          try {
+            // Get S01E01 details
+            const episodes = await sonarrClient.getEpisodesBySeries(series.id);
+            const s01e01 = episodes.find(
+              (ep) => ep.seasonNumber === 1 && ep.episodeNumber === 1
+            );
+
+            if (s01e01 && s01e01.monitored) {
+              const hasFile = s01e01.episodeFileId > 0;
+              let downloadedDate: string | undefined;
+
+              if (hasFile) {
+                try {
+                  const episodeFile = await sonarrClient.getEpisodeFile(
+                    s01e01.episodeFileId
+                  );
+                  downloadedDate = episodeFile.dateAdded;
+                } catch {
+                  downloadedDate = series.added;
+                }
+              }
+
+              sonarrShowMap.set(series.tvdbId, {
+                monitored: series.monitored,
+                hasFile,
+                airDate: s01e01.airDateUtc,
+                downloadedDate,
+              });
+            }
+          } catch (error) {
+            // Skip series if we can't get episode data
+            logger.debug('Could not get episode data for series', {
+              label: 'Coming Soon Collections',
+              seriesTitle: series.title,
+            });
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to fetch shows for cross-reference', {
+          label: 'Coming Soon Collections',
+          instance: sonarrInstance.name,
+        });
+      }
+    }
+  }
+
+  // Enrich Trakt items with data from Radarr/Sonarr
+  for (const item of items) {
+    if (item.mediaType === 'movie') {
+      const radarrData = radarrMovieMap.get(item.tmdbId);
+      if (radarrData) {
+        item.monitored = radarrData.monitored;
+        item.hasFile = radarrData.hasFile;
+        item.releaseDate = radarrData.releaseDate;
+        item.digitalRelease = radarrData.digitalRelease;
+        item.physicalRelease = radarrData.physicalRelease;
+        item.inCinemas = radarrData.inCinemas;
+      } else {
+        // Not in Radarr
+        item.monitored = false;
+        item.hasFile = false;
+      }
+    } else if (item.tvdbId) {
+      const sonarrData = sonarrShowMap.get(item.tvdbId);
+      if (sonarrData) {
+        item.monitored = sonarrData.monitored;
+        item.hasFile = sonarrData.hasFile;
+        item.airDate = sonarrData.airDate;
+        item.downloadedDate = sonarrData.downloadedDate;
+      } else {
+        // Not in Sonarr
+        item.monitored = false;
+        item.hasFile = false;
+      }
+    }
+  }
+
+  // Fetch TMDB release dates for non-monitored items (external_request items)
+  await enrichWithTMDBReleaseDates(items);
+
+  logger.debug('Enriched Trakt items with Radarr/Sonarr data', {
+    label: 'Coming Soon Collections',
+    totalItems: items.length,
+    monitored: items.filter((i) => i.monitored).length,
+    needsRequest: items.filter((i) => !i.monitored).length,
+    withReleaseData: items.filter((i) => i.releaseDate || i.airDate).length,
+  });
+}

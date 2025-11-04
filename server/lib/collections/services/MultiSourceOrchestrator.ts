@@ -25,6 +25,7 @@ import {
 } from '@server/lib/collections/core/CollectionUtilities';
 import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
 import { ComingSoonCollectionSync } from '@server/lib/collections/external/comingsoon';
+import { handlePlaceholderCreation } from '@server/lib/collections/external/comingsoon/comingSoonPlaceholders';
 import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
 import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
 import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
@@ -650,19 +651,15 @@ export class MultiSourceOrchestrator {
         );
 
         try {
-          // Cast to ComingSoonCollectionSync to access placeholder creation method
-          const comingSoonSync = syncService as ComingSoonCollectionSync;
-
-          // Call the placeholder creation method
+          // Call the placeholder creation function
           // This triggers placeholder file creation and Plex scanning
           // CRITICAL: Capture the returned placeholder items
-          const newPlaceholderItems =
-            await comingSoonSync.handlePlaceholderCreation(
-              missingItems,
-              sourceData as ComingSoonSourceData[],
-              tempConfig,
-              plexClient
-            );
+          const newPlaceholderItems = await handlePlaceholderCreation(
+            missingItems,
+            sourceData as ComingSoonSourceData[],
+            tempConfig,
+            plexClient
+          );
 
           // Add the newly created placeholders to the items array
           items.push(...newPlaceholderItems);
