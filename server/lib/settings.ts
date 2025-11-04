@@ -110,8 +110,6 @@ export interface CollectionConfig {
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
-  // TMDB custom list fields
-  readonly tmdbCustomListUrl?: string; // Custom TMDB list/collection URL (e.g., https://www.themoviedb.org/list/123456)
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields

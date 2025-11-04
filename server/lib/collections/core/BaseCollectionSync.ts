@@ -1939,7 +1939,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     if (config.imdbCustomListUrl) parts.push(config.imdbCustomListUrl);
     if (config.letterboxdCustomListUrl)
       parts.push(config.letterboxdCustomListUrl);
-    if (config.tmdbCustomListUrl) parts.push(config.tmdbCustomListUrl);
+    if (config.tmdbCustomCollectionUrl)
+      parts.push(config.tmdbCustomCollectionUrl);
     if (config.mdblistCustomListUrl) parts.push(config.mdblistCustomListUrl);
     if (config.anilistCustomListUrl) parts.push(config.anilistCustomListUrl);
     if (config.timePeriod) parts.push(config.timePeriod);

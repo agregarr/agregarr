@@ -273,6 +273,16 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           /themoviedb\.org\/list\/(\d+)/
         );
 
+        // Check if it's a network URL
+        const networkMatch = config.tmdbCustomCollectionUrl.match(
+          /themoviedb\.org\/network\/(\d+)/
+        );
+
+        // Check if it's a company URL (with movie or tv suffix)
+        const companyMatch = config.tmdbCustomCollectionUrl.match(
+          /themoviedb\.org\/company\/(\d+)(?:-[^/]+)?\/(movie|tv)/
+        );
+
         if (collectionMatch) {
           // Handle TMDB Collection
           const collectionData = await this.tmdbClient.getCollection({
@@ -326,10 +336,120 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           }
 
           tmdbData.push(...allItems);
+        } else if (networkMatch) {
+          // Handle TMDB Network - TV shows only
+          const networkId = parseInt(networkMatch[1], 10);
+          let currentPage = 1;
+          let hasMorePages = true;
+          const BATCH_SIZE = 5;
+
+          while (hasMorePages) {
+            for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+              const data = await this.tmdbClient.getDiscoverTv({
+                network: networkId,
+                sortBy: 'popularity.desc',
+                page: currentPage,
+              });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              tmdbData.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: 'tv' as const,
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+
+              currentPage++;
+            }
+
+            if (
+              config.maxItems &&
+              config.maxItems > 0 &&
+              tmdbData.length >= config.maxItems * 10
+            ) {
+              break;
+            }
+          }
+        } else if (companyMatch) {
+          // Handle TMDB Company - movies or TV based on URL
+          const companyId = parseInt(companyMatch[1], 10);
+          const companyMediaType = companyMatch[2]; // 'movie' or 'tv'
+          let currentPage = 1;
+          let hasMorePages = true;
+          const BATCH_SIZE = 5;
+
+          while (hasMorePages) {
+            for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+              if (companyMediaType === 'movie') {
+                const data = await this.tmdbClient.getDiscoverMovies({
+                  studio: companyId.toString(),
+                  sortBy: 'popularity.desc',
+                  page: currentPage,
+                });
+
+                if (!data.results || data.results.length === 0) {
+                  hasMorePages = false;
+                  break;
+                }
+
+                tmdbData.push(
+                  ...data.results.map((item) => ({
+                    ...item,
+                    media_type: 'movie' as const,
+                  }))
+                );
+
+                if (data.results.length < 20) {
+                  hasMorePages = false;
+                }
+              } else {
+                // TV shows
+                const data = await this.tmdbClient.getDiscoverTv({
+                  network: companyId,
+                  sortBy: 'popularity.desc',
+                  page: currentPage,
+                });
+
+                if (!data.results || data.results.length === 0) {
+                  hasMorePages = false;
+                  break;
+                }
+
+                tmdbData.push(
+                  ...data.results.map((item) => ({
+                    ...item,
+                    media_type: 'tv' as const,
+                  }))
+                );
+
+                if (data.results.length < 20) {
+                  hasMorePages = false;
+                }
+              }
+
+              currentPage++;
+            }
+
+            if (
+              config.maxItems &&
+              config.maxItems > 0 &&
+              tmdbData.length >= config.maxItems * 10
+            ) {
+              break;
+            }
+          }
         } else {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
-            'Invalid TMDB URL - must be a collection or list URL'
+            'Invalid TMDB URL - must be a collection, list, network, or company URL'
           );
         }
         break;

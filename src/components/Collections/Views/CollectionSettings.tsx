@@ -368,8 +368,8 @@ const CollectionSettings = ({
           ...(collectionConfig.traktCustomListUrl && {
             traktCustomListUrl: collectionConfig.traktCustomListUrl,
           }),
-          ...(collectionConfig.tmdbCustomListUrl && {
-            tmdbCustomListUrl: collectionConfig.tmdbCustomListUrl,
+          ...(collectionConfig.tmdbCustomCollectionUrl && {
+            tmdbCustomCollectionUrl: collectionConfig.tmdbCustomCollectionUrl,
           }),
           ...(collectionConfig.imdbCustomListUrl && {
             imdbCustomListUrl: collectionConfig.imdbCustomListUrl,
@@ -534,7 +534,7 @@ const CollectionSettings = ({
           maxSeasonsToRequest: config.maxSeasonsToRequest,
           seasonsPerShowLimit: config.seasonsPerShowLimit,
           traktCustomListUrl: config.traktCustomListUrl,
-          tmdbCustomListUrl: config.tmdbCustomListUrl,
+          tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
           imdbCustomListUrl: config.imdbCustomListUrl,
           letterboxdCustomListUrl: config.letterboxdCustomListUrl,
           radarrInstanceId: config.radarrInstanceId,
@@ -1791,7 +1791,7 @@ const CollectionSettings = ({
               excludedCountries: masterConfig.excludedCountries,
               timeRestriction: masterConfig.timeRestriction,
               traktCustomListUrl: masterConfig.traktCustomListUrl,
-              tmdbCustomListUrl: masterConfig.tmdbCustomListUrl,
+              tmdbCustomCollectionUrl: masterConfig.tmdbCustomCollectionUrl,
               imdbCustomListUrl: masterConfig.imdbCustomListUrl,
               letterboxdCustomListUrl: masterConfig.letterboxdCustomListUrl,
               reverseOrder: masterConfig.reverseOrder,

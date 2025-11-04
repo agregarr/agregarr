@@ -830,7 +830,7 @@ export class MultiSourceOrchestrator {
         }),
       ...(source.type === 'tmdb' &&
         source.customUrl && {
-          tmdbCustomListUrl: source.customUrl,
+          tmdbCustomCollectionUrl: source.customUrl,
         }),
       ...(source.type === 'imdb' &&
         source.customUrl && {

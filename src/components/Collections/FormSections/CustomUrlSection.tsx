@@ -5,7 +5,7 @@ import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
   customTraktListUrl: 'Custom Trakt List URL',
-  customTmdbCollectionUrl: 'Custom TMDB Collection/List URL',
+  customTmdbCollectionUrl: 'Custom TMDB Collection/List/Network/Company URL',
   customImdbListUrl: 'Custom IMDb List URL',
   customLetterboxdListUrl: 'Custom Letterboxd List URL',
   customMdblistListUrl: 'Custom MDBList List URL',
@@ -162,7 +162,7 @@ const CustomUrlSection = ({
             type="url"
             id="tmdbCustomCollectionUrl"
             name="tmdbCustomCollectionUrl"
-            placeholder="https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310"
+            placeholder="https://www.themoviedb.org/collection/12345, list/310, network/213, or company/7505/movie"
             className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTmdbTitle && (
@@ -184,8 +184,10 @@ const CustomUrlSection = ({
           className="mt-1 text-sm text-red-500"
         />
         <p className="mt-1 text-xs text-gray-400">
-          Examples: https://www.themoviedb.org/collection/12345-collection-name
-          or https://www.themoviedb.org/list/310-my-movie-list
+          Examples: Collection (https://www.themoviedb.org/collection/12345),
+          List (https://www.themoviedb.org/list/310), Network
+          (https://www.themoviedb.org/network/213), Company
+          (https://www.themoviedb.org/company/7505/movie or /tv)
         </p>
       </div>
     );

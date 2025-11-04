@@ -245,7 +245,7 @@ export interface CollectionFormConfig {
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDB custom list fields
-  readonly tmdbCustomListUrl?: string; // Custom TMDB list/collection URL
+  readonly tmdbCustomCollectionUrl?: string; // Custom TMDB list/collection URL
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
@@ -363,7 +363,7 @@ export interface CollectionConfigCreateRequest {
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly traktCustomListUrl?: string;
-  readonly tmdbCustomListUrl?: string;
+  readonly tmdbCustomCollectionUrl?: string;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
   readonly networksCountry?: string;
@@ -448,7 +448,7 @@ export const toCollectionCreateRequest = (
     directDownloadSonarrServerId: config.directDownloadSonarrServerId,
     directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
     traktCustomListUrl: config.traktCustomListUrl,
-    tmdbCustomListUrl: config.tmdbCustomListUrl,
+    tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,

@@ -138,13 +138,22 @@ collectionsPreviewRoutes.post('/', isAuthenticated(), async (req, res) => {
     processPreviewAsync(sessionId, req.body).catch((error) => {
       logger.error('Preview processing failed', {
         label: 'Collections Preview API',
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          error instanceof Error
+            ? error.message
+            : JSON.stringify(error) || String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
       });
 
       updatePreviewStatus(sessionId, {
         running: false,
         completed: true,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error:
+          error instanceof Error
+            ? error.message
+            : JSON.stringify(error) || 'Unknown error',
       });
     });
   } catch (error) {
@@ -396,7 +405,7 @@ async function processMultiSourcePreview(
         if (source.type === 'trakt')
           sourceConfigRecord.traktCustomListUrl = source.customUrl;
         else if (source.type === 'tmdb')
-          sourceConfigRecord.tmdbCustomListUrl = source.customUrl;
+          sourceConfigRecord.tmdbCustomCollectionUrl = source.customUrl;
         else if (source.type === 'imdb')
           sourceConfigRecord.imdbCustomListUrl = source.customUrl;
         else if (source.type === 'letterboxd')
@@ -935,6 +944,8 @@ async function processPreviewAsync(
         type,
         subtype,
         libraryId,
+        customUrl,
+        hasCustomUrl: !!customUrl,
       }
     );
 
@@ -998,7 +1009,7 @@ async function processPreviewAsync(
     if (customUrl) {
       if (type === 'trakt') previewConfigRecord.traktCustomListUrl = customUrl;
       else if (type === 'tmdb')
-        previewConfigRecord.tmdbCustomListUrl = customUrl;
+        previewConfigRecord.tmdbCustomCollectionUrl = customUrl;
       else if (type === 'imdb')
         previewConfigRecord.imdbCustomListUrl = customUrl;
       else if (type === 'letterboxd')

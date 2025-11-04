@@ -117,11 +117,15 @@ function validateExternalUrl(
         }
         break;
       case 'tmdb':
-        if (!urlObj.pathname.match(/^\/(collection|list)\/\d+/)) {
+        if (
+          !urlObj.pathname.match(
+            /^\/(collection\/\d+|list\/\d+|network\/\d+|company\/\d+(?:-[^/]+)?\/(?:movie|tv))/
+          )
+        ) {
           return {
             isValid: false,
             error:
-              'Invalid TMDB URL format. Expected: https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310',
+              'Invalid TMDB URL format. Expected: collection, list, network, or company URL (e.g., https://www.themoviedb.org/collection/123456, /list/310, /network/213, or /company/7505/movie)',
           };
         }
         break;
@@ -1759,6 +1763,14 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
           );
           // Check if it's a list URL
           const listMatch = sanitizedUrl.match(/themoviedb\.org\/list\/(\d+)/);
+          // Check if it's a network URL
+          const networkMatch = sanitizedUrl.match(
+            /themoviedb\.org\/network\/(\d+)/
+          );
+          // Check if it's a company URL
+          const companyMatch = sanitizedUrl.match(
+            /themoviedb\.org\/company\/(\d+)(?:-[^/]+)?\/(movie|tv)/
+          );
 
           if (collectionMatch) {
             const collectionId = parseInt(collectionMatch[1]);
@@ -1790,16 +1802,29 @@ collectionsRoutes.post('/fetch-title', isAuthenticated(), async (req, res) => {
             } else {
               mediaType = 'both'; // Fallback for empty lists
             }
+          } else if (networkMatch) {
+            const networkId = parseInt(networkMatch[1]);
+            const network = await tmdbClient.getNetwork(networkId);
+            title = network.name;
+            mediaType = 'tv'; // Networks are TV only
+          } else if (companyMatch) {
+            const companyId = parseInt(companyMatch[1]);
+            const companyMediaType = companyMatch[2]; // 'movie' or 'tv'
+            const company = await tmdbClient.getStudio(companyId);
+            title = company.name;
+            mediaType = companyMediaType === 'movie' ? 'movie' : 'tv';
           } else {
             return res.status(400).json({
               status: 'error',
-              message: 'Invalid TMDB URL format',
+              message:
+                'Invalid TMDB URL format. Expected: collection, list, network, or company URL',
             });
           }
         } catch (error) {
           return res.status(400).json({
             status: 'error',
-            message: 'Invalid TMDB collection/list ID or not found',
+            message:
+              'Invalid TMDB collection/list/network/company ID or not found',
           });
         }
         break;
