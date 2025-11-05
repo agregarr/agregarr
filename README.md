@@ -31,10 +31,13 @@ services:
     image: agregarr/agregarr:latest
     container_name: agregarr
     volumes:
-      - /path/to/config:/app/config
+      - /path/to/config:/app/config ### Change /path/to/config to your actual config path
+      # Linux/Mac: - /mnt/serverdata/configs/agregarr:/app/config
+      # Windows:   - C:\serverdata\configs\agregarr:/app/config
+
       # Optional: For Coming Soon feature, mount media matching Radarr/Sonarr paths
-      # Linux/Mac: - /mnt/media/movies:/data/movies
-      #            - /mnt/media/tv:/data/tv
+      # Linux/Mac: - /mnt/media/movies:/raddarr/container/path
+      #            - /mnt/media/tv:/radarr/container/path
       # Windows:   - E:\media\movies:/mnt/e/media/movies
       #            - E:\media\tv:/mnt/e/media/tv
     ports:
@@ -44,7 +47,7 @@ services:
 
 The application will be available at `http://localhost:7171`
 
-> **Note**: The Coming Soon feature requires media volumes to be mounted with paths matching your Radarr/Sonarr containers. Without media mounts, Agregarr can run remotely and all other features will work normally.
+> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because youe volume is not set correctly. The Coming Soon feature requires media volumes to be mounted with paths matching your Radarr/Sonarr containers. Without media mounts, Agregarr can run remotely and all other features will work normally.
 
 ## License
 
