@@ -53,3 +53,15 @@ GPL-3.0 License - see [LICENSE](LICENSE) file for details.
 ## Credits
 
 Originally built off [Overseerr](https://github.com/sct/Overseerr)
+
+## Credits
+
+Originally built off [Overseerr](https://github.com/sct/Overseerr)
+
+Agregarr draws inspiration and code references from these excellent open-source projects:
+
+- [**Kometa**](https://github.com/Kometa-Team/Kometa) - General inspiration
+- [**UMTK**](https://github.com/netplexflix/Upcoming-Movies-TV-Shows-for-Kometa) - Coming Soon collection feature
+- [**PlexAniBridge**](https://github.com/PlexAniBridge/PlexAniBridge) - Anime ID mappings file
+
+A huge thanks to the developers and contributors of these projects!
