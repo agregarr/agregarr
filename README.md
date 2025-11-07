@@ -35,7 +35,7 @@ services:
       # Linux/Mac: - /mnt/serverdata/configs/agregarr:/app/config
       # Windows:   - C:\serverdata\configs\agregarr:/app/config
 
-      # Optional: For Coming Soon feature, mount media matching Radarr/Sonarr paths
+      # Develop branch only (optional): For Coming Soon feature, mount media matching Radarr/Sonarr paths
       # Linux/Mac: - /mnt/media/movies:/raddarr/container/path
       #            - /mnt/media/tv:/radarr/container/path
       # Windows:   - E:\media\movies:/mnt/e/media/movies
