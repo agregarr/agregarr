@@ -256,10 +256,28 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         const batchPromises = batch.map(async (item) => {
           try {
             // Search for the movie on TMDB using title and year
-            const searchResults = await this.tmdbClient.searchMovies({
+            let searchResults = await this.tmdbClient.searchMovies({
               query: item.title,
               year: item.year,
             });
+
+            // Fallback: If no results with year-specific search, try without year
+            // This handles year mismatches due to festival vs. wide release dates
+            if (!searchResults.results || searchResults.results.length === 0) {
+              logger.debug(
+                `No TMDB results with year ${item.year}, trying without year for: ${item.title}`,
+                {
+                  label: 'Letterboxd Collections',
+                  configName: config.name,
+                  itemTitle: item.title,
+                  itemYear: item.year,
+                }
+              );
+
+              searchResults = await this.tmdbClient.searchMovies({
+                query: item.title,
+              });
+            }
 
             if (searchResults.results && searchResults.results.length > 0) {
               const tmdbMovie = this.findBestTmdbMatch(
