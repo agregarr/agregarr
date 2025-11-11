@@ -1019,7 +1019,11 @@ settingsRoutes.post<{ jobId: JobId }>(
         running: scheduledJob.running ? scheduledJob.running() : false,
       });
     } else {
-      return next({ status: 400, message: 'Invalid job schedule.' });
+      return next({
+        status: 400,
+        message:
+          'Invalid CRON expression. Must be 6-part format (second minute hour day month weekday). Examples: "0 */15 * * * *" (every 15 min), "0 0 */6 * * *" (every 6 hours)',
+      });
     }
   }
 );

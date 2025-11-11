@@ -62,7 +62,8 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
   editJobScheduleUsePreset: 'Use Preset Intervals',
   editJobScheduleUseCustom: 'Use Custom CRON Expression',
   editJobScheduleCustomCron: 'CRON Expression',
-  editJobScheduleCustomCronPlaceholder: 'e.g. 0 0 */6 * * * (every 6 hours)',
+  editJobScheduleCustomCronPlaceholder:
+    'e.g. 0 */15 * * * * (every 15 min) or 0 0 */6 * * * (every 6 hours)',
   editJobScheduleCustomCronInvalid: 'Invalid CRON expression',
   imagecache: 'Image Cache',
   imagecacheDescription:
@@ -221,7 +222,7 @@ const SettingsJobs = () => {
         const cronParts = cronExpr.split(/\s+/);
         if (cronParts.length !== 6) {
           throw new Error(
-            'CRON expression must have 6 parts: second minute hour day month weekday'
+            'CRON expression must have 6 parts (node-schedule format): second minute hour day month weekday. Examples: "0 */15 * * * *" (every 15 min), "0 0 */6 * * *" (every 6 hours)'
           );
         }
 
@@ -265,7 +266,11 @@ const SettingsJobs = () => {
       dispatch({ type: 'close' });
       revalidate();
     } catch (e) {
-      addToast(intl.formatMessage(messages.jobScheduleEditFailed), {
+      const errorMessage =
+        e.response?.data?.message ||
+        e.message ||
+        intl.formatMessage(messages.jobScheduleEditFailed);
+      addToast(errorMessage, {
         appearance: 'error',
         autoDismiss: true,
       });
