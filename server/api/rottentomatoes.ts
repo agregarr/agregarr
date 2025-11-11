@@ -26,7 +26,7 @@ interface RTAlgoliaHit {
   vanity: string;
   aka: string[];
   posterImageUrl: string;
-  rottenTomatoes: {
+  rottenTomatoes?: {
     audienceScore: number;
     criticsIconUrl: string;
     wantToSeeCount: number;
@@ -135,6 +135,11 @@ class RottenTomatoes extends ExternalAPI {
         return null;
       }
 
+      // Check if RT ratings data exists
+      if (!movie.rottenTomatoes) {
+        return null;
+      }
+
       return {
         title: movie.title,
         url: `https://www.rottentomatoes.com/m/${movie.vanity}`,
@@ -186,6 +191,11 @@ class RottenTomatoes extends ExternalAPI {
       }
 
       if (!tvshow) {
+        return null;
+      }
+
+      // Check if RT ratings data exists
+      if (!tvshow.rottenTomatoes) {
         return null;
       }
 

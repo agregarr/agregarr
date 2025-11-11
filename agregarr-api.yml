@@ -6259,12 +6259,17 @@ paths:
                     type: object
                     nullable: true
                     properties:
-                      title:
+                      imdbId:
                         type: string
-                      url:
-                        type: string
-                      criticsScore:
+                        example: tt1234567
+                      rating:
                         type: number
+                        nullable: true
+                        example: 8.5
+                      votes:
+                        type: number
+                        nullable: true
+                        example: 123456
                   rt:
                     type: object
                     nullable: true
@@ -6292,7 +6297,7 @@ paths:
   /ratings/tv/{tmdbId}:
     get:
       summary: Get TV show ratings
-      description: Returns Rotten Tomatoes ratings for a TV show
+      description: Returns IMDB and Rotten Tomatoes ratings for a TV show
       tags:
         - other
       parameters:
@@ -6312,6 +6317,11 @@ paths:
           schema:
             type: integer
           description: First air date year (optional for RT rating lookup)
+        - in: query
+          name: imdbId
+          schema:
+            type: string
+          description: IMDB ID (e.g. tt1234567) for IMDB rating lookup
       responses:
         '200':
           description: TV show ratings
@@ -6320,6 +6330,21 @@ paths:
               schema:
                 type: object
                 properties:
+                  imdb:
+                    type: object
+                    nullable: true
+                    properties:
+                      imdbId:
+                        type: string
+                        example: tt1234567
+                      rating:
+                        type: number
+                        nullable: true
+                        example: 8.5
+                      votes:
+                        type: number
+                        nullable: true
+                        example: 123456
                   rt:
                     type: object
                     nullable: true

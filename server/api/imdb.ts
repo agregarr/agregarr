@@ -32,15 +32,6 @@ export interface ImdbList {
 }
 
 /**
- * IMDb Rating interface (from Radarr proxy)
- */
-export interface ImdbRating {
-  title: string;
-  url: string;
-  criticsScore: number;
-}
-
-/**
  * IMDb Top Lists enum for predefined lists
  */
 export enum ImdbTopList {
@@ -357,59 +348,6 @@ class ImdbAPI extends ExternalAPI {
         return 'Most Popular TV Shows';
       default:
         return 'IMDb List';
-    }
-  }
-
-  /**
-   * Get movie ratings from Radarr IMDB proxy API
-   *
-   * This uses the Radarr-hosted public IMDB proxy that aggregates ratings data.
-   * This is a best-effort API as IMDB's official API requires paid access.
-   *
-   * @param imdbId - IMDB ID (e.g., "tt1234567")
-   * @returns Rating data including title, URL, and critics score, or null if not found
-   */
-  public async getMovieRatings(imdbId: string): Promise<ImdbRating | null> {
-    try {
-      const response = await this.axios.get<
-        {
-          ImdbId: string;
-          Title: string;
-          MovieRatings: {
-            Imdb: {
-              Count: number;
-              Value: number;
-              Type: string;
-            };
-          };
-        }[]
-      >(`https://api.radarr.video/v1/movie/imdb/${imdbId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      });
-
-      if (!response.data?.length || response.data[0].ImdbId !== imdbId) {
-        return null;
-      }
-
-      return {
-        title: response.data[0].Title,
-        url: `https://www.imdb.com/title/${response.data[0].ImdbId}`,
-        criticsScore: response.data[0].MovieRatings.Imdb.Value,
-      };
-    } catch (error) {
-      logger.error(`Failed to fetch IMDB ratings for ${imdbId}:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        imdbId,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw new Error(
-        `Failed to retrieve movie ratings: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
-      );
     }
   }
 }

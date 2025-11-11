@@ -1,5 +1,5 @@
-import type { ImdbRating } from '@server/api/imdb';
-import ImdbAPI from '@server/api/imdb';
+import type { ImdbRatingResponse } from '@server/api/imdbRatings';
+import ImdbRatingsAPI from '@server/api/imdbRatings';
 import type { RTRating } from '@server/api/rottentomatoes';
 import RottenTomatoes from '@server/api/rottentomatoes';
 import logger from '@server/logger';
@@ -23,21 +23,27 @@ ratingsRoutes.get('/movie/:tmdbId', isAuthenticated(), async (req, res) => {
       return res.status(400).json({ error: 'tmdbId is required' });
     }
 
-    const imdbClient = new ImdbAPI();
+    const imdbClient = new ImdbRatingsAPI();
     const rtClient = new RottenTomatoes();
 
-    let imdbRating: ImdbRating | null = null;
+    let imdbRating: ImdbRatingResponse | null = null;
     let rtRating: RTRating | null = null;
 
     // Fetch IMDB rating if we have an IMDB ID
     if (imdbId) {
       try {
-        imdbRating = await imdbClient.getMovieRatings(imdbId);
+        imdbRating = await imdbClient.getRating(imdbId);
+        logger.debug('IMDb rating fetched successfully', {
+          label: 'Ratings API',
+          imdbId,
+          rating: imdbRating?.rating,
+        });
       } catch (error) {
-        logger.debug('Failed to fetch IMDB rating', {
+        logger.error('Failed to fetch IMDB rating', {
           label: 'Ratings API',
           imdbId,
           error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         });
       }
     }
@@ -74,20 +80,43 @@ ratingsRoutes.get('/movie/:tmdbId', isAuthenticated(), async (req, res) => {
 
 /**
  * GET /api/v1/ratings/tv/:tmdbId
- * Get ratings for a TV show (RT only, IMDB proxy doesn't support TV)
+ * Get ratings for a TV show (IMDB + RT)
  */
 ratingsRoutes.get('/tv/:tmdbId', isAuthenticated(), async (req, res) => {
   try {
     const tmdbId = Number(req.params.tmdbId);
     const title = req.query.title as string;
     const year = req.query.year ? Number(req.query.year) : undefined;
+    const imdbId = req.query.imdbId as string | undefined;
 
     if (!tmdbId) {
       return res.status(400).json({ error: 'tmdbId is required' });
     }
 
+    const imdbClient = new ImdbRatingsAPI();
     const rtClient = new RottenTomatoes();
+
+    let imdbRating: ImdbRatingResponse | null = null;
     let rtRating: RTRating | null = null;
+
+    // Fetch IMDB rating if we have an IMDB ID
+    if (imdbId) {
+      try {
+        imdbRating = await imdbClient.getRating(imdbId);
+        logger.debug('IMDb rating fetched successfully', {
+          label: 'Ratings API',
+          imdbId,
+          rating: imdbRating?.rating,
+        });
+      } catch (error) {
+        logger.error('Failed to fetch IMDB rating', {
+          label: 'Ratings API',
+          imdbId,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
+    }
 
     // Fetch RT rating if we have title
     if (title) {
@@ -104,6 +133,7 @@ ratingsRoutes.get('/tv/:tmdbId', isAuthenticated(), async (req, res) => {
     }
 
     return res.status(200).json({
+      imdb: imdbRating,
       rt: rtRating,
     });
   } catch (error) {

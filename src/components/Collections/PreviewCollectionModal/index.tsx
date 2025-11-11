@@ -58,9 +58,9 @@ interface PreviewItem {
 
 interface ItemRatings {
   imdb?: {
-    title: string;
-    url: string;
-    criticsScore: number;
+    imdbId: string;
+    rating: number | null;
+    votes: number | null;
   } | null;
   rt?: {
     title: string;
@@ -156,6 +156,7 @@ const PreviewCollectionModal = ({
   } | null>(null);
   const iconRef = useRef<HTMLDivElement>(null);
   const tooltipCloseTimer = useRef<NodeJS.Timeout | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const [downloadingItems, setDownloadingItems] = useState<Set<number>>(
     new Set()
   );
@@ -839,6 +840,7 @@ const PreviewCollectionModal = ({
                                         : `/api/v1/ratings/tv/${item.tmdbId}`;
 
                                     // Build query string with proper encoding
+                                    // Note: encodeURIComponent is necessary for OpenAPI validation
                                     const queryParams = new URLSearchParams();
                                     if (item.title)
                                       queryParams.append(
@@ -850,10 +852,7 @@ const PreviewCollectionModal = ({
                                         'year',
                                         item.year.toString()
                                       );
-                                    if (
-                                      item.imdbId &&
-                                      item.mediaType === 'movie'
-                                    )
+                                    if (item.imdbId)
                                       queryParams.append('imdbId', item.imdbId);
 
                                     const response = await axios.get(
@@ -895,12 +894,22 @@ const PreviewCollectionModal = ({
                       tooltipPosition &&
                       typeof window !== 'undefined'
                         ? createPortal(
+                            /* eslint-disable-next-line jsx-a11y/no-static-element-interactions */
                             <div
+                              ref={tooltipRef}
                               className="fixed z-[9999] w-80 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl"
                               style={{
                                 top: `${tooltipPosition.top}px`,
                                 left: `${tooltipPosition.left}px`,
                                 maxHeight: `${tooltipPosition.maxHeight}px`,
+                              }}
+                              onMouseDown={(e) => {
+                                // Prevent modal backdrop from detecting this as an outside click
+                                e.stopPropagation();
+                              }}
+                              onMouseUp={(e) => {
+                                // Prevent modal backdrop from detecting this as an outside click
+                                e.stopPropagation();
                               }}
                               onMouseEnter={() => {
                                 // Cancel close when hovering tooltip
@@ -939,7 +948,7 @@ const PreviewCollectionModal = ({
                                       </span>
                                     </div>
                                   )}
-                                  {ratingsCache[item.tmdbId]?.imdb && (
+                                  {ratingsCache[item.tmdbId]?.imdb?.rating && (
                                     <div className="flex items-center gap-2.5">
                                       <img
                                         src="/services/imdb.svg"
@@ -949,7 +958,7 @@ const PreviewCollectionModal = ({
                                       <span className="text-base font-medium text-white">
                                         {
                                           ratingsCache[item.tmdbId]?.imdb
-                                            ?.criticsScore
+                                            ?.rating
                                         }
                                         /10
                                       </span>
