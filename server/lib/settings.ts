@@ -1554,6 +1554,10 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  // Smart collection settings (unwatched filter feature)
+  readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
+  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key (when smart collection is created)
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {

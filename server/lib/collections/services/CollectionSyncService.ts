@@ -317,6 +317,10 @@ export class CollectionSyncService {
                 config.directDownloadSonarrProfileId,
               directDownloadSonarrRootFolder:
                 config.directDownloadSonarrRootFolder,
+              // Smart collection settings (unwatched filter feature)
+              showUnwatchedOnly: config.showUnwatchedOnly,
+              smartCollectionRatingKey: config.smartCollectionRatingKey,
+              smartCollectionSort: config.smartCollectionSort,
             };
 
             result = await orchestrator.processMultiSourceCollection(

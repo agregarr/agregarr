@@ -1509,6 +1509,9 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       // Update in place
       plexSettings.collectionConfigs[configIndex] = updatedConfig;
 
+      // Save settings to persist the smart collection rating key
+      settings.save();
+
       logger.debug(
         `Updated config ${config.id} with smart collection rating key`,
         {
