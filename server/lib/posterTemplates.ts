@@ -90,11 +90,14 @@ export function validateTemplateData(
   if (!templateData.background) {
     errors.push('Background configuration is required');
   } else {
-    if (!['color', 'gradient'].includes(templateData.background.type)) {
-      errors.push('Background type must be "color" or "gradient"');
+    if (
+      !['color', 'gradient', 'radial'].includes(templateData.background.type)
+    ) {
+      errors.push('Background type must be "color", "gradient", or "radial"');
     }
     if (
-      templateData.background.type === 'gradient' &&
+      (templateData.background.type === 'gradient' ||
+        templateData.background.type === 'radial') &&
       !templateData.background.secondaryColor &&
       !templateData.background.useSourceColors
     ) {
@@ -754,11 +757,14 @@ export function sanitizeTemplateData(
     width: Math.max(100, templateData.width || 500),
     height: Math.max(100, templateData.height || 750),
     background: {
-      type: ['color', 'gradient'].includes(templateData.background?.type || '')
-        ? (templateData.background?.type as 'color' | 'gradient')
+      type: ['color', 'gradient', 'radial'].includes(
+        templateData.background?.type || ''
+      )
+        ? (templateData.background?.type as 'color' | 'gradient' | 'radial')
         : 'color',
       color: templateData.background?.color || '#6366f1',
       secondaryColor: templateData.background?.secondaryColor,
+      intensity: templateData.background?.intensity,
       useSourceColors: Boolean(templateData.background?.useSourceColors),
     },
     elements: Array.isArray(templateData.elements)

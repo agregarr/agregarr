@@ -903,9 +903,10 @@ function createTemplateLogoPlaceholder(
  */
 async function generateTemplateBackground(
   backgroundConfig: {
-    type: 'color' | 'gradient';
+    type: 'color' | 'gradient' | 'radial';
     color?: string;
     secondaryColor?: string;
+    intensity?: number;
     useSourceColors?: boolean;
   },
   colorScheme: ColorScheme
@@ -927,6 +928,27 @@ async function generateTemplateBackground(
         </linearGradient>
       `,
       background: `<rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#templateGradient)"/>`,
+    };
+  } else if (backgroundConfig.type === 'radial') {
+    const primaryColor = backgroundConfig.useSourceColors
+      ? colorScheme.primaryColor
+      : backgroundConfig.color || '#6366f1';
+    const secondaryColor = backgroundConfig.useSourceColors
+      ? colorScheme.secondaryColor
+      : backgroundConfig.secondaryColor || primaryColor;
+
+    // Calculate radius based on intensity (0-100)
+    const intensity = (backgroundConfig.intensity || 50) / 100;
+    const radiusPercent = 30 + intensity * 70; // 30% to 100% based on intensity
+
+    return {
+      defs: `
+        <radialGradient id="templateRadialGradient" cx="50%" cy="50%" r="${radiusPercent}%">
+          <stop offset="0%" style="stop-color:${primaryColor};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:${secondaryColor};stop-opacity:1" />
+        </radialGradient>
+      `,
+      background: `<rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#templateRadialGradient)"/>`,
     };
   } else {
     // Solid color background

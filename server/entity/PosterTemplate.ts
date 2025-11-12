@@ -62,9 +62,10 @@ export interface PosterTemplateData {
 
   // Background configuration
   background: {
-    type: 'color' | 'gradient';
+    type: 'color' | 'gradient' | 'radial';
     color?: string; // Single color or primary gradient color
     secondaryColor?: string; // For gradients
+    intensity?: number; // For gradients - controls gradient spread (0-100)
     useSourceColors?: boolean; // If true, use global source-specific colors from SourceColors table
   };
 

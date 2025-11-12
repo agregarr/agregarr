@@ -9496,7 +9496,7 @@ paths:
                               properties:
                                 type:
                                   type: string
-                                  enum: [color, gradient]
+                                  enum: [color, gradient, radial]
                                   example: "gradient"
                                 color:
                                   type: string
@@ -9504,6 +9504,10 @@ paths:
                                 secondaryColor:
                                   type: string
                                   example: "#1e1b4b"
+                                intensity:
+                                  type: number
+                                  description: "Gradient spread intensity (0-100)"
+                                  example: 50
                                 useSourceColors:
                                   type: boolean
                                   example: false
