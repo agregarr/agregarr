@@ -6529,6 +6529,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MainSettings'
+  /settings/reset:
+    post:
+      summary: Reset all Agregarr collections
+      description: Removes all Agregarr collections from Plex and clears all user labels. This action cannot be undone.
+      tags:
+        - settings
+      responses:
+        '200':
+          description: Reset completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '500':
+          description: Reset failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Failed to reset collections
   /settings/plex:
     get:
       summary: Get Plex settings

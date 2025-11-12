@@ -1,4 +1,5 @@
 import Button from '@app/components/Common/Button';
+import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
@@ -15,6 +16,7 @@ import { ArrowPathIcon } from '@heroicons/react/24/solid';
 import type { MainSettings } from '@server/lib/settings';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
+import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR, { mutate } from 'swr';
@@ -45,6 +47,16 @@ const messages = defineMessages({
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   partialRequestsEnabled: 'Allow Partial Series Requests',
   locale: 'Display Language',
+  resetAgregarr: 'Reset',
+  resetAgregarrDescription:
+    'Remove all Agregarr collections from Plex and clear all user labels.',
+  resetButton: 'Reset Collections',
+  resetButtonConfirm: 'Are you sure?',
+  resetWarning:
+    'This action will delete all collections created by Agregarr from your Plex server and clear all Agregarr user labels.',
+  resetting: 'Resetting...',
+  toastResetSuccess: 'All Agregarr collections have been removed successfully!',
+  toastResetFailure: 'Something went wrong while resetting collections.',
 });
 
 const SettingsMain = () => {
@@ -52,6 +64,7 @@ const SettingsMain = () => {
   const { user: currentUser, hasPermission: userHasPermission } = useUser();
   const intl = useIntl();
   const { setLocale } = useLocale();
+  const [isResetting, setIsResetting] = useState(false);
   const {
     data,
     error,
@@ -88,6 +101,25 @@ const SettingsMain = () => {
         autoDismiss: true,
         appearance: 'error',
       });
+    }
+  };
+
+  const handleReset = async () => {
+    setIsResetting(true);
+    try {
+      await axios.post('/api/v1/settings/reset');
+
+      addToast(intl.formatMessage(messages.toastResetSuccess), {
+        autoDismiss: true,
+        appearance: 'success',
+      });
+    } catch (e) {
+      addToast(intl.formatMessage(messages.toastResetFailure), {
+        autoDismiss: true,
+        appearance: 'error',
+      });
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -310,6 +342,37 @@ const SettingsMain = () => {
             );
           }}
         </Formik>
+      </div>
+
+      {/* Reset Section */}
+      <div className="mt-8 mb-6">
+        <h3 className="heading">
+          {intl.formatMessage(messages.resetAgregarr)}
+        </h3>
+        <p className="description">
+          {intl.formatMessage(messages.resetAgregarrDescription)}
+        </p>
+      </div>
+      <div className="section">
+        <div className="rounded-md border border-yellow-500 bg-yellow-500 bg-opacity-10 p-4">
+          <p className="text-sm text-yellow-200">
+            {intl.formatMessage(messages.resetWarning)}
+          </p>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <ConfirmButton
+            onClick={handleReset}
+            confirmText={intl.formatMessage(messages.resetButtonConfirm)}
+            buttonType="danger"
+            className="relative"
+          >
+            <span>
+              {isResetting
+                ? intl.formatMessage(messages.resetting)
+                : intl.formatMessage(messages.resetButton)}
+            </span>
+          </ConfirmButton>
+        </div>
       </div>
     </>
   );

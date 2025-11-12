@@ -1084,4 +1084,38 @@ settingsRoutes.get('/about', async (req, res) => {
   } as SettingsAboutResponse);
 });
 
+settingsRoutes.post('/reset', async (_req, res, next) => {
+  try {
+    logger.info(
+      'Manual reset requested - cleaning up all agregarr collections',
+      {
+        label: 'Settings Reset',
+      }
+    );
+
+    const collectionsSync = await import('@server/lib/collectionsSync');
+    await collectionsSync.default.cleanupCollections();
+
+    logger.info('Manual reset completed successfully', {
+      label: 'Settings Reset',
+    });
+
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (error) {
+    logger.error('Manual reset failed', {
+      label: 'Settings Reset',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return next({
+      status: 500,
+      message: `Failed to reset collections: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+    });
+  }
+});
+
 export default settingsRoutes;
