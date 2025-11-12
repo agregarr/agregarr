@@ -3,7 +3,6 @@ import type {
   PlexHubConfig,
   PreExistingCollectionConfig,
 } from '@app/types/collections';
-import { CollectionType } from '@app/types/collections';
 import axios from 'axios';
 import type { AddToast } from 'react-toast-notifications';
 
@@ -35,7 +34,7 @@ export const discoverPlexHubs = async (params: DiscoverPlexHubsParams) => {
   setDiscoveringHubs(true);
   try {
     // First sync libraries to ensure they're up to date
-    const librariesResponse = await axios.get('/api/v1/settings/plex/library', {
+    await axios.get('/api/v1/settings/plex/library', {
       params: { sync: true },
     });
 
@@ -101,107 +100,67 @@ export const discoverPlexHubs = async (params: DiscoverPlexHubsParams) => {
       // No new hubs found, but still need to refresh UI for any updates to existing configs
       revalidateAll();
 
-      addToast('No Plex hubs found to import.', {
-        autoDismiss: true,
-        appearance: 'info',
-      });
-      return;
-    }
+      // Check if there are existing configs already - if so, everything is already imported
+      const totalExistingConfigs =
+        (validationResults?.hubsValidated || 0) +
+        (validationResults?.preExistingValidated || 0);
 
-    // Get existing hub configurations from separate APIs
-    const [existingHubsResponse, existingPreExistingResponse] =
-      await Promise.all([
-        axios.get('/api/v1/defaulthubs'),
-        axios.get('/api/v1/preexisting'),
-      ]);
-    const existingHubConfigs = existingHubsResponse.data || [];
-    const existingPreExistingConfigs = existingPreExistingResponse.data || [];
-
-    // Filter out hubs that are already configured using the proper hub ID format
-    const existingHubIds = new Set(
-      existingHubConfigs.map((hub: PlexHubConfig) => hub.id)
-    );
-    const existingPreExistingIds = new Set(
-      existingPreExistingConfigs.map(
-        (hub: PreExistingCollectionConfig) => hub.id
-      )
-    );
-
-    const newHubs = (discoveredHubConfigs || []).filter(
-      (hub: PlexHubConfig) => !existingHubIds.has(hub.id)
-    );
-
-    const newPreExistingCollections = (
-      discoveredPreExistingConfigs || []
-    ).filter(
-      (hub: PreExistingCollectionConfig) => !existingPreExistingIds.has(hub.id)
-    );
-
-    if (newHubs.length === 0 && newPreExistingCollections.length === 0) {
-      // No new configs to add, but still need to refresh UI for any updates to existing configs
-      revalidateAll();
-
-      addToast('All available Plex hubs are already configured.', {
-        autoDismiss: true,
-        appearance: 'info',
-      });
-      return;
-    }
-
-    // Use discovery APIs for new configurations with proper timing
-    const discoveryPromises = [];
-
-    if (newHubs.length > 0) {
-      discoveryPromises.push(
-        axios.post('/api/v1/defaulthubs/discover', {
-          hubConfigs: newHubs,
-        })
-      );
-    }
-
-    if (newPreExistingCollections.length > 0) {
-      discoveryPromises.push(
-        axios.post('/api/v1/preexisting/discover', {
-          preExistingCollectionConfigs: newPreExistingCollections,
-        })
-      );
-    }
-
-    // Wait for all discovery operations to complete with 10 second timeout
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Discovery timeout')), 10000)
-    );
-
-    try {
-      await Promise.race([Promise.all(discoveryPromises), timeoutPromise]);
-    } catch (error) {
-      if (error instanceof Error && error.message === 'Discovery timeout') {
-        // Discovery timed out, proceed with refresh anyway
+      if (totalExistingConfigs > 0) {
+        // There are existing configs, so everything is already imported
+        const existingHubs = validationResults?.hubsValidated || 0;
+        const existingPreExisting =
+          validationResults?.preExistingValidated || 0;
+        addToast(
+          `All ${totalExistingConfigs} Plex ${
+            totalExistingConfigs === 1
+              ? 'hub/collection has'
+              : 'hubs/collections have'
+          } already been imported! (${existingHubs} ${
+            existingHubs === 1 ? 'hub' : 'hubs'
+          }, ${existingPreExisting} ${
+            existingPreExisting === 1 ? 'collection' : 'collections'
+          })`,
+          {
+            autoDismiss: true,
+            appearance: 'success',
+          }
+        );
       } else {
-        throw error; // Re-throw other errors
+        // No existing configs and nothing discovered - truly nothing found
+        addToast('No Plex hubs found to import.', {
+          autoDismiss: true,
+          appearance: 'info',
+        });
       }
+      return;
     }
 
-    // Wait a bit more to ensure backend processing is complete
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Now revalidate to get the fresh data
+    // Backend has already saved the discovered configs (updateSettings: true)
+    // Just revalidate to get the fresh data and show success
     revalidateAll();
 
     // Calculate summary for comprehensive results
-    const libraries = librariesResponse.data || [];
+    const hubsFound = discoveredHubConfigs?.length || 0;
+    const collectionsFound = discoveredPreExistingConfigs?.length || 0;
+    const totalFound = allDiscoveredConfigs.length;
 
-    // Show comprehensive results
-    const totalHubs = allDiscoveredConfigs.filter(
-      (c: PlexHubConfig) => c.collectionType === CollectionType.DEFAULT_PLEX_HUB
-    ).length;
-    const totalCollections = allDiscoveredConfigs.filter(
-      (c: PlexHubConfig) => c.collectionType !== CollectionType.DEFAULT_PLEX_HUB
-    ).length;
-    const totalNewConfigs = newHubs.length + newPreExistingCollections.length;
+    // Calculate total counts (existing + new)
+    const totalHubs = (validationResults?.hubsValidated || 0) + hubsFound;
+    const totalCollections =
+      (validationResults?.preExistingValidated || 0) + collectionsFound;
 
     addToast(
-      `Discovery complete! Synced ${libraries.length} libraries and imported ${totalNewConfigs} new configurations (${totalHubs} hubs, ${totalCollections} collections).`,
+      `Imported ${totalFound} new ${
+        totalFound === 1 ? 'hub/collection' : 'hubs/collections'
+      }! (${hubsFound} ${
+        hubsFound === 1 ? 'hub' : 'hubs'
+      }, ${collectionsFound} ${
+        collectionsFound === 1 ? 'collection' : 'collections'
+      }, total: ${totalHubs} ${
+        totalHubs === 1 ? 'hub' : 'hubs'
+      }, ${totalCollections} ${
+        totalCollections === 1 ? 'collection' : 'collections'
+      })`,
       {
         autoDismiss: true,
         appearance: 'success',
