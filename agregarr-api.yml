@@ -2518,6 +2518,18 @@ components:
         enableSeasonFolders:
           type: boolean
           example: false
+        seriesType:
+          type: string
+          enum: [standard, daily, anime]
+          example: standard
+        tags:
+          type: array
+          items:
+            type: number
+          example: [1, 2]
+        is4k:
+          type: boolean
+          example: false
         isDefault:
           type: boolean
           example: false
@@ -2530,6 +2542,13 @@ components:
         preventSearch:
           type: boolean
           example: false
+        tagRequests:
+          type: boolean
+          example: false
+        tagRequestsMode:
+          type: string
+          enum: [off, single, per-service, granular]
+          example: off
         pathMappings:
           type: array
           description: 'Path mappings for cross-platform/remote setups (e.g., Windows Sonarr → Linux Agregarr)'

@@ -509,6 +509,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                       >
                         <option value="standard">Standard</option>
                         <option value="daily">Daily</option>
+                        <option value="anime">Anime</option>
                       </Field>
                     </div>
                   </div>
