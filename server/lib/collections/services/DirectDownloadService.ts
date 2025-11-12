@@ -13,6 +13,7 @@ import type {
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { missingItemFilterService } from './MissingItemFilterService';
 
 /**
  * Direct download service for bypassing Overseerr and downloading directly to *arr apps
@@ -223,60 +224,19 @@ export class DirectDownloadService {
       | 'radarrtag'
       | 'sonarrtag'
   ): Promise<AutoRequestResult> {
-    // Only proceed if direct download is enabled (we'll add this setting later)
+    // Only proceed if direct download is enabled
     if (!config.searchMissingMovies && !config.searchMissingTV) {
       return this.emptyResult();
     }
 
-    // Filter items based on config settings
-    const yearFilteredItems: string[] = [];
-    const filteredMissingItems = missingItems.filter((item) => {
-      // Check media type
-      if (item.mediaType === 'movie' && !config.searchMissingMovies)
-        return false;
-      if (item.mediaType === 'tv' && !config.searchMissingTV) return false;
-      if (item.mediaType !== 'movie' && item.mediaType !== 'tv') return false;
+    // Filter items using shared filtering service
+    const filterResult = await missingItemFilterService.filterMissingItems(
+      missingItems,
+      config,
+      'Direct Download Service'
+    );
 
-      // Check minimum year filter
-      if (config.minimumYear && config.minimumYear > 0) {
-        if (!item.year) {
-          logger.debug(
-            `Item "${item.title}" has no year data, allowing through year filter`,
-            {
-              label: 'Direct Download Service',
-              collection: config.name,
-              tmdbId: item.tmdbId,
-            }
-          );
-        } else if (item.year < config.minimumYear) {
-          yearFilteredItems.push(
-            `${item.title} (${item.year}) - below minimum ${config.minimumYear}`
-          );
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    // Log year filtering summary
-    if (yearFilteredItems.length > 0) {
-      logger.info(
-        `Filtered ${yearFilteredItems.length} items due to minimum year (${config.minimumYear})`,
-        {
-          label: 'Direct Download Service',
-          collection: config.name,
-          minimumYear: config.minimumYear,
-          filteredCount: yearFilteredItems.length,
-          examples: yearFilteredItems.slice(0, 5),
-          ...(yearFilteredItems.length > 5 && {
-            additionalCount: yearFilteredItems.length - 5,
-          }),
-        }
-      );
-    }
-
-    if (filteredMissingItems.length === 0) {
+    if (filterResult.filteredItems.length === 0) {
       return this.emptyResult();
     }
 
@@ -290,62 +250,22 @@ export class DirectDownloadService {
           ? Number(config.maxSeasonsToRequest)
           : 0; // 0 = no limit
 
-      // Track excluded items for summary logging
-      const excludedGenreItems: string[] = [];
-      const excludedCountryItems: string[] = [];
-
-      for (const item of filteredMissingItems) {
+      for (const item of filterResult.filteredItems) {
         try {
-          // Determine if we should download based on media type and season limits only
-          // Auto-approve settings are irrelevant for direct downloads
-          if (item.mediaType === 'movie') {
-            // Movies are always downloaded
-          } else if (item.mediaType === 'tv') {
-            // For TV shows, check season count limit only if maxSeasons is set (> 0)
-            if (maxSeasons > 0) {
-              const seasonCount = await this.getTvSeasonCount(item.tmdbId);
-
-              if (seasonCount > maxSeasons) {
-                logger.debug(
-                  `Skipping ${item.title}: Too many seasons (${seasonCount} > ${maxSeasons})`,
-                  {
-                    label: 'Direct Download Service',
-                    collection: config.name,
-                  }
-                );
-                skippedRequests++;
-                continue;
-              }
-            }
-          } else {
-            // Unknown media type
-            skippedRequests++;
-            continue;
-          }
-
-          // Check excluded genres
-          if (config.excludedGenres && config.excludedGenres.length > 0) {
-            const hasExcluded = await this.hasExcludedGenres(
-              item.tmdbId,
-              item.mediaType,
-              config.excludedGenres
+          // For TV shows, check season count limit only if maxSeasons is set (> 0)
+          if (item.mediaType === 'tv' && maxSeasons > 0) {
+            const seasonCount = await missingItemFilterService.getTvSeasonCount(
+              item.tmdbId
             );
-            if (hasExcluded) {
-              excludedGenreItems.push(item.title);
-              skippedRequests++;
-              continue;
-            }
-          }
 
-          // Check excluded countries
-          if (config.excludedCountries && config.excludedCountries.length > 0) {
-            const hasExcluded = await this.hasExcludedCountries(
-              item.tmdbId,
-              item.mediaType,
-              config.excludedCountries
-            );
-            if (hasExcluded) {
-              excludedCountryItems.push(item.title);
+            if (seasonCount > maxSeasons) {
+              logger.debug(
+                `Skipping ${item.title}: Too many seasons (${seasonCount} > ${maxSeasons})`,
+                {
+                  label: 'Direct Download Service',
+                  collection: config.name,
+                }
+              );
               skippedRequests++;
               continue;
             }
@@ -404,35 +324,19 @@ export class DirectDownloadService {
         }
       }
 
-      // Log summary of items excluded by genre
-      if (excludedGenreItems.length > 0) {
-        logger.info(`Items skipped due to excluded genres`, {
-          label: `${
-            source.charAt(0).toUpperCase() + source.slice(1)
-          } Collections`,
-          collection: config.name,
-          count: excludedGenreItems.length,
-          titles: excludedGenreItems.slice(0, 10), // Limit to first 10 titles
-          ...(excludedGenreItems.length > 10 && {
-            additionalCount: excludedGenreItems.length - 10,
-          }),
-        });
-      }
+      // Log filtering summary (genres, countries, IMDb ratings)
+      missingItemFilterService.logFilteringSummary(
+        filterResult,
+        config,
+        source
+      );
 
-      // Log summary of items excluded by country
-      if (excludedCountryItems.length > 0) {
-        logger.info(`Items skipped due to excluded countries`, {
-          label: `${
-            source.charAt(0).toUpperCase() + source.slice(1)
-          } Collections`,
-          collection: config.name,
-          count: excludedCountryItems.length,
-          titles: excludedCountryItems.slice(0, 10), // Limit to first 10 titles
-          ...(excludedCountryItems.length > 10 && {
-            additionalCount: excludedCountryItems.length - 10,
-          }),
-        });
-      }
+      // To maintain exact compatibility with original behavior, add filter counts to skipped
+      const totalSkipped =
+        skippedRequests +
+        filterResult.lowRatedItems.length +
+        filterResult.excludedGenreItems.length +
+        filterResult.excludedCountryItems.length;
 
       if (autoApprovedRequests > 0) {
         logger.info(
@@ -441,7 +345,7 @@ export class DirectDownloadService {
           } collection direct downloads initiated for ${
             config.name
           }: ${autoApprovedRequests} added to *arr${
-            skippedRequests > 0 ? `, ${skippedRequests} skipped` : ''
+            totalSkipped > 0 ? `, ${totalSkipped} skipped` : ''
           }${
             alreadyDownloadedCount > 0
               ? `, ${alreadyDownloadedCount} already available`
@@ -459,8 +363,8 @@ export class DirectDownloadService {
         autoApproved: autoApprovedRequests,
         manualApproval: 0, // Direct downloads are immediate, no manual approval
         alreadyRequested: alreadyDownloadedCount,
-        skipped: skippedRequests,
-        total: filteredMissingItems.length,
+        skipped: totalSkipped,
+        total: missingItems.length - filterResult.yearFilteredItems.length,
       };
     } catch (error) {
       logger.error(
@@ -811,7 +715,9 @@ export class DirectDownloadService {
       throw new Error(`Could not find TVDB ID for TMDB ID: ${item.tmdbId}`);
     }
 
-    const seasonCount = await this.getTvSeasonCount(item.tmdbId);
+    const seasonCount = await missingItemFilterService.getTvSeasonCount(
+      item.tmdbId
+    );
     let seasonsToMonitor = Math.min(seasonCount, maxSeasons);
 
     // Apply seasonsPerShowLimit if configured
@@ -983,97 +889,6 @@ export class DirectDownloadService {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
       return null;
-    }
-  }
-
-  /**
-   * Get the number of seasons for a TV show
-   */
-  private async getTvSeasonCount(tmdbId: number): Promise<number> {
-    try {
-      const tmdb = new (await import('@server/api/themoviedb')).default();
-      const tvShow = await tmdb.getTvShow({ tvId: tmdbId });
-      // Filter out season 0 (specials) when counting
-      return (
-        tvShow.seasons?.filter((season) => season.season_number > 0).length || 1
-      );
-    } catch (error) {
-      logger.warn(
-        `Failed to get season count for TMDB ID ${tmdbId}, assuming 1 season`,
-        {
-          label: 'Direct Download Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return 1; // Default to 1 season if we can't determine
-    }
-  }
-
-  /**
-   * Check if an item has any excluded genres
-   */
-  private async hasExcludedGenres(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedGenres: number[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        return movie.genres.some((genre) => excludedGenres.includes(genre.id));
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        return tvShow.genres.some((genre) => excludedGenres.includes(genre.id));
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check genres for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Direct Download Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check genres, don't exclude the item
-    }
-  }
-
-  /**
-   * Check if an item has any excluded origin countries
-   */
-  private async hasExcludedCountries(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedCountries: string[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        // Movies use production_countries array
-        if (movie.production_countries) {
-          return movie.production_countries.some((country) =>
-            excludedCountries.includes(country.iso_3166_1)
-          );
-        }
-        return false;
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        // TV shows use origin_country array
-        if (tvShow.origin_country) {
-          return tvShow.origin_country.some((country) =>
-            excludedCountries.includes(country)
-          );
-        }
-        return false;
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check origin countries for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Direct Download Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check countries, don't exclude the item
     }
   }
 

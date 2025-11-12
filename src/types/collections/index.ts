@@ -235,6 +235,7 @@ export interface CollectionFormConfig {
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
+  readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
   readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
   readonly excludedCountries?: string[]; // Exclude items with these ISO 3166-1 country codes from missing items search
   // Direct download server selection (for downloadMode: 'direct')
@@ -354,7 +355,10 @@ export interface CollectionConfigCreateRequest {
   readonly autoApproveMovies?: boolean;
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
+  readonly seasonsPerShowLimit?: number;
+  readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
+  readonly minimumImdbRating?: number;
   readonly excludedGenres?: number[];
   readonly excludedCountries?: string[];
   // Direct download server selection (for downloadMode: 'direct')
@@ -434,13 +438,18 @@ export const toCollectionCreateRequest = (
     customDays: config.customDays,
     minimumPlays: config.minimumPlays,
     tautulliStatType: config.tautulliStatType,
+    comingSoonDays: config.comingSoonDays,
+    comingSoonReleasedDays: config.comingSoonReleasedDays,
     downloadMode: config.downloadMode,
     searchMissingMovies: config.searchMissingMovies,
     searchMissingTV: config.searchMissingTV,
     autoApproveMovies: config.autoApproveMovies,
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
+    seasonsPerShowLimit: config.seasonsPerShowLimit,
+    maxPositionToProcess: config.maxPositionToProcess,
     minimumYear: config.minimumYear,
+    minimumImdbRating: config.minimumImdbRating,
     excludedGenres: config.excludedGenres,
     excludedCountries: config.excludedCountries,
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
@@ -452,6 +461,7 @@ export const toCollectionCreateRequest = (
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,
+    anilistCustomListUrl: config.anilistCustomListUrl,
     radarrInstanceId: config.radarrInstanceId,
     sonarrInstanceId: config.sonarrInstanceId,
     radarrTagId: config.radarrTagId,

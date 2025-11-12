@@ -340,6 +340,9 @@ const CollectionSettings = ({
           ...(config.minimumYear !== undefined && {
             minimumYear: config.minimumYear,
           }),
+          ...(config.minimumImdbRating !== undefined && {
+            minimumImdbRating: config.minimumImdbRating,
+          }),
           ...(config.excludedGenres !== undefined && {
             excludedGenres: config.excludedGenres,
           }),

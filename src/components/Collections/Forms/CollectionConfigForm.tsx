@@ -872,6 +872,8 @@ const CollectionFormConfigForm = ({
           maxPositionToProcess:
             (config as CollectionFormConfig).maxPositionToProcess ?? 0,
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
+          minimumImdbRating:
+            (config as CollectionFormConfig).minimumImdbRating || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
@@ -1124,6 +1126,11 @@ const CollectionFormConfigForm = ({
             minimumYear: values.enableGrabMissingItems
               ? values.minimumYear
                 ? parseInt(values.minimumYear.toString(), 10)
+                : 0
+              : undefined,
+            minimumImdbRating: values.enableGrabMissingItems
+              ? values.minimumImdbRating
+                ? parseFloat(values.minimumImdbRating.toString())
                 : 0
               : undefined,
             excludedGenres:

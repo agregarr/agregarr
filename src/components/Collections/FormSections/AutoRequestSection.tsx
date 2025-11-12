@@ -23,6 +23,9 @@ const messages = defineMessages({
   minimumYear: 'Minimum release year',
   minimumYearHelp:
     'Only grab movies/TV shows released on or after this year (0 = no limit)',
+  minimumImdbRating: 'Minimum IMDb rating',
+  minimumImdbRatingHelp:
+    'Only grab movies/TV shows with an IMDb rating >= this value (0 = no limit). Items without ratings will be allowed.',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -296,6 +299,29 @@ const AutoRequestSection = ({
             )}
             <div className="label-tip mt-2">
               {intl.formatMessage(messages.minimumYearHelp)}
+            </div>
+          </div>
+
+          {/* Minimum IMDb Rating */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumImdbRating)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="decimal"
+                id="minimumImdbRating"
+                name="minimumImdbRating"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumImdbRating && touched.minimumImdbRating && (
+              <div className="error">{errors.minimumImdbRating}</div>
+            )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(messages.minimumImdbRatingHelp)}
             </div>
           </div>
 

@@ -380,6 +380,14 @@ components:
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
           nullable: true
+        minimumImdbRating:
+          type: number
+          format: float
+          description: "Only process movies/TV shows with IMDb rating >= this value (0 = no limit)"
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
         excludedGenres:
           type: array
           items:
@@ -751,6 +759,14 @@ components:
           type: integer
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
+          nullable: true
+        minimumImdbRating:
+          type: number
+          format: float
+          description: "Only process movies/TV shows with IMDb rating >= this value (0 = no limit)"
+          example: 6.8
+          minimum: 0
+          maximum: 10
           nullable: true
         excludedGenres:
           type: array
@@ -1188,6 +1204,14 @@ components:
           type: integer
           description: "Only process movies/TV shows released on or after this year (0 = no limit)"
           example: 2010
+          nullable: true
+        minimumImdbRating:
+          type: number
+          format: float
+          description: "Only process movies/TV shows with IMDb rating >= this value (0 = no limit)"
+          example: 6.8
+          minimum: 0
+          maximum: 10
           nullable: true
         excludedGenres:
           type: array

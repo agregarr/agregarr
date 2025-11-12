@@ -195,6 +195,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.minimumYear !== undefined && {
           minimumYear: collectionConfig.minimumYear,
         }),
+        ...(collectionConfig.minimumImdbRating !== undefined && {
+          minimumImdbRating: collectionConfig.minimumImdbRating,
+        }),
         ...(collectionConfig.excludedGenres !== undefined && {
           excludedGenres: collectionConfig.excludedGenres,
         }),

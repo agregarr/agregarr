@@ -198,6 +198,18 @@ const autoRequestValidations = {
       'Minimum year cannot be more than 10 years in the future'
     )
     .integer('Minimum year must be a whole number'),
+
+  minimumImdbRating: Yup.number()
+    .min(0, 'Minimum IMDb rating must be 0 or greater (0 = no limit)')
+    .max(10, 'IMDb ratings cannot exceed 10')
+    .test(
+      'decimal-places',
+      'IMDb rating can have at most 1 decimal place',
+      (value) => {
+        if (value === undefined || value === null) return true;
+        return /^\d+(\.\d{1})?$/.test(value.toString());
+      }
+    ),
 };
 
 // Time restriction validation

@@ -162,6 +162,7 @@ export const linkCollectionConfig = async (
             seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
             maxPositionToProcess: masterConfig.maxPositionToProcess,
             minimumYear: masterConfig.minimumYear,
+            minimumImdbRating: masterConfig.minimumImdbRating,
             excludedGenres: masterConfig.excludedGenres,
             excludedCountries: masterConfig.excludedCountries,
             timeRestriction: masterConfig.timeRestriction,
