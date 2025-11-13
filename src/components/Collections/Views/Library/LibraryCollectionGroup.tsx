@@ -627,6 +627,8 @@ const SortableItem = ({
                             return 'Monitored';
                           case 'trakt_anticipated':
                             return 'Trakt Anticipated';
+                          case 'recently_added':
+                            return 'Recently Added';
                           default:
                             return subtype;
                         }

@@ -1528,6 +1528,14 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
+      case 'recently_added':
+        return [
+          {
+            label: 'Recently Added',
+            value: 'Recently Added',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
       default:
         return [
           {

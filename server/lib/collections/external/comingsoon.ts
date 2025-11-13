@@ -11,6 +11,7 @@ import type {
   CollectionItem,
   CollectionOperationResult,
   CollectionSyncOptions,
+  CollectionVisibilityConfig,
   ComingSoonSourceData,
   ComingSoonTemplateContext,
   MissingItem,
@@ -84,6 +85,16 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
     options?: CollectionSyncOptions
   ): Promise<SyncResult> {
     try {
+      // Handle 'recently_added' subtype - creates filtered smart collection instead of normal coming soon sync
+      if (config.subtype === 'recently_added') {
+        return await this.syncFilteredRecentlyAdded(
+          config,
+          plexClient,
+          allCollections,
+          processedCollectionKeys
+        );
+      }
+
       // Fetch upcoming content
       let sourceData = await this.fetchSourceData(config);
 
@@ -958,6 +969,90 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
             releasedAt: releasedAt ? releasedAt.toISOString() : undefined,
           });
 
+          // Set metadata markers for Recently Added filtering (for actual placeholders)
+          if (dbItem?.placeholderPath) {
+            // Only set markers if this is a real placeholder (has placeholderPath)
+            try {
+              if (sourceItem.mediaType === 'tv') {
+                // For TV shows: Need to set title on the episode (S00E00)
+                // Get seasons using getChildrenMetadata (getMetadata doesn't return Children property)
+                const seasons = await plexClient.getChildrenMetadata(ratingKey);
+
+                if (seasons && seasons.length > 0) {
+                  // Find Season 00
+                  const season00 = seasons.find((season) => season.index === 0);
+
+                  if (season00) {
+                    // Get episodes from Season 00
+                    const episodesData = await plexClient.getChildrenMetadata(
+                      season00.ratingKey
+                    );
+                    if (episodesData && episodesData.length > 0) {
+                      const episode = episodesData[0]; // S00E00
+                      await plexClient.updateItemTitle(
+                        episode.ratingKey,
+                        'Trailer (Placeholder)'
+                      );
+                      logger.debug('Set placeholder episode title', {
+                        label: 'Coming Soon Collections',
+                        title: sourceItem.title,
+                        episodeRatingKey: episode.ratingKey,
+                      });
+                    } else {
+                      logger.warn(
+                        'No episodes found in Season 00 - cannot set placeholder title',
+                        {
+                          label: 'Coming Soon Collections',
+                          title: sourceItem.title,
+                          season00RatingKey: season00.ratingKey,
+                        }
+                      );
+                    }
+                  } else {
+                    logger.warn(
+                      'Season 00 not found - cannot set placeholder title',
+                      {
+                        label: 'Coming Soon Collections',
+                        title: sourceItem.title,
+                        availableSeasons: seasons.map((s) => s.index),
+                      }
+                    );
+                  }
+                } else {
+                  logger.warn(
+                    'No seasons found for show - cannot set placeholder title',
+                    {
+                      label: 'Coming Soon Collections',
+                      title: sourceItem.title,
+                      ratingKey,
+                    }
+                  );
+                }
+              } else if (sourceItem.mediaType === 'movie') {
+                // For movies: Add label to the movie item
+                await plexClient.addLabelToItem(
+                  ratingKey,
+                  'trailer-placeholder'
+                );
+                logger.debug('Added placeholder label to movie', {
+                  label: 'Coming Soon Collections',
+                  title: sourceItem.title,
+                  ratingKey,
+                });
+              }
+            } catch (metadataError) {
+              logger.warn('Failed to set placeholder metadata markers', {
+                label: 'Coming Soon Collections',
+                title: sourceItem.title,
+                mediaType: sourceItem.mediaType,
+                error:
+                  metadataError instanceof Error
+                    ? metadataError.message
+                    : String(metadataError),
+              });
+            }
+          }
+
           // Save to database for cleanup tracking (if not already tracked)
           // This handles both placeholders and regular items (like returning TV shows)
           if (!dbItem) {
@@ -1458,5 +1553,206 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
     });
 
     return sortedItems;
+  }
+
+  /**
+   * Handle 'recently_added' subtype - creates/updates filtered smart collection
+   */
+  private async syncFilteredRecentlyAdded(
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    allCollections: PlexCollection[],
+    processedCollectionKeys?: Set<string>
+  ): Promise<SyncResult> {
+    const mediaType = getCollectionMediaType(config);
+
+    // Generate collection name from template
+    const templateContext = await this.createTemplateContext(config, mediaType);
+    const collectionName = this.templateEngine.processTemplate(
+      config.template,
+      templateContext
+    );
+
+    logger.info('Syncing filtered Recently Added collection', {
+      label: 'Coming Soon Collections',
+      configName: config.name,
+      libraryId: config.libraryId,
+      mediaType,
+      generatedName: collectionName,
+    });
+
+    // Check if smart collection already exists (using proper label format)
+    const customLabel = `Agregarr-comingsoon-recently_added-${config.id}`;
+    const existingCollection = allCollections.find(
+      (col) =>
+        col.title === collectionName &&
+        col.labels?.some(
+          (label) =>
+            (typeof label === 'string' && label === customLabel) ||
+            (typeof label === 'object' &&
+              label !== null &&
+              'tag' in label &&
+              label.tag === customLabel)
+        )
+    );
+
+    let result: SyncResult;
+    let collectionRatingKey: string;
+
+    if (existingCollection) {
+      logger.info('Filtered Recently Added smart collection already exists', {
+        label: 'Coming Soon Collections',
+        collectionName,
+        ratingKey: existingCollection.ratingKey,
+      });
+
+      collectionRatingKey = existingCollection.ratingKey;
+
+      // Mark as processed
+      if (processedCollectionKeys) {
+        processedCollectionKeys.add(existingCollection.ratingKey);
+      }
+
+      result = { created: 0, updated: 1 };
+    } else {
+      // Create new filtered smart collection
+      const PlexSmartCollectionManager = (
+        await import('@server/lib/collections/plex/PlexSmartCollectionManager')
+      ).default;
+      const smartCollectionManager = new PlexSmartCollectionManager(plexClient);
+
+      const smartCollectionKey =
+        await smartCollectionManager.createFilteredRecentlyAdded(
+          collectionName,
+          config.libraryId,
+          mediaType
+        );
+
+      if (!smartCollectionKey) {
+        throw this.createSyncError(
+          CollectionSyncErrorType.COLLECTION_ERROR,
+          'Failed to create filtered Recently Added smart collection'
+        );
+      }
+
+      logger.info('Created filtered Recently Added smart collection', {
+        label: 'Coming Soon Collections',
+        collectionName,
+        smartCollectionKey,
+      });
+
+      collectionRatingKey = smartCollectionKey;
+
+      // Mark as processed
+      if (processedCollectionKeys) {
+        processedCollectionKeys.add(smartCollectionKey);
+      }
+
+      result = { created: 1, updated: 0 };
+    }
+
+    // Update collection metadata (labels, visibility, sort title, hub promotion, etc.)
+    // This ensures we get all the same functionality as normal collections
+    const visibilityConfig: CollectionVisibilityConfig = {
+      usersHome: config.visibilityConfig?.usersHome ?? false,
+      serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? false,
+      libraryRecommended: config.visibilityConfig?.libraryRecommended ?? false,
+      isActive: config.isActive ?? true,
+    };
+
+    await this.updateCollectionMetadata(plexClient, collectionRatingKey, {
+      collectionName,
+      mediaType,
+      visibilityConfig,
+      customLabel,
+      sortOrderLibrary: config.sortOrderLibrary,
+      isLibraryPromoted: config.isLibraryPromoted,
+      customPoster: config.customPoster,
+      libraryKey: config.libraryId,
+      config,
+    });
+
+    // Update config with rating key (same as normal flow)
+    this.updateConfigWithRatingKey(config, collectionRatingKey);
+
+    // Generate poster if autoPoster is enabled (using normal poster flow)
+    const shouldGeneratePoster = config.autoPoster ?? true;
+
+    if (shouldGeneratePoster) {
+      try {
+        logger.debug('Fetching items from collection for poster generation', {
+          label: 'Coming Soon Collections',
+          collectionRatingKey,
+          collectionName,
+        });
+
+        // Fetch items from collection using the correct endpoint with Guid metadata
+        // Collections use /library/collections/{key}/children, NOT /library/metadata/{key}/children
+        const children = await plexClient.getCollectionItemsWithMetadata(
+          collectionRatingKey
+        );
+
+        logger.debug('Fetched items from collection', {
+          label: 'Coming Soon Collections',
+          collectionRatingKey,
+          itemCount: children.length,
+        });
+
+        // Plex API returns metadata items with optional thumb, year, and Guid properties
+        interface PlexMetadataWithExtras {
+          ratingKey: string;
+          title: string;
+          thumb?: string;
+          year?: number;
+          Guid?: { id: string }[];
+        }
+
+        // Convert to CollectionItem[] format for normal poster flow
+        const items: CollectionItem[] = children.map((item) => {
+          const itemWithExtras = item as unknown as PlexMetadataWithExtras;
+
+          // Extract tmdbId from Plex GUID metadata (same pattern as CollectionUtilities.ts:1296)
+          const tmdbGuid = itemWithExtras.Guid?.find((guid) =>
+            guid.id.startsWith('tmdb://')
+          );
+          const tmdbMatch = tmdbGuid?.id.match(/tmdb:\/\/(\d+)/);
+          const tmdbId = tmdbMatch ? parseInt(tmdbMatch[1], 10) : undefined;
+
+          return {
+            ratingKey: item.ratingKey,
+            title: item.title,
+            type: mediaType,
+            tmdbId,
+            year: itemWithExtras.year,
+            // posterUrl is intentionally omitted - will be fetched from TMDB by fetchTMDbPosterUrls
+            // This avoids 781 unnecessary Plex API calls and uses higher-quality TMDB posters
+          };
+        });
+
+        // Use the normal poster generation flow (handles template grid size, workflow completion, etc.)
+        await this.generateAutoPoster(
+          collectionName,
+          config,
+          collectionRatingKey,
+          plexClient,
+          items
+        );
+      } catch (posterError) {
+        logger.warn(
+          'Failed to generate poster for filtered Recently Added collection',
+          {
+            label: 'Coming Soon Collections',
+            collectionName,
+            error:
+              posterError instanceof Error
+                ? posterError.message
+                : String(posterError),
+          }
+        );
+        // Don't fail the sync if poster generation fails
+      }
+    }
+
+    return result;
   }
 }

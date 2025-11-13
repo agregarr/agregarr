@@ -464,6 +464,8 @@ export async function syncConfigsWithPlexCollections(
     collectionRatingKey?: string;
     libraryId: string;
     source: string;
+    type?: string;
+    subtype?: string;
   }[],
   allCollections: {
     ratingKey: string;
@@ -523,9 +525,13 @@ export async function syncConfigsWithPlexCollections(
 
           if (hasMatchingLabel) {
             // CRITICAL: Skip smart collections - they should not update the base collectionRatingKey
-            // Smart collections have smart="1" attribute in Plex API
+            // EXCEPT for Coming Soon recently_added subtype - that IS a smart collection
             const isSmartCollection = collection.smart === '1';
-            if (isSmartCollection) {
+            const isRecentlyAddedSmartCollection =
+              config.type === 'comingsoon' &&
+              config.subtype === 'recently_added';
+
+            if (isSmartCollection && !isRecentlyAddedSmartCollection) {
               logger.debug(
                 `Config sync skipping smart collection match for ${config.name}`,
                 {
@@ -577,9 +583,13 @@ export async function syncConfigsWithPlexCollections(
         });
 
         // CRITICAL: Filter out smart collections before processing name matches
+        // EXCEPT for Coming Soon recently_added subtype - that IS a smart collection
+        const isRecentlyAddedSmartCollection =
+          config.type === 'comingsoon' && config.subtype === 'recently_added';
+
         const baseCollections = matchingCollections.filter((collection) => {
           const isSmartCollection = collection.smart === '1';
-          if (isSmartCollection) {
+          if (isSmartCollection && !isRecentlyAddedSmartCollection) {
             logger.debug(
               `Config sync filtering out smart collection from name matches for ${config.name}`,
               {

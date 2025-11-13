@@ -950,6 +950,33 @@ class PlexAPI {
     }
   }
 
+  /**
+   * Get full metadata for items in a collection, including Guid array for TMDB IDs
+   * This is specifically for collections (smart or regular) - NOT for regular metadata items
+   */
+  public async getCollectionItemsWithMetadata(
+    collectionRatingKey: string
+  ): Promise<PlexMetadata[]> {
+    try {
+      const response = await this.plexClient.query({
+        uri: `/library/collections/${collectionRatingKey}/children?includeGuids=1`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
+      return response.MediaContainer?.Metadata || [];
+    } catch (error) {
+      logger.error(
+        `Error getting metadata from collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          error,
+        }
+      );
+      return [];
+    }
+  }
+
   public async removeItemsFromCollection(
     collectionRatingKey: string
   ): Promise<void> {
@@ -1176,6 +1203,97 @@ class PlexAPI {
           error,
         }
       );
+    }
+  }
+
+  /**
+   * Update the title of an individual item (movie, show, episode)
+   */
+  public async updateItemTitle(
+    ratingKey: string,
+    title: string
+  ): Promise<void> {
+    try {
+      const params = {
+        'title.value': title,
+        'title.locked': '1', // Lock to prevent Plex from overwriting
+      };
+
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+
+      await this.safePutQuery(editUrl);
+
+      logger.debug('Updated item title', {
+        label: 'Plex API',
+        ratingKey,
+        title,
+      });
+    } catch (error) {
+      logger.error(`Error updating title for item ${ratingKey}`, {
+        label: 'Plex API',
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Add a label to an individual item (movie, show, episode)
+   */
+  public async addLabelToItem(ratingKey: string, label: string): Promise<void> {
+    try {
+      // Get current item metadata to preserve existing labels
+      const metadata = await this.getMetadata(ratingKey);
+
+      // Get existing labels
+      const existingLabels: string[] = [];
+      if (metadata && 'Label' in metadata) {
+        const labels = metadata.Label as { tag: string }[] | undefined;
+        if (labels && Array.isArray(labels)) {
+          existingLabels.push(...labels.map((l) => l.tag));
+        }
+      }
+
+      // Check if label already exists
+      if (existingLabels.includes(label)) {
+        logger.debug('Label already exists on item', {
+          label: 'Plex API',
+          ratingKey,
+          labelTag: label,
+        });
+        return;
+      }
+
+      // Build params with all labels (existing + new)
+      const allLabels = [...existingLabels, label];
+      const params: Record<string, string> = {};
+      allLabels.forEach((labelTag, index) => {
+        params[`label[${index}].tag.tag`] = labelTag;
+      });
+
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+
+      await this.safePutQuery(editUrl);
+
+      logger.debug('Added label to item', {
+        label: 'Plex API',
+        ratingKey,
+        labelTag: label,
+      });
+    } catch (error) {
+      logger.error(`Error adding label to item ${ratingKey}`, {
+        label: 'Plex API',
+        error,
+      });
+      throw error;
     }
   }
 

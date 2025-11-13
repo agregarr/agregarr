@@ -350,180 +350,189 @@ const TimeRestrictionsSection = ({
         </div>
       )}
 
-      {/* Custom Sync Schedule Section - Only for Agregarr collections (not hubs or pre-existing) */}
-      {!isDefaultPlexHub && !isPreExisting && (
-        <div className="mt-6">
-          <label className="mb-4 block text-sm font-medium text-gray-200">
-            {intl.formatMessage(messages.customSyncSchedule)}
-          </label>
+      {/* Custom Sync Schedule Section - Only for Agregarr collections (not hubs, pre-existing, or recently_added) */}
+      {!isDefaultPlexHub &&
+        !isPreExisting &&
+        !(
+          values.type === 'comingsoon' && values.subtype === 'recently_added'
+        ) && (
+          <div className="mt-6">
+            <label className="mb-4 block text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.customSyncSchedule)}
+            </label>
 
-          <div className="space-y-4">
-            <div className="form-input-field">
-              <label className="inline-flex items-center">
-                <Field
-                  type="checkbox"
-                  name="customSyncSchedule.enabled"
-                  className="form-checkbox"
-                />
-                <span className="ml-2 text-sm text-gray-300">
-                  {intl.formatMessage(messages.customSyncEnabled)}
-                </span>
-              </label>
-            </div>
-
-            {(
-              values as CollectionFormConfig & {
-                customSyncSchedule?: CustomSyncSchedule;
-              }
-            ).customSyncSchedule?.enabled && (
-              <div className="space-y-4">
-                {/* Single Schedule Dropdown */}
-                <div>
-                  <label className="mb-2 block text-sm text-gray-300">
-                    {intl.formatMessage(messages.customSyncPreset)}
-                  </label>
+            <div className="space-y-4">
+              <div className="form-input-field">
+                <label className="inline-flex items-center">
                   <Field
-                    as="select"
-                    name="customSyncSchedule.preset"
-                    value={
-                      (values.customSyncSchedule as CustomSyncSchedule)
-                        ?.scheduleType === 'custom'
-                        ? 'custom'
-                        : (values.customSyncSchedule as CustomSyncSchedule)
-                            ?.preset || '1d'
-                    }
-                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                      const selectedValue = e.target.value;
+                    type="checkbox"
+                    name="customSyncSchedule.enabled"
+                    className="form-checkbox"
+                  />
+                  <span className="ml-2 text-sm text-gray-300">
+                    {intl.formatMessage(messages.customSyncEnabled)}
+                  </span>
+                </label>
+              </div>
 
-                      if (selectedValue === 'custom') {
-                        // Switch to custom cron mode
-                        setFieldValue(
-                          'customSyncSchedule.scheduleType',
-                          'custom'
-                        );
-                        setFieldValue('customSyncSchedule.preset', '');
-                        setFieldValue(
-                          'customSyncSchedule.intervalHours',
-                          undefined
-                        );
-                        setFieldValue('customSyncSchedule.customCron', '');
-                      } else {
-                        // Switch to preset mode
-                        setFieldValue(
-                          'customSyncSchedule.scheduleType',
-                          'preset'
-                        );
-                        setFieldValue(
-                          'customSyncSchedule.preset',
-                          selectedValue
-                        );
-                        setFieldValue('customSyncSchedule.customCron', '');
-
-                        const preset = SYNC_SCHEDULE_PRESETS.find(
-                          (p) => p.key === selectedValue
-                        );
-                        if (preset) {
-                          setFieldValue(
-                            'customSyncSchedule.intervalHours',
-                            preset.intervalHours
-                          );
-                        }
-                      }
-                    }}
-                  >
-                    {SYNC_SCHEDULE_PRESETS.map((preset) => (
-                      <option key={preset.key} value={preset.key}>
-                        {preset.label}
-                      </option>
-                    ))}
-                    <option value="custom">Custom Cron Expression</option>
-                  </Field>
-                  <p className="mt-2 text-xs text-gray-400">
-                    {intl.formatMessage(messages.customSyncPresetHelp)}
-                  </p>
-                </div>
-
-                {/* Custom Cron Input */}
-                {(values.customSyncSchedule as CustomSyncSchedule)
-                  ?.scheduleType === 'custom' && (
+              {(
+                values as CollectionFormConfig & {
+                  customSyncSchedule?: CustomSyncSchedule;
+                }
+              ).customSyncSchedule?.enabled && (
+                <div className="space-y-4">
+                  {/* Single Schedule Dropdown */}
                   <div>
                     <label className="mb-2 block text-sm text-gray-300">
-                      {intl.formatMessage(messages.customSyncCustomCron)}
+                      {intl.formatMessage(messages.customSyncPreset)}
                     </label>
                     <Field
-                      type="text"
-                      name="customSyncSchedule.customCron"
-                      placeholder="0 9 * * MON"
+                      as="select"
+                      name="customSyncSchedule.preset"
+                      value={
+                        (values.customSyncSchedule as CustomSyncSchedule)
+                          ?.scheduleType === 'custom'
+                          ? 'custom'
+                          : (values.customSyncSchedule as CustomSyncSchedule)
+                              ?.preset || '1d'
+                      }
                       className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        const selectedValue = e.target.value;
+
+                        if (selectedValue === 'custom') {
+                          // Switch to custom cron mode
+                          setFieldValue(
+                            'customSyncSchedule.scheduleType',
+                            'custom'
+                          );
+                          setFieldValue('customSyncSchedule.preset', '');
+                          setFieldValue(
+                            'customSyncSchedule.intervalHours',
+                            undefined
+                          );
+                          setFieldValue('customSyncSchedule.customCron', '');
+                        } else {
+                          // Switch to preset mode
+                          setFieldValue(
+                            'customSyncSchedule.scheduleType',
+                            'preset'
+                          );
+                          setFieldValue(
+                            'customSyncSchedule.preset',
+                            selectedValue
+                          );
+                          setFieldValue('customSyncSchedule.customCron', '');
+
+                          const preset = SYNC_SCHEDULE_PRESETS.find(
+                            (p) => p.key === selectedValue
+                          );
+                          if (preset) {
+                            setFieldValue(
+                              'customSyncSchedule.intervalHours',
+                              preset.intervalHours
+                            );
+                          }
+                        }
+                      }}
+                    >
+                      {SYNC_SCHEDULE_PRESETS.map((preset) => (
+                        <option key={preset.key} value={preset.key}>
+                          {preset.label}
+                        </option>
+                      ))}
+                      <option value="custom">Custom Cron Expression</option>
+                    </Field>
                     <p className="mt-2 text-xs text-gray-400">
-                      {intl.formatMessage(messages.customSyncCustomCronHelp)}
+                      {intl.formatMessage(messages.customSyncPresetHelp)}
                     </p>
                   </div>
-                )}
 
-                {/* Start Date/Time Selection - Show for all preset schedules */}
-                {(values.customSyncSchedule as CustomSyncSchedule)
-                  ?.scheduleType !== 'custom' &&
-                  (values.customSyncSchedule as CustomSyncSchedule)?.preset && (
-                    <div className="space-y-4">
-                      <div className="form-input-field">
-                        <label className="inline-flex items-center">
-                          <Field
-                            type="checkbox"
-                            name="customSyncSchedule.startNow"
-                            className="form-checkbox"
-                          />
-                          <span className="ml-2 text-sm text-gray-300">
-                            {intl.formatMessage(messages.customSyncStartNow)}
-                          </span>
-                        </label>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        {intl.formatMessage(messages.customSyncStartNowHelp)}
+                  {/* Custom Cron Input */}
+                  {(values.customSyncSchedule as CustomSyncSchedule)
+                    ?.scheduleType === 'custom' && (
+                    <div>
+                      <label className="mb-2 block text-sm text-gray-300">
+                        {intl.formatMessage(messages.customSyncCustomCron)}
+                      </label>
+                      <Field
+                        type="text"
+                        name="customSyncSchedule.customCron"
+                        placeholder="0 9 * * MON"
+                        className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                      <p className="mt-2 text-xs text-gray-400">
+                        {intl.formatMessage(messages.customSyncCustomCronHelp)}
                       </p>
-
-                      {!(values.customSyncSchedule as CustomSyncSchedule)
-                        ?.startNow && (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="mb-2 block text-sm text-gray-300">
-                              {intl.formatMessage(messages.customSyncStartDate)}
-                            </label>
-                            <Field
-                              type="text"
-                              name="customSyncSchedule.startDate"
-                              placeholder="01-01"
-                              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            />
-                            <p className="mt-1 text-xs text-gray-400">
-                              DD-MM format
-                            </p>
-                          </div>
-                          <div>
-                            <label className="mb-2 block text-sm text-gray-300">
-                              {intl.formatMessage(messages.customSyncStartTime)}
-                            </label>
-                            <Field
-                              type="text"
-                              name="customSyncSchedule.startTime"
-                              placeholder="09:00"
-                              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                            />
-                            <p className="mt-1 text-xs text-gray-400">
-                              HH:MM format (e.g., 09:00, 23:30)
-                            </p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
-              </div>
-            )}
+
+                  {/* Start Date/Time Selection - Show for all preset schedules */}
+                  {(values.customSyncSchedule as CustomSyncSchedule)
+                    ?.scheduleType !== 'custom' &&
+                    (values.customSyncSchedule as CustomSyncSchedule)
+                      ?.preset && (
+                      <div className="space-y-4">
+                        <div className="form-input-field">
+                          <label className="inline-flex items-center">
+                            <Field
+                              type="checkbox"
+                              name="customSyncSchedule.startNow"
+                              className="form-checkbox"
+                            />
+                            <span className="ml-2 text-sm text-gray-300">
+                              {intl.formatMessage(messages.customSyncStartNow)}
+                            </span>
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-400">
+                          {intl.formatMessage(messages.customSyncStartNowHelp)}
+                        </p>
+
+                        {!(values.customSyncSchedule as CustomSyncSchedule)
+                          ?.startNow && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="mb-2 block text-sm text-gray-300">
+                                {intl.formatMessage(
+                                  messages.customSyncStartDate
+                                )}
+                              </label>
+                              <Field
+                                type="text"
+                                name="customSyncSchedule.startDate"
+                                placeholder="01-01"
+                                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              />
+                              <p className="mt-1 text-xs text-gray-400">
+                                DD-MM format
+                              </p>
+                            </div>
+                            <div>
+                              <label className="mb-2 block text-sm text-gray-300">
+                                {intl.formatMessage(
+                                  messages.customSyncStartTime
+                                )}
+                              </label>
+                              <Field
+                                type="text"
+                                name="customSyncSchedule.startTime"
+                                placeholder="09:00"
+                                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              />
+                              <p className="mt-1 text-xs text-gray-400">
+                                HH:MM format (e.g., 09:00, 23:30)
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </>
   );
 };

@@ -242,6 +242,13 @@ const CollectionTypeSection = ({
             label: 'Trakt Anticipated',
             description: 'Most anticipated upcoming releases',
           },
+          {
+            value: 'recently_added',
+            label:
+              'Recently Added (default Recently Added minus Coming Soon placeholders)',
+            description:
+              "Replicates the default Plex 'Recently Added Movies/TV' hub but excludes Coming Soon placeholders",
+          },
         ];
       case 'anilist': // Add AniList subtypes
         return [
@@ -485,52 +492,55 @@ const CollectionTypeSection = ({
         </div>
       )}
 
-      {/* Coming Soon Configuration - appears when type='comingsoon' and subtype is selected */}
-      {values.type === 'comingsoon' && values.subtype && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label
-              htmlFor="comingSoonDays"
-              className="mb-2 block text-sm text-gray-300"
-            >
-              Days to Look Ahead
-            </label>
-            <Field
-              type="number"
-              id="comingSoonDays"
-              name="comingSoonDays"
-              placeholder="360"
-              min="1"
-              max="730"
-              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Number of days to look ahead for upcoming releases (default: 360)
-            </p>
+      {/* Coming Soon Configuration - appears when type='comingsoon' and subtype is selected (but not for 'recently_added') */}
+      {values.type === 'comingsoon' &&
+        values.subtype &&
+        values.subtype !== 'recently_added' && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label
+                htmlFor="comingSoonDays"
+                className="mb-2 block text-sm text-gray-300"
+              >
+                Days to Look Ahead
+              </label>
+              <Field
+                type="number"
+                id="comingSoonDays"
+                name="comingSoonDays"
+                placeholder="360"
+                min="1"
+                max="730"
+                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Number of days to look ahead for upcoming releases (default:
+                360)
+              </p>
+            </div>
+            <div>
+              <label
+                htmlFor="comingSoonReleasedDays"
+                className="mb-2 block text-sm text-gray-300"
+              >
+                Released Items Window (Days)
+              </label>
+              <Field
+                type="number"
+                id="comingSoonReleasedDays"
+                name="comingSoonReleasedDays"
+                placeholder="7"
+                min="1"
+                max="30"
+                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Days to keep released items with overlay before restoring
+                original poster (default: 7)
+              </p>
+            </div>
           </div>
-          <div>
-            <label
-              htmlFor="comingSoonReleasedDays"
-              className="mb-2 block text-sm text-gray-300"
-            >
-              Released Items Window (Days)
-            </label>
-            <Field
-              type="number"
-              id="comingSoonReleasedDays"
-              name="comingSoonReleasedDays"
-              placeholder="7"
-              min="1"
-              max="30"
-              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Days to keep released items with overlay before restoring original
-              poster (default: 7)
-            </p>
-          </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

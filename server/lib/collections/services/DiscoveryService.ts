@@ -922,13 +922,33 @@ export class DiscoveryService {
                 this.isAgregarrManagedCollection(collectionWithLabels)
               ) {
                 // Skip smart collections - they are managed separately and shouldn't be deleted here
+                // EXCEPT for Coming Soon recently_added subtype - that IS a smart collection and should be subject to cleanup
                 const isSmartCollection = collectionWithLabels.smart === '1';
+
+                // Check if this is a recently_added smart collection by parsing the label
+                const isRecentlyAddedSmartCollection =
+                  collectionWithLabels.labels?.some((label) => {
+                    const labelText =
+                      typeof label === 'string' ? label : label.tag;
+                    const match = labelText.match(/Agregarr-([^-]+)-(.+)/);
+                    if (match) {
+                      const [, type, subtypeAndId] = match;
+                      const subtype = subtypeAndId.split('-')[0];
+                      return (
+                        type === 'comingsoon' && subtype === 'recently_added'
+                      );
+                    }
+                    return false;
+                  });
 
                 // Skip base collections for smart collections (they have dash prefix titles)
                 const isBaseCollectionForSmart =
                   collectionWithLabels.title?.startsWith('-');
 
-                if (isSmartCollection || isBaseCollectionForSmart) {
+                if (
+                  (isSmartCollection && !isRecentlyAddedSmartCollection) ||
+                  isBaseCollectionForSmart
+                ) {
                   // Skip - these are part of the smart collection system
                   continue;
                 }

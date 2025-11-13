@@ -304,6 +304,121 @@ class PlexSmartCollectionManager {
   ): Promise<void> {
     return this.plexApi.deleteCollection(smartCollectionRatingKey);
   }
+
+  /**
+   * Create a filtered Recently Added smart collection that excludes coming soon placeholders
+   * @param title - Title for the smart collection (usually "Recently Added")
+   * @param libraryKey - Library section key (e.g., "1" for movies)
+   * @param mediaType - 'movie' or 'tv'
+   * @returns The rating key of the created smart collection or null if failed
+   */
+  public async createFilteredRecentlyAdded(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv'
+  ): Promise<string | null> {
+    try {
+      logger.debug(
+        `Creating filtered Recently Added smart collection "${title}" for library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          title,
+          libraryKey,
+          mediaType,
+        }
+      );
+
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build filter URI based on media type
+      let filterUri: string;
+      if (mediaType === 'tv') {
+        // TV Shows: Sort by Last Episode Date Added (lastViewedAt), filter out "Trailer (Placeholder)"
+        // Note: Plex uses title!= for "is not" filter
+        const sortParam = 'lastViewedAt:desc';
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+      } else {
+        // Movies: Sort by Date Added (addedAt), filter out "trailer-placeholder" label
+        const sortParam = 'addedAt:desc';
+        const labelFilter = 'trailer-placeholder';
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
+          labelFilter
+        )}`;
+      }
+
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
+
+      const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
+        title
+      )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
+
+      const createResponse = await this.plexApi['safePostQuery'](createUrl);
+
+      if (
+        !createResponse ||
+        typeof createResponse !== 'object' ||
+        !('MediaContainer' in createResponse)
+      ) {
+        logger.error(
+          'Invalid response when creating filtered Recently Added smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
+        return null;
+      }
+
+      const mediaContainer = createResponse.MediaContainer as {
+        Metadata?: { ratingKey: string }[];
+      };
+
+      if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
+        logger.error(
+          'No metadata returned when creating filtered Recently Added smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
+        return null;
+      }
+
+      const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
+
+      // Set the collection to be filtered by user
+      await this.setCollectionUserFilter(smartCollectionRatingKey);
+
+      // Note: Labels, titles, and visibility are handled by updateCollectionMetadata in the sync flow
+
+      logger.info(
+        `Successfully created filtered Recently Added smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          title,
+          smartCollectionRatingKey,
+          mediaType,
+        }
+      );
+
+      return smartCollectionRatingKey;
+    } catch (error) {
+      logger.error(
+        `Error creating filtered Recently Added smart collection "${title}"`,
+        {
+          label: 'Plex API',
+          title,
+          libraryKey,
+          mediaType,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return null;
+    }
+  }
 }
 
 export default PlexSmartCollectionManager;

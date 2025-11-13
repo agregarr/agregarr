@@ -844,6 +844,89 @@ async function applyOverlaysToPlaceholders(
         });
       }
 
+      // Set metadata markers for Recently Added filtering
+      try {
+        if (sourceItem.mediaType === 'tv') {
+          // For TV shows: Need to set title on the episode (S00E00)
+          // Get seasons using getChildrenMetadata (getMetadata doesn't return Children property)
+          const seasons = await plexClient.getChildrenMetadata(
+            plexItem.ratingKey
+          );
+
+          if (seasons && seasons.length > 0) {
+            // Find Season 00
+            const season00 = seasons.find((season) => season.index === 0);
+
+            if (season00) {
+              // Get episodes from Season 00
+              const episodesData = await plexClient.getChildrenMetadata(
+                season00.ratingKey
+              );
+              if (episodesData && episodesData.length > 0) {
+                const episode = episodesData[0]; // S00E00
+                await plexClient.updateItemTitle(
+                  episode.ratingKey,
+                  'Trailer (Placeholder)'
+                );
+                logger.debug('Set placeholder episode title', {
+                  label: 'Coming Soon Collections',
+                  title: sourceItem.title,
+                  episodeRatingKey: episode.ratingKey,
+                });
+              } else {
+                logger.warn(
+                  'No episodes found in Season 00 - cannot set placeholder title',
+                  {
+                    label: 'Coming Soon Collections',
+                    title: sourceItem.title,
+                    season00RatingKey: season00.ratingKey,
+                  }
+                );
+              }
+            } else {
+              logger.warn(
+                'Season 00 not found - cannot set placeholder title',
+                {
+                  label: 'Coming Soon Collections',
+                  title: sourceItem.title,
+                  availableSeasons: seasons.map((s) => s.index),
+                }
+              );
+            }
+          } else {
+            logger.warn(
+              'No seasons found for show - cannot set placeholder title',
+              {
+                label: 'Coming Soon Collections',
+                title: sourceItem.title,
+                ratingKey: plexItem.ratingKey,
+              }
+            );
+          }
+        } else if (sourceItem.mediaType === 'movie') {
+          // For movies: Add label to the movie item
+          await plexClient.addLabelToItem(
+            plexItem.ratingKey,
+            'trailer-placeholder'
+          );
+          logger.debug('Added placeholder label to movie', {
+            label: 'Coming Soon Collections',
+            title: sourceItem.title,
+            ratingKey: plexItem.ratingKey,
+          });
+        }
+      } catch (metadataError) {
+        logger.warn('Failed to set placeholder metadata markers', {
+          label: 'Coming Soon Collections',
+          title: sourceItem.title,
+          mediaType: sourceItem.mediaType,
+          error:
+            metadataError instanceof Error
+              ? metadataError.message
+              : String(metadataError),
+        });
+      }
+
       // Save placeholder to database for cleanup tracking
       const placeholderRecord = repository.create({
         configId: config.id,

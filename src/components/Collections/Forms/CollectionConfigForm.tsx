@@ -1617,72 +1617,85 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Item Order - available for all collection types except multi-source */}
-                            {values.type !== 'multi-source' && (
-                              <div className="form-row">
-                                <label
-                                  htmlFor="itemOrder"
-                                  className="text-label"
-                                >
-                                  Item Order
-                                </label>
-                                <div className="form-input-area">
-                                  <div className="form-input-field">
-                                    <Field
-                                      as="select"
-                                      id="itemOrder"
-                                      name="itemOrder"
-                                      value={(() => {
-                                        if (
-                                          (values as CollectionFormConfig)
-                                            .randomizeOrder
-                                        )
-                                          return 'random';
-                                        if (
-                                          (values as CollectionFormConfig)
-                                            .reverseOrder
-                                        )
-                                          return 'reverse';
-                                        return 'default';
-                                      })()}
-                                      onChange={(
-                                        e: React.ChangeEvent<HTMLSelectElement>
-                                      ) => {
-                                        const selectedValue = e.target.value;
-                                        if (selectedValue === 'random') {
-                                          setFieldValue('randomizeOrder', true);
-                                          setFieldValue('reverseOrder', false);
-                                        } else if (
-                                          selectedValue === 'reverse'
-                                        ) {
-                                          setFieldValue(
-                                            'randomizeOrder',
-                                            false
-                                          );
-                                          setFieldValue('reverseOrder', true);
-                                        } else {
-                                          setFieldValue(
-                                            'randomizeOrder',
-                                            false
-                                          );
-                                          setFieldValue('reverseOrder', false);
-                                        }
-                                      }}
-                                    >
-                                      <option value="default">
-                                        Default order (as provided by source)
-                                      </option>
-                                      <option value="reverse">
-                                        Reverse order
-                                      </option>
-                                      <option value="random">
-                                        Random order (shuffled each sync)
-                                      </option>
-                                    </Field>
+                            {/* Item Order - available for all collection types except multi-source and recently_added */}
+                            {values.type !== 'multi-source' &&
+                              !(
+                                values.type === 'comingsoon' &&
+                                values.subtype === 'recently_added'
+                              ) && (
+                                <div className="form-row">
+                                  <label
+                                    htmlFor="itemOrder"
+                                    className="text-label"
+                                  >
+                                    Item Order
+                                  </label>
+                                  <div className="form-input-area">
+                                    <div className="form-input-field">
+                                      <Field
+                                        as="select"
+                                        id="itemOrder"
+                                        name="itemOrder"
+                                        value={(() => {
+                                          if (
+                                            (values as CollectionFormConfig)
+                                              .randomizeOrder
+                                          )
+                                            return 'random';
+                                          if (
+                                            (values as CollectionFormConfig)
+                                              .reverseOrder
+                                          )
+                                            return 'reverse';
+                                          return 'default';
+                                        })()}
+                                        onChange={(
+                                          e: React.ChangeEvent<HTMLSelectElement>
+                                        ) => {
+                                          const selectedValue = e.target.value;
+                                          if (selectedValue === 'random') {
+                                            setFieldValue(
+                                              'randomizeOrder',
+                                              true
+                                            );
+                                            setFieldValue(
+                                              'reverseOrder',
+                                              false
+                                            );
+                                          } else if (
+                                            selectedValue === 'reverse'
+                                          ) {
+                                            setFieldValue(
+                                              'randomizeOrder',
+                                              false
+                                            );
+                                            setFieldValue('reverseOrder', true);
+                                          } else {
+                                            setFieldValue(
+                                              'randomizeOrder',
+                                              false
+                                            );
+                                            setFieldValue(
+                                              'reverseOrder',
+                                              false
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <option value="default">
+                                          Default order (as provided by source)
+                                        </option>
+                                        <option value="reverse">
+                                          Reverse order
+                                        </option>
+                                        <option value="random">
+                                          Random order (shuffled each sync)
+                                        </option>
+                                      </Field>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
                             {/* Collection Visibility */}
                             <div className="form-row">
@@ -1730,127 +1743,140 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Max Items */}
-                            <div className="form-row">
-                              <label
-                                htmlFor="collectionMaxItems"
-                                className="text-label"
-                              >
-                                Max Items
-                              </label>
-                              <div className="form-input-area">
-                                <div className="form-input-field">
-                                  <Field
-                                    type="text"
-                                    inputMode="numeric"
-                                    id="collectionMaxItems"
-                                    name="maxItems"
-                                    className="short"
-                                  />
-                                </div>
-                                {errors.maxItems && touched.maxItems && (
-                                  <div className="error">
-                                    {String(errors.maxItems)}
+                            {/* Max Items - not applicable for recently_added */}
+                            {!(
+                              values.type === 'comingsoon' &&
+                              values.subtype === 'recently_added'
+                            ) && (
+                              <div className="form-row">
+                                <label
+                                  htmlFor="collectionMaxItems"
+                                  className="text-label"
+                                >
+                                  Max Items
+                                </label>
+                                <div className="form-input-area">
+                                  <div className="form-input-field">
+                                    <Field
+                                      type="text"
+                                      inputMode="numeric"
+                                      id="collectionMaxItems"
+                                      name="maxItems"
+                                      className="short"
+                                    />
                                   </div>
-                                )}
-                                <div className="label-tip">
-                                  Limit the Collection to this many items
+                                  {errors.maxItems && touched.maxItems && (
+                                    <div className="error">
+                                      {String(errors.maxItems)}
+                                    </div>
+                                  )}
+                                  <div className="label-tip">
+                                    Limit the Collection to this many items
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            )}
 
-                            {/* Smart Collection - Show Unwatched Only */}
-                            <div className="form-row">
-                              <label className="text-label">
-                                {intl.formatMessage(messages.showUnwatchedOnly)}
-                              </label>
-                              <div className="form-input-area">
-                                <div className="flex items-center">
-                                  <Field
-                                    type="checkbox"
-                                    id="showUnwatchedOnly"
-                                    name="showUnwatchedOnly"
-                                    className="form-checkbox"
-                                  />
-                                  <label
-                                    htmlFor="showUnwatchedOnly"
-                                    className="ml-2 text-sm text-gray-300"
-                                  >
-                                    {intl.formatMessage(
-                                      messages.showUnwatchedOnlyDescription
-                                    )}
-                                  </label>
-                                </div>
-                                <div className="mt-2 text-xs text-gray-400">
-                                  When enabled, creates a smart collection with
-                                  the unwatched filter to show only unwatched
-                                  items for the user viewing the collection. The
-                                  original collection will be pushed to the
-                                  bottom in the Collections Tab.
-                                </div>
-                                {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
-                                {values.showUnwatchedOnly && (
-                                  <div className="form-row">
+                            {/* Smart Collection - Show Unwatched Only - not applicable for recently_added (it IS a smart collection) */}
+                            {!(
+                              values.type === 'comingsoon' &&
+                              values.subtype === 'recently_added'
+                            ) && (
+                              <div className="form-row">
+                                <label className="text-label">
+                                  {intl.formatMessage(
+                                    messages.showUnwatchedOnly
+                                  )}
+                                </label>
+                                <div className="form-input-area">
+                                  <div className="flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="showUnwatchedOnly"
+                                      name="showUnwatchedOnly"
+                                      className="form-checkbox"
+                                    />
                                     <label
-                                      htmlFor="smartCollectionSort"
-                                      className="text-label"
+                                      htmlFor="showUnwatchedOnly"
+                                      className="ml-2 text-sm text-gray-300"
                                     >
                                       {intl.formatMessage(
-                                        messages.smartCollectionSort
+                                        messages.showUnwatchedOnlyDescription
                                       )}
                                     </label>
-                                    <div className="form-input-area">
-                                      <div className="form-input-field">
-                                        <Field
-                                          as="select"
-                                          id="smartCollectionSort"
-                                          name="smartCollectionSort"
-                                          value={
-                                            values.smartCollectionSort?.value ||
-                                            SMART_COLLECTION_SORT_OPTIONS[5]
-                                              .value // Default to release date (newest first)
-                                          }
-                                          onChange={(
-                                            e: React.ChangeEvent<HTMLSelectElement>
-                                          ) => {
-                                            const selectedOption =
-                                              SMART_COLLECTION_SORT_OPTIONS.find(
-                                                (option) =>
-                                                  option.value ===
-                                                  e.target.value
-                                              );
-                                            if (selectedOption) {
-                                              setFieldValue(
-                                                'smartCollectionSort',
-                                                selectedOption
-                                              );
+                                  </div>
+                                  <div className="mt-2 text-xs text-gray-400">
+                                    When enabled, creates a smart collection
+                                    with the unwatched filter to show only
+                                    unwatched items for the user viewing the
+                                    collection. The original collection will be
+                                    pushed to the bottom in the Collections Tab.
+                                  </div>
+                                  {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
+                                  {values.showUnwatchedOnly && (
+                                    <div className="form-row">
+                                      <label
+                                        htmlFor="smartCollectionSort"
+                                        className="text-label"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.smartCollectionSort
+                                        )}
+                                      </label>
+                                      <div className="form-input-area">
+                                        <div className="form-input-field">
+                                          <Field
+                                            as="select"
+                                            id="smartCollectionSort"
+                                            name="smartCollectionSort"
+                                            value={
+                                              values.smartCollectionSort
+                                                ?.value ||
+                                              SMART_COLLECTION_SORT_OPTIONS[5]
+                                                .value // Default to release date (newest first)
                                             }
-                                          }}
-                                        >
-                                          {SMART_COLLECTION_SORT_OPTIONS.map(
-                                            (option) => (
-                                              <option
-                                                key={option.value}
-                                                value={option.value}
-                                              >
-                                                {option.label}
-                                              </option>
-                                            )
-                                          )}
-                                        </Field>
-                                      </div>
-                                      <div className="mt-2 text-xs text-gray-400">
-                                        Choose how items in the smart collection
-                                        should be sorted. Due to Plex
-                                        limiations, the original list order
-                                        cannot be preserved when using smart
-                                        collections.
+                                            onChange={(
+                                              e: React.ChangeEvent<HTMLSelectElement>
+                                            ) => {
+                                              const selectedOption =
+                                                SMART_COLLECTION_SORT_OPTIONS.find(
+                                                  (option) =>
+                                                    option.value ===
+                                                    e.target.value
+                                                );
+                                              if (selectedOption) {
+                                                setFieldValue(
+                                                  'smartCollectionSort',
+                                                  selectedOption
+                                                );
+                                              }
+                                            }}
+                                          >
+                                            {SMART_COLLECTION_SORT_OPTIONS.map(
+                                              (option) => (
+                                                <option
+                                                  key={option.value}
+                                                  value={option.value}
+                                                >
+                                                  {option.label}
+                                                </option>
+                                              )
+                                            )}
+                                          </Field>
+                                        </div>
+                                        <div className="mt-2 text-xs text-gray-400">
+                                          Choose how items in the smart
+                                          collection should be sorted. Due to
+                                          Plex limiations, the original list
+                                          order cannot be preserved when using
+                                          smart collections.
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             {/* Custom Poster Section */}
                             {isCollection &&
@@ -1899,10 +1925,14 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Auto-Request Settings - only show for external sources */}
+                            {/* Auto-Request Settings - only show for external sources (not overseerr, tautulli, or comingsoon recently_added) */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
-                              typedValues.type !== 'tautulli' && (
+                              typedValues.type !== 'tautulli' &&
+                              !(
+                                typedValues.type === 'comingsoon' &&
+                                typedValues.subtype === 'recently_added'
+                              ) && (
                                 <div className="form-row">
                                   <label className="text-label">
                                     {intl.formatMessage(

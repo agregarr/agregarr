@@ -1651,7 +1651,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }));
   }
 
-  private async updateCollectionMetadata(
+  protected async updateCollectionMetadata(
     plexClient: PlexAPI,
     collectionRatingKey: string,
     options: CollectionUpdateOptions
