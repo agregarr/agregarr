@@ -874,6 +874,8 @@ const CollectionFormConfigForm = ({
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
           minimumImdbRating:
             (config as CollectionFormConfig).minimumImdbRating || 0,
+          minimumRottenTomatoesRating:
+            (config as CollectionFormConfig).minimumRottenTomatoesRating || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
@@ -1131,6 +1133,11 @@ const CollectionFormConfigForm = ({
             minimumImdbRating: values.enableGrabMissingItems
               ? values.minimumImdbRating
                 ? parseFloat(values.minimumImdbRating.toString())
+                : 0
+              : undefined,
+            minimumRottenTomatoesRating: values.enableGrabMissingItems
+              ? values.minimumRottenTomatoesRating
+                ? parseFloat(values.minimumRottenTomatoesRating.toString())
                 : 0
               : undefined,
             excludedGenres:

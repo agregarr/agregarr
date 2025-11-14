@@ -335,6 +335,7 @@ export class DirectDownloadService {
       const totalSkipped =
         skippedRequests +
         filterResult.lowRatedItems.length +
+        filterResult.lowRatedRTItems.length +
         filterResult.excludedGenreItems.length +
         filterResult.excludedCountryItems.length;
 

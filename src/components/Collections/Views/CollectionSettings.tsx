@@ -343,6 +343,9 @@ const CollectionSettings = ({
           ...(config.minimumImdbRating !== undefined && {
             minimumImdbRating: config.minimumImdbRating,
           }),
+          ...(config.minimumRottenTomatoesRating !== undefined && {
+            minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
+          }),
           ...(config.excludedGenres !== undefined && {
             excludedGenres: config.excludedGenres,
           }),

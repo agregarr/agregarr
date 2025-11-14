@@ -26,6 +26,9 @@ const messages = defineMessages({
   minimumImdbRating: 'Minimum IMDb rating',
   minimumImdbRatingHelp:
     'Only grab movies/TV shows with an IMDb rating >= this value (0 = no limit). Items without ratings will be allowed.',
+  minimumRottenTomatoesRating: 'Minimum Rotten Tomatoes rating',
+  minimumRottenTomatoesRatingHelp:
+    'Only grab movies/TV shows with a Rotten Tomatoes critics score >= this value (0 = no limit). Items without ratings will be allowed.',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -322,6 +325,32 @@ const AutoRequestSection = ({
             )}
             <div className="label-tip mt-2">
               {intl.formatMessage(messages.minimumImdbRatingHelp)}
+            </div>
+          </div>
+
+          {/* Minimum Rotten Tomatoes Rating */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumRottenTomatoesRating)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="decimal"
+                id="minimumRottenTomatoesRating"
+                name="minimumRottenTomatoesRating"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumRottenTomatoesRating &&
+              touched.minimumRottenTomatoesRating && (
+                <div className="error">
+                  {errors.minimumRottenTomatoesRating}
+                </div>
+              )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(messages.minimumRottenTomatoesRatingHelp)}
             </div>
           </div>
 
