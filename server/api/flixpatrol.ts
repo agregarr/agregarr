@@ -95,61 +95,119 @@ class FlixPatrolAPI extends ExternalAPI {
     requestedMediaType?: 'movie' | 'tv' | 'both'
   ): Promise<FlixPatrolPlatformData> {
     try {
-      // Construct URL based on region
-      let url: string;
-      if (region === 'global') {
-        url = '/top10';
-      } else {
-        // Use current date for streaming overview
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        url = `/top10/streaming/${region}/${today}/`;
-      }
+      // Try today's date first, then yesterday if needed
+      const dates = this.getDatesToTry(region);
 
-      // This ensures movie/tv/both requests are cached separately
-      if (requestedMediaType) {
-        url += `#${requestedMediaType}`;
-      }
+      for (const dateInfo of dates) {
+        try {
+          // Construct URL based on region
+          let url: string;
+          if (region === 'global') {
+            url = '/top10';
+          } else {
+            url = `/top10/streaming/${region}/${dateInfo.date}/`;
+          }
 
-      logger.debug(
-        `Fetching FlixPatrol streaming overview for platform: ${platform}`,
-        {
-          label: 'FlixPatrol API',
-          platform,
-          region,
-          url,
+          // This ensures movie/tv/both requests are cached separately
+          if (requestedMediaType) {
+            url += `#${requestedMediaType}`;
+          }
+
+          logger.debug(
+            `Fetching FlixPatrol streaming overview for platform: ${platform}`,
+            {
+              label: 'FlixPatrol API',
+              platform,
+              region,
+              url,
+              attemptedDate: dateInfo.date,
+              isRetry: dateInfo.isYesterday,
+            }
+          );
+
+          // Bypass ExternalAPI and use direct axios request to avoid bot detection
+          const response = await this.axios.get(url, {
+            headers: {
+              // Completely override all headers to look like a real browser
+              'User-Agent':
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              Accept:
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+              'Sec-Ch-Ua':
+                '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+              'Sec-Ch-Ua-Mobile': '?0',
+              'Sec-Ch-Ua-Platform': '"macOS"',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'none',
+              'Sec-Fetch-User': '?1',
+              'Upgrade-Insecure-Requests': '1',
+            },
+            timeout: 30000,
+          });
+
+          const result = await this.parseStreamingOverviewHtml(
+            response.data,
+            platform,
+            region,
+            requestedMediaType
+          );
+
+          // Check if we got any data
+          const hasData = result.movies.length > 0 || result.tvShows.length > 0;
+
+          if (!hasData && dateInfo.isYesterday === false) {
+            // Today's data is empty, try yesterday
+            logger.warn(
+              `No data found for today (${dateInfo.date}), trying yesterday`,
+              {
+                label: 'FlixPatrol API',
+                platform,
+                region,
+              }
+            );
+            continue;
+          }
+
+          if (dateInfo.isYesterday) {
+            logger.info(
+              `Successfully fetched data using yesterday's date (${dateInfo.date})`,
+              {
+                label: 'FlixPatrol API',
+                platform,
+                region,
+                movies: result.movies.length,
+                tvShows: result.tvShows.length,
+              }
+            );
+          }
+
+          return result;
+        } catch (error) {
+          // If this is today's attempt and we have yesterday to try, continue to next date
+          if (dateInfo.isYesterday === false && dates.length > 1) {
+            logger.warn(
+              `Failed to fetch data for today (${dateInfo.date}), trying yesterday`,
+              {
+                label: 'FlixPatrol API',
+                platform,
+                region,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            );
+            continue;
+          }
+
+          // If this is yesterday's attempt or we only had one date, throw the error
+          throw error;
         }
-      );
+      }
 
-      // Bypass ExternalAPI and use direct axios request to avoid bot detection
-      const response = await this.axios.get(url, {
-        headers: {
-          // Completely override all headers to look like a real browser
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
-          'Sec-Ch-Ua':
-            '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-          'Sec-Ch-Ua-Mobile': '?0',
-          'Sec-Ch-Ua-Platform': '"macOS"',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          'Upgrade-Insecure-Requests': '1',
-        },
-        timeout: 30000,
-      });
-
-      return await this.parseStreamingOverviewHtml(
-        response.data,
-        platform,
-        region,
-        requestedMediaType
-      );
+      // If we get here, all attempts failed
+      throw new Error('Failed to fetch data for both today and yesterday');
     } catch (error) {
       logger.error(
         `Failed to fetch FlixPatrol streaming overview for ${platform}:`,
@@ -166,6 +224,33 @@ class FlixPatrolAPI extends ExternalAPI {
         }`
       );
     }
+  }
+
+  /**
+   * Get dates to try (today and yesterday) for FlixPatrol data fetching
+   */
+  private getDatesToTry(
+    region: string
+  ): { date: string; isYesterday: boolean }[] {
+    // For global region, we don't use dates in the URL
+    if (region === 'global') {
+      return [{ date: '', isYesterday: false }];
+    }
+
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    return [
+      {
+        date: today.toISOString().split('T')[0], // YYYY-MM-DD format
+        isYesterday: false,
+      },
+      {
+        date: yesterday.toISOString().split('T')[0], // YYYY-MM-DD format
+        isYesterday: true,
+      },
+    ];
   }
 
   /**
