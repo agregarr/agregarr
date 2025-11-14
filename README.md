@@ -11,7 +11,7 @@ Agregarr keeps your Plex Home and Recommended fresh by frequently updating it wi
 - **Tautulli Statistics**: Generate Collections based on the Most Popular content on your server
 - **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independetly
 - **Keeps Plex Updated**: Collections will be be updated on every sync (default 12 hours, custom scheduling available). Custom sync options available per-collection.
-- **Randomise Home Order**: Keep your home screen dynamic by rotating the order in which collections appear (seperate scheduling available)
+- **Randomise Home Order**: Keep your home screen dynamic by rotating the order in which collections appear (separate scheduling available)
 - **Template System**: Easily set collection names with flexible templating and title importing from lists.
 - **Time Restrictions**: Schedule collections to be active only during specific time periods
 - **Exising Collection Integration**: Any pre-existing Collections in Plex and Default Hubs (Recently Added etc) can be managed alongside Agregarr Collections
@@ -47,7 +47,7 @@ services:
 
 The application will be available at `http://localhost:7171`
 
-> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because youe volume is not set correctly. The Coming Soon feature requires media volumes to be mounted with paths matching your Radarr/Sonarr containers. Without media mounts, Agregarr can run remotely and all other features will work normally.
+> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because your volume is not set correctly. The Coming Soon feature requires media volumes to be mounted with paths matching your Radarr/Sonarr containers. Without media mounts, Agregarr can run remotely and all other features will work normally.
 
 ## License
 
@@ -55,16 +55,12 @@ GPL-3.0 License - see [LICENSE](LICENSE) file for details.
 
 ## Credits
 
-Originally built off [Overseerr](https://github.com/sct/Overseerr)
+Originally built off [**Overseerr**](https://github.com/sct/Overseerr)
 
-## Credits
+Inspired by [Kometa](https://github.com/Kometa-Team/Kometa)
 
-Originally built off [Overseerr](https://github.com/sct/Overseerr)
+Code references for Coming Soon feature from [UMTK](https://github.com/netplexflix/Upcoming-Movies-TV-Shows-for-Kometa)
 
-Agregarr draws inspiration and code references from these excellent open-source projects:
+Anime ID mappings file by [PlexAniBridge](https://github.com/PlexAniBridge/PlexAniBridge)
 
-- [**Kometa**](https://github.com/Kometa-Team/Kometa) - General inspiration
-- [**UMTK**](https://github.com/netplexflix/Upcoming-Movies-TV-Shows-for-Kometa) - Coming Soon collection feature
-- [**PlexAniBridge**](https://github.com/PlexAniBridge/PlexAniBridge) - Anime ID mappings file
-
-A huge thanks to the developers and contributors of these projects!
+A massive thanks to the developers and contributors of these projects!
