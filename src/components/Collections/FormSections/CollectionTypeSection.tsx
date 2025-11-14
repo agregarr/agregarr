@@ -1,5 +1,6 @@
 import type { CollectionFormConfig } from '@app/types/collections';
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
   MDBListSettings,
   MyAnimeListSettings,
@@ -12,6 +13,7 @@ import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
+import Alert from '@app/components/Common/Alert';
 import ApiKeyWarning from './ApiKeyWarning';
 
 interface TemplatePreset {
@@ -450,6 +452,28 @@ const CollectionTypeSection = ({
               ) : null;
             })()}
         </div>
+      )}
+
+      {/* Coming Soon Volume Info - appears when type='comingsoon' is selected */}
+      {values.type === 'comingsoon' && (
+        <Alert
+          title={
+            <>
+              Coming Soon requires media volume mounts for placeholder creation
+              -{' '}
+              <a
+                href="https://agregarr.org/docs/coming-soon-volumes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400"
+              >
+                See setup guide
+                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+              </a>
+            </>
+          }
+          type="info"
+        />
       )}
 
       {/* Tautulli Configuration - appears when type='tautulli' and subtype is selected */}
