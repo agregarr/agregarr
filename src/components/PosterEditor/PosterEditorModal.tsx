@@ -6,10 +6,7 @@ import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import { LayerPanel } from './LayerPanel';
-import {
-  PosterEditorCanvas,
-  type PosterEditorCanvasRef,
-} from './PosterEditorCanvas';
+import { PosterCanvas, type PosterCanvasRef } from './PosterCanvas';
 
 const messages = defineMessages({
   createPosterTitle: 'Create Poster',
@@ -28,6 +25,8 @@ const messages = defineMessages({
   selectCollection: 'Select a collection...',
   sampleCollectionHelp:
     'Choose a collection to see how your template will look with real data. This is for preview only - templates save as reusable designs.',
+  undo: 'Undo',
+  redo: 'Redo',
 });
 
 export type EditorMode =
@@ -175,7 +174,12 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
     string | undefined
   >();
   // Unified layering system is now the only system
-  const canvasRef = useRef<PosterEditorCanvasRef | null>(null);
+  const canvasRef = useRef<PosterCanvasRef | null>(null);
+
+  // History state for undo/redo (limit to 50 states)
+  const [history, setHistory] = useState<PosterEditorData[]>([initialData]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const maxHistorySize = 50;
 
   // Internal preview collection state (for template/poster creation from PostersView)
   const [internalPreviewConfig, setInternalPreviewConfig] = useState<
@@ -193,10 +197,89 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   const setPreviewCollectionConfig =
     externalSetPreviewConfig || setInternalPreviewConfig;
 
+  // Undo/Redo functions
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const undo = useCallback(() => {
+    if (canUndo) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setPosterData(history[newIndex]);
+      setSelectedElementId(undefined); // Clear selection on undo
+    }
+  }, [canUndo, historyIndex, history]);
+
+  const redo = useCallback(() => {
+    if (canRedo) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setPosterData(history[newIndex]);
+      setSelectedElementId(undefined); // Clear selection on redo
+    }
+  }, [canRedo, historyIndex, history]);
+
+  // Helper to add state to history
+  const addToHistory = useCallback(
+    (newData: PosterEditorData) => {
+      // Remove any future history if we're not at the end
+      const newHistory = history.slice(0, historyIndex + 1);
+
+      // Add new state
+      newHistory.push(newData);
+
+      // Limit history size
+      if (newHistory.length > maxHistorySize) {
+        newHistory.shift();
+      } else {
+        setHistoryIndex(newHistory.length - 1);
+      }
+
+      setHistory(newHistory);
+      setPosterData(newData);
+    },
+    [history, historyIndex, maxHistorySize]
+  );
+
   // Stable onChange callback to prevent re-renders
-  const handlePosterDataChange = useCallback((data: PosterEditorData) => {
-    setPosterData(data);
-  }, []);
+  const handlePosterDataChange = useCallback(
+    (data: PosterEditorData) => {
+      addToHistory(data);
+    },
+    [addToHistory]
+  );
+
+  // Reset history when modal opens with new initial data
+  useEffect(() => {
+    if (isOpen) {
+      setHistory([initialData]);
+      setHistoryIndex(0);
+      setPosterData(initialData);
+    }
+  }, [isOpen, initialData]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if Ctrl (or Cmd on Mac) is pressed
+      const isModifier = e.ctrlKey || e.metaKey;
+
+      if (isModifier && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (isModifier && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (isModifier && e.key === 'y') {
+        // Alternative redo shortcut
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   // Fetch actual collection configs for preview
   const { data: collectionsData } = useSWR<{
@@ -447,7 +530,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
 
                   {/* Center - Canvas */}
                   <div className="col-span-6 flex items-center justify-center overflow-hidden rounded-lg bg-stone-800">
-                    <PosterEditorCanvas
+                    <PosterCanvas
                       ref={canvasRef}
                       posterData={posterData}
                       onChange={handlePosterDataChange}
@@ -456,6 +539,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       currentlyEditingSource={currentlyEditingSource}
                       snapToGuides={snapToGuides}
                       selectedElementId={selectedElementId}
+                      onElementSelect={setSelectedElementId}
                       sourceColorsData={sourceColorsData}
                       aspectRatioLocked={aspectRatioLocked}
                     />
@@ -465,7 +549,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                   <div className="col-span-3 overflow-y-auto">
                     <LayerPanel
                       posterData={posterData}
-                      onChange={setPosterData}
+                      onChange={addToHistory}
                       selectedElementId={selectedElementId}
                       onElementSelect={setSelectedElementId}
                       mode={mode}
@@ -475,6 +559,10 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       addToast={addToast}
                       aspectRatioLocked={aspectRatioLocked}
                       onAspectRatioLockedChange={setAspectRatioLocked}
+                      onUndo={undo}
+                      onRedo={redo}
+                      canUndo={canUndo}
+                      canRedo={canRedo}
                     />
                   </div>
                 </div>

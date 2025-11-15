@@ -82,6 +82,8 @@ const messages = defineMessages({
   saveSourceColors: 'Save Colors',
   sourceColorsSaved: 'Colors Saved!',
   snapToGuides: 'Snap to Guides',
+  undo: 'Undo',
+  redo: 'Redo',
 });
 
 interface FontInfo {
@@ -166,6 +168,10 @@ interface LayerPanelProps {
   ) => void;
   aspectRatioLocked?: Record<string, boolean>;
   onAspectRatioLockedChange?: (locked: Record<string, boolean>) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export const LayerPanel: React.FC<LayerPanelProps> = ({
@@ -180,6 +186,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   addToast,
   aspectRatioLocked = {},
   onAspectRatioLockedChange,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }) => {
   const intl = useIntl();
   const [localSliderValues, setLocalSliderValues] = useState<
@@ -714,6 +724,32 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
   return (
     <div className="h-full overflow-y-auto">
       <div className="space-y-4 p-4">
+        {/* Undo/Redo buttons */}
+        {onUndo && onRedo && (
+          <div className="border-b border-stone-700 pb-4">
+            <div className="flex space-x-2">
+              <button
+                type="button"
+                onClick={onUndo}
+                disabled={!canUndo}
+                className="flex-1 rounded-md border border-stone-600 px-3 py-2 text-xs font-medium text-stone-300 hover:border-stone-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Undo (Ctrl+Z)"
+              >
+                {intl.formatMessage(messages.undo)}
+              </button>
+              <button
+                type="button"
+                onClick={onRedo}
+                disabled={!canRedo}
+                className="flex-1 rounded-md border border-stone-600 px-3 py-2 text-xs font-medium text-stone-300 hover:border-stone-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Redo (Ctrl+Shift+Z)"
+              >
+                {intl.formatMessage(messages.redo)}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Snap to Guides - Top Level Control */}
         {onSnapToGuidesChange && (
           <div className="border-b border-stone-700 pb-4">
