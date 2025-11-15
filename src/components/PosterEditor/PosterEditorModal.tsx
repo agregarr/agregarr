@@ -134,8 +134,8 @@ export interface PosterEditorModalProps {
 }
 
 const DEFAULT_POSTER_DATA: PosterEditorData = {
-  width: 500,
-  height: 750,
+  width: 1000,
+  height: 1500,
   background: {
     type: 'radial',
     color: '#fb923c',

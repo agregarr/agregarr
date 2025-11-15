@@ -12,8 +12,8 @@ const POSTER_STORAGE_DIR = path.join(process.cwd(), 'config', 'posters');
 const POSTER_HASHES_FILE = path.join(POSTER_STORAGE_DIR, 'poster-hashes.json');
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const POSTER_WIDTH = 500; // Standard poster width
-const POSTER_HEIGHT = 750; // Standard poster height (2:3 ratio)
+const POSTER_WIDTH = 1000; // Standard poster width
+const POSTER_HEIGHT = 1500; // Standard poster height (2:3 ratio)
 
 interface PosterHashRegistry {
   [hash: string]: {

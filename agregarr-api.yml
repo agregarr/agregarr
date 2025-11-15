@@ -6803,7 +6803,7 @@ paths:
         - Secure filename generation using UUIDs
 
         **Processing:**
-        - Images are automatically resized to 500x750 pixels (2:3 aspect ratio)
+        - Images are automatically resized to 1000x1500 pixels (2:3 aspect ratio)
         - All images are converted to JPEG format for consistency
         - Quality optimization applied (85% quality)
       tags:
@@ -9581,10 +9581,10 @@ paths:
                           properties:
                             width:
                               type: number
-                              example: 500
+                              example: 1000
                             height:
                               type: number
-                              example: 750
+                              example: 1500
                             background:
                               type: object
                               properties:

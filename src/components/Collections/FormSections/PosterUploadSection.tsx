@@ -13,7 +13,7 @@ const messages = defineMessages({
   addPosters: 'Add Posters',
   uploading: 'Uploading poster...',
   remove: 'Remove',
-  posterSize: '500x750px',
+  posterSize: '1000x1500px',
   posterUploadHelp:
     'Upload a custom poster image for this collection (JPEG, PNG, or WebP, max 10MB). Poster will be applied to Plex during the next collection sync.',
   posterUploadHelpMulti:

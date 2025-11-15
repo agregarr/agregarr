@@ -192,7 +192,7 @@ export async function processUploadedPoster(
   try {
     // Validate and process the image with Sharp
     const processedBuffer = await sharp(buffer)
-      .resize(500, 750, {
+      .resize(1000, 1500, {
         fit: 'cover',
         position: 'center',
       })

@@ -754,8 +754,8 @@ export function sanitizeTemplateData(
 ): PosterTemplateData {
   // All templates should be in migrated format after startup migration
   return {
-    width: Math.max(100, templateData.width || 500),
-    height: Math.max(100, templateData.height || 750),
+    width: Math.max(100, templateData.width || 1000),
+    height: Math.max(100, templateData.height || 1500),
     background: {
       type: ['color', 'gradient', 'radial'].includes(
         templateData.background?.type || ''

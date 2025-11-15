@@ -97,11 +97,11 @@ export interface ColorScheme {
   textColor: string;
 }
 
-const POSTER_WIDTH = 500;
-const POSTER_HEIGHT = 750;
+const POSTER_WIDTH = 1000;
+const POSTER_HEIGHT = 1500;
 const LOGO_SIZE = 60;
-const ITEM_POSTER_WIDTH = 150; // Width for individual item posters in the grid
-const ITEM_POSTER_HEIGHT = 225; // Height for individual item posters (1.5 aspect ratio)
+const ITEM_POSTER_WIDTH = 300; // Width for individual item posters in the grid
+const ITEM_POSTER_HEIGHT = 450; // Height for individual item posters (1.5 aspect ratio)
 
 // Path to service logos
 const LOGOS_PATH = path.join(process.cwd(), 'public', 'services');
