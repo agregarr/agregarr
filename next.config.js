@@ -25,7 +25,6 @@ module.exports = {
 
     return config;
   },
-  transpilePackages: ['konva', 'react-konva'],
   experimental: {
     scrollRestoration: true,
     largePageDataBytes: 256000,

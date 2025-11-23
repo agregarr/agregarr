@@ -23,11 +23,14 @@ import dashboardRoutes from './dashboard';
 import defaultHubsRoutes from './defaulthubs';
 import discoveryRoutes from './discovery';
 import exclusionsRoutes from './exclusions';
+import filesystemRoutes from './filesystem';
 import fontsRoutes from './fonts';
 import hubsRoutes from './hubs';
 import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import myanimelistRoutes from './myanimelist';
+import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
+import overlayTemplatesRoutes from './overlayTemplates';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
@@ -136,6 +139,7 @@ router.get('/settings/public', async (req, res) => {
 // Pushover notification route removed - notification system not needed
 router.use('/settings', isAuthenticated(), settingsRoutes);
 router.use('/dashboard', isAuthenticated(), dashboardRoutes);
+router.use('/filesystem', isAuthenticated(), filesystemRoutes);
 router.use('/overseerr', isAuthenticated(), overseerrRoutes);
 // Search, movie, and TV routes removed - discovery functionality not needed in Agregarr
 router.use('/media', isAuthenticated(), mediaRoutes);
@@ -146,6 +150,12 @@ router.use('/discovery', isAuthenticated(), discoveryRoutes);
 router.use('/exclusions', isAuthenticated(), exclusionsRoutes);
 router.use('/fonts', isAuthenticated(), fontsRoutes);
 router.use('/hubs', isAuthenticated(), hubsRoutes);
+router.use('/overlay-templates', isAuthenticated(), overlayTemplatesRoutes);
+router.use(
+  '/overlay-library-configs',
+  isAuthenticated(),
+  overlayLibraryConfigsRoutes
+);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/ratings', isAuthenticated(), ratingsRoutes);

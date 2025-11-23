@@ -1,5 +1,10 @@
 import PlexAPI from '@server/api/plexapi';
 import dataSource, { getRepository } from '@server/datasource';
+import type {
+  ApplicationCondition,
+  OverlayTemplateData,
+  OverlayTemplateType,
+} from '@server/entity/OverlayTemplate';
 import type { PosterTemplateData } from '@server/entity/PosterTemplate';
 import { Session } from '@server/entity/Session';
 import { User } from '@server/entity/User';
@@ -75,6 +80,17 @@ app
       await seedDefaultTemplate();
     } catch (error) {
       logger.error('Failed to seed default data:', error);
+    }
+
+    // Seed preset overlay templates (one-time setup)
+    try {
+      const { presetTemplateService } = await import(
+        '@server/lib/overlays/PresetTemplates'
+      );
+
+      await presetTemplateService.createPresetTemplates();
+    } catch (error) {
+      logger.error('Failed to seed preset overlay templates:', error);
     }
 
     // Initialize IndividualCollectionScheduler for custom sync schedules
@@ -655,6 +671,433 @@ app
         });
       } catch (error) {
         logger.error('Template import setup error:', error);
+        return res.status(500).json({
+          error: 'Failed to setup upload',
+        });
+      }
+    });
+
+    server.get('/overlay-template-export/:id', async (req, res) => {
+      try {
+        const templateId = parseInt(req.params.id);
+
+        if (isNaN(templateId)) {
+          return res.status(400).json({
+            error: 'Invalid template ID',
+          });
+        }
+
+        const { getRepository } = await import('@server/datasource');
+        const { OverlayTemplate } = await import(
+          '@server/entity/OverlayTemplate'
+        );
+        const fs = await import('fs');
+        const path = await import('path');
+
+        const templateRepository = getRepository(OverlayTemplate);
+        const template = await templateRepository.findOne({
+          where: { id: templateId, isActive: true },
+        });
+
+        if (!template) {
+          return res.status(404).json({
+            error: 'Template not found',
+          });
+        }
+
+        const templateData = template.getTemplateData();
+
+        // Collect all asset paths that need to be included
+        const assetPaths = new Set<string>();
+
+        // Check elements for custom assets
+        templateData.elements?.forEach((element) => {
+          if (element.type === 'svg') {
+            const svgProps = element.properties as {
+              iconPath?: string;
+            };
+            if (svgProps.iconPath) {
+              assetPaths.add(svgProps.iconPath);
+            }
+          } else if (element.type === 'raster') {
+            const rasterProps = element.properties as {
+              imagePath?: string;
+            };
+            if (rasterProps.imagePath) {
+              assetPaths.add(rasterProps.imagePath);
+            }
+          }
+        });
+
+        const archiver = (await import('archiver')).default;
+        const archive = archiver('zip', {
+          zlib: { level: 9 }, // Maximum compression
+        });
+
+        // Set headers for ZIP download
+        const filename = `${template.name.replace(
+          /[^a-zA-Z0-9]/g,
+          '_'
+        )}_overlay_template.zip`;
+        res.set({
+          'Content-Type': 'application/zip',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+        });
+
+        // Handle archiver events
+        archive.on('error', (err) => {
+          logger.error('Archive error:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to create archive' });
+          }
+        });
+
+        // Pipe archive to response
+        archive.pipe(res);
+
+        // Add template JSON to the archive
+        const exportData = {
+          name: template.name,
+          description: template.description,
+          type: template.type,
+          templateData: templateData,
+          applicationCondition: template.getApplicationCondition(),
+          exportedAt: new Date().toISOString(),
+          version: '1.0',
+        };
+
+        archive.append(JSON.stringify(exportData, null, 2), {
+          name: 'template.json',
+        });
+
+        // Add asset files to the archive
+        for (const assetPath of assetPaths) {
+          try {
+            // Check if this is a user icon (starts with icon ID) or raster image
+            if (assetPath.includes('-')) {
+              // This looks like an icon ID, try to find the icon
+              const { getIcons } = await import('@server/lib/iconManager');
+              const icons = await getIcons({ type: 'user' });
+              const icon = icons.find((i) => i.id === assetPath);
+
+              if (icon && icon.type === 'user') {
+                const iconFilePath = path.join(
+                  process.cwd(),
+                  'config',
+                  'icons',
+                  icon.filename
+                );
+                if (fs.existsSync(iconFilePath)) {
+                  archive.file(iconFilePath, {
+                    name: `assets/icons/${icon.filename}`,
+                  });
+                  logger.debug(`Added icon to archive: ${icon.filename}`);
+                }
+              }
+            } else {
+              // This might be a raster image path - check in different possible locations
+              const possiblePaths = [
+                path.join(process.cwd(), 'config', 'uploads', assetPath),
+                path.join(process.cwd(), 'config', 'posters', assetPath),
+                path.join(process.cwd(), assetPath),
+              ];
+
+              for (const possiblePath of possiblePaths) {
+                if (fs.existsSync(possiblePath)) {
+                  const relativeName = `assets/images/${path.basename(
+                    assetPath
+                  )}`;
+                  archive.file(possiblePath, { name: relativeName });
+                  logger.debug(
+                    `Added raster image to archive: ${relativeName}`
+                  );
+                  break;
+                }
+              }
+            }
+          } catch (error) {
+            logger.warn(`Failed to add asset to archive: ${assetPath}`, error);
+          }
+        }
+
+        // Finalize the archive
+        archive.finalize();
+
+        logger.info('Exported overlay template as ZIP with assets', {
+          templateId: template.id,
+          name: template.name,
+          assetCount: assetPaths.size,
+        });
+      } catch (error) {
+        logger.error('Failed to export overlay template:', error);
+        return res.status(500).json({
+          error: 'Failed to export overlay template',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    });
+
+    server.post('/overlay-template-import', async (req, res) => {
+      try {
+        const multer = (await import('multer')).default;
+
+        const upload = multer({
+          storage: multer.memoryStorage(),
+          limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+          fileFilter: (_req, file, cb) => {
+            if (
+              file.mimetype === 'application/zip' ||
+              file.originalname.endsWith('.zip')
+            ) {
+              cb(null, true);
+            } else {
+              cb(new Error('Only ZIP files are allowed'));
+            }
+          },
+        }).single('file');
+
+        upload(req, res, async (uploadError) => {
+          if (uploadError) {
+            logger.error('Overlay template import upload error:', uploadError);
+            return res.status(400).json({
+              error: 'File upload failed',
+              details: uploadError.message,
+            });
+          }
+
+          if (!req.file) {
+            return res.status(400).json({
+              error: 'ZIP file is required',
+            });
+          }
+
+          try {
+            const { getRepository } = await import('@server/datasource');
+            const { OverlayTemplate } = await import(
+              '@server/entity/OverlayTemplate'
+            );
+            const fs = await import('fs');
+            const path = await import('path');
+
+            let templateData: OverlayTemplateData;
+            let name: string;
+            let description: string;
+            let type: OverlayTemplateType;
+            let applicationCondition: ApplicationCondition | undefined;
+            let version: string;
+            const assetMapping = new Map<string, string>();
+
+            const StreamZip = (await import('node-stream-zip')).default;
+            const os = await import('os');
+
+            // Write buffer to temporary file
+            const tempPath = path.join(
+              os.tmpdir(),
+              `agregarr-overlay-import-${Date.now()}-${Math.random()
+                .toString(36)
+                .substring(7)}.zip`
+            );
+            await fs.promises.writeFile(tempPath, req.file.buffer);
+            const zip = new StreamZip.async({ file: tempPath });
+
+            try {
+              const templateJsonData = await zip.entryData('template.json');
+              const templateJson = JSON.parse(
+                templateJsonData.toString('utf8')
+              );
+
+              name = templateJson.name;
+              description = templateJson.description;
+              type = templateJson.type || 'generic';
+              templateData = templateJson.templateData;
+              applicationCondition = templateJson.applicationCondition;
+              version = templateJson.version;
+
+              // Extract and save asset files
+              const entries = await zip.entries();
+              for (const entryName of Object.keys(entries)) {
+                if (entryName.startsWith('assets/')) {
+                  const entryData = await zip.entryData(entryName);
+
+                  if (entryName.startsWith('assets/icons/')) {
+                    const { uploadIcon } = await import(
+                      '@server/lib/iconManager'
+                    );
+                    const originalFilename = path.basename(entryName);
+                    const fileExtension = path
+                      .extname(originalFilename)
+                      .toLowerCase();
+
+                    // Determine MIME type
+                    const mimeTypeMap: Record<string, string> = {
+                      '.svg': 'image/svg+xml',
+                      '.png': 'image/png',
+                      '.jpg': 'image/jpeg',
+                      '.jpeg': 'image/jpeg',
+                      '.webp': 'image/webp',
+                    };
+                    const mimeType = mimeTypeMap[fileExtension] || 'image/png';
+
+                    const iconMetadata = await uploadIcon(
+                      entryData,
+                      mimeType,
+                      originalFilename,
+                      {
+                        name: path.parse(originalFilename).name,
+                        category: 'imported',
+                        tags: ['imported'],
+                        description: 'Imported with overlay template',
+                      }
+                    );
+
+                    // Map old filename to new icon ID
+                    assetMapping.set(originalFilename, iconMetadata.id);
+                    logger.debug(
+                      `Imported icon: ${originalFilename} -> ${iconMetadata.id}`
+                    );
+                  } else if (entryName.startsWith('assets/images/')) {
+                    // Import raster image - save to uploads directory
+                    const originalFilename = path.basename(entryName);
+                    const { randomUUID } = await import('crypto');
+                    const newFilename = `${randomUUID()}_${originalFilename}`;
+                    const uploadsDir = path.join(
+                      process.cwd(),
+                      'config',
+                      'uploads'
+                    );
+
+                    // Ensure uploads directory exists
+                    if (!fs.existsSync(uploadsDir)) {
+                      fs.mkdirSync(uploadsDir, { recursive: true });
+                    }
+
+                    const newFilePath = path.join(uploadsDir, newFilename);
+                    await fs.promises.writeFile(newFilePath, entryData);
+
+                    // Map old filename to new filename
+                    assetMapping.set(originalFilename, newFilename);
+                    logger.debug(
+                      `Imported raster image: ${originalFilename} -> ${newFilename}`
+                    );
+                  }
+                }
+              }
+
+              await zip.close();
+            } catch (zipError) {
+              logger.error('Failed to process ZIP file:', zipError);
+              return res.status(400).json({
+                error: 'Invalid ZIP file or missing template.json',
+                details:
+                  zipError instanceof Error
+                    ? zipError.message
+                    : 'Unknown error',
+              });
+            } finally {
+              // Clean up temporary file
+              if (fs.existsSync(tempPath)) {
+                await fs.promises.unlink(tempPath);
+              }
+            }
+
+            if (!name || !templateData) {
+              return res.status(400).json({
+                error: 'Template name and data are required',
+              });
+            }
+
+            // Validate version compatibility
+            if (version && version !== '1.0') {
+              return res.status(400).json({
+                error: `Unsupported overlay template version: ${version}. This version of Agregarr only supports version 1.0.`,
+              });
+            }
+
+            // Update asset paths in template data to use new imported asset IDs/paths
+            if (assetMapping.size > 0) {
+              // Update elements
+              templateData.elements?.forEach((element) => {
+                if (element.type === 'svg') {
+                  const svgProps = element.properties as {
+                    iconPath?: string;
+                  };
+                  if (svgProps.iconPath) {
+                    const filename = path.basename(svgProps.iconPath);
+                    const newPath = assetMapping.get(filename);
+                    if (newPath) {
+                      svgProps.iconPath = newPath;
+                    }
+                  }
+                } else if (element.type === 'raster') {
+                  const rasterProps = element.properties as {
+                    imagePath?: string;
+                  };
+                  if (rasterProps.imagePath) {
+                    const filename = path.basename(rasterProps.imagePath);
+                    const newPath = assetMapping.get(filename);
+                    if (newPath) {
+                      rasterProps.imagePath = newPath;
+                    }
+                  }
+                }
+              });
+            }
+
+            const templateRepository = getRepository(OverlayTemplate);
+
+            // Check for duplicate names and append suffix if needed
+            let finalName = name;
+            let counter = 1;
+            while (
+              await templateRepository.findOne({
+                where: { name: finalName, isActive: true },
+              })
+            ) {
+              finalName = `${name} (${counter})`;
+              counter++;
+            }
+
+            const newTemplate = new OverlayTemplate({
+              name: finalName,
+              description: description || 'Imported overlay template',
+              type: type,
+              isDefault: false,
+              isActive: true,
+            });
+
+            newTemplate.setTemplateData(templateData);
+            newTemplate.setApplicationCondition(applicationCondition);
+
+            const savedTemplate = await templateRepository.save(newTemplate);
+
+            logger.info('Imported overlay template', {
+              templateId: savedTemplate.id,
+              originalName: name,
+              finalName: savedTemplate.name,
+              assetCount: assetMapping.size,
+            });
+
+            return res.status(201).json({
+              id: savedTemplate.id,
+              name: savedTemplate.name,
+              description: savedTemplate.description,
+              type: savedTemplate.type,
+              isDefault: savedTemplate.isDefault,
+              templateData: savedTemplate.getTemplateData(),
+              applicationCondition: savedTemplate.getApplicationCondition(),
+              createdAt: savedTemplate.createdAt,
+              updatedAt: savedTemplate.updatedAt,
+            });
+          } catch (error) {
+            logger.error('Failed to import overlay template:', error);
+            return res.status(500).json({
+              error: 'Failed to import overlay template',
+              message: error instanceof Error ? error.message : 'Unknown error',
+            });
+          }
+        });
+      } catch (error) {
+        logger.error('Overlay template import setup error:', error);
         return res.status(500).json({
           error: 'Failed to setup upload',
         });

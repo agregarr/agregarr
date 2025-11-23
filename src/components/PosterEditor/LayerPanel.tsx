@@ -1783,9 +1783,27 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         }
                         filter="svg"
                         onChange={(iconPath) => {
-                          updateElementProperties(selectedElement.id, {
-                            iconPath,
-                          });
+                          // Auto-size SVG element to match icon's actual dimensions
+                          // Load the image to get its width and height
+                          const img = new window.Image();
+                          img.onload = () => {
+                            // Update both icon path and element dimensions
+                            updateElementProperties(selectedElement.id, {
+                              iconPath,
+                            });
+                            // Update canvas element dimensions
+                            updateElement(selectedElement.id, {
+                              width: img.width,
+                              height: img.height,
+                            });
+                          };
+                          img.onerror = () => {
+                            // If image fails to load, just update the icon path
+                            updateElementProperties(selectedElement.id, {
+                              iconPath,
+                            });
+                          };
+                          img.src = iconPath;
                         }}
                         addToast={addToast}
                       />

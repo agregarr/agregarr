@@ -44,12 +44,26 @@ export enum ImdbTopList {
 }
 
 /**
+ * IMDb Top 250 ranking result
+ */
+export interface ImdbTop250Result {
+  isTop250: boolean;
+  rank?: number; // 1-250 if in top 250
+}
+
+/**
  * IMDb API client for fetching lists and popular content
  *
  * Note: IMDb doesn't have a public API for lists, so this uses web scraping
  * for public IMDb lists. This is a best-effort implementation.
  */
 class ImdbAPI extends ExternalAPI {
+  // Cache for Top 250 lists (refreshed periodically)
+  private top250MoviesCache: Map<string, number> = new Map();
+  private top250TvCache: Map<string, number> = new Map();
+  private top250LastRefresh: { movies?: number; tv?: number } = {};
+  private readonly TOP250_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
   constructor() {
     super('https://www.imdb.com', {
       headers: {
@@ -348,6 +362,100 @@ class ImdbAPI extends ExternalAPI {
         return 'Most Popular TV Shows';
       default:
         return 'IMDb List';
+    }
+  }
+
+  /**
+   * Refresh Top 250 cache for a specific type
+   */
+  private async refreshTop250Cache(type: 'movie' | 'tv'): Promise<void> {
+    try {
+      const listType =
+        type === 'movie' ? ImdbTopList.TOP_250_MOVIES : ImdbTopList.TOP_250_TV;
+
+      logger.info(`Refreshing IMDb Top 250 ${type} cache`, {
+        label: 'IMDb API',
+      });
+
+      const items = await this.getTopList(listType, 250);
+
+      // Build cache map: imdbId -> rank (1-based)
+      const cache =
+        type === 'movie' ? this.top250MoviesCache : this.top250TvCache;
+      cache.clear();
+
+      items.forEach((item, index) => {
+        cache.set(item.imdbId, index + 1); // Rank is 1-based
+      });
+
+      this.top250LastRefresh[type === 'movie' ? 'movies' : 'tv'] = Date.now();
+
+      logger.info(`IMDb Top 250 ${type} cache refreshed`, {
+        label: 'IMDb API',
+        itemCount: cache.size,
+      });
+    } catch (error) {
+      logger.error(`Failed to refresh IMDb Top 250 ${type} cache`, {
+        label: 'IMDb API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Don't throw - fall back to empty cache
+    }
+  }
+
+  /**
+   * Check if Top 250 cache needs refresh
+   */
+  private needsRefresh(type: 'movie' | 'tv'): boolean {
+    const lastRefresh =
+      this.top250LastRefresh[type === 'movie' ? 'movies' : 'tv'];
+    if (!lastRefresh) return true;
+    return Date.now() - lastRefresh > this.TOP250_CACHE_TTL;
+  }
+
+  /**
+   * Check if an IMDb ID is in the Top 250 and get its ranking
+   *
+   * @param imdbId - IMDb ID (e.g., "tt0111161")
+   * @param type - Media type ('movie' or 'tv')
+   * @returns Top 250 result with isTop250 flag and optional rank
+   */
+  public async checkTop250(
+    imdbId: string,
+    type: 'movie' | 'tv'
+  ): Promise<ImdbTop250Result> {
+    try {
+      // Refresh cache if needed
+      if (this.needsRefresh(type)) {
+        await this.refreshTop250Cache(type);
+      }
+
+      const cache =
+        type === 'movie' ? this.top250MoviesCache : this.top250TvCache;
+      const rank = cache.get(imdbId);
+
+      if (rank !== undefined) {
+        return {
+          isTop250: true,
+          rank,
+        };
+      }
+
+      return {
+        isTop250: false,
+      };
+    } catch (error) {
+      logger.error(`Failed to check IMDb Top 250 for ${imdbId}`, {
+        label: 'IMDb API',
+        imdbId,
+        type,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // Return false on error (don't fail overlay rendering)
+      return {
+        isTop250: false,
+      };
     }
   }
 }

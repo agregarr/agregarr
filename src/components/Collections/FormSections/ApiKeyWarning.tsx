@@ -31,7 +31,7 @@ const ApiKeyWarning: React.FC<ApiKeyWarningProps> = ({
   )?.settingsPath;
 
   // Convert path to user-friendly text
-  const settingsPathText = settingsPath?.includes('/services')
+  const settingsPathText = settingsPath?.includes('/downloads')
     ? 'Settings > Downloads'
     : 'Settings > Sources';
 

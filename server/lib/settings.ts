@@ -136,13 +136,13 @@ export interface CollectionConfig {
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   // Placeholder settings (for createPlaceholdersForMissing feature)
   readonly createPlaceholdersForMissing?: boolean; // If true, create placeholder files in Plex for missing items instead of auto-requesting
-  readonly placeholderOverlayColor?: string; // Hex color for placeholder overlay background (default: #C21807). Text is always white.
   readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
   readonly placeholderDaysAhead?: number; // Number of days to look ahead for release dates (default: 360)
   // Legacy Coming Soon fields (for backward compatibility during migration)
-  readonly comingSoonOverlayColor?: string; // @deprecated Use placeholderOverlayColor
   readonly comingSoonReleasedDays?: number; // @deprecated Use placeholderReleasedDays
   readonly comingSoonDays?: number; // @deprecated Use placeholderDaysAhead
+  // Overlay sync option
+  readonly applyOverlaysDuringSync?: boolean; // If true, apply overlays to collection items immediately after sync (default: true for Coming Soon, false for others)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -185,7 +185,6 @@ export interface CollectionConfig {
     readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag sources
     readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag sources
     readonly sonarrTagLabel?: string; // Sonarr tag label for display
-    readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
   }[];
   readonly combineMode?:
     | 'interleaved'
@@ -363,11 +362,6 @@ export interface ServiceUserSettings {
 
 export type TagRequestsMode = 'off' | 'single' | 'per-service' | 'granular';
 
-export interface PathMapping {
-  from: string; // Remote path (e.g., "C:\serverdata\media")
-  to: string; // Local path (e.g., "/mnt/serverdata/media")
-}
-
 export interface DVRSettings {
   id: number;
   name: string;
@@ -387,7 +381,6 @@ export interface DVRSettings {
   preventSearch: boolean;
   tagRequests?: boolean;
   tagRequestsMode?: TagRequestsMode;
-  pathMappings?: PathMapping[]; // Optional path mappings for cross-platform/remote setups
 }
 
 export interface RadarrSettings extends DVRSettings {
@@ -429,6 +422,9 @@ export interface MainSettings {
   externalApplicationTitle?: string; // External Overseerr title
   // Overseerr user label state tracking
   overseerrLabelsApplied?: boolean; // True if Overseerr user filter labels are currently applied to Plex users
+  // Placeholder root folders
+  placeholderMovieRootFolder?: string; // Root folder path for movie placeholders
+  placeholderTVRootFolder?: string; // Root folder path for TV show placeholders
 }
 
 interface PublicSettings {
@@ -456,7 +452,8 @@ interface JobSettings {
 export type JobId =
   | 'plex-refresh-token'
   | 'plex-collections-sync'
-  | 'plex-randomize-home-order';
+  | 'plex-randomize-home-order'
+  | 'overlay-application';
 
 export interface GlobalExclusions {
   movies: number[]; // TMDB IDs for excluded movies
@@ -534,6 +531,9 @@ class Settings {
         },
         'plex-randomize-home-order': {
           schedule: '0 0 6 * * *',
+        },
+        'overlay-application': {
+          schedule: '0 0 0 * * *', // Every 24 hours at midnight
         },
       },
       globalExclusions: {
@@ -1572,8 +1572,6 @@ export interface SourceDefinition {
   readonly sonarrTagServerId?: number;
   readonly sonarrTagId?: number;
   readonly sonarrTagLabel?: string;
-  readonly comingSoonDays?: number;
-  readonly comingSoonReleasedDays?: number;
 }
 
 export interface MultiSourceCollectionConfig {
@@ -1609,6 +1607,11 @@ export interface MultiSourceCollectionConfig {
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  readonly applyOverlaysDuringSync?: boolean; // Apply item overlays during sync (for Coming Soon collections)
+  // Placeholder creation settings (shared with CollectionConfig)
+  readonly createPlaceholdersForMissing?: boolean; // Enable placeholder creation for missing items
+  readonly placeholderDaysAhead?: number; // How many days ahead to create placeholders
+  readonly placeholderReleasedDays?: number; // How many days after release to keep placeholders
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;

@@ -1467,6 +1467,16 @@ async function generateUnifiedLayeredElements(
       }
 
       if (elementContent) {
+        // Apply rotation if specified
+        if (element.rotation && element.rotation !== 0) {
+          // Calculate rotation center (center of element bounding box)
+          const centerX = element.x + element.width / 2;
+          const centerY = element.y + element.height / 2;
+
+          // Wrap element in a group with rotation transform
+          elementContent = `<g transform="rotate(${element.rotation} ${centerX} ${centerY})">${elementContent}</g>`;
+        }
+
         renderedElements.push(elementContent);
       }
     } catch (error) {

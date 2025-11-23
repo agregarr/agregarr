@@ -847,21 +847,21 @@ const CollectionFormConfigForm = ({
           maxItems: (config as CollectionFormConfig).maxItems || 50,
           minimumPlays: (config as CollectionFormConfig).minimumPlays || 3,
           customDays: (config as CollectionFormConfig).customDays || 30,
-          comingSoonDays:
-            (config as CollectionFormConfig).comingSoonDays || 360,
-          comingSoonReleasedDays:
-            (config as CollectionFormConfig).comingSoonReleasedDays || 7,
-          // Placeholder settings
+          // Placeholder settings - map old Coming Soon fields for backward compatibility
           createPlaceholdersForMissing:
             (config as CollectionFormConfig).createPlaceholdersForMissing ??
-            false,
-          placeholderOverlayColor:
-            (config as CollectionFormConfig).placeholderOverlayColor ||
-            '#C21807',
+            (config as CollectionFormConfig).type === 'comingsoon', // Force true for Coming Soon
           placeholderReleasedDays:
-            (config as CollectionFormConfig).placeholderReleasedDays || 7,
+            (config as CollectionFormConfig).placeholderReleasedDays ||
+            (config as CollectionFormConfig).comingSoonReleasedDays ||
+            14,
           placeholderDaysAhead:
-            (config as CollectionFormConfig).placeholderDaysAhead || 360,
+            (config as CollectionFormConfig).placeholderDaysAhead ||
+            (config as CollectionFormConfig).comingSoonDays ||
+            90,
+          applyOverlaysDuringSync:
+            (config as CollectionFormConfig).applyOverlaysDuringSync ??
+            (config as CollectionFormConfig).type === 'comingsoon', // Default true for Coming Soon
           // Download mode settings
           enableGrabMissingItems:
             ((config as CollectionFormConfig).searchMissingMovies ||
@@ -974,8 +974,6 @@ const CollectionFormConfigForm = ({
                     existingConfig.imdbCustomListUrl ||
                     existingConfig.letterboxdCustomListUrl,
                   customDays: existingConfig.customDays,
-                  comingSoonDays: existingConfig.comingSoonDays,
-                  comingSoonReleasedDays: existingConfig.comingSoonReleasedDays,
                   minimumPlays: existingConfig.minimumPlays,
                   networksCountry: existingConfig.networksCountry,
                   priority: 0,
@@ -1099,28 +1097,25 @@ const CollectionFormConfigForm = ({
             customDays: values.customDays
               ? parseInt(values.customDays.toString(), 10)
               : undefined,
-            comingSoonDays: values.comingSoonDays
-              ? parseInt(values.comingSoonDays.toString(), 10)
-              : undefined,
-            comingSoonReleasedDays: values.comingSoonReleasedDays
-              ? parseInt(values.comingSoonReleasedDays.toString(), 10)
-              : undefined,
-            // Placeholder settings
+            // Placeholder settings (unified for all collection types including Coming Soon)
             createPlaceholdersForMissing:
-              values.createPlaceholdersForMissing ?? false,
-            placeholderOverlayColor: values.createPlaceholdersForMissing
-              ? values.placeholderOverlayColor || '#C21807'
-              : undefined,
+              values.type === 'comingsoon'
+                ? true
+                : values.createPlaceholdersForMissing ?? false,
             placeholderReleasedDays: values.createPlaceholdersForMissing
               ? values.placeholderReleasedDays
                 ? parseInt(values.placeholderReleasedDays.toString(), 10)
-                : 7
+                : 14
               : undefined,
             placeholderDaysAhead: values.createPlaceholdersForMissing
               ? values.placeholderDaysAhead
                 ? parseInt(values.placeholderDaysAhead.toString(), 10)
-                : 360
+                : 90
               : undefined,
+            applyOverlaysDuringSync:
+              values.type === 'comingsoon'
+                ? true
+                : values.applyOverlaysDuringSync,
             minimumPlays: values.minimumPlays
               ? parseInt(values.minimumPlays.toString(), 10)
               : 3,
@@ -1974,9 +1969,27 @@ const CollectionFormConfigForm = ({
                                         type="checkbox"
                                         id="createPlaceholdersForMissing"
                                         name="createPlaceholdersForMissing"
-                                        className="form-checkbox"
+                                        className={`form-checkbox ${
+                                          typedValues.type === 'comingsoon'
+                                            ? 'cursor-not-allowed opacity-50'
+                                            : ''
+                                        }`}
+                                        checked={
+                                          typedValues.type === 'comingsoon'
+                                            ? true
+                                            : typedValues.createPlaceholdersForMissing
+                                        }
+                                        disabled={
+                                          typedValues.type === 'comingsoon'
+                                        }
                                       />
-                                      <span className="ml-2 text-sm text-gray-300">
+                                      <span
+                                        className={`ml-2 text-sm ${
+                                          typedValues.type === 'comingsoon'
+                                            ? 'text-gray-500'
+                                            : 'text-gray-300'
+                                        }`}
+                                      >
                                         Create placeholders for missing items
                                       </span>
                                     </div>
@@ -1984,31 +1997,14 @@ const CollectionFormConfigForm = ({
                                       Creates placeholder files in Plex for
                                       items not yet available, with countdown
                                       overlays showing release dates. Requires
-                                      Radarr/Sonarr.
+                                      placeholder root folders configured in
+                                      Settings &gt; Downloads.
                                     </p>
 
                                     {/* Placeholder options - show when enabled */}
                                     {typedValues.createPlaceholdersForMissing && (
-                                      <div className="mt-4 space-y-4 rounded-lg bg-stone-800 p-4">
-                                        <div>
-                                          <label
-                                            htmlFor="placeholderOverlayColor"
-                                            className="block text-sm font-medium text-gray-300"
-                                          >
-                                            Overlay Color
-                                          </label>
-                                          <Field
-                                            type="color"
-                                            id="placeholderOverlayColor"
-                                            name="placeholderOverlayColor"
-                                            className="mt-1 h-10 w-20 cursor-pointer rounded border border-stone-500 bg-stone-700"
-                                          />
-                                          <p className="mt-1 text-xs text-gray-400">
-                                            Background color for the release
-                                            date overlay (default: red)
-                                          </p>
-                                        </div>
-                                        <div>
+                                      <div className="mt-4 flex gap-4 rounded-lg bg-stone-800 p-4">
+                                        <div className="flex-1">
                                           <label
                                             htmlFor="placeholderDaysAhead"
                                             className="block text-sm font-medium text-gray-300"
@@ -2025,11 +2021,11 @@ const CollectionFormConfigForm = ({
                                             className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
                                           />
                                           <p className="mt-1 text-xs text-gray-400">
-                                            Only create placeholders for items
+                                            Create placeholders for items
                                             releasing within this many days
                                           </p>
                                         </div>
-                                        <div>
+                                        <div className="flex-1">
                                           <label
                                             htmlFor="placeholderReleasedDays"
                                             className="block text-sm font-medium text-gray-300"

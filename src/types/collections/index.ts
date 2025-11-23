@@ -224,13 +224,11 @@ export interface CollectionFormConfig {
   readonly customDays?: number; // Number of days for Tautulli collections
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
   readonly tautulliStatType?: 'plays' | 'duration'; // Tautulli stat type
-  readonly comingSoonDays?: number; // Number of days to look ahead for Coming Soon collections (default: 360)
-  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
-  // Placeholder settings (for createPlaceholdersForMissing feature)
+  // Placeholder settings (for createPlaceholdersForMissing feature - unified for all collection types)
   readonly createPlaceholdersForMissing?: boolean; // Create placeholder files for missing items
-  readonly placeholderOverlayColor?: string; // Hex color for placeholder overlay (default: #C21807)
   readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7)
   readonly placeholderDaysAhead?: number; // Days to look ahead for release dates (default: 360)
+  readonly applyOverlaysDuringSync?: boolean; // Apply overlays immediately after sync (default: true for Coming Soon)
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct'; // Download mode: overseerr (requests) or direct (*arr)
   readonly searchMissingMovies?: boolean; // Auto-request missing movies
@@ -354,13 +352,11 @@ export interface CollectionConfigCreateRequest {
   readonly customDays?: number;
   readonly minimumPlays?: number;
   readonly tautulliStatType?: 'plays' | 'duration';
-  readonly comingSoonDays?: number;
-  readonly comingSoonReleasedDays?: number;
-  // Placeholder settings
+  // Placeholder settings (unified for all collection types)
   readonly createPlaceholdersForMissing?: boolean;
-  readonly placeholderOverlayColor?: string;
   readonly placeholderReleasedDays?: number;
   readonly placeholderDaysAhead?: number;
+  readonly applyOverlaysDuringSync?: boolean;
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
@@ -452,12 +448,10 @@ export const toCollectionCreateRequest = (
     customDays: config.customDays,
     minimumPlays: config.minimumPlays,
     tautulliStatType: config.tautulliStatType,
-    comingSoonDays: config.comingSoonDays,
-    comingSoonReleasedDays: config.comingSoonReleasedDays,
     createPlaceholdersForMissing: config.createPlaceholdersForMissing,
-    placeholderOverlayColor: config.placeholderOverlayColor,
     placeholderReleasedDays: config.placeholderReleasedDays,
     placeholderDaysAhead: config.placeholderDaysAhead,
+    applyOverlaysDuringSync: config.applyOverlaysDuringSync,
     downloadMode: config.downloadMode,
     searchMissingMovies: config.searchMissingMovies,
     searchMissingTV: config.searchMissingTV,
@@ -747,9 +741,6 @@ export interface CollectionSourceConfig {
   readonly sonarrTagServerId?: number;
   readonly sonarrTagId?: number;
   readonly sonarrTagLabel?: string;
-  // Coming Soon-specific configuration
-  readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
-  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
 }
 
 /**
@@ -838,6 +829,10 @@ export interface MultiSourceCollectionConfig {
   };
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
+  // Placeholder creation settings (shared with CollectionConfig)
+  readonly createPlaceholdersForMissing?: boolean;
+  readonly placeholderDaysAhead?: number;
+  readonly placeholderReleasedDays?: number;
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
@@ -898,8 +893,6 @@ export interface SourceDefinition {
   readonly sonarrTagServerId?: number; // Sonarr instance ID for sonarrtag source
   readonly sonarrTagId?: number; // Sonarr tag ID for sonarrtag source
   readonly sonarrTagLabel?: string; // Sonarr tag label for display
-  readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
-  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
 }
 
 /**

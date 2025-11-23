@@ -547,15 +547,11 @@ export class CollectionSyncService {
         return new OverseerrCollectionSync();
       }
       case 'radarrtag': {
-        const { RadarrTagCollectionSync } = await import(
-          '../external/radarrtag'
-        );
+        const { RadarrTagCollectionSync } = await import('../external/radarr');
         return new RadarrTagCollectionSync();
       }
       case 'sonarrtag': {
-        const { SonarrTagCollectionSync } = await import(
-          '../external/sonarrtag'
-        );
+        const { SonarrTagCollectionSync } = await import('../external/sonarr');
         return new SonarrTagCollectionSync();
       }
       case 'comingsoon': {

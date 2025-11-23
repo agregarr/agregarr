@@ -19,11 +19,17 @@ interface TextElementComponentProps {
   onSelect: (node: Konva.Node) => void;
   onDragMove: (node: Konva.Node) => void;
   onDragEnd: (x: number, y: number) => void;
-  onTransformEnd: (x: number, y: number, width: number, height: number) => void;
+  onTransformEnd: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    rotation: number
+  ) => void;
 }
 
 // Text width calculation (mirrors server-side logic)
-function getTextWidth(
+export function getTextWidth(
   text: string,
   fontSize: number,
   fontFamily = 'Arial',
@@ -70,7 +76,7 @@ function getTextWidth(
 }
 
 // Text wrapping (mirrors server-side logic)
-function wrapTextKeepWords(
+export function wrapTextKeepWords(
   text: string,
   maxWidth: number,
   fontSize: number,
@@ -105,7 +111,7 @@ function wrapTextKeepWords(
 }
 
 // Get actual font metrics for precise vertical positioning (matching server-side logic)
-function getFontMetrics(
+export function getFontMetrics(
   fontSize: number,
   fontFamily = 'Arial',
   fontWeight = 'normal'
@@ -149,7 +155,7 @@ function getFontMetrics(
 }
 
 // Calculate optimal font size and text layout (matching server-side logic)
-function calculateTextLayout(
+export function calculateTextLayout(
   text: string,
   width: number,
   height: number,
@@ -267,10 +273,13 @@ export const TextElement: React.FC<TextElementComponentProps> = ({
     <Group
       ref={groupRef}
       id={element.id}
-      x={element.x}
-      y={element.y}
+      x={element.x + element.width / 2}
+      y={element.y + element.height / 2}
+      offsetX={element.width / 2}
+      offsetY={element.height / 2}
       width={element.width}
       height={element.height}
+      rotation={element.rotation || 0}
       draggable
       onClick={() => {
         if (groupRef.current) {
@@ -289,23 +298,30 @@ export const TextElement: React.FC<TextElementComponentProps> = ({
       }}
       onDragEnd={(e: KonvaEventObject<DragEvent>) => {
         const node = e.target;
-        onDragEnd(node.x(), node.y());
+        // Convert from center position back to top-left corner
+        onDragEnd(node.x() - element.width / 2, node.y() - element.height / 2);
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
         if (node) {
           const scaleX = node.scaleX();
           const scaleY = node.scaleY();
+          const rotation = node.rotation();
+
+          const newWidth = Math.round(element.width * scaleX);
+          const newHeight = Math.round(element.height * scaleY);
 
           // Reset scale to 1 and update width/height instead
           node.scaleX(1);
           node.scaleY(1);
 
+          // Convert from center position back to top-left corner with new dimensions
           onTransformEnd(
-            node.x(),
-            node.y(),
-            Math.round(element.width * scaleX),
-            Math.round(element.height * scaleY)
+            node.x() - newWidth / 2,
+            node.y() - newHeight / 2,
+            newWidth,
+            newHeight,
+            rotation
           );
         }
       }}

@@ -240,7 +240,7 @@ export async function cleanupReleasedPlaceholders(
         // If already marked as released, check if it's been more than configured days since RELEASE DATE
         if (placeholder.releasedAt && placeholder.releaseDate) {
           const { calculateDaysSince } = await import(
-            '@server/lib/comingsoon/categorization'
+            '@server/utils/dateHelpers'
           );
           const releasedWindowDays = config.comingSoonReleasedDays || 7;
           // Calculate days since the actual release date, not when file was detected
@@ -477,65 +477,112 @@ export async function cleanupReleasedPlaceholders(
             }
           }
 
-          // Reset poster to original TMDB poster (for all items with overlays)
-          if (placeholder.plexRatingKey) {
+          // Remove placeholder file if this was an actual placeholder
+          let fileRemovalSucceeded = false;
+          if (placeholder.placeholderPath) {
+            const { removePlaceholder } = await import(
+              '@server/lib/comingsoon/placeholderManager'
+            );
             try {
-              const TmdbAPI = (await import('@server/api/themoviedb')).default;
-              const tmdbClient = new TmdbAPI();
-
-              let posterUrl: string | undefined;
-              if (placeholder.mediaType === 'movie') {
-                const movieDetails = await tmdbClient.getMovie({
-                  movieId: placeholder.tmdbId,
-                });
-                posterUrl = movieDetails.poster_path
-                  ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
-                  : undefined;
-              } else {
-                const showDetails = await tmdbClient.getTvShow({
-                  tvId: placeholder.tmdbId,
-                });
-                posterUrl = showDetails.poster_path
-                  ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
-                  : undefined;
-              }
-
-              if (posterUrl) {
-                await plexClient.uploadPosterFromUrl(
-                  placeholder.plexRatingKey,
-                  posterUrl
-                );
-                logger.info(
-                  'Reset poster to original TMDB poster for orphaned item',
-                  {
-                    label: 'Coming Soon Collections',
-                    title: placeholder.title,
-                    ratingKey: placeholder.plexRatingKey,
-                  }
-                );
-              }
-            } catch (error) {
-              logger.warn('Failed to reset poster to original', {
+              await removePlaceholder(
+                placeholder.placeholderPath,
+                placeholder.mediaType
+              );
+              fileRemovalSucceeded = true;
+              logger.info('Removed placeholder file', {
                 label: 'Coming Soon Collections',
                 title: placeholder.title,
-                ratingKey: placeholder.plexRatingKey,
-                error: error instanceof Error ? error.message : String(error),
+                path: placeholder.placeholderPath,
               });
+            } catch (error) {
+              // File deletion failed - keep database record
+              logger.error(
+                'Failed to remove placeholder file - keeping database record',
+                {
+                  label: 'Coming Soon Collections',
+                  title: placeholder.title,
+                  path: placeholder.placeholderPath,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              // Don't remove from database if file removal failed
+              continue;
             }
+          } else {
+            // No placeholder file to remove (item may have been manually added to Plex)
+            logger.debug(
+              'No placeholder file path - item was not a placeholder',
+              {
+                label: 'Coming Soon Collections',
+                title: placeholder.title,
+              }
+            );
+            fileRemovalSucceeded = true; // Safe to remove from database
           }
 
-          // Remove from database
-          await repository.remove(placeholder);
-          removedCount++;
+          // Only proceed with database/poster cleanup if file was successfully removed (or no file existed)
+          if (fileRemovalSucceeded) {
+            // Reset poster to original TMDB poster (for items with overlays)
+            if (placeholder.plexRatingKey) {
+              try {
+                const TmdbAPI = (await import('@server/api/themoviedb'))
+                  .default;
+                const tmdbClient = new TmdbAPI();
 
-          if (isOrphaned) orphanedCount++;
-          if (isStale) staleCount++;
+                let posterUrl: string | undefined;
+                if (placeholder.mediaType === 'movie') {
+                  const movieDetails = await tmdbClient.getMovie({
+                    movieId: placeholder.tmdbId,
+                  });
+                  posterUrl = movieDetails.poster_path
+                    ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
+                    : undefined;
+                } else {
+                  const showDetails = await tmdbClient.getTvShow({
+                    tvId: placeholder.tmdbId,
+                  });
+                  posterUrl = showDetails.poster_path
+                    ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
+                    : undefined;
+                }
 
-          logger.info('Removed Coming Soon placeholder from database', {
-            label: 'Coming Soon Collections',
-            title: placeholder.title,
-            reason,
-          });
+                if (posterUrl) {
+                  await plexClient.uploadPosterFromUrl(
+                    placeholder.plexRatingKey,
+                    posterUrl
+                  );
+                  logger.info(
+                    'Reset poster to original TMDB poster for orphaned item',
+                    {
+                      label: 'Coming Soon Collections',
+                      title: placeholder.title,
+                      ratingKey: placeholder.plexRatingKey,
+                    }
+                  );
+                }
+              } catch (error) {
+                logger.warn('Failed to reset poster to original', {
+                  label: 'Coming Soon Collections',
+                  title: placeholder.title,
+                  ratingKey: placeholder.plexRatingKey,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
+            }
+
+            // Remove from database only after successful file removal
+            await repository.remove(placeholder);
+            removedCount++;
+
+            if (isOrphaned) orphanedCount++;
+            if (isStale) staleCount++;
+
+            logger.info('Removed Coming Soon placeholder from database', {
+              label: 'Coming Soon Collections',
+              title: placeholder.title,
+              reason,
+            });
+          }
         }
       } catch (error) {
         logger.error('Error removing orphaned/stale placeholder', {

@@ -35,11 +35,12 @@ services:
       # Linux/Mac: - /mnt/serverdata/configs/agregarr:/app/config
       # Windows:   - C:\serverdata\configs\agregarr:/app/config
 
-      # Develop branch only (optional): For Coming Soon feature, mount media matching Radarr/Sonarr paths
-      # Linux/Mac: - /mnt/media/movies:/raddarr/container/path
-      #            - /mnt/media/tv:/radarr/container/path
-      # Windows:   - E:\media\movies:/mnt/e/media/movies
-      #            - E:\media\tv:/mnt/e/media/tv
+      # Develop branch only (optional): For Coming Soon feature
+      # Linux/Mac: - /path/to/movies:/data/movies
+      #            - /path/to/tv:/data/tv
+      # Windows:   - E:\media\movies:/data/movies
+      #            - E:\media\tv:/data/tv
+      # And then select your root folder in Settings -> Downloads
     ports:
       - 7171:7171
     restart: unless-stopped
@@ -47,7 +48,7 @@ services:
 
 The application will be available at `http://localhost:7171`
 
-> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because your volume is not set correctly. The Coming Soon feature requires media volumes to be mounted with paths matching your Radarr/Sonarr containers. Without media mounts, Agregarr can run remotely and all other features will work normally.
+> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because your volume is not set correctly. The Coming Soon feature requires media volumes to be mounted, this should the same folder as your Plex/Sonarr/Radarr folders. Without media mounts, Agregarr can run remotely and all other features will work normally.
 
 ## License
 

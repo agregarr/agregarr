@@ -55,6 +55,7 @@
     "cookie-parser": "1.4.6",
     "copy-to-clipboard": "3.3.3",
     "country-flag-icons": "1.5.5",
+    "cron-parser": "^5.4.0",
     "cronstrue": "2.23.0",
     "csurf": "1.11.0",
     "date-fns": "2.29.3",

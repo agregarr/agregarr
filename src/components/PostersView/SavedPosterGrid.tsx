@@ -1,10 +1,12 @@
 import Badge from '@app/components/Common/Badge';
+import Button from '@app/components/Common/Button';
 import type {
   EditorMode,
   PosterEditorData,
 } from '@app/components/PosterEditor';
 import { PosterEditorModal } from '@app/components/PosterEditor';
 import {
+  CheckIcon,
   DocumentDuplicateIcon,
   PencilIcon,
   PhotoIcon,
@@ -24,6 +26,12 @@ const messages = defineMessages({
   createFirstPoster: 'Create your first poster to get started',
   createPoster: 'Create Poster',
   lastUpdated: 'Last updated',
+  selectAll: 'Select All',
+  deselectAll: 'Deselect All',
+  deleteSelected: 'Delete Selected ({count})',
+  confirmBulkDelete:
+    'Are you sure you want to delete {count} selected poster(s)?',
+  deleting: 'Deleting... ({current}/{total})',
 });
 
 interface SavedPoster {
@@ -56,12 +64,24 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
   const [deleteConfirmId, setDeleteConfirmId] = useState<
     number | string | null
   >(null);
+  const [selectedPosters, setSelectedPosters] = useState<Set<number | string>>(
+    new Set()
+  );
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [deletionProgress, setDeletionProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
+  const showCheckboxes = selectedPosters.size > 0;
+  const isDeleting = deletionProgress !== null;
 
   // Reset delete confirmation when clicking outside or pressing escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDeleteConfirmId(null);
+        setBulkDeleteConfirm(false);
       }
     };
 
@@ -71,9 +91,12 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
       if (!target.closest('[data-delete-button]')) {
         setDeleteConfirmId(null);
       }
+      if (!target.closest('[data-bulk-delete-button]')) {
+        setBulkDeleteConfirm(false);
+      }
     };
 
-    if (deleteConfirmId !== null) {
+    if (deleteConfirmId !== null || bulkDeleteConfirm) {
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('click', handleClickOutside);
     }
@@ -82,7 +105,7 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [deleteConfirmId]);
+  }, [deleteConfirmId, bulkDeleteConfirm]);
 
   const handleEdit = (poster: SavedPoster) => {
     setSelectedPoster(poster);
@@ -121,6 +144,78 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
       // Error logged silently for debugging
       setDeleteConfirmId(null);
     }
+  };
+
+  const handleToggleSelect = (posterId: number | string) => {
+    setSelectedPosters((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(posterId)) {
+        newSet.delete(posterId);
+      } else {
+        newSet.add(posterId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedPosters(new Set(savedPosters.map((p) => p.id)));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedPosters(new Set());
+    setBulkDeleteConfirm(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!bulkDeleteConfirm) {
+      setBulkDeleteConfirm(true);
+      return;
+    }
+
+    const postersToDelete = Array.from(selectedPosters);
+    const errors: string[] = [];
+
+    setDeletionProgress({ current: 0, total: postersToDelete.length });
+
+    for (let i = 0; i < postersToDelete.length; i++) {
+      const posterId = postersToDelete[i];
+      setDeletionProgress({ current: i + 1, total: postersToDelete.length });
+
+      try {
+        const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.status === 409) {
+          const errorData = await response.json();
+          const poster = savedPosters.find((p) => p.id === posterId);
+          errors.push(
+            `${poster?.name || posterId}: ${
+              errorData.collections?.join(', ') || 'in use'
+            }`
+          );
+        } else if (!response.ok) {
+          throw new Error('Failed to delete');
+        }
+      } catch (error) {
+        const poster = savedPosters.find((p) => p.id === posterId);
+        errors.push(`${poster?.name || posterId}: deletion failed`);
+      }
+    }
+
+    if (errors.length > 0) {
+      alert(
+        `Some posters could not be deleted:\n\n${errors.join(
+          '\n'
+        )}\n\nThese posters are currently in use by collections.`
+      );
+    }
+
+    onPosterUpdate();
+    setSelectedPosters(new Set());
+    setBulkDeleteConfirm(false);
+    setDeletionProgress(null);
   };
 
   const handleSave = async (data: {
@@ -188,6 +283,42 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
 
   return (
     <>
+      {/* Bulk Action Toolbar */}
+      {showCheckboxes && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg bg-stone-800 p-3">
+          <Button buttonType="ghost" onClick={handleSelectAll}>
+            {intl.formatMessage(messages.selectAll)}
+          </Button>
+          <Button buttonType="ghost" onClick={handleDeselectAll}>
+            {intl.formatMessage(messages.deselectAll)}
+          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-stone-400">
+              {selectedPosters.size} selected
+            </span>
+            <Button
+              buttonType="danger"
+              data-bulk-delete-button
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting && deletionProgress
+                ? intl.formatMessage(messages.deleting, {
+                    current: deletionProgress.current,
+                    total: deletionProgress.total,
+                  })
+                : bulkDeleteConfirm
+                ? intl.formatMessage(messages.confirmBulkDelete, {
+                    count: selectedPosters.size,
+                  })
+                : intl.formatMessage(messages.deleteSelected, {
+                    count: selectedPosters.size,
+                  })}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         {savedPosters.map((poster) => (
           <div
@@ -232,6 +363,31 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
                   <PhotoIcon className="h-6 w-6 text-stone-400" />
                 </div>
               )}
+
+              {/* Checkbox - show on hover or when any checkbox is selected */}
+              <div
+                className={`absolute top-2 left-2 z-10 transition-opacity duration-200 ${
+                  showCheckboxes
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100'
+                }`}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleSelect(poster.id);
+                  }}
+                  className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${
+                    selectedPosters.has(poster.id)
+                      ? 'border-orange-500 bg-orange-500'
+                      : 'border-white bg-black bg-opacity-50 hover:border-orange-400'
+                  }`}
+                >
+                  {selectedPosters.has(poster.id) && (
+                    <CheckIcon className="h-3 w-3 text-white" />
+                  )}
+                </button>
+              </div>
 
               {/* Overlay with actions - only show on hover */}
               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all duration-200 group-hover:bg-opacity-40 group-hover:opacity-100">
@@ -280,7 +436,7 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
               </div>
 
               {/* Status badges - show on image */}
-              <div className="absolute top-1 left-1">
+              <div className="absolute top-1 right-1">
                 {!poster.isEditable && (
                   <Badge badgeType="warning" className="text-xs">
                     File

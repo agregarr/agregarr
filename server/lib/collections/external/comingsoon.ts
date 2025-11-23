@@ -33,7 +33,6 @@ import {
   fetchTraktAnticipatedShows,
   markMonitoredStatus,
 } from './comingsoon/comingSoonFetch';
-import { handlePlaceholderCreation } from './comingsoon/comingSoonPlaceholders';
 
 /**
  * Coming Soon Collection Sync
@@ -91,10 +90,9 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       let sourceData = await this.fetchSourceData(config);
 
       // Filter out Trakt items that are past the released window (cleanup old non-monitored items)
-      const { calculateDaysSince } = await import(
-        '@server/lib/comingsoon/categorization'
-      );
-      const releasedWindowDays = config.comingSoonReleasedDays || 7;
+      const { calculateDaysSince } = await import('@server/utils/dateHelpers');
+      const releasedWindowDays =
+        config.placeholderReleasedDays || config.comingSoonReleasedDays || 14;
       const originalCount = sourceData.length;
       sourceData = sourceData.filter((item) => {
         // Only filter Trakt items that are NOT monitored
@@ -156,18 +154,15 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         libraryCache
       );
 
-      // Extract placeholder items before filtering (they're tracked separately)
-      const { placeholderItems, ...mappedResultForFiltering } = mappedResult;
-
-      // Apply filtering
+      // Apply filtering (placeholderItems in mappedResult are ignored - overlays handled by overlay sync job)
       const { items, missingItems, mappingStats } =
-        this.applyFilteringToMappedItems(mappedResultForFiltering, config);
+        this.applyFilteringToMappedItems(mappedResult, config);
 
-      // Handle placeholder creation for missing items
+      // Handle placeholder creation for missing items using unified flow
+      // This respects the createPlaceholdersForMissing checkbox (which should be force-enabled for Coming Soon)
       if (missingItems && missingItems.length > 0) {
-        const newlyCreatedItems = await handlePlaceholderCreation(
+        const newlyCreatedItems = await this.processMissingItems(
           missingItems,
-          sourceData,
           config,
           plexClient
         );
@@ -176,52 +171,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         items.push(...newlyCreatedItems);
       }
 
-      // Apply overlays to existing placeholder items
-      if (placeholderItems && placeholderItems.length > 0) {
-        logger.info('Applying overlays to existing placeholders', {
-          label: 'Coming Soon Collections',
-          count: placeholderItems.length,
-        });
-
-        await this.applyOverlaysToExistingPlaceholders(
-          placeholderItems,
-          config,
-          plexClient
-        );
-      }
-
-      // Apply overlays to regular items (non-placeholders like returning TV shows)
-      // These are items that exist in Plex but aren't placeholders or released items
-      const placeholderRatingKeys = new Set(
-        placeholderItems.map((p) => p.ratingKey)
-      );
-      const regularItemsNeedingOverlays = items
-        .filter((item) => !placeholderRatingKeys.has(item.ratingKey))
-        .map((item) => {
-          const sourceItem = sourceData.find((s) => s.tmdbId === item.tmdbId);
-          return sourceItem ? { ratingKey: item.ratingKey, sourceItem } : null;
-        })
-        .filter(
-          (
-            item
-          ): item is { ratingKey: string; sourceItem: ComingSoonSourceData } =>
-            item !== null
-        );
-
-      if (regularItemsNeedingOverlays.length > 0) {
-        logger.info('Applying overlays to regular Coming Soon items', {
-          label: 'Coming Soon Collections',
-          count: regularItemsNeedingOverlays.length,
-        });
-
-        await this.applyOverlaysToExistingPlaceholders(
-          regularItemsNeedingOverlays,
-          config,
-          plexClient
-        );
-      }
-
-      // Apply overlays to released items (real files, within configured window)
+      // Add released items to collection (overlays will be applied by overlay sync)
       const releasedItems = await this.getReleasedItemsWithinWindow(
         config,
         sourceData,
@@ -229,18 +179,15 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       );
       if (releasedItems.length > 0) {
         logger.info(
-          'Applying overlays to released items within configured window',
+          'Adding released items to collection (overlays handled by overlay sync)',
           {
             label: 'Coming Soon Collections',
             count: releasedItems.length,
-            releasedWindowDays: config.comingSoonReleasedDays || 7,
+            releasedWindowDays:
+              config.placeholderReleasedDays ||
+              config.comingSoonReleasedDays ||
+              7,
           }
-        );
-
-        await this.applyOverlaysToReleasedItems(
-          releasedItems,
-          config,
-          plexClient
         );
 
         // Add released items to the collection
@@ -394,7 +341,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         // Enrich monitored items with TMDB release dates (adds 3-month estimate for theatrical-only releases)
         await enrichWithTMDBReleaseDates(
           upcomingItems,
-          config.comingSoonDays || 360
+          config.placeholderDaysAhead || config.comingSoonDays || 360
         );
         break;
       }
@@ -413,7 +360,10 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         }
 
         // Cross-reference with Radarr/Sonarr to mark monitored status
-        await markMonitoredStatus(upcomingItems, config.comingSoonDays || 360);
+        await markMonitoredStatus(
+          upcomingItems,
+          config.placeholderDaysAhead || config.comingSoonDays || 360
+        );
         break;
       }
 
@@ -431,7 +381,10 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         }
 
         // Cross-reference with Radarr/Sonarr to mark monitored status
-        await markMonitoredStatus(upcomingItems, config.comingSoonDays || 360);
+        await markMonitoredStatus(
+          upcomingItems,
+          config.placeholderDaysAhead || config.comingSoonDays || 360
+        );
         break;
       }
 
@@ -539,13 +492,14 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       const metadata = await plexClient.getMetadata(ratingKey);
 
       if (mediaType === 'movie') {
-        // Check for {edition-Coming Soon} in the file path or edition field
+        // Check for placeholder edition tags (supports both old and new format)
         const editionTitle = (metadata as unknown as Record<string, unknown>)
           .editionTitle;
         if (
           editionTitle &&
           typeof editionTitle === 'string' &&
-          editionTitle.includes('Coming Soon')
+          (editionTitle.includes('Placeholder') ||
+            editionTitle.includes('Coming Soon'))
         ) {
           return true;
         }
@@ -556,7 +510,11 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
           const parts = media.Part as { file?: string }[] | undefined;
           if (parts && parts.length > 0) {
             const filePath = parts[0].file;
-            if (filePath && filePath.includes('{edition-Coming Soon}')) {
+            if (
+              filePath &&
+              (filePath.includes('{edition-Placeholder}') ||
+                filePath.includes('{edition-Coming Soon}'))
+            ) {
               return true;
             }
           }
@@ -696,6 +654,32 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
           title: sourceItem.title,
           ratingKey: itemData.ratingKey,
         });
+
+        // Ensure placeholder has the correct label for Recently Added filtering
+        // This fixes placeholders that may have been created without the label
+        if (sourceItem.mediaType === 'movie') {
+          try {
+            await plexClient.addLabelToItem(
+              itemData.ratingKey,
+              'trailer-placeholder'
+            );
+            logger.debug('Ensured placeholder label exists', {
+              label: 'Coming Soon Collections',
+              title: sourceItem.title,
+              ratingKey: itemData.ratingKey,
+            });
+          } catch (labelError) {
+            logger.warn('Failed to ensure placeholder label', {
+              label: 'Coming Soon Collections',
+              title: sourceItem.title,
+              ratingKey: itemData.ratingKey,
+              error:
+                labelError instanceof Error
+                  ? labelError.message
+                  : String(labelError),
+            });
+          }
+        }
       }
 
       // Add to collection items regardless (both real and placeholders go in collection)
@@ -720,6 +704,17 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
           title: sourceItem.title,
           year: sourceItem.year,
           originalPosition: missingItems.length + 1,
+          // Placeholder-related fields (needed for createPlaceholdersForMissing)
+          releaseDate: sourceItem.releaseDate,
+          digitalRelease: sourceItem.digitalRelease,
+          physicalRelease: sourceItem.physicalRelease,
+          inCinemas: sourceItem.inCinemas,
+          airDate: sourceItem.airDate,
+          isEstimatedDate: sourceItem.isEstimatedDate,
+          seasonNumber: sourceItem.seasonNumber,
+          episodeNumber: sourceItem.episodeNumber,
+          monitored: sourceItem.monitored,
+          source: sourceItem.source,
         });
       }
     }
@@ -837,303 +832,6 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
   }
 
   /**
-   * Apply overlays to existing placeholder items that are already in Plex
-   */
-  public async applyOverlaysToExistingPlaceholders(
-    placeholderItems: { ratingKey: string; sourceItem: ComingSoonSourceData }[],
-    config: CollectionConfig,
-    plexClient: PlexAPI
-  ): Promise<void> {
-    const { generateOverlayPoster } = await import(
-      '@server/lib/comingsoon/overlayGenerator'
-    );
-    const { categorizeItem } = await import(
-      '@server/lib/comingsoon/categorization'
-    );
-    const TmdbAPI = (await import('@server/api/themoviedb')).default;
-    const tmdbClient = new TmdbAPI();
-    const overlayColor = config.comingSoonOverlayColor || '#C21807';
-
-    // Get fallback placeholder file size for comparison
-    let fallbackPlaceholderSize: number | undefined;
-    try {
-      const path = await import('path');
-      const fallbackPath = path.default.join(
-        process.cwd(),
-        'public',
-        'assets',
-        'placeholder.mp4'
-      );
-      const stats = await fs.stat(fallbackPath);
-      fallbackPlaceholderSize = stats.size;
-    } catch (error) {
-      logger.warn(
-        'Could not get fallback placeholder size, skipping retry logic',
-        {
-          label: 'Coming Soon Collections',
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-    }
-
-    // Get all Coming Soon items from database (both released and unreleased)
-    const repository = getRepository(ComingSoonItem);
-    let dbItemsMap: Map<number, ComingSoonItem> | undefined;
-    let releasedItemsMap: Map<number, ComingSoonItem> | undefined;
-    try {
-      const allItems = await repository.find({
-        where: { configId: config.id },
-      });
-      // Map of ALL items (for placeholder path lookups and retry logic)
-      dbItemsMap = new Map(allItems.map((item) => [item.tmdbId, item]));
-      // Map of only released items (for releasedAt date tracking)
-      releasedItemsMap = new Map(
-        allItems
-          .filter(
-            (item) => item.releasedAt !== null && item.releasedAt !== undefined
-          )
-          .map((item) => [item.tmdbId, item])
-      );
-    } catch {
-      // If table doesn't exist yet, skip
-      dbItemsMap = new Map();
-      releasedItemsMap = new Map();
-    }
-
-    // Track if we need to scan after replacing any placeholders
-    let needsLibraryScan = false;
-
-    for (const { ratingKey, sourceItem } of placeholderItems) {
-      try {
-        // Get database record for this item (includes both released and unreleased)
-        const dbItem = dbItemsMap?.get(sourceItem.tmdbId);
-        const releasedAt = releasedItemsMap?.get(sourceItem.tmdbId)?.releasedAt;
-
-        // Check if this placeholder is using the fallback video and try to re-download
-        if (fallbackPlaceholderSize && dbItem?.placeholderPath) {
-          const retryResult = await this.retryTrailerDownload(
-            dbItem,
-            fallbackPlaceholderSize,
-            sourceItem,
-            config
-          );
-          if (retryResult) {
-            needsLibraryScan = true;
-          }
-        }
-
-        // Categorize the item (pass releasedAt if available)
-        const category = categorizeItem(
-          sourceItem,
-          {
-            futureDays: 360, // Look 360 days ahead
-            recentDays: 7, // For possible future implementation
-            futureOnly: false,
-          },
-          releasedAt
-        );
-
-        if (!category) {
-          logger.warn('Could not categorize item for overlay', {
-            label: 'Coming Soon Collections',
-            title: sourceItem.title,
-          });
-          continue;
-        }
-
-        // Get poster URL from TMDB
-        let posterUrl: string | undefined;
-        if (sourceItem.mediaType === 'movie') {
-          const movieDetails = await tmdbClient.getMovie({
-            movieId: sourceItem.tmdbId,
-          });
-          posterUrl = movieDetails.poster_path
-            ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
-            : undefined;
-        } else {
-          const showDetails = await tmdbClient.getTvShow({
-            tvId: sourceItem.tmdbId,
-          });
-          posterUrl = showDetails.poster_path
-            ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
-            : undefined;
-        }
-
-        if (posterUrl) {
-          const overlayPosterBuffer = await generateOverlayPoster({
-            posterUrl,
-            category,
-            releaseDate: sourceItem.releaseDate || sourceItem.airDate,
-            color: overlayColor,
-            dateFormat: 'd mmm',
-            capitalizeDates: true,
-            isEstimatedDate: sourceItem.isEstimatedDate,
-            seasonNumber: sourceItem.seasonNumber,
-          });
-
-          // Upload poster to Plex
-          const tempPosterPath = `/tmp/comingsoon-${sourceItem.tmdbId}.jpg`;
-          await fs.writeFile(tempPosterPath, overlayPosterBuffer);
-          await plexClient.uploadPosterFromFile(ratingKey, tempPosterPath);
-          await fs.unlink(tempPosterPath);
-
-          logger.info('Applied overlay poster to existing placeholder', {
-            label: 'Coming Soon Collections',
-            title: sourceItem.title,
-            category,
-            ratingKey,
-            releasedAt: releasedAt ? releasedAt.toISOString() : undefined,
-          });
-
-          // Set metadata markers for Recently Added filtering (for actual placeholders)
-          if (dbItem?.placeholderPath) {
-            // Only set markers if this is a real placeholder (has placeholderPath)
-            try {
-              if (sourceItem.mediaType === 'tv') {
-                // For TV shows: Need to set title on the episode (S00E00)
-                // Get seasons using getChildrenMetadata (getMetadata doesn't return Children property)
-                const seasons = await plexClient.getChildrenMetadata(ratingKey);
-
-                if (seasons && seasons.length > 0) {
-                  // Find Season 00
-                  const season00 = seasons.find((season) => season.index === 0);
-
-                  if (season00) {
-                    // Get episodes from Season 00
-                    const episodesData = await plexClient.getChildrenMetadata(
-                      season00.ratingKey
-                    );
-                    if (episodesData && episodesData.length > 0) {
-                      const episode = episodesData[0]; // S00E00
-                      await plexClient.updateItemTitle(
-                        episode.ratingKey,
-                        'Trailer (Placeholder)'
-                      );
-                      logger.debug('Set placeholder episode title', {
-                        label: 'Coming Soon Collections',
-                        title: sourceItem.title,
-                        episodeRatingKey: episode.ratingKey,
-                      });
-                    } else {
-                      logger.warn(
-                        'No episodes found in Season 00 - cannot set placeholder title',
-                        {
-                          label: 'Coming Soon Collections',
-                          title: sourceItem.title,
-                          season00RatingKey: season00.ratingKey,
-                        }
-                      );
-                    }
-                  } else {
-                    logger.warn(
-                      'Season 00 not found - cannot set placeholder title',
-                      {
-                        label: 'Coming Soon Collections',
-                        title: sourceItem.title,
-                        availableSeasons: seasons.map((s) => s.index),
-                      }
-                    );
-                  }
-                } else {
-                  logger.warn(
-                    'No seasons found for show - cannot set placeholder title',
-                    {
-                      label: 'Coming Soon Collections',
-                      title: sourceItem.title,
-                      ratingKey,
-                    }
-                  );
-                }
-              } else if (sourceItem.mediaType === 'movie') {
-                // For movies: Add label to the movie item
-                await plexClient.addLabelToItem(
-                  ratingKey,
-                  'trailer-placeholder'
-                );
-                logger.debug('Added placeholder label to movie', {
-                  label: 'Coming Soon Collections',
-                  title: sourceItem.title,
-                  ratingKey,
-                });
-              }
-            } catch (metadataError) {
-              logger.warn('Failed to set placeholder metadata markers', {
-                label: 'Coming Soon Collections',
-                title: sourceItem.title,
-                mediaType: sourceItem.mediaType,
-                error:
-                  metadataError instanceof Error
-                    ? metadataError.message
-                    : String(metadataError),
-              });
-            }
-          }
-
-          // Save to database for cleanup tracking (if not already tracked)
-          // This handles both placeholders and regular items (like returning TV shows)
-          if (!dbItem) {
-            const newRecord = repository.create({
-              configId: config.id,
-              mediaType: sourceItem.mediaType,
-              tmdbId: sourceItem.tmdbId,
-              tvdbId: sourceItem.tvdbId,
-              title: sourceItem.title,
-              year: sourceItem.year,
-              releaseDate: sourceItem.releaseDate || sourceItem.airDate,
-              isEstimatedDate: sourceItem.isEstimatedDate || false,
-              seasonNumber: sourceItem.seasonNumber,
-              source: sourceItem.source,
-              // placeholderPath left undefined for regular items (not placeholder files)
-              plexRatingKey: ratingKey,
-            });
-
-            await repository.save(newRecord);
-
-            logger.debug(
-              'Saved regular Coming Soon item to database for cleanup tracking',
-              {
-                label: 'Coming Soon Collections',
-                title: sourceItem.title,
-                isReturning: sourceItem.isReturning,
-              }
-            );
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to apply overlay to existing placeholder', {
-          label: 'Coming Soon Collections',
-          title: sourceItem.title,
-          ratingKey,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    // Trigger library scan if we replaced any fallback placeholders with real trailers
-    if (needsLibraryScan) {
-      logger.info(
-        'Triggering library scan after replacing fallback placeholders',
-        {
-          label: 'Coming Soon Collections',
-          libraryId: config.libraryId,
-        }
-      );
-      try {
-        await plexClient.scanLibrary(config.libraryId);
-      } catch (error) {
-        logger.warn(
-          'Failed to trigger library scan after trailer replacements',
-          {
-            label: 'Coming Soon Collections',
-            libraryId: config.libraryId,
-            error: error instanceof Error ? error.message : String(error),
-          }
-        );
-      }
-    }
-  }
-
-  /**
    * Get released items that are within the configured post-release window (default: 7 days)
    * These are items that now have real files in Plex
    */
@@ -1142,9 +840,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
     sourceData: ComingSoonSourceData[],
     libraryCache: LibraryItemsCache | undefined
   ): Promise<CollectionItem[]> {
-    const { calculateDaysSince } = await import(
-      '@server/lib/comingsoon/categorization'
-    );
+    const { calculateDaysSince } = await import('@server/utils/dateHelpers');
     const releasedItems: CollectionItem[] = [];
 
     // Get released items from database
@@ -1161,7 +857,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
     }
 
     // Filter for items that are released and within configured window from RELEASE DATE
-    const releasedWindowDays = config.comingSoonReleasedDays || 7;
+    const releasedWindowDays =
+      config.placeholderReleasedDays || config.comingSoonReleasedDays || 7;
     const itemsWithinWindow = dbReleasedItems.filter((item) => {
       // Must have been marked as released (real file detected)
       if (!item.releasedAt) return false;
@@ -1260,125 +957,6 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
     }
 
     return releasedItems;
-  }
-
-  /**
-   * Apply overlays to released items (real files with "RELEASED X DAYS AGO" banners)
-   */
-  private async applyOverlaysToReleasedItems(
-    releasedItems: (CollectionItem & { releasedAt?: Date })[],
-    config: CollectionConfig,
-    plexClient: PlexAPI
-  ): Promise<void> {
-    const { generateOverlayPoster } = await import(
-      '@server/lib/comingsoon/overlayGenerator'
-    );
-    const { categorizeItem } = await import(
-      '@server/lib/comingsoon/categorization'
-    );
-    const TmdbAPI = (await import('@server/api/themoviedb')).default;
-    const tmdbClient = new TmdbAPI();
-    const overlayColor = config.comingSoonOverlayColor || '#C21807';
-
-    for (const item of releasedItems) {
-      try {
-        if (!item.releasedAt || !item.tmdbId) {
-          continue;
-        }
-
-        // Get source data for this item to determine monitored status
-        const repository = getRepository(ComingSoonItem);
-        const dbItem = await repository.findOne({
-          where: { tmdbId: item.tmdbId, configId: config.id },
-        });
-
-        if (!dbItem) {
-          continue;
-        }
-
-        // Create source data object for categorization
-        const sourceItem: ComingSoonSourceData = {
-          tmdbId: item.tmdbId,
-          tvdbId: dbItem.tvdbId,
-          title: item.title,
-          year: dbItem.year,
-          mediaType: item.type as 'movie' | 'tv',
-          source: dbItem.source,
-          monitored: dbItem.source !== 'trakt', // Items from radarr/sonarr are monitored
-          hasFile: true, // Released items have files
-          releaseDate: dbItem.releaseDate,
-        };
-
-        // Categorize the item with releasedAt
-        const category = categorizeItem(
-          sourceItem,
-          {
-            futureDays: 360,
-            recentDays: 7,
-            futureOnly: false,
-          },
-          item.releasedAt
-        );
-
-        if (!category) {
-          logger.warn('Could not categorize released item for overlay', {
-            label: 'Coming Soon Collections',
-            title: item.title,
-          });
-          continue;
-        }
-
-        // Get poster URL from TMDB
-        let posterUrl: string | undefined;
-        if (item.type === 'movie') {
-          const movieDetails = await tmdbClient.getMovie({
-            movieId: item.tmdbId,
-          });
-          posterUrl = movieDetails.poster_path
-            ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
-            : undefined;
-        } else {
-          const showDetails = await tmdbClient.getTvShow({ tvId: item.tmdbId });
-          posterUrl = showDetails.poster_path
-            ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
-            : undefined;
-        }
-
-        if (posterUrl) {
-          const overlayPosterBuffer = await generateOverlayPoster({
-            posterUrl,
-            category,
-            releaseDate: dbItem.releaseDate,
-            color: overlayColor,
-            dateFormat: 'd mmm',
-            capitalizeDates: true,
-            isEstimatedDate: dbItem.isEstimatedDate,
-            seasonNumber: dbItem.seasonNumber,
-          });
-
-          // Upload poster to Plex
-          const tempPosterPath = `/tmp/comingsoon-released-${item.tmdbId}.jpg`;
-          await fs.writeFile(tempPosterPath, overlayPosterBuffer);
-          await plexClient.uploadPosterFromFile(item.ratingKey, tempPosterPath);
-          await fs.unlink(tempPosterPath);
-
-          logger.info('Applied overlay poster to released item', {
-            label: 'Coming Soon Collections',
-            title: item.title,
-            category,
-            ratingKey: item.ratingKey,
-            releasedAt: item.releasedAt.toISOString(),
-          });
-        }
-      } catch (error) {
-        logger.error('Failed to apply overlay to released item', {
-          label: 'Coming Soon Collections',
-          title: item.title,
-          ratingKey: item.ratingKey,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
   }
 
   /**

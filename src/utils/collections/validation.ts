@@ -228,6 +228,29 @@ const autoRequestValidations = {
     ),
 };
 
+// Placeholder creation validation
+const placeholderValidations = {
+  createPlaceholdersForMissing: Yup.boolean(),
+
+  placeholderDaysAhead: Yup.number().when('createPlaceholdersForMissing', {
+    is: true,
+    then: (schema) =>
+      schema
+        .min(1, 'Days ahead must be at least 1')
+        .max(730, 'Days ahead cannot exceed 730 (2 years)'),
+    otherwise: (schema) => schema,
+  }),
+
+  placeholderReleasedDays: Yup.number().when('createPlaceholdersForMissing', {
+    is: true,
+    then: (schema) =>
+      schema
+        .min(0, 'Post-release window must be 0 or greater')
+        .max(90, 'Post-release window cannot exceed 90 days'),
+    otherwise: (schema) => schema,
+  }),
+};
+
 // Time restriction validation
 const timeRestrictionValidations = {
   timeRestriction: Yup.object().shape({
@@ -266,6 +289,7 @@ export const CollectionConfigSchema = Yup.object().shape({
   ...baseCollectionSchema,
   ...tautulliValidation,
   ...customUrlValidations,
+  ...placeholderValidations,
   ...autoRequestValidations,
   ...timeRestrictionValidations,
 });

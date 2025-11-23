@@ -26,6 +26,7 @@ import { isAuthenticated } from '@server/middleware/auth';
 // Discover settings routes removed - discovery functionality not needed in Agregarr
 import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
+import parser from 'cron-parser';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
@@ -930,15 +931,31 @@ settingsRoutes.get(
 
 settingsRoutes.get('/jobs', (_req, res) => {
   return res.status(200).json(
-    scheduledJobs.map((job) => ({
-      id: job.id,
-      name: job.name,
-      type: job.type,
-      interval: job.interval,
-      cronSchedule: job.cronSchedule,
-      nextExecutionTime: job.job.nextInvocation(),
-      running: job.running ? job.running() : false,
-    }))
+    scheduledJobs.map((job) => {
+      const nextExecution = job.job.nextInvocation();
+      let followingExecution: Date | null = null;
+
+      if (nextExecution && job.cronSchedule) {
+        try {
+          const interval = parser.parse(job.cronSchedule);
+          interval.next(); // First next (skip it, we already have nextExecution)
+          followingExecution = interval.next().toDate(); // Second next
+        } catch (error) {
+          // If cron parsing fails, followingExecution stays null
+        }
+      }
+
+      return {
+        id: job.id,
+        name: job.name,
+        type: job.type,
+        interval: job.interval,
+        cronSchedule: job.cronSchedule,
+        nextExecutionTime: nextExecution,
+        followingExecutionTime: followingExecution,
+        running: job.running ? job.running() : false,
+      };
+    })
   );
 });
 
@@ -951,13 +968,27 @@ settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
 
   scheduledJob.job.invoke();
 
+  const nextExecution = scheduledJob.job.nextInvocation();
+  let followingExecution: Date | null = null;
+
+  if (nextExecution && scheduledJob.cronSchedule) {
+    try {
+      const interval = parser.parse(scheduledJob.cronSchedule);
+      interval.next(); // First next (skip it, we already have nextExecution)
+      followingExecution = interval.next().toDate(); // Second next
+    } catch (error) {
+      // If cron parsing fails, followingExecution stays null
+    }
+  }
+
   return res.status(200).json({
     id: scheduledJob.id,
     name: scheduledJob.name,
     type: scheduledJob.type,
     interval: scheduledJob.interval,
     cronSchedule: scheduledJob.cronSchedule,
-    nextExecutionTime: scheduledJob.job.nextInvocation(),
+    nextExecutionTime: nextExecution,
+    followingExecutionTime: followingExecution,
     running: scheduledJob.running ? scheduledJob.running() : false,
   });
 });
@@ -977,13 +1008,27 @@ settingsRoutes.post<{ jobId: JobId }>(
       scheduledJob.cancelFn();
     }
 
+    const nextExecution = scheduledJob.job.nextInvocation();
+    let followingExecution: Date | null = null;
+
+    if (nextExecution && scheduledJob.cronSchedule) {
+      try {
+        const interval = parser.parse(scheduledJob.cronSchedule);
+        interval.next(); // First next (skip it, we already have nextExecution)
+        followingExecution = interval.next().toDate(); // Second next
+      } catch (error) {
+        // If cron parsing fails, followingExecution stays null
+      }
+    }
+
     return res.status(200).json({
       id: scheduledJob.id,
       name: scheduledJob.name,
       type: scheduledJob.type,
       interval: scheduledJob.interval,
       cronSchedule: scheduledJob.cronSchedule,
-      nextExecutionTime: scheduledJob.job.nextInvocation(),
+      nextExecutionTime: nextExecution,
+      followingExecutionTime: followingExecution,
       running: scheduledJob.running ? scheduledJob.running() : false,
     });
   }
@@ -1009,13 +1054,27 @@ settingsRoutes.post<{ jobId: JobId }>(
 
       scheduledJob.cronSchedule = req.body.schedule;
 
+      const nextExecution = scheduledJob.job.nextInvocation();
+      let followingExecution: Date | null = null;
+
+      if (nextExecution && scheduledJob.cronSchedule) {
+        try {
+          const interval = parser.parse(scheduledJob.cronSchedule);
+          interval.next(); // First next (skip it, we already have nextExecution)
+          followingExecution = interval.next().toDate(); // Second next
+        } catch (error) {
+          // If cron parsing fails, followingExecution stays null
+        }
+      }
+
       return res.status(200).json({
         id: scheduledJob.id,
         name: scheduledJob.name,
         type: scheduledJob.type,
         interval: scheduledJob.interval,
         cronSchedule: scheduledJob.cronSchedule,
-        nextExecutionTime: scheduledJob.job.nextInvocation(),
+        nextExecutionTime: nextExecution,
+        followingExecutionTime: followingExecution,
         running: scheduledJob.running ? scheduledJob.running() : false,
       });
     } else {

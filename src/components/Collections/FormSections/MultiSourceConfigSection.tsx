@@ -6,6 +6,7 @@ import type {
 } from '@app/types/collections';
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
 import type {
+  MainSettings,
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
@@ -379,6 +380,7 @@ const MultiSourceConfigSection = ({
   );
 
   // Fetch API settings for validation
+  const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -393,6 +395,12 @@ const MultiSourceConfigSection = ({
   );
   const { data: myanimelistSettings } = useSWR<MyAnimeListSettings>(
     '/api/v1/settings/myanimelist'
+  );
+  const { data: radarrSettings } = useSWR<RadarrSettings[]>(
+    '/api/v1/settings/radarr'
+  );
+  const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
+    '/api/v1/settings/sonarr'
   );
 
   // State for tracking validation status of each source (must be before early return)
@@ -852,6 +860,12 @@ const MultiSourceConfigSection = ({
             label: 'Trakt Anticipated',
             description: 'Most anticipated upcoming releases',
           },
+          {
+            value: 'tmdb_anticipated',
+            label: 'TMDB Coming Soon',
+            description:
+              'Upcoming releases from TMDB (movies: digital/physical, TV: new & returning shows)',
+          },
         ];
       default:
         return [];
@@ -960,15 +974,21 @@ const MultiSourceConfigSection = ({
               {values.sources?.[index]?.type &&
                 (() => {
                   const sourceType = values.sources[index].type;
+                  const sourceSubtype = values.sources[index].subtype;
                   const apiKeyValidation = validateApiKeysForCollectionType(
                     sourceType,
                     {
+                      main: mainSettings,
                       trakt: traktSettings,
                       mdblist: mdblistSettings,
                       tautulli: tautulliSettings,
                       overseerr: overseerrSettings,
                       myanimelist: myanimelistSettings,
-                    }
+                      radarr: radarrSettings,
+                      sonarr: sonarrSettings,
+                    },
+                    sourceSubtype,
+                    values.createPlaceholdersForMissing
                   );
                   return <ApiKeyWarning validation={apiKeyValidation} />;
                 })()}
@@ -1318,65 +1338,6 @@ const MultiSourceConfigSection = ({
                       );
                     }}
                   />
-                </div>
-              </div>
-            )}
-
-            {values.sources?.[index]?.type === 'comingsoon' && (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor={`source-comingsoon-days-${index}`}
-                    className="mb-2 block text-sm text-gray-300"
-                  >
-                    {intl.formatMessage(messages.comingSoonDays)}
-                  </label>
-                  <Field
-                    type="number"
-                    id={`source-comingsoon-days-${index}`}
-                    name={`sources[${index}].comingSoonDays`}
-                    placeholder="360"
-                    min="1"
-                    max="730"
-                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      setFieldValue(
-                        `sources[${index}].comingSoonDays`,
-                        parseInt(e.target.value) || undefined
-                      );
-                    }}
-                  />
-                  <p className="mt-1 text-xs text-gray-400">
-                    Number of days to look ahead for upcoming releases (default:
-                    360)
-                  </p>
-                </div>
-                <div>
-                  <label
-                    htmlFor={`source-comingsoon-released-days-${index}`}
-                    className="mb-2 block text-sm text-gray-300"
-                  >
-                    Released Items Window (Days)
-                  </label>
-                  <Field
-                    type="number"
-                    id={`source-comingsoon-released-days-${index}`}
-                    name={`sources[${index}].comingSoonReleasedDays`}
-                    placeholder="7"
-                    min="1"
-                    max="30"
-                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      setFieldValue(
-                        `sources[${index}].comingSoonReleasedDays`,
-                        parseInt(e.target.value) || undefined
-                      );
-                    }}
-                  />
-                  <p className="mt-1 text-xs text-gray-400">
-                    Days to keep released items with overlay before restoring
-                    original poster (default: 7)
-                  </p>
                 </div>
               </div>
             )}

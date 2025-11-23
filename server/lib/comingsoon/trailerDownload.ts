@@ -2,7 +2,7 @@ import logger from '@server/logger';
 import { spawn } from 'child_process';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import type { TrailerDownloadOptions } from './types';
+import type { TrailerDownloadOptions, VideoMetadata } from './types';
 
 // Polyfill Intl.ListFormat if not available (needed for @sindresorhus/is in ts-node/CommonJS context)
 // This must be done BEFORE any dynamic imports that might use it
@@ -36,6 +36,119 @@ async function getYoutubeSearch() {
     youtubeSearchModule = imported.default || imported;
   }
   return youtubeSearchModule;
+}
+
+/**
+ * Extract video metadata using yt-dlp before downloading
+ * This allows us to check duration and file size before committing to download
+ */
+async function extractVideoMetadata(videoUrl: string): Promise<VideoMetadata> {
+  return new Promise((resolve, reject) => {
+    logger.debug('Extracting video metadata with yt-dlp', {
+      label: 'Coming Soon Trailer',
+      videoUrl,
+    });
+
+    // Use yt-dlp to extract metadata without downloading
+    const ytdlp = spawn('yt-dlp', [
+      '--dump-json',
+      '-f',
+      'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]',
+      videoUrl,
+    ]);
+
+    let stdoutOutput = '';
+    let stderrOutput = '';
+
+    ytdlp.stdout.on('data', (data) => {
+      stdoutOutput += data.toString();
+    });
+
+    ytdlp.stderr.on('data', (data) => {
+      stderrOutput += data.toString();
+    });
+
+    ytdlp.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const metadata = JSON.parse(stdoutOutput) as VideoMetadata;
+          logger.debug('Successfully extracted video metadata', {
+            label: 'Coming Soon Trailer',
+            duration: metadata.duration,
+            filesize: metadata.filesize,
+            filesize_approx: metadata.filesize_approx,
+            title: metadata.title,
+          });
+          resolve(metadata);
+        } catch (parseError) {
+          reject(
+            new Error(
+              `Failed to parse yt-dlp metadata: ${
+                parseError instanceof Error
+                  ? parseError.message
+                  : String(parseError)
+              }`
+            )
+          );
+        }
+      } else {
+        logger.error('yt-dlp metadata extraction failed', {
+          label: 'Coming Soon Trailer',
+          code,
+          stdout: stdoutOutput,
+          stderr: stderrOutput,
+        });
+        reject(
+          new Error(
+            `yt-dlp metadata extraction exited with code ${code}: ${stderrOutput}`
+          )
+        );
+      }
+    });
+
+    ytdlp.on('error', (error) => {
+      logger.error('yt-dlp metadata extraction spawn error', {
+        label: 'Coming Soon Trailer',
+        error: error.message,
+      });
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Validate video metadata against configured limits
+ * Returns true if video passes validation, false otherwise
+ */
+function validateVideoMetadata(
+  metadata: VideoMetadata,
+  options: TrailerDownloadOptions
+): { valid: boolean; reason?: string } {
+  const maxDuration = options.maxDuration || 300; // Default: 5 minutes
+  const maxFileSize = options.maxFileSize || 314572800; // Default: 300 MB
+
+  // Check duration
+  if (metadata.duration > maxDuration) {
+    return {
+      valid: false,
+      reason: `Video duration (${Math.round(
+        metadata.duration
+      )}s) exceeds maximum (${maxDuration}s)`,
+    };
+  }
+
+  // Check file size (use filesize if available, otherwise filesize_approx)
+  const estimatedSize = metadata.filesize || metadata.filesize_approx;
+  if (estimatedSize && estimatedSize > maxFileSize) {
+    const sizeMB = Math.round(estimatedSize / 1024 / 1024);
+    const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
+    return {
+      valid: false,
+      reason: `Video file size (~${sizeMB}MB) exceeds maximum (${maxSizeMB}MB)`,
+    };
+  }
+
+  return { valid: true };
 }
 
 /**
@@ -183,10 +296,43 @@ async function searchAndDownloadTrailer(
       videoId,
     });
 
+    // Extract metadata before downloading to check duration and file size
+    let metadata: VideoMetadata;
+    try {
+      metadata = await extractVideoMetadata(videoUrl);
+    } catch (metadataError) {
+      logger.warn('Failed to extract video metadata, using fallback', {
+        label: 'Coming Soon Trailer',
+        title,
+        error:
+          metadataError instanceof Error
+            ? metadataError.message
+            : String(metadataError),
+      });
+      await copyPlaceholderVideo(outputPath);
+      return;
+    }
+
+    // Validate metadata against limits
+    const validation = validateVideoMetadata(metadata, options);
+    if (!validation.valid) {
+      logger.warn('Video failed validation, using fallback', {
+        label: 'Coming Soon Trailer',
+        title,
+        reason: validation.reason,
+        duration: metadata.duration,
+        filesize: metadata.filesize || metadata.filesize_approx,
+      });
+      await copyPlaceholderVideo(outputPath);
+      return;
+    }
+
     // Download trailer with yt-dlp (automatically handles 1080p video+audio and merging)
     logger.info('Downloading YouTube trailer in 1080p with yt-dlp', {
       label: 'Coming Soon Trailer',
       title,
+      duration: Math.round(metadata.duration),
+      estimatedSize: metadata.filesize || metadata.filesize_approx,
     });
 
     await downloadWithYtDlp(videoUrl, outputPath);
@@ -255,7 +401,8 @@ export async function downloadTrailer(
       title,
       year,
       outputPath,
-      maxDuration: 180, // 3 minutes max
+      maxDuration: 300, // 5 minutes max
+      maxFileSize: 314572800, // 300 MB max
     });
 
     return outputPath;

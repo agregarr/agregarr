@@ -15,7 +15,13 @@ interface ContentGridElementProps {
   onSelect: (node: Konva.Node) => void;
   onDragMove: (node: Konva.Node) => void;
   onDragEnd: (x: number, y: number) => void;
-  onTransformEnd: (x: number, y: number, width: number, height: number) => void;
+  onTransformEnd: (
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    rotation: number
+  ) => void;
 }
 
 export const ContentGridElement: React.FC<ContentGridElementProps> = ({
@@ -59,10 +65,13 @@ export const ContentGridElement: React.FC<ContentGridElementProps> = ({
     <Group
       ref={groupRef}
       id={element.id}
-      x={element.x}
-      y={element.y}
+      x={element.x + element.width / 2}
+      y={element.y + element.height / 2}
+      offsetX={element.width / 2}
+      offsetY={element.height / 2}
       width={element.width}
       height={element.height}
+      rotation={element.rotation || 0}
       draggable
       onClick={() => {
         if (groupRef.current) {
@@ -81,22 +90,27 @@ export const ContentGridElement: React.FC<ContentGridElementProps> = ({
       }}
       onDragEnd={(e: KonvaEventObject<DragEvent>) => {
         const node = e.target;
-        onDragEnd(node.x(), node.y());
+        onDragEnd(node.x() - element.width / 2, node.y() - element.height / 2);
       }}
       onTransformEnd={() => {
         const node = groupRef.current;
         if (node) {
           const scaleX = node.scaleX();
           const scaleY = node.scaleY();
+          const rotation = node.rotation();
+
+          const newWidth = Math.round(element.width * scaleX);
+          const newHeight = Math.round(element.height * scaleY);
 
           node.scaleX(1);
           node.scaleY(1);
 
           onTransformEnd(
-            node.x(),
-            node.y(),
-            Math.round(element.width * scaleX),
-            Math.round(element.height * scaleY)
+            node.x() - newWidth / 2,
+            node.y() - newHeight / 2,
+            newWidth,
+            newHeight,
+            rotation
           );
         }
       }}

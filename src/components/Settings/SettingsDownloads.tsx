@@ -3,6 +3,7 @@ import SonarrLogo from '@app/assets/services/sonarr.svg';
 import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
+import FolderBrowser from '@app/components/Common/FolderBrowser';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
@@ -11,9 +12,10 @@ import RadarrModal from '@app/components/Settings/RadarrModal';
 import SonarrModal from '@app/components/Settings/SonarrModal';
 import globalMessages from '@app/i18n/globalMessages';
 import { Transition } from '@headlessui/react';
-import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
+import { ArrowDownOnSquareIcon, FolderIcon } from '@heroicons/react/24/outline';
 import { PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
 import type {
+  MainSettings,
   OverseerrSettings,
   RadarrSettings,
   ServiceUserSettings,
@@ -87,6 +89,18 @@ const messages = defineMessages({
   toastServiceUserSettingsSuccess: 'Service user settings saved successfully!',
   toastServiceUserSettingsFailure:
     'Something went wrong while saving service user settings.',
+  placeholderSettings: 'Placeholder Root Folders',
+  placeholderSettingsDescription:
+    'Configure root folders for placeholder files. These paths should match the mounted Plex library paths inside the Agregarr container.',
+  placeholderMovieRootFolder: 'Movie Placeholder Root Folder',
+  placeholderTVRootFolder: 'TV Placeholder Root Folder',
+  placeholderMovieRootFolderTip:
+    'Path where movie placeholder files will be created',
+  placeholderTVRootFolderTip: 'Path where TV placeholder files will be created',
+  browse: 'Browse',
+  toastPlaceholderSettingsSuccess: 'Placeholder settings saved successfully!',
+  toastPlaceholderSettingsFailure:
+    'Something went wrong while saving placeholder settings.',
 });
 
 interface ServerInstanceProps {
@@ -225,6 +239,10 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const intl = useIntl();
   const { addToast } = useToasts();
   const [isTesting, setIsTesting] = useState(false);
+  const [folderBrowser, setFolderBrowser] = useState<{
+    isOpen: boolean;
+    type: 'movie' | 'tv' | null;
+  }>({ isOpen: false, type: null });
 
   const {
     data: radarrData,
@@ -236,6 +254,9 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
     error: sonarrError,
     mutate: revalidateSonarr,
   } = useSWR<SonarrSettings[]>('/api/v1/settings/sonarr');
+  const { data: dataMain, mutate: revalidateMain } = useSWR<MainSettings>(
+    '/api/v1/settings/main'
+  );
   const [editRadarrModal, setEditRadarrModal] = useState<{
     open: boolean;
     radarr: RadarrSettings | null;
@@ -843,6 +864,172 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
             </ul>
           </>
         )}
+      </div>
+
+      {/* Placeholder Root Folders Settings */}
+      <div className="section">
+        <div className="mb-6">
+          <h3 className="heading">
+            {intl.formatMessage(messages.placeholderSettings)}
+          </h3>
+          <p className="description">
+            {intl.formatMessage(messages.placeholderSettingsDescription)}
+          </p>
+        </div>
+        <Formik
+          initialValues={{
+            placeholderMovieRootFolder:
+              dataMain?.placeholderMovieRootFolder || '',
+            placeholderTVRootFolder: dataMain?.placeholderTVRootFolder || '',
+          }}
+          enableReinitialize
+          onSubmit={async (values) => {
+            try {
+              await axios.post('/api/v1/settings/main', {
+                placeholderMovieRootFolder: values.placeholderMovieRootFolder,
+                placeholderTVRootFolder: values.placeholderTVRootFolder,
+              });
+
+              addToast(
+                intl.formatMessage(messages.toastPlaceholderSettingsSuccess),
+                {
+                  appearance: 'success',
+                  autoDismiss: true,
+                }
+              );
+            } catch (e) {
+              addToast(
+                intl.formatMessage(messages.toastPlaceholderSettingsFailure),
+                {
+                  appearance: 'error',
+                  autoDismiss: true,
+                }
+              );
+            } finally {
+              revalidateMain();
+            }
+          }}
+        >
+          {({ values, handleSubmit, setFieldValue, isSubmitting }) => (
+            <form className="section" onSubmit={handleSubmit}>
+              {/* Folder Browser Modals */}
+              {folderBrowser.isOpen && folderBrowser.type === 'movie' && (
+                <FolderBrowser
+                  isOpen={true}
+                  onClose={() =>
+                    setFolderBrowser({ isOpen: false, type: null })
+                  }
+                  onSelect={(path) => {
+                    setFieldValue('placeholderMovieRootFolder', path);
+                  }}
+                  initialPath={values.placeholderMovieRootFolder || '/'}
+                  title={intl.formatMessage(
+                    messages.placeholderMovieRootFolder
+                  )}
+                />
+              )}
+              {folderBrowser.isOpen && folderBrowser.type === 'tv' && (
+                <FolderBrowser
+                  isOpen={true}
+                  onClose={() =>
+                    setFolderBrowser({ isOpen: false, type: null })
+                  }
+                  onSelect={(path) => {
+                    setFieldValue('placeholderTVRootFolder', path);
+                  }}
+                  initialPath={values.placeholderTVRootFolder || '/'}
+                  title={intl.formatMessage(messages.placeholderTVRootFolder)}
+                />
+              )}
+
+              {/* Movie Root Folder */}
+              <div className="form-row">
+                <label
+                  htmlFor="placeholderMovieRootFolder"
+                  className="text-label"
+                >
+                  {intl.formatMessage(messages.placeholderMovieRootFolder)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.placeholderMovieRootFolderTip)}
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <div className="flex space-x-2">
+                    <div className="form-input-field flex-1">
+                      <Field
+                        id="placeholderMovieRootFolder"
+                        name="placeholderMovieRootFolder"
+                        type="text"
+                        placeholder="/data/media/movies"
+                      />
+                    </div>
+                    <Button
+                      buttonType="default"
+                      type="button"
+                      onClick={() =>
+                        setFolderBrowser({ isOpen: true, type: 'movie' })
+                      }
+                    >
+                      <FolderIcon className="h-5 w-5" />
+                      <span>{intl.formatMessage(messages.browse)}</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* TV Root Folder */}
+              <div className="form-row">
+                <label htmlFor="placeholderTVRootFolder" className="text-label">
+                  {intl.formatMessage(messages.placeholderTVRootFolder)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.placeholderTVRootFolderTip)}
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <div className="flex space-x-2">
+                    <div className="form-input-field flex-1">
+                      <Field
+                        id="placeholderTVRootFolder"
+                        name="placeholderTVRootFolder"
+                        type="text"
+                        placeholder="/data/media/tv"
+                      />
+                    </div>
+                    <Button
+                      buttonType="default"
+                      type="button"
+                      onClick={() =>
+                        setFolderBrowser({ isOpen: true, type: 'tv' })
+                      }
+                    >
+                      <FolderIcon className="h-5 w-5" />
+                      <span>{intl.formatMessage(messages.browse)}</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={isSubmitting}
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(messages.saving)
+                          : intl.formatMessage(messages.save)}
+                      </span>
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            </form>
+          )}
+        </Formik>
       </div>
     </>
   );

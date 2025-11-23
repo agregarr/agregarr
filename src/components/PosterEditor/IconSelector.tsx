@@ -51,20 +51,20 @@ export const IconSelector: React.FC<IconSelectorProps> = ({
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       const dropdownWidth = 384; // w-96 = 384px
+      const dropdownHeight = 300; // Estimated dropdown height
 
-      // Calculate initial position
-      let left = rect.left + window.scrollX;
-      let top = rect.bottom + window.scrollY + 4;
+      // Calculate initial position (fixed positioning uses viewport coordinates)
+      let left = rect.left;
+      let top = rect.bottom + 4;
 
       // Adjust if dropdown would go off the right edge of viewport
       if (left + dropdownWidth > window.innerWidth) {
-        left = rect.right + window.scrollX - dropdownWidth; // Align right edge with button right edge
+        left = rect.right - dropdownWidth; // Align right edge with button right edge
       }
 
       // Adjust if dropdown would go off the bottom edge of viewport
-      if (top + 300 > window.innerHeight + window.scrollY) {
-        // 300px estimated dropdown height
-        top = rect.top + window.scrollY - 300 - 4; // Show above the button
+      if (top + dropdownHeight > window.innerHeight) {
+        top = rect.top - dropdownHeight - 4; // Show above the button
       }
 
       const position = {

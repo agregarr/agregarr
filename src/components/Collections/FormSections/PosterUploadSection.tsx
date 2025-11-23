@@ -25,9 +25,12 @@ const messages = defineMessages({
   posterUploadErrorType: 'Only JPEG, PNG, and WebP files are allowed',
   posterUploadErrorGeneric: 'Upload failed',
   posterUploadErrorNetwork: 'Network error occurred',
-  autoPoster: 'Auto-generate posters',
+  autoPoster: 'Auto-generate Collection posters',
   autoPosterHelp:
     'Automatically generate posters using the collection name during sync. Uncheck to manually upload custom posters instead.',
+  applyOverlaysDuringSync: 'Apply item overlays during sync',
+  applyOverlaysDuringSyncHelp:
+    'Apply overlays to collection items immediately after sync completes. Otherwise, overlays will be applied during the regular overlays sync job.',
   selectTemplate: 'Select Template',
   defaultTemplate: 'Default Template',
   templateHelp: 'Choose a template for auto-generated posters.',
@@ -388,6 +391,41 @@ const PosterUploadSection = ({
           </div>
         </>
       )}
+
+      {/* Apply overlays during sync - disabled and forced on for Coming Soon */}
+      <div className="mb-6">
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="applyOverlaysDuringSync"
+            checked={
+              values.type === 'comingsoon'
+                ? true
+                : values.applyOverlaysDuringSync ?? false
+            }
+            onChange={(e) =>
+              setFieldValue('applyOverlaysDuringSync', e.target.checked)
+            }
+            disabled={values.type === 'comingsoon'}
+            className={`form-checkbox ${
+              values.type === 'comingsoon'
+                ? 'cursor-not-allowed opacity-50'
+                : ''
+            }`}
+          />
+          <label
+            htmlFor="applyOverlaysDuringSync"
+            className={`ml-2 text-sm ${
+              values.type === 'comingsoon' ? 'text-gray-500' : 'text-gray-300'
+            }`}
+          >
+            {intl.formatMessage(messages.applyOverlaysDuringSync)}
+          </label>
+        </div>
+        <div className="label-tip">
+          {intl.formatMessage(messages.applyOverlaysDuringSyncHelp)}
+        </div>
+      </div>
     </>
   );
 };

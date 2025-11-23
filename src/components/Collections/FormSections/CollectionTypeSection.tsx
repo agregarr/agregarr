@@ -2,6 +2,7 @@ import type { CollectionFormConfig } from '@app/types/collections';
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
+  MainSettings,
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
@@ -58,6 +59,7 @@ const CollectionTypeSection = ({
   const intl = useIntl();
 
   // Fetch API settings for validation
+  const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -86,6 +88,7 @@ const CollectionTypeSection = ({
   const apiKeyValidation = validateApiKeysForCollectionType(
     values.type || '',
     {
+      main: mainSettings,
       trakt: traktSettings,
       mdblist: mdblistSettings,
       tautulli: tautulliSettings,
@@ -529,53 +532,6 @@ const CollectionTypeSection = ({
               max="100"
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
-          </div>
-        </div>
-      )}
-
-      {/* Coming Soon Configuration - appears when type='comingsoon' and subtype is selected */}
-      {values.type === 'comingsoon' && values.subtype && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label
-              htmlFor="comingSoonDays"
-              className="mb-2 block text-sm text-gray-300"
-            >
-              Days to Look Ahead
-            </label>
-            <Field
-              type="number"
-              id="comingSoonDays"
-              name="comingSoonDays"
-              placeholder="360"
-              min="1"
-              max="730"
-              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Number of days to look ahead for upcoming releases (default: 360)
-            </p>
-          </div>
-          <div>
-            <label
-              htmlFor="comingSoonReleasedDays"
-              className="mb-2 block text-sm text-gray-300"
-            >
-              Released Items Window (Days)
-            </label>
-            <Field
-              type="number"
-              id="comingSoonReleasedDays"
-              name="comingSoonReleasedDays"
-              placeholder="7"
-              min="1"
-              max="30"
-              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Days to keep released items with overlay before restoring original
-              poster (default: 7)
-            </p>
           </div>
         </div>
       )}

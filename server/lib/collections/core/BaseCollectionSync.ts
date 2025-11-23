@@ -290,6 +290,50 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
 
           created += result.created;
           updated += result.updated;
+
+          // Apply overlays if enabled for this collection
+          if (
+            effectiveConfig.applyOverlaysDuringSync &&
+            effectiveConfig.collectionRatingKey
+          ) {
+            try {
+              const { overlayLibraryService } = await import(
+                '@server/lib/overlays/OverlayLibraryService'
+              );
+
+              // Get item rating keys from this specific collection
+              const itemRatingKeys = await plexClient.getCollectionItems(
+                effectiveConfig.collectionRatingKey
+              );
+
+              if (itemRatingKeys && itemRatingKeys.length > 0) {
+                logger.info(
+                  'Applying overlays to collection items after sync',
+                  {
+                    label: `${this.source} Collections`,
+                    collectionName: effectiveConfig.name,
+                    itemCount: itemRatingKeys.length,
+                  }
+                );
+
+                // Apply overlays only to collection items
+                await overlayLibraryService.applyOverlaysToCollectionItems(
+                  itemRatingKeys,
+                  effectiveConfig.libraryId
+                );
+              }
+            } catch (overlayError) {
+              logger.error('Failed to apply overlays after sync', {
+                label: `${this.source} Collections`,
+                collectionName: effectiveConfig.name,
+                error:
+                  overlayError instanceof Error
+                    ? overlayError.message
+                    : String(overlayError),
+              });
+              // Don't fail the sync if overlay application fails
+            }
+          }
         } catch (error) {
           const syncError = this.createSyncError(
             CollectionSyncErrorType.COLLECTION_ERROR,

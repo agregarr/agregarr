@@ -126,11 +126,15 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.customDays !== undefined && {
           customDays: collectionConfig.customDays,
         }),
-        ...(collectionConfig.comingSoonDays !== undefined && {
-          comingSoonDays: collectionConfig.comingSoonDays,
+        ...(collectionConfig.createPlaceholdersForMissing !== undefined && {
+          createPlaceholdersForMissing:
+            collectionConfig.createPlaceholdersForMissing,
         }),
-        ...(collectionConfig.comingSoonReleasedDays !== undefined && {
-          comingSoonReleasedDays: collectionConfig.comingSoonReleasedDays,
+        ...(collectionConfig.placeholderDaysAhead !== undefined && {
+          placeholderDaysAhead: collectionConfig.placeholderDaysAhead,
+        }),
+        ...(collectionConfig.placeholderReleasedDays !== undefined && {
+          placeholderReleasedDays: collectionConfig.placeholderReleasedDays,
         }),
         ...(collectionConfig.tautulliStatType && {
           tautulliStatType: collectionConfig.tautulliStatType,
@@ -239,6 +243,9 @@ export const saveIndividualConfigs = async (
         autoPoster: collectionConfig.autoPoster ?? true,
         ...(collectionConfig.autoPosterTemplate !== undefined && {
           autoPosterTemplate: collectionConfig.autoPosterTemplate,
+        }),
+        ...(collectionConfig.applyOverlaysDuringSync !== undefined && {
+          applyOverlaysDuringSync: collectionConfig.applyOverlaysDuringSync,
         }),
         ...(collectionConfig.showUnwatchedOnly !== undefined && {
           showUnwatchedOnly: collectionConfig.showUnwatchedOnly,

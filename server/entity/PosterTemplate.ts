@@ -17,6 +17,7 @@ export interface LayeredElement {
   y: number;
   width: number;
   height: number;
+  rotation?: number; // Rotation in degrees (0-360)
 
   // Type-specific properties (discriminated union)
   properties:

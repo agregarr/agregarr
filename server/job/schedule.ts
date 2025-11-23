@@ -1,6 +1,7 @@
 // Availability sync import removed - not needed for collections-only app
 import collectionsSync from '@server/lib/collectionsSync';
 // ImageProxy removed - not needed for collections-only app
+import overlayApplication from '@server/lib/overlayApplication';
 import randomizeHomeOrder from '@server/lib/randomizeHomeOrder';
 import refreshToken from '@server/lib/refreshToken';
 // Scanner imports removed - not needed for collections-only app
@@ -84,6 +85,22 @@ export const startJobs = (): void => {
     ),
     running: () => randomizeHomeOrder.status.running,
     cancelFn: () => randomizeHomeOrder.cancel(),
+  });
+
+  scheduledJobs.push({
+    id: 'overlay-application',
+    name: 'Overlay Application',
+    type: 'process',
+    interval: 'hours',
+    cronSchedule: jobs['overlay-application'].schedule,
+    job: schedule.scheduleJob(jobs['overlay-application'].schedule, () => {
+      logger.info('Starting scheduled job: Overlay Application', {
+        label: 'Jobs',
+      });
+      overlayApplication.run();
+    }),
+    running: () => overlayApplication.status.running,
+    cancelFn: () => overlayApplication.cancel(),
   });
 
   scheduledJobs.push({

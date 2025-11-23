@@ -1,4 +1,5 @@
 import type {
+  MainSettings,
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
@@ -27,6 +28,7 @@ export interface ApiKeyValidationResult {
 export function validateApiKeysForCollectionType(
   collectionType: string,
   settings: {
+    main?: MainSettings;
     trakt?: TraktSettings;
     mdblist?: MDBListSettings;
     tautulli?: TautulliSettings;
@@ -104,28 +106,29 @@ export function validateApiKeysForCollectionType(
           configured: !!settings.trakt?.apiKey,
           settingsPath: '/settings/sources',
         });
-      }
+      } else if (subtype === 'monitored') {
+        // Only 'monitored' subtype requires Radarr/Sonarr (gets data from them)
+        const hasRadarr = !!(settings.radarr && settings.radarr.length > 0);
+        const hasSonarr = !!(settings.sonarr && settings.sonarr.length > 0);
 
-      // All Coming Soon subtypes require BOTH Radarr AND Sonarr
-      const hasRadarr = !!(settings.radarr && settings.radarr.length > 0);
-      const hasSonarr = !!(settings.sonarr && settings.sonarr.length > 0);
-
-      if (!hasRadarr) {
-        requirements.push({
-          service: 'Radarr',
-          required: true,
-          configured: false,
-          settingsPath: '/settings/services',
-        });
+        if (!hasRadarr) {
+          requirements.push({
+            service: 'Radarr',
+            required: true,
+            configured: false,
+            settingsPath: '/settings/downloads',
+          });
+        }
+        if (!hasSonarr) {
+          requirements.push({
+            service: 'Sonarr',
+            required: true,
+            configured: false,
+            settingsPath: '/settings/downloads',
+          });
+        }
       }
-      if (!hasSonarr) {
-        requirements.push({
-          service: 'Sonarr',
-          required: true,
-          configured: false,
-          settingsPath: '/settings/services',
-        });
-      }
+      // tmdb_anticipated doesn't require any API keys (TMDB is free)
       break;
     }
 
@@ -135,7 +138,7 @@ export function validateApiKeysForCollectionType(
         service: 'Radarr',
         required: true,
         configured: !!(settings.radarr && settings.radarr.length > 0),
-        settingsPath: '/settings/services',
+        settingsPath: '/settings/downloads',
       });
       break;
 
@@ -145,7 +148,7 @@ export function validateApiKeysForCollectionType(
         service: 'Sonarr',
         required: true,
         configured: !!(settings.sonarr && settings.sonarr.length > 0),
-        settingsPath: '/settings/services',
+        settingsPath: '/settings/downloads',
       });
       break;
 
@@ -162,25 +165,25 @@ export function validateApiKeysForCollectionType(
       break;
   }
 
-  // Check if placeholder creation is enabled and requires BOTH Radarr AND Sonarr
+  // Check if placeholder creation is enabled and requires root folders configured
   if (createPlaceholdersForMissing) {
-    const hasRadarr = !!(settings.radarr && settings.radarr.length > 0);
-    const hasSonarr = !!(settings.sonarr && settings.sonarr.length > 0);
+    const hasMovieRootFolder = !!settings.main?.placeholderMovieRootFolder;
+    const hasTVRootFolder = !!settings.main?.placeholderTVRootFolder;
 
-    if (!hasRadarr) {
+    if (!hasMovieRootFolder) {
       requirements.push({
-        service: 'Radarr',
+        service: 'Movie Placeholder Root Folder',
         required: true,
         configured: false,
-        settingsPath: '/settings/services',
+        settingsPath: '/settings/downloads',
       });
     }
-    if (!hasSonarr) {
+    if (!hasTVRootFolder) {
       requirements.push({
-        service: 'Sonarr',
+        service: 'TV Placeholder Root Folder',
         required: true,
         configured: false,
-        settingsPath: '/settings/services',
+        settingsPath: '/settings/downloads',
       });
     }
   }

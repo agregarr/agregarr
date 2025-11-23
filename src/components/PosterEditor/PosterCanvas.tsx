@@ -22,6 +22,116 @@ import { SVGElement } from './SVGElement';
 import { TextElement } from './TextElement';
 import { SnapLines, useSnapToGuides } from './useSnapToGuides';
 
+// Base element interface for shared canvas handlers
+interface BaseElement {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  layerOrder: number;
+}
+
+// Shared canvas handler hook - used by both PosterCanvas and OverlayCanvas
+export function useCanvasHandlers<T extends BaseElement>(
+  elements: T[],
+  updateElements: (elements: T[]) => void,
+  snapToGuides: boolean,
+  calculateSnap: ReturnType<typeof useSnapToGuides>['calculateSnap'],
+  updateSnapLines: ReturnType<typeof useSnapToGuides>['updateSnapLines'],
+  clearSnapLines: ReturnType<typeof useSnapToGuides>['clearSnapLines'],
+  onElementSelect?: (elementId: string | undefined) => void
+) {
+  const [selectedShapeRef, setSelectedShapeRef] = useState<Konva.Node | null>(
+    null
+  );
+
+  // Handle element selection
+  const handleSelect = useCallback(
+    (elementId: string, shapeNode: Konva.Node) => {
+      setSelectedShapeRef(shapeNode);
+      if (onElementSelect) {
+        onElementSelect(elementId);
+      }
+    },
+    [onElementSelect]
+  );
+
+  // Handle element drag move (for snapping)
+  const handleDragMove = useCallback(
+    (node: Konva.Node) => {
+      if (!snapToGuides) return;
+
+      const stage = node.getStage();
+      if (!stage) return;
+
+      const allNodes = stage
+        .find('Group')
+        .filter((n: Konva.Node) => n !== node && n.id());
+      const snapResult = calculateSnap(node, allNodes);
+
+      // Apply snap position
+      node.position({
+        x: snapResult.x,
+        y: snapResult.y,
+      });
+
+      // Update snap lines
+      updateSnapLines(snapResult.snapLines);
+    },
+    [snapToGuides, calculateSnap, updateSnapLines]
+  );
+
+  // Handle element drag end
+  const handleDragEnd = useCallback(
+    (elementId: string, x: number, y: number) => {
+      const updatedElements = elements.map((el) =>
+        el.id === elementId ? { ...el, x, y } : el
+      );
+      updateElements(updatedElements);
+      clearSnapLines();
+    },
+    [elements, updateElements, clearSnapLines]
+  );
+
+  // Handle element transform end
+  const handleTransformEnd = useCallback(
+    (
+      elementId: string,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      rotation: number
+    ) => {
+      const updatedElements = elements.map((el) =>
+        el.id === elementId ? { ...el, x, y, width, height, rotation } : el
+      );
+      updateElements(updatedElements);
+    },
+    [elements, updateElements]
+  );
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelectedShapeRef(null);
+    if (onElementSelect) {
+      onElementSelect(undefined);
+    }
+  }, [onElementSelect]);
+
+  return {
+    selectedShapeRef,
+    setSelectedShapeRef,
+    handleSelect,
+    handleDragMove,
+    handleDragEnd,
+    handleTransformEnd,
+    clearSelection,
+  };
+}
+
 export interface PosterCanvasRef {
   exportAsImage: () => Promise<string>;
 }
@@ -70,13 +180,36 @@ export const PosterCanvas = forwardRef<PosterCanvasRef, PosterCanvasProps>(
   ) {
     const stageRef = useRef<Konva.Stage>(null);
     const transformerRef = useRef<Konva.Transformer>(null);
-    const [selectedShapeRef, setSelectedShapeRef] = useState<Konva.Node | null>(
-      null
-    );
+    const [showTransformer, setShowTransformer] = useState(true);
 
     // Snap-to-guides functionality
     const { snapLines, calculateSnap, clearSnapLines, updateSnapLines } =
       useSnapToGuides(posterData.width, posterData.height, snapToGuides);
+
+    // Helper to update elements
+    const updateElements = useCallback(
+      (newElements: LayeredElement[]) => {
+        onChange({ ...posterData, elements: newElements });
+      },
+      [posterData, onChange]
+    );
+
+    // Use shared canvas handlers
+    const {
+      selectedShapeRef,
+      handleSelect,
+      handleDragMove,
+      handleDragEnd,
+      handleTransformEnd,
+    } = useCanvasHandlers(
+      posterData.elements,
+      updateElements,
+      snapToGuides,
+      calculateSnap,
+      updateSnapLines,
+      clearSnapLines,
+      onElementSelect
+    );
 
     // Scale to fit container while maintaining aspect ratio
     const containerWidth = 500;
@@ -95,74 +228,6 @@ export const PosterCanvas = forwardRef<PosterCanvasRef, PosterCanvasProps>(
     // Sort elements by layer order for rendering
     const sortedElements = [...posterData.elements].sort(
       (a, b) => a.layerOrder - b.layerOrder
-    );
-
-    // Handle element selection
-    const handleSelect = useCallback(
-      (elementId: string, shapeNode: Konva.Node) => {
-        setSelectedShapeRef(shapeNode);
-        // Notify parent of selection change
-        if (onElementSelect) {
-          onElementSelect(elementId);
-        }
-      },
-      [onElementSelect]
-    );
-
-    // Handle element drag move (for snapping)
-    const handleDragMove = useCallback(
-      (node: Konva.Node) => {
-        if (!snapToGuides) return;
-
-        const stage = node.getStage();
-        if (!stage) return;
-
-        const allNodes = stage
-          .find('Group')
-          .filter((n: Konva.Node) => n !== node && n.id());
-        const snapResult = calculateSnap(node, allNodes);
-
-        // Apply snap position
-        node.position({
-          x: snapResult.x,
-          y: snapResult.y,
-        });
-
-        // Update snap lines
-        updateSnapLines(snapResult.snapLines);
-      },
-      [snapToGuides, calculateSnap, updateSnapLines]
-    );
-
-    // Handle element drag end
-    const handleDragEnd = useCallback(
-      (elementId: string, x: number, y: number) => {
-        const updatedElements = posterData.elements.map((el) =>
-          el.id === elementId ? { ...el, x, y } : el
-        );
-        onChange({ ...posterData, elements: updatedElements });
-
-        // Clear snap lines
-        clearSnapLines();
-      },
-      [posterData, onChange, clearSnapLines]
-    );
-
-    // Handle element transform end
-    const handleTransformEnd = useCallback(
-      (
-        elementId: string,
-        x: number,
-        y: number,
-        width: number,
-        height: number
-      ) => {
-        const updatedElements = posterData.elements.map((el) =>
-          el.id === elementId ? { ...el, x, y, width, height } : el
-        );
-        onChange({ ...posterData, elements: updatedElements });
-      },
-      [posterData, onChange]
     );
 
     // Update transformer when selection changes
@@ -210,11 +275,19 @@ export const PosterCanvas = forwardRef<PosterCanvasRef, PosterCanvasProps>(
         element,
         previewCollectionConfig,
         isSelected,
-        onSelect: (node: Konva.Node) => handleSelect(element.id, node),
+        onSelect: (node: Konva.Node) => {
+          handleSelect(element.id, node);
+          setShowTransformer(true); // Show transformer when element is clicked
+        },
         onDragMove: handleDragMove,
         onDragEnd: (x: number, y: number) => handleDragEnd(element.id, x, y),
-        onTransformEnd: (x: number, y: number, width: number, height: number) =>
-          handleTransformEnd(element.id, x, y, width, height),
+        onTransformEnd: (
+          x: number,
+          y: number,
+          width: number,
+          height: number,
+          rotation: number
+        ) => handleTransformEnd(element.id, x, y, width, height, rotation),
       };
 
       switch (element.type) {
@@ -247,12 +320,10 @@ export const PosterCanvas = forwardRef<PosterCanvasRef, PosterCanvasProps>(
             scaleX={scale}
             scaleY={scale}
             onClick={(e: KonvaEventObject<MouseEvent>) => {
-              // Deselect when clicking on empty area
-              if (e.target === e.target.getStage()) {
-                setSelectedShapeRef(null);
-                if (onElementSelect) {
-                  onElementSelect(undefined);
-                }
+              // Hide transformer when clicking on empty area
+              const clickedOnStage = e.target === e.currentTarget;
+              if (clickedOnStage) {
+                setShowTransformer(false);
               }
             }}
           >
@@ -276,16 +347,18 @@ export const PosterCanvas = forwardRef<PosterCanvasRef, PosterCanvasProps>(
               />
 
               {/* Transformer for selected element */}
-              <Transformer
-                ref={transformerRef}
-                boundBoxFunc={(oldBox: Box, newBox: Box) => {
-                  // Prevent element from being resized too small
-                  if (newBox.width < 10 || newBox.height < 10) {
-                    return oldBox;
-                  }
-                  return newBox;
-                }}
-              />
+              {showTransformer && (
+                <Transformer
+                  ref={transformerRef}
+                  boundBoxFunc={(oldBox: Box, newBox: Box) => {
+                    // Prevent element from being resized too small
+                    if (newBox.width < 10 || newBox.height < 10) {
+                      return oldBox;
+                    }
+                    return newBox;
+                  }}
+                />
+              )}
             </Layer>
           </Stage>
         </div>

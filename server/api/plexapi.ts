@@ -24,6 +24,11 @@ export interface PlexLibraryItem {
   grandparentGuid?: string;
   addedAt: number;
   updatedAt: number;
+  lastViewedAt?: number;
+  viewCount?: number;
+  year?: number;
+  index?: number;
+  parentIndex?: number;
   Guid?: {
     id: string;
   }[];
@@ -70,7 +75,43 @@ export interface PlexMetadata {
   viewedLeafCount: number;
   addedAt: number;
   updatedAt: number;
+  lastViewedAt?: number;
+  viewCount?: number;
   Media: Media[];
+}
+
+interface PlexStream {
+  id: number;
+  streamType: number; // 1=video, 2=audio, 3=subtitle
+  codec: string;
+
+  // Video stream fields
+  DOVIPresent?: boolean;
+  height?: number;
+  width?: number;
+  colorPrimaries?: string;
+  colorSpace?: string;
+  colorTrc?: string;
+  bitDepth?: number;
+  chromaSubsampling?: string;
+
+  // Audio stream fields
+  channels?: number;
+  audioChannelLayout?: string;
+  displayTitle?: string;
+  language?: string;
+  languageCode?: string;
+
+  // Subtitle stream fields
+  format?: string;
+  forced?: boolean;
+}
+
+interface PlexPart {
+  id: number;
+  file: string;
+  size: number;
+  Stream?: PlexStream[];
 }
 
 interface Media {
@@ -87,6 +128,7 @@ interface Media {
   container: string;
   videoFrameRate: string;
   videoProfile: string;
+  Part?: PlexPart[];
 }
 
 interface PlexMetadataResponse {
@@ -1297,6 +1339,78 @@ class PlexAPI {
     }
   }
 
+  /**
+   * Remove a label from an individual item (movie, show, episode)
+   */
+  public async removeLabelFromItem(
+    ratingKey: string,
+    label: string
+  ): Promise<void> {
+    try {
+      // Get current item metadata to check existing labels
+      const metadata = await this.getMetadata(ratingKey);
+
+      // Get existing labels
+      const existingLabels: string[] = [];
+      if (metadata && 'Label' in metadata) {
+        const labels = metadata.Label as { tag: string }[] | undefined;
+        if (labels && Array.isArray(labels)) {
+          existingLabels.push(...labels.map((l) => l.tag));
+        }
+      }
+
+      // Check if label exists (case-insensitive)
+      const labelIndex = existingLabels.findIndex(
+        (existingLabel) => existingLabel.toLowerCase() === label.toLowerCase()
+      );
+
+      if (labelIndex === -1) {
+        logger.debug('Label does not exist on item, nothing to remove', {
+          label: 'Plex API',
+          ratingKey,
+          labelTag: label,
+        });
+        return;
+      }
+
+      // Remove the label from the array
+      const updatedLabels = existingLabels.filter(
+        (_, index) => index !== labelIndex
+      );
+
+      // Build params with remaining labels
+      const params: Record<string, string> = {};
+      updatedLabels.forEach((labelTag, index) => {
+        params[`label[${index}].tag.tag`] = labelTag;
+      });
+
+      // If no labels remain, we still need to send the request to clear all labels
+      const queryString =
+        updatedLabels.length > 0
+          ? Object.entries(params)
+              .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+              .join('&')
+          : 'label[0].tag.tag-=';
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+
+      await this.safePutQuery(editUrl);
+
+      logger.debug('Removed label from item', {
+        label: 'Plex API',
+        ratingKey,
+        labelTag: label,
+        remainingLabels: updatedLabels,
+      });
+    } catch (error) {
+      logger.error(`Error removing label from item ${ratingKey}`, {
+        label: 'Plex API',
+        error,
+      });
+      throw error;
+    }
+  }
+
   public async updateCollectionSortTitle(
     collectionRatingKey: string,
     sortTitle: string
@@ -1777,9 +1891,9 @@ class PlexAPI {
       );
     }
 
-    const itemLibraries = [
-      ...new Set(itemTypes.map((item) => item.librarySectionID)),
-    ];
+    const itemLibraries = Array.from(
+      new Set(itemTypes.map((item) => item.librarySectionID))
+    );
     const libraryMismatch =
       itemLibraries.length > 0 &&
       collectionLibrary !== 'unknown' &&

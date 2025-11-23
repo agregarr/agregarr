@@ -167,17 +167,22 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
     // Define custom label for this collection
     const customLabel = `Agregarr-recently_added-${config.id}`;
 
+    // Filter collections to only those in the target library
+    const libraryCollections = allCollections.filter(
+      (col) => col.libraryKey === config.libraryId
+    );
+
     // First try using stored collectionRatingKey from config
     let existingCollection: PlexCollection | undefined;
     if (config.collectionRatingKey) {
-      existingCollection = allCollections.find(
+      existingCollection = libraryCollections.find(
         (col) => col.ratingKey === config.collectionRatingKey
       );
     }
 
     // Fallback: search by label if ratingKey not found or not in config
     if (!existingCollection) {
-      existingCollection = allCollections.find((col) =>
+      existingCollection = libraryCollections.find((col) =>
         col.labels?.some(
           (label) =>
             (typeof label === 'string' && label === customLabel) ||
