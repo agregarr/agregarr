@@ -139,7 +139,8 @@ const CollectionFormConfigForm = ({
         !!type &&
         type !== 'multi-source' &&
         type !== 'radarrtag' &&
-        type !== 'sonarrtag', // Only required if not a hub, pre-existing, multi-source, or tag-based
+        type !== 'sonarrtag' &&
+        type !== 'recently_added', // Only required if not a hub, pre-existing, multi-source, tag-based, or recently_added
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema.notRequired(),
     }),
@@ -850,6 +851,17 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).comingSoonDays || 360,
           comingSoonReleasedDays:
             (config as CollectionFormConfig).comingSoonReleasedDays || 7,
+          // Placeholder settings
+          createPlaceholdersForMissing:
+            (config as CollectionFormConfig).createPlaceholdersForMissing ??
+            false,
+          placeholderOverlayColor:
+            (config as CollectionFormConfig).placeholderOverlayColor ||
+            '#C21807',
+          placeholderReleasedDays:
+            (config as CollectionFormConfig).placeholderReleasedDays || 7,
+          placeholderDaysAhead:
+            (config as CollectionFormConfig).placeholderDaysAhead || 360,
           // Download mode settings
           enableGrabMissingItems:
             ((config as CollectionFormConfig).searchMissingMovies ||
@@ -1092,6 +1104,22 @@ const CollectionFormConfigForm = ({
               : undefined,
             comingSoonReleasedDays: values.comingSoonReleasedDays
               ? parseInt(values.comingSoonReleasedDays.toString(), 10)
+              : undefined,
+            // Placeholder settings
+            createPlaceholdersForMissing:
+              values.createPlaceholdersForMissing ?? false,
+            placeholderOverlayColor: values.createPlaceholdersForMissing
+              ? values.placeholderOverlayColor || '#C21807'
+              : undefined,
+            placeholderReleasedDays: values.createPlaceholdersForMissing
+              ? values.placeholderReleasedDays
+                ? parseInt(values.placeholderReleasedDays.toString(), 10)
+                : 7
+              : undefined,
+            placeholderDaysAhead: values.createPlaceholdersForMissing
+              ? values.placeholderDaysAhead
+                ? parseInt(values.placeholderDaysAhead.toString(), 10)
+                : 360
               : undefined,
             minimumPlays: values.minimumPlays
               ? parseInt(values.minimumPlays.toString(), 10)
@@ -1490,6 +1518,8 @@ const CollectionFormConfigForm = ({
                                 ? hasSelectedRadarrTag
                                 : values.type === 'sonarrtag'
                                 ? hasSelectedSonarrTag
+                                : values.type === 'recently_added'
+                                ? true // recently_added doesn't require a subtype
                                 : values.subtype) && // Radarr/Sonarr tag collections require a tag instead of subtype
                               // For Trakt time-period subtypes, also require timePeriod to be selected
                               (values.type !== 'trakt' ||
@@ -1569,6 +1599,8 @@ const CollectionFormConfigForm = ({
                           ? hasSelectedRadarrTag
                           : values.type === 'sonarrtag'
                           ? hasSelectedSonarrTag
+                          : values.type === 'recently_added'
+                          ? true // recently_added doesn't require a subtype
                           : values.subtype) &&
                         (values.libraryIds?.length > 0 || values.libraryId) &&
                         (values.type !== 'tautulli' || values.customDays) &&
@@ -1612,6 +1644,7 @@ const CollectionFormConfigForm = ({
                                     isCollection &&
                                       values.type &&
                                       (values.type === 'multi-source' ||
+                                        values.type === 'recently_added' ||
                                         (values.type === 'radarrtag'
                                           ? hasSelectedRadarrTag
                                           : values.type === 'sonarrtag'
@@ -1626,10 +1659,7 @@ const CollectionFormConfigForm = ({
 
                             {/* Item Order - available for all collection types except multi-source and recently_added */}
                             {values.type !== 'multi-source' &&
-                              !(
-                                values.type === 'comingsoon' &&
-                                values.subtype === 'recently_added'
-                              ) && (
+                              values.type !== 'recently_added' && (
                                 <div className="form-row">
                                   <label
                                     htmlFor="itemOrder"
@@ -1751,10 +1781,7 @@ const CollectionFormConfigForm = ({
                             </div>
 
                             {/* Max Items - not applicable for recently_added */}
-                            {!(
-                              values.type === 'comingsoon' &&
-                              values.subtype === 'recently_added'
-                            ) && (
+                            {values.type !== 'recently_added' && (
                               <div className="form-row">
                                 <label
                                   htmlFor="collectionMaxItems"
@@ -1785,10 +1812,7 @@ const CollectionFormConfigForm = ({
                             )}
 
                             {/* Smart Collection - Show Unwatched Only - not applicable for recently_added (it IS a smart collection) */}
-                            {!(
-                              values.type === 'comingsoon' &&
-                              values.subtype === 'recently_added'
-                            ) && (
+                            {values.type !== 'recently_added' && (
                               <div className="form-row">
                                 <label className="text-label">
                                   {intl.formatMessage(
@@ -1932,14 +1956,111 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Auto-Request Settings - only show for external sources (not overseerr, tautulli, or comingsoon recently_added) */}
+                            {/* Placeholder Creation - show for external sources that can have missing items */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
-                              !(
-                                typedValues.type === 'comingsoon' &&
-                                typedValues.subtype === 'recently_added'
-                              ) && (
+                              typedValues.type !== 'recently_added' && (
+                                <div className="form-row">
+                                  <label
+                                    htmlFor="createPlaceholdersForMissing"
+                                    className="text-label"
+                                  >
+                                    Placeholder Creation
+                                  </label>
+                                  <div className="form-input-area">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="createPlaceholdersForMissing"
+                                        name="createPlaceholdersForMissing"
+                                        className="form-checkbox"
+                                      />
+                                      <span className="ml-2 text-sm text-gray-300">
+                                        Create placeholders for missing items
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-400">
+                                      Creates placeholder files in Plex for
+                                      items not yet available, with countdown
+                                      overlays showing release dates. Requires
+                                      Radarr/Sonarr.
+                                    </p>
+
+                                    {/* Placeholder options - show when enabled */}
+                                    {typedValues.createPlaceholdersForMissing && (
+                                      <div className="mt-4 space-y-4 rounded-lg bg-stone-800 p-4">
+                                        <div>
+                                          <label
+                                            htmlFor="placeholderOverlayColor"
+                                            className="block text-sm font-medium text-gray-300"
+                                          >
+                                            Overlay Color
+                                          </label>
+                                          <Field
+                                            type="color"
+                                            id="placeholderOverlayColor"
+                                            name="placeholderOverlayColor"
+                                            className="mt-1 h-10 w-20 cursor-pointer rounded border border-stone-500 bg-stone-700"
+                                          />
+                                          <p className="mt-1 text-xs text-gray-400">
+                                            Background color for the release
+                                            date overlay (default: red)
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <label
+                                            htmlFor="placeholderDaysAhead"
+                                            className="block text-sm font-medium text-gray-300"
+                                          >
+                                            Days Ahead
+                                          </label>
+                                          <Field
+                                            type="number"
+                                            id="placeholderDaysAhead"
+                                            name="placeholderDaysAhead"
+                                            min="1"
+                                            max="730"
+                                            placeholder="360"
+                                            className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
+                                          />
+                                          <p className="mt-1 text-xs text-gray-400">
+                                            Only create placeholders for items
+                                            releasing within this many days
+                                          </p>
+                                        </div>
+                                        <div>
+                                          <label
+                                            htmlFor="placeholderReleasedDays"
+                                            className="block text-sm font-medium text-gray-300"
+                                          >
+                                            Post-Release Window
+                                          </label>
+                                          <Field
+                                            type="number"
+                                            id="placeholderReleasedDays"
+                                            name="placeholderReleasedDays"
+                                            min="0"
+                                            max="30"
+                                            placeholder="7"
+                                            className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
+                                          />
+                                          <p className="mt-1 text-xs text-gray-400">
+                                            Days to keep released items with
+                                            overlay before cleanup
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Auto-Request Settings - only show for external sources (not overseerr, tautulli, or recently_added) */}
+                            {typedValues.type &&
+                              typedValues.type !== 'overseerr' &&
+                              typedValues.type !== 'tautulli' &&
+                              typedValues.type !== 'recently_added' && (
                                 <div className="form-row">
                                   <label className="text-label">
                                     {intl.formatMessage(

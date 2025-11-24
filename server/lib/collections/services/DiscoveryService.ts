@@ -922,7 +922,7 @@ export class DiscoveryService {
                 this.isAgregarrManagedCollection(collectionWithLabels)
               ) {
                 // Skip smart collections - they are managed separately and shouldn't be deleted here
-                // EXCEPT for Coming Soon recently_added subtype - that IS a smart collection and should be subject to cleanup
+                // EXCEPT for recently_added type - that IS a smart collection and should be subject to cleanup
                 const isSmartCollection = collectionWithLabels.smart === '1';
 
                 // Check if this is a recently_added smart collection by parsing the label
@@ -932,11 +932,8 @@ export class DiscoveryService {
                       typeof label === 'string' ? label : label.tag;
                     const match = labelText.match(/Agregarr-([^-]+)-(.+)/);
                     if (match) {
-                      const [, type, subtypeAndId] = match;
-                      const subtype = subtypeAndId.split('-')[0];
-                      return (
-                        type === 'comingsoon' && subtype === 'recently_added'
-                      );
+                      const [, type] = match;
+                      return type === 'recently_added';
                     }
                     return false;
                   });

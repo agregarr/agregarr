@@ -525,11 +525,10 @@ export async function syncConfigsWithPlexCollections(
 
           if (hasMatchingLabel) {
             // CRITICAL: Skip smart collections - they should not update the base collectionRatingKey
-            // EXCEPT for Coming Soon recently_added subtype - that IS a smart collection
+            // EXCEPT for recently_added type - that IS a smart collection
             const isSmartCollection = collection.smart === '1';
             const isRecentlyAddedSmartCollection =
-              config.type === 'comingsoon' &&
-              config.subtype === 'recently_added';
+              config.type === 'recently_added';
 
             if (isSmartCollection && !isRecentlyAddedSmartCollection) {
               logger.debug(
@@ -583,9 +582,8 @@ export async function syncConfigsWithPlexCollections(
         });
 
         // CRITICAL: Filter out smart collections before processing name matches
-        // EXCEPT for Coming Soon recently_added subtype - that IS a smart collection
-        const isRecentlyAddedSmartCollection =
-          config.type === 'comingsoon' && config.subtype === 'recently_added';
+        // EXCEPT for recently_added type - that IS a smart collection
+        const isRecentlyAddedSmartCollection = config.type === 'recently_added';
 
         const baseCollections = matchingCollections.filter((collection) => {
           const isSmartCollection = collection.smart === '1';

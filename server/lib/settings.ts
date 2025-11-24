@@ -45,8 +45,9 @@ export interface CollectionConfig {
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
-    | 'comingsoon';
-  readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
+    | 'comingsoon'
+    | 'recently_added';
+  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc. Optional for types like recently_added
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
   readonly customTVTemplate?: string; // Custom template for TV collections when mediaType is 'both'
@@ -64,7 +65,6 @@ export interface CollectionConfig {
   readonly maxItems: number;
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
-  readonly comingSoonDays?: number; // Number of days to filter for Coming Soon collections (default: 360)
   readonly libraryId: string; // Library ID this collection belongs to
   readonly libraryName: string; // Library name for display
   readonly sortOrderHome?: number; // Order for Plex home screen (1+ for positioned items, 0 for void/unpositioned)
@@ -134,9 +134,15 @@ export interface CollectionConfig {
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
-  // Coming Soon specific settings
-  readonly comingSoonOverlayColor?: string; // Hex color for countdown overlay background (default: #C21807). Text is always white.
-  readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
+  // Placeholder settings (for createPlaceholdersForMissing feature)
+  readonly createPlaceholdersForMissing?: boolean; // If true, create placeholder files in Plex for missing items instead of auto-requesting
+  readonly placeholderOverlayColor?: string; // Hex color for placeholder overlay background (default: #C21807). Text is always white.
+  readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
+  readonly placeholderDaysAhead?: number; // Number of days to look ahead for release dates (default: 360)
+  // Legacy Coming Soon fields (for backward compatibility during migration)
+  readonly comingSoonOverlayColor?: string; // @deprecated Use placeholderOverlayColor
+  readonly comingSoonReleasedDays?: number; // @deprecated Use placeholderReleasedDays
+  readonly comingSoonDays?: number; // @deprecated Use placeholderDaysAhead
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -1212,6 +1218,71 @@ class Settings {
     );
 
     return fixedCount;
+  }
+
+  /**
+   * Migrate comingsoon/recently_added configs to standalone recently_added type
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateComingSoonRecentlyAddedToStandalone(): void {
+    const migrationId = 'comingsoon-recently-added-to-standalone';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Check if this is a comingsoon/recently_added config that needs migration
+        if (
+          config.type === 'comingsoon' &&
+          config.subtype === 'recently_added'
+        ) {
+          migratedCount++;
+          logger.info(
+            `Migrating comingsoon/recently_added config "${config.name}" to standalone recently_added type`,
+            {
+              label: 'Settings Migration',
+              configId: config.id,
+            }
+          );
+
+          return {
+            ...config,
+            type: 'recently_added' as const,
+            subtype: undefined, // recently_added doesn't have subtypes
+          };
+        }
+
+        return config;
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} comingsoon/recently_added config(s) to standalone recently_added type`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
   }
 
   /**

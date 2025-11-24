@@ -5,6 +5,8 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  RadarrSettings,
+  SonarrSettings,
   TautulliSettings,
   TraktSettings,
 } from '@server/lib/settings';
@@ -71,17 +73,30 @@ const CollectionTypeSection = ({
   const { data: myanimelistSettings } = useSWR<MyAnimeListSettings>(
     '/api/v1/settings/myanimelist'
   );
+  const { data: radarrSettings } = useSWR<RadarrSettings[]>(
+    '/api/v1/settings/radarr'
+  );
+  const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
+    '/api/v1/settings/sonarr'
+  );
 
   if (!isVisible) return null;
 
   // Validate API keys for the current collection type
-  const apiKeyValidation = validateApiKeysForCollectionType(values.type || '', {
-    trakt: traktSettings,
-    mdblist: mdblistSettings,
-    tautulli: tautulliSettings,
-    overseerr: overseerrSettings,
-    myanimelist: myanimelistSettings,
-  });
+  const apiKeyValidation = validateApiKeysForCollectionType(
+    values.type || '',
+    {
+      trakt: traktSettings,
+      mdblist: mdblistSettings,
+      tautulli: tautulliSettings,
+      overseerr: overseerrSettings,
+      myanimelist: myanimelistSettings,
+      radarr: radarrSettings,
+      sonarr: sonarrSettings,
+    },
+    values.subtype,
+    values.createPlaceholdersForMissing
+  );
 
   const collectionTypes = [
     { value: 'overseerr', label: 'Overseerr Requests' },
@@ -98,6 +113,7 @@ const CollectionTypeSection = ({
     { value: 'radarrtag', label: 'Radarr Tag' },
     { value: 'sonarrtag', label: 'Sonarr Tag' },
     { value: 'comingsoon', label: 'Coming Soon' },
+    { value: 'recently_added', label: 'Recently Added (filtered)' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -245,11 +261,10 @@ const CollectionTypeSection = ({
             description: 'Most anticipated upcoming releases',
           },
           {
-            value: 'recently_added',
-            label:
-              'Recently Added (default Recently Added minus Coming Soon placeholders)',
+            value: 'tmdb_anticipated',
+            label: 'TMDB Coming Soon',
             description:
-              "Replicates the default Plex 'Recently Added Movies/TV' hub but excludes Coming Soon placeholders",
+              'Upcoming releases from TMDB (movies: digital/physical, TV: new & returning shows)',
           },
         ];
       case 'anilist': // Add AniList subtypes
@@ -321,6 +336,8 @@ const CollectionTypeSection = ({
       case 'radarrtag':
       case 'sonarrtag':
         return []; // These use custom tag selectors instead of subtypes
+      case 'recently_added':
+        return []; // No subtypes - standalone type that creates filtered smart collection
       default:
         return [];
     }
@@ -516,55 +533,52 @@ const CollectionTypeSection = ({
         </div>
       )}
 
-      {/* Coming Soon Configuration - appears when type='comingsoon' and subtype is selected (but not for 'recently_added') */}
-      {values.type === 'comingsoon' &&
-        values.subtype &&
-        values.subtype !== 'recently_added' && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label
-                htmlFor="comingSoonDays"
-                className="mb-2 block text-sm text-gray-300"
-              >
-                Days to Look Ahead
-              </label>
-              <Field
-                type="number"
-                id="comingSoonDays"
-                name="comingSoonDays"
-                placeholder="360"
-                min="1"
-                max="730"
-                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                Number of days to look ahead for upcoming releases (default:
-                360)
-              </p>
-            </div>
-            <div>
-              <label
-                htmlFor="comingSoonReleasedDays"
-                className="mb-2 block text-sm text-gray-300"
-              >
-                Released Items Window (Days)
-              </label>
-              <Field
-                type="number"
-                id="comingSoonReleasedDays"
-                name="comingSoonReleasedDays"
-                placeholder="7"
-                min="1"
-                max="30"
-                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                Days to keep released items with overlay before restoring
-                original poster (default: 7)
-              </p>
-            </div>
+      {/* Coming Soon Configuration - appears when type='comingsoon' and subtype is selected */}
+      {values.type === 'comingsoon' && values.subtype && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="comingSoonDays"
+              className="mb-2 block text-sm text-gray-300"
+            >
+              Days to Look Ahead
+            </label>
+            <Field
+              type="number"
+              id="comingSoonDays"
+              name="comingSoonDays"
+              placeholder="360"
+              min="1"
+              max="730"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Number of days to look ahead for upcoming releases (default: 360)
+            </p>
           </div>
-        )}
+          <div>
+            <label
+              htmlFor="comingSoonReleasedDays"
+              className="mb-2 block text-sm text-gray-300"
+            >
+              Released Items Window (Days)
+            </label>
+            <Field
+              type="number"
+              id="comingSoonReleasedDays"
+              name="comingSoonReleasedDays"
+              placeholder="7"
+              min="1"
+              max="30"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Days to keep released items with overlay before restoring original
+              poster (default: 7)
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

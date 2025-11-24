@@ -13,7 +13,8 @@ const baseCollectionSchema = {
       !type ||
       type === 'multi-source' ||
       type === 'radarrtag' ||
-      type === 'sonarrtag',
+      type === 'sonarrtag' ||
+      type === 'recently_added',
     then: (schema) => schema.notRequired(),
     otherwise: (schema) => schema.required('Collection sub-type is required'),
   }),

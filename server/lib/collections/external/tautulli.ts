@@ -441,7 +441,8 @@ export class TautulliCollectionSync extends BaseCollectionSync {
 
   private isValidTautulliConfig(config: CollectionConfig): boolean {
     return (
-      config.type === 'tautulli' && config.subtype?.includes('most_popular')
+      config.type === 'tautulli' &&
+      (config.subtype?.includes('most_popular') ?? false)
     );
   }
 

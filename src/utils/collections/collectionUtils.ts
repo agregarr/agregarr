@@ -237,7 +237,14 @@ export function validateCollectionFormConfig(
     errors.push('Collection type is required');
   }
 
-  if (!config.subtype) {
+  // Subtype not required for multi-source, tag-based, or recently_added collections
+  if (
+    !config.subtype &&
+    config.type !== 'multi-source' &&
+    config.type !== 'radarrtag' &&
+    config.type !== 'sonarrtag' &&
+    config.type !== 'recently_added'
+  ) {
     errors.push('Collection subtype is required');
   }
 

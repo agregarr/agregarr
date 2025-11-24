@@ -4,8 +4,7 @@ import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
-  apiKeyWarning:
-    '{services} API key required. Configure in Settings > Sources.',
+  apiKeyWarning: '{services} required. Configure in {settingsPath}.',
 });
 
 interface ApiKeyWarningProps {
@@ -26,11 +25,22 @@ const ApiKeyWarning: React.FC<ApiKeyWarningProps> = ({
 
   const servicesText = validation.missingServices.join(', ');
 
+  // Determine settings path - use the first requirement's path
+  const settingsPath = validation.requirements.find(
+    (req) => !req.configured && req.required
+  )?.settingsPath;
+
+  // Convert path to user-friendly text
+  const settingsPathText = settingsPath?.includes('/services')
+    ? 'Settings > Downloads'
+    : 'Settings > Sources';
+
   return (
     <div className={`mt-2 ${className}`}>
       <Alert
         title={intl.formatMessage(messages.apiKeyWarning, {
           services: servicesText,
+          settingsPath: settingsPathText,
         })}
         type="warning"
       />

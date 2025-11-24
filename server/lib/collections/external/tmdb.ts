@@ -682,15 +682,25 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       });
     }
 
+    // Process missing items - creates placeholders and/or sends to auto-requests
+    let finalItems = items;
     if (missingItems && missingItems.length > 0) {
-      await this.handleAutoRequests(missingItems, config);
+      const placeholderItems = await this.processMissingItems(
+        missingItems,
+        config,
+        plexClient,
+        () => this.handleAutoRequests(missingItems, config)
+      );
+      if (placeholderItems.length > 0) {
+        finalItems = [...items, ...placeholderItems];
+      }
     }
 
-    if (items.length === 0) return { created: 0, updated: 0 };
+    if (finalItems.length === 0) return { created: 0, updated: 0 };
 
     // Use the new media type processing strategy
     return await this.processWithMediaTypeStrategy(
-      items,
+      finalItems,
       config,
       plexClient,
       allCollections,

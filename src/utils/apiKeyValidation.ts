@@ -2,6 +2,8 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  RadarrSettings,
+  SonarrSettings,
   TautulliSettings,
   TraktSettings,
 } from '@server/lib/settings';
@@ -30,7 +32,11 @@ export function validateApiKeysForCollectionType(
     tautulli?: TautulliSettings;
     overseerr?: OverseerrSettings;
     myanimelist?: MyAnimeListSettings;
-  }
+    radarr?: RadarrSettings[];
+    sonarr?: SonarrSettings[];
+  },
+  subtype?: string,
+  createPlaceholdersForMissing?: boolean
 ): ApiKeyValidationResult {
   const requirements: ApiKeyRequirement[] = [];
 
@@ -89,6 +95,60 @@ export function validateApiKeysForCollectionType(
       });
       break;
 
+    case 'comingsoon': {
+      // Coming Soon - check for specific subtypes
+      if (subtype === 'trakt_anticipated') {
+        requirements.push({
+          service: 'Trakt',
+          required: true,
+          configured: !!settings.trakt?.apiKey,
+          settingsPath: '/settings/sources',
+        });
+      }
+
+      // All Coming Soon subtypes require BOTH Radarr AND Sonarr
+      const hasRadarr = !!(settings.radarr && settings.radarr.length > 0);
+      const hasSonarr = !!(settings.sonarr && settings.sonarr.length > 0);
+
+      if (!hasRadarr) {
+        requirements.push({
+          service: 'Radarr',
+          required: true,
+          configured: false,
+          settingsPath: '/settings/services',
+        });
+      }
+      if (!hasSonarr) {
+        requirements.push({
+          service: 'Sonarr',
+          required: true,
+          configured: false,
+          settingsPath: '/settings/services',
+        });
+      }
+      break;
+    }
+
+    case 'radarrtag':
+      // Radarr Tag requires at least one Radarr instance
+      requirements.push({
+        service: 'Radarr',
+        required: true,
+        configured: !!(settings.radarr && settings.radarr.length > 0),
+        settingsPath: '/settings/services',
+      });
+      break;
+
+    case 'sonarrtag':
+      // Sonarr Tag requires at least one Sonarr instance
+      requirements.push({
+        service: 'Sonarr',
+        required: true,
+        configured: !!(settings.sonarr && settings.sonarr.length > 0),
+        settingsPath: '/settings/services',
+      });
+      break;
+
     // These don't require API keys
     case 'imdb':
     case 'tmdb':
@@ -96,9 +156,33 @@ export function validateApiKeysForCollectionType(
     case 'networks':
     case 'anilist':
     case 'multi-source':
+    case 'recently_added':
     default:
       // No API key requirements
       break;
+  }
+
+  // Check if placeholder creation is enabled and requires BOTH Radarr AND Sonarr
+  if (createPlaceholdersForMissing) {
+    const hasRadarr = !!(settings.radarr && settings.radarr.length > 0);
+    const hasSonarr = !!(settings.sonarr && settings.sonarr.length > 0);
+
+    if (!hasRadarr) {
+      requirements.push({
+        service: 'Radarr',
+        required: true,
+        configured: false,
+        settingsPath: '/settings/services',
+      });
+    }
+    if (!hasSonarr) {
+      requirements.push({
+        service: 'Sonarr',
+        required: true,
+        configured: false,
+        settingsPath: '/settings/services',
+      });
+    }
   }
 
   const missingServices = requirements

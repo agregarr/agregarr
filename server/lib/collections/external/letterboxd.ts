@@ -578,16 +578,26 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         missingItemsLength: missingItems?.length || 0,
       });
 
+      // Process missing items - creates placeholders and/or sends to auto-requests
+      let finalItems = items;
       if (missingItems && missingItems.length > 0) {
-        logger.debug('Processing auto requests', {
+        logger.debug('Processing missing items', {
           label: 'Letterboxd Collections Debug',
           configName: config.name,
           missingItemsCount: missingItems.length,
         });
-        await this.handleAutoRequests(missingItems, config);
+        const placeholderItems = await this.processMissingItems(
+          missingItems,
+          config,
+          plexClient,
+          () => this.handleAutoRequests(missingItems, config)
+        );
+        if (placeholderItems.length > 0) {
+          finalItems = [...items, ...placeholderItems];
+        }
       }
 
-      if (items.length === 0) {
+      if (finalItems.length === 0) {
         logger.debug('No items found, returning early', {
           label: 'Letterboxd Collections Debug',
           configName: config.name,
@@ -599,7 +609,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         label: 'Letterboxd Collections Debug',
         configName: config.name,
         mediaType: getCollectionMediaType(config),
-        itemsCount: items.length,
+        itemsCount: finalItems.length,
       });
 
       // Letterboxd is movies only, so use movie template generation
@@ -611,7 +621,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       );
 
       const result = await this.createCollection(
-        items,
+        finalItems,
         mediaType,
         collectionName,
         plexClient,

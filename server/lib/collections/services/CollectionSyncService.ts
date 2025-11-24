@@ -564,6 +564,12 @@ export class CollectionSyncService {
         );
         return new ComingSoonCollectionSync();
       }
+      case 'recently_added': {
+        const { RecentlyAddedCollectionSync } = await import(
+          '../external/recentlyadded'
+        );
+        return new RecentlyAddedCollectionSync();
+      }
       case 'multi-source':
         throw new Error(
           'Multi-source collections should be handled by MultiSourceOrchestrator, not individual sync services'

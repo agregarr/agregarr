@@ -459,6 +459,61 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   }
 
   /**
+   * Process missing items - create placeholders AND/OR send to auto-requests
+   * This is the main entry point for handling missing items in any collection type.
+   *
+   * Both features can be enabled simultaneously:
+   * - Placeholders show items in Plex immediately
+   * - Auto-requests download items when available
+   * - Cleanup removes placeholders when real files arrive
+   *
+   * @param missingItems - Items not found in Plex
+   * @param config - Collection configuration
+   * @param plexClient - Plex API client (required for placeholder creation)
+   * @param autoRequestHandler - Function to call for auto-requests
+   * @returns Collection items created from placeholders (empty array if not creating placeholders)
+   */
+  protected async processMissingItems(
+    missingItems: MissingItem[],
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    autoRequestHandler?: () => Promise<void>
+  ): Promise<CollectionItem[]> {
+    if (!missingItems || missingItems.length === 0) {
+      return [];
+    }
+
+    let placeholderItems: CollectionItem[] = [];
+
+    // Create placeholders if enabled
+    if (config.createPlaceholdersForMissing) {
+      // Import and use the PlaceholderService
+      const { processPlaceholdersForMissingItems } = await import(
+        '@server/lib/collections/services/PlaceholderService'
+      );
+
+      logger.info('Creating placeholders for missing items', {
+        label: `${this.source} Collections`,
+        configName: config.name,
+        missingCount: missingItems.length,
+      });
+
+      placeholderItems = await processPlaceholdersForMissingItems(
+        missingItems,
+        config,
+        plexClient
+      );
+    }
+
+    // Also send to auto-requests if handler provided (works alongside placeholders)
+    if (autoRequestHandler) {
+      await autoRequestHandler();
+    }
+
+    return placeholderItems;
+  }
+
+  /**
    * Create filtering statistics
    */
   protected createFilteringStats(

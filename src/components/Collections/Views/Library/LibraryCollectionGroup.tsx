@@ -627,6 +627,8 @@ const SortableItem = ({
                             return 'Monitored';
                           case 'trakt_anticipated':
                             return 'Trakt Anticipated';
+                          case 'tmdb_anticipated':
+                            return 'TMDB Anticipated';
                           case 'recently_added':
                             return 'Recently Added';
                           default:
@@ -697,6 +699,8 @@ const SortableItem = ({
                       ? 'Multi-Source'
                       : collection.type === 'comingsoon'
                       ? 'Coming Soon'
+                      : collection.type === 'recently_added'
+                      ? 'Recently Added'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(

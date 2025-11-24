@@ -56,6 +56,9 @@ app
     // Replaces 4 incomplete migrations with comprehensive field normalization
     settings.migrateCollectionDataNormalizationV110();
 
+    // Migrate comingsoon/recently_added to standalone recently_added type
+    settings.migrateComingSoonRecentlyAddedToStandalone();
+
     // Migrate poster templates to unified layering system for v1.3.2
     await settings.migratePosterTemplatesV132();
 

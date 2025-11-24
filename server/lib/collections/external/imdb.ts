@@ -710,16 +710,26 @@ export class ImdbCollectionSync extends BaseCollectionSync {
       );
       // Source data mapped to items
 
+      // Process missing items - creates placeholders and/or sends to auto-requests
+      let finalItems = items;
       if (missingItems && missingItems.length > 0) {
-        logger.debug('Processing auto requests', {
+        logger.debug('Processing missing items', {
           label: 'IMDb Collections Debug',
           configName: config.name,
           missingItemsCount: missingItems.length,
         });
-        await this.handleAutoRequests(missingItems, config);
+        const placeholderItems = await this.processMissingItems(
+          missingItems,
+          config,
+          plexClient,
+          () => this.handleAutoRequests(missingItems, config)
+        );
+        if (placeholderItems.length > 0) {
+          finalItems = [...items, ...placeholderItems];
+        }
       }
 
-      if (items.length === 0) {
+      if (finalItems.length === 0) {
         logger.debug('No items found, returning early', {
           label: 'IMDb Collections Debug',
           configName: config.name,
@@ -731,12 +741,12 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         label: 'IMDb Collections Debug',
         configName: config.name,
         mediaType: getCollectionMediaType(config),
-        itemsCount: items.length,
+        itemsCount: finalItems.length,
       });
 
       // Use the new media type processing strategy
       return await this.processWithMediaTypeStrategy(
-        items,
+        finalItems,
         config,
         plexClient,
         allCollections,

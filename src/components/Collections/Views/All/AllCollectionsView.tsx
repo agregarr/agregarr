@@ -943,6 +943,8 @@ const AllCollectionsView: React.FC = () => {
                                     return 'Monitored';
                                   case 'trakt_anticipated':
                                     return 'Trakt Anticipated';
+                                  case 'tmdb_anticipated':
+                                    return 'TMDB Anticipated';
                                   case 'recently_added':
                                     return 'Recently Added';
                                   default:
@@ -1019,6 +1021,8 @@ const AllCollectionsView: React.FC = () => {
                               ? 'Multi-Source'
                               : config.type === 'comingsoon'
                               ? 'Coming Soon'
+                              : config.type === 'recently_added'
+                              ? 'Recently Added'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(

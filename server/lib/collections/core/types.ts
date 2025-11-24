@@ -151,7 +151,8 @@ export type CollectionSource =
   | 'myanimelist'
   | 'radarrtag'
   | 'sonarrtag'
-  | 'comingsoon';
+  | 'comingsoon'
+  | 'recently_added';
 
 /**
  * Configuration for creating/updating collections in Plex
@@ -216,7 +217,7 @@ export interface AutoRequestConfig {
 }
 
 /**
- * Item missing from Plex that could be auto-requested
+ * Item missing from Plex that could be auto-requested or turned into a placeholder
  */
 export interface MissingItem {
   /** TMDB ID */
@@ -233,6 +234,34 @@ export interface MissingItem {
   originalPosition: number;
   /** Optional additional metadata */
   metadata?: Record<string, unknown>;
+  // Placeholder-related fields (for createPlaceholdersForMissing feature)
+  /** Generic/fallback release date (ISO string) */
+  releaseDate?: string;
+  /** Digital/streaming release date (ISO string) - Priority 1 for movies */
+  digitalRelease?: string;
+  /** Blu-ray/DVD release date (ISO string) - Priority 2 for movies */
+  physicalRelease?: string;
+  /** Theatrical release date (ISO string) - Priority 3 for movies */
+  inCinemas?: string;
+  /** Episode air date for TV shows (ISO string) */
+  airDate?: string;
+  /** True if releaseDate is an estimate (e.g., theatrical + 3 months) */
+  isEstimatedDate?: boolean;
+  /** Season number for TV shows */
+  seasonNumber?: number;
+  /** Episode number for TV shows */
+  episodeNumber?: number;
+  /** Whether item is monitored in Radarr/Sonarr */
+  monitored?: boolean;
+  /** Source of the missing item data */
+  source?:
+    | 'radarr'
+    | 'sonarr'
+    | 'trakt'
+    | 'tmdb'
+    | 'imdb'
+    | 'letterboxd'
+    | 'mdblist';
 }
 
 /**
@@ -382,7 +411,12 @@ export interface ComingSoonTemplateContext extends TemplateContext {
   /** Collection source type */
   source?: 'comingsoon';
   /** Coming Soon specific stat type */
-  statType?: 'monitored' | 'trakt_anticipated';
+  statType?: 'monitored' | 'trakt_anticipated' | 'tmdb_anticipated';
+}
+
+export interface RecentlyAddedTemplateContext extends TemplateContext {
+  /** Collection source type */
+  source?: 'recently_added';
 }
 
 /**
@@ -400,7 +434,8 @@ export type SourceTemplateContext =
   | OriginalsTemplateContext
   | RadarrTagTemplateContext
   | SonarrTagTemplateContext
-  | ComingSoonTemplateContext;
+  | ComingSoonTemplateContext
+  | RecentlyAddedTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types
@@ -576,9 +611,10 @@ export interface SonarrTagSourceData {
 }
 
 /**
- * Coming Soon source data (upcoming/unreleased content)
+ * Placeholder source data (for createPlaceholdersForMissing feature)
+ * Used by any collection type that supports placeholder creation
  */
-export interface ComingSoonSourceData {
+export interface PlaceholderSourceData {
   tmdbId: number;
   tvdbId?: number; // For TV shows
   title: string;
@@ -591,7 +627,14 @@ export interface ComingSoonSourceData {
   inCinemas?: string; // Theatrical release date (Priority 3, optional)
 
   mediaType: 'movie' | 'tv';
-  source: 'radarr' | 'sonarr' | 'trakt';
+  source:
+    | 'radarr'
+    | 'sonarr'
+    | 'trakt'
+    | 'tmdb'
+    | 'imdb'
+    | 'letterboxd'
+    | 'mdblist';
   monitored: boolean; // True if item is in Radarr/Sonarr
   posterUrl?: string; // Poster URL from source
   airDate?: string; // Episode air date (S01E01 for new shows, next season premiere for returning shows)
@@ -603,6 +646,20 @@ export interface ComingSoonSourceData {
   episodeNumber?: number; // Episode number of the upcoming episode
   releaseDateSortValue?: string; // ISO date string for sorting (set during fetchSourceData)
   isEstimatedDate?: boolean; // True if releaseDate is an estimate (theatrical + 3 months)
+}
+
+/**
+ * @deprecated Use PlaceholderSourceData instead
+ */
+export type ComingSoonSourceData = PlaceholderSourceData;
+
+/**
+ * Recently Added source data (smart collection that excludes placeholders)
+ */
+export interface RecentlyAddedSourceData {
+  // Recently Added doesn't fetch external data - it creates a smart Plex collection
+  // This interface is here for type consistency
+  placeholder?: never;
 }
 
 /**
@@ -621,7 +678,8 @@ export type CollectionSourceData =
   | MyAnimeListSourceData
   | RadarrTagSourceData
   | SonarrTagSourceData
-  | ComingSoonSourceData;
+  | PlaceholderSourceData
+  | RecentlyAddedSourceData;
 
 /**
  * Error types that can occur during collection sync

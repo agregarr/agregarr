@@ -141,7 +141,8 @@ export interface CollectionFormConfig {
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
-    | 'comingsoon';
+    | 'comingsoon'
+    | 'recently_added';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -225,6 +226,11 @@ export interface CollectionFormConfig {
   readonly tautulliStatType?: 'plays' | 'duration'; // Tautulli stat type
   readonly comingSoonDays?: number; // Number of days to look ahead for Coming Soon collections (default: 360)
   readonly comingSoonReleasedDays?: number; // Days to keep released items with overlay (default: 7)
+  // Placeholder settings (for createPlaceholdersForMissing feature)
+  readonly createPlaceholdersForMissing?: boolean; // Create placeholder files for missing items
+  readonly placeholderOverlayColor?: string; // Hex color for placeholder overlay (default: #C21807)
+  readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7)
+  readonly placeholderDaysAhead?: number; // Days to look ahead for release dates (default: 360)
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct'; // Download mode: overseerr (requests) or direct (*arr)
   readonly searchMissingMovies?: boolean; // Auto-request missing movies
@@ -326,7 +332,8 @@ export interface CollectionConfigCreateRequest {
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
-    | 'comingsoon';
+    | 'comingsoon'
+    | 'recently_added';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -349,6 +356,11 @@ export interface CollectionConfigCreateRequest {
   readonly tautulliStatType?: 'plays' | 'duration';
   readonly comingSoonDays?: number;
   readonly comingSoonReleasedDays?: number;
+  // Placeholder settings
+  readonly createPlaceholdersForMissing?: boolean;
+  readonly placeholderOverlayColor?: string;
+  readonly placeholderReleasedDays?: number;
+  readonly placeholderDaysAhead?: number;
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
@@ -442,6 +454,10 @@ export const toCollectionCreateRequest = (
     tautulliStatType: config.tautulliStatType,
     comingSoonDays: config.comingSoonDays,
     comingSoonReleasedDays: config.comingSoonReleasedDays,
+    createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+    placeholderOverlayColor: config.placeholderOverlayColor,
+    placeholderReleasedDays: config.placeholderReleasedDays,
+    placeholderDaysAhead: config.placeholderDaysAhead,
     downloadMode: config.downloadMode,
     searchMissingMovies: config.searchMissingMovies,
     searchMissingTV: config.searchMissingTV,
@@ -618,7 +634,8 @@ export type CollectionSourceType =
   | 'multi-source'
   | 'radarrtag'
   | 'sonarrtag'
-  | 'comingsoon';
+  | 'comingsoon'
+  | 'recently_added';
 export type MediaType = 'movie' | 'tv';
 
 /**
@@ -858,7 +875,8 @@ export type MultiSourceType =
   | 'sonarrtag'
   | 'anilist'
   | 'myanimelist'
-  | 'comingsoon';
+  | 'comingsoon'
+  | 'recently_added';
 
 /**
  * Source definition for multi-source collections

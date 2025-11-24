@@ -1528,11 +1528,15 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
-      case 'recently_added':
+      case 'tmdb_anticipated':
         return [
           {
-            label: 'Recently Added',
-            value: 'Recently Added',
+            label: 'Coming Soon',
+            value: 'Coming Soon',
+          },
+          {
+            label: 'Coming Soon - TMDB',
+            value: 'Coming Soon - TMDB',
           },
           { label: 'Custom', value: 'custom' },
         ];
@@ -1547,15 +1551,30 @@ export const getTemplatePresets = (
     }
   }
 
+  // Recently Added (filtered) collection presets
+  if (values.type === 'recently_added') {
+    return [
+      {
+        label: 'Recently Added',
+        value: 'Recently Added',
+      },
+      {
+        label: 'Recently Added (Filtered)',
+        value: 'Recently Added (Filtered)',
+      },
+      {
+        label: 'New Arrivals',
+        value: 'New Arrivals',
+      },
+      { label: 'Custom', value: 'custom' },
+    ];
+  }
+
   // Fallback for unknown types
   return [
     {
       label: 'Collection',
       value: 'Collection',
-    },
-    {
-      label: 'Overseerr Collection',
-      value: 'Overseerr Collection',
     },
     { label: 'Custom', value: 'custom' },
   ];

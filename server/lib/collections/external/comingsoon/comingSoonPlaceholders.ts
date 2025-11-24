@@ -195,6 +195,13 @@ export async function handlePlaceholderCreation(
   }
 
   // Step 5: Convert discovered items to CollectionItem format
+  // Create a map of tmdbId -> originalPosition to preserve source order
+  const positionMap = new Map<number, number>(
+    missingItems
+      .filter((item) => item.originalPosition !== undefined)
+      .map((item) => [item.tmdbId, item.originalPosition as number])
+  );
+
   const collectionItems: CollectionItem[] = [];
   for (const [tmdbId, plexItem] of discoveredItemsMap) {
     const sourceItem = sourceMap.get(tmdbId);
@@ -208,7 +215,27 @@ export async function handlePlaceholderCreation(
     }
   }
 
-  logger.info('Returning discovered placeholder items', {
+  // Sort by original position to preserve source list order
+  // This ensures placeholder items appear in the same order as they were in the source
+  // Items without originalPosition will appear at the end
+  if (positionMap.size > 0) {
+    collectionItems.sort((a, b) => {
+      // Get positions, handling undefined tmdbId
+      const posA =
+        a.tmdbId !== undefined ? positionMap.get(a.tmdbId) : undefined;
+      const posB =
+        b.tmdbId !== undefined ? positionMap.get(b.tmdbId) : undefined;
+
+      // Items without position go to the end
+      if (posA === undefined && posB === undefined) return 0;
+      if (posA === undefined) return 1;
+      if (posB === undefined) return -1;
+
+      return posA - posB;
+    });
+  }
+
+  logger.info('Returning discovered placeholder items in source order', {
     label: 'Coming Soon Collections',
     itemCount: collectionItems.length,
   });
