@@ -310,6 +310,8 @@ export interface PreExistingCollectionConfig {
   };
   // Custom poster support
   customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
+  autoPoster?: boolean; // Auto-generate poster during sync (same as CollectionConfig)
+  autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
 }
 
 export interface PlexSettings {

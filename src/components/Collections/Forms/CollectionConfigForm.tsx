@@ -1048,7 +1048,11 @@ const CollectionFormConfigForm = ({
           randomizeHomeOrder:
             (config as CollectionFormConfig).randomizeHomeOrder ?? false,
           customPoster: (config as CollectionFormConfig).customPoster || '',
-          autoPoster: (config as CollectionFormConfig).autoPoster ?? true,
+          // Default autoPoster to false for pre-existing collections (they have their own posters),
+          // true for Agregarr-created collections
+          autoPoster:
+            (config as CollectionFormConfig).autoPoster ??
+            (isPreExisting ? false : true),
           autoPosterTemplate:
             (config as CollectionFormConfig).autoPosterTemplate ?? null,
           showUnwatchedOnly:
@@ -2301,7 +2305,7 @@ const CollectionFormConfigForm = ({
                                       ? [values.libraryId]
                                       : []
                                   }
-                                  isAgregarrCollection={false}
+                                  isAgregarrCollection={true}
                                 />
                               </div>
                             </div>

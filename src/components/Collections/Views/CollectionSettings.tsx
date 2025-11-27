@@ -714,6 +714,12 @@ const CollectionSettings = ({
         ...(preExistingConfig.customPoster && {
           customPoster: preExistingConfig.customPoster,
         }),
+        ...(preExistingConfig.autoPoster !== undefined && {
+          autoPoster: preExistingConfig.autoPoster,
+        }),
+        ...(preExistingConfig.autoPosterTemplate !== undefined && {
+          autoPosterTemplate: preExistingConfig.autoPosterTemplate,
+        }),
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
       await revalidatePreExisting();

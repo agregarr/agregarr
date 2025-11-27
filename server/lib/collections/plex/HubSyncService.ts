@@ -1,6 +1,7 @@
 import type PlexAPI from '@server/api/plexapi';
 import { extractErrorMessage } from '@server/lib/collections/core/CollectionUtilities';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
+import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
 import type {
   CollectionConfig,
   PlexHubConfig,
@@ -554,6 +555,190 @@ export class HubSyncService {
                 'no visibility configured, hidden but preserved in hub management',
             }
           );
+        }
+
+        // Auto-generate poster if enabled (similar to CollectionConfig)
+        // Default to false for pre-existing collections (they usually have their own posters)
+        const shouldGeneratePoster = preExistingConfig.autoPoster ?? false;
+        if (shouldGeneratePoster && preExistingConfig.collectionRatingKey) {
+          try {
+            const { generatePoster } = await import(
+              '@server/lib/posterStorage'
+            );
+
+            // Use the collection name from Plex
+            const collectionName = preExistingConfig.name;
+
+            // Fetch collection items from Plex for content grid
+            let posterItems: CollectionItemWithPoster[] | undefined;
+
+            try {
+              // Get template to determine how many items we need
+              let maxItems = 12; // Default fallback
+
+              if (preExistingConfig.autoPosterTemplate) {
+                const { getRepository } = await import('@server/datasource');
+                const { PosterTemplate } = await import(
+                  '@server/entity/PosterTemplate'
+                );
+                const templateRepository = getRepository(PosterTemplate);
+
+                const template = await templateRepository.findOne({
+                  where: {
+                    id: preExistingConfig.autoPosterTemplate,
+                    isActive: true,
+                  },
+                });
+
+                if (template) {
+                  const templateData = template.getTemplateData();
+
+                  // Calculate grid size from template
+                  if (templateData.elements) {
+                    const contentGridElements = templateData.elements.filter(
+                      (el) => el.type === 'content-grid'
+                    );
+                    if (contentGridElements.length > 0) {
+                      maxItems = contentGridElements.reduce(
+                        (total, element) => {
+                          const props = element.properties as {
+                            columns?: number;
+                            rows?: number;
+                          };
+                          return (
+                            total + (props.columns || 2) * (props.rows || 2)
+                          );
+                        },
+                        0
+                      );
+                    }
+                  }
+                }
+              }
+
+              // Fetch collection items from Plex for content grid
+              // Works for both regular and smart collections - just returns current children
+              const plexItems = await plexClient.getCollectionItemsWithMetadata(
+                preExistingConfig.collectionRatingKey
+              );
+
+              logger.debug(
+                `Fetched ${
+                  plexItems?.length || 0
+                } items from pre-existing collection: ${collectionName}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  itemCount: plexItems?.length || 0,
+                }
+              );
+
+              // Convert Plex metadata to poster format
+              if (plexItems && plexItems.length > 0) {
+                // Helper function to extract TMDB ID from guids
+                const extractTmdbId = (
+                  guids?: { id: string }[]
+                ): number | undefined => {
+                  if (!guids || guids.length === 0) return undefined;
+                  const tmdbGuid = guids.find((g) =>
+                    g.id.startsWith('tmdb://')
+                  );
+                  if (!tmdbGuid) return undefined;
+                  const idMatch = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+                  return idMatch ? parseInt(idMatch[1], 10) : undefined;
+                };
+
+                posterItems = plexItems.slice(0, maxItems).map((item) => ({
+                  title: item.title || 'Unknown',
+                  type: item.type === 'movie' ? 'movie' : 'tv',
+                  tmdbId: extractTmdbId(item.Guid),
+                  year: undefined, // PlexMetadata doesn't include year field
+                  posterUrl: undefined, // Will be fetched by poster generation
+                  metadata: {
+                    libraryKey: preExistingConfig.libraryId,
+                  },
+                }));
+              }
+            } catch (itemsError) {
+              logger.warn(
+                `Failed to fetch collection items for poster generation: ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  error:
+                    itemsError instanceof Error
+                      ? itemsError.message
+                      : String(itemsError),
+                }
+              );
+              // Continue with empty items - will generate template-only poster
+            }
+
+            // Generate poster using the template system
+            const posterFilename = await generatePoster(
+              {
+                collectionName,
+                collectionType: 'pre_existing', // Use pre_existing as the collection type
+                mediaType: preExistingConfig.mediaType,
+                items: posterItems,
+                autoPosterTemplate: preExistingConfig.autoPosterTemplate,
+              },
+              `Auto-generated: ${collectionName}`,
+              preExistingConfig.id
+            );
+
+            if (posterFilename) {
+              // Get poster path and apply to Plex collection
+              const { getPosterPath } = await import(
+                '@server/lib/posterStorage'
+              );
+              const posterPath = getPosterPath(posterFilename);
+              await plexClient.updateCollectionPoster(
+                preExistingConfig.collectionRatingKey,
+                posterPath
+              );
+
+              // Get the full Plex poster URL from the collection to complete the workflow
+              const plexPosterUrl = await plexClient.getCurrentPosterUrl(
+                preExistingConfig.collectionRatingKey
+              );
+
+              if (plexPosterUrl) {
+                // Complete the workflow: re-download, store hash-only, cleanup temp file
+                const { completeAutoGeneratedPosterWorkflow } = await import(
+                  '@server/lib/posterStorage'
+                );
+                await completeAutoGeneratedPosterWorkflow(
+                  posterFilename,
+                  plexPosterUrl,
+                  preExistingConfig.id,
+                  `Auto-generated: ${collectionName}`
+                );
+              }
+
+              logger.info(
+                `Successfully generated and applied poster for pre-existing collection: ${collectionName}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  posterFilename,
+                  plexPosterUrl,
+                }
+              );
+            }
+          } catch (error) {
+            logger.error(
+              `Failed to generate auto-poster for pre-existing collection ${
+                preExistingConfig.name
+              }: ${extractErrorMessage(error)}`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: preExistingConfig.id,
+                error: extractErrorMessage(error),
+              }
+            );
+            // Don't fail the sync if poster generation fails
+          }
         }
 
         // Mark pre-existing collection as successfully synced

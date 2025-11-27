@@ -122,8 +122,14 @@ const PosterUploadSection = ({
     selectedLibraryIds.includes(lib.key)
   );
 
-  // Auto-poster is available for all collections, enabled by default
-  const isAutoPosterEnabled = values.autoPoster ?? true; // Default to true if not set
+  // Auto-poster is available for all collections
+  // Default to true for Agregarr-created collections, false for pre-existing collections
+  // Check both collectionType and configType (for consistency with CollectionConfigForm)
+  const isPreExisting =
+    values.collectionType === 'pre_existing' ||
+    ('configType' in values && values.configType === 'preExisting');
+  const isAutoPosterEnabled =
+    values.autoPoster ?? (isPreExisting ? false : true);
 
   // Get current selected template - if none selected, use the default template
   const defaultTemplate = templates?.find((t) => t.isDefault);
