@@ -638,8 +638,8 @@ export class DirectDownloadService {
       year: item.year || new Date().getFullYear(), // Use item year or current year as fallback
       rootFolderPath,
       tmdbId: item.tmdbId,
-      monitored: true,
-      searchNow: true, // Immediately start searching for the movie
+      monitored: radarrSettings.monitorByDefault ?? true,
+      searchNow: radarrSettings.searchOnAdd ?? true,
     });
 
     logger.debug('Added movie to Radarr for collection', {
@@ -756,10 +756,10 @@ export class DirectDownloadService {
       seasons: Array.from({ length: seasonsToMonitor }, (_, i) => i + 1),
       tags: tagsToSend,
       rootFolderPath,
-      monitored: true,
+      monitored: sonarrSettings.monitorByDefault ?? true,
       seasonFolder: sonarrSettings.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
       seriesType: sonarrSettings.seriesType || 'standard',
-      searchNow: true, // Immediately start searching for episodes
+      searchNow: sonarrSettings.searchOnAdd ?? true,
     });
 
     logger.debug('Added TV series to Sonarr for collection', {

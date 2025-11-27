@@ -381,6 +381,8 @@ export interface DVRSettings {
   externalUrl?: string;
   syncEnabled: boolean;
   preventSearch: boolean;
+  monitorByDefault?: boolean; // Whether to monitor items when added (defaults to true)
+  searchOnAdd?: boolean; // Whether to immediately search for items when added (defaults to true)
   tagRequests?: boolean;
   tagRequestsMode?: TagRequestsMode;
 }
