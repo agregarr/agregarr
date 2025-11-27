@@ -14,7 +14,7 @@ import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
 import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
@@ -119,6 +119,117 @@ const CollectionFormConfigForm = ({
 
   // State for preview modal
   const [showPreview, setShowPreview] = useState(false);
+
+  // Generate tooltip showing which other items will be affected - MUST be before early returns
+  const linkingTooltip = useMemo(() => {
+    if (!config) return undefined;
+
+    const isHub =
+      config.collectionType === 'default_plex_hub' ||
+      (config as CollectionFormConfig).configType === 'hub';
+    const isPreExisting =
+      config.collectionType === 'pre_existing' ||
+      (config as CollectionFormConfig).configType === 'preExisting';
+    const isCollection = !isHub && !isPreExisting;
+    const isLinked = Boolean(config.isLinked && !config.isUnlinked);
+
+    if (isLinked) {
+      // Unlink button - show what will be unlinked
+      if (isHub && allHubConfigs) {
+        const hubConfig = config as PlexHubConfig;
+        const linkedHubs = allHubConfigs.filter(
+          (h: PlexHubConfig) =>
+            h.linkId === config.linkId && h.isLinked && h.id !== config.id
+        );
+        if (linkedHubs.length > 0) {
+          const currentHubText = `${hubConfig.name} (${hubConfig.libraryName})`;
+          const otherHubsText = linkedHubs
+            .map((h) => `${h.name} (${h.libraryName})`)
+            .join('\n');
+          return `Will unlink ${
+            linkedHubs.length + 1
+          } hubs:\n${currentHubText}\n${otherHubsText}`;
+        }
+      } else if (isCollection && allCollectionConfigs) {
+        const collectionConfig = config as CollectionFormConfig;
+        const linkedCollections = allCollectionConfigs.filter(
+          (c: CollectionFormConfig) =>
+            c.type === collectionConfig.type &&
+            c.subtype === collectionConfig.subtype &&
+            c.linkId === collectionConfig.linkId &&
+            c.isLinked &&
+            c.id !== collectionConfig.id
+        );
+        if (linkedCollections.length > 0) {
+          const currentLibName =
+            libraries?.find((lib) => lib.key === collectionConfig.libraryId)
+              ?.name || 'Unknown';
+          const currentText = `${config.name} (${currentLibName})`;
+          const otherTexts = linkedCollections
+            .map((c) => {
+              const libName =
+                libraries?.find((lib) => lib.key === c.libraryId)?.name ||
+                'Unknown';
+              return `${c.name} (${libName})`;
+            })
+            .join('\n');
+          return `Will unlink ${
+            linkedCollections.length + 1
+          } collections:\n${currentText}\n${otherTexts}`;
+        }
+      }
+    } else if (config.linkId) {
+      // Check if can link
+      if (isHub && allHubConfigs) {
+        const hubConfig = config as PlexHubConfig;
+        const eligibleHubs = allHubConfigs.filter(
+          (h: PlexHubConfig) =>
+            h.linkId !== undefined &&
+            h.linkId === config.linkId &&
+            h.id !== config.id &&
+            !h.isLinked
+        );
+        if (eligibleHubs.length > 0) {
+          const currentHubText = `${hubConfig.name} (${hubConfig.libraryName})`;
+          const otherHubsText = eligibleHubs
+            .map((h) => `${h.name} (${h.libraryName})`)
+            .join('\n');
+          return `Will link ${
+            eligibleHubs.length + 1
+          } hubs:\n${currentHubText}\n${otherHubsText}`;
+        }
+      } else if (isCollection && allCollectionConfigs) {
+        const collectionConfig = config as CollectionFormConfig;
+        const eligibleCollections = allCollectionConfigs.filter(
+          (c: CollectionFormConfig) =>
+            c.type === collectionConfig.type &&
+            c.subtype === collectionConfig.subtype &&
+            c.linkId !== undefined &&
+            c.linkId === collectionConfig.linkId &&
+            !c.isLinked &&
+            c.id !== collectionConfig.id
+        );
+        if (eligibleCollections.length > 0) {
+          const currentLibName =
+            libraries?.find((lib) => lib.key === collectionConfig.libraryId)
+              ?.name || 'Unknown';
+          const currentText = `${config.name} (${currentLibName})`;
+          const otherTexts = eligibleCollections
+            .map((c) => {
+              const libName =
+                libraries?.find((lib) => lib.key === c.libraryId)?.name ||
+                'Unknown';
+              return `${c.name} (${libName})`;
+            })
+            .join('\n');
+          return `Will link ${
+            eligibleCollections.length + 1
+          } collections:\n${currentText}\n${otherTexts}`;
+        }
+      }
+    }
+    return undefined;
+  }, [config, allHubConfigs, allCollectionConfigs, libraries]);
 
   // Validation schema for collections, hubs, and pre-existing configs
   const CollectionFormConfigSchema = Yup.object().shape({
@@ -478,7 +589,8 @@ const CollectionFormConfigForm = ({
   const isCollection = !isHub && !isPreExisting; // Regular Agregarr collections
 
   // Use unified linking approach - check if actively linked
-  const isLinked = Boolean(config.isLinked);
+  // If isUnlinked is true, treat as NOT linked (available for re-linking)
+  const isLinked = Boolean(config.isLinked && !config.isUnlinked);
 
   // Determine if this config can be linked (for showing link button)
   // Only show link button for existing configs that are unlinked but could be linked
@@ -489,9 +601,14 @@ const CollectionFormConfigForm = ({
       // For hubs: check if there are other unlinked hubs with same linkId
       // Include hubs with isUnlinked flag - those can be relinked!
       if (!allHubConfigs) return false;
+      // Must have valid linkId to be linkable (prevent undefined === undefined)
+      if (config.linkId === undefined) return false;
       const eligibleHubs = allHubConfigs.filter(
         (h: PlexHubConfig) =>
-          h.linkId === config.linkId && h.id !== config.id && !h.isLinked
+          h.linkId !== undefined && // Must have valid linkId
+          h.linkId === config.linkId &&
+          h.id !== config.id &&
+          !h.isLinked
         // Note: We don't exclude isUnlinked hubs - they can be relinked
       );
       return eligibleHubs.length > 0;
@@ -499,10 +616,13 @@ const CollectionFormConfigForm = ({
       // For collections: check if there are other unlinked collections with same type/subtype/linkId
       if (!allCollectionConfigs) return false;
       const collectionConfig = config as CollectionFormConfig;
+      // Must have valid linkId to be linkable (prevent undefined === undefined)
+      if (collectionConfig.linkId === undefined) return false;
       const eligibleCollections = allCollectionConfigs.filter(
         (c: CollectionFormConfig) =>
           c.type === collectionConfig.type &&
           c.subtype === collectionConfig.subtype &&
+          c.linkId !== undefined && // Must have valid linkId
           c.linkId === collectionConfig.linkId &&
           !c.isLinked &&
           c.id !== collectionConfig.id
@@ -1244,6 +1364,7 @@ const CollectionFormConfigForm = ({
                       : 'Link'
                     : undefined
                 }
+                secondaryTooltip={linkingTooltip}
                 secondaryButtonType={isLinked ? 'warning' : 'primary'}
                 // Add preview button for collections (not hubs or pre-existing)
                 // Disable for overseerr individual user requests (type=overseerr, subtype=users)

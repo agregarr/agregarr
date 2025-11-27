@@ -20,6 +20,7 @@ interface ModalProps {
   cancelText?: string;
   okText?: string;
   secondaryText?: string;
+  secondaryTooltip?: string;
   tertiaryText?: string;
   okDisabled?: boolean;
   cancelButtonType?: ButtonType;
@@ -56,6 +57,7 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
       secondaryDisabled = false,
       onSecondary,
       secondaryText,
+      secondaryTooltip,
       tertiaryButtonType = 'default',
       tertiaryDisabled = false,
       tertiaryText,
@@ -236,6 +238,7 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
                     className="ml-3"
                     disabled={secondaryDisabled}
                     data-testid="modal-secondary-button"
+                    title={secondaryTooltip}
                   >
                     {secondaryText}
                   </Button>

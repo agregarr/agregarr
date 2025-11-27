@@ -186,6 +186,8 @@ export class DiscoveryService {
       await this.resetPreExistingPromotionStatus();
 
       // STEP 3: Discover hubs and enhance pre-existing collections with hub data
+      // Use an object to pass repairedHubNamesCount by reference so it can be modified
+      const repairedHubNamesCounter = { count: 0 };
       await this.discoverHubsAndEnhance(
         plexClient,
         libraries,
@@ -197,7 +199,9 @@ export class DiscoveryService {
         existingCollectionKeys,
         existingCollectionIds,
         allCollections,
-        enhancedExistingConfigs
+        enhancedExistingConfigs,
+        existingHubConfigs,
+        repairedHubNamesCounter
       );
 
       // STEP 4: Promote collections that should be visible but aren't in hub management
@@ -286,21 +290,31 @@ export class DiscoveryService {
 
       // STEP 4: Update settings with discovered configs if requested
       if (updateSettings) {
-        // Add discovered hub configs to settings
+        // Add discovered hub configs to settings using DefaultHubConfigService
+        // This ensures automatic linking is applied properly
         if (discoveredHubConfigs.length > 0) {
-          const existingHubConfigs = settings.plex.hubConfigs || [];
-          const newHubConfigs = [...existingHubConfigs];
+          const { defaultHubConfigService } = await import(
+            '@server/lib/collections/services/DefaultHubConfigService'
+          );
 
-          for (const discoveredHub of discoveredHubConfigs) {
-            // Add isActive: true to make it a complete PlexHubConfig
-            newHubConfigs.push({ ...discoveredHub, isActive: true });
-          }
+          // Use appendConfigs which applies automatic linking logic
+          // This also saves the repaired names from existing hubs
+          defaultHubConfigService.appendConfigs(discoveredHubConfigs);
 
-          settings.plex.hubConfigs = newHubConfigs;
-          logger.debug(
-            `Added ${discoveredHubConfigs.length} new hub configs to settings`,
+          logger.info(
+            `Added ${discoveredHubConfigs.length} new hub configs to settings with automatic linking`,
             {
               label: 'Discovery Service',
+              repairedNamesCount: repairedHubNamesCounter.count,
+            }
+          );
+        } else if (repairedHubNamesCounter.count > 0) {
+          // No new hubs, but we repaired existing hub names - save settings
+          settings.save();
+          logger.info(
+            `Repaired ${repairedHubNamesCounter.count} existing hub names (no new hubs discovered)`,
+            {
+              label: 'Discovery Service - Name Repair',
             }
           );
         }
@@ -715,7 +729,9 @@ export class DiscoveryService {
     existingCollectionKeys: Set<string>,
     existingCollectionIds: Set<string>,
     allCollections: PlexCollection[],
-    enhancedExistingConfigs: PreExistingCollectionConfig[]
+    enhancedExistingConfigs: PreExistingCollectionConfig[],
+    existingHubConfigs: PlexHubConfig[],
+    repairedHubNamesCounter: { count: number }
   ): Promise<void> {
     // Counters for summary logging
     let skippedAgregarrCollections = 0;
@@ -898,6 +914,28 @@ export class DiscoveryService {
             if (!existingHubKeys.has(hubKey)) {
               discoveredHubConfigs.push(hubConfig);
               processedHubs++;
+            } else {
+              // Hub already exists - check if name needs repair (from linking bug)
+              const existingHub = existingHubConfigs.find(
+                (h: PlexHubConfig) =>
+                  h.hubIdentifier === hubConfig.hubIdentifier &&
+                  h.libraryId === hubConfig.libraryId
+              );
+              if (existingHub && existingHub.name !== hubConfig.name) {
+                logger.info(
+                  `Repairing hub name from "${existingHub.name}" to "${hubConfig.name}"`,
+                  {
+                    label: 'Discovery Service - Name Repair',
+                    hubIdentifier: hubConfig.hubIdentifier,
+                    libraryId: hubConfig.libraryId,
+                    oldName: existingHub.name,
+                    newName: hubConfig.name,
+                  }
+                );
+                // Update the existing hub's name directly
+                existingHub.name = hubConfig.name;
+                repairedHubNamesCounter.count++;
+              }
             }
           } else if (parsedHub.ratingKey) {
             // This has a rating key - check if it's an Agregarr collection or pre-existing

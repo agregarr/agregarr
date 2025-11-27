@@ -41,8 +41,21 @@ export const linkCollectionConfig = async (
       );
       if (!currentHub) return;
 
+      // Hubs must have a valid linkId to be linkable (prevent undefined === undefined matching ALL hubs)
+      if (currentHub.linkId === undefined) {
+        addToast(
+          'This hub does not have a link group ID. Please run hub discovery to enable linking.',
+          {
+            autoDismiss: true,
+            appearance: 'warning',
+          }
+        );
+        return;
+      }
+
       const eligibleHubs = localHubConfigs.filter(
         (h: PlexHubConfig) =>
+          h.linkId !== undefined && // Must have a valid linkId (prevent undefined === undefined)
           h.linkId === currentHub.linkId && // Same linkId group (established during discovery)
           h.id !== config.id &&
           !h.isLinked // Only link hubs that aren't already linked
@@ -250,6 +263,7 @@ export const unlinkCollectionConfig = async (
       const currentHub = localHubConfigs.find(
         (h: PlexHubConfig) => h.id === config.id
       );
+
       if (!currentHub || !currentHub.isLinked || !currentHub.linkId) {
         addToast('This hub is not linked to any other hubs.', {
           autoDismiss: true,

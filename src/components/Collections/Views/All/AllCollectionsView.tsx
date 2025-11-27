@@ -11,6 +11,10 @@ import { useCollectionEdit } from '@app/hooks/collections/useCollectionEdit';
 import type { CollectionFormConfig, Library } from '@app/types/collections';
 import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
+  linkCollectionConfig,
+  unlinkCollectionConfig,
+} from '@app/utils/collections/linkingHandlers';
+import {
   ArrowPathIcon,
   CheckIcon,
   ExclamationTriangleIcon,
@@ -27,8 +31,9 @@ import type {
 } from '@server/lib/settings';
 import axios from 'axios';
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
 const messages = defineMessages({
@@ -65,6 +70,7 @@ interface DisplayCollection {
 
 const AllCollectionsView: React.FC = () => {
   const intl = useIntl();
+  const { addToast } = useToasts();
 
   // Use the shared collection edit hook for collections only
   const {
@@ -90,9 +96,11 @@ const AllCollectionsView: React.FC = () => {
   const [filterLibrary, setFilterLibrary] = useState<string>('all');
 
   // Fetch data from separate APIs for consistency with CollectionSettings
-  const { data: collectionData, error: collectionError } = useSWR(
-    '/api/v1/collections'
-  );
+  const {
+    data: collectionData,
+    error: collectionError,
+    mutate: revalidateCollections,
+  } = useSWR('/api/v1/collections');
   const { data: libraries = [], error: librariesError } = useSWR(
     '/api/v1/settings/plex/libraries'
   );
@@ -106,6 +114,37 @@ const AllCollectionsView: React.FC = () => {
     error: preExistingError,
     mutate: revalidatePreExisting,
   } = useSWR('/api/v1/preexisting');
+
+  // Local state for linking operations
+  const [localCollectionConfigs, setLocalCollectionConfigs] = useState<
+    CollectionFormConfig[]
+  >([]);
+  const [localHubConfigs, setLocalHubConfigs] = useState<PlexHubConfig[]>([]);
+
+  // Update local state when data changes
+  useEffect(() => {
+    if (collectionData?.collectionConfigs) {
+      setLocalCollectionConfigs(collectionData.collectionConfigs);
+    }
+    if (hubConfigs) {
+      setLocalHubConfigs(hubConfigs);
+    }
+  }, [collectionData, hubConfigs]);
+
+  // Revalidate all data sources
+  const revalidateAll = () => {
+    revalidateCollections();
+    revalidateDefaultHubs();
+    revalidatePreExisting();
+  };
+
+  // Wrapper for saveCollectionConfig to match linking handler signature
+  const saveCollectionConfigs = async (configs: CollectionFormConfig[]) => {
+    // Save each config individually
+    for (const config of configs) {
+      await saveCollectionConfig(config);
+    }
+  };
 
   const isLoading =
     !collectionData || !libraries || !hubConfigs || !preExistingConfigs;
@@ -1218,6 +1257,32 @@ const AllCollectionsView: React.FC = () => {
           onSave={saveCollectionConfig}
           onCancel={closeCollectionModal}
           libraries={libraries}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          allCollectionConfigs={collectionData?.collectionConfigs || []}
+          allHubConfigs={hubConfigs || []}
         />
       )}
 
@@ -1228,6 +1293,32 @@ const AllCollectionsView: React.FC = () => {
           onSave={saveHubConfig}
           onCancel={closeHubModal}
           libraries={libraries}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          allCollectionConfigs={collectionData?.collectionConfigs || []}
+          allHubConfigs={hubConfigs || []}
         />
       )}
 
@@ -1238,6 +1329,32 @@ const AllCollectionsView: React.FC = () => {
           onSave={savePreExistingConfig}
           onCancel={closePreExistingModal}
           libraries={libraries}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          allCollectionConfigs={collectionData?.collectionConfigs || []}
+          allHubConfigs={hubConfigs || []}
         />
       )}
     </>
