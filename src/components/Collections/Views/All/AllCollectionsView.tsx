@@ -1,6 +1,7 @@
 import HomeStarIcon from '@app/assets/icons/homeWithStar.svg';
 import LibraryBookmarkIcon from '@app/assets/icons/libraryRecommended.svg';
 import ThreeHomesIcon from '@app/assets/icons/threeHomes.svg';
+import BulkEditModal from '@app/components/Collections/BulkEditModal';
 import CollectionConfigForm from '@app/components/Collections/Forms/CollectionConfigForm';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
@@ -22,6 +23,7 @@ import {
   LinkIcon,
   LinkSlashIcon,
   PencilIcon,
+  PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -50,6 +52,7 @@ const messages = defineMessages({
   allLibraries: 'All Libraries',
   nameAZ: 'Name (A-Z)',
   nameZA: 'Name (Z-A)',
+  bulkEdit: 'Bulk Edit',
 });
 
 // Interfaces for clean collection data display - no conversion needed
@@ -89,6 +92,9 @@ const AllCollectionsView: React.FC = () => {
   const [showPreExistingForm, setShowPreExistingForm] = useState(false);
   const [editingPreExistingConfig, setEditingPreExistingConfig] =
     useState<PreExistingCollectionConfig | null>(null);
+
+  // Bulk edit modal state
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
 
   // Sorting state
   const [sortType, setSortType] = useState<string>('name-asc');
@@ -659,14 +665,28 @@ const AllCollectionsView: React.FC = () => {
           {intl.formatMessage(messages.allCollectionsDescription)}
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-sm text-gray-400">
-            {intl.formatMessage(messages.totalCollections, {
-              count: filteredAndSortedCollections.length,
-            })}
-            {allCollections.length !== filteredAndSortedCollections.length && (
-              <span className="text-gray-500"> of {allCollections.length}</span>
-            )}
-          </p>
+          <div className="flex items-center gap-4">
+            <Button
+              buttonType="primary"
+              buttonSize="sm"
+              onClick={() => setShowBulkEditModal(true)}
+            >
+              <PencilSquareIcon className="mr-1 h-4 w-4" />
+              {intl.formatMessage(messages.bulkEdit)}
+            </Button>
+            <p className="text-sm text-gray-400">
+              {intl.formatMessage(messages.totalCollections, {
+                count: filteredAndSortedCollections.length,
+              })}
+              {allCollections.length !==
+                filteredAndSortedCollections.length && (
+                <span className="text-gray-500">
+                  {' '}
+                  of {allCollections.length}
+                </span>
+              )}
+            </p>
+          </div>
 
           {/* Sorting and Filtering Controls */}
           <div className="flex flex-wrap items-center gap-3">
@@ -1355,6 +1375,17 @@ const AllCollectionsView: React.FC = () => {
           }
           allCollectionConfigs={collectionData?.collectionConfigs || []}
           allHubConfigs={hubConfigs || []}
+        />
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <BulkEditModal
+          collections={collectionData?.collectionConfigs || []}
+          hubs={hubConfigs || []}
+          preExisting={preExistingConfigs || []}
+          onClose={() => setShowBulkEditModal(false)}
+          onSave={revalidateAll}
         />
       )}
     </>

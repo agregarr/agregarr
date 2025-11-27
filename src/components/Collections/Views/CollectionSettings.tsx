@@ -1,3 +1,4 @@
+import BulkEditModal from '@app/components/Collections/BulkEditModal';
 import CollectionConfigForm from '@app/components/Collections/Forms/CollectionConfigForm';
 import GlobalSyncStatus from '@app/components/Collections/GlobalSyncStatus';
 import LibraryCollectionGroup from '@app/components/Collections/Views/Library/LibraryCollectionGroup';
@@ -98,6 +99,9 @@ const CollectionSettings = ({
   const [showPreExistingForm, setShowPreExistingForm] = useState(false);
   const [editingPreExistingConfig, setEditingPreExistingConfig] =
     useState<PreExistingCollectionConfig | null>(null);
+
+  // Bulk edit modal state
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
 
   // Tab state for Home, Recommended, Library, and Inactive tab ordering
   // Use filterTab if provided (for dedicated pages), otherwise default to 'home' for the main settings page
@@ -1891,6 +1895,7 @@ const CollectionSettings = ({
                   setBadgeClickCount={setBadgeClickCount}
                   checkForUnlockSequence={checkForUnlockSequence}
                   activeTab={activeTab}
+                  onBulkEdit={() => setShowBulkEditModal(true)}
                 />
               );
             })
@@ -1922,6 +1927,7 @@ const CollectionSettings = ({
               setBadgeClickCount={setBadgeClickCount}
               checkForUnlockSequence={checkForUnlockSequence}
               activeTab={activeTab}
+              onBulkEdit={() => setShowBulkEditModal(true)}
             />
           ) : (
             <div className="py-8 text-center">
@@ -2041,6 +2047,17 @@ const CollectionSettings = ({
           libraries={libraries}
           allCollectionConfigs={localCollectionConfigs}
           allHubConfigs={localHubConfigs}
+        />
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <BulkEditModal
+          collections={localCollectionConfigs}
+          hubs={localHubConfigs}
+          preExisting={localPreExistingConfigs}
+          onClose={() => setShowBulkEditModal(false)}
+          onSave={revalidateAll}
         />
       )}
     </div>

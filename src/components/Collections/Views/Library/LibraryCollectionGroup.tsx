@@ -36,6 +36,7 @@ import {
   LinkSlashIcon,
   LockClosedIcon,
   PencilIcon,
+  PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
@@ -114,6 +115,7 @@ interface LibraryCollectionGroupProps {
   setBadgeClickCount: (value: number | ((prev: number) => number)) => void;
   checkForUnlockSequence: () => void;
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
+  onBulkEdit?: () => void;
 }
 
 // SortableItem component for individual collection items - now handles multiple config types
@@ -980,6 +982,7 @@ const LibraryCollectionGroup = ({
   setBadgeClickCount,
   checkForUnlockSequence,
   activeTab,
+  onBulkEdit,
 }: LibraryCollectionGroupProps) => {
   // Ensure badgeClickCount is "used" to satisfy linter - this is part of easter egg state management
   void badgeClickCount;
@@ -1219,13 +1222,26 @@ const LibraryCollectionGroup = ({
             {allConfigs.length} item{allConfigs.length !== 1 ? 's' : ''}
           </Badge>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-sm text-gray-400 hover:text-gray-300"
-        >
-          {isCollapsed ? 'Expand' : 'Collapse'}
-        </button>
+        <div className="flex items-center space-x-4">
+          {onBulkEdit && (
+            <button
+              type="button"
+              onClick={onBulkEdit}
+              className="flex items-center space-x-1 rounded border border-gray-600 px-2 py-1 text-xs text-gray-400 hover:border-gray-500 hover:text-gray-300"
+              title="Bulk Edit Collections"
+            >
+              <PencilSquareIcon className="h-3.5 w-3.5" />
+              <span>Bulk Edit</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-sm text-gray-400 hover:text-gray-300"
+          >
+            {isCollapsed ? 'Expand' : 'Collapse'}
+          </button>
+        </div>
       </div>
 
       {/* Collections List */}
