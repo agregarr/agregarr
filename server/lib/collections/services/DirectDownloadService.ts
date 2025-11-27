@@ -757,7 +757,7 @@ export class DirectDownloadService {
       tags: tagsToSend,
       rootFolderPath,
       monitored: true,
-      seasonFolder: sonarrSettings.enableSeasonFolders,
+      seasonFolder: sonarrSettings.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
       seriesType: sonarrSettings.seriesType || 'standard',
       searchNow: true, // Immediately start searching for episodes
     });

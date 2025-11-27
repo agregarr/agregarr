@@ -255,6 +255,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
           tagRequestsMode:
             sonarr?.tagRequestsMode ??
             (sonarr?.tagRequests ? 'per-service' : 'off'),
+          enableSeasonFolders: sonarr?.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
         }}
         validationSchema={SonarrSettingsSchema}
         onSubmit={async (values) => {
@@ -282,6 +283,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               // preventSearch: !values.enableSearch, // Removed field
               tagRequests: values.tagRequestsMode !== 'off',
               tagRequestsMode: values.tagRequestsMode,
+              enableSeasonFolders: values.enableSeasonFolders,
             };
             if (!sonarr) {
               await axios.post('/api/v1/settings/sonarr', submission);
@@ -652,6 +654,21 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                       noOptionsMessage={() =>
                         intl.formatMessage(messages.notagoptions)
                       }
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label
+                    htmlFor="enableSeasonFolders"
+                    className="checkbox-label"
+                  >
+                    {intl.formatMessage(messages.seasonfolders)}
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="enableSeasonFolders"
+                      name="enableSeasonFolders"
                     />
                   </div>
                 </div>
