@@ -719,7 +719,8 @@ export class DirectDownloadService {
     const seasonCount = await missingItemFilterService.getTvSeasonCount(
       item.tmdbId
     );
-    let seasonsToMonitor = Math.min(seasonCount, maxSeasons);
+    let seasonsToMonitor =
+      maxSeasons > 0 ? Math.min(seasonCount, maxSeasons) : seasonCount;
 
     // Apply seasonsPerShowLimit if configured
     if (config.seasonsPerShowLimit && config.seasonsPerShowLimit > 0) {
