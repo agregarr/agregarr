@@ -44,6 +44,15 @@ export interface RadarrExclusion {
   movieYear: number;
 }
 
+export interface RadarrPagedResponse<T> {
+  page: number;
+  pageSize: number;
+  sortKey: string | null;
+  sortDirection: 'default' | 'ascending' | 'descending';
+  totalRecords: number;
+  records: T[];
+}
+
 class RadarrAPI extends ServarrBase<{ movieId: number }> {
   constructor({ url, apiKey }: { url: string; apiKey: string }) {
     super({ url, apiKey, cacheName: 'radarr', apiName: 'Radarr' });
@@ -196,8 +205,28 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
 
   public getExclusions = async (): Promise<RadarrExclusion[]> => {
     try {
-      const response = await this.axios.get<RadarrExclusion[]>('/exclusions');
-      return response.data;
+      // Fetch all pages with a reasonable page size
+      const allExclusions: RadarrExclusion[] = [];
+      let currentPage = 1;
+      let totalRecords = 0;
+
+      do {
+        const response = await this.axios.get<
+          RadarrPagedResponse<RadarrExclusion>
+        >('/exclusions/paged', {
+          params: {
+            page: currentPage,
+            pageSize: 100,
+            sortDirection: 'default',
+          },
+        });
+
+        allExclusions.push(...response.data.records);
+        totalRecords = response.data.totalRecords;
+        currentPage++;
+      } while (allExclusions.length < totalRecords);
+
+      return allExclusions;
     } catch (e) {
       logger.error('Error retrieving exclusions from Radarr', {
         label: 'Radarr API',
