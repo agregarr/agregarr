@@ -290,13 +290,13 @@ export class DiscoveryService {
 
       // STEP 4: Update settings with discovered configs if requested
       if (updateSettings) {
-        // Add discovered hub configs to settings using DefaultHubConfigService
-        // This ensures automatic linking is applied properly
-        if (discoveredHubConfigs.length > 0) {
-          const { defaultHubConfigService } = await import(
-            '@server/lib/collections/services/DefaultHubConfigService'
-          );
+        const { defaultHubConfigService } = await import(
+          '@server/lib/collections/services/DefaultHubConfigService'
+        );
 
+        // ALWAYS re-apply automatic linking during discovery to fix broken linkIds
+        // This handles cases where hubs were incorrectly linked together by the old bug
+        if (discoveredHubConfigs.length > 0) {
           // Use appendConfigs which applies automatic linking logic
           // This also saves the repaired names from existing hubs
           defaultHubConfigService.appendConfigs(discoveredHubConfigs);
@@ -308,13 +308,15 @@ export class DiscoveryService {
               repairedNamesCount: repairedHubNamesCounter.count,
             }
           );
-        } else if (repairedHubNamesCounter.count > 0) {
-          // No new hubs, but we repaired existing hub names - save settings
-          settings.save();
+        } else if (existingHubConfigs.length > 0) {
+          // No new hubs, but re-apply automatic linking to fix broken linkIds and repaired names
+          const relinkedConfigs =
+            defaultHubConfigService.saveConfigs(existingHubConfigs);
+
           logger.info(
-            `Repaired ${repairedHubNamesCounter.count} existing hub names (no new hubs discovered)`,
+            `Re-applied automatic linking to ${relinkedConfigs.length} existing hubs (repaired ${repairedHubNamesCounter.count} names)`,
             {
-              label: 'Discovery Service - Name Repair',
+              label: 'Discovery Service - Auto-Repair',
             }
           );
         }
