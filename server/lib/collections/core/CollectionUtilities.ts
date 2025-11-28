@@ -1240,6 +1240,14 @@ export function validateDownloadModeConfig(config: CollectionConfig): {
     );
   }
 
+  // Validate seasonGrabOrder
+  if (
+    config.seasonGrabOrder &&
+    !['first', 'latest', 'airing'].includes(config.seasonGrabOrder)
+  ) {
+    errors.push(`Invalid season grab order mode: ${config.seasonGrabOrder}`);
+  }
+
   // Mode-specific validations
   if (downloadMode === 'overseerr') {
     // Overseerr mode requires external Overseerr connection settings

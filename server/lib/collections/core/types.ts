@@ -214,6 +214,8 @@ export interface AutoRequestConfig {
   maxSeasonsToRequest: number;
   /** Limit each TV show to only the first X seasons */
   seasonsPerShowLimit?: number;
+  /** Order to grab seasons: first, latest, or airing */
+  seasonGrabOrder?: 'first' | 'latest' | 'airing';
 }
 
 /**

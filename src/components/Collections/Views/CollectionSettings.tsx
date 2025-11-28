@@ -295,6 +295,7 @@ const CollectionSettings = ({
           autoApproveTV: config.autoApproveTV,
           maxSeasonsToRequest: config.maxSeasonsToRequest,
           seasonsPerShowLimit: config.seasonsPerShowLimit,
+          seasonGrabOrder: config.seasonGrabOrder || 'first',
           traktCustomListUrl: config.traktCustomListUrl,
           tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
           imdbCustomListUrl: config.imdbCustomListUrl,
@@ -423,6 +424,7 @@ const CollectionSettings = ({
       autoApproveTV: false,
       maxSeasonsToRequest: 0, // Default: no limit
       seasonsPerShowLimit: 0, // Default: all seasons
+      seasonGrabOrder: 'first', // Default to first N seasons
     };
     setEditingConfig(newConfig);
     setShowConfigForm(true);

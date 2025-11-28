@@ -1,6 +1,7 @@
 import ImdbRatingsAPI from '@server/api/imdbRatings';
 import RottenTomatoes from '@server/api/rottentomatoes';
 import TheMovieDb from '@server/api/themoviedb';
+import type { TmdbTvEpisodeResult } from '@server/api/themoviedb/interfaces';
 import type { MissingItem } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -521,6 +522,149 @@ export class MissingItemFilterService {
       );
       return 1; // Default to 1 season if we can't determine
     }
+  }
+
+  /**
+   * Get all seasons with their air status
+   * @returns Array of season objects with season number and whether they have aired
+   */
+  public async getTvSeasonsWithAirStatus(
+    tmdbId: number
+  ): Promise<{ seasonNumber: number; hasAired: boolean }[]> {
+    try {
+      const tmdb = new (await import('@server/api/themoviedb')).default();
+      const tvShow = await tmdb.getTvShow({ tvId: tmdbId });
+
+      if (!tvShow.seasons || tvShow.seasons.length === 0) {
+        return [];
+      }
+
+      const now = new Date();
+      const seasonsWithStatus: { seasonNumber: number; hasAired: boolean }[] =
+        [];
+
+      for (const season of tvShow.seasons) {
+        // Skip season 0 (specials)
+        if (season.season_number === 0) {
+          continue;
+        }
+
+        // If season has an air_date, check if it's in the past
+        if (season.air_date) {
+          const seasonAirDate = new Date(season.air_date);
+          seasonsWithStatus.push({
+            seasonNumber: season.season_number,
+            hasAired: seasonAirDate <= now,
+          });
+        } else {
+          // If no air_date on season, we need to check individual episodes
+          try {
+            const seasonDetails = await tmdb.getTvSeason({
+              tvId: tmdbId,
+              seasonNumber: season.season_number,
+            });
+
+            // Check if ANY episode has aired
+            const hasAnyEpisodeAired = seasonDetails.episodes.some(
+              (ep: TmdbTvEpisodeResult) => {
+                if (!ep.air_date) return false;
+                const epAirDate = new Date(ep.air_date);
+                return epAirDate <= now;
+              }
+            );
+
+            seasonsWithStatus.push({
+              seasonNumber: season.season_number,
+              hasAired: hasAnyEpisodeAired,
+            });
+          } catch (error) {
+            logger.warn(
+              `Failed to get episode details for season ${season.season_number}, assuming not aired`,
+              {
+                label: 'Missing Item Filter Service',
+                tmdbId,
+                seasonNumber: season.season_number,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            );
+            // If we can't determine, assume not aired (safer default)
+            seasonsWithStatus.push({
+              seasonNumber: season.season_number,
+              hasAired: false,
+            });
+          }
+        }
+      }
+
+      return seasonsWithStatus;
+    } catch (error) {
+      logger.warn(`Failed to get season air status for TMDB ID ${tmdbId}`, {
+        label: 'Missing Item Filter Service',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Select which seasons to download based on grab order mode
+   * @param tmdbId - TMDB ID of the TV show
+   * @param limit - Number of seasons to grab (0 = all)
+   * @param grabOrder - Order mode: 'first', 'latest', or 'airing'
+   * @returns Array of season numbers in ascending order
+   */
+  public async selectSeasonsToGrab(
+    tmdbId: number,
+    limit: number,
+    grabOrder: 'first' | 'latest' | 'airing' = 'first'
+  ): Promise<number[]> {
+    const seasonCount = await this.getTvSeasonCount(tmdbId);
+
+    // If no limit, return all seasons (1 to seasonCount)
+    if (limit === 0 || limit >= seasonCount) {
+      return Array.from({ length: seasonCount }, (_, i) => i + 1);
+    }
+
+    // MODE 1: "first" - grab first N seasons (original behavior)
+    if (grabOrder === 'first') {
+      return Array.from({ length: limit }, (_, i) => i + 1);
+    }
+
+    // MODE 2: "latest" - grab N most recent seasons (including unreleased)
+    if (grabOrder === 'latest') {
+      const startSeason = Math.max(1, seasonCount - limit + 1);
+      return Array.from({ length: limit }, (_, i) => startSeason + i);
+    }
+
+    // MODE 3: "airing" - grab N most recently AIRED seasons
+    if (grabOrder === 'airing') {
+      const seasonsWithStatus = await this.getTvSeasonsWithAirStatus(tmdbId);
+
+      // Filter to only aired seasons
+      const airedSeasons = seasonsWithStatus
+        .filter((s) => s.hasAired)
+        .map((s) => s.seasonNumber)
+        .sort((a, b) => a - b); // Sort ascending
+
+      if (airedSeasons.length === 0) {
+        // No seasons have aired yet, fall back to first season
+        logger.debug(
+          `No aired seasons found for TMDB ${tmdbId}, falling back to season 1`,
+          {
+            label: 'Missing Item Filter Service',
+          }
+        );
+        return [1];
+      }
+
+      // Take the last N aired seasons
+      const selectedSeasons = airedSeasons.slice(-limit);
+
+      return selectedSeasons; // Already sorted ascending
+    }
+
+    // Fallback (should never reach here)
+    return Array.from({ length: limit }, (_, i) => i + 1);
   }
 
   /**

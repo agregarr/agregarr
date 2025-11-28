@@ -193,6 +193,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.seasonsPerShowLimit !== undefined && {
           seasonsPerShowLimit: collectionConfig.seasonsPerShowLimit,
         }),
+        ...(collectionConfig.seasonGrabOrder && {
+          seasonGrabOrder: collectionConfig.seasonGrabOrder,
+        }),
         ...(collectionConfig.maxPositionToProcess !== undefined && {
           maxPositionToProcess: collectionConfig.maxPositionToProcess,
         }),

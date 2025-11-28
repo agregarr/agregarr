@@ -173,6 +173,7 @@ export const linkCollectionConfig = async (
             autoApproveTV: masterConfig.autoApproveTV,
             maxSeasonsToRequest: masterConfig.maxSeasonsToRequest,
             seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
+            seasonGrabOrder: masterConfig.seasonGrabOrder,
             maxPositionToProcess: masterConfig.maxPositionToProcess,
             minimumYear: masterConfig.minimumYear,
             minimumImdbRating: masterConfig.minimumImdbRating,

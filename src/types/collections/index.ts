@@ -239,6 +239,7 @@ export interface CollectionFormConfig {
   readonly autoApproveTV?: boolean; // Auto-approve TV show requests
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
+  readonly seasonGrabOrder?: SeasonGrabOrder; // Order to grab seasons: first, latest, or airing (default: 'first')
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
@@ -367,6 +368,7 @@ export interface CollectionConfigCreateRequest {
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly seasonsPerShowLimit?: number;
+  readonly seasonGrabOrder?: SeasonGrabOrder;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
   readonly minimumImdbRating?: number;
@@ -461,6 +463,7 @@ export const toCollectionCreateRequest = (
     autoApproveTV: config.autoApproveTV,
     maxSeasonsToRequest: config.maxSeasonsToRequest,
     seasonsPerShowLimit: config.seasonsPerShowLimit,
+    seasonGrabOrder: config.seasonGrabOrder,
     maxPositionToProcess: config.maxPositionToProcess,
     minimumYear: config.minimumYear,
     minimumImdbRating: config.minimumImdbRating,
@@ -633,6 +636,11 @@ export type CollectionSourceType =
   | 'comingsoon'
   | 'recently_added';
 export type MediaType = 'movie' | 'tv';
+
+/**
+ * Season grab order modes for TV shows
+ */
+export type SeasonGrabOrder = 'first' | 'latest' | 'airing';
 
 /**
  * Smart Collection Sort Options
@@ -843,6 +851,7 @@ export interface MultiSourceCollectionConfig {
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly seasonsPerShowLimit?: number;
+  readonly seasonGrabOrder?: SeasonGrabOrder;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
   readonly excludedGenres?: number[];

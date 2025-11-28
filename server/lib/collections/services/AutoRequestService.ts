@@ -215,32 +215,36 @@ export class AutoRequestService {
           // Create the actual request via Overseerr API
           const overseerrAPI = this.getOverseerrAPI();
 
-          // For TV shows, request seasons based on seasonsPerShowLimit
+          // For TV shows, request seasons based on seasonsPerShowLimit and seasonGrabOrder
           let seasons: number[] | 'all' | undefined;
           if (item.mediaType === 'tv') {
             const seasonsLimit = config.seasonsPerShowLimit;
+            const grabOrder = config.seasonGrabOrder || 'first'; // Default to 'first' for backwards compatibility
 
             if (seasonsLimit && seasonsLimit > 0) {
-              // Request only the first X seasons
-              const seasonNumbers = [];
-              for (let i = 1; i <= seasonsLimit; i++) {
-                seasonNumbers.push(i);
-              }
-              seasons = seasonNumbers;
+              // Use the new season selection helper
+              const selectedSeasons =
+                await missingItemFilterService.selectSeasonsToGrab(
+                  item.tmdbId,
+                  seasonsLimit,
+                  grabOrder
+                );
+
+              seasons = selectedSeasons;
 
               logger.debug(
-                `Limiting ${
+                `Selecting seasons for ${
                   item.title
-                } to first ${seasonsLimit} seasons: [${seasonNumbers.join(
-                  ', '
-                )}]`,
+                } using ${grabOrder} mode: [${selectedSeasons.join(', ')}]`,
                 {
                   label: 'Auto Request Service',
                   collection: config.name,
+                  mode: grabOrder,
+                  limit: seasonsLimit,
                 }
               );
             } else {
-              // Use 'all' to request all available seasons (matches old working implementation)
+              // Use 'all' to request all available seasons
               seasons = 'all';
             }
           }

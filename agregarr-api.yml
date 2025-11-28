@@ -441,6 +441,15 @@ components:
           description: 'Limit each TV show to only the first X seasons (0 = all seasons)'
           example: 2
           nullable: true
+        seasonGrabOrder:
+          type: string
+          enum:
+            - first
+            - latest
+            - airing
+          description: 'Order to grab seasons: first N seasons (default), N latest seasons (including unreleased), or N most recently aired seasons'
+          example: 'first'
+          nullable: true
         minimumYear:
           type: integer
           description: 'Only process movies/TV shows released on or after this year (0 = no limit)'
@@ -851,6 +860,15 @@ components:
           type: integer
           description: 'Limit each TV show to only the first X seasons (0 = all seasons)'
           example: 2
+          nullable: true
+        seasonGrabOrder:
+          type: string
+          enum:
+            - first
+            - latest
+            - airing
+          description: 'Order to grab seasons: first N seasons (default), N latest seasons (including unreleased), or N most recently aired seasons'
+          example: 'first'
           nullable: true
         minimumYear:
           type: integer
@@ -1327,6 +1345,15 @@ components:
           type: integer
           description: 'Limit each TV show to only the first X seasons (0 = all seasons)'
           example: 2
+          nullable: true
+        seasonGrabOrder:
+          type: string
+          enum:
+            - first
+            - latest
+            - airing
+          description: 'Order to grab seasons: first N seasons (default), N latest seasons (including unreleased), or N most recently aired seasons'
+          example: 'first'
           nullable: true
         minimumYear:
           type: integer

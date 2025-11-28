@@ -19,7 +19,13 @@ const messages = defineMessages({
   tvSeasonLimitHelp: '0 = no limit',
   seasonsPerShow: 'Seasons per TV show to download/request',
   seasonsPerShowHelp:
-    'Limit each TV show to only the first X seasons (0 = all seasons)',
+    'Limit each TV show to only certain number of seasons, grabbed in certain order (0 = all seasons)',
+  seasonGrabOrder: 'Season grab order',
+  seasonGrabOrderHelp:
+    'Choose which order to grab seasons: First, Latest (including unreleased), or Most Recently aired',
+  seasonGrabOrderFirst: 'First seasons',
+  seasonGrabOrderLatest: 'Latest seasons (including unreleased)',
+  seasonGrabOrderAiring: 'Most recently aired seasons',
   minimumYear: 'Minimum release year',
   minimumYearHelp:
     'Only grab movies/TV shows released on or after this year (0 = no limit)',
@@ -419,6 +425,33 @@ const AutoRequestSection = ({
               </div>
             </div>
           )}
+
+          {/* Season Grab Order - only show when TV processing is enabled and seasonsPerShowLimit > 0 */}
+          {values.searchMissingTV &&
+            values.seasonsPerShowLimit &&
+            Number(values.seasonsPerShowLimit) > 0 && (
+              <div className="mb-6">
+                <div className="mb-2 text-sm font-medium text-gray-200">
+                  {intl.formatMessage(messages.seasonGrabOrder)}
+                </div>
+                <div className="form-input-field">
+                  <Field as="select" name="seasonGrabOrder" className="short">
+                    <option value="first">
+                      {intl.formatMessage(messages.seasonGrabOrderFirst)}
+                    </option>
+                    <option value="latest">
+                      {intl.formatMessage(messages.seasonGrabOrderLatest)}
+                    </option>
+                    <option value="airing">
+                      {intl.formatMessage(messages.seasonGrabOrderAiring)}
+                    </option>
+                  </Field>
+                </div>
+                <div className="label-tip mt-2">
+                  {intl.formatMessage(messages.seasonGrabOrderHelp)}
+                </div>
+              </div>
+            )}
 
           {/* Step 3: Download Method Selection */}
           <div className="mb-6">

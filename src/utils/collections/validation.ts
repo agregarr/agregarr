@@ -187,6 +187,16 @@ const autoRequestValidations = {
     otherwise: (schema) => schema,
   }),
 
+  seasonGrabOrder: Yup.string().when('searchMissingTV', {
+    is: true,
+    then: (schema) =>
+      schema.oneOf(
+        ['first', 'latest', 'airing'],
+        'Invalid season grab order mode'
+      ),
+    otherwise: (schema) => schema,
+  }),
+
   maxPositionToProcess: Yup.number()
     .min(0, 'Position limit must be 0 or greater')
     .max(9999, 'Position limit cannot exceed 9999')

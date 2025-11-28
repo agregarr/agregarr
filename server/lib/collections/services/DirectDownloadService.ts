@@ -719,21 +719,35 @@ export class DirectDownloadService {
     const seasonCount = await missingItemFilterService.getTvSeasonCount(
       item.tmdbId
     );
-    let seasonsToMonitor =
+
+    // Determine how many seasons to grab
+    let seasonsLimit =
       maxSeasons > 0 ? Math.min(seasonCount, maxSeasons) : seasonCount;
 
     // Apply seasonsPerShowLimit if configured
     if (config.seasonsPerShowLimit && config.seasonsPerShowLimit > 0) {
-      seasonsToMonitor = Math.min(seasonsToMonitor, config.seasonsPerShowLimit);
-
-      logger.debug(
-        `Limiting ${item.title} to first ${config.seasonsPerShowLimit} seasons (total seasons: ${seasonCount})`,
-        {
-          label: 'Direct Download Service',
-          collection: config.name,
-        }
-      );
+      seasonsLimit = Math.min(seasonsLimit, config.seasonsPerShowLimit);
     }
+
+    // Determine which specific seasons to monitor based on grab order
+    const grabOrder = config.seasonGrabOrder || 'first'; // Default to 'first'
+    const seasonsToMonitorArray =
+      await missingItemFilterService.selectSeasonsToGrab(
+        item.tmdbId,
+        seasonsLimit,
+        grabOrder
+      );
+
+    logger.debug(
+      `Selecting seasons for ${item.title} using ${grabOrder} mode (total seasons: ${seasonCount})`,
+      {
+        label: 'Direct Download Service',
+        collection: config.name,
+        mode: grabOrder,
+        limit: seasonsLimit,
+        selectedSeasons: seasonsToMonitorArray,
+      }
+    );
 
     const tagsToSend = await this.getSonarrTagsWithCollection(
       sonarrSettings,
@@ -753,7 +767,7 @@ export class DirectDownloadService {
       title: item.title,
       profileId: profileId,
       languageProfileId: sonarrSettings.activeLanguageProfileId,
-      seasons: Array.from({ length: seasonsToMonitor }, (_, i) => i + 1),
+      seasons: seasonsToMonitorArray, // Pass the selected season numbers
       tags: tagsToSend,
       rootFolderPath,
       monitored: sonarrSettings.monitorByDefault ?? true,
@@ -771,7 +785,7 @@ export class DirectDownloadService {
       sonarrServer: `${sonarrSettings.hostname}:${sonarrSettings.port}`,
       profileId: profileId,
       rootFolderPath,
-      seasonsToMonitor: seasonsToMonitor,
+      seasonsToMonitor: seasonsToMonitorArray,
       tags: tagsToSend,
     });
   }

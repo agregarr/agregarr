@@ -53,6 +53,7 @@ const messages = defineMessages({
   autoApproveTV: 'Auto Approve TV',
   maxSeasonsToRequest: 'Max Seasons to Request',
   seasonsPerShowLimit: 'Seasons Per Show Limit',
+  seasonGrabOrder: 'Season Grab Order',
   maxPositionToProcess: 'Max Position to Process',
   minimumYear: 'Minimum Year',
   minimumImdbRating: 'Minimum IMDb Rating',
@@ -99,6 +100,7 @@ type UnifiedCollection = {
   autoApproveTV?: boolean;
   maxSeasonsToRequest?: number;
   seasonsPerShowLimit?: number;
+  seasonGrabOrder?: 'first' | 'latest' | 'airing';
   maxPositionToProcess?: number;
   minimumYear?: number;
   minimumImdbRating?: number;
@@ -149,6 +151,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
     autoApproveTV?: boolean;
     maxSeasonsToRequest?: number | '';
     seasonsPerShowLimit?: number | '';
+    seasonGrabOrder?: 'first' | 'latest' | 'airing' | '';
     maxPositionToProcess?: number | '';
     minimumYear?: number | '';
     minimumImdbRating?: number | '';
@@ -185,6 +188,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
         autoApproveTV: config.autoApproveTV,
         maxSeasonsToRequest: config.maxSeasonsToRequest,
         seasonsPerShowLimit: config.seasonsPerShowLimit,
+        seasonGrabOrder: config.seasonGrabOrder,
         maxPositionToProcess: config.maxPositionToProcess,
         minimumYear: config.minimumYear,
         minimumImdbRating: config.minimumImdbRating,
@@ -323,6 +327,11 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
           comparison =
             (a.seasonsPerShowLimit || 0) - (b.seasonsPerShowLimit || 0);
           break;
+        case 'seasonGrabOrder':
+          comparison = (a.seasonGrabOrder || '').localeCompare(
+            b.seasonGrabOrder || ''
+          );
+          break;
         case 'maxPositionToProcess':
           comparison =
             (a.maxPositionToProcess || 0) - (b.maxPositionToProcess || 0);
@@ -437,6 +446,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
       'autoApproveTV',
       'maxSeasonsToRequest',
       'seasonsPerShowLimit',
+      'seasonGrabOrder',
       'maxPositionToProcess',
       'minimumYear',
       'minimumImdbRating',
@@ -583,6 +593,16 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
             editValues.seasonsPerShowLimit === ''
               ? undefined
               : editValues.seasonsPerShowLimit;
+        }
+
+        if (
+          editValues.seasonGrabOrder !== undefined &&
+          isFieldApplicable('seasonGrabOrder', collection.type)
+        ) {
+          updatedFields.seasonGrabOrder =
+            editValues.seasonGrabOrder === ''
+              ? undefined
+              : editValues.seasonGrabOrder;
         }
 
         if (
@@ -921,6 +941,13 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                   {renderSortIndicator('seasonsPerShowLimit')}
                 </th>
                 <th
+                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  onClick={() => handleColumnSort('seasonGrabOrder')}
+                >
+                  {intl.formatMessage(messages.seasonGrabOrder)}
+                  {renderSortIndicator('seasonGrabOrder')}
+                </th>
+                <th
                   className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('maxPositionToProcess')}
                 >
@@ -1230,6 +1257,18 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         }`}
                       >
                         {collection.seasonsPerShowLimit || '-'}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center text-sm ${
+                          !isFieldApplicable('seasonGrabOrder', collection.type)
+                            ? 'text-gray-600 opacity-30'
+                            : 'text-gray-300'
+                        }`}
+                      >
+                        {collection.seasonGrabOrder
+                          ? collection.seasonGrabOrder.charAt(0).toUpperCase() +
+                            collection.seasonGrabOrder.slice(1)
+                          : '-'}
                       </td>
                       <td
                         className={`px-3 py-2 text-center text-sm ${
@@ -1663,6 +1702,27 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                         min={0}
                       />
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={editValues.seasonGrabOrder || ''}
+                        onChange={(e) =>
+                          setEditValues({
+                            ...editValues,
+                            seasonGrabOrder: e.target.value as
+                              | 'first'
+                              | 'latest'
+                              | 'airing'
+                              | '',
+                          })
+                        }
+                        className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
+                      >
+                        <option value="">-</option>
+                        <option value="first">First</option>
+                        <option value="latest">Latest</option>
+                        <option value="airing">Airing</option>
+                      </select>
                     </td>
                     <td className="px-3 py-2">
                       <input

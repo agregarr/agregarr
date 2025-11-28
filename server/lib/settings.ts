@@ -12,6 +12,11 @@ export enum CollectionType {
   PRE_EXISTING = 'pre_existing', // Pre-existing Plex collections
 }
 
+/**
+ * Season grab order modes for TV shows
+ */
+export type SeasonGrabOrder = 'first' | 'latest' | 'airing';
+
 export interface Library {
   readonly key: string;
   readonly name: string;
@@ -96,6 +101,7 @@ export interface CollectionConfig {
   readonly autoApproveTV?: boolean; // Auto-approve/download TV shows
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval/download (TV shows with more seasons require manual approval or are skipped)
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
+  readonly seasonGrabOrder?: SeasonGrabOrder; // Order to grab seasons: first, latest, or airing (default: 'first')
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
