@@ -83,7 +83,7 @@ export interface CollectionConfig {
   readonly isPromotedToHub?: boolean; // True if collection exists as a promotable hub in Plex (appears in hub management list)
   readonly collectionRatingKey?: string; // Plex collection rating key (when created)
   readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
-  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key (when smart collection is created)
+  readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
@@ -1642,9 +1642,10 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly collectionRatingKey?: string; // Plex collection rating key (regular or smart collection)
+  readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   // Smart collection settings (unwatched filter feature)
   readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
-  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key (when smart collection is created)
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
 }
 

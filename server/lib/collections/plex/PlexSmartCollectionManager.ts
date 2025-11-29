@@ -2,12 +2,6 @@ import type PlexAPI from '@server/api/plexapi';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
-interface PlexCollectionMetadata {
-  labels?: string[];
-  index?: string | number;
-  [key: string]: unknown;
-}
-
 /**
  * PlexSmartCollectionManager - Handles Plex smart collection operations
  * Smart collections are auto-populated by Plex based on filters
@@ -20,77 +14,57 @@ class PlexSmartCollectionManager {
   }
 
   /**
-   * Create a smart collection for unwatched items based on a regular collection
+   * Create a label-based smart collection for unwatched items
+   * This creates a smart collection that filters items by label AND unwatched status
+   * No base collection needed - items have the label applied directly
+   *
    * @param title - Title for the smart collection
    * @param libraryKey - Library section key (e.g., "1" for movies)
-   * @param baseCollectionRatingKey - Rating key of the base collection to filter
+   * @param labelName - Label name to filter by (e.g., "agregarr-collection-123")
    * @param mediaType - 'movie' or 'tv'
+   * @param sortOption - Sort parameter (e.g., 'titleSort', 'year:desc')
+   * @param agregarrLabel - Agregarr management label to add to the smart collection
    * @returns The rating key of the created smart collection or null if failed
    */
-  public async createSmartCollection(
+  public async createLabelBasedSmartCollection(
     title: string,
     libraryKey: string,
-    baseCollectionRatingKey: string,
+    labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
-    sortOption?: string
+    sortOption?: string,
+    agregarrLabel?: string
   ): Promise<string | null> {
     try {
       logger.debug(
-        `Creating smart collection "${title}" for library ${libraryKey}`,
+        `Creating label-based smart collection "${title}" for library ${libraryKey}`,
         {
           label: 'Plex API',
           title,
           libraryKey,
-          baseCollectionRatingKey,
+          labelName,
           mediaType,
         }
       );
 
-      // Step 1: Get the collection's index field which is used for smart collection filters
-      const collectionMetadata = await this.plexApi.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (!collectionMetadata) {
-        logger.error(
-          `Could not get metadata for base collection ${baseCollectionRatingKey}`,
-          {
-            label: 'Plex API',
-            baseCollectionRatingKey,
-          }
-        );
-        return null;
-      }
-
-      // Use the index field for the collection filter, not the ratingKey
-      const indexField = (
-        collectionMetadata as PlexCollectionMetadata & {
-          index?: string | number;
-        }
-      ).index;
-      const collectionFilterId = indexField
-        ? String(indexField)
-        : baseCollectionRatingKey;
-
-      logger.debug(
-        `Using collection filter ID ${collectionFilterId} for smart collection (base collection rating key: ${baseCollectionRatingKey})`,
-        {
-          label: 'Plex API',
-          baseCollectionRatingKey,
-          collectionFilterId,
-        }
-      );
-
-      // Step 2: Create the smart collection with uri parameter (like Plex Web UI does)
+      // Step 1: Create the smart collection with label + unwatched filter
       const type = mediaType === 'movie' ? 1 : 2;
-      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first) if no sort option provided
+      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first)
 
+      // Build filter URI: label AND unwatched
       // TV shows use different filter parameters than movies
       let filterUri: string;
       if (mediaType === 'tv') {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&show.collection=${collectionFilterId}`;
+        // TV: Filter by label AND unwatched episodes
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&label=${encodeURIComponent(
+          labelName
+        )}`;
       } else {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&collection=${collectionFilterId}`;
+        // Movie: Filter by label AND unwatched
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&label=${encodeURIComponent(
+          labelName
+        )}`;
       }
+
       const uri = `server://${
         getSettings().plex.machineId
       }/com.plexapp.plugins.library${filterUri}`;
@@ -106,10 +80,13 @@ class PlexSmartCollectionManager {
         typeof createResponse !== 'object' ||
         !('MediaContainer' in createResponse)
       ) {
-        logger.error('Invalid response when creating smart collection', {
-          label: 'Plex API',
-          response: createResponse,
-        });
+        logger.error(
+          'Invalid response when creating label-based smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
         return null;
       }
 
@@ -118,53 +95,46 @@ class PlexSmartCollectionManager {
       };
 
       if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
-        logger.error('No metadata returned when creating smart collection', {
-          label: 'Plex API',
-          response: createResponse,
-        });
+        logger.error(
+          'No metadata returned when creating label-based smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
         return null;
       }
 
       const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
 
-      // Step 3: Set the collection to be filtered by user
+      // Step 2: Set the collection to be filtered by user (per-user watch status)
       await this.setCollectionUserFilter(smartCollectionRatingKey);
 
-      // Step 4: Add the same Agregarr label as the base collection so it's not discovered as pre-existing
-      const baseCollectionMetadata = await this.plexApi.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (baseCollectionMetadata?.labels) {
-        const agregarrLabel = baseCollectionMetadata.labels.find(
-          (label: string) =>
-            typeof label === 'string' &&
-            label.toLowerCase().startsWith('agregarr')
+      // Step 3: Add Agregarr management label so it's not discovered as pre-existing
+      if (agregarrLabel) {
+        await this.plexApi.addLabelToCollection(
+          smartCollectionRatingKey,
+          agregarrLabel
         );
-        if (agregarrLabel) {
-          await this.plexApi.addLabelToCollection(
-            smartCollectionRatingKey,
-            agregarrLabel
-          );
-        }
       }
 
       logger.info(
-        `Successfully created smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        `Successfully created label-based smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
         {
           label: 'Plex API',
           title,
           smartCollectionRatingKey,
-          baseCollectionRatingKey,
+          labelName,
         }
       );
 
       return smartCollectionRatingKey;
     } catch (error) {
-      logger.error(`Error creating smart collection "${title}"`, {
+      logger.error(`Error creating label-based smart collection "${title}"`, {
         label: 'Plex API',
         title,
         libraryKey,
-        baseCollectionRatingKey,
+        labelName,
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
@@ -204,65 +174,52 @@ class PlexSmartCollectionManager {
   }
 
   /**
-   * Update a smart collection's URI (including sort parameters)
+   * Update a label-based smart collection's URI (including sort parameters)
    * @param smartCollectionRatingKey - The rating key of the smart collection to update
    * @param libraryKey - Library section key (e.g., "1" for movies)
-   * @param baseCollectionRatingKey - Rating key of the base collection to filter
+   * @param labelName - Label name to filter by
    * @param mediaType - 'movie' or 'tv'
    * @param sortOption - Sort parameter (e.g., 'year:desc', 'titleSort')
    * @returns Promise<void>
    */
-  public async updateSmartCollectionUri(
+  public async updateLabelBasedSmartCollectionUri(
     smartCollectionRatingKey: string,
     libraryKey: string,
-    baseCollectionRatingKey: string,
+    labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
     sortOption?: string
   ): Promise<void> {
     try {
       logger.debug(
-        `Updating smart collection URI for collection ${smartCollectionRatingKey}`,
+        `Updating label-based smart collection URI for collection ${smartCollectionRatingKey}`,
         {
           label: 'Plex API',
           smartCollectionRatingKey,
           libraryKey,
-          baseCollectionRatingKey,
+          labelName,
           mediaType,
           sortOption,
         }
       );
 
-      // Get the collection's index field which is used for smart collection filters
-      const collectionMetadata = await this.plexApi.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (!collectionMetadata) {
-        throw new Error(
-          `Could not get metadata for base collection ${baseCollectionRatingKey}`
-        );
-      }
-
-      // Use the index field for the collection filter, not the ratingKey
-      const indexField = (
-        collectionMetadata as PlexCollectionMetadata & {
-          index?: string | number;
-        }
-      ).index;
-      const collectionFilterId = indexField
-        ? String(indexField)
-        : baseCollectionRatingKey;
-
       // Build the filter URI with the specified sort option
       const type = mediaType === 'movie' ? 1 : 2;
-      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first) if no sort option provided
+      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first)
 
-      // TV shows use different filter parameters than movies
+      // Build filter URI: label AND unwatched
       let filterUri: string;
       if (mediaType === 'tv') {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&show.collection=${collectionFilterId}`;
+        // TV: Filter by label AND unwatched episodes
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&label=${encodeURIComponent(
+          labelName
+        )}`;
       } else {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&collection=${collectionFilterId}`;
+        // Movie: Filter by label AND unwatched
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&label=${encodeURIComponent(
+          labelName
+        )}`;
       }
+
       const uri = `server://${
         getSettings().plex.machineId
       }/com.plexapp.plugins.library${filterUri}`;
@@ -274,7 +231,7 @@ class PlexSmartCollectionManager {
       await this.plexApi['safePutQuery'](updateUrl);
 
       logger.debug(
-        `Successfully updated smart collection URI for collection ${smartCollectionRatingKey}`,
+        `Successfully updated label-based smart collection URI for collection ${smartCollectionRatingKey}`,
         {
           label: 'Plex API',
           smartCollectionRatingKey,
@@ -283,7 +240,7 @@ class PlexSmartCollectionManager {
       );
     } catch (error) {
       logger.error(
-        `Error updating smart collection URI for collection ${smartCollectionRatingKey}`,
+        `Error updating label-based smart collection URI for collection ${smartCollectionRatingKey}`,
         {
           label: 'Plex API',
           smartCollectionRatingKey,

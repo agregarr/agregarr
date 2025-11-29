@@ -1789,11 +1789,8 @@ export class DiscoveryService {
         ];
 
         for (const { type, config } of allLibraryCollections) {
-          // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
-          const targetRatingKey =
-            (config as CollectionConfig).smartCollectionRatingKey ||
-            config.collectionRatingKey;
-          const hubIdentifier = `custom.collection.${library.key}.${targetRatingKey}`;
+          const collectionRatingKey = config.collectionRatingKey;
+          const hubIdentifier = `custom.collection.${library.key}.${collectionRatingKey}`;
 
           // Skip if already in hub management
           if (existingHubIdentifiers.has(hubIdentifier)) {
@@ -1810,19 +1807,16 @@ export class DiscoveryService {
                 label: 'Discovery Service - Promotion',
                 configId: config.id,
                 libraryId: library.key,
-                collectionRatingKey: config.collectionRatingKey,
-                smartCollectionRatingKey: (config as CollectionConfig)
-                  .smartCollectionRatingKey,
-                targetRatingKey,
+                collectionRatingKey,
                 type,
               }
             );
 
             try {
-              // Promote collection to hub management (use target rating key - smart if exists, otherwise base)
-              if (targetRatingKey) {
+              // Promote collection to hub management
+              if (collectionRatingKey) {
                 await plexClient.promoteCollectionToHub(
-                  targetRatingKey,
+                  collectionRatingKey,
                   library.key
                 );
               }

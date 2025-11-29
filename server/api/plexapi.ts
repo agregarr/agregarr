@@ -1411,6 +1411,44 @@ class PlexAPI {
     }
   }
 
+  /**
+   * Get all items in a library that have a specific label
+   * @param libraryKey - Library section key
+   * @param labelName - Label to search for
+   * @returns Array of rating keys for items with the label
+   */
+  public async getItemsWithLabel(
+    libraryKey: string,
+    labelName: string
+  ): Promise<string[]> {
+    try {
+      const response = await this.plexClient.query<{
+        MediaContainer?: { Metadata?: { ratingKey: string }[] };
+      }>({
+        uri: `/library/sections/${libraryKey}/all?label=${encodeURIComponent(
+          labelName
+        )}`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
+
+      const items = response.MediaContainer?.Metadata || [];
+      return items.map((item) => item.ratingKey);
+    } catch (error) {
+      logger.error(
+        `Error getting items with label "${labelName}" in library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          libraryKey,
+          labelName,
+          error,
+        }
+      );
+      return [];
+    }
+  }
+
   public async updateCollectionSortTitle(
     collectionRatingKey: string,
     sortTitle: string
@@ -2145,21 +2183,24 @@ class PlexAPI {
   // SMART COLLECTION METHODS - Delegated to PlexSmartCollectionManager
 
   /**
-   * Create a smart collection for unwatched items based on a regular collection
+   * Create a label-based smart collection for unwatched items
+   * New approach: labels items directly, no base collection needed
    */
-  public async createSmartCollection(
+  public async createLabelBasedSmartCollection(
     title: string,
     libraryKey: string,
-    baseCollectionRatingKey: string,
+    labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
-    sortOption?: string
+    sortOption?: string,
+    agregarrLabel?: string
   ): Promise<string | null> {
-    return this.smartCollectionManager.createSmartCollection(
+    return this.smartCollectionManager.createLabelBasedSmartCollection(
       title,
       libraryKey,
-      baseCollectionRatingKey,
+      labelName,
       mediaType,
-      sortOption
+      sortOption,
+      agregarrLabel
     );
   }
 
@@ -2175,19 +2216,19 @@ class PlexAPI {
   }
 
   /**
-   * Update a smart collection's URI (including sort parameters)
+   * Update a label-based smart collection's URI (including sort parameters)
    */
-  public async updateSmartCollectionUri(
+  public async updateLabelBasedSmartCollectionUri(
     smartCollectionRatingKey: string,
     libraryKey: string,
-    baseCollectionRatingKey: string,
+    labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
     sortOption?: string
   ): Promise<void> {
-    return this.smartCollectionManager.updateSmartCollectionUri(
+    return this.smartCollectionManager.updateLabelBasedSmartCollectionUri(
       smartCollectionRatingKey,
       libraryKey,
-      baseCollectionRatingKey,
+      labelName,
       mediaType,
       sortOption
     );

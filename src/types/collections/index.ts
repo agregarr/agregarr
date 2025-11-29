@@ -174,7 +174,7 @@ export interface CollectionFormConfig {
   readonly randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
   readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
   readonly showUnwatchedOnly?: boolean; // Create smart collection that shows only unwatched items
-  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key when showUnwatchedOnly is enabled
+  readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   readonly isLinked?: boolean; // True if collection is actively linked to other collections
   readonly linkId?: number; // Group ID for linked collections (preserved even when isLinked=false)

@@ -319,7 +319,6 @@ export class CollectionSyncService {
                 config.directDownloadSonarrRootFolder,
               // Smart collection settings (unwatched filter feature)
               showUnwatchedOnly: config.showUnwatchedOnly,
-              smartCollectionRatingKey: config.smartCollectionRatingKey,
               smartCollectionSort: config.smartCollectionSort,
             };
 
@@ -329,8 +328,7 @@ export class CollectionSyncService {
               allCollections,
               processedCollectionKeys,
               libraryCache,
-              undefined, // options
-              config // Pass original config for smart collection operations
+              undefined // options
             );
           } else {
             // Use normal single-source sync

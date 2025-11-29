@@ -914,7 +914,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       configsToDelete.push(configToDelete);
     }
 
-    // Clean up smart collections for configs that have them
+    // Clean up labels for smart collections before deletion
     try {
       // Get admin user for Plex token
       const { getAdminUser } = await import(
@@ -922,59 +922,76 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       );
       const localAdmin = await getAdminUser();
 
-      if (!localAdmin?.plexToken) {
-        logger.warn(
-          'No local admin Plex token found for smart collection cleanup'
-        );
-        // Continue with normal collection deletion even if smart cleanup fails
-      } else {
+      if (localAdmin?.plexToken) {
         const plexClient = new PlexAPI({
           plexToken: localAdmin.plexToken,
           plexSettings: settings.plex,
         });
 
+        // Clean up labels for each collection being deleted
         for (const config of configsToDelete) {
-          if (config.smartCollectionRatingKey) {
-            logger.info(
-              `Deleting smart collection for config "${config.name}"`,
-              {
-                label: 'Collections API',
-                configId: config.id,
-                smartCollectionRatingKey: config.smartCollectionRatingKey,
-              }
-            );
+          // Only clean up labels for smart collections (showUnwatchedOnly enabled)
+          if (config.showUnwatchedOnly && config.libraryId) {
+            const labelName = `agregarr-unwatched-${config.id}`;
+            const libraryId = Array.isArray(config.libraryId)
+              ? config.libraryId[0]
+              : config.libraryId;
 
             try {
-              await plexClient.deleteSmartCollection(
-                config.smartCollectionRatingKey
-              );
-              logger.debug(
-                `Successfully deleted smart collection ${config.smartCollectionRatingKey}`,
+              logger.info(
+                `Cleaning up labels for smart collection: ${config.name}`,
                 {
                   label: 'Collections API',
                   configId: config.id,
+                  labelName,
                 }
               );
+
+              // Get all items with this label
+              const labeledItems = await plexClient.getItemsWithLabel(
+                libraryId,
+                labelName
+              );
+
+              if (labeledItems.length > 0) {
+                logger.info(
+                  `Removing label from ${labeledItems.length} items`,
+                  {
+                    label: 'Collections API',
+                    configId: config.id,
+                    labelName,
+                    itemCount: labeledItems.length,
+                  }
+                );
+                for (const itemKey of labeledItems) {
+                  await plexClient.removeLabelFromItem(itemKey, labelName);
+                }
+              }
             } catch (error) {
               logger.warn(
-                `Failed to delete smart collection ${config.smartCollectionRatingKey}`,
+                `Failed to cleanup labels for collection ${config.name}`,
                 {
                   label: 'Collections API',
                   configId: config.id,
+                  labelName,
                   error: error instanceof Error ? error.message : String(error),
                 }
               );
-              // Don't fail the whole deletion if smart collection cleanup fails
+              // Continue with deletion even if label cleanup fails
             }
           }
         }
+      } else {
+        logger.warn(
+          'No local admin Plex token found for label cleanup during deletion'
+        );
       }
     } catch (error) {
-      logger.warn('Error during smart collection cleanup', {
+      logger.warn('Error during label cleanup', {
         label: 'Collections API',
         error: error instanceof Error ? error.message : String(error),
       });
-      // Don't fail the whole deletion if smart collection cleanup fails
+      // Continue with deletion even if label cleanup fails
     }
 
     // Remove the configs

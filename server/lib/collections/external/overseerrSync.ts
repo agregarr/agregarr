@@ -490,7 +490,33 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
         );
       }
       const customLabel = this.createLabelForSubtype(config, userContext);
+      const libraryKey = this.getLibraryKeyFromConfig(config);
 
+      // SMART COLLECTION PATH: Skip base collection entirely when showUnwatchedOnly is enabled
+      if (config.showUnwatchedOnly) {
+        // Create label-based smart collection directly without wasteful base collection
+        const result = await this.handleUserSmartCollectionCreation(
+          plexClient,
+          items,
+          collectionName,
+          mediaType,
+          libraryKey,
+          config,
+          userContext,
+          customLabel,
+          allCollections
+        );
+
+        return {
+          created: result.created,
+          updated: result.updated,
+          collectionRatingKey: result.collectionRatingKey,
+          itemCount: items.length,
+          stats: undefined,
+        };
+      }
+
+      // REGULAR COLLECTION PATH: Create/update base collection normally
       const result = await this.createOrUpdateCollectionStandardized(
         items,
         collectionName,
@@ -505,32 +531,13 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
         }
       );
 
-      // Handle smart collection creation/cleanup for user collections if showUnwatchedOnly is enabled
-      if (
-        result.collectionRatingKey &&
-        config.showUnwatchedOnly !== undefined
-      ) {
-        const libraryKey = this.getLibraryKeyFromConfig(config);
-
-        if (config.showUnwatchedOnly) {
-          // Create smart collection for user collection using label-based approach
-          await this.handleUserSmartCollectionCreation(
-            plexClient,
-            result.collectionRatingKey,
-            collectionName,
-            mediaType,
-            libraryKey,
-            config,
-            userContext
-          );
-        } else {
-          // User disabled the feature but smart collection might exist - clean it up
-          await this.handleUserSmartCollectionCleanup(
-            plexClient,
-            config,
-            userContext
-          );
-        }
+      // Handle smart collection cleanup if user disabled showUnwatchedOnly
+      if (result.collectionRatingKey && config.showUnwatchedOnly === false) {
+        await this.handleUserSmartCollectionCleanup(
+          plexClient,
+          config,
+          userContext
+        );
       }
 
       return {
@@ -876,13 +883,19 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
    */
   private async handleUserSmartCollectionCreation(
     plexClient: PlexAPI,
-    baseCollectionRatingKey: string,
+    items: CollectionItem[],
     collectionName: string,
     mediaType: 'movie' | 'tv',
     libraryKey: string,
     config: CollectionConfig,
-    userContext: OverseerrUser
-  ): Promise<void> {
+    userContext: OverseerrUser,
+    customLabel: string,
+    allCollections: PlexCollection[]
+  ): Promise<{
+    created: number;
+    updated: number;
+    collectionRatingKey?: string;
+  }> {
     try {
       const userId = userContext?.plexId || userContext?.id;
       if (!userId) {
@@ -890,53 +903,248 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
           label: 'Overseerr User Smart Collection Creation',
           collectionName,
         });
-        return;
+        return { created: 0, updated: 0 };
       }
 
-      // Use same label as base collection (required for visibility restrictions)
-      const smartLabel = this.createLabelForSubtype(config, userContext);
+      // Generate unique label name for this user's collection items
+      const itemLabelName = `agregarr-unwatched-${config.id}-${userId}`;
+      const smartLabel = customLabel; // Use same label as base collection would have used
 
-      // Check if this is an episode collection (smart collections not supported for episodes)
-      const baseCollectionMetadata = await plexClient.getCollectionMetadata(
-        baseCollectionRatingKey
+      logger.debug(
+        `Setting up label-based smart collection for user "${collectionName}"`,
+        {
+          label: 'Overseerr User Smart Collection Creation',
+          collectionName,
+          itemLabelName,
+          userId,
+        }
       );
-      if (
-        baseCollectionMetadata &&
-        (baseCollectionMetadata as { type?: string }).type === '4'
-      ) {
+
+      // Convert items to rating keys
+      const itemRatingKeys = items.map((item) => item.ratingKey);
+
+      if (itemRatingKeys.length === 0) {
         logger.warn(
-          `Smart collections are not supported for episode-based user collections. Skipping smart collection creation for "${collectionName}"`,
+          `No items provided for user ${userId}, skipping smart collection`,
           {
             label: 'Overseerr User Smart Collection Creation',
             collectionName,
             userId,
-            baseCollectionRatingKey,
-            collectionType: 'episode',
           }
         );
-        return;
+        return { created: 0, updated: 0 };
       }
 
-      // Check if smart collection already exists (must have smart=1 property AND matching label AND in correct library)
-      const allCollections = await plexClient.getAllCollections();
-      const existingSmartCollection = allCollections.find(
-        (collection: PlexCollection) => {
-          const isSmart = collection.smart === '1';
-          const hasMatchingLabel = collection.labels?.some(
-            (label: string | PlexLabel) => {
-              const labelText = typeof label === 'string' ? label : label.tag;
-              return labelText === smartLabel;
-            }
-          );
-          const inCorrectLibrary = collection.libraryKey === libraryKey;
-          return isSmart && hasMatchingLabel && inCorrectLibrary;
+      logger.info(
+        `Labeling ${itemRatingKeys.length} items for user smart collection`,
+        {
+          label: 'Overseerr User Smart Collection Creation',
+          collectionName,
+          itemLabelName,
+          itemCount: itemRatingKeys.length,
+          userId,
         }
       );
 
+      // Add label to all collection items
+      for (const itemKey of itemRatingKeys) {
+        try {
+          await plexClient.addLabelToItem(itemKey, itemLabelName);
+        } catch (error) {
+          logger.warn(
+            `Failed to add label to item ${itemKey}, item may have been deleted from Plex, or item may already have label`,
+            {
+              label: 'Overseerr User Smart Collection Creation',
+              itemKey,
+              labelName: itemLabelName,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Continue with other items even if one fails
+        }
+      }
+
+      // CLEANUP: Remove labels from items that are no longer in the collection
+      try {
+        const currentlyLabeledItems = await plexClient.getItemsWithLabel(
+          libraryKey,
+          itemLabelName
+        );
+
+        const itemsToUnlabel = currentlyLabeledItems.filter(
+          (labeledItemKey) => !itemRatingKeys.includes(labeledItemKey)
+        );
+
+        if (itemsToUnlabel.length > 0) {
+          logger.info(
+            `Removing label from ${itemsToUnlabel.length} items no longer in user collection`,
+            {
+              label: 'Overseerr User Smart Collection Creation',
+              collectionName,
+              itemLabelName,
+              itemsToUnlabel: itemsToUnlabel.length,
+              userId,
+            }
+          );
+          for (const itemKey of itemsToUnlabel) {
+            await plexClient.removeLabelFromItem(itemKey, itemLabelName);
+          }
+        }
+      } catch (error) {
+        logger.warn(
+          `Failed to cleanup labels from removed items in user collection`,
+          {
+            label: 'Overseerr User Smart Collection Creation',
+            collectionName,
+            userId,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+
+      // MIGRATION: Check for old dual-collection system (dash-prefixed base + smart collection)
+      // Match by label first, then fall back to name matching (like BaseCollectionSync)
+      let oldDashPrefixedBase: PlexCollection | null = null;
+      let oldRegularCollection: PlexCollection | null = null;
+      let existingSmartCollection: PlexCollection | null = null;
+
+      // First pass: Find by label (most reliable)
+      for (const collection of allCollections) {
+        if (collection.libraryKey !== libraryKey) continue;
+
+        const hasMatchingLabel = collection.labels?.some(
+          (label: string | PlexLabel) => {
+            const labelText = typeof label === 'string' ? label : label.tag;
+            return labelText === smartLabel;
+          }
+        );
+
+        if (hasMatchingLabel) {
+          const isSmart = collection.smart === '1';
+
+          if (isSmart) {
+            existingSmartCollection = collection;
+          } else if (collection.title.startsWith('-')) {
+            oldDashPrefixedBase = collection;
+          } else {
+            // Regular collection (user switching from regular to smart mode)
+            oldRegularCollection = collection;
+          }
+        }
+      }
+
+      // Second pass: Fallback to name matching if no label match (orphaned collections)
+      if (
+        !existingSmartCollection &&
+        !oldDashPrefixedBase &&
+        !oldRegularCollection
+      ) {
+        for (const collection of allCollections) {
+          if (collection.libraryKey !== libraryKey) continue;
+
+          // Check for orphaned agregarr collections by name
+          const hasAgregarrLabel = collection.labels?.some(
+            (label: string | PlexLabel) => {
+              const labelText = typeof label === 'string' ? label : label.tag;
+              return labelText.toLowerCase().startsWith('agregarr');
+            }
+          );
+
+          if (hasAgregarrLabel) {
+            const isSmart = collection.smart === '1';
+
+            if (isSmart && collection.title === collectionName) {
+              existingSmartCollection = collection;
+              logger.info(
+                `Found orphaned smart collection by name: "${collection.title}" - will update label`,
+                {
+                  label: 'Overseerr User Smart Collection Migration',
+                  collectionTitle: collection.title,
+                  ratingKey: collection.ratingKey,
+                  userId,
+                }
+              );
+            } else if (!isSmart && collection.title === `-${collectionName}`) {
+              oldDashPrefixedBase = collection;
+              logger.info(
+                `Found orphaned dash-prefixed base collection by name: "${collection.title}" - will delete`,
+                {
+                  label: 'Overseerr User Smart Collection Migration',
+                  collectionTitle: collection.title,
+                  ratingKey: collection.ratingKey,
+                  userId,
+                }
+              );
+            } else if (!isSmart && collection.title === collectionName) {
+              oldRegularCollection = collection;
+              logger.info(
+                `Found orphaned regular collection by name: "${collection.title}" - will delete`,
+                {
+                  label: 'Overseerr User Smart Collection Migration',
+                  collectionTitle: collection.title,
+                  ratingKey: collection.ratingKey,
+                  userId,
+                }
+              );
+            }
+          }
+        }
+      }
+
+      // Delete old dash-prefixed base collection if found
+      if (oldDashPrefixedBase) {
+        logger.info(
+          `Deleting old dash-prefixed base collection: ${oldDashPrefixedBase.title}`,
+          {
+            label: 'Overseerr User Smart Collection Migration',
+            collectionName,
+            oldBaseRatingKey: oldDashPrefixedBase.ratingKey,
+            userId,
+          }
+        );
+        try {
+          await plexClient.deleteCollection(oldDashPrefixedBase.ratingKey);
+        } catch (error) {
+          logger.warn(
+            `Failed to delete old base collection, continuing migration`,
+            {
+              label: 'Overseerr User Smart Collection Migration',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
+      // Delete old regular collection if found (user switching from regular to smart mode)
+      if (oldRegularCollection) {
+        logger.info(
+          `Deleting old regular collection (switching to smart mode): ${oldRegularCollection.title}`,
+          {
+            label: 'Overseerr User Smart Collection Migration',
+            collectionName,
+            oldRegularRatingKey: oldRegularCollection.ratingKey,
+            userId,
+          }
+        );
+        try {
+          await plexClient.deleteCollection(oldRegularCollection.ratingKey);
+        } catch (error) {
+          logger.warn(
+            `Failed to delete old regular collection, continuing migration`,
+            {
+              label: 'Overseerr User Smart Collection Migration',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
       let smartCollectionRatingKey = '';
+      let created = 0;
+      let updated = 0;
 
       if (existingSmartCollection) {
-        // Smart collection exists, update its sort option if configured
+        // Smart collection exists, update its filter and sort option
         smartCollectionRatingKey = existingSmartCollection.ratingKey;
         logger.debug(
           `Found existing smart collection: ${existingSmartCollection.title}`,
@@ -947,33 +1155,17 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
           }
         );
 
-        // Update smart collection sort option
+        // Update smart collection to use label-based filter
         const sortOption = config.smartCollectionSort?.value || 'titleSort';
-        logger.debug(
-          `Updating smart collection sort option to: ${sortOption}`,
-          {
-            label: 'Overseerr User Smart Collection Creation',
-            smartCollectionRatingKey,
-            sortOption,
-            userId,
-          }
-        );
-
         try {
-          await plexClient.updateSmartCollectionUri(
+          await plexClient.updateLabelBasedSmartCollectionUri(
             smartCollectionRatingKey,
             libraryKey,
-            baseCollectionRatingKey,
+            itemLabelName,
             mediaType,
             sortOption
           );
-
-          // Ensure base collection has dash prefix even when smart collection exists
-          const prefixedTitle = `-${collectionName}`;
-          await plexClient.updateCollectionTitle(
-            baseCollectionRatingKey,
-            prefixedTitle
-          );
+          updated = 1;
         } catch (error) {
           // Smart collection update failed (likely broken/invalid) - delete and recreate
           logger.warn(
@@ -995,98 +1187,50 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
       }
 
       if (!existingSmartCollection || !smartCollectionRatingKey) {
-        // Create new smart collection
-
-        // Step 1: Rename base collection to have dash prefix (hide it)
-        const prefixedTitle = `-${collectionName}`;
-        await plexClient.updateCollectionTitle(
-          baseCollectionRatingKey,
-          prefixedTitle
-        );
-
-        // Step 2: Create smart collection with original name
+        // Create new label-based smart collection
         const sortOption = config.smartCollectionSort?.value || 'titleSort';
         const createdSmartCollectionRatingKey =
-          await plexClient.createSmartCollection(
+          await plexClient.createLabelBasedSmartCollection(
             collectionName, // Smart collection gets the original user-friendly name
             libraryKey,
-            baseCollectionRatingKey,
+            itemLabelName, // Filter by label instead of base collection
             mediaType,
-            sortOption
+            sortOption,
+            smartLabel // Add Agregarr management label
           );
 
         if (!createdSmartCollectionRatingKey) {
           logger.error(
-            `Failed to create smart collection for user collection "${collectionName}"`,
+            `Failed to create label-based smart collection for user collection "${collectionName}"`,
             {
               label: 'Overseerr User Smart Collection Creation',
               collectionName,
               userId,
-              baseCollectionRatingKey,
               libraryKey,
               mediaType,
             }
           );
-          // Restore original title since smart collection creation failed
-          await plexClient.updateCollectionTitle(
-            baseCollectionRatingKey,
-            collectionName
-          );
-          return;
+          return { created: 0, updated: 0 };
         }
 
         smartCollectionRatingKey = createdSmartCollectionRatingKey;
-
-        // Step 3: Add smart collection label to the smart collection for identification
-        await plexClient.addLabelToCollection(
-          smartCollectionRatingKey,
-          smartLabel
-        );
+        created = 1;
 
         logger.info(
-          `Created smart collection for user collection "${collectionName}"`,
+          `Created label-based smart collection for user collection "${collectionName}"`,
           {
             label: 'Overseerr User Smart Collection Creation',
             collectionName,
             userId,
-            baseCollectionRatingKey,
             smartCollectionRatingKey,
             smartLabel,
+            itemLabelName,
             sortOption,
           }
         );
       }
 
-      // Step 4: Hide base collection completely (set high sort title and remove from hub management)
-      await plexClient.updateCollectionSortTitle(
-        baseCollectionRatingKey,
-        `ZZZZ${collectionName}`
-      );
-
-      // Remove base collection from hub management entirely (if it was promoted)
-      // Note: Base collections with no visibility config were never promoted, so they won't exist in hub management
-      const baseCollectionMeta = await plexClient.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (baseCollectionMeta?.librarySectionID) {
-        const hubIdentifier = `custom.collection.${baseCollectionMeta.librarySectionID}.${baseCollectionRatingKey}`;
-        try {
-          await plexClient.deleteHubItem(
-            String(baseCollectionMeta.librarySectionID),
-            hubIdentifier
-          );
-        } catch (error) {
-          // Ignore 404 errors - base collection was never promoted to hub management
-          if (error && typeof error === 'object' && 'message' in error) {
-            const errorMessage = String(error.message);
-            if (!errorMessage.includes('404')) {
-              throw error;
-            }
-          }
-        }
-      }
-
-      // Step 5: Apply metadata to smart collection (sort title, visibility, poster)
+      // Apply metadata to smart collection (sort title, visibility, poster)
       // Replicate what updateCollectionMetadata does in BaseCollectionSync
       if (smartCollectionRatingKey) {
         // Calculate and apply sort title (handles promotion with exclamation marks)
@@ -1152,35 +1296,23 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
             visibilityConfig.usersHome ?? true
           );
         }
-
-        // Copy poster from base collection to smart collection
-        try {
-          const posterUrl = await plexClient.getCurrentPosterUrl(
-            baseCollectionRatingKey
-          );
-          if (posterUrl) {
-            await plexClient.uploadPosterFromUrl(
-              smartCollectionRatingKey,
-              posterUrl
-            );
-            await plexClient.lockPoster(smartCollectionRatingKey);
-          }
-        } catch (error) {
-          logger.warn(`Failed to copy poster to smart collection`, {
-            label: 'Overseerr User Smart Collection Creation',
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
       }
 
       logger.info(`User smart collection ready`, {
         label: 'Overseerr User Smart Collection Creation',
         collectionName,
         userId,
-        baseCollectionRatingKey,
         smartCollectionRatingKey,
         smartLabel,
+        created,
+        updated,
       });
+
+      return {
+        created,
+        updated,
+        collectionRatingKey: smartCollectionRatingKey,
+      };
     } catch (error) {
       logger.error(
         `Error creating smart collection for user collection "${collectionName}"`,
@@ -1188,11 +1320,11 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
           label: 'Overseerr User Smart Collection Creation',
           collectionName,
           userId: userContext?.plexId || userContext?.id,
-          baseCollectionRatingKey,
           error: error instanceof Error ? error.message : String(error),
         }
       );
-      // Don't throw - let the base collection still be created successfully
+      // Return failure instead of throwing
+      return { created: 0, updated: 0 };
     }
   }
 
@@ -1246,68 +1378,44 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
         }
       );
 
-      // Delete the smart collection
-      await plexClient.deleteSmartCollection(smartCollection.ratingKey);
+      // NEW APPROACH: Clean up item labels
+      const itemLabelName = `agregarr-unwatched-${config.id}-${userId}`;
+      const libraryId = this.getLibraryKeyFromConfig(config);
 
-      // Find and restore the base collection (should have dash prefix pattern)
-      const expectedBaseTitle = `-${smartCollection.title}`;
-      const baseLabel = this.createLabelForSubtype(config, userContext);
-
-      const baseCollection = allCollections.find(
-        (baseCol: PlexCollection) =>
-          baseCol.title === expectedBaseTitle &&
-          baseCol.labels?.some((label: string | PlexLabel) => {
-            const labelText = typeof label === 'string' ? label : label.tag;
-            return labelText === baseLabel;
-          })
-      );
-
-      if (baseCollection) {
-        // Restore the original title (remove dash prefix)
-        await plexClient.updateCollectionTitle(
-          baseCollection.ratingKey,
-          smartCollection.title
+      try {
+        const labeledItems = await plexClient.getItemsWithLabel(
+          libraryId,
+          itemLabelName
         );
 
-        // Restore normal sort title (use the restored name)
-        await plexClient.updateCollectionSortTitle(
-          baseCollection.ratingKey,
-          smartCollection.title
-        );
-
-        // Restore visibility if the config has visibility settings
-        if (config.visibilityConfig) {
-          const hasAnyVisibility =
-            config.visibilityConfig.usersHome ||
-            config.visibilityConfig.serverOwnerHome ||
-            config.visibilityConfig.libraryRecommended;
-
-          if (hasAnyVisibility) {
-            await plexClient.updateCollectionVisibility(
-              baseCollection.ratingKey,
-              config.visibilityConfig.libraryRecommended,
-              config.visibilityConfig.serverOwnerHome,
-              config.visibilityConfig.usersHome
-            );
+        if (labeledItems.length > 0) {
+          logger.info(
+            `Removing label "${itemLabelName}" from ${labeledItems.length} items`,
+            {
+              label: 'Overseerr User Smart Collection Cleanup',
+              userId,
+              itemLabelName,
+              itemCount: labeledItems.length,
+            }
+          );
+          for (const itemKey of labeledItems) {
+            await plexClient.removeLabelFromItem(itemKey, itemLabelName);
           }
         }
-
-        logger.info(`Restored base collection: ${smartCollection.title}`, {
-          label: 'Overseerr User Smart Collection Cleanup',
-          userId,
-          baseCollectionRatingKey: baseCollection.ratingKey,
-        });
-      } else {
+      } catch (error) {
         logger.warn(
-          `Could not find corresponding base collection for cleanup`,
+          `Failed to cleanup labels during smart collection cleanup`,
           {
             label: 'Overseerr User Smart Collection Cleanup',
             userId,
-            expectedBaseTitle,
-            smartCollectionTitle: smartCollection.title,
+            itemLabelName,
+            error: error instanceof Error ? error.message : String(error),
           }
         );
       }
+
+      // Delete the smart collection
+      await plexClient.deleteSmartCollection(smartCollection.ratingKey);
 
       logger.info(`Successfully cleaned up smart collection for user`, {
         label: 'Overseerr User Smart Collection Cleanup',
