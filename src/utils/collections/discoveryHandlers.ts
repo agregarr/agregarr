@@ -167,13 +167,25 @@ export const discoverPlexHubs = async (params: DiscoverPlexHubsParams) => {
       }
     );
   } catch (error) {
-    addToast(
-      'Failed to discover Plex hubs. Please check your Plex connection.',
-      {
-        autoDismiss: true,
-        appearance: 'error',
+    // Extract detailed error information from the response
+    let errorMessage =
+      'Failed to discover Plex hubs. Please check your Plex connection.';
+
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const errorData = error.response.data;
+
+      // Use user-friendly message if available, otherwise fall back to technical message
+      if (errorData.userFriendlyMessage) {
+        errorMessage = errorData.userFriendlyMessage;
+      } else if (errorData.message) {
+        errorMessage = errorData.message;
       }
-    );
+    }
+
+    addToast(errorMessage, {
+      autoDismiss: true,
+      appearance: 'error',
+    });
   } finally {
     setDiscoveringHubs(false);
   }

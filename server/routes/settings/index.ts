@@ -261,7 +261,10 @@ settingsRoutes.get('/plex/library', async (req, res) => {
       select: { id: true, plexToken: true },
       where: { id: 1 },
     });
-    const plexapi = new PlexAPI({ plexToken: admin.plexToken });
+    const plexapi = new PlexAPI({
+      plexToken: admin.plexToken,
+      timeout: 30000, // 30 second timeout
+    });
 
     await plexapi.syncLibraries();
   }

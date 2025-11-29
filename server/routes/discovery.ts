@@ -40,6 +40,7 @@ async function getPlexClient(): Promise<PlexAPI> {
     const client = new PlexAPI({
       plexToken: admin.plexToken,
       plexSettings: settings.plex,
+      timeout: 30000, // 30 second timeout for discovery operations
     });
 
     logger.debug('Plex client created successfully', {
@@ -197,15 +198,61 @@ discoveryRoutes.get('/hubs/scan', isAuthenticated(), async (req, res) => {
       // Don't fail if we can't get context
     }
 
+    // Create user-friendly error message based on error type
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    let userFriendlyMessage = errorMessage;
+
+    // Check for specific error patterns and provide helpful guidance
+    if (errorMessage.includes('No admin Plex token found')) {
+      userFriendlyMessage =
+        'No admin user configured. Please complete the initial setup and sign in with Plex.';
+    } else if (errorMessage.includes('already running')) {
+      userFriendlyMessage = errorMessage; // Already user-friendly
+    } else if (errorMessage.includes('ENOTFOUND')) {
+      // DNS/hostname resolution failure
+      userFriendlyMessage = `Cannot resolve Plex server address${
+        errorContext.plexSettings ? ` "${errorContext.plexSettings.ip}"` : ''
+      }. Please check your Plex server IP/hostname in settings.`;
+    } else if (errorMessage.includes('ECONNREFUSED')) {
+      // Connection refused - server not listening
+      const plexUrl = errorContext.plexSettings
+        ? `${errorContext.plexSettings.ssl ? 'https' : 'http'}://${
+            errorContext.plexSettings.ip
+          }:${errorContext.plexSettings.port}`
+        : 'Plex server';
+      userFriendlyMessage = `Cannot connect to ${plexUrl}. Please check that your Plex server is running and the connection settings (IP, port, SSL) are correct.`;
+    } else if (
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('ETIMEDOUT')
+    ) {
+      // Timeout - server not responding in time
+      userFriendlyMessage =
+        'Connection timeout. Your Plex server is taking too long to respond. Please check your network connection and server status.';
+    } else if (
+      errorMessage.includes('401') ||
+      errorMessage.includes('Unauthorized')
+    ) {
+      userFriendlyMessage =
+        'Authentication failed. Your Plex token may be invalid or expired. Please try signing in again.';
+    } else if (
+      errorMessage.includes('403') ||
+      errorMessage.includes('Forbidden')
+    ) {
+      userFriendlyMessage =
+        'Access denied. Please check that your Plex account has permission to access this server.';
+    }
+
     logger.error('Failed to discover Plex hubs', {
       label: 'Discovery API',
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
+      userFriendlyMessage,
       context: errorContext,
     });
 
     res.status(500).json({
       error: 'Failed to discover Plex hubs',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: errorMessage,
+      userFriendlyMessage,
       context: errorContext,
     });
   }
