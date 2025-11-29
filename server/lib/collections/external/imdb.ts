@@ -58,7 +58,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
       let imdbData: ImdbListItem[] = [];
 
       if (config.subtype === 'custom') {
-        // Custom IMDb list - use the simple approach that works in fetch-title
+        // Custom IMDb list - fetch all pages using __NEXT_DATA__ pagination
         if (!config.imdbCustomListUrl) {
           throw this.createSyncError(
             CollectionSyncErrorType.CONFIGURATION_ERROR,
@@ -66,11 +66,10 @@ export class ImdbCollectionSync extends BaseCollectionSync {
           );
         }
 
-        // Use the same approach as fetch-title endpoint (which works)
         const axios = (await import('axios')).default;
 
         logger.debug(
-          `Fetching IMDb custom list with simple approach: ${config.imdbCustomListUrl}`,
+          `Fetching IMDb custom list with __NEXT_DATA__ pagination: ${config.imdbCustomListUrl}`,
           {
             label: 'IMDb Collections',
             configName: config.name,
@@ -78,16 +77,82 @@ export class ImdbCollectionSync extends BaseCollectionSync {
           }
         );
 
-        const response = await axios.get(config.imdbCustomListUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
-          timeout: 10000,
-        });
+        // Fetch all pages (IMDb limits to ~250 items per page in __NEXT_DATA__)
+        let currentPage = 1;
+        const maxPages = 50; // Safety limit (should be enough for any list)
 
-        // Parse the HTML to extract movie/TV show items
-        imdbData = this.parseImdbListHtml(response.data, 9999);
+        while (currentPage <= maxPages) {
+          const pageUrl =
+            currentPage === 1
+              ? config.imdbCustomListUrl
+              : `${config.imdbCustomListUrl}?page=${currentPage}`;
+
+          logger.debug(`Fetching IMDb list page ${currentPage}: ${pageUrl}`, {
+            label: 'IMDb Collections',
+            configName: config.name,
+            page: currentPage,
+          });
+
+          const response = await axios.get(pageUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+            timeout: 15000,
+          });
+
+          // Extract __NEXT_DATA__ from the HTML
+          const pageData = this.parseNextDataFromHtml(
+            response.data,
+            config.name
+          );
+
+          if (!pageData || pageData.items.length === 0) {
+            logger.debug(
+              `No more items found on page ${currentPage}, stopping pagination`,
+              {
+                label: 'IMDb Collections',
+                configName: config.name,
+                currentPage,
+                totalFetched: imdbData.length,
+              }
+            );
+            break; // No more items, stop pagination
+          }
+
+          imdbData.push(...pageData.items);
+
+          logger.debug(
+            `Page ${currentPage} complete: ${pageData.items.length} items (total: ${imdbData.length}/${pageData.total})`,
+            {
+              label: 'IMDb Collections',
+              configName: config.name,
+              pageItems: pageData.items.length,
+              totalFetched: imdbData.length,
+              totalInList: pageData.total,
+            }
+          );
+
+          // Check if we've fetched all items or if there's no next page
+          if (
+            !pageData.hasNextPage ||
+            imdbData.length >= pageData.total ||
+            imdbData.length >= 9999
+          ) {
+            logger.debug('All items fetched, stopping pagination', {
+              label: 'IMDb Collections',
+              configName: config.name,
+              totalFetched: imdbData.length,
+              totalInList: pageData.total,
+            });
+            break;
+          }
+
+          currentPage++;
+
+          // Small delay to be nice to IMDb servers
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
 
         logger.info(
           `Successfully fetched ${imdbData.length} items from IMDb custom list`,
@@ -128,19 +193,82 @@ export class ImdbCollectionSync extends BaseCollectionSync {
           listTitle,
         });
 
-        // Use the same approach as custom lists
+        // Fetch all pages using __NEXT_DATA__ pagination (same as custom lists)
         const axios = (await import('axios')).default;
 
-        const response = await axios.get(randomUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
-          timeout: 10000,
-        });
+        let currentPage = 1;
+        const maxPages = 50; // Safety limit
 
-        // Parse the HTML to extract movie/TV show items
-        imdbData = this.parseImdbListHtml(response.data, 9999);
+        while (currentPage <= maxPages) {
+          const pageUrl =
+            currentPage === 1 ? randomUrl : `${randomUrl}?page=${currentPage}`;
+
+          logger.debug(
+            `Fetching random IMDb list page ${currentPage}: ${pageUrl}`,
+            {
+              label: 'IMDb Collections',
+              configName: config.name,
+              page: currentPage,
+            }
+          );
+
+          const response = await axios.get(pageUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+            timeout: 15000,
+          });
+
+          // Extract __NEXT_DATA__ from the HTML
+          const pageData = this.parseNextDataFromHtml(
+            response.data,
+            config.name
+          );
+
+          if (!pageData || pageData.items.length === 0) {
+            logger.debug(
+              `No more items found on page ${currentPage}, stopping pagination`,
+              {
+                label: 'IMDb Collections',
+                configName: config.name,
+                currentPage,
+                totalFetched: imdbData.length,
+              }
+            );
+            break;
+          }
+
+          imdbData.push(...pageData.items);
+
+          logger.debug(
+            `Page ${currentPage} complete: ${pageData.items.length} items (total: ${imdbData.length}/${pageData.total})`,
+            {
+              label: 'IMDb Collections',
+              configName: config.name,
+              pageItems: pageData.items.length,
+              totalFetched: imdbData.length,
+              totalInList: pageData.total,
+            }
+          );
+
+          if (
+            !pageData.hasNextPage ||
+            imdbData.length >= pageData.total ||
+            imdbData.length >= 9999
+          ) {
+            logger.debug('All items fetched, stopping pagination', {
+              label: 'IMDb Collections',
+              configName: config.name,
+              totalFetched: imdbData.length,
+              totalInList: pageData.total,
+            });
+            break;
+          }
+
+          currentPage++;
+          await new Promise((resolve) => setTimeout(resolve, 300));
+        }
 
         logger.info(
           `Successfully fetched ${imdbData.length} items from random IMDb list`,
@@ -308,6 +436,105 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         { subtype: config.subtype, mediaType: getCollectionMediaType(config) },
         error instanceof Error ? error : new Error(String(error))
       );
+    }
+  }
+
+  /**
+   * Parse __NEXT_DATA__ from IMDb list HTML to extract all items
+   * IMDb embeds full list data in __NEXT_DATA__ JSON structure (up to ~250 items per page)
+   */
+  private parseNextDataFromHtml(
+    html: string,
+    configName: string
+  ): {
+    items: ImdbListItem[];
+    total: number;
+    hasNextPage: boolean;
+  } | null {
+    try {
+      // Extract __NEXT_DATA__ script tag
+      const nextDataMatch = html.match(
+        /<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s
+      );
+
+      if (!nextDataMatch) {
+        logger.warn('Could not find __NEXT_DATA__ in IMDb list HTML', {
+          label: 'IMDb Collections',
+          configName,
+        });
+        return null;
+      }
+
+      const nextData = JSON.parse(nextDataMatch[1]);
+
+      // Navigate to the list data structure
+      const listData =
+        nextData?.props?.pageProps?.mainColumnData?.list?.titleListItemSearch;
+
+      if (!listData || !listData.edges) {
+        logger.warn('Could not find titleListItemSearch in __NEXT_DATA__', {
+          label: 'IMDb Collections',
+          configName,
+        });
+        return null;
+      }
+
+      // Extract items from edges array
+      const items: ImdbListItem[] = [];
+
+      for (const edge of listData.edges) {
+        const listItem = edge.listItem;
+
+        if (!listItem || !listItem.id) {
+          continue;
+        }
+
+        const imdbId = listItem.id;
+        const title =
+          listItem.titleText?.text ||
+          listItem.originalTitleText?.text ||
+          'Unknown';
+        const year = listItem.releaseYear?.year;
+
+        // Determine type from titleType
+        let type: 'movie' | 'tv' = 'movie';
+        const titleTypeId = listItem.titleType?.id;
+
+        if (titleTypeId) {
+          if (
+            titleTypeId === 'tvSeries' ||
+            titleTypeId === 'tvMiniSeries' ||
+            titleTypeId === 'tvMovie' ||
+            titleTypeId === 'tvShort' ||
+            titleTypeId === 'tvSpecial'
+          ) {
+            type = 'tv';
+          } else if (titleTypeId === 'tvEpisode') {
+            type = 'tv';
+            // Handle episodes if needed
+          }
+        }
+
+        items.push({
+          imdbId,
+          title,
+          year,
+          type,
+        });
+      }
+
+      return {
+        items,
+        total: listData.total || items.length,
+        hasNextPage: listData.pageInfo?.hasNextPage || false,
+      };
+    } catch (error) {
+      logger.error('Failed to parse __NEXT_DATA__ from IMDb HTML', {
+        label: 'IMDb Collections',
+        configName,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
     }
   }
 
