@@ -1088,7 +1088,7 @@ const AllCollectionsView: React.FC = () => {
                               ? 'Multi-Source'
                               : config.type === 'comingsoon'
                               ? 'Coming Soon'
-                              : config.type === 'recently_added'
+                              : config.type === 'filtered_hub'
                               ? 'Recently Added'
                               : config.type || '';
 

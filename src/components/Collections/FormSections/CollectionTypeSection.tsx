@@ -116,7 +116,7 @@ const CollectionTypeSection = ({
     { value: 'radarrtag', label: 'Radarr Tag' },
     { value: 'sonarrtag', label: 'Sonarr Tag' },
     { value: 'comingsoon', label: 'Coming Soon' },
-    { value: 'recently_added', label: 'Recently Added (filtered)' },
+    { value: 'filtered_hub', label: 'Filtered Plex Hub' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -345,8 +345,20 @@ const CollectionTypeSection = ({
       case 'radarrtag':
       case 'sonarrtag':
         return []; // These use custom tag selectors instead of subtypes
-      case 'recently_added':
-        return []; // No subtypes - standalone type that creates filtered smart collection
+      case 'filtered_hub':
+        return [
+          {
+            value: 'recently_added',
+            label: 'Recently Added',
+            description: 'Replaces Recently Added hub (sorted by date added)',
+          },
+          {
+            value: 'recently_released',
+            label: 'Recently Released',
+            description:
+              'Replaces Recently Released hub (sorted by release date)',
+          },
+        ];
       default:
         return [];
     }

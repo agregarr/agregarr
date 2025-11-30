@@ -1559,23 +1559,55 @@ export const getTemplatePresets = (
     }
   }
 
-  // Recently Added (filtered) collection presets
-  if (values.type === 'recently_added') {
-    return [
-      {
-        label: 'Recently Added',
-        value: 'Recently Added',
-      },
-      {
-        label: 'Recently Added (Filtered)',
-        value: 'Recently Added (Filtered)',
-      },
-      {
-        label: 'New Arrivals',
-        value: 'New Arrivals',
-      },
-      { label: 'Custom', value: 'custom' },
-    ];
+  // Filtered Hub collection presets - different presets per subtype
+  if (values.type === 'filtered_hub') {
+    switch (values.subtype) {
+      case 'recently_added':
+        return [
+          {
+            label: 'Recently Added',
+            value: 'Recently Added',
+          },
+          {
+            label: 'New Arrivals',
+            value: 'New Arrivals',
+          },
+          {
+            label: 'Latest Additions',
+            value: 'Latest Additions',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      case 'recently_released':
+        return [
+          {
+            label: 'Recently Released',
+            value: 'Recently Released',
+          },
+          {
+            label: 'New Releases',
+            value: 'New Releases',
+          },
+          {
+            label: 'Latest Releases',
+            value: 'Latest Releases',
+          },
+          {
+            label: 'Just Released',
+            value: 'Just Released',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      default:
+        // Fallback if no subtype selected yet
+        return [
+          {
+            label: 'Filtered Hub',
+            value: 'Filtered Hub',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+    }
   }
 
   // Fallback for unknown types

@@ -708,7 +708,7 @@ const SortableItem = ({
                       ? 'Multi-Source'
                       : collection.type === 'comingsoon'
                       ? 'Coming Soon'
-                      : collection.type === 'recently_added'
+                      : collection.type === 'filtered_hub'
                       ? 'Recently Added'
                       : collection.type || '';
 

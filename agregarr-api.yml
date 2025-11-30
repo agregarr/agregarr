@@ -254,7 +254,7 @@ components:
               'radarrtag',
               'sonarrtag',
               'comingsoon',
-              'recently_added',
+              'filtered_hub',
             ]
           example: 'overseerr'
         subtype:
@@ -702,7 +702,7 @@ components:
               'radarrtag',
               'sonarrtag',
               'comingsoon',
-              'recently_added',
+              'filtered_hub',
             ]
           example: 'overseerr'
         subtype:
@@ -1185,7 +1185,7 @@ components:
               'radarrtag',
               'sonarrtag',
               'comingsoon',
-              'recently_added',
+              'filtered_hub',
             ]
           example: 'overseerr'
         subtype:
@@ -1699,7 +1699,7 @@ components:
               'radarrtag',
               'sonarrtag',
               'comingsoon',
-              'recently_added',
+              'filtered_hub',
             ]
           description: 'Type of collection source'
           example: 'trakt'
@@ -3754,7 +3754,7 @@ components:
               radarrtag,
               sonarrtag,
               comingsoon,
-              recently_added,
+              filtered_hub,
               multi-source,
             ]
           example: 'trakt'
@@ -5832,7 +5832,7 @@ paths:
                       radarrtag,
                       sonarrtag,
                       comingsoon,
-                      recently_added,
+                      filtered_hub,
                       multi-source,
                     ]
                   example: imdb
@@ -5914,7 +5914,7 @@ paths:
                             radarrtag,
                             sonarrtag,
                             comingsoon,
-                            recently_added,
+                            filtered_hub,
                           ]
                         example: 'imdb'
                       subtype:
@@ -9478,7 +9478,7 @@ paths:
                 radarrtag,
                 sonarrtag,
                 comingsoon,
-                recently_added,
+                filtered_hub,
                 multi-source,
               ]
           description: Filter by collection source

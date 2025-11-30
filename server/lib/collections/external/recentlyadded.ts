@@ -1,11 +1,15 @@
 /**
- * Recently Added Collection Sync
+ * Filtered Hub Collection Sync
  *
- * Creates a smart collection that replicates Plex's "Recently Added" hub
- * but excludes placeholder items created by the placeholder feature.
+ * Creates smart collections that replicate Plex's default hubs
+ * but exclude placeholder items created by the placeholder feature.
+ *
+ * Supports:
+ * - recently_added: Replicates "Recently Added" hub (sorted by addedAt)
+ * - recently_released: Replicates "Recently Released" hub (sorted by originallyAvailableAt)
  *
  * This is useful when users enable `createPlaceholdersForMissing` on their
- * collections and want a clean "Recently Added" view without placeholders.
+ * collections and want clean hub views without placeholders.
  */
 
 import type PlexAPI from '@server/api/plexapi';
@@ -30,13 +34,13 @@ import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
-export class RecentlyAddedCollectionSync extends BaseCollectionSync {
+export class FilteredHubCollectionSync extends BaseCollectionSync {
   constructor() {
-    super('recently_added');
+    super('filtered_hub');
   }
 
   /**
-   * Validate that configuration is valid for recently_added collections
+   * Validate that configuration is valid for filtered_hub collections
    */
   protected async validateConfiguration(): Promise<void> {
     // No external API dependencies - just needs Plex
@@ -155,17 +159,30 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
       templateContext
     );
 
-    logger.info('Syncing Recently Added (filtered) collection', {
-      label: 'Recently Added Collections',
+    // Validate subtype
+    const subtype = config.subtype as 'recently_added' | 'recently_released';
+    if (
+      !subtype ||
+      !['recently_added', 'recently_released'].includes(subtype)
+    ) {
+      throw this.createSyncError(
+        CollectionSyncErrorType.CONFIGURATION_ERROR,
+        `Invalid filtered_hub subtype: ${subtype}. Must be 'recently_added' or 'recently_released'`
+      );
+    }
+
+    logger.info('Syncing filtered hub collection', {
+      label: 'Filtered Hub Collections',
       configName: config.name,
       libraryId: config.libraryId,
       mediaType,
+      subtype,
       generatedName: collectionName,
     });
 
     // Check if smart collection already exists
     // Define custom label for this collection
-    const customLabel = `Agregarr-recently_added-${config.id}`;
+    const customLabel = `Agregarr-filtered_hub-${config.id}`;
 
     // Filter collections to only those in the target library
     const libraryCollections = allCollections.filter(
@@ -198,9 +215,10 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
     let collectionRatingKey: string;
 
     if (existingCollection) {
-      logger.info('Recently Added (filtered) smart collection already exists', {
-        label: 'Recently Added Collections',
+      logger.info('Filtered hub smart collection already exists', {
+        label: 'Filtered Hub Collections',
         collectionName,
+        subtype,
         ratingKey: existingCollection.ratingKey,
       });
 
@@ -219,23 +237,24 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
       ).default;
       const smartCollectionManager = new PlexSmartCollectionManager(plexClient);
 
-      const smartCollectionKey =
-        await smartCollectionManager.createFilteredRecentlyAdded(
-          collectionName,
-          config.libraryId,
-          mediaType
-        );
+      const smartCollectionKey = await smartCollectionManager.createFilteredHub(
+        collectionName,
+        config.libraryId,
+        mediaType,
+        subtype
+      );
 
       if (!smartCollectionKey) {
         throw this.createSyncError(
           CollectionSyncErrorType.COLLECTION_ERROR,
-          'Failed to create Recently Added (filtered) smart collection'
+          `Failed to create filtered hub smart collection (subtype: ${subtype})`
         );
       }
 
-      logger.info('Created Recently Added (filtered) smart collection', {
-        label: 'Recently Added Collections',
+      logger.info('Created filtered hub smart collection', {
+        label: 'Filtered Hub Collections',
         collectionName,
+        subtype,
         smartCollectionKey,
       });
 
@@ -278,7 +297,7 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
     if (shouldGeneratePoster) {
       try {
         logger.debug('Fetching items from collection for poster generation', {
-          label: 'Recently Added Collections',
+          label: 'Filtered Hub Collections',
           collectionRatingKey,
           collectionName,
         });
@@ -289,7 +308,7 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
         );
 
         logger.debug('Fetched items from collection', {
-          label: 'Recently Added Collections',
+          label: 'Filtered Hub Collections',
           collectionRatingKey,
           itemCount: children.length,
         });
@@ -332,17 +351,14 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
           items
         );
       } catch (posterError) {
-        logger.warn(
-          'Failed to generate poster for Recently Added (filtered) collection',
-          {
-            label: 'Recently Added Collections',
-            collectionName,
-            error:
-              posterError instanceof Error
-                ? posterError.message
-                : String(posterError),
-          }
-        );
+        logger.warn('Failed to generate poster for filtered hub collection', {
+          label: 'Filtered Hub Collections',
+          collectionName,
+          error:
+            posterError instanceof Error
+              ? posterError.message
+              : String(posterError),
+        });
         // Don't fail the sync if poster generation fails
       }
     }
@@ -352,5 +368,8 @@ export class RecentlyAddedCollectionSync extends BaseCollectionSync {
 }
 
 // Export singleton instance
-export const recentlyAddedCollectionSync = new RecentlyAddedCollectionSync();
-export default recentlyAddedCollectionSync;
+export const filteredHubCollectionSync = new FilteredHubCollectionSync();
+export default filteredHubCollectionSync;
+
+// Legacy export for backwards compatibility
+export const recentlyAddedCollectionSync = filteredHubCollectionSync;

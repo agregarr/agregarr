@@ -263,45 +263,69 @@ class PlexSmartCollectionManager {
   }
 
   /**
-   * Create a filtered Recently Added smart collection that excludes coming soon placeholders
-   * @param title - Title for the smart collection (usually "Recently Added")
+   * Create a filtered hub replacement smart collection that excludes coming soon placeholders
+   * Supports: recently_added, recently_released
+   * @param title - Title for the smart collection
    * @param libraryKey - Library section key (e.g., "1" for movies)
    * @param mediaType - 'movie' or 'tv'
+   * @param subtype - Hub subtype ('recently_added' or 'recently_released')
    * @returns The rating key of the created smart collection or null if failed
    */
-  public async createFilteredRecentlyAdded(
+  public async createFilteredHub(
     title: string,
     libraryKey: string,
-    mediaType: 'movie' | 'tv'
+    mediaType: 'movie' | 'tv',
+    subtype: 'recently_added' | 'recently_released'
   ): Promise<string | null> {
     try {
       logger.debug(
-        `Creating filtered Recently Added smart collection "${title}" for library ${libraryKey}`,
+        `Creating filtered hub smart collection "${title}" for library ${libraryKey}`,
         {
           label: 'Plex API',
           title,
           libraryKey,
           mediaType,
+          subtype,
         }
       );
 
       const type = mediaType === 'movie' ? 1 : 2;
 
-      // Build filter URI based on media type
+      // Build filter URI based on media type and subtype
       let filterUri: string;
-      if (mediaType === 'tv') {
-        // TV Shows: Sort by Last Episode Date Added (lastViewedAt), filter out "Trailer (Placeholder)"
-        // Note: Plex uses title!= for "is not" filter
-        const sortParam = 'lastViewedAt:desc';
-        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+
+      if (subtype === 'recently_added') {
+        // Recently Added: Sort by Date Added (addedAt), exclude placeholders
+        if (mediaType === 'tv') {
+          // TV Shows: Filter out "Trailer (Placeholder)" episode titles
+          const sortParam = 'addedAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          // Movies: Filter out "trailer-placeholder" label
+          const sortParam = 'addedAt:desc';
+          const labelFilter = 'trailer-placeholder';
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
+            labelFilter
+          )}`;
+        }
+      } else if (subtype === 'recently_released') {
+        // Recently Released: Sort by Release Date (originallyAvailableAt), exclude placeholders
+        if (mediaType === 'tv') {
+          // TV Shows (Episodes): Sort by air date, filter out "Trailer (Placeholder)"
+          const sortParam = 'originallyAvailableAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          // Movies: Sort by release date, filter out "trailer-placeholder" label
+          const sortParam = 'originallyAvailableAt:desc';
+          const labelFilter = 'trailer-placeholder';
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
+            labelFilter
+          )}`;
+        }
       } else {
-        // Movies: Sort by Date Added (addedAt), filter out "trailer-placeholder" label
-        const sortParam = 'addedAt:desc';
-        const labelFilter = 'trailer-placeholder';
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
-          labelFilter
-        )}`;
+        throw new Error(`Unsupported filtered hub subtype: ${subtype}`);
       }
 
       const uri = `server://${
@@ -320,7 +344,7 @@ class PlexSmartCollectionManager {
         !('MediaContainer' in createResponse)
       ) {
         logger.error(
-          'Invalid response when creating filtered Recently Added smart collection',
+          'Invalid response when creating filtered hub smart collection',
           {
             label: 'Plex API',
             response: createResponse,
@@ -335,7 +359,7 @@ class PlexSmartCollectionManager {
 
       if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
         logger.error(
-          'No metadata returned when creating filtered Recently Added smart collection',
+          'No metadata returned when creating filtered hub smart collection',
           {
             label: 'Plex API',
             response: createResponse,
@@ -352,29 +376,45 @@ class PlexSmartCollectionManager {
       // Note: Labels, titles, and visibility are handled by updateCollectionMetadata in the sync flow
 
       logger.info(
-        `Successfully created filtered Recently Added smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        `Successfully created filtered hub smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
         {
           label: 'Plex API',
           title,
           smartCollectionRatingKey,
           mediaType,
+          subtype,
         }
       );
 
       return smartCollectionRatingKey;
     } catch (error) {
-      logger.error(
-        `Error creating filtered Recently Added smart collection "${title}"`,
-        {
-          label: 'Plex API',
-          title,
-          libraryKey,
-          mediaType,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
+      logger.error(`Error creating filtered hub smart collection "${title}"`, {
+        label: 'Plex API',
+        title,
+        libraryKey,
+        mediaType,
+        subtype,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
+  }
+
+  /**
+   * @deprecated Use createFilteredHub instead
+   * Legacy method for backwards compatibility
+   */
+  public async createFilteredRecentlyAdded(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv'
+  ): Promise<string | null> {
+    return this.createFilteredHub(
+      title,
+      libraryKey,
+      mediaType,
+      'recently_added'
+    );
   }
 }
 

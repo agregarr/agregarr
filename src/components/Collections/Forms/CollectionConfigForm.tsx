@@ -251,7 +251,7 @@ const CollectionFormConfigForm = ({
         type !== 'multi-source' &&
         type !== 'radarrtag' &&
         type !== 'sonarrtag' &&
-        type !== 'recently_added', // Only required if not a hub, pre-existing, multi-source, tag-based, or recently_added
+        type !== 'filtered_hub', // Only required if not a hub, pre-existing, multi-source, tag-based, or recently_added
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema.notRequired(),
     }),
@@ -1686,7 +1686,7 @@ const CollectionFormConfigForm = ({
                                 ? hasSelectedRadarrTag
                                 : values.type === 'sonarrtag'
                                 ? hasSelectedSonarrTag
-                                : values.type === 'recently_added'
+                                : values.type === 'filtered_hub'
                                 ? true // recently_added doesn't require a subtype
                                 : values.subtype) && // Radarr/Sonarr tag collections require a tag instead of subtype
                               // For Trakt time-period subtypes, also require timePeriod to be selected
@@ -1767,7 +1767,7 @@ const CollectionFormConfigForm = ({
                           ? hasSelectedRadarrTag
                           : values.type === 'sonarrtag'
                           ? hasSelectedSonarrTag
-                          : values.type === 'recently_added'
+                          : values.type === 'filtered_hub'
                           ? true // recently_added doesn't require a subtype
                           : values.subtype) &&
                         (values.libraryIds?.length > 0 || values.libraryId) &&
@@ -1812,7 +1812,7 @@ const CollectionFormConfigForm = ({
                                     isCollection &&
                                       values.type &&
                                       (values.type === 'multi-source' ||
-                                        values.type === 'recently_added' ||
+                                        values.type === 'filtered_hub' ||
                                         (values.type === 'radarrtag'
                                           ? hasSelectedRadarrTag
                                           : values.type === 'sonarrtag'
@@ -1827,7 +1827,7 @@ const CollectionFormConfigForm = ({
 
                             {/* Item Order - available for all collection types except multi-source and recently_added */}
                             {values.type !== 'multi-source' &&
-                              values.type !== 'recently_added' && (
+                              values.type !== 'filtered_hub' && (
                                 <div className="form-row">
                                   <label
                                     htmlFor="itemOrder"
@@ -1951,7 +1951,7 @@ const CollectionFormConfigForm = ({
                             </div>
 
                             {/* Max Items - not applicable for recently_added */}
-                            {values.type !== 'recently_added' && (
+                            {values.type !== 'filtered_hub' && (
                               <div className="form-row">
                                 <label
                                   htmlFor="collectionMaxItems"
@@ -1983,7 +1983,7 @@ const CollectionFormConfigForm = ({
 
                             {/* Smart Collection - Show Unwatched Only */}
                             {/* Hide for: recently_added (already smart), and tmdb auto_franchise (multi-collection) */}
-                            {values.type !== 'recently_added' &&
+                            {values.type !== 'filtered_hub' &&
                               !(
                                 values.type === 'tmdb' &&
                                 values.subtype === 'auto_franchise'
@@ -2137,7 +2137,7 @@ const CollectionFormConfigForm = ({
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
-                              typedValues.type !== 'recently_added' &&
+                              typedValues.type !== 'filtered_hub' &&
                               !(
                                 typedValues.type === 'tmdb' &&
                                 typedValues.subtype === 'auto_franchise'
@@ -2243,7 +2243,7 @@ const CollectionFormConfigForm = ({
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
-                              typedValues.type !== 'recently_added' &&
+                              typedValues.type !== 'filtered_hub' &&
                               !(
                                 typedValues.type === 'tmdb' &&
                                 typedValues.subtype === 'auto_franchise'

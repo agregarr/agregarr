@@ -51,7 +51,7 @@ export interface CollectionConfig {
     | 'radarrtag'
     | 'sonarrtag'
     | 'comingsoon'
-    | 'recently_added';
+    | 'filtered_hub';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc. Optional for types like recently_added
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
@@ -1266,7 +1266,7 @@ class Settings {
         ) {
           migratedCount++;
           logger.info(
-            `Migrating comingsoon/recently_added config "${config.name}" to standalone recently_added type`,
+            `Migrating comingsoon/recently_added config "${config.name}" to filtered_hub type with subtype recently_added`,
             {
               label: 'Settings Migration',
               configId: config.id,
@@ -1275,8 +1275,8 @@ class Settings {
 
           return {
             ...config,
-            type: 'recently_added' as const,
-            subtype: undefined, // recently_added doesn't have subtypes
+            type: 'filtered_hub' as const,
+            subtype: 'recently_added', // filtered_hub requires a subtype
           };
         }
 
@@ -1286,7 +1286,70 @@ class Settings {
 
     if (migratedCount > 0) {
       logger.info(
-        `Migrated ${migratedCount} comingsoon/recently_added config(s) to standalone recently_added type`,
+        `Migrated ${migratedCount} comingsoon/recently_added config(s) to filtered_hub type`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
+   * Migrate recently_added type to filtered_hub with subtype recently_added
+   * This is a one-time migration for the filtered hub refactoring
+   */
+  public migrateRecentlyAddedToFilteredHub(): void {
+    const migrationId = 'recently-added-to-filtered-hub';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Check if this is a recently_added config that needs migration
+        // Type assertion needed because 'recently_added' is a legacy type
+        if ((config.type as string) === 'recently_added') {
+          migratedCount++;
+          logger.info(
+            `Migrating recently_added config "${config.name}" to filtered_hub type with subtype recently_added`,
+            {
+              label: 'Settings Migration',
+              configId: config.id,
+            }
+          );
+
+          return {
+            ...config,
+            type: 'filtered_hub' as const,
+            subtype: 'recently_added', // Set subtype to recently_added
+          };
+        }
+
+        return config;
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} recently_added config(s) to filtered_hub type`,
         {
           label: 'Settings Migration',
         }

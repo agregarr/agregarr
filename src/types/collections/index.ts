@@ -144,7 +144,7 @@ export interface CollectionFormConfig {
     | 'radarrtag'
     | 'sonarrtag'
     | 'comingsoon'
-    | 'recently_added';
+    | 'filtered_hub';
   readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
@@ -336,7 +336,7 @@ export interface CollectionConfigCreateRequest {
     | 'radarrtag'
     | 'sonarrtag'
     | 'comingsoon'
-    | 'recently_added';
+    | 'filtered_hub';
   readonly subtype?: string;
   readonly template?: string;
   readonly customMovieTemplate?: string;
@@ -640,7 +640,7 @@ export type CollectionSourceType =
   | 'radarrtag'
   | 'sonarrtag'
   | 'comingsoon'
-  | 'recently_added';
+  | 'filtered_hub';
 export type MediaType = 'movie' | 'tv';
 
 /**
@@ -888,7 +888,7 @@ export type MultiSourceType =
   | 'anilist'
   | 'myanimelist'
   | 'comingsoon'
-  | 'recently_added';
+  | 'filtered_hub';
 
 /**
  * Source definition for multi-source collections

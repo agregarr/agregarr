@@ -558,11 +558,11 @@ export class CollectionSyncService {
         );
         return new ComingSoonCollectionSync();
       }
-      case 'recently_added': {
-        const { RecentlyAddedCollectionSync } = await import(
+      case 'filtered_hub': {
+        const { FilteredHubCollectionSync } = await import(
           '../external/recentlyadded'
         );
-        return new RecentlyAddedCollectionSync();
+        return new FilteredHubCollectionSync();
       }
       case 'multi-source':
         throw new Error(

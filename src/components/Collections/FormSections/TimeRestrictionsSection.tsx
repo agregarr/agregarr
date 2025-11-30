@@ -350,10 +350,10 @@ const TimeRestrictionsSection = ({
         </div>
       )}
 
-      {/* Custom Sync Schedule Section - Only for Agregarr collections (not hubs, pre-existing, or recently_added) */}
+      {/* Custom Sync Schedule Section - Only for Agregarr collections (not hubs, pre-existing, or filtered_hub) */}
       {!isDefaultPlexHub &&
         !isPreExisting &&
-        values.type !== 'recently_added' && (
+        values.type !== 'filtered_hub' && (
           <div className="mt-6">
             <label className="mb-4 block text-sm font-medium text-gray-200">
               {intl.formatMessage(messages.customSyncSchedule)}

@@ -64,6 +64,9 @@ app
     // Migrate comingsoon/recently_added to standalone recently_added type
     settings.migrateComingSoonRecentlyAddedToStandalone();
 
+    // Migrate recently_added to filtered_hub type
+    settings.migrateRecentlyAddedToFilteredHub();
+
     // Migrate poster templates to unified layering system for v1.3.2
     await settings.migratePosterTemplatesV132();
 
