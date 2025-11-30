@@ -215,6 +215,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.excludedCountries !== undefined && {
           excludedCountries: collectionConfig.excludedCountries,
         }),
+        ...(collectionConfig.excludeFromCollections !== undefined && {
+          excludeFromCollections: collectionConfig.excludeFromCollections,
+        }),
         ...(collectionConfig.traktCustomListUrl && {
           traktCustomListUrl: collectionConfig.traktCustomListUrl,
         }),

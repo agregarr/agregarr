@@ -525,6 +525,13 @@ components:
           description: 'Randomize the order of items (mutually exclusive with reverseOrder)'
           example: false
           nullable: true
+        excludeFromCollections:
+          type: array
+          items:
+            type: string
+          description: 'Array of collection IDs to exclude items from (mutual exclusion)'
+          example: ['10001', '10002']
+          nullable: true
         timeRestriction:
           type: object
           description: 'Time restriction settings for the collection'
@@ -954,6 +961,13 @@ components:
           type: boolean
           description: 'Randomize the order of items (mutually exclusive with reverseOrder)'
           example: false
+          nullable: true
+        excludeFromCollections:
+          type: array
+          items:
+            type: string
+          description: 'Array of collection IDs to exclude items from (mutual exclusion)'
+          example: ['10001', '10002']
           nullable: true
         timeRestriction:
           type: object
@@ -1459,6 +1473,13 @@ components:
           type: boolean
           description: 'Randomize the order of items (mutually exclusive with reverseOrder)'
           example: false
+          nullable: true
+        excludeFromCollections:
+          type: array
+          items:
+            type: string
+          description: 'Array of collection IDs to exclude items from (mutual exclusion)'
+          example: ['10001', '10002']
           nullable: true
         timeRestriction:
           type: object

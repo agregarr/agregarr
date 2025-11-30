@@ -271,6 +271,8 @@ export interface CollectionFormConfig {
   // Generic ordering options (applicable to all collection types)
   readonly reverseOrder?: boolean; // Reverse the order of items from the source
   readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
+  // Collection exclusion settings
+  readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
   // Backend properties (from PlexHubConfig) - Present on hub configs from API
   readonly collectionType?: CollectionType; // Simplified categorization system
@@ -394,6 +396,7 @@ export interface CollectionConfigCreateRequest {
   readonly sonarrTagId?: number;
   readonly reverseOrder?: boolean;
   readonly randomizeOrder?: boolean;
+  readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
     readonly removeFromPlexWhenInactive?: boolean;
@@ -490,6 +493,7 @@ export const toCollectionCreateRequest = (
     sonarrTagId: config.sonarrTagId,
     reverseOrder: config.reverseOrder,
     randomizeOrder: config.randomizeOrder,
+    excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,

@@ -361,6 +361,9 @@ const CollectionSettings = ({
           ...(config.excludedCountries !== undefined && {
             excludedCountries: config.excludedCountries,
           }),
+          ...(config.excludeFromCollections !== undefined && {
+            excludeFromCollections: config.excludeFromCollections,
+          }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
           ...(config.libraryNames && { libraryNames: config.libraryNames }),

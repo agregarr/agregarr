@@ -24,6 +24,7 @@ import * as Yup from 'yup';
 import { getTemplatePresets } from '@app/components/Collections/Forms/titlePresets';
 import ArrTagConfigSection from '@app/components/Collections/FormSections/ArrTagConfigSection';
 import AutoRequestSection from '@app/components/Collections/FormSections/AutoRequestSection';
+import CollectionExclusionSection from '@app/components/Collections/FormSections/CollectionExclusionSection';
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
@@ -1011,6 +1012,8 @@ const CollectionFormConfigForm = ({
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
+          excludeFromCollections:
+            (config as CollectionFormConfig).excludeFromCollections || [],
           // Radarr/Sonarr tag configuration
           radarrInstanceId:
             (config as CollectionFormConfig).radarrInstanceId ?? undefined,
@@ -2131,6 +2134,17 @@ const CollectionFormConfigForm = ({
                                 />
                               </div>
                             </div>
+
+                            {/* Collection Mutual Exclusion - only for Agregarr-created collections */}
+                            {isCollection && (
+                              <CollectionExclusionSection
+                                values={typedValues as CollectionFormConfig}
+                                setFieldValue={setFieldValue}
+                                allCollectionConfigs={
+                                  allCollectionConfigs || []
+                                }
+                              />
+                            )}
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}
                             {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
