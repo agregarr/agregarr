@@ -106,8 +106,24 @@ export interface CollectionConfig {
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
   readonly minimumRottenTomatoesRating?: number; // Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)
-  readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
-  readonly excludedCountries?: string[]; // Exclude items with these ISO 3166-1 country codes from missing items search
+  readonly excludedGenres?: number[]; // @deprecated Use filterSettings.genres - Exclude items with these TMDB genre IDs from missing items search
+  readonly excludedCountries?: string[]; // @deprecated Use filterSettings.countries - Exclude items with these ISO 3166-1 country codes from missing items search
+  readonly excludedLanguages?: string[]; // @deprecated Use filterSettings.languages - Exclude items with these ISO 639-1 language codes from missing items search
+  // New unified filter settings with include/exclude modes
+  readonly filterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: number[]; // TMDB genre IDs
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: string[]; // ISO 3166-1 country codes
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: string[]; // ISO 639-1 language codes
+    };
+  };
 
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
@@ -1363,6 +1379,110 @@ class Settings {
   }
 
   /**
+   * Migrate old filter format (excludedGenres, excludedCountries, excludedLanguages)
+   * to new unified filterSettings format with include/exclude modes
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateToUnifiedFilterSettings(): void {
+    const migrationId = 'unified-filter-settings';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Skip if already using new format
+        if (config.filterSettings) {
+          return config;
+        }
+
+        // Check if collection has any old-format filters
+        const hasOldFilters =
+          (config.excludedGenres && config.excludedGenres.length > 0) ||
+          (config.excludedCountries && config.excludedCountries.length > 0) ||
+          (config.excludedLanguages && config.excludedLanguages.length > 0);
+
+        if (!hasOldFilters) {
+          return config; // No filters to migrate
+        }
+
+        // Build new filterSettings object
+        const filterSettings: {
+          genres?: { mode: 'exclude' | 'include'; values: number[] };
+          countries?: { mode: 'exclude' | 'include'; values: string[] };
+          languages?: { mode: 'exclude' | 'include'; values: string[] };
+        } = {};
+
+        if (config.excludedGenres && config.excludedGenres.length > 0) {
+          filterSettings.genres = {
+            mode: 'exclude',
+            values: config.excludedGenres,
+          };
+        }
+
+        if (config.excludedCountries && config.excludedCountries.length > 0) {
+          filterSettings.countries = {
+            mode: 'exclude',
+            values: config.excludedCountries,
+          };
+        }
+
+        if (config.excludedLanguages && config.excludedLanguages.length > 0) {
+          filterSettings.languages = {
+            mode: 'exclude',
+            values: config.excludedLanguages,
+          };
+        }
+
+        migratedCount++;
+        logger.info(
+          `Migrating collection "${config.name}" to unified filter settings`,
+          {
+            label: 'Settings Migration',
+            configId: config.id,
+          }
+        );
+
+        // Return collection with new format, removing old fields
+        return {
+          ...config,
+          filterSettings,
+          excludedGenres: undefined,
+          excludedCountries: undefined,
+          excludedLanguages: undefined,
+        };
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} collection(s) to unified filter settings format`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
    * Normalize pre-existing configs with pre-existing collection business rules
    */
   private normalizePreExistingConfigs(): number {
@@ -1703,6 +1823,21 @@ export interface MultiSourceCollectionConfig {
   readonly minimumRottenTomatoesRating?: number;
   readonly excludedGenres?: number[];
   readonly excludedCountries?: string[];
+  readonly excludedLanguages?: string[];
+  readonly filterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+  };
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
   readonly directDownloadRadarrRootFolder?: string;

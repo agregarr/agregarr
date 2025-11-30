@@ -67,6 +67,9 @@ app
     // Migrate recently_added to filtered_hub type
     settings.migrateRecentlyAddedToFilteredHub();
 
+    // Migrate old filter format to unified filterSettings with include/exclude modes
+    settings.migrateToUnifiedFilterSettings();
+
     // Migrate poster templates to unified layering system for v1.3.2
     await settings.migratePosterTemplatesV132();
 

@@ -2,8 +2,7 @@ import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { Field } from 'formik';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
-import CountryExclusion from './CountryExclusion';
-import GenreExclusion from './GenreExclusion';
+import FilterWithMode from './FilterWithMode';
 
 const messages = defineMessages({
   grabMissingItems: 'Grab Missing Items',
@@ -77,6 +76,21 @@ interface AutoRequestSectionProps {
     searchMissingTV?: boolean;
     excludedGenres?: number[];
     excludedCountries?: string[];
+    excludedLanguages?: string[];
+    filterSettings?: {
+      genres?: {
+        mode: 'exclude' | 'include';
+        values: number[];
+      };
+      countries?: {
+        mode: 'exclude' | 'include';
+        values: string[];
+      };
+      languages?: {
+        mode: 'exclude' | 'include';
+        values: string[];
+      };
+    };
     directDownloadRadarrServerId?: number;
     directDownloadRadarrProfileId?: number;
     directDownloadRadarrRootFolder?: string;
@@ -360,19 +374,123 @@ const AutoRequestSection = ({
             </div>
           </div>
 
-          {/* Genre Exclusion */}
-          <GenreExclusion
-            selectedGenres={values.excludedGenres || []}
-            onSelectionChange={(selectedIds) => {
-              setFieldValue?.('excludedGenres', selectedIds);
+          {/* Genre Filter with Include/Exclude Mode */}
+          <FilterWithMode
+            filterType="genres"
+            mode={values.filterSettings?.genres?.mode || 'exclude'}
+            selectedValues={
+              values.filterSettings?.genres?.values ||
+              values.excludedGenres ||
+              []
+            }
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.genres?.values ||
+                values.excludedGenres ||
+                [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                genres: { mode, values: currentValues },
+              });
+              // Clear old format when using new format
+              if (values.excludedGenres) {
+                setFieldValue?.('excludedGenres', undefined);
+              }
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.genres?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                genres: {
+                  mode: currentMode,
+                  values: selectedValues as number[],
+                },
+              });
+              // Clear old format when using new format
+              if (values.excludedGenres) {
+                setFieldValue?.('excludedGenres', undefined);
+              }
             }}
           />
 
-          {/* Country Exclusion */}
-          <CountryExclusion
-            selectedCountries={values.excludedCountries || []}
-            onSelectionChange={(selectedCodes) => {
-              setFieldValue?.('excludedCountries', selectedCodes);
+          {/* Country Filter with Include/Exclude Mode */}
+          <FilterWithMode
+            filterType="countries"
+            mode={values.filterSettings?.countries?.mode || 'exclude'}
+            selectedValues={
+              values.filterSettings?.countries?.values ||
+              values.excludedCountries ||
+              []
+            }
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.countries?.values ||
+                values.excludedCountries ||
+                [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                countries: { mode, values: currentValues },
+              });
+              // Clear old format when using new format
+              if (values.excludedCountries) {
+                setFieldValue?.('excludedCountries', undefined);
+              }
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.countries?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                countries: {
+                  mode: currentMode,
+                  values: selectedValues as string[],
+                },
+              });
+              // Clear old format when using new format
+              if (values.excludedCountries) {
+                setFieldValue?.('excludedCountries', undefined);
+              }
+            }}
+          />
+
+          {/* Language Filter with Include/Exclude Mode */}
+          <FilterWithMode
+            filterType="languages"
+            mode={values.filterSettings?.languages?.mode || 'exclude'}
+            selectedValues={
+              values.filterSettings?.languages?.values ||
+              values.excludedLanguages ||
+              []
+            }
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.languages?.values ||
+                values.excludedLanguages ||
+                [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                languages: { mode, values: currentValues },
+              });
+              // Clear old format when using new format
+              if (values.excludedLanguages) {
+                setFieldValue?.('excludedLanguages', undefined);
+              }
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.languages?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                languages: {
+                  mode: currentMode,
+                  values: selectedValues as string[],
+                },
+              });
+              // Clear old format when using new format
+              if (values.excludedLanguages) {
+                setFieldValue?.('excludedLanguages', undefined);
+              }
             }}
           />
 

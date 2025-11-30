@@ -495,6 +495,60 @@ components:
           description: 'ISO 3166-1 country codes to exclude from missing items search'
           example: ['JP', 'KR']
           nullable: true
+        excludedLanguages:
+          type: array
+          items:
+            type: string
+          description: 'ISO 639-1 language codes to exclude from missing items search'
+          example: ['ja', 'ko']
+          nullable: true
+        filterSettings:
+          type: object
+          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+          nullable: true
         traktCustomListUrl:
           type: string
           description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
@@ -931,6 +985,60 @@ components:
             type: string
           description: 'ISO 3166-1 country codes to exclude from missing items search'
           example: ['JP', 'KR']
+          nullable: true
+        excludedLanguages:
+          type: array
+          items:
+            type: string
+          description: 'ISO 639-1 language codes to exclude from missing items search'
+          example: ['ja', 'ko']
+          nullable: true
+        filterSettings:
+          type: object
+          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
           nullable: true
         traktCustomListUrl:
           type: string
@@ -1433,6 +1541,60 @@ components:
             type: string
           description: 'ISO 3166-1 country codes to exclude from missing items search'
           example: ['JP', 'KR']
+          nullable: true
+        excludedLanguages:
+          type: array
+          items:
+            type: string
+          description: 'ISO 639-1 language codes to exclude from missing items search'
+          example: ['ja', 'ko']
+          nullable: true
+        filterSettings:
+          type: object
+          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
           nullable: true
         traktCustomListUrl:
           type: string
@@ -4508,6 +4670,28 @@ paths:
                     name:
                       type: string
                       example: Japan
+  /languages/combined:
+    get:
+      summary: Get combined movie and TV spoken languages
+      description: Returns a curated list of common spoken languages with localized names
+      tags:
+        - tmdb
+      responses:
+        '200':
+          description: Combined languages list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      example: ja
+                    name:
+                      type: string
+                      example: Japanese
   /movie/{id}:
     get:
       summary: Get movie details

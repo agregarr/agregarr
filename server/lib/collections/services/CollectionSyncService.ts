@@ -307,6 +307,8 @@ export class CollectionSyncService {
               minimumYear: config.minimumYear,
               excludedGenres: config.excludedGenres,
               excludedCountries: config.excludedCountries,
+              excludedLanguages: config.excludedLanguages,
+              filterSettings: config.filterSettings,
               directDownloadRadarrServerId: config.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:
                 config.directDownloadRadarrProfileId,

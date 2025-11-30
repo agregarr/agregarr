@@ -361,6 +361,12 @@ const CollectionSettings = ({
           ...(config.excludedCountries !== undefined && {
             excludedCountries: config.excludedCountries,
           }),
+          ...(config.excludedLanguages !== undefined && {
+            excludedLanguages: config.excludedLanguages,
+          }),
+          ...(config.filterSettings !== undefined && {
+            filterSettings: config.filterSettings,
+          }),
           ...(config.excludeFromCollections !== undefined && {
             excludeFromCollections: config.excludeFromCollections,
           }),

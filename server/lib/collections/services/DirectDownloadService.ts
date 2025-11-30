@@ -337,7 +337,11 @@ export class DirectDownloadService {
         filterResult.lowRatedItems.length +
         filterResult.lowRatedRTItems.length +
         filterResult.excludedGenreItems.length +
-        filterResult.excludedCountryItems.length;
+        filterResult.excludedCountryItems.length +
+        filterResult.excludedLanguageItems.length +
+        filterResult.includedGenreItems.length +
+        filterResult.includedCountryItems.length +
+        filterResult.includedLanguageItems.length;
 
       if (autoApprovedRequests > 0) {
         logger.info(

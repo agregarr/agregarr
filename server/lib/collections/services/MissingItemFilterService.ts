@@ -26,6 +26,14 @@ export interface FilteredMissingItemsResult {
   excludedGenreItems: string[];
   /** Items filtered by excluded countries */
   excludedCountryItems: string[];
+  /** Items filtered by excluded languages */
+  excludedLanguageItems: string[];
+  /** Items filtered by included genres (when mode is include) */
+  includedGenreItems: string[];
+  /** Items filtered by included countries (when mode is include) */
+  includedCountryItems: string[];
+  /** Items filtered by included languages (when mode is include) */
+  includedLanguageItems: string[];
 }
 
 /**
@@ -63,6 +71,10 @@ export class MissingItemFilterService {
     const lowRatedRTItems: string[] = [];
     const excludedGenreItems: string[] = [];
     const excludedCountryItems: string[] = [];
+    const excludedLanguageItems: string[] = [];
+    const includedGenreItems: string[] = [];
+    const includedCountryItems: string[] = [];
+    const includedLanguageItems: string[] = [];
 
     // Step 1: Filter by media type and minimum year
     const yearFilteredMissingItems = missingItems.filter((item) => {
@@ -213,28 +225,74 @@ export class MissingItemFilterService {
         // If not in map (no RT rating found), allow the item (continue processing)
       }
 
-      // Check excluded genres
-      if (config.excludedGenres && config.excludedGenres.length > 0) {
-        const hasExcluded = await this.hasExcludedGenres(
+      // Check genre filter (supports both include and exclude modes)
+      const genreFilter = this.getGenreFilter(config);
+      if (genreFilter && genreFilter.values.length > 0) {
+        const itemGenres = await this.getItemGenres(
           item.tmdbId,
-          item.mediaType,
-          config.excludedGenres
+          item.mediaType
         );
-        if (hasExcluded) {
+        const hasMatch = itemGenres.some((genreId) =>
+          genreFilter.values.includes(genreId)
+        );
+
+        if (genreFilter.mode === 'exclude' && hasMatch) {
+          // EXCLUDE mode: skip items that have ANY of the selected genres
           excludedGenreItems.push(item.title);
+          continue;
+        }
+
+        if (genreFilter.mode === 'include' && !hasMatch) {
+          // INCLUDE mode: skip items that DON'T have ANY of the selected genres
+          includedGenreItems.push(item.title);
           continue;
         }
       }
 
-      // Check excluded countries
-      if (config.excludedCountries && config.excludedCountries.length > 0) {
-        const hasExcluded = await this.hasExcludedCountries(
+      // Check country filter (supports both include and exclude modes)
+      const countryFilter = this.getCountryFilter(config);
+      if (countryFilter && countryFilter.values.length > 0) {
+        const itemCountries = await this.getItemCountries(
           item.tmdbId,
-          item.mediaType,
-          config.excludedCountries
+          item.mediaType
         );
-        if (hasExcluded) {
+        const hasMatch = itemCountries.some((country) =>
+          countryFilter.values.includes(country)
+        );
+
+        if (countryFilter.mode === 'exclude' && hasMatch) {
+          // EXCLUDE mode: skip items that have ANY of the selected countries
           excludedCountryItems.push(item.title);
+          continue;
+        }
+
+        if (countryFilter.mode === 'include' && !hasMatch) {
+          // INCLUDE mode: skip items that DON'T have ANY of the selected countries
+          includedCountryItems.push(item.title);
+          continue;
+        }
+      }
+
+      // Check language filter (supports both include and exclude modes)
+      const languageFilter = this.getLanguageFilter(config);
+      if (languageFilter && languageFilter.values.length > 0) {
+        const itemLanguages = await this.getItemLanguages(
+          item.tmdbId,
+          item.mediaType
+        );
+        const hasMatch = itemLanguages.some((lang) =>
+          languageFilter.values.includes(lang)
+        );
+
+        if (languageFilter.mode === 'exclude' && hasMatch) {
+          // EXCLUDE mode: skip items that have ANY of the selected languages
+          excludedLanguageItems.push(item.title);
+          continue;
+        }
+
+        if (languageFilter.mode === 'include' && !hasMatch) {
+          // INCLUDE mode: skip items that DON'T have ANY of the selected languages
+          includedLanguageItems.push(item.title);
           continue;
         }
       }
@@ -252,6 +310,10 @@ export class MissingItemFilterService {
       lowRatedRTItems,
       excludedGenreItems,
       excludedCountryItems,
+      excludedLanguageItems,
+      includedGenreItems,
+      includedCountryItems,
+      includedLanguageItems,
     };
   }
 
@@ -434,6 +496,57 @@ export class MissingItemFilterService {
   }
 
   /**
+   * Normalize genre filter config (backward compatible with old excludedGenres format)
+   */
+  private getGenreFilter(
+    config: CollectionConfig
+  ): { mode: 'exclude' | 'include'; values: number[] } | null {
+    // New format takes precedence
+    if (config.filterSettings?.genres) {
+      return config.filterSettings.genres;
+    }
+    // Fall back to old format
+    if (config.excludedGenres && config.excludedGenres.length > 0) {
+      return { mode: 'exclude', values: config.excludedGenres };
+    }
+    return null;
+  }
+
+  /**
+   * Normalize country filter config (backward compatible with old excludedCountries format)
+   */
+  private getCountryFilter(
+    config: CollectionConfig
+  ): { mode: 'exclude' | 'include'; values: string[] } | null {
+    // New format takes precedence
+    if (config.filterSettings?.countries) {
+      return config.filterSettings.countries;
+    }
+    // Fall back to old format
+    if (config.excludedCountries && config.excludedCountries.length > 0) {
+      return { mode: 'exclude', values: config.excludedCountries };
+    }
+    return null;
+  }
+
+  /**
+   * Normalize language filter config (backward compatible with old excludedLanguages format)
+   */
+  private getLanguageFilter(
+    config: CollectionConfig
+  ): { mode: 'exclude' | 'include'; values: string[] } | null {
+    // New format takes precedence
+    if (config.filterSettings?.languages) {
+      return config.filterSettings.languages;
+    }
+    // Fall back to old format
+    if (config.excludedLanguages && config.excludedLanguages.length > 0) {
+      return { mode: 'exclude', values: config.excludedLanguages };
+    }
+    return null;
+  }
+
+  /**
    * Check if an item has any excluded genres
    */
   private async hasExcludedGenres(
@@ -498,6 +611,112 @@ export class MissingItemFilterService {
         }
       );
       return false; // If we can't check countries, don't exclude the item
+    }
+  }
+
+  /**
+   * Check if an item has any excluded spoken languages
+   */
+  private async hasExcludedLanguages(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+    excludedLanguages: string[]
+  ): Promise<boolean> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        // Movies use spoken_languages array
+        if (movie.spoken_languages) {
+          return movie.spoken_languages.some((language) =>
+            excludedLanguages.includes(language.iso_639_1)
+          );
+        }
+        return false;
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        // TV shows use spoken_languages array
+        if (tvShow.spoken_languages) {
+          return tvShow.spoken_languages.some((language) =>
+            excludedLanguages.includes(language.iso_639_1)
+          );
+        }
+        return false;
+      }
+    } catch (error) {
+      logger.warn(
+        `Failed to check spoken languages for TMDB ID ${tmdbId}, allowing item`,
+        {
+          label: 'Missing Item Filter Service',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false; // If we can't check languages, don't exclude the item
+    }
+  }
+
+  /**
+   * Get item genres (for mode-based filtering)
+   */
+  private async getItemGenres(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv'
+  ): Promise<number[]> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.genres.map((g) => g.id);
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.genres.map((g) => g.id);
+      }
+    } catch (error) {
+      return []; // Return empty array if we can't fetch genres
+    }
+  }
+
+  /**
+   * Get item countries (for mode-based filtering)
+   */
+  private async getItemCountries(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv'
+  ): Promise<string[]> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.production_countries
+          ? movie.production_countries.map((c) => c.iso_3166_1)
+          : [];
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.origin_country || [];
+      }
+    } catch (error) {
+      return []; // Return empty array if we can't fetch countries
+    }
+  }
+
+  /**
+   * Get item languages (for mode-based filtering)
+   */
+  private async getItemLanguages(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv'
+  ): Promise<string[]> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.spoken_languages
+          ? movie.spoken_languages.map((l) => l.iso_639_1)
+          : [];
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.spoken_languages
+          ? tvShow.spoken_languages.map((l) => l.iso_639_1)
+          : [];
+      }
+    } catch (error) {
+      return []; // Return empty array if we can't fetch languages
     }
   }
 
@@ -701,6 +920,67 @@ export class MissingItemFilterService {
           additionalCount: result.excludedCountryItems.length - 10,
         }),
       });
+    }
+
+    // Log summary of items excluded by language
+    if (result.excludedLanguageItems.length > 0) {
+      logger.info(`Items skipped due to excluded languages`, {
+        label: `${sourceLabel} Collections`,
+        collection: config.name,
+        count: result.excludedLanguageItems.length,
+        titles: result.excludedLanguageItems.slice(0, 10),
+        ...(result.excludedLanguageItems.length > 10 && {
+          additionalCount: result.excludedLanguageItems.length - 10,
+        }),
+      });
+    }
+
+    // Log summary of items filtered by included genres (INCLUDE mode)
+    if (result.includedGenreItems.length > 0) {
+      logger.info(
+        `Items skipped - did not match required genres (include mode)`,
+        {
+          label: `${sourceLabel} Collections`,
+          collection: config.name,
+          count: result.includedGenreItems.length,
+          titles: result.includedGenreItems.slice(0, 10),
+          ...(result.includedGenreItems.length > 10 && {
+            additionalCount: result.includedGenreItems.length - 10,
+          }),
+        }
+      );
+    }
+
+    // Log summary of items filtered by included countries (INCLUDE mode)
+    if (result.includedCountryItems.length > 0) {
+      logger.info(
+        `Items skipped - did not match required countries (include mode)`,
+        {
+          label: `${sourceLabel} Collections`,
+          collection: config.name,
+          count: result.includedCountryItems.length,
+          titles: result.includedCountryItems.slice(0, 10),
+          ...(result.includedCountryItems.length > 10 && {
+            additionalCount: result.includedCountryItems.length - 10,
+          }),
+        }
+      );
+    }
+
+    // Log summary of items filtered by included languages (INCLUDE mode)
+    if (result.includedLanguageItems.length > 0) {
+      logger.info(
+        `Items skipped - did not match required languages (include mode)`,
+        {
+          label: `${sourceLabel} Collections`,
+          collection: config.name,
+          count: result.includedLanguageItems.length,
+          titles: result.includedLanguageItems.slice(0, 10),
+          ...(result.includedLanguageItems.length > 10 && {
+            additionalCount: result.includedLanguageItems.length - 10,
+          }),
+        }
+      );
     }
 
     // Log summary of items excluded by IMDb rating

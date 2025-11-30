@@ -215,6 +215,12 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.excludedCountries !== undefined && {
           excludedCountries: collectionConfig.excludedCountries,
         }),
+        ...(collectionConfig.excludedLanguages !== undefined && {
+          excludedLanguages: collectionConfig.excludedLanguages,
+        }),
+        ...(collectionConfig.filterSettings !== undefined && {
+          filterSettings: collectionConfig.filterSettings,
+        }),
         ...(collectionConfig.excludeFromCollections !== undefined && {
           excludeFromCollections: collectionConfig.excludeFromCollections,
         }),

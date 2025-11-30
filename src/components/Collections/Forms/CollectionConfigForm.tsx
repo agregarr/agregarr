@@ -1012,6 +1012,9 @@ const CollectionFormConfigForm = ({
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
+          excludedLanguages:
+            (config as CollectionFormConfig).excludedLanguages || [],
+          filterSettings: (config as CollectionFormConfig).filterSettings,
           excludeFromCollections:
             (config as CollectionFormConfig).excludeFromCollections || [],
           // Radarr/Sonarr tag configuration
@@ -1301,6 +1304,14 @@ const CollectionFormConfigForm = ({
             excludedCountries:
               values.enableGrabMissingItems && values.excludedCountries
                 ? values.excludedCountries
+                : undefined,
+            excludedLanguages:
+              values.enableGrabMissingItems && values.excludedLanguages
+                ? values.excludedLanguages
+                : undefined,
+            filterSettings:
+              values.enableGrabMissingItems && values.filterSettings
+                ? values.filterSettings
                 : undefined,
             // Direct download server selection
             directDownloadRadarrServerId: directRadarrServerId,

@@ -387,6 +387,76 @@ router.get('/countries/combined', isAuthenticated(), async (req, res, next) => {
   }
 });
 
+router.get('/languages/combined', isAuthenticated(), async (req, res, next) => {
+  try {
+    // Return a curated list of languages users commonly want to filter
+    // Focuses on major languages with significant film/TV production
+    const commonLanguages = [
+      // Major global languages
+      'en', // English
+      'es', // Spanish
+      'fr', // French
+      'de', // German
+      'it', // Italian
+      'pt', // Portuguese
+      'ru', // Russian
+      'ar', // Arabic
+      // East Asian
+      'ja', // Japanese
+      'ko', // Korean
+      'zh', // Chinese (Mandarin)
+      'yue', // Cantonese
+      // South Asian
+      'hi', // Hindi
+      'ta', // Tamil
+      'te', // Telugu
+      'bn', // Bengali
+      // Southeast Asian
+      'th', // Thai
+      'id', // Indonesian
+      'vi', // Vietnamese
+      'tl', // Tagalog
+      // European
+      'pl', // Polish
+      'nl', // Dutch
+      'sv', // Swedish
+      'no', // Norwegian
+      'da', // Danish
+      'fi', // Finnish
+      'cs', // Czech
+      'hu', // Hungarian
+      'tr', // Turkish
+      'el', // Greek
+      'he', // Hebrew
+      // Other
+      'fa', // Persian
+    ];
+
+    // Convert ISO codes to readable names using Intl.DisplayNames
+    const languageNames = new Intl.DisplayNames([req.locale ?? 'en'], {
+      type: 'language',
+    });
+
+    const combined = commonLanguages
+      .map((code) => ({
+        code,
+        name: languageNames.of(code) ?? code,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json(combined);
+  } catch (e) {
+    logger.debug('Failed to retrieve combined languages', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve languages.',
+    });
+  }
+});
+
 router.get('/backdrops', async (req, res, next) => {
   const tmdb = createTmdbWithRegionLanguage();
 

@@ -365,7 +365,11 @@ export class AutoRequestService {
         filterResult.lowRatedItems.length +
         filterResult.lowRatedRTItems.length +
         filterResult.excludedGenreItems.length +
-        filterResult.excludedCountryItems.length;
+        filterResult.excludedCountryItems.length +
+        filterResult.excludedLanguageItems.length +
+        filterResult.includedGenreItems.length +
+        filterResult.includedCountryItems.length +
+        filterResult.includedLanguageItems.length;
 
       const totalRequests = autoApprovedRequests + manualApprovalRequests;
       if (totalRequests > 0) {
