@@ -371,6 +371,32 @@ export function findCollectionByConfigId(
     }
   }
 
+  // Special handling for TMDB franchise collections
+  if (configType === 'tmdb' && configSubtype === 'auto_franchise') {
+    // Franchise collections are dynamically generated and don't store rating keys in configs
+    // They should be considered as "found" if any franchise collection for this config exists
+    const hasFranchiseCollections = allCollections.some((collection) => {
+      if (!collection.labels) return false;
+      return collection.labels.some((label) => {
+        const labelText = typeof label === 'string' ? label : label.tag;
+        // Match pattern: AgregarrAutoFranchise-{configId}-{franchiseId}
+        return labelText.match(
+          new RegExp(`^AgregarrAutoFranchise-${configId}-\\d+$`, 'i')
+        );
+      });
+    });
+
+    if (hasFranchiseCollections) {
+      logger.debug(`TMDB franchise collections found for config: ${configId}`, {
+        label: 'Collection Matching',
+        configId,
+        configType,
+        configSubtype,
+      });
+      return true;
+    }
+  }
+
   // First, try to match by rating key (fastest)
   if (ratingKey && allCollections.some((c) => c.ratingKey === ratingKey)) {
     return true;

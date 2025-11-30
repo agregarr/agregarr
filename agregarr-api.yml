@@ -296,6 +296,16 @@ components:
           description: 'Template ID for auto-generated posters (null for default template)'
           example: 1
           nullable: true
+        useTmdbFranchisePoster:
+          type: boolean
+          description: 'Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)'
+          example: false
+          nullable: true
+        hideIndividualItems:
+          type: boolean
+          description: 'Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)'
+          example: false
+          nullable: true
         applyOverlaysDuringSync:
           type: boolean
           description: 'Apply item overlays during sync (for Coming Soon collections)'
@@ -733,6 +743,16 @@ components:
           type: integer
           description: 'Template ID for auto-generated posters (null for default template)'
           example: 1
+          nullable: true
+        useTmdbFranchisePoster:
+          type: boolean
+          description: 'Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)'
+          example: false
+          nullable: true
+        hideIndividualItems:
+          type: boolean
+          description: 'Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)'
+          example: false
           nullable: true
         applyOverlaysDuringSync:
           type: boolean
@@ -1206,6 +1226,16 @@ components:
           type: integer
           description: 'Template ID for auto-generated posters (null for default template)'
           example: 1
+          nullable: true
+        useTmdbFranchisePoster:
+          type: boolean
+          description: 'Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)'
+          example: false
+          nullable: true
+        hideIndividualItems:
+          type: boolean
+          description: 'Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)'
+          example: false
           nullable: true
         applyOverlaysDuringSync:
           type: boolean

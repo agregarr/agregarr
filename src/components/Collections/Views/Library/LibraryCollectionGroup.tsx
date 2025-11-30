@@ -436,6 +436,11 @@ const SortableItem = ({
             <h5 className="text-base font-medium text-white">
               {config.name === 'DYNAMIC_RANDOM_TITLE' ? (
                 <em>Title will be updated on Collection Sync</em>
+              ) : isCollection &&
+                (config as CollectionFormConfig).type === 'tmdb' &&
+                (config as CollectionFormConfig).subtype ===
+                  'auto_franchise' ? (
+                'Auto Franchise Collections'
               ) : (
                 config.name || 'Unnamed Collection'
               )}
@@ -537,6 +542,8 @@ const SortableItem = ({
                             return 'Popular';
                           case 'top_rated':
                             return 'Top Rated';
+                          case 'auto_franchise':
+                            return 'Auto Franchise Collections';
                           case 'custom':
                             return 'Custom Collection';
                           default:

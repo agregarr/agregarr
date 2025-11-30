@@ -1205,6 +1205,13 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
       const timeRestrictionResult =
         TimeRestrictionUtils.evaluateTimeRestriction(req.body.timeRestriction);
 
+      // Determine default promotion status
+      // Franchise collections default to A-Z section (where movies normally are)
+      // All other collections default to promoted section
+      const defaultIsLibraryPromoted = !(
+        req.body.type === 'tmdb' && req.body.subtype === 'auto_franchise'
+      );
+
       // Create individual config for this library
       const newConfig = {
         ...req.body,
@@ -1216,8 +1223,8 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
         isActive: timeRestrictionResult.isActive,
         isLinked: libraryIds.length > 1,
         linkId: linkId,
-        isLibraryPromoted: true, // All new Agregarr collections start in promoted section
-        everLibraryPromoted: true, // New collections start promoted, so mark as ever promoted
+        isLibraryPromoted: defaultIsLibraryPromoted,
+        everLibraryPromoted: defaultIsLibraryPromoted,
         // Remove multi-library fields that don't belong in individual configs
         libraryIds: undefined,
         libraryNames: undefined,

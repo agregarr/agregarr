@@ -34,6 +34,12 @@ const messages = defineMessages({
   selectTemplate: 'Select Template',
   defaultTemplate: 'Default Template',
   templateHelp: 'Choose a template for auto-generated posters.',
+  useTmdbFranchisePoster: 'Use TMDB Franchise Poster',
+  useTmdbFranchisePosterHelp:
+    'Use the official TMDB franchise poster instead of auto-generating. This setting overrules the above auto-poster option if a collection poster is available from TMDB.',
+  hideIndividualItems: 'Hide Individual Items in Collection',
+  hideIndividualItemsHelp:
+    'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
 });
 
 interface Library {
@@ -308,6 +314,59 @@ const PosterUploadSection = ({
           )}
         </div>
       )}
+
+      {/* TMDB Franchise Poster Toggle - only for TMDB auto_franchise collections */}
+      {isAgregarrCollection &&
+        values.type === 'tmdb' &&
+        values.subtype === 'auto_franchise' && (
+          <>
+            <div className="mb-6">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useTmdbFranchisePoster"
+                  checked={values.useTmdbFranchisePoster ?? false}
+                  onChange={(e) =>
+                    setFieldValue('useTmdbFranchisePoster', e.target.checked)
+                  }
+                  className="form-checkbox"
+                />
+                <label
+                  htmlFor="useTmdbFranchisePoster"
+                  className="ml-2 text-sm text-gray-300"
+                >
+                  {intl.formatMessage(messages.useTmdbFranchisePoster)}
+                </label>
+              </div>
+              <div className="label-tip">
+                {intl.formatMessage(messages.useTmdbFranchisePosterHelp)}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="hideIndividualItems"
+                  checked={values.hideIndividualItems ?? false}
+                  onChange={(e) =>
+                    setFieldValue('hideIndividualItems', e.target.checked)
+                  }
+                  className="form-checkbox"
+                />
+                <label
+                  htmlFor="hideIndividualItems"
+                  className="ml-2 text-sm text-gray-300"
+                >
+                  {intl.formatMessage(messages.hideIndividualItems)}
+                </label>
+              </div>
+              <div className="label-tip">
+                {intl.formatMessage(messages.hideIndividualItemsHelp)}
+              </div>
+            </div>
+          </>
+        )}
 
       {/* Manual poster uploads - show when auto-poster is disabled OR when not an Agregarr collection */}
       {(!isAgregarrCollection || !isAutoPosterEnabled) && (

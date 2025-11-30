@@ -12,10 +12,13 @@ import type {
   CollectionSyncOptions,
   MissingItem,
   PlexCollection,
+  SyncResult,
+  TmdbFranchiseSourceData,
   TmdbSourceData,
   TmdbTemplateContext,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { syncCacheService } from '@server/lib/collections/services/SyncCacheService';
 import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -662,6 +665,17 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     libraryCache?: LibraryItemsCache,
     _options?: CollectionSyncOptions // eslint-disable-line @typescript-eslint/no-unused-vars
   ) {
+    // Route to franchise processing if subtype is auto_franchise
+    if (config.subtype === 'auto_franchise') {
+      return await this.processFranchiseCollections(
+        config,
+        plexClient,
+        allCollections,
+        processedCollectionKeys,
+        libraryCache
+      );
+    }
+
     const sourceData = await this.fetchSourceData(config, libraryCache);
     const mappedResult = await this.mapSourceDataToItems(
       sourceData,
@@ -731,6 +745,543 @@ export class TmdbCollectionSync extends BaseCollectionSync {
     );
 
     return result;
+  }
+
+  /**
+   * Process franchise collections (1 config = many collections pattern)
+   * Discovers all franchises in the library and creates a collection for each
+   */
+  private async processFranchiseCollections(
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    allCollections: PlexCollection[],
+    processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache
+  ): Promise<SyncResult> {
+    logger.info('Starting TMDB Auto Franchise Collections discovery', {
+      label: 'TMDB Franchise',
+      configId: config.id,
+      library: config.libraryId,
+    });
+
+    // 1. Get all movies from target library via libraryCache
+    const libraryMovies = await this.getLibraryMovies(
+      config.libraryId,
+      libraryCache,
+      plexClient
+    );
+
+    if (libraryMovies.length === 0) {
+      logger.warn('No movies found in library for franchise discovery', {
+        label: 'TMDB Franchise',
+        libraryId: config.libraryId,
+      });
+      return { created: 0, updated: 0 };
+    }
+
+    logger.debug(`Found ${libraryMovies.length} movies in library`, {
+      label: 'TMDB Franchise',
+    });
+
+    // 2. Extract TMDB IDs from Plex library items
+    const tmdbIds = this.extractTmdbIdsFromLibrary(libraryMovies);
+
+    if (tmdbIds.length === 0) {
+      logger.warn('No TMDB IDs found in library movies', {
+        label: 'TMDB Franchise',
+      });
+      return { created: 0, updated: 0 };
+    }
+
+    logger.debug(`Extracted ${tmdbIds.length} TMDB IDs from library`, {
+      label: 'TMDB Franchise',
+    });
+
+    // 3. Fetch TMDB movie details and extract franchise info
+    const franchiseMap = await this.discoverFranchises(tmdbIds);
+
+    logger.info(`Discovered ${franchiseMap.size} unique franchises`, {
+      label: 'TMDB Franchise',
+    });
+
+    // 4. Filter franchises (min 2 movies in library)
+    const validFranchises = this.filterFranchisesByMinItems(franchiseMap, 2);
+
+    logger.info(
+      `${validFranchises.size} franchises have 2+ movies in library`,
+      {
+        label: 'TMDB Franchise',
+      }
+    );
+
+    if (validFranchises.size === 0) {
+      logger.info('No franchises with 2+ movies found', {
+        label: 'TMDB Franchise',
+      });
+      return { created: 0, updated: 0 };
+    }
+
+    // 5. Create Plex collection for each franchise
+    let created = 0;
+    let updated = 0;
+
+    for (const [franchiseId, franchiseData] of validFranchises) {
+      try {
+        const result = await this.processSingleFranchise(
+          franchiseData,
+          config,
+          plexClient,
+          allCollections,
+          processedCollectionKeys,
+          libraryCache
+        );
+        created += result.created;
+        updated += result.updated;
+      } catch (error) {
+        logger.error(
+          `Error processing franchise ${franchiseData.franchiseName} (ID: ${franchiseId})`,
+          {
+            label: 'TMDB Franchise',
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+    }
+
+    logger.info(
+      `TMDB Auto Franchise Collections complete: ${created} created, ${updated} updated`,
+      {
+        label: 'TMDB Franchise',
+      }
+    );
+
+    return { created, updated };
+  }
+
+  /**
+   * Get all movies from the specified library
+   */
+  private async getLibraryMovies(
+    libraryId: string,
+    libraryCache: LibraryItemsCache | undefined,
+    plexClient: PlexAPI
+  ): Promise<CollectionItem[]> {
+    if (libraryCache && libraryCache[libraryId]) {
+      // Use cache if available - convert cached items to CollectionItem format
+      // Note: No need to filter by type as library is already movie-specific
+      const cachedLibrary = libraryCache[libraryId];
+      return cachedLibrary.map((item) => ({
+        ratingKey: item.ratingKey,
+        title: item.title,
+        type: 'movie' as const,
+        tmdbId: this.extractTmdbIdFromGuid(item.Guid),
+      }));
+    }
+
+    // Fetch from Plex if cache not available
+    const library = await plexClient.getLibraryContents(libraryId);
+    const movies = library.items
+      .filter((item) => item.type === 'movie')
+      .map((item) => ({
+        ratingKey: item.ratingKey,
+        title: item.title,
+        type: 'movie' as const,
+        year: item.year,
+        tmdbId: this.extractTmdbIdFromGuid(item.Guid),
+      }));
+
+    return movies;
+  }
+
+  /**
+   * Extract TMDB ID from Plex GUID array
+   */
+  private extractTmdbIdFromGuid(
+    guids: { id: string }[] | undefined
+  ): number | undefined {
+    if (!guids || guids.length === 0) return undefined;
+
+    for (const guid of guids) {
+      if (guid.id.startsWith('tmdb://')) {
+        const tmdbId = parseInt(guid.id.replace('tmdb://', ''), 10);
+        if (!isNaN(tmdbId)) {
+          return tmdbId;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Extract TMDB IDs from library items
+   */
+  private extractTmdbIdsFromLibrary(libraryMovies: CollectionItem[]): number[] {
+    const tmdbIds: number[] = [];
+
+    for (const movie of libraryMovies) {
+      if (movie.tmdbId) {
+        tmdbIds.push(movie.tmdbId);
+      }
+    }
+
+    return tmdbIds;
+  }
+
+  /**
+   * Discover franchises by fetching TMDB movie details
+   * Uses caching to minimize API calls (48h TTL)
+   */
+  private async discoverFranchises(
+    tmdbIds: number[]
+  ): Promise<Map<number, TmdbFranchiseSourceData>> {
+    const franchiseMap = new Map<number, TmdbFranchiseSourceData>();
+    const processedTmdbIds = new Set<number>(); // Track which movies we've already handled
+    let cacheHits = 0;
+    let movieApiCalls = 0;
+    let collectionApiCalls = 0;
+
+    for (const tmdbId of tmdbIds) {
+      // Skip if we've already processed this movie (from a franchise collection fetch)
+      if (processedTmdbIds.has(tmdbId)) {
+        continue;
+      }
+
+      try {
+        // Check cache first (48h TTL)
+        let movieDetails = syncCacheService.getTmdbMovieDetails(tmdbId);
+
+        if (movieDetails) {
+          cacheHits++;
+        } else {
+          // Fetch from TMDB API
+          movieDetails = await this.tmdbClient.getMovie({ movieId: tmdbId });
+          movieApiCalls++;
+
+          // Cache the result with 48h TTL
+          syncCacheService.setTmdbMovieDetails(tmdbId, movieDetails);
+        }
+
+        // Mark this movie as processed
+        processedTmdbIds.add(tmdbId);
+
+        // If this movie belongs to a franchise, fetch the entire collection immediately
+        if (
+          movieDetails.belongs_to_collection &&
+          movieDetails.belongs_to_collection.id
+        ) {
+          const franchiseId = movieDetails.belongs_to_collection.id;
+
+          // Skip if we've already fetched this franchise
+          if (franchiseMap.has(franchiseId)) {
+            continue;
+          }
+
+          // Fetch the complete collection (includes all movies in correct order)
+          const collectionData = await this.tmdbClient.getCollection({
+            collectionId: franchiseId,
+          });
+          collectionApiCalls++;
+
+          // Extract movies from collection (already sorted by TMDB)
+          const movies =
+            collectionData.parts?.map((part) => ({
+              tmdbId: part.id,
+              title: part.title || 'Unknown',
+              releaseDate: part.release_date,
+            })) || [];
+
+          // Mark all movies in this franchise as processed to avoid redundant API calls
+          for (const movie of movies) {
+            processedTmdbIds.add(movie.tmdbId);
+          }
+
+          franchiseMap.set(franchiseId, {
+            franchiseId,
+            franchiseName: collectionData.name,
+            franchisePosterPath: collectionData.poster_path,
+            franchiseBackdropPath: collectionData.backdrop_path,
+            movies, // Already in TMDB's order (release order)
+          });
+
+          logger.debug(
+            `Fetched franchise "${collectionData.name}" with ${movies.length} movies, marked ${movies.length} movie IDs as processed`,
+            {
+              label: 'TMDB Franchise',
+              franchiseId,
+            }
+          );
+        }
+      } catch (error) {
+        logger.warn(`Error processing TMDB movie ID ${tmdbId}`, {
+          label: 'TMDB Franchise',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    logger.info(
+      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${
+        tmdbIds.length - processedTmdbIds.size
+      } movies skipped)`,
+      {
+        label: 'TMDB Franchise',
+        totalMovies: tmdbIds.length,
+        processedMovies: processedTmdbIds.size,
+        skippedMovies: tmdbIds.length - processedTmdbIds.size,
+        cacheHits,
+      }
+    );
+
+    return franchiseMap;
+  }
+
+  /**
+   * Filter franchises to only include those with minimum number of movies
+   */
+  private filterFranchisesByMinItems(
+    franchiseMap: Map<number, TmdbFranchiseSourceData>,
+    minItems: number
+  ): Map<number, TmdbFranchiseSourceData> {
+    const filtered = new Map<number, TmdbFranchiseSourceData>();
+
+    for (const [franchiseId, franchiseData] of franchiseMap) {
+      if (franchiseData.movies.length >= minItems) {
+        filtered.set(franchiseId, franchiseData);
+      }
+    }
+
+    return filtered;
+  }
+
+  /**
+   * Process a single franchise collection
+   */
+  private async processSingleFranchise(
+    franchiseData: TmdbFranchiseSourceData,
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    allCollections: PlexCollection[],
+    processedCollectionKeys?: Set<string>,
+    libraryCache?: LibraryItemsCache
+  ): Promise<SyncResult> {
+    // Generate collection name using template engine
+    const context = this.templateEngine.createFranchiseContext(franchiseData);
+    const collectionName = await this.templateEngine.processTemplate(
+      config.template || '{franchiseName}',
+      context
+    );
+
+    // Create label for tracking auto-managed franchise collections
+    // Format: AgregarrAutoFranchise-{configId}-{franchiseId}
+    // This allows us to distinguish auto-managed from manually-created collections
+    const customLabel = `AgregarrAutoFranchise-${config.id}-${franchiseData.franchiseId}`;
+
+    logger.debug(`Processing franchise: ${collectionName}`, {
+      label: 'TMDB Franchise',
+      franchiseId: franchiseData.franchiseId,
+      movieCount: franchiseData.movies.length,
+      customLabel,
+    });
+
+    // Map franchise movies to Plex items
+    const plexItems = await this.findPlexItemsForFranchise(
+      franchiseData,
+      config.libraryId,
+      plexClient,
+      libraryCache
+    );
+
+    if (plexItems.length < 2) {
+      logger.debug(
+        `Franchise ${collectionName} has fewer than 2 items in Plex library, skipping`,
+        {
+          label: 'TMDB Franchise',
+          foundItems: plexItems.length,
+        }
+      );
+      return { created: 0, updated: 0 };
+    }
+
+    logger.debug(
+      `Found ${plexItems.length} Plex items for franchise ${collectionName}`,
+      {
+        label: 'TMDB Franchise',
+      }
+    );
+
+    // Check if we should skip auto-poster generation
+    // Only skip if useTmdbFranchisePoster is enabled AND the poster is actually available
+    const shouldSkipAutoPoster =
+      config.useTmdbFranchisePoster && !!franchiseData.franchisePosterPath;
+
+    const configForProcessing = shouldSkipAutoPoster
+      ? { ...config, autoPoster: false }
+      : config;
+
+    // Create or update collection with custom label for tracking
+    // Label-based tracking is the primary method (like Overseerr),
+    // with name as fallback for user-created collections
+    const result = await this.createOrUpdateCollectionStandardized(
+      plexItems,
+      collectionName,
+      'movie',
+      configForProcessing,
+      plexClient,
+      allCollections,
+      processedCollectionKeys,
+      {
+        customLabel, // Enables findExistingCollection() to track by label
+      }
+    );
+
+    // Handle poster upload and collection mode
+    const collectionRatingKey = result.collectionRatingKey;
+    if (collectionRatingKey) {
+      // Set collection mode if hideIndividualItems is enabled
+      if (config.hideIndividualItems) {
+        try {
+          await plexClient.updateCollectionMode(collectionRatingKey, 1);
+          logger.debug(
+            `Set collectionMode=1 (hide items) for franchise: ${collectionName}`,
+            {
+              label: 'TMDB Franchise',
+              collectionRatingKey,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to set collection mode for ${collectionName}, continuing`,
+            {
+              label: 'TMDB Franchise',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
+      // Try to use TMDB franchise poster if enabled
+      if (config.useTmdbFranchisePoster) {
+        let tmdbPosterSuccess = false;
+
+        if (franchiseData.franchisePosterPath) {
+          try {
+            const tmdbPosterUrl = `https://image.tmdb.org/t/p/original${franchiseData.franchisePosterPath}`;
+            const posterManager = plexClient['posterManager'];
+
+            logger.debug(
+              `Uploading TMDB franchise poster for ${collectionName}`,
+              {
+                label: 'TMDB Franchise',
+                tmdbPosterUrl,
+                collectionRatingKey,
+              }
+            );
+
+            await posterManager.uploadPosterFromUrl(
+              collectionRatingKey,
+              tmdbPosterUrl
+            );
+            await posterManager.lockPoster(collectionRatingKey);
+
+            logger.info(
+              `Successfully uploaded TMDB franchise poster for ${collectionName}`,
+              {
+                label: 'TMDB Franchise',
+              }
+            );
+            tmdbPosterSuccess = true;
+          } catch (error) {
+            logger.error(
+              `Error uploading TMDB franchise poster for ${collectionName}, will fallback to auto-poster`,
+              {
+                label: 'TMDB Franchise',
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        } else {
+          logger.warn(
+            `No TMDB franchise poster available for ${collectionName}, will fallback to auto-poster`,
+            {
+              label: 'TMDB Franchise',
+              franchiseId: franchiseData.franchiseId,
+            }
+          );
+        }
+
+        // Fallback to auto-poster if TMDB poster failed or unavailable
+        if (!tmdbPosterSuccess) {
+          try {
+            await this.generateAutoPoster(
+              collectionName,
+              config,
+              collectionRatingKey,
+              plexClient,
+              plexItems,
+              { customLabel }
+            );
+          } catch (error) {
+            logger.error(
+              `Error generating fallback auto-poster for ${collectionName}`,
+              {
+                label: 'TMDB Franchise',
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
+      }
+      // Use auto-poster by default if useTmdbFranchisePoster is not enabled
+      // (This is already handled by createOrUpdateCollectionStandardized based on autoPoster config)
+    }
+
+    return result;
+  }
+
+  /**
+   * Find Plex items for a franchise using TMDB IDs
+   */
+  private async findPlexItemsForFranchise(
+    franchiseData: TmdbFranchiseSourceData,
+    libraryId: string,
+    plexClient: PlexAPI,
+    libraryCache?: LibraryItemsCache
+  ): Promise<CollectionItem[]> {
+    // Build TMDB lookup array
+    const tmdbLookups = franchiseData.movies.map((movie) => ({
+      tmdbId: movie.tmdbId,
+      mediaType: 'movie' as const,
+      title: movie.title,
+    }));
+
+    // Use existing utility to find Plex items by TMDB IDs
+    const matchedItems = await findPlexItemsByTmdbIds(
+      plexClient,
+      tmdbLookups,
+      libraryId,
+      libraryCache,
+      false
+    );
+
+    // Convert to CollectionItem array, preserving TMDB franchise order
+    // CRITICAL: We must maintain the order from franchiseData.movies (release order)
+    const items: CollectionItem[] = [];
+    for (const movie of franchiseData.movies) {
+      const key = `${movie.tmdbId}-movie`;
+      const plexItem = matchedItems.get(key);
+
+      if (plexItem) {
+        items.push({
+          ratingKey: plexItem.ratingKey,
+          title: plexItem.title,
+          type: 'movie',
+          tmdbId: movie.tmdbId,
+        });
+      }
+    }
+
+    return items;
   }
 
   private async handleAutoRequests(

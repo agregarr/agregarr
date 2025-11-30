@@ -371,6 +371,13 @@ export interface TmdbTemplateContext extends TemplateContext {
   statType?: 'popular' | 'top_rated' | 'trending' | 'now_playing' | 'upcoming';
 }
 
+export interface TmdbFranchiseTemplateContext extends TemplateContext {
+  franchiseName: string;
+  franchiseId: number;
+  movieCount: number;
+  mediaType: 'movie';
+}
+
 export interface ImdbTemplateContext extends TemplateContext {
   /** IMDB-specific stat type */
   statType?: 'top_250' | 'popular' | 'most_popular' | 'custom';
@@ -430,6 +437,7 @@ export type SourceTemplateContext =
   | TautulliTemplateContext
   | OverseerrTemplateContext
   | TmdbTemplateContext
+  | TmdbFranchiseTemplateContext
   | ImdbTemplateContext
   | LetterboxdTemplateContext
   | NetworksTemplateContext
@@ -537,6 +545,18 @@ export interface TmdbSourceData {
   first_air_date?: string;
   overview?: string;
   vote_average?: number;
+}
+
+export interface TmdbFranchiseSourceData {
+  franchiseId: number;
+  franchiseName: string;
+  franchisePosterPath?: string;
+  franchiseBackdropPath?: string;
+  movies: {
+    tmdbId: number;
+    title: string;
+    releaseDate?: string;
+  }[];
 }
 
 export interface ImdbSourceData {

@@ -41,6 +41,7 @@ import type {
   FilteringStats,
   MissingItem,
   PlexCollection,
+  PlexLabel,
   SourceTemplateContext,
   SyncResult,
   TimeRestrictionResult,
@@ -837,10 +838,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     );
 
     // Update config with rating key if collection was created/updated
-    // Skip for Overseerr user collections (they're dynamically generated from base config)
-    const isOverseerrUsersCollection =
-      config.type === 'overseerr' && config.subtype === 'users';
-    if (updateResult.collectionRatingKey && !isOverseerrUsersCollection) {
+    // Skip for multi-collection patterns (one config generates multiple collections)
+    const isMultiCollectionPattern =
+      (config.type === 'overseerr' && config.subtype === 'users') ||
+      (config.type === 'tmdb' && config.subtype === 'auto_franchise');
+    if (updateResult.collectionRatingKey && !isMultiCollectionPattern) {
       this.updateConfigWithRatingKey(config, updateResult.collectionRatingKey);
     }
 
@@ -1331,10 +1333,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     try {
       // First, try to find collection by stored ratingKey if available
       // This is more reliable than label matching for all single collections
-      // Skip for Overseerr user collections which spawn multiple collections from one config
-      const isMultiCollection =
-        config?.type === 'overseerr' && config?.subtype === 'users';
-      if (config?.collectionRatingKey && !isMultiCollection) {
+      // Skip for multi-collection patterns (one config generates multiple collections)
+      const isMultiCollectionPattern =
+        (config?.type === 'overseerr' && config?.subtype === 'users') ||
+        (config?.type === 'tmdb' && config?.subtype === 'auto_franchise');
+      if (config?.collectionRatingKey && !isMultiCollectionPattern) {
         try {
           const existingByRatingKey = await plexClient.getCollectionMetadata(
             config.collectionRatingKey
@@ -1435,10 +1438,17 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           );
           const labels = detailedCollection?.labels || [];
 
+          // Check if customLabel exists in labels array
+          // Labels can be strings or objects with 'tag' property
+          const found = labels.some((label: string | PlexLabel) => {
+            const labelText = typeof label === 'string' ? label : label.tag;
+            return labelText === customLabel;
+          });
+
           return {
             collection,
             labels,
-            found: labels.includes(customLabel),
+            found,
             error: null,
           };
         } catch (error) {

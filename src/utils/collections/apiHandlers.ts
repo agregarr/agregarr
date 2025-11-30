@@ -247,6 +247,12 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.autoPosterTemplate !== undefined && {
           autoPosterTemplate: collectionConfig.autoPosterTemplate,
         }),
+        ...(collectionConfig.useTmdbFranchisePoster !== undefined && {
+          useTmdbFranchisePoster: collectionConfig.useTmdbFranchisePoster,
+        }),
+        ...(collectionConfig.hideIndividualItems !== undefined && {
+          hideIndividualItems: collectionConfig.hideIndividualItems,
+        }),
         ...(collectionConfig.applyOverlaysDuringSync !== undefined && {
           applyOverlaysDuringSync: collectionConfig.applyOverlaysDuringSync,
         }),

@@ -804,6 +804,12 @@ const AllCollectionsView: React.FC = () => {
                       <h5 className="text-base font-medium text-white">
                         {collection.name === 'DYNAMIC_RANDOM_TITLE' ? (
                           <em>Title will be updated on Collection Sync</em>
+                        ) : isCollection &&
+                          (collection.originalConfig as CollectionFormConfig)
+                            .type === 'tmdb' &&
+                          (collection.originalConfig as CollectionFormConfig)
+                            .subtype === 'auto_franchise' ? (
+                          'Auto Franchise Collections'
                         ) : (
                           collection.name || 'Unnamed Collection'
                         )}
@@ -910,6 +916,8 @@ const AllCollectionsView: React.FC = () => {
                                     return 'Popular';
                                   case 'top_rated':
                                     return 'Top Rated';
+                                  case 'auto_franchise':
+                                    return 'Auto Franchise Collections';
                                   case 'custom':
                                     return 'Custom Collection';
                                   default:

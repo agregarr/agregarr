@@ -189,6 +189,8 @@ export const linkCollectionConfig = async (
             reverseOrder: masterConfig.reverseOrder,
             randomizeOrder: masterConfig.randomizeOrder,
             customPoster: masterConfig.customPoster,
+            useTmdbFranchisePoster: masterConfig.useTmdbFranchisePoster,
+            hideIndividualItems: masterConfig.hideIndividualItems,
             applyOverlaysDuringSync: masterConfig.applyOverlaysDuringSync,
             showUnwatchedOnly: masterConfig.showUnwatchedOnly,
             smartCollectionSort: masterConfig.smartCollectionSort,

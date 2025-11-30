@@ -310,6 +310,8 @@ const CollectionSettings = ({
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
           autoPosterTemplate: config.autoPosterTemplate,
+          useTmdbFranchisePoster: config.useTmdbFranchisePoster,
+          hideIndividualItems: config.hideIndividualItems,
           applyOverlaysDuringSync: config.applyOverlaysDuringSync,
           showUnwatchedOnly: config.showUnwatchedOnly,
           smartCollectionSort: config.smartCollectionSort,

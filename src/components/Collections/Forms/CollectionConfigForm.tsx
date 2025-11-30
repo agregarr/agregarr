@@ -1055,6 +1055,10 @@ const CollectionFormConfigForm = ({
             (isPreExisting ? false : true),
           autoPosterTemplate:
             (config as CollectionFormConfig).autoPosterTemplate ?? null,
+          useTmdbFranchisePoster:
+            (config as CollectionFormConfig).useTmdbFranchisePoster ?? false,
+          hideIndividualItems:
+            (config as CollectionFormConfig).hideIndividualItems ?? false,
           showUnwatchedOnly:
             (config as CollectionFormConfig).showUnwatchedOnly ?? false,
           smartCollectionSort:
@@ -1309,6 +1313,8 @@ const CollectionFormConfigForm = ({
             sonarrTagId: values.sonarrTagId,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
+            useTmdbFranchisePoster: values.useTmdbFranchisePoster,
+            hideIndividualItems: values.hideIndividualItems,
             showUnwatchedOnly: values.showUnwatchedOnly,
             smartCollectionSort: values.smartCollectionSort,
             randomizeHomeOrder: values.randomizeHomeOrder,
@@ -1371,13 +1377,19 @@ const CollectionFormConfigForm = ({
                 secondaryTooltip={linkingTooltip}
                 secondaryButtonType={isLinked ? 'warning' : 'primary'}
                 // Add preview button for collections (not hubs or pre-existing)
-                // Disable for overseerr individual user requests (type=overseerr, subtype=users)
+                // Disable for multi-collection patterns (overseerr users, tmdb franchise)
                 onTertiary={
                   isCollection &&
                   values.type &&
                   values.libraryIds &&
                   values.libraryIds.length > 0 &&
-                  !(values.type === 'overseerr' && values.subtype === 'users')
+                  !(
+                    values.type === 'overseerr' && values.subtype === 'users'
+                  ) &&
+                  !(
+                    values.type === 'tmdb' &&
+                    values.subtype === 'auto_franchise'
+                  )
                     ? () => setShowPreview(true)
                     : undefined
                 }
@@ -1386,7 +1398,13 @@ const CollectionFormConfigForm = ({
                   values.type &&
                   values.libraryIds &&
                   values.libraryIds.length > 0 &&
-                  !(values.type === 'overseerr' && values.subtype === 'users')
+                  !(
+                    values.type === 'overseerr' && values.subtype === 'users'
+                  ) &&
+                  !(
+                    values.type === 'tmdb' &&
+                    values.subtype === 'auto_franchise'
+                  )
                     ? intl.formatMessage(messages.previewCollection)
                     : undefined
                 }
@@ -1600,6 +1618,36 @@ const CollectionFormConfigForm = ({
                                   Because server owners can&apos;t have
                                   restrictions, all collections will be visible
                                   to them.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Simple explanation for TMDB Auto Franchise Collections */}
+                      {isCollection &&
+                        values.type === 'tmdb' &&
+                        values.subtype === 'auto_franchise' && (
+                          <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
+                            <div className="flex">
+                              <svg
+                                className="mt-0.5 mr-3 h-5 w-5 flex-shrink-0 text-gray-400"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <div>
+                                <p className="text-sm text-gray-400">
+                                  Automatically discovers and creates a
+                                  collection for each movie franchise in your
+                                  library (e.g., Die Hard 1, 2, 3 → &quot;Die
+                                  Hard Collection&quot;). Only franchises with
+                                  2+ movies in your library will be created.
                                 </p>
                               </div>
                             </div>
@@ -1864,8 +1912,10 @@ const CollectionFormConfigForm = ({
                                   isEnhancedForm={false}
                                   isDefaultPlexHub={isHub}
                                   restrictToLibraryOnly={
-                                    values.type === 'overseerr' &&
-                                    values.subtype === 'users'
+                                    (values.type === 'overseerr' &&
+                                      values.subtype === 'users') ||
+                                    (values.type === 'tmdb' &&
+                                      values.subtype === 'auto_franchise')
                                   }
                                   restrictToServerOwnerOnly={
                                     values.type === 'overseerr' &&
@@ -1931,103 +1981,109 @@ const CollectionFormConfigForm = ({
                               </div>
                             )}
 
-                            {/* Smart Collection - Show Unwatched Only - not applicable for recently_added (it IS a smart collection) */}
-                            {values.type !== 'recently_added' && (
-                              <div className="form-row">
-                                <label className="text-label">
-                                  {intl.formatMessage(
-                                    messages.showUnwatchedOnly
-                                  )}
-                                </label>
-                                <div className="form-input-area">
-                                  <div className="flex items-center">
-                                    <Field
-                                      type="checkbox"
-                                      id="showUnwatchedOnly"
-                                      name="showUnwatchedOnly"
-                                      className="form-checkbox"
-                                    />
-                                    <label
-                                      htmlFor="showUnwatchedOnly"
-                                      className="ml-2 text-sm text-gray-300"
-                                    >
-                                      {intl.formatMessage(
-                                        messages.showUnwatchedOnlyDescription
-                                      )}
-                                    </label>
-                                  </div>
-                                  <div className="mt-2 text-xs text-gray-400">
-                                    When enabled, creates a smart collection
-                                    with the unwatched filter to show only
-                                    unwatched items for the user viewing the
-                                    collection. The original collection will be
-                                    pushed to the bottom in the Collections Tab.
-                                  </div>
-                                  {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
-                                  {values.showUnwatchedOnly && (
-                                    <div className="form-row">
+                            {/* Smart Collection - Show Unwatched Only */}
+                            {/* Hide for: recently_added (already smart), and tmdb auto_franchise (multi-collection) */}
+                            {values.type !== 'recently_added' &&
+                              !(
+                                values.type === 'tmdb' &&
+                                values.subtype === 'auto_franchise'
+                              ) && (
+                                <div className="form-row">
+                                  <label className="text-label">
+                                    {intl.formatMessage(
+                                      messages.showUnwatchedOnly
+                                    )}
+                                  </label>
+                                  <div className="form-input-area">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="showUnwatchedOnly"
+                                        name="showUnwatchedOnly"
+                                        className="form-checkbox"
+                                      />
                                       <label
-                                        htmlFor="smartCollectionSort"
-                                        className="text-label"
+                                        htmlFor="showUnwatchedOnly"
+                                        className="ml-2 text-sm text-gray-300"
                                       >
                                         {intl.formatMessage(
-                                          messages.smartCollectionSort
+                                          messages.showUnwatchedOnlyDescription
                                         )}
                                       </label>
-                                      <div className="form-input-area">
-                                        <div className="form-input-field">
-                                          <Field
-                                            as="select"
-                                            id="smartCollectionSort"
-                                            name="smartCollectionSort"
-                                            value={
-                                              values.smartCollectionSort
-                                                ?.value ||
-                                              SMART_COLLECTION_SORT_OPTIONS[5]
-                                                .value // Default to release date (newest first)
-                                            }
-                                            onChange={(
-                                              e: React.ChangeEvent<HTMLSelectElement>
-                                            ) => {
-                                              const selectedOption =
-                                                SMART_COLLECTION_SORT_OPTIONS.find(
-                                                  (option) =>
-                                                    option.value ===
-                                                    e.target.value
-                                                );
-                                              if (selectedOption) {
-                                                setFieldValue(
-                                                  'smartCollectionSort',
-                                                  selectedOption
-                                                );
+                                    </div>
+                                    <div className="mt-2 text-xs text-gray-400">
+                                      When enabled, creates a smart collection
+                                      with the unwatched filter to show only
+                                      unwatched items for the user viewing the
+                                      collection. The original collection will
+                                      be pushed to the bottom in the Collections
+                                      Tab.
+                                    </div>
+                                    {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
+                                    {values.showUnwatchedOnly && (
+                                      <div className="form-row">
+                                        <label
+                                          htmlFor="smartCollectionSort"
+                                          className="text-label"
+                                        >
+                                          {intl.formatMessage(
+                                            messages.smartCollectionSort
+                                          )}
+                                        </label>
+                                        <div className="form-input-area">
+                                          <div className="form-input-field">
+                                            <Field
+                                              as="select"
+                                              id="smartCollectionSort"
+                                              name="smartCollectionSort"
+                                              value={
+                                                values.smartCollectionSort
+                                                  ?.value ||
+                                                SMART_COLLECTION_SORT_OPTIONS[5]
+                                                  .value // Default to release date (newest first)
                                               }
-                                            }}
-                                          >
-                                            {SMART_COLLECTION_SORT_OPTIONS.map(
-                                              (option) => (
-                                                <option
-                                                  key={option.value}
-                                                  value={option.value}
-                                                >
-                                                  {option.label}
-                                                </option>
-                                              )
-                                            )}
-                                          </Field>
-                                        </div>
-                                        <div className="mt-2 text-xs text-gray-400">
-                                          Choose how items in the smart
-                                          collection should be sorted. Due to
-                                          Plex limiations, the original list
-                                          order cannot be preserved when using
-                                          smart collections.
+                                              onChange={(
+                                                e: React.ChangeEvent<HTMLSelectElement>
+                                              ) => {
+                                                const selectedOption =
+                                                  SMART_COLLECTION_SORT_OPTIONS.find(
+                                                    (option) =>
+                                                      option.value ===
+                                                      e.target.value
+                                                  );
+                                                if (selectedOption) {
+                                                  setFieldValue(
+                                                    'smartCollectionSort',
+                                                    selectedOption
+                                                  );
+                                                }
+                                              }}
+                                            >
+                                              {SMART_COLLECTION_SORT_OPTIONS.map(
+                                                (option) => (
+                                                  <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                  >
+                                                    {option.label}
+                                                  </option>
+                                                )
+                                              )}
+                                            </Field>
+                                          </div>
+                                          <div className="mt-2 text-xs text-gray-400">
+                                            Choose how items in the smart
+                                            collection should be sorted. Due to
+                                            Plex limiations, the original list
+                                            order cannot be preserved when using
+                                            smart collections.
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
                             {/* Custom Poster Section */}
                             {isCollection &&
@@ -2077,10 +2133,15 @@ const CollectionFormConfigForm = ({
                             </div>
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}
+                            {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
-                              typedValues.type !== 'recently_added' && (
+                              typedValues.type !== 'recently_added' &&
+                              !(
+                                typedValues.type === 'tmdb' &&
+                                typedValues.subtype === 'auto_franchise'
+                              ) && (
                                 <div className="form-row">
                                   <label
                                     htmlFor="createPlaceholdersForMissing"
@@ -2177,11 +2238,16 @@ const CollectionFormConfigForm = ({
                                 </div>
                               )}
 
-                            {/* Auto-Request Settings - only show for external sources (not overseerr, tautulli, or recently_added) */}
+                            {/* Auto-Request Settings - only show for external sources */}
+                            {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
-                              typedValues.type !== 'recently_added' && (
+                              typedValues.type !== 'recently_added' &&
+                              !(
+                                typedValues.type === 'tmdb' &&
+                                typedValues.subtype === 'auto_franchise'
+                              ) && (
                                 <div className="form-row">
                                   <label className="text-label">
                                     {intl.formatMessage(

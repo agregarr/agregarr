@@ -942,6 +942,14 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
+      case 'auto_franchise':
+        return [
+          {
+            label: 'Franchise Name (from TMDB)',
+            value: '{franchiseName}',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
       case 'custom':
         return getCustomUrlPresets(fetchedTitles?.tmdb || '', 'tmdb');
       case 'random':

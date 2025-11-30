@@ -205,6 +205,12 @@ const CollectionTypeSection = ({
           { value: 'trending_week', label: 'Trending This Week' },
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
+          {
+            value: 'auto_franchise',
+            label: 'Auto Franchise Collections',
+            description:
+              'Automatically create collections for all movie franchises in your library',
+          },
           { value: 'custom', label: 'Custom Collection/List' },
           {
             value: 'random',

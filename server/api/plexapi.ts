@@ -1249,6 +1249,40 @@ class PlexAPI {
   }
 
   /**
+   * Update collection mode (visibility of individual items)
+   * @param collectionRatingKey - Collection rating key
+   * @param mode - Collection mode: 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
+   */
+  public async updateCollectionMode(
+    collectionRatingKey: string,
+    mode: 0 | 1 | 2 | 3
+  ): Promise<void> {
+    try {
+      // Plex uses /prefs endpoint with collectionMode query parameter
+      const prefsUrl = `/library/metadata/${collectionRatingKey}/prefs?collectionMode=${mode}`;
+
+      await this.safePutQuery(prefsUrl);
+
+      logger.debug(
+        `Updated collection mode to ${mode} for collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          mode,
+          collectionRatingKey,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error updating collection mode for collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          error,
+        }
+      );
+    }
+  }
+
+  /**
    * Update the title of an individual item (movie, show, episode)
    */
   public async updateItemTitle(

@@ -140,6 +140,8 @@ export interface CollectionConfig {
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
+  readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
   // Placeholder settings (for createPlaceholdersForMissing feature)
   readonly createPlaceholdersForMissing?: boolean; // If true, create placeholder files in Plex for missing items instead of auto-requesting
   readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
