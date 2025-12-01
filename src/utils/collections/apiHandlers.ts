@@ -236,11 +236,8 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.letterboxdCustomListUrl && {
           letterboxdCustomListUrl: collectionConfig.letterboxdCustomListUrl,
         }),
-        ...(collectionConfig.reverseOrder !== undefined && {
-          reverseOrder: collectionConfig.reverseOrder,
-        }),
-        ...(collectionConfig.randomizeOrder !== undefined && {
-          randomizeOrder: collectionConfig.randomizeOrder,
+        ...(collectionConfig.sortOrder && {
+          sortOrder: collectionConfig.sortOrder,
         }),
         ...(collectionConfig.collectionType && {
           collectionType: collectionConfig.collectionType,

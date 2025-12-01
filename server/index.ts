@@ -70,6 +70,9 @@ app
     // Migrate old filter format to unified filterSettings with include/exclude modes
     settings.migrateToUnifiedFilterSettings();
 
+    // Migrate legacy sort order (reverseOrder/randomizeOrder) to sortOrder enum
+    settings.migrateSortOrderToEnum();
+
     // Migrate poster templates to unified layering system for v1.3.2
     await settings.migratePosterTemplatesV132();
 

@@ -512,10 +512,8 @@ export class MultiSourceOrchestrator {
         libraryCache
       );
 
-      const { items, missingItems } = syncService.applyFilteringToMappedItems(
-        mappedResult,
-        tempConfig
-      );
+      const { items, missingItems } =
+        await syncService.applyFilteringToMappedItems(mappedResult, tempConfig);
 
       // Note: Overlays for Coming Soon items are applied by the overlay sync job
       // The collection sync only handles collection membership and placeholder creation

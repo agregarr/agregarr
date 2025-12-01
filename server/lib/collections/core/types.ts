@@ -23,6 +23,10 @@ export interface CollectionItem {
   year?: number;
   /** Optional TMDB ID for external identification */
   tmdbId?: number;
+  /** Optional IMDb ID for external identification and rating lookups */
+  imdbId?: string;
+  /** Optional IMDb rating (0-10 scale) for sorting */
+  imdbRating?: number;
   /** Optional poster URL from source (e.g., AniList coverImage) */
   posterUrl?: string;
   /** Optional additional metadata */

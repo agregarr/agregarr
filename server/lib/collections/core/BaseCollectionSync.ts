@@ -1,3 +1,4 @@
+import ImdbRatingsAPI from '@server/api/imdbRatings';
 import type PlexAPI from '@server/api/plexapi';
 import cacheManager from '@server/lib/cache';
 import type { ServiceUserManager } from '@server/lib/collections/services/ServiceUserManager';
@@ -2105,7 +2106,159 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   ): Promise<CollectionOperationResult>;
 
   /**
-   * Apply item ordering options (reverse, randomize) to collection items
+   * Fetch IMDb ratings for collection items and enrich them
+   * For items without IMDb IDs, attempts to fetch them from TMDB first
+   *
+   * @param items - Collection items to enrich
+   * @returns Promise resolving to enriched collection items with IMDb ratings
+   */
+  protected async enrichItemsWithImdbRatings(
+    items: CollectionItem[]
+  ): Promise<CollectionItem[]> {
+    try {
+      const { default: TheMovieDb } = await import('@server/api/themoviedb');
+      const tmdb = new TheMovieDb();
+
+      // Step 1: Identify items that need IMDb ID resolution from TMDB
+      const itemsNeedingImdbIds = items.filter(
+        (item) => !item.imdbId && item.tmdbId
+      );
+
+      let enrichedItemsWithImdbIds = [...items];
+
+      if (itemsNeedingImdbIds.length > 0) {
+        logger.debug(
+          `Fetching IMDb IDs from TMDB for ${itemsNeedingImdbIds.length} items`,
+          {
+            label: `${this.source} Collections`,
+          }
+        );
+
+        // Fetch external IDs from TMDB in batches to avoid rate limiting
+        const batchSize = 10;
+        const tmdbIdToImdbIdMap = new Map<number, string>();
+
+        for (let i = 0; i < itemsNeedingImdbIds.length; i += batchSize) {
+          const batch = itemsNeedingImdbIds.slice(i, i + batchSize);
+
+          await Promise.all(
+            batch.map(async (item) => {
+              try {
+                if (!item.tmdbId) return;
+
+                const details =
+                  item.type === 'movie'
+                    ? await tmdb.getMovie({ movieId: item.tmdbId })
+                    : await tmdb.getTvShow({ tvId: item.tmdbId });
+
+                const imdbId = details.external_ids?.imdb_id;
+                if (imdbId) {
+                  tmdbIdToImdbIdMap.set(item.tmdbId, imdbId);
+                }
+              } catch (err) {
+                // Silently skip items that fail - don't block the entire operation
+                logger.debug(
+                  `Failed to fetch TMDB external IDs for ${item.title}`,
+                  {
+                    label: `${this.source} Collections`,
+                    tmdbId: item.tmdbId,
+                  }
+                );
+              }
+            })
+          );
+
+          // Small delay between batches to respect rate limits
+          if (i + batchSize < itemsNeedingImdbIds.length) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+          }
+        }
+
+        logger.debug(`Resolved ${tmdbIdToImdbIdMap.size} IMDb IDs from TMDB`, {
+          label: `${this.source} Collections`,
+          requested: itemsNeedingImdbIds.length,
+          resolved: tmdbIdToImdbIdMap.size,
+        });
+
+        // Enrich items with the fetched IMDb IDs
+        enrichedItemsWithImdbIds = items.map((item) => {
+          if (item.imdbId || !item.tmdbId) return item;
+
+          const imdbId = tmdbIdToImdbIdMap.get(item.tmdbId);
+          if (imdbId) {
+            return { ...item, imdbId };
+          }
+          return item;
+        });
+      }
+
+      // Step 2: Extract all IMDb IDs (original + newly resolved)
+      const imdbIds = enrichedItemsWithImdbIds
+        .map((item) => item.imdbId)
+        .filter((id): id is string => !!id);
+
+      if (imdbIds.length === 0) {
+        logger.debug(
+          'No IMDb IDs found after TMDB resolution, skipping rating fetch',
+          {
+            label: `${this.source} Collections`,
+            totalItems: items.length,
+          }
+        );
+        return items;
+      }
+
+      // Step 3: Fetch ratings via IMDb API (handles batching automatically)
+      const imdbApi = new ImdbRatingsAPI();
+      const ratings = await imdbApi.getRatings(imdbIds);
+
+      // Create lookup map for fast access
+      const ratingsMap = new Map(
+        ratings
+          .filter((r) => r.rating !== null)
+          .map((r) => [r.imdbId, r.rating as number])
+      );
+
+      // Step 4: Enrich items with ratings
+      const finalEnrichedItems = enrichedItemsWithImdbIds.map((item) => {
+        if (!item.imdbId) return item;
+
+        const rating = ratingsMap.get(item.imdbId);
+        return {
+          ...item,
+          imdbRating: rating,
+        };
+      });
+
+      const itemsEnriched = finalEnrichedItems.filter(
+        (i) => i.imdbRating !== undefined
+      ).length;
+
+      logger.debug(
+        `Enriched ${itemsEnriched}/${items.length} items with IMDb ratings`,
+        {
+          label: `${this.source} Collections`,
+          totalItems: items.length,
+          itemsWithImdbIds: imdbIds.length,
+          ratingsRetrieved: ratings.filter((r) => r.rating !== null).length,
+          itemsEnriched,
+        }
+      );
+
+      return finalEnrichedItems;
+    } catch (error) {
+      logger.error('Failed to enrich items with IMDb ratings:', {
+        label: `${this.source} Collections`,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Return original items on error - don't fail the entire sync
+      return items;
+    }
+  }
+
+  /**
+   * Apply item ordering options to collection items
    * This is applied BEFORE filtering to ensure the desired order is preserved through the pipeline
    *
    * @param items - Collection items to order
@@ -2116,65 +2269,110 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     items: CollectionItem[],
     config: CollectionConfig
   ): CollectionItem[] {
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
+    const sortOrder = config.sortOrder ?? 'default';
 
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      const shuffled = [...items];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    switch (sortOrder) {
+      case 'random': {
+        // Fisher-Yates shuffle algorithm for true randomization
+        const shuffled = [...items];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        logger.debug(`Applied randomization to ${shuffled.length} items`, {
+          label: `${this.source} Collections`,
+          collection: config.name,
+        });
+
+        return shuffled;
       }
 
-      logger.debug(`Applied randomization to ${shuffled.length} items`, {
-        label: `${this.source} Collections`,
-        collection: config.name,
-      });
+      case 'reverse': {
+        const reversed = [...items].reverse();
 
-      return shuffled;
+        logger.debug(`Applied reverse order to ${reversed.length} items`, {
+          label: `${this.source} Collections`,
+          collection: config.name,
+        });
+
+        return reversed;
+      }
+
+      case 'imdb_rating_desc':
+      case 'imdb_rating_asc': {
+        // Sort by IMDb rating
+        const sorted = [...items].sort((a, b) => {
+          const ratingA = a.imdbRating ?? -1; // Items without rating go to end
+          const ratingB = b.imdbRating ?? -1;
+
+          if (sortOrder === 'imdb_rating_desc') {
+            return ratingB - ratingA; // Highest to lowest
+          } else {
+            return ratingA - ratingB; // Lowest to highest
+          }
+        });
+
+        const itemsWithRatings = sorted.filter(
+          (i) => i.imdbRating !== undefined
+        ).length;
+
+        logger.debug(
+          `Applied IMDb rating sort (${sortOrder}) to ${sorted.length} items`,
+          {
+            label: `${this.source} Collections`,
+            collection: config.name,
+            itemsWithRatings,
+            itemsWithoutRatings: sorted.length - itemsWithRatings,
+          }
+        );
+
+        return sorted;
+      }
+
+      case 'default':
+      default:
+        // No ordering, return original
+        return items;
     }
-
-    if (shouldReverse) {
-      const reversed = [...items].reverse();
-
-      logger.debug(`Applied reverse order to ${reversed.length} items`, {
-        label: `${this.source} Collections`,
-        collection: config.name,
-      });
-
-      return reversed;
-    }
-
-    // No ordering requested, return original
-    return items;
   }
 
   /**
    * Apply filtering safety net to already-mapped items (validation, deduplication, maxItems safety check)
    * Use this after calling your specific mapSourceDataToItems implementation.
    */
-  public applyFilteringToMappedItems(
+  public async applyFilteringToMappedItems(
     mappedResult: {
       items: CollectionItem[];
       missingItems?: MissingItem[];
       stats?: FilteringStats;
     },
     config: CollectionConfig
-  ): {
+  ): Promise<{
     items: CollectionItem[];
     missingItems?: MissingItem[];
     mappingStats?: FilteringStats;
     filteringStats?: FilteringStats;
-  } {
-    // Apply ordering FIRST (reverse/randomize) before filtering
-    // This ensures the desired order affects the full result before maxItems is applied
-    const orderedItems = this.applyItemOrdering(mappedResult.items, config);
+  }> {
+    let items = mappedResult.items;
 
-    // Apply common filtering (duplicates, maxItems limit, etc.)
-    const { filteredItems: items, stats: filteringStats } =
-      this.applyCommonFiltering(orderedItems, config);
+    // STEP 1: Enrich with IMDb ratings if needed for sorting
+    if (
+      config.sortOrder === 'imdb_rating_desc' ||
+      config.sortOrder === 'imdb_rating_asc'
+    ) {
+      items = await this.enrichItemsWithImdbRatings(items);
+    }
+
+    // STEP 2: Apply ordering (reverse/randomize/imdb rating) before filtering
+    // This ensures the desired order affects the full result before maxItems is applied
+    const orderedItems = this.applyItemOrdering(items, config);
+
+    // STEP 3: Apply common filtering (duplicates, maxItems limit, etc.)
+    const { filteredItems, stats: filteringStats } = this.applyCommonFiltering(
+      orderedItems,
+      config
+    );
 
     // Filter missing items by global exclusions and maxItems limit
     let filteredMissingItems = mappedResult.missingItems;
@@ -2229,7 +2427,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }
 
     return {
-      items,
+      items: filteredItems,
       missingItems: filteredMissingItems,
       mappingStats: mappedResult.stats,
       filteringStats,

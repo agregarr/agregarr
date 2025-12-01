@@ -104,7 +104,7 @@ export class AnilistCollectionSync extends BaseCollectionSync {
       );
 
       // Apply filtering safety net (validation, deduplication, maxItems safety check)
-      const { items, missingItems } = this.applyFilteringToMappedItems(
+      const { items, missingItems } = await this.applyFilteringToMappedItems(
         mapped,
         config
       );

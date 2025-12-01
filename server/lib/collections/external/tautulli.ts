@@ -89,7 +89,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         plexClient
       );
       const { items, mappingStats, filteringStats } =
-        this.applyFilteringToMappedItems(mappedResult, config);
+        await this.applyFilteringToMappedItems(mappedResult, config);
 
       if (items.length === 0) {
         logger.warn('No items to create collection from', {
@@ -495,7 +495,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         items: movieItems,
         mappingStats: movieMappingStats,
         filteringStats: movieFilteringStats,
-      } = this.applyFilteringToMappedItems(movieMappedResult, config);
+      } = await this.applyFilteringToMappedItems(movieMappedResult, config);
 
       if (movieItems.length > 0) {
         const movieCollectionName = await this.generateCollectionNameWithCustom(
@@ -566,7 +566,7 @@ export class TautulliCollectionSync extends BaseCollectionSync {
         items: tvItems,
         mappingStats: tvMappingStats,
         filteringStats: tvFilteringStats,
-      } = this.applyFilteringToMappedItems(tvMappedResult, config);
+      } = await this.applyFilteringToMappedItems(tvMappedResult, config);
 
       if (tvItems.length > 0) {
         const tvCollectionName = await this.generateCollectionNameWithCustom(

@@ -684,7 +684,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
       libraryCache // OPTIMIZATION: Pass library cache to eliminate repeated API calls
     );
     const { items, missingItems, mappingStats, filteringStats } =
-      this.applyFilteringToMappedItems(mappedResult, config);
+      await this.applyFilteringToMappedItems(mappedResult, config);
 
     // Log processing stats if available
     if (mappingStats || filteringStats) {

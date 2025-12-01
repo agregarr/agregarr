@@ -2,6 +2,7 @@ import Button from '@app/components/Common/Button';
 import Modal from '@app/components/Common/Modal';
 import type {
   CollectionFormConfig,
+  CollectionSortOrder,
   PlexHubConfig,
   PreExistingCollectionConfig,
 } from '@app/types/collections';
@@ -44,8 +45,7 @@ const messages = defineMessages({
   libraryRecommended: 'Library Recommended',
   maxItems: 'Max Items',
   randomizeHomeOrder: 'Randomize Home Order',
-  reverseOrder: 'Reverse Order',
-  randomizeOrder: 'Randomize Order',
+  sortOrder: 'Sort Order',
   downloadMode: 'Download Mode',
   searchMissingMovies: 'Search Missing Movies',
   searchMissingTV: 'Search Missing TV',
@@ -91,8 +91,7 @@ type UnifiedCollection = {
   maxItems?: number;
   randomizeHomeOrder?: boolean;
   // Collection-specific fields
-  reverseOrder?: boolean;
-  randomizeOrder?: boolean;
+  sortOrder?: CollectionSortOrder;
   downloadMode?: 'overseerr' | 'direct';
   searchMissingMovies?: boolean;
   searchMissingTV?: boolean;
@@ -142,8 +141,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
     };
     maxItems?: number | '';
     randomizeHomeOrder?: boolean;
-    reverseOrder?: boolean;
-    randomizeOrder?: boolean;
+    sortOrder?: CollectionSortOrder | '';
     downloadMode?: 'overseerr' | 'direct' | '';
     searchMissingMovies?: boolean;
     searchMissingTV?: boolean;
@@ -179,8 +177,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
         visibilityConfig: config.visibilityConfig,
         maxItems: config.maxItems,
         randomizeHomeOrder: config.randomizeHomeOrder,
-        reverseOrder: config.reverseOrder,
-        randomizeOrder: config.randomizeOrder,
+        sortOrder: config.sortOrder,
         downloadMode: config.downloadMode,
         searchMissingMovies: config.searchMissingMovies,
         searchMissingTV: config.searchMissingTV,
@@ -293,11 +290,10 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
           comparison =
             (a.randomizeHomeOrder ? 1 : 0) - (b.randomizeHomeOrder ? 1 : 0);
           break;
-        case 'reverseOrder':
-          comparison = (a.reverseOrder ? 1 : 0) - (b.reverseOrder ? 1 : 0);
-          break;
-        case 'randomizeOrder':
-          comparison = (a.randomizeOrder ? 1 : 0) - (b.randomizeOrder ? 1 : 0);
+        case 'sortOrder':
+          comparison = (a.sortOrder || 'default').localeCompare(
+            b.sortOrder || 'default'
+          );
           break;
         case 'downloadMode':
           comparison = (a.downloadMode || '').localeCompare(
@@ -437,8 +433,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
     // Collection-specific fields
     const collectionOnlyFields = [
       'maxItems',
-      'reverseOrder',
-      'randomizeOrder',
+      'sortOrder',
       'downloadMode',
       'searchMissingMovies',
       'searchMissingTV',
@@ -526,17 +521,11 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
         }
 
         if (
-          editValues.reverseOrder !== undefined &&
-          isFieldApplicable('reverseOrder', collection.type)
+          editValues.sortOrder !== undefined &&
+          editValues.sortOrder !== '' &&
+          isFieldApplicable('sortOrder', collection.type)
         ) {
-          updatedFields.reverseOrder = editValues.reverseOrder;
-        }
-
-        if (
-          editValues.randomizeOrder !== undefined &&
-          isFieldApplicable('randomizeOrder', collection.type)
-        ) {
-          updatedFields.randomizeOrder = editValues.randomizeOrder;
+          updatedFields.sortOrder = editValues.sortOrder;
         }
 
         if (
@@ -879,17 +868,10 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                 </th>
                 <th
                   className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
-                  onClick={() => handleColumnSort('reverseOrder')}
+                  onClick={() => handleColumnSort('sortOrder')}
                 >
-                  {intl.formatMessage(messages.reverseOrder)}
-                  {renderSortIndicator('reverseOrder')}
-                </th>
-                <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
-                  onClick={() => handleColumnSort('randomizeOrder')}
-                >
-                  {intl.formatMessage(messages.randomizeOrder)}
-                  {renderSortIndicator('randomizeOrder')}
+                  {intl.formatMessage(messages.sortOrder)}
+                  {renderSortIndicator('sortOrder')}
                 </th>
                 <th
                   className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
@@ -1130,34 +1112,13 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         />
                       </td>
                       <td
-                        className={`px-3 py-2 text-center ${
-                          !isFieldApplicable('reverseOrder', collection.type)
-                            ? 'opacity-30'
-                            : ''
+                        className={`px-3 py-2 text-center text-sm ${
+                          !isFieldApplicable('sortOrder', collection.type)
+                            ? 'text-gray-600 opacity-30'
+                            : 'text-gray-300'
                         }`}
                       >
-                        <CheckIcon
-                          className={`mx-auto h-4 w-4 ${
-                            collection.reverseOrder
-                              ? 'text-green-500'
-                              : 'text-gray-600'
-                          }`}
-                        />
-                      </td>
-                      <td
-                        className={`px-3 py-2 text-center ${
-                          !isFieldApplicable('randomizeOrder', collection.type)
-                            ? 'opacity-30'
-                            : ''
-                        }`}
-                      >
-                        <CheckIcon
-                          className={`mx-auto h-4 w-4 ${
-                            collection.randomizeOrder
-                              ? 'text-green-500'
-                              : 'text-gray-600'
-                          }`}
-                        />
+                        {collection.sortOrder || 'default'}
                       </td>
                       <td
                         className={`px-3 py-2 text-center text-sm ${
@@ -1496,52 +1457,24 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                     </td>
                     <td className="px-3 py-2">
                       <select
-                        value={
-                          editValues.reverseOrder === undefined
-                            ? ''
-                            : editValues.reverseOrder
-                            ? 'true'
-                            : 'false'
-                        }
+                        value={editValues.sortOrder || ''}
                         onChange={(e) =>
                           setEditValues({
                             ...editValues,
-                            reverseOrder:
+                            sortOrder:
                               e.target.value === ''
                                 ? undefined
-                                : e.target.value === 'true',
+                                : (e.target.value as CollectionSortOrder),
                           })
                         }
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={
-                          editValues.randomizeOrder === undefined
-                            ? ''
-                            : editValues.randomizeOrder
-                            ? 'true'
-                            : 'false'
-                        }
-                        onChange={(e) =>
-                          setEditValues({
-                            ...editValues,
-                            randomizeOrder:
-                              e.target.value === ''
-                                ? undefined
-                                : e.target.value === 'true',
-                          })
-                        }
-                        className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
-                      >
-                        <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="default">Default</option>
+                        <option value="reverse">Reverse</option>
+                        <option value="random">Random</option>
+                        <option value="imdb_rating_desc">IMDb ↓</option>
+                        <option value="imdb_rating_asc">IMDb ↑</option>
                       </select>
                     </td>
                     <td className="px-3 py-2">

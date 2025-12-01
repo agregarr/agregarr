@@ -463,7 +463,7 @@ async function processMultiSourcePreview(
         };
 
         // Apply filtering
-        const filteredResult = syncService.applyFilteringToMappedItems(
+        const filteredResult = await syncService.applyFilteringToMappedItems(
           mediaFilteredResult,
           sourceConfig
         );
@@ -1177,7 +1177,7 @@ async function processPreviewAsync(
     };
 
     // Apply filtering
-    const filteredResult = syncService.applyFilteringToMappedItems(
+    const filteredResult = await syncService.applyFilteringToMappedItems(
       mediaFilteredResult,
       previewConfig
     );

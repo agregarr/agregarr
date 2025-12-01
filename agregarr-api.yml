@@ -569,15 +569,17 @@ components:
           description: 'Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)'
           example: 'https://mdblist.com/lists/garycrawfordgc/netflix-shows'
           nullable: true
-        reverseOrder:
-          type: boolean
-          description: 'Reverse the order of items from the source'
-          example: false
-          nullable: true
-        randomizeOrder:
-          type: boolean
-          description: 'Randomize the order of items (mutually exclusive with reverseOrder)'
-          example: false
+        sortOrder:
+          type: string
+          enum:
+            - default
+            - reverse
+            - random
+            - imdb_rating_desc
+            - imdb_rating_asc
+          description: 'Sort order for collection items'
+          example: 'default'
+          default: 'default'
           nullable: true
         excludeFromCollections:
           type: array
@@ -1060,15 +1062,17 @@ components:
           description: 'Custom MDBList list URL (e.g., https://mdblist.com/lists/username/listname)'
           example: 'https://mdblist.com/lists/garycrawfordgc/netflix-shows'
           nullable: true
-        reverseOrder:
-          type: boolean
-          description: 'Reverse the order of items from the source'
-          example: false
-          nullable: true
-        randomizeOrder:
-          type: boolean
-          description: 'Randomize the order of items (mutually exclusive with reverseOrder)'
-          example: false
+        sortOrder:
+          type: string
+          enum:
+            - default
+            - reverse
+            - random
+            - imdb_rating_desc
+            - imdb_rating_asc
+          description: 'Sort order for collection items'
+          example: 'default'
+          default: 'default'
           nullable: true
         excludeFromCollections:
           type: array
@@ -1626,15 +1630,17 @@ components:
           description: "Selected country for Networks collections (e.g., 'united-states', 'world')"
           example: 'united-states'
           nullable: true
-        reverseOrder:
-          type: boolean
-          description: 'Reverse the order of items from the source'
-          example: false
-          nullable: true
-        randomizeOrder:
-          type: boolean
-          description: 'Randomize the order of items (mutually exclusive with reverseOrder)'
-          example: false
+        sortOrder:
+          type: string
+          enum:
+            - default
+            - reverse
+            - random
+            - imdb_rating_desc
+            - imdb_rating_asc
+          description: 'Sort order for collection items'
+          example: 'default'
+          default: 'default'
           nullable: true
         excludeFromCollections:
           type: array

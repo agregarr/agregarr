@@ -17,6 +17,16 @@ export enum CollectionType {
  */
 export type SeasonGrabOrder = 'first' | 'latest' | 'airing';
 
+/**
+ * Sort order options for collection items
+ */
+export type CollectionSortOrder =
+  | 'default' // As provided by source
+  | 'reverse' // Reverse source order
+  | 'random' // Fisher-Yates shuffle
+  | 'imdb_rating_desc' // Highest to lowest IMDb rating
+  | 'imdb_rating_asc'; // Lowest to highest IMDb rating
+
 export interface Library {
   readonly key: string;
   readonly name: string;
@@ -150,8 +160,7 @@ export interface CollectionConfig {
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
-  readonly reverseOrder?: boolean; // Reverse the order of items from the source
-  readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
+  readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
@@ -634,6 +643,89 @@ class Settings {
     if (modified) {
       this.save();
     }
+  }
+
+  /**
+   * Migrate legacy reverseOrder/randomizeOrder boolean flags to sortOrder enum
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateSortOrderToEnum(): void {
+    const migrationId = 'sort-order-to-enum';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Skip if already using new format
+        if (config.sortOrder) {
+          return config;
+        }
+
+        // Check if config has legacy fields (using type assertion for detection)
+        const legacyConfig = config as unknown as {
+          reverseOrder?: boolean;
+          randomizeOrder?: boolean;
+        };
+
+        const hasLegacy =
+          legacyConfig.reverseOrder !== undefined ||
+          legacyConfig.randomizeOrder !== undefined;
+
+        if (!hasLegacy) {
+          return config; // No legacy fields to migrate
+        }
+
+        // Determine new sortOrder value from legacy fields
+        let sortOrder: CollectionSortOrder = 'default';
+        if (legacyConfig.randomizeOrder === true) {
+          sortOrder = 'random';
+        } else if (legacyConfig.reverseOrder === true) {
+          sortOrder = 'reverse';
+        }
+
+        migratedCount++;
+        logger.info(`Migrating collection "${config.name}" to sortOrder enum`, {
+          label: 'Settings Migration',
+          configId: config.id,
+        });
+
+        // Return collection with new format, removing old fields
+        return {
+          ...config,
+          sortOrder,
+          reverseOrder: undefined,
+          randomizeOrder: undefined,
+        };
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} collection(s) to sortOrder enum format`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
   }
 
   get main(): MainSettings {

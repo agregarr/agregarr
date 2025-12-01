@@ -567,7 +567,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         config,
         plexClient
       );
-      const { items, missingItems } = this.applyFilteringToMappedItems(
+      const { items, missingItems } = await this.applyFilteringToMappedItems(
         mappedResult,
         config
       );

@@ -1844,7 +1844,7 @@ const CollectionFormConfigForm = ({
                               values.type !== 'filtered_hub' && (
                                 <div className="form-row">
                                   <label
-                                    htmlFor="itemOrder"
+                                    htmlFor="sortOrder"
                                     className="text-label"
                                   >
                                     Item Order
@@ -1853,52 +1853,19 @@ const CollectionFormConfigForm = ({
                                     <div className="form-input-field">
                                       <Field
                                         as="select"
-                                        id="itemOrder"
-                                        name="itemOrder"
-                                        value={(() => {
-                                          if (
-                                            (values as CollectionFormConfig)
-                                              .randomizeOrder
-                                          )
-                                            return 'random';
-                                          if (
-                                            (values as CollectionFormConfig)
-                                              .reverseOrder
-                                          )
-                                            return 'reverse';
-                                          return 'default';
-                                        })()}
+                                        id="sortOrder"
+                                        name="sortOrder"
+                                        value={
+                                          (values as CollectionFormConfig)
+                                            .sortOrder || 'default'
+                                        }
                                         onChange={(
                                           e: React.ChangeEvent<HTMLSelectElement>
                                         ) => {
-                                          const selectedValue = e.target.value;
-                                          if (selectedValue === 'random') {
-                                            setFieldValue(
-                                              'randomizeOrder',
-                                              true
-                                            );
-                                            setFieldValue(
-                                              'reverseOrder',
-                                              false
-                                            );
-                                          } else if (
-                                            selectedValue === 'reverse'
-                                          ) {
-                                            setFieldValue(
-                                              'randomizeOrder',
-                                              false
-                                            );
-                                            setFieldValue('reverseOrder', true);
-                                          } else {
-                                            setFieldValue(
-                                              'randomizeOrder',
-                                              false
-                                            );
-                                            setFieldValue(
-                                              'reverseOrder',
-                                              false
-                                            );
-                                          }
+                                          setFieldValue(
+                                            'sortOrder',
+                                            e.target.value
+                                          );
                                         }}
                                       >
                                         <option value="default">
@@ -1909,6 +1876,12 @@ const CollectionFormConfigForm = ({
                                         </option>
                                         <option value="random">
                                           Random order (shuffled each sync)
+                                        </option>
+                                        <option value="imdb_rating_desc">
+                                          IMDb Rating (Highest to Lowest)
+                                        </option>
+                                        <option value="imdb_rating_asc">
+                                          IMDb Rating (Lowest to Highest)
                                         </option>
                                       </Field>
                                     </div>

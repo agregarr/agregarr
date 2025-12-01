@@ -753,6 +753,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
     // Extract all TMDB IDs and prepare lookup data
     const tmdbLookups: {
       tmdbId: number;
+      imdbId: string; // IMDb ID for rating lookups
       showTmdbId?: number; // For episodes: the parent show's TMDB ID
       mediaType: 'movie' | 'tv';
       title: string;
@@ -775,6 +776,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
       }
       tmdbLookups.push({
         tmdbId: item.tmdbId,
+        imdbId: item.imdbId, // Preserve IMDb ID for rating lookups
         showTmdbId: item.showTmdbId, // For episodes: parent show's TMDB ID
         mediaType: item.type,
         title: item.title,
@@ -839,6 +841,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
           title: lookup.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          imdbId: lookup.imdbId, // Include IMDb ID for rating-based sorting
           metadata: {
             libraryKey: plexItem.libraryKey,
             showTmdbId: lookup.showTmdbId, // Preserve show TMDB ID for episodes
@@ -931,7 +934,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
         config,
         plexClient
       );
-      const { items, missingItems } = this.applyFilteringToMappedItems(
+      const { items, missingItems } = await this.applyFilteringToMappedItems(
         mappedResult,
         config
       );

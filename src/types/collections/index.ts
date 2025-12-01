@@ -10,6 +10,16 @@ export enum CollectionType {
   PRE_EXISTING = 'pre_existing', // Pre-existing Plex collections
 }
 
+/**
+ * Sort order options for collection items
+ */
+export type CollectionSortOrder =
+  | 'default' // As provided by source
+  | 'reverse' // Reverse source order
+  | 'random' // Fisher-Yates shuffle
+  | 'imdb_rating_desc' // Highest to lowest IMDb rating
+  | 'imdb_rating_asc'; // Lowest to highest IMDb rating
+
 export interface PlexHubConfig {
   id: string; // Generated unique identifier
   hubIdentifier: string; // Plex hub identifier (e.g., "movie.recentlyadded")
@@ -299,8 +309,7 @@ export interface CollectionFormConfig {
   readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
-  readonly reverseOrder?: boolean; // Reverse the order of items from the source
-  readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
+  readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
@@ -439,8 +448,7 @@ export interface CollectionConfigCreateRequest {
   readonly sonarrInstanceId?: number;
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
-  readonly reverseOrder?: boolean;
-  readonly randomizeOrder?: boolean;
+  readonly sortOrder?: CollectionSortOrder;
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
@@ -538,8 +546,7 @@ export const toCollectionCreateRequest = (
     sonarrInstanceId: config.sonarrInstanceId,
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
-    reverseOrder: config.reverseOrder,
-    randomizeOrder: config.randomizeOrder,
+    sortOrder: config.sortOrder,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,

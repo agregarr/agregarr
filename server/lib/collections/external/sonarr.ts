@@ -89,7 +89,7 @@ export class SonarrTagCollectionSync extends BaseCollectionSync {
 
       // Apply filtering safety net
       const { items, missingItems, mappingStats, filteringStats } =
-        this.applyFilteringToMappedItems(mappedResult, config);
+        await this.applyFilteringToMappedItems(mappedResult, config);
 
       // Process missing items - creates placeholders and/or sends to auto-requests
       let finalItems = items;

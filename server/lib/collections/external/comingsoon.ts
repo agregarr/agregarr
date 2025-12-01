@@ -156,7 +156,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
 
       // Apply filtering (placeholderItems in mappedResult are ignored - overlays handled by overlay sync job)
       const { items, missingItems, mappingStats } =
-        this.applyFilteringToMappedItems(mappedResult, config);
+        await this.applyFilteringToMappedItems(mappedResult, config);
 
       // Handle placeholder creation for missing items using unified flow
       // This respects the createPlaceholdersForMissing checkbox (which should be force-enabled for Coming Soon)

@@ -101,7 +101,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
       );
 
       // Apply filtering safety net
-      const { items, missingItems } = this.applyFilteringToMappedItems(
+      const { items, missingItems } = await this.applyFilteringToMappedItems(
         mapped,
         config
       );
