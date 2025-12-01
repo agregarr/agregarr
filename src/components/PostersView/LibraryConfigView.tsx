@@ -54,10 +54,11 @@ const LibraryPreviewLarge: React.FC<{
   enabledOverlays: EnabledOverlay[];
   templates: Template[];
   refreshTrigger?: number;
-}> = ({ enabledOverlays, templates, refreshTrigger = 0 }) => {
+}> = ({ libraryId, enabledOverlays, templates, refreshTrigger = 0 }) => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const previewUrlRef = useRef<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchPreview = useCallback(async () => {
     // Filter out status overlays for the preview
@@ -75,6 +76,15 @@ const LibraryPreviewLarge: React.FC<{
       return;
     }
 
+    // Cancel any in-flight preview request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setLoading(true);
     try {
       const response = await fetch(
@@ -82,7 +92,11 @@ const LibraryPreviewLarge: React.FC<{
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateIds: nonStatusTemplateIds }),
+          body: JSON.stringify({
+            templateIds: nonStatusTemplateIds,
+            contextId: `library-${libraryId}`, // Each library gets its own context
+          }),
+          signal: abortController.signal,
         }
       );
 
@@ -95,16 +109,28 @@ const LibraryPreviewLarge: React.FC<{
           return url;
         });
       }
-    } catch {
-      // Ignore preview errors
+    } catch (error) {
+      // Ignore abort errors and other preview errors
+      if (error instanceof Error && error.name !== 'AbortError') {
+        // Log non-abort errors if needed
+      }
     } finally {
-      setLoading(false);
+      // Only clear loading if this is still the active request
+      if (abortControllerRef.current === abortController) {
+        setLoading(false);
+        abortControllerRef.current = null;
+      }
     }
-  }, [enabledOverlays, templates]);
+  }, [enabledOverlays, templates, libraryId]);
 
   useEffect(() => {
     fetchPreview();
     return () => {
+      // Cancel any in-flight request on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
       if (previewUrlRef.current) {
         URL.revokeObjectURL(previewUrlRef.current);
       }

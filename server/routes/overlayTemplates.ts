@@ -24,6 +24,11 @@ const metadataCache = new Map<
 >();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
+// Track the latest preview request per context
+// Contexts allow us to deduplicate rapid requests in a modal while allowing
+// parallel requests from different UI components (like library grid)
+const latestPreviewRequestTimestamp = new Map<string, number>();
+
 /**
  * Fetch TMDB metadata and ratings for a preview poster
  * Shared helper to avoid code duplication
@@ -702,7 +707,10 @@ router.get('/:id/preview', async (req, res, next) => {
 // POST /api/v1/overlay-templates/combined-preview - Generate preview with multiple overlays
 router.post('/combined-preview', async (req, res, next) => {
   try {
-    const { templateIds } = req.body as { templateIds: number[] };
+    const { templateIds, contextId } = req.body as {
+      templateIds: number[];
+      contextId?: string;
+    };
 
     if (
       !templateIds ||
@@ -714,6 +722,18 @@ router.post('/combined-preview', async (req, res, next) => {
       });
     }
 
+    // Use contextId to scope deduplication (default to 'global' for backward compatibility)
+    const context = contextId || 'global';
+
+    // Assign a timestamp to this request and update the latest timestamp for this context
+    const requestTimestamp = Date.now();
+    latestPreviewRequestTimestamp.set(context, requestTimestamp);
+
+    // Helper to check if this request is still the latest for this context
+    const isLatestRequest = (): boolean => {
+      return latestPreviewRequestTimestamp.get(context) === requestTimestamp;
+    };
+
     const templateRepository = getRepository(OverlayTemplate);
 
     // Fetch all requested templates
@@ -723,6 +743,15 @@ router.post('/combined-preview', async (req, res, next) => {
       return res.status(404).json({
         error: 'No templates found',
       });
+    }
+
+    // Check if this request is still relevant before proceeding
+    if (!isLatestRequest()) {
+      logger.debug('Skipping obsolete preview request', {
+        label: 'OverlayTemplates',
+        requestTimestamp,
+      });
+      return res.status(200).json({ message: 'Request superseded' });
     }
 
     // Sort templates by the order they appear in templateIds (preserves layer order)
@@ -751,6 +780,15 @@ router.post('/combined-preview', async (req, res, next) => {
     // Load the poster image
     let posterBuffer = await fsPromises.readFile(posterPath);
 
+    // Check again after I/O operation
+    if (!isLatestRequest()) {
+      logger.debug('Skipping obsolete preview request after loading poster', {
+        label: 'OverlayTemplates',
+        requestTimestamp,
+      });
+      return res.status(200).json({ message: 'Request superseded' });
+    }
+
     // Extract TMDB ID and media type from filename
     const match = randomPoster.match(/^(movie|tv)_(\d+)\.jpg$/);
     const mediaType = match ? (match[1] as 'movie' | 'tv') : 'movie';
@@ -759,6 +797,18 @@ router.post('/combined-preview', async (req, res, next) => {
     // Fetch real TMDB metadata and ratings using shared helper
     const { title, year, studio, imdbRating, rtCriticsScore, rtAudienceScore } =
       await fetchPreviewPosterMetadata(mediaType, tmdbId);
+
+    // Check again after API calls
+    if (!isLatestRequest()) {
+      logger.debug(
+        'Skipping obsolete preview request after fetching metadata',
+        {
+          label: 'OverlayTemplates',
+          requestTimestamp,
+        }
+      );
+      return res.status(200).json({ message: 'Request superseded' });
+    }
 
     // Build render context
     const sampleContext = {
@@ -783,12 +833,30 @@ router.post('/combined-preview', async (req, res, next) => {
 
     // Apply each template in order
     for (const template of orderedTemplates) {
+      // Check before each expensive rendering operation
+      if (!isLatestRequest()) {
+        logger.debug('Skipping obsolete preview request during rendering', {
+          label: 'OverlayTemplates',
+          requestTimestamp,
+        });
+        return res.status(200).json({ message: 'Request superseded' });
+      }
+
       const templateData = template.getTemplateData();
       posterBuffer = await overlayTemplateRenderer.renderOverlay(
         posterBuffer,
         templateData,
         sampleContext
       );
+    }
+
+    // Final check before sending
+    if (!isLatestRequest()) {
+      logger.debug('Skipping obsolete preview request before sending', {
+        label: 'OverlayTemplates',
+        requestTimestamp,
+      });
+      return res.status(200).json({ message: 'Request superseded' });
     }
 
     // Return the combined image

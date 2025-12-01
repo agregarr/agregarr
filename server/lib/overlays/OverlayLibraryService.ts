@@ -1,3 +1,4 @@
+import ImdbAPI from '@server/api/imdb';
 import ImdbRatingsAPI from '@server/api/imdbRatings';
 import type { PlexLibraryItem } from '@server/api/plexapi';
 import PlexAPI from '@server/api/plexapi';
@@ -6,6 +7,7 @@ import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import { OverlayTemplate } from '@server/entity/OverlayTemplate';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs/promises';
@@ -29,6 +31,19 @@ export interface OverlayItemInput {
  * Service for applying overlay templates to Plex library items
  */
 class OverlayLibraryService {
+  // Shared API clients to avoid creating new instances for each item
+  private imdbClient?: ImdbAPI;
+
+  /**
+   * Get or create shared IMDb client
+   */
+  private async getImdbClient() {
+    if (!this.imdbClient) {
+      this.imdbClient = new ImdbAPI();
+    }
+    return this.imdbClient;
+  }
+
   /**
    * Apply overlays to all items in a library
    */
@@ -133,9 +148,18 @@ class OverlayLibraryService {
 
       for (const item of allItems) {
         try {
+          // Fetch full metadata including Stream details (needed for HDR, bitDepth, etc.)
+          const fullMetadata = await plexApi.getMetadata(item.ratingKey);
+
+          // Merge full metadata with library item
+          const itemWithFullMetadata = {
+            ...item,
+            Media: fullMetadata.Media,
+          };
+
           await this.applyOverlaysToItem(
             plexApi,
-            item,
+            itemWithFullMetadata,
             sortedTemplates,
             config.mediaType
           );
@@ -554,8 +578,7 @@ class OverlayLibraryService {
 
           // IMDb Top 250 check
           try {
-            const ImdbAPI = (await import('@server/api/imdb')).default;
-            const imdbClient = new ImdbAPI();
+            const imdbClient = await this.getImdbClient();
             const imdbMediaType: 'movie' | 'tv' =
               mediaType === 'show' ? 'tv' : 'movie';
             const top250Result = await imdbClient.checkTop250(
@@ -631,6 +654,28 @@ class OverlayLibraryService {
         ) {
           context.studio = tmdbData.production_companies[0].name;
         }
+
+        // Genre (concatenate all genres for matching)
+        if (
+          'genres' in tmdbData &&
+          tmdbData.genres &&
+          tmdbData.genres.length > 0
+        ) {
+          context.genre = tmdbData.genres
+            .map((g: { name: string }) => g.name)
+            .join(', ');
+        }
+
+        // Runtime
+        if (mediaType === 'movie' && 'runtime' in tmdbData) {
+          context.runtime = tmdbData.runtime;
+        } else if (
+          mediaType === 'show' &&
+          'episode_run_time' in tmdbData &&
+          tmdbData.episode_run_time?.[0]
+        ) {
+          context.runtime = tmdbData.episode_run_time[0];
+        }
       } catch (error) {
         logger.debug('Failed to fetch external metadata', {
           label: 'OverlayLibrary',
@@ -681,7 +726,10 @@ class OverlayLibraryService {
             videoStream.colorTrc?.toLowerCase().includes('smpte2084') ||
             videoStream.colorTrc?.toLowerCase().includes('arib') ||
             false;
-          context.bitDepth = videoStream.bitDepth;
+          // Parse bitDepth as number (Plex returns it as string)
+          if (videoStream.bitDepth) {
+            context.bitDepth = parseInt(String(videoStream.bitDepth), 10);
+          }
         }
 
         // Find audio stream (streamType 2) - prefer first one
@@ -767,15 +815,99 @@ class OverlayLibraryService {
         }
       }
 
+      // Check if item is actually monitored in Radarr/Sonarr
+      let isMonitored = false;
+      try {
+        const settings = getSettings();
+
+        if (
+          comingSoonItem.mediaType === 'movie' &&
+          settings.radarr.length > 0
+        ) {
+          // Check Radarr for movies
+          const RadarrAPI = (await import('@server/api/servarr/radarr'))
+            .default;
+
+          // Try each configured Radarr instance
+          for (const radarrSettings of settings.radarr) {
+            // Skip if baseUrl is not configured
+            if (!radarrSettings.baseUrl) {
+              continue;
+            }
+
+            try {
+              const radarr = new RadarrAPI({
+                url: radarrSettings.baseUrl,
+                apiKey: radarrSettings.apiKey,
+              });
+
+              const movie = await radarr.getMovieByTmdbId(
+                comingSoonItem.tmdbId
+              );
+              if (movie && movie.monitored) {
+                isMonitored = true;
+                break;
+              }
+            } catch {
+              // Movie not found in this Radarr instance, try next
+              continue;
+            }
+          }
+        } else if (
+          comingSoonItem.mediaType === 'tv' &&
+          settings.sonarr.length > 0
+        ) {
+          // Check Sonarr for TV shows
+          const SonarrAPI = (await import('@server/api/servarr/sonarr'))
+            .default;
+
+          // Try each configured Sonarr instance
+          for (const sonarrSettings of settings.sonarr) {
+            // Skip if baseUrl is not configured
+            if (!sonarrSettings.baseUrl) {
+              continue;
+            }
+
+            try {
+              const sonarr = new SonarrAPI({
+                url: sonarrSettings.baseUrl,
+                apiKey: sonarrSettings.apiKey,
+              });
+
+              // Sonarr uses TVDB ID, not TMDB ID
+              if (comingSoonItem.tvdbId) {
+                const series = await sonarr.getSeriesByTvdbId(
+                  comingSoonItem.tvdbId
+                );
+                if (series && series.monitored) {
+                  isMonitored = true;
+                  break;
+                }
+              }
+            } catch {
+              // Series not found in this Sonarr instance, try next
+              continue;
+            }
+          }
+        }
+      } catch (error) {
+        logger.debug('Failed to check monitored status in Radarr/Sonarr', {
+          label: 'OverlayLibrary',
+          mediaType: comingSoonItem.mediaType,
+          tmdbId: comingSoonItem.tmdbId,
+          tvdbId: comingSoonItem.tvdbId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // If we can't check, default to false (not monitored)
+      }
+
       // Build context with Coming Soon specific fields
       return {
         releaseDate: comingSoonItem.releaseDate,
         daysUntilRelease,
         daysAgo,
         seasonNumber: comingSoonItem.seasonNumber,
-        isMonitored:
-          comingSoonItem.source === 'radarr' ||
-          comingSoonItem.source === 'sonarr',
+        isMonitored,
         downloaded: false, // Placeholders are by definition not downloaded
         itemType: 'placeholder',
       };

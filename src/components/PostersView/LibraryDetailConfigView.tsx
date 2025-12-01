@@ -266,6 +266,7 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const previewAbortControllerRef = useRef<AbortController | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [hiddenFromPreview, setHiddenFromPreview] = useState<Set<number>>(
     new Set()
@@ -324,6 +325,15 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
       return;
     }
 
+    // Cancel any in-flight preview request
+    if (previewAbortControllerRef.current) {
+      previewAbortControllerRef.current.abort();
+    }
+
+    // Create new abort controller for this request
+    const abortController = new AbortController();
+    previewAbortControllerRef.current = abortController;
+
     setPreviewLoading(true);
     try {
       const response = await fetch(
@@ -331,7 +341,11 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ templateIds: enabledIds }),
+          body: JSON.stringify({
+            templateIds: enabledIds,
+            contextId: 'modal-config', // Scope deduplication to this modal
+          }),
+          signal: abortController.signal,
         }
       );
 
@@ -343,16 +357,30 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
           return url;
         });
       }
-    } catch {
-      // Ignore preview errors
+    } catch (error) {
+      // Ignore abort errors and other preview errors
+      if (error instanceof Error && error.name !== 'AbortError') {
+        // Log non-abort errors if needed
+      }
     } finally {
-      setPreviewLoading(false);
+      // Only clear loading if this is still the active request
+      if (previewAbortControllerRef.current === abortController) {
+        setPreviewLoading(false);
+        previewAbortControllerRef.current = null;
+      }
     }
   }, [enabledOverlays, hiddenFromPreview]);
 
   // Debounce preview fetching
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      // Cancel any in-flight request when modal closes
+      if (previewAbortControllerRef.current) {
+        previewAbortControllerRef.current.abort();
+        previewAbortControllerRef.current = null;
+      }
+      return;
+    }
 
     if (previewDebounceRef.current) {
       clearTimeout(previewDebounceRef.current);
