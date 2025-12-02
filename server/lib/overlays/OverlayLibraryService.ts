@@ -401,10 +401,87 @@ class OverlayLibraryService {
         isPlaceholder
       );
 
-      // Merge contexts: base → coming soon → explicit overrides
+      // Fetch fresh release date information for recent items (year >= currentYear - 1)
+      // This applies to ALL items, not just placeholders
+      let freshReleaseDateContext: Partial<OverlayRenderContext> | undefined;
+      if (tmdbId && item.year) {
+        const releaseDateInfo = await this.fetchReleaseDateInfo(
+          tmdbId,
+          mediaType,
+          item.year
+        );
+
+        if (releaseDateInfo) {
+          // Calculate days until release and days ago
+          const { calculateDaysSince } = await import(
+            '@server/utils/dateHelpers'
+          );
+          let daysUntilRelease: number | undefined;
+          let daysAgo: number | undefined;
+
+          if (releaseDateInfo.releaseDate) {
+            const daysSince = calculateDaysSince(releaseDateInfo.releaseDate);
+            if (daysSince < 0) {
+              daysUntilRelease = -daysSince;
+            } else {
+              daysAgo = daysSince;
+            }
+          }
+
+          freshReleaseDateContext = {
+            releaseDate: releaseDateInfo.releaseDate,
+            daysUntilRelease,
+            daysAgo,
+            // Real items exist in Plex, so they're downloaded
+            // Placeholders will override this with downloaded: false from comingSoonContext
+            downloaded: !isPlaceholder,
+          };
+
+          logger.debug('Fetched fresh release date context', {
+            label: 'OverlayLibrary',
+            itemTitle: item.title,
+            tmdbId,
+            freshReleaseDateContext,
+          });
+
+          // Update placeholder database record if this is a placeholder
+          if (isPlaceholder && releaseDateInfo.releaseDate) {
+            try {
+              const { getRepository } = await import('@server/datasource');
+              const { ComingSoonItem } = await import(
+                '@server/entity/ComingSoonItem'
+              );
+              const repository = getRepository(ComingSoonItem);
+
+              await repository.update(
+                { plexRatingKey: item.ratingKey },
+                { releaseDate: releaseDateInfo.releaseDate }
+              );
+
+              logger.debug('Updated placeholder record with release date', {
+                label: 'OverlayLibrary',
+                itemTitle: item.title,
+                ratingKey: item.ratingKey,
+                releaseDate: releaseDateInfo.releaseDate,
+              });
+            } catch (error) {
+              logger.debug('Failed to update placeholder record', {
+                label: 'OverlayLibrary',
+                itemTitle: item.title,
+                ratingKey: item.ratingKey,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
+        }
+      }
+
+      // Merge contexts: base → coming soon → fresh release dates → explicit overrides
+      // Fresh release dates override Coming Soon context (which may be stale)
       const context: OverlayRenderContext = {
         ...baseContext,
         ...comingSoonContext,
+        ...freshReleaseDateContext,
         ...contextOverrides,
       };
 
@@ -777,6 +854,107 @@ class OverlayLibraryService {
     }
 
     return context;
+  }
+
+  /**
+   * Fetch fresh release date information from TMDB
+   * For items with year >= currentYear - 1
+   */
+  private async fetchReleaseDateInfo(
+    tmdbId: number,
+    mediaType: 'movie' | 'show',
+    itemYear?: number
+  ): Promise<
+    | {
+        releaseDate?: string;
+        digitalRelease?: string;
+        physicalRelease?: string;
+        inCinemas?: string;
+        airDate?: string;
+        isEstimated?: boolean;
+      }
+    | undefined
+  > {
+    const currentYear = new Date().getFullYear();
+
+    // Only fetch for recent items (last year and beyond)
+    if (!itemYear || itemYear < currentYear - 1) {
+      return undefined;
+    }
+
+    try {
+      const tmdbClient = new TheMovieDb();
+
+      if (mediaType === 'movie') {
+        const movieDetails = await tmdbClient.getMovie({ movieId: tmdbId });
+
+        // Extract release dates using shared helper
+        const { extractReleaseDates, determineReleaseDate } = await import(
+          '@server/utils/dateHelpers'
+        );
+
+        const extracted = movieDetails.release_dates?.results
+          ? extractReleaseDates(movieDetails.release_dates.results)
+          : {};
+
+        // Fallback to generic release_date if no specific theatrical date
+        const inCinemas =
+          extracted.inCinemas || movieDetails.release_date || undefined;
+
+        // Use shared priority logic: Digital > Physical > Theatrical (+90 days)
+        const releaseDateResult = determineReleaseDate(
+          extracted.digitalRelease,
+          extracted.physicalRelease,
+          inCinemas
+        );
+
+        if (releaseDateResult) {
+          logger.debug('Fetched release dates from TMDB (movie)', {
+            label: 'OverlayLibrary',
+            tmdbId,
+            releaseDate: releaseDateResult.releaseDate,
+            digitalRelease: extracted.digitalRelease,
+            physicalRelease: extracted.physicalRelease,
+            inCinemas,
+            isEstimated: releaseDateResult.isEstimated,
+          });
+
+          return {
+            releaseDate: releaseDateResult.releaseDate,
+            digitalRelease: extracted.digitalRelease,
+            physicalRelease: extracted.physicalRelease,
+            inCinemas,
+            isEstimated: releaseDateResult.isEstimated,
+          };
+        }
+      } else {
+        const showDetails = await tmdbClient.getTvShow({ tvId: tmdbId });
+
+        if (showDetails.next_episode_to_air?.air_date) {
+          logger.debug('Fetched release dates from TMDB (TV)', {
+            label: 'OverlayLibrary',
+            tmdbId,
+            airDate: showDetails.next_episode_to_air.air_date,
+          });
+
+          return {
+            releaseDate: showDetails.next_episode_to_air.air_date,
+            airDate: showDetails.next_episode_to_air.air_date,
+            isEstimated: false,
+          };
+        }
+      }
+
+      return undefined;
+    } catch (error) {
+      logger.debug('Failed to fetch release date info', {
+        label: 'OverlayLibrary',
+        tmdbId,
+        mediaType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   /**

@@ -92,12 +92,36 @@ export interface OverlayTemplateData {
 
 /**
  * Application condition for when to apply an overlay template
- * Supports simple conditions, compound AND/OR conditions, and nesting
+ * Uses a flat section-based structure for better UX
+ *
+ * Structure reads naturally:
+ * - Section 1: (rule1 AND rule2 AND rule3)
+ * - OR/AND (section operator)
+ * - Section 2: (rule4 OR rule5)
+ *
+ * Example: Show overlay when (views=0 AND dateAdded<X) OR (rating>8)
  */
 export interface ApplicationCondition {
-  // Single condition fields (optional when using compound)
-  field?: string;
-  operator?:
+  sections: ConditionSection[];
+}
+
+/**
+ * A section contains rules that combine with AND or OR
+ * sectionOperator determines how this section connects to the PREVIOUS section
+ */
+export interface ConditionSection {
+  sectionOperator?: 'and' | 'or'; // How this section combines with previous section (omitted for first section)
+  rules: ConditionRule[];
+}
+
+/**
+ * A single condition rule (field/operator/value)
+ * ruleOperator determines how this rule connects to the PREVIOUS rule in the section
+ */
+export interface ConditionRule {
+  ruleOperator?: 'and' | 'or'; // How this rule combines with previous rule (omitted for first rule in section)
+  field: string; // e.g., 'imdbRating', 'resolution', 'daysUntilRelease'
+  operator:
     | 'eq' // equals
     | 'neq' // not equals
     | 'gt' // greater than
@@ -109,11 +133,7 @@ export interface ApplicationCondition {
     | 'regex' // regex match
     | 'begins' // string begins with
     | 'ends'; // string ends with
-  value?: string | number | boolean | (string | number)[];
-
-  // Compound condition arrays
-  and?: ApplicationCondition[];
-  or?: ApplicationCondition[];
+  value: string | number | boolean | (string | number)[];
 }
 
 /**
@@ -253,7 +273,11 @@ export const AVAILABLE_VARIABLES = {
   'coming-soon': [
     { field: 'releaseDate', label: 'Release Date', example: 'JAN 15' },
     { field: 'daysUntilRelease', label: 'Days Until Release', example: '14' },
-    { field: 'daysAgo', label: 'Days Ago', example: '3' },
+    {
+      field: 'daysAgo',
+      label: 'Days Since Release (incl. release day)',
+      example: '3',
+    },
     { field: 'seasonNumber', label: 'Season Number', example: '5' },
     { field: 'episodeNumber', label: 'Episode Number', example: '16' },
     {
@@ -323,8 +347,14 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
   ],
   Status: [
+    { field: 'mediaType', label: 'Media Type', example: 'movie' },
+    { field: 'itemType', label: 'Item Type', example: 'placeholder' },
     { field: 'daysUntilRelease', label: 'Days Until Release', example: '14' },
-    { field: 'daysAgo', label: 'Days Ago', example: '3' },
+    {
+      field: 'daysAgo',
+      label: 'Days Since Release (incl. release day)',
+      example: '3',
+    },
     { field: 'seasonNumber', label: 'Season Number', example: '5' },
     { field: 'episodeNumber', label: 'Episode Number', example: '16' },
     { field: 'episodeLabel', label: 'Episode Label', example: 'SERIES FINALE' },

@@ -141,44 +141,6 @@ export const PRESET_TEMPLATES: {
   },
 
   // ========================================
-  // TECHNICAL TEMPLATES
-  // ========================================
-  {
-    name: '4K Resolution',
-    description: 'Shows 4K badge for ultra HD content',
-    type: 'technical',
-    applicationCondition: {
-      field: 'resolution',
-      operator: 'in',
-      value: ['4k', '2160'],
-    },
-    templateData: {
-      width: 1000,
-      height: 1500,
-      elements: [
-        {
-          id: '4k-text',
-          layerOrder: 0,
-          type: 'text',
-          x: -15.920978364650237,
-          y: 1375.596586146406,
-          width: 191,
-          height: 161,
-          properties: {
-            text: '4K',
-            fontSize: 104,
-            fontFamily: 'Inter',
-            fontWeight: 'bold',
-            fontStyle: 'normal',
-            color: '#f1f505',
-            textAlign: 'center',
-          },
-        },
-      ],
-    },
-  },
-
-  // ========================================
   // COMING SOON TEMPLATES
   // ========================================
   {
@@ -186,9 +148,18 @@ export const PRESET_TEMPLATES: {
     description: 'Top banner showing COMING SOON for monitored items',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'isMonitored', operator: 'eq', value: true },
-        { field: 'daysUntilRelease', operator: 'lte', value: 30 }, // Only ≤30 days
+      sections: [
+        {
+          rules: [
+            { field: 'isMonitored', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            }, // Only ≤30 days
+          ],
+        },
       ],
     },
     templateData: {
@@ -237,9 +208,11 @@ export const PRESET_TEMPLATES: {
     description: 'Top banner showing REQUEST NEEDED for unmonitored items',
     type: 'status',
     applicationCondition: {
-      field: 'isMonitored',
-      operator: 'eq',
-      value: false,
+      sections: [
+        {
+          rules: [{ field: 'isMonitored', operator: 'eq', value: false }],
+        },
+      ],
     },
     templateData: {
       width: 1000,
@@ -282,19 +255,153 @@ export const PRESET_TEMPLATES: {
   },
 
   // ========================================
+  // MONITORED RELEASES - ALREADY RELEASED (waiting for download)
+  // ========================================
+
+  // Awaiting Download - Top banner (released but not downloaded yet)
+  {
+    name: 'Awaiting Download',
+    description: 'Top banner for released monitored content awaiting download',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            // Released items only (daysAgo >= 0 means already released)
+            // Note: daysUntilRelease and daysAgo are mutually exclusive
+            { field: 'daysAgo', operator: 'gte', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'awaiting-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'awaiting-text',
+          layerOrder: 1,
+          type: 'text',
+          x: 0,
+          y: -25.5,
+          width: 1000,
+          height: 146,
+          properties: {
+            text: 'AWAITING DOWNLOAD',
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
+  // TECHNICAL TEMPLATES
+  // ========================================
+  {
+    name: '4K Resolution',
+    description: 'Shows 4K badge for ultra HD content',
+    type: 'technical',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            { field: 'resolution', operator: 'in', value: ['4k', '2160'] },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: '4k-text',
+          layerOrder: 0,
+          type: 'text',
+          x: -15.920978364650237,
+          y: 1375.596586146406,
+          width: 191,
+          height: 161,
+          properties: {
+            text: '4K',
+            fontSize: 104,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#f1f505',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
   // BOTTOM BANNERS - Countdown/Date/Status for placeholders
   // ========================================
 
-  // Returning Soon - TV S02+ - SEASON N countdown
+  // Returning Soon - TV S02+ - SEASON N countdown (2+ days away)
   {
-    name: 'Returning Soon',
+    name: 'Returning Soon (Monitored)',
     description: 'Bottom banner for returning TV shows (S02+) with countdown',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'gt', value: 0 },
-        { field: 'seasonNumber', operator: 'gt', value: 1 },
-        { field: 'mediaType', operator: 'eq', value: 'show' },
+      sections: [
+        {
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
       ],
     },
     templateData: {
@@ -310,7 +417,7 @@ export const PRESET_TEMPLATES: {
           width: 1000,
           height: 95,
           properties: {
-            fillColor: '#7C3AED',
+            fillColor: '#DC2626',
             fillOpacity: 75,
             borderRadius: 0,
           },
@@ -343,24 +450,34 @@ export const PRESET_TEMPLATES: {
     },
   },
 
-  // ========================================
-  // MONITORED RELEASES - FUTURE (not yet released)
-  // ========================================
-
-  // Coming Soon (Monitored) -  >30 days - Single bottom banner
   {
-    name: 'Coming Soon (Monitored) - Far Out',
-    description: 'Single banner for monitored releases more than 30 days away',
+    name: 'Returning Soon (Unmonitored)',
+    description:
+      'Bottom banner for unmonitored returning TV shows (S02+) with countdown',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'gt', value: 30 },
-        { field: 'isMonitored', operator: 'eq', value: true },
-        // Exclude returning TV shows (handled by separate template)
+      sections: [
         {
-          or: [
-            { field: 'mediaType', operator: 'neq', value: 'show' },
-            { field: 'seasonNumber', operator: 'lte', value: 1 },
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
       ],
@@ -370,7 +487,7 @@ export const PRESET_TEMPLATES: {
       height: 1500,
       elements: [
         {
-          id: 'countdown-banner-bg',
+          id: 'returning-banner-bg',
           layerOrder: 0,
           type: 'tile',
           x: 0,
@@ -378,13 +495,13 @@ export const PRESET_TEMPLATES: {
           width: 1000,
           height: 95,
           properties: {
-            fillColor: '#DC2626',
+            fillColor: '#EA580C',
             fillOpacity: 75,
             borderRadius: 0,
           },
         },
         {
-          id: 'countdown-text',
+          id: 'season-countdown',
           layerOrder: 1,
           type: 'variable',
           x: 0,
@@ -393,7 +510,9 @@ export const PRESET_TEMPLATES: {
           height: 141,
           properties: {
             segments: [
-              { type: 'text', value: 'RELEASING IN ' },
+              { type: 'text', value: 'SEASON ' },
+              { type: 'variable', field: 'seasonNumber' },
+              { type: 'text', value: ' IN ' },
               { type: 'variable', field: 'daysUntilRelease' },
               { type: 'text', value: ' DAYS' },
             ],
@@ -409,20 +528,358 @@ export const PRESET_TEMPLATES: {
     },
   },
 
+  // Returning Tomorrow - TV S02+ - SEASON N TOMORROW
+  {
+    name: 'Returning Tomorrow (Monitored)',
+    description:
+      'Bottom banner for monitored returning TV shows (S02+) releasing tomorrow',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'returning-tomorrow-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'season-tomorrow-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'SEASON ' },
+              { type: 'variable', field: 'seasonNumber' },
+              { type: 'text', value: ' TOMORROW' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'Returning Tomorrow (Unmonitored)',
+    description:
+      'Bottom banner for returning TV shows (S02+) releasing tomorrow',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'returning-tomorrow-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#EA580C',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'season-tomorrow-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'SEASON ' },
+              { type: 'variable', field: 'seasonNumber' },
+              { type: 'text', value: ' TOMORROW' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // Returning Today - TV S02+ - SEASON N TODAY (not downloaded)
+  {
+    name: 'Returning Today (Monitored)',
+    description:
+      'Bottom banner for returning TV shows (S02+) releasing today, not downloaded',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'returning-today-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'season-today-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'SEASON ' },
+              { type: 'variable', field: 'seasonNumber' },
+              { type: 'text', value: ' TODAY' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'Returning Today (Unmonitored)',
+    description:
+      'Bottom banner for returning TV shows (S02+) releasing today, not downloaded',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'returning-today-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#EA580C',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'season-today-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'SEASON ' },
+              { type: 'variable', field: 'seasonNumber' },
+              { type: 'text', value: ' TODAY' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
+  // MONITORED RELEASES - FUTURE (not yet released)
+  // ========================================
+
   // Far Future Date Display >30 days - Bottom banner with formatted date
   {
-    name: 'Far Future Release Date',
+    name: 'Far Future Release Date (Monitored)',
     description:
       'Bottom banner showing formatted date for releases >30 days away',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'gt', value: 30 },
-        // Exclude returning TV shows (handled by "Returning Soon" template)
+      sections: [
         {
-          or: [
-            { field: 'mediaType', operator: 'neq', value: 'show' },
-            { field: 'seasonNumber', operator: 'lte', value: 1 },
+          // Exclude returning TV shows (handled by "Returning Soon" template)
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 30 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 30 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
           ],
         },
       ],
@@ -470,6 +927,94 @@ export const PRESET_TEMPLATES: {
     },
   },
 
+  {
+    name: 'Far Future Release Date (Unmonitored)',
+    description:
+      'Bottom banner showing formatted date for releases >30 days away',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          // Exclude returning TV shows (handled by "Returning Soon" template)
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 30 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 30 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'date-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#EA580C',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'date-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'RELEASING ' },
+              { type: 'variable', field: 'releaseDate' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
   // Countdown (Monitored, 2-30 days) - Bottom banner only
   {
     name: 'Countdown (Monitored)',
@@ -477,15 +1022,53 @@ export const PRESET_TEMPLATES: {
       'Bottom countdown banner for monitored releases within 30 days',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'gt', value: 1 },
-        { field: 'daysUntilRelease', operator: 'lte', value: 30 },
-        { field: 'isMonitored', operator: 'eq', value: true },
-        // Exclude returning TV shows (handled by separate template)
+      sections: [
         {
-          or: [
-            { field: 'mediaType', operator: 'neq', value: 'show' },
-            { field: 'seasonNumber', operator: 'lte', value: 1 },
+          // Exclude returning TV shows (handled by separate template)
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
           ],
         },
       ],
@@ -504,6 +1087,112 @@ export const PRESET_TEMPLATES: {
           height: 95,
           properties: {
             fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'countdown-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'RELEASING IN ' },
+              { type: 'variable', field: 'daysUntilRelease' },
+              { type: 'text', value: ' DAYS' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
+  // REQUEST NEEDED TEMPLATES
+  // ========================================
+
+  // Countdown (Unmonitored, 2-30 days) - Bottom banner only (ORANGE)
+  {
+    name: 'Countdown (Unmonitored)',
+    description:
+      'Bottom countdown banner for unmonitored releases 2-30 days away',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          // Exclude returning TV shows (handled by separate template)
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'countdown-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#EA580C',
             fillOpacity: 75,
             borderRadius: 0,
           },
@@ -540,14 +1229,41 @@ export const PRESET_TEMPLATES: {
     description: 'Bottom banner for monitored releases coming tomorrow',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'eq', value: 1 },
-        { field: 'isMonitored', operator: 'eq', value: true },
-        // Exclude returning TV shows (handled by separate template)
+      sections: [
         {
-          or: [
-            { field: 'mediaType', operator: 'neq', value: 'show' },
-            { field: 'seasonNumber', operator: 'lte', value: 1 },
+          // Exclude returning TV shows (handled by separate template)
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
           ],
         },
       ],
@@ -566,6 +1282,91 @@ export const PRESET_TEMPLATES: {
           height: 95,
           properties: {
             fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'tomorrow-text',
+          layerOrder: 1,
+          type: 'text',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            text: 'RELEASING TOMORROW',
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // Tomorrow (Unmonitored) - Bottom banner only (ORANGE)
+  {
+    name: 'Releasing Tomorrow (Unmonitored)',
+    description: 'Bottom banner for unmonitored releases coming tomorrow',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          // Exclude returning TV shows (handled by separate template)
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'tomorrow-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#EA580C',
             fillOpacity: 75,
             borderRadius: 0,
           },
@@ -598,15 +1399,53 @@ export const PRESET_TEMPLATES: {
     description: 'Bottom banner for monitored releases coming today',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'eq', value: 0 },
-        { field: 'isMonitored', operator: 'eq', value: true },
-        { field: 'downloaded', operator: 'eq', value: false },
-        // Exclude returning TV shows (handled by separate template)
+      sections: [
         {
-          or: [
-            { field: 'mediaType', operator: 'neq', value: 'show' },
-            { field: 'seasonNumber', operator: 'lte', value: 1 },
+          // Exclude returning TV shows (handled by separate template)
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: true,
+            }, // Only show if downloaded
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+          ],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
           ],
         },
       ],
@@ -651,27 +1490,49 @@ export const PRESET_TEMPLATES: {
     },
   },
 
-  // ========================================
-  // MONITORED RELEASES - ALREADY RELEASED (waiting for download)
-  // ========================================
-
-  // Awaiting Download - Bottom banner only
+  // Today (Unmonitored) - Bottom banner only (ORANGE)
   {
-    name: 'Awaiting Download',
-    description:
-      'Bottom banner for released monitored content awaiting download',
+    name: 'Releasing Today (Unmonitored)',
+    description: 'Bottom banner for unmonitored releases coming today',
     type: 'status',
     applicationCondition: {
-      and: [
-        // Must NOT have daysUntilRelease (that's for future items)
+      sections: [
         {
-          or: [
-            { field: 'daysUntilRelease', operator: 'lte', value: 0 },
-            { field: 'daysAgo', operator: 'gte', value: 0 },
+          // Exclude returning TV shows (handled by separate template)
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
           ],
         },
-        { field: 'isMonitored', operator: 'eq', value: true },
-        { field: 'downloaded', operator: 'eq', value: false },
+        {
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+          ],
+        },
       ],
     },
     templateData: {
@@ -679,7 +1540,7 @@ export const PRESET_TEMPLATES: {
       height: 1500,
       elements: [
         {
-          id: 'awaiting-banner-bg',
+          id: 'today-banner-bg',
           layerOrder: 0,
           type: 'tile',
           x: 0,
@@ -687,13 +1548,13 @@ export const PRESET_TEMPLATES: {
           width: 1000,
           height: 95,
           properties: {
-            fillColor: '#DC2626',
+            fillColor: '#EA580C',
             fillOpacity: 75,
             borderRadius: 0,
           },
         },
         {
-          id: 'awaiting-text',
+          id: 'today-text',
           layerOrder: 1,
           type: 'text',
           x: 0,
@@ -701,7 +1562,7 @@ export const PRESET_TEMPLATES: {
           width: 1000,
           height: 141,
           properties: {
-            text: 'AWAITING DOWNLOAD',
+            text: 'RELEASING TODAY',
             fontSize: 74,
             fontFamily: 'Inter',
             fontWeight: 'bold',
@@ -720,16 +1581,35 @@ export const PRESET_TEMPLATES: {
 
   // New Release (downloaded) - Single bottom banner
   {
-    name: 'New Release',
+    name: 'Released Days Ago (Monitored)',
     description:
       'Single banner showing days since release for downloaded content',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'downloaded', operator: 'eq', value: true },
-        { field: 'daysAgo', operator: 'gte', value: 0 },
-        { field: 'daysAgo', operator: 'lte', value: 7 }, // Only show for 7 days
-        { field: 'isMonitored', operator: 'eq', value: true }, // Only for monitored items
+      sections: [
+        {
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'lte',
+              value: 7,
+            }, // Only show for 7 days
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            }, // Only for monitored items
+          ],
+        },
       ],
     },
     templateData: {
@@ -745,7 +1625,7 @@ export const PRESET_TEMPLATES: {
           width: 1000,
           height: 95,
           properties: {
-            fillColor: '#10B981',
+            fillColor: '#DC2626',
             fillOpacity: 75,
             borderRadius: 0,
           },
@@ -776,169 +1656,6 @@ export const PRESET_TEMPLATES: {
     },
   },
 
-  // ========================================
-  // REQUEST NEEDED TEMPLATES
-  // ========================================
-
-  // Countdown (Unmonitored, 2-30 days) - Bottom banner only (ORANGE)
-  {
-    name: 'Countdown (Unmonitored)',
-    description:
-      'Bottom countdown banner for unmonitored releases 2-30 days away',
-    type: 'status',
-    applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'gt', value: 1 },
-        { field: 'daysUntilRelease', operator: 'lte', value: 30 },
-        { field: 'isMonitored', operator: 'eq', value: false },
-      ],
-    },
-    templateData: {
-      width: 1000,
-      height: 1500,
-      elements: [
-        {
-          id: 'countdown-banner-bg',
-          layerOrder: 0,
-          type: 'tile',
-          x: 0,
-          y: 1405,
-          width: 1000,
-          height: 95,
-          properties: {
-            fillColor: '#EA580C',
-            fillOpacity: 75,
-            borderRadius: 0,
-          },
-        },
-        {
-          id: 'countdown-text',
-          layerOrder: 1,
-          type: 'variable',
-          x: 0,
-          y: 1382,
-          width: 1000,
-          height: 141,
-          properties: {
-            segments: [
-              { type: 'text', value: 'RELEASING IN ' },
-              { type: 'variable', field: 'daysUntilRelease' },
-              { type: 'text', value: ' DAYS' },
-            ],
-            fontSize: 74,
-            fontFamily: 'Inter',
-            fontWeight: 'bold',
-            fontStyle: 'normal',
-            color: '#FFFFFF',
-            textAlign: 'center',
-          },
-        },
-      ],
-    },
-  },
-
-  // Tomorrow (Unmonitored) - Bottom banner only (ORANGE)
-  {
-    name: 'Releasing Tomorrow (Unmonitored)',
-    description: 'Bottom banner for unmonitored releases coming tomorrow',
-    type: 'status',
-    applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'eq', value: 1 },
-        { field: 'isMonitored', operator: 'eq', value: false },
-      ],
-    },
-    templateData: {
-      width: 1000,
-      height: 1500,
-      elements: [
-        {
-          id: 'tomorrow-banner-bg',
-          layerOrder: 0,
-          type: 'tile',
-          x: 0,
-          y: 1405,
-          width: 1000,
-          height: 95,
-          properties: {
-            fillColor: '#EA580C',
-            fillOpacity: 75,
-            borderRadius: 0,
-          },
-        },
-        {
-          id: 'tomorrow-text',
-          layerOrder: 1,
-          type: 'text',
-          x: 0,
-          y: 1382,
-          width: 1000,
-          height: 141,
-          properties: {
-            text: 'RELEASING TOMORROW',
-            fontSize: 74,
-            fontFamily: 'Inter',
-            fontWeight: 'bold',
-            fontStyle: 'normal',
-            color: '#FFFFFF',
-            textAlign: 'center',
-          },
-        },
-      ],
-    },
-  },
-
-  // Today (Unmonitored) - Bottom banner only (ORANGE)
-  {
-    name: 'Releasing Today (Unmonitored)',
-    description: 'Bottom banner for unmonitored releases coming today',
-    type: 'status',
-    applicationCondition: {
-      and: [
-        { field: 'daysUntilRelease', operator: 'eq', value: 0 },
-        { field: 'isMonitored', operator: 'eq', value: false },
-      ],
-    },
-    templateData: {
-      width: 1000,
-      height: 1500,
-      elements: [
-        {
-          id: 'today-banner-bg',
-          layerOrder: 0,
-          type: 'tile',
-          x: 0,
-          y: 1405,
-          width: 1000,
-          height: 95,
-          properties: {
-            fillColor: '#EA580C',
-            fillOpacity: 75,
-            borderRadius: 0,
-          },
-        },
-        {
-          id: 'today-text',
-          layerOrder: 1,
-          type: 'text',
-          x: 0,
-          y: 1382,
-          width: 1000,
-          height: 141,
-          properties: {
-            text: 'RELEASING TODAY',
-            fontSize: 74,
-            fontFamily: 'Inter',
-            fontWeight: 'bold',
-            fontStyle: 'normal',
-            color: '#FFFFFF',
-            textAlign: 'center',
-          },
-        },
-      ],
-    },
-  },
-
   // Released Days Ago (Unmonitored) - Bottom banner only (ORANGE)
   {
     name: 'Released Days Ago (Unmonitored)',
@@ -946,9 +1663,30 @@ export const PRESET_TEMPLATES: {
       'Bottom banner showing days since release for unmonitored content',
     type: 'status',
     applicationCondition: {
-      and: [
-        { field: 'daysAgo', operator: 'gte', value: 0 },
-        { field: 'isMonitored', operator: 'eq', value: false },
+      sections: [
+        {
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'lte',
+              value: 7,
+            }, // Only show for 7 days
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            }, // Only for monitored items
+          ],
+        },
       ],
     },
     templateData: {
@@ -1003,7 +1741,53 @@ class PresetTemplateServiceClass {
   async createPresetTemplates(): Promise<void> {
     const templateRepository = getRepository(OverlayTemplate);
 
-    for (const preset of PRESET_TEMPLATES) {
+    // Get current preset names for cleanup comparison
+    const currentPresetNames = PRESET_TEMPLATES.map((p) => p.name);
+
+    // Find all existing default templates in database
+    const allDefaultTemplates = await templateRepository.find({
+      where: { isDefault: true },
+    });
+
+    // Clean up deleted presets (templates removed from PRESET_TEMPLATES array)
+    for (const dbTemplate of allDefaultTemplates) {
+      if (!currentPresetNames.includes(dbTemplate.name)) {
+        // Remove references from library configs before deleting template
+        const { getRepository: getRepo } = await import('@server/datasource');
+        const { OverlayLibraryConfig } = await import(
+          '@server/entity/OverlayLibraryConfig'
+        );
+        const configRepository = getRepo(OverlayLibraryConfig);
+        const configs = await configRepository.find();
+
+        for (const config of configs) {
+          const originalLength = config.enabledOverlays.length;
+          config.enabledOverlays = config.enabledOverlays.filter(
+            (overlay) => overlay.templateId !== dbTemplate.id
+          );
+
+          // Only save if we actually removed something
+          if (config.enabledOverlays.length !== originalLength) {
+            await configRepository.save(config);
+            logger.debug(
+              `Removed deleted preset "${dbTemplate.name}" from library config "${config.libraryName}"`,
+              {
+                label: 'PresetTemplates',
+              }
+            );
+          }
+        }
+
+        // Delete the template
+        await templateRepository.remove(dbTemplate);
+        logger.info(`Deleted removed preset template: ${dbTemplate.name}`, {
+          label: 'PresetTemplates',
+        });
+      }
+    }
+
+    // Create or update presets
+    for (const [index, preset] of PRESET_TEMPLATES.entries()) {
       // Check if preset already exists
       const existingTemplate = await templateRepository.findOne({
         where: { name: preset.name, isDefault: true },
@@ -1011,6 +1795,7 @@ class PresetTemplateServiceClass {
 
       if (existingTemplate) {
         // Update existing preset template to sync any changes
+        existingTemplate.displayOrder = index; // Sync order from array position
         existingTemplate.description = preset.description;
         existingTemplate.type = preset.type;
         existingTemplate.setTemplateData(preset.templateData);
@@ -1035,6 +1820,7 @@ class PresetTemplateServiceClass {
         description: preset.description,
         type: preset.type,
         templateData: JSON.stringify(preset.templateData),
+        displayOrder: index, // Set order from array position
         isDefault: true,
         isActive: true,
       });

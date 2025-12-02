@@ -1151,25 +1151,28 @@ router.get('/templates/:id/export', async (req, res, next) => {
     // Add asset files to the archive
     for (const assetPath of assetPaths) {
       try {
-        // Check if this is a user icon (starts with icon ID) or raster image
-        if (assetPath.includes('-')) {
-          // This looks like an icon ID, try to find the icon
-          const { getIcons } = await import('@server/lib/iconManager');
-          const icons = await getIcons({ type: 'user' });
-          const icon = icons.find((i) => i.id === assetPath);
+        // Check if this is an icon URL path (format: /api/v1/posters/icons/{type}/{filename})
+        const iconUrlMatch = assetPath.match(
+          /\/api\/v1\/posters\/icons\/(\w+)\/(.+)/
+        );
 
-          if (icon && icon.type === 'user') {
+        if (iconUrlMatch) {
+          const [, iconType, filename] = iconUrlMatch;
+
+          // Only bundle user-uploaded icons, skip system icons
+          if (iconType === 'user') {
             const iconFilePath = path.join(
               process.cwd(),
               'config',
               'icons',
-              icon.filename
+              filename
             );
+
             if (fs.existsSync(iconFilePath)) {
               archive.file(iconFilePath, {
-                name: `assets/icons/${icon.filename}`,
+                name: `assets/icons/${filename}`,
               });
-              logger.debug(`Added icon to archive: ${icon.filename}`);
+              logger.debug(`Added user icon to archive: ${filename}`);
             }
           }
         } else {

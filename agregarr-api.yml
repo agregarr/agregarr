@@ -2653,28 +2653,67 @@ components:
         applicationCondition:
           type: object
           nullable: true
-          description: 'Condition for when this template should be applied'
+          description: 'Flat section-based condition structure for when this template should be applied'
           properties:
-            field:
-              type: string
-              description: 'Context field to evaluate (e.g., imdbRating, resolution)'
-              example: 'imdbRating'
-            operator:
-              type: string
-              enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains']
-              description: 'Comparison operator'
-              example: 'gte'
-            value:
-              oneOf:
-                - type: string
-                - type: number
-                - type: array
-                  items:
-                    oneOf:
-                      - type: string
-                      - type: number
-              description: 'Value to compare against'
-              example: 7.5
+            sections:
+              type: array
+              description: 'Array of condition sections (combined with OR by default)'
+              items:
+                type: object
+                properties:
+                  sectionOperator:
+                    type: string
+                    enum: ['and', 'or']
+                    description: 'How this section combines with the previous section (omitted for first section)'
+                    example: 'or'
+                  rules:
+                    type: array
+                    description: 'Array of condition rules within this section'
+                    items:
+                      type: object
+                      properties:
+                        ruleOperator:
+                          type: string
+                          enum: ['and', 'or']
+                          description: 'How this rule combines with the previous rule (omitted for first rule)'
+                          example: 'and'
+                        field:
+                          type: string
+                          description: 'Context field to evaluate (e.g., imdbRating, resolution, daysUntilRelease)'
+                          example: 'imdbRating'
+                        operator:
+                          type: string
+                          enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'regex', 'begins', 'ends']
+                          description: 'Comparison operator'
+                          example: 'gte'
+                        value:
+                          oneOf:
+                            - type: string
+                            - type: number
+                            - type: boolean
+                            - type: array
+                              items:
+                                oneOf:
+                                  - type: string
+                                  - type: number
+                          description: 'Value to compare against'
+                          example: 7.5
+                      required:
+                        - field
+                        - operator
+                        - value
+                required:
+                  - rules
+          example:
+            sections:
+              - rules:
+                  - field: 'imdbRating'
+                    operator: 'gte'
+                    value: 8.0
+                  - ruleOperator: 'and'
+                    field: 'isMonitored'
+                    operator: 'eq'
+                    value: true
         isDefault:
           type: boolean
           readOnly: true

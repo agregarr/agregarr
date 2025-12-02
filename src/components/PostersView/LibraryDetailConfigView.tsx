@@ -58,35 +58,40 @@ const getFieldLabel = (field: string): string => {
   return allVars.find((v) => v.field === field)?.label || field;
 };
 
-// Format condition for display (recursively handles AND/OR)
+// Format flat condition for display
 const formatCondition = (
   condition: ApplicationCondition | undefined
 ): string | null => {
-  if (!condition) return null;
-
-  // Handle AND compound conditions
-  if (condition.and && condition.and.length > 0) {
-    const formatted = condition.and
-      .map((c) => formatCondition(c))
-      .filter(Boolean)
-      .join(' AND ');
-    return formatted || null;
+  if (!condition || !condition.sections || condition.sections.length === 0) {
+    return null;
   }
 
-  // Handle OR compound conditions
-  if (condition.or && condition.or.length > 0) {
-    const formatted = condition.or
-      .map((c) => formatCondition(c))
-      .filter(Boolean)
-      .join(' OR ');
-    return formatted || null;
+  const formattedSections = condition.sections.map((section) => {
+    const formattedRules = section.rules.map((rule) => {
+      const fieldLabel = getFieldLabel(rule.field);
+      const op = OPERATOR_LABELS[rule.operator] || rule.operator;
+      return `${fieldLabel} ${op} ${rule.value}`;
+    });
+
+    // Join rules within section with their operators
+    let sectionText = formattedRules[0];
+    for (let i = 1; i < formattedRules.length; i++) {
+      const operator = section.rules[i].ruleOperator?.toUpperCase() || 'AND';
+      sectionText += ` ${operator} ${formattedRules[i]}`;
+    }
+
+    return `(${sectionText})`;
+  });
+
+  // Join sections with their operators
+  let result = formattedSections[0];
+  for (let i = 1; i < formattedSections.length; i++) {
+    const operator =
+      condition.sections[i].sectionOperator?.toUpperCase() || 'OR';
+    result += ` ${operator} ${formattedSections[i]}`;
   }
 
-  // Handle simple condition
-  if (!condition.field) return null;
-  const fieldLabel = getFieldLabel(condition.field);
-  const op = OPERATOR_LABELS[condition.operator || 'eq'] || condition.operator;
-  return `${fieldLabel} ${op} ${condition.value}`;
+  return result;
 };
 
 const messages = defineMessages({

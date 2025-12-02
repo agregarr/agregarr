@@ -379,7 +379,7 @@ router.get('/', async (req, res, next) => {
 
     const templates = await templateRepository.find({
       where: { isActive: true },
-      order: { isDefault: 'DESC', createdAt: 'ASC' },
+      order: { isDefault: 'DESC', displayOrder: 'ASC', createdAt: 'ASC' },
     });
 
     const templatesResponse = templates.map((template: OverlayTemplate) => ({

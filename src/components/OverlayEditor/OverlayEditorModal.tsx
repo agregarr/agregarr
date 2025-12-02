@@ -1,19 +1,19 @@
 import Modal from '@app/components/Common/Modal';
 import { Dialog, Transition } from '@headlessui/react';
-import { Squares2X2Icon } from '@heroicons/react/24/outline';
+import { PencilIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 import {
   ArrowPathIcon,
   ArrowUturnLeftIcon,
   ArrowUturnRightIcon,
   EyeIcon,
-  PlusIcon,
-  TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
+import { ConditionDisplay } from './ConditionDisplay';
+import { ConditionEditorModal } from './ConditionEditorModal';
 import type { OverlayCanvasRef } from './OverlayCanvas';
 import { OverlayCanvas } from './OverlayCanvas';
 import { OverlayLayerPanel } from './OverlayLayerPanel';
@@ -24,7 +24,6 @@ import type {
   PreviewPosterInfo,
 } from './types';
 import {
-  CONDITION_FIELD_CATEGORIES,
   getTemplateTypeFromConditionField,
   SAMPLE_PREVIEW_CONTEXTS,
 } from './types';
@@ -49,29 +48,12 @@ const messages = defineMessages({
   noPosterLoaded: 'No poster loaded',
   // Application condition
   applicationCondition: 'Application Condition',
-  enableCondition: 'Only apply when:',
-  noCondition: 'Always apply (no condition)',
-  opEquals: 'equals',
-  opNotEquals: 'not equals',
-  opGreaterThan: 'greater than',
-  opGreaterOrEqual: 'at least',
-  opLessThan: 'less than',
-  opLessOrEqual: 'at most',
-  opContains: 'contains',
-  opRegex: 'matches regex',
-  opBegins: 'begins with',
-  opEnds: 'ends with',
+  editConditions: 'Edit Conditions',
   // Preview overlays
   previewOverlays: 'Preview with Other Overlays',
   selectOverlaysForPreview: 'Select Overlays for Preview',
   noOtherOverlays: 'No other overlay templates available',
   selectedCount: '{count} selected',
-  // Compound conditions
-  addCondition: 'Add Condition',
-  removeCondition: 'Remove',
-  combineWith: 'Combine with',
-  andLogic: 'AND',
-  orLogic: 'OR',
 });
 
 export type OverlayEditorMode = 'create' | 'edit';
@@ -111,94 +93,6 @@ interface AvailableOverlayTemplate {
   templateData: OverlayTemplateData;
 }
 
-// Simple condition type for UI
-type SimpleCondition = {
-  field: string;
-  operator: string;
-  value: string | number | boolean | (string | number)[];
-};
-
-// Helper to extract simple conditions from ApplicationCondition
-const extractConditions = (
-  cond: ApplicationCondition | undefined
-): { conditions: SimpleCondition[]; combinator: 'and' | 'or' } => {
-  if (!cond) return { conditions: [], combinator: 'and' };
-
-  if (cond.and && cond.and.length > 0) {
-    return {
-      conditions: cond.and
-        .filter((c) => c.field)
-        .map((c) => ({
-          field: c.field || 'daysUntilRelease',
-          operator: c.operator || 'eq',
-          value: c.value ?? '',
-        })),
-      combinator: 'and',
-    };
-  }
-
-  if (cond.or && cond.or.length > 0) {
-    return {
-      conditions: cond.or
-        .filter((c) => c.field)
-        .map((c) => ({
-          field: c.field || 'daysUntilRelease',
-          operator: c.operator || 'eq',
-          value: c.value ?? '',
-        })),
-      combinator: 'or',
-    };
-  }
-
-  if (cond.field) {
-    return {
-      conditions: [
-        {
-          field: cond.field,
-          operator: cond.operator || 'eq',
-          value: cond.value ?? '',
-        },
-      ],
-      combinator: 'and',
-    };
-  }
-
-  return { conditions: [], combinator: 'and' };
-};
-
-// Helper to build ApplicationCondition from UI state
-const buildCondition = (
-  conditions: SimpleCondition[],
-  combinator: 'and' | 'or'
-): ApplicationCondition | undefined => {
-  if (conditions.length === 0) return undefined;
-
-  // Filter out conditions with empty values
-  const validConditions = conditions.filter(
-    (c) => c.value !== '' && c.value !== null && c.value !== undefined
-  );
-
-  if (validConditions.length === 0) return undefined;
-
-  if (validConditions.length === 1) {
-    return {
-      field: validConditions[0].field,
-      operator: validConditions[0].operator as ApplicationCondition['operator'],
-      value: validConditions[0].value,
-    };
-  }
-
-  const conditionArray = validConditions.map((c) => ({
-    field: c.field,
-    operator: c.operator as ApplicationCondition['operator'],
-    value: c.value,
-  }));
-
-  return combinator === 'and'
-    ? { and: conditionArray }
-    : { or: conditionArray };
-};
-
 export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
   isOpen,
   onClose,
@@ -221,17 +115,10 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
   >();
   const [snapToGuides, setSnapToGuides] = useState(true);
 
-  // Condition state
-  const initialConditionData = extractConditions(initialCondition);
-  const [conditions, setConditions] = useState<SimpleCondition[]>(
-    initialConditionData.conditions
+  // Condition state (direct ApplicationCondition - no transformation needed)
+  const [condition, setCondition] = useState<ApplicationCondition | undefined>(
+    initialCondition
   );
-  const [conditionCombinator, setConditionCombinator] = useState<'and' | 'or'>(
-    initialConditionData.combinator
-  );
-
-  // Derived condition for saving
-  const condition = buildCondition(conditions, conditionCombinator);
 
   // Poster preview state
   const [currentPosterIndex, setCurrentPosterIndex] = useState(0);
@@ -239,6 +126,9 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
   // Preview overlays state
   const [selectedPreviewIds, setSelectedPreviewIds] = useState<number[]>([]);
   const [isPreviewSelectorOpen, setIsPreviewSelectorOpen] = useState(false);
+
+  // Condition editor modal state
+  const [isConditionEditorOpen, setIsConditionEditorOpen] = useState(false);
 
   const canvasRef = useRef<OverlayCanvasRef | null>(null);
 
@@ -327,9 +217,7 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
       setDescription(initialDescription);
       setSelectedElementId(undefined);
       setCurrentPosterIndex(0);
-      const condData = extractConditions(initialCondition);
-      setConditions(condData.conditions);
-      setConditionCombinator(condData.combinator);
+      setCondition(initialCondition);
       setSelectedPreviewIds([]);
     }
   }, [isOpen, initialData, initialName, initialDescription, initialCondition]);
@@ -360,9 +248,9 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
       return;
     }
 
-    // Auto-determine type from condition field, default to 'generic' if no condition
-    const autoType = condition?.field
-      ? getTemplateTypeFromConditionField(condition.field)
+    // Auto-determine type from condition fields, default to 'generic' if no condition
+    const autoType = condition?.sections?.[0]?.rules?.[0]?.field
+      ? getTemplateTypeFromConditionField(condition.sections[0].rules[0].field)
       : 'generic';
 
     try {
@@ -522,282 +410,22 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
 
                       {/* Application Condition */}
                       <div className="border-t border-stone-700 pt-4">
-                        <label className="mb-2 block text-sm font-medium text-stone-300">
-                          {intl.formatMessage(messages.applicationCondition)}
-                        </label>
-
-                        {/* Toggle for condition */}
-                        <label className="mb-3 flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={conditions.length > 0}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setConditions([
-                                  {
-                                    field: 'daysUntilRelease',
-                                    operator: 'gte',
-                                    value: '',
-                                  },
-                                ]);
-                              } else {
-                                setConditions([]);
-                              }
-                            }}
-                            className="rounded border-stone-600 bg-stone-700 text-orange-600"
-                          />
-                          <span className="text-sm text-stone-300">
-                            {conditions.length > 0
-                              ? intl.formatMessage(messages.enableCondition)
-                              : intl.formatMessage(messages.noCondition)}
-                          </span>
-                        </label>
-
-                        {conditions.length > 0 &&
-                          (() => {
-                            // Get all condition fields for finding examples
-                            const allConditionFields = Object.values(
-                              CONDITION_FIELD_CATEGORIES
-                            ).flat();
-                            const numericFields = [
-                              'imdbRating',
-                              'rtCriticsScore',
-                              'rtAudienceScore',
-                              'metacriticScore',
-                              'year',
-                              'runtime',
-                              'daysUntilRelease',
-                              'daysAgo',
-                              'seasonNumber',
-                              'episodeNumber',
-                              'width',
-                              'height',
-                              'aspectRatio',
-                              'bitDepth',
-                              'audioChannels',
-                              'bitrate',
-                              'fileSize',
-                              'viewCount',
-                            ];
-
-                            return (
-                              <div className="space-y-3">
-                                {conditions.map((cond, index) => {
-                                  const isNumeric = numericFields.includes(
-                                    cond.field
-                                  );
-
-                                  return (
-                                    <div key={index} className="space-y-2">
-                                      {/* AND/OR separator between conditions */}
-                                      {index > 0 && (
-                                        <div className="flex items-center justify-center py-1">
-                                          <select
-                                            value={conditionCombinator}
-                                            onChange={(e) =>
-                                              setConditionCombinator(
-                                                e.target.value as 'and' | 'or'
-                                              )
-                                            }
-                                            className="rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-orange-400"
-                                          >
-                                            <option value="and">
-                                              {intl.formatMessage(
-                                                messages.andLogic
-                                              )}
-                                            </option>
-                                            <option value="or">
-                                              {intl.formatMessage(
-                                                messages.orLogic
-                                              )}
-                                            </option>
-                                          </select>
-                                        </div>
-                                      )}
-
-                                      <div className="rounded border border-stone-600 bg-stone-800 p-2">
-                                        {/* Field */}
-                                        <select
-                                          value={cond.field}
-                                          onChange={(e) => {
-                                            const newConditions = [
-                                              ...conditions,
-                                            ];
-                                            newConditions[index] = {
-                                              ...cond,
-                                              field: e.target.value,
-                                              value: '',
-                                            };
-                                            setConditions(newConditions);
-                                          }}
-                                          className="mb-2 w-full rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
-                                        >
-                                          {Object.entries(
-                                            CONDITION_FIELD_CATEGORIES
-                                          ).map(([category, fields]) => (
-                                            <optgroup
-                                              key={category}
-                                              label={category}
-                                            >
-                                              {fields.map((v) => (
-                                                <option
-                                                  key={v.field}
-                                                  value={v.field}
-                                                >
-                                                  {v.label}
-                                                </option>
-                                              ))}
-                                            </optgroup>
-                                          ))}
-                                        </select>
-
-                                        {/* Operator */}
-                                        <select
-                                          value={cond.operator}
-                                          onChange={(e) => {
-                                            const newConditions = [
-                                              ...conditions,
-                                            ];
-                                            newConditions[index] = {
-                                              ...cond,
-                                              operator: e.target.value,
-                                            };
-                                            setConditions(newConditions);
-                                          }}
-                                          className="mb-2 w-full rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
-                                        >
-                                          <option value="eq">
-                                            {intl.formatMessage(
-                                              messages.opEquals
-                                            )}
-                                          </option>
-                                          <option value="neq">
-                                            {intl.formatMessage(
-                                              messages.opNotEquals
-                                            )}
-                                          </option>
-                                          {isNumeric && (
-                                            <>
-                                              <option value="gt">
-                                                {intl.formatMessage(
-                                                  messages.opGreaterThan
-                                                )}
-                                              </option>
-                                              <option value="gte">
-                                                {intl.formatMessage(
-                                                  messages.opGreaterOrEqual
-                                                )}
-                                              </option>
-                                              <option value="lt">
-                                                {intl.formatMessage(
-                                                  messages.opLessThan
-                                                )}
-                                              </option>
-                                              <option value="lte">
-                                                {intl.formatMessage(
-                                                  messages.opLessOrEqual
-                                                )}
-                                              </option>
-                                            </>
-                                          )}
-                                          <option value="contains">
-                                            {intl.formatMessage(
-                                              messages.opContains
-                                            )}
-                                          </option>
-                                          <option value="regex">
-                                            {intl.formatMessage(
-                                              messages.opRegex
-                                            )}
-                                          </option>
-                                          <option value="begins">
-                                            {intl.formatMessage(
-                                              messages.opBegins
-                                            )}
-                                          </option>
-                                          <option value="ends">
-                                            {intl.formatMessage(
-                                              messages.opEnds
-                                            )}
-                                          </option>
-                                        </select>
-
-                                        {/* Value */}
-                                        <div className="flex items-center space-x-2">
-                                          <input
-                                            type={isNumeric ? 'number' : 'text'}
-                                            value={String(cond.value)}
-                                            onChange={(e) => {
-                                              const val = e.target.value;
-                                              const numVal = Number(val);
-                                              const newConditions = [
-                                                ...conditions,
-                                              ];
-                                              newConditions[index] = {
-                                                ...cond,
-                                                value:
-                                                  isNumeric &&
-                                                  !isNaN(numVal) &&
-                                                  val !== ''
-                                                    ? numVal
-                                                    : val,
-                                              };
-                                              setConditions(newConditions);
-                                            }}
-                                            placeholder={
-                                              allConditionFields.find(
-                                                (f) => f.field === cond.field
-                                              )?.example || ''
-                                            }
-                                            className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
-                                          />
-                                          {conditions.length > 1 && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setConditions(
-                                                  conditions.filter(
-                                                    (_, i) => i !== index
-                                                  )
-                                                );
-                                              }}
-                                              className="rounded p-1 text-red-400 hover:bg-red-900/50 hover:text-red-300"
-                                              title={intl.formatMessage(
-                                                messages.removeCondition
-                                              )}
-                                            >
-                                              <TrashIcon className="h-4 w-4" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-
-                                {/* Add condition button */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setConditions([
-                                      ...conditions,
-                                      {
-                                        field: 'daysUntilRelease',
-                                        operator: 'gte',
-                                        value: '',
-                                      },
-                                    ]);
-                                  }}
-                                  className="flex w-full items-center justify-center space-x-1 rounded border border-dashed border-stone-600 py-2 text-xs text-stone-400 hover:border-stone-500 hover:text-stone-300"
-                                >
-                                  <PlusIcon className="h-3 w-3" />
-                                  <span>
-                                    {intl.formatMessage(messages.addCondition)}
-                                  </span>
-                                </button>
-                              </div>
-                            );
-                          })()}
+                        <div className="mb-2 flex items-center justify-between">
+                          <label className="block text-sm font-medium text-stone-300">
+                            {intl.formatMessage(messages.applicationCondition)}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setIsConditionEditorOpen(true)}
+                            className="flex items-center space-x-1 rounded px-2 py-1 text-xs text-orange-400 hover:bg-stone-700 hover:text-orange-300"
+                          >
+                            <PencilIcon className="h-3.5 w-3.5" />
+                            <span>
+                              {intl.formatMessage(messages.editConditions)}
+                            </span>
+                          </button>
+                        </div>
+                        <ConditionDisplay condition={condition} />
                       </div>
 
                       {/* Action buttons */}
@@ -959,6 +587,16 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
             )}
           </div>
         </Modal>
+      )}
+
+      {/* Condition Editor Modal */}
+      {isConditionEditorOpen && (
+        <ConditionEditorModal
+          isOpen={isConditionEditorOpen}
+          onClose={() => setIsConditionEditorOpen(false)}
+          initialCondition={condition}
+          onSave={setCondition}
+        />
       )}
     </>
   );

@@ -15,43 +15,87 @@ import sharp from 'sharp';
  * Evaluate an application condition against the render context
  * Returns true if condition is met (or if no condition specified)
  *
- * Supports:
- * - Simple conditions: { field, operator, value }
- * - AND conditions: { and: [...] } - all must be true
- * - OR conditions: { or: [...] } - at least one must be true
- * - Nested conditions
+ * Uses flat section/rule structure:
+ * - Evaluate each section by combining its rules with their ruleOperators
+ * - Combine sections using their sectionOperators
  */
 export function evaluateCondition(
   condition: ApplicationCondition | undefined,
   context: OverlayRenderContext
 ): boolean {
-  if (!condition) return true; // No condition = always apply
-
-  // Handle AND compound condition
-  if (condition.and && condition.and.length > 0) {
-    return condition.and.every((subCondition) =>
-      evaluateCondition(subCondition, context)
-    );
+  if (!condition || !condition.sections || condition.sections.length === 0) {
+    return true; // No condition = always apply
   }
 
-  // Handle OR compound condition
-  if (condition.or && condition.or.length > 0) {
-    return condition.or.some((subCondition) =>
-      evaluateCondition(subCondition, context)
-    );
+  // Evaluate first section
+  let result = evaluateSection(condition.sections[0], context);
+
+  // Combine remaining sections using their sectionOperators
+  for (let i = 1; i < condition.sections.length; i++) {
+    const section = condition.sections[i];
+    const sectionResult = evaluateSection(section, context);
+
+    if (section.sectionOperator === 'and') {
+      result = result && sectionResult;
+    } else {
+      // Default to OR if not specified
+      result = result || sectionResult;
+    }
   }
 
-  // Handle simple condition
-  if (!condition.field || !condition.operator) {
-    return true; // No valid condition = always apply
+  return result;
+}
+
+/**
+ * Evaluate a single section by combining its rules
+ */
+function evaluateSection(
+  section: {
+    rules: {
+      ruleOperator?: 'and' | 'or';
+      field: string;
+      operator: string;
+      value: unknown;
+    }[];
+  },
+  context: OverlayRenderContext
+): boolean {
+  if (!section.rules || section.rules.length === 0) {
+    return true; // Empty section = always true
   }
 
-  const value = context[condition.field];
+  // Evaluate first rule
+  let result = evaluateRule(section.rules[0], context);
+
+  // Combine remaining rules using their ruleOperators
+  for (let i = 1; i < section.rules.length; i++) {
+    const rule = section.rules[i];
+    const ruleResult = evaluateRule(rule, context);
+
+    if (rule.ruleOperator === 'or') {
+      result = result || ruleResult;
+    } else {
+      // Default to AND if not specified
+      result = result && ruleResult;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Evaluate a single rule (field/operator/value comparison)
+ */
+function evaluateRule(
+  rule: { field: string; operator: string; value: unknown },
+  context: OverlayRenderContext
+): boolean {
+  const value = context[rule.field];
   if (value === undefined || value === null) return false;
 
-  const conditionValue = condition.value;
+  const conditionValue = rule.value;
 
-  switch (condition.operator) {
+  switch (rule.operator) {
     case 'eq':
       // Case-insensitive comparison for strings
       if (typeof value === 'string' && typeof conditionValue === 'string') {

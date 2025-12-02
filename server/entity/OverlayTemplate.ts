@@ -134,18 +134,52 @@ export type OverlayTemplateType =
 
 /**
  * Application condition for when to apply an overlay template
- * This determines when the overlay should be shown based on item data
+ * Uses a flat section-based structure for better UX
  *
- * Supports:
- * - Simple conditions: { field: 'daysUntilRelease', operator: 'gt', value: 0 }
- * - AND conditions: { and: [condition1, condition2, ...] }
- * - OR conditions: { or: [condition1, condition2, ...] }
- * - Nested: { and: [condition1, { or: [condition2, condition3] }] }
+ * Structure reads naturally:
+ * - Section 1: (rule1 AND rule2 AND rule3)
+ * - OR/AND (section operator)
+ * - Section 2: (rule4 OR rule5)
+ *
+ * Example: Show overlay when (views=0 AND dateAdded<X) OR (rating>8)
+ * {
+ *   sections: [
+ *     {
+ *       rules: [
+ *         { field: 'viewCount', operator: 'eq', value: 0 },
+ *         { ruleOperator: 'and', field: 'dateAdded', operator: 'lt', value: '2024-01-01' }
+ *       ]
+ *     },
+ *     {
+ *       sectionOperator: 'or',
+ *       rules: [
+ *         { field: 'imdbRating', operator: 'gt', value: 8 }
+ *       ]
+ *     }
+ *   ]
+ * }
  */
 export interface ApplicationCondition {
-  // Single condition fields (optional when using compound)
-  field?: string; // e.g., 'imdbRating', 'resolution', 'daysUntilRelease'
-  operator?:
+  sections: ConditionSection[];
+}
+
+/**
+ * A section contains rules that combine with AND or OR
+ * sectionOperator determines how this section connects to the PREVIOUS section
+ */
+export interface ConditionSection {
+  sectionOperator?: 'and' | 'or'; // How this section combines with previous section (omitted for first section)
+  rules: ConditionRule[];
+}
+
+/**
+ * A single condition rule (field/operator/value)
+ * ruleOperator determines how this rule connects to the PREVIOUS rule in the section
+ */
+export interface ConditionRule {
+  ruleOperator?: 'and' | 'or'; // How this rule combines with previous rule (omitted for first rule in section)
+  field: string; // e.g., 'imdbRating', 'resolution', 'daysUntilRelease'
+  operator:
     | 'eq' // equals
     | 'neq' // not equals
     | 'gt' // greater than
@@ -157,11 +191,7 @@ export interface ApplicationCondition {
     | 'regex' // regex match
     | 'begins' // string begins with
     | 'ends'; // string ends with
-  value?: string | number | boolean | (string | number)[];
-
-  // Compound condition arrays
-  and?: ApplicationCondition[];
-  or?: ApplicationCondition[];
+  value: string | number | boolean | (string | number)[];
 }
 
 /**
@@ -196,6 +226,9 @@ export class OverlayTemplate {
 
   @Column({ default: true })
   public isActive: boolean;
+
+  @Column({ default: 0 })
+  public displayOrder: number; // Order for UI display (lower = earlier)
 
   // Generic application condition (field/operator/value)
   @Column({ type: 'text', nullable: true })
