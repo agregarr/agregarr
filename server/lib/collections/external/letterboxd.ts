@@ -255,29 +255,13 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         // Process batch concurrently
         const batchPromises = batch.map(async (item) => {
           try {
-            // Search for the movie on TMDB using title and year
-            let searchResults = await this.tmdbClient.searchMovies({
+            // Search for the movie on TMDB without year filter
+            // This ensures we get all films with matching titles, including those with
+            // festival vs. theatrical release date differences (e.g., Letterboxd shows 2024, TMDb shows 2025)
+            // Our scoring algorithm will handle year matching and popularity to pick the correct one
+            const searchResults = await this.tmdbClient.searchMovies({
               query: item.title,
-              year: item.year,
             });
-
-            // Fallback: If no results with year-specific search, try without year
-            // This handles year mismatches due to festival vs. wide release dates
-            if (!searchResults.results || searchResults.results.length === 0) {
-              logger.debug(
-                `No TMDB results with year ${item.year}, trying without year for: ${item.title}`,
-                {
-                  label: 'Letterboxd Collections',
-                  configName: config.name,
-                  itemTitle: item.title,
-                  itemYear: item.year,
-                }
-              );
-
-              searchResults = await this.tmdbClient.searchMovies({
-                query: item.title,
-              });
-            }
 
             if (searchResults.results && searchResults.results.length > 0) {
               const tmdbMovie = this.findBestTmdbMatch(
@@ -918,13 +902,34 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     let bestMatch = null;
     let bestScore = -1;
 
-    for (const result of results) {
-      const score = this.calculateMatchScore(result, targetTitle, targetYear);
+    // Calculate scores for all candidates
+    const candidateScores = results.map((result) => ({
+      result,
+      score: this.calculateMatchScore(result, targetTitle, targetYear),
+    }));
 
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = result;
+    // Sort by score descending and take top 5
+    const topCandidates = candidateScores
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    // Log top 5 candidates for debugging
+    logger.debug(
+      `Top 5 TMDB candidates for "${targetTitle}" (${targetYear}):`,
+      {
+        label: 'Letterboxd Collections',
+        candidates: topCandidates.map((c) => ({
+          title: c.result.title,
+          year: this.extractYearFromDate(c.result.release_date),
+          score: c.score.toFixed(3),
+        })),
       }
+    );
+
+    // Best match is the first one
+    if (topCandidates.length > 0) {
+      bestMatch = topCandidates[0].result;
+      bestScore = topCandidates[0].score;
     }
 
     // Only return a match if it meets a minimum threshold
@@ -964,24 +969,24 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     const tmdbOriginalTitle = result.original_title || '';
     const tmdbYear = this.extractYearFromDate(result.release_date);
 
-    // Title matching (70% of score)
+    // Title matching (60% of score)
     const titleScore = Math.max(
       this.calculateTitleSimilarity(targetTitle, tmdbTitle),
       this.calculateTitleSimilarity(targetTitle, tmdbOriginalTitle)
     );
-    score += titleScore * 0.7;
+    score += titleScore * 0.6;
 
-    // Year matching (25% of score)
-    if (tmdbYear && Math.abs(tmdbYear - targetYear) === 0) {
-      score += 0.25; // Exact year match
-    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 1) {
-      score += 0.15; // Close year match (±1 year)
-    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 2) {
-      score += 0.05; // Somewhat close year match (±2 years)
+    // Year matching (20% of score)
+    // ±1 year treated equally to handle festival vs. theatrical release date differences
+    if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 1) {
+      score += 0.2; // Exact or ±1 year match
+    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) === 2) {
+      score += 0.05; // ±2 year match
     }
 
-    // Popularity boost (5% of score) - normalized by typical TMDB popularity ranges
-    const popularityScore = Math.min(result.popularity / 100, 1) * 0.05;
+    // Popularity boost (20% of score) - normalized by typical TMDB popularity ranges
+    // Increased from 5% to help disambiguate films with same title and close years
+    const popularityScore = Math.min(result.popularity / 100, 1) * 0.2;
     score += popularityScore;
 
     return score;
