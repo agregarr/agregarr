@@ -497,6 +497,140 @@ class OverseerrAPI {
       return null;
     }
   }
+
+  /**
+   * Get Radarr servers from Overseerr
+   */
+  async getRadarrServers(): Promise<
+    {
+      id: number;
+      name: string;
+      hostname: string;
+      port: number;
+      is4k: boolean;
+      isDefault: boolean;
+    }[]
+  > {
+    try {
+      const response = await this.axios.get('/settings/radarr');
+      return response.data;
+    } catch (error) {
+      logger.error(
+        `Failed to get Radarr servers from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get Sonarr servers from Overseerr
+   */
+  async getSonarrServers(): Promise<
+    {
+      id: number;
+      name: string;
+      hostname: string;
+      port: number;
+      is4k: boolean;
+      isDefault: boolean;
+    }[]
+  > {
+    try {
+      const response = await this.axios.get('/settings/sonarr');
+      return response.data;
+    } catch (error) {
+      logger.error(
+        `Failed to get Sonarr servers from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get quality profiles from a Radarr server
+   */
+  async getRadarrProfiles(
+    serverId: number
+  ): Promise<{ id: number; name: string }[]> {
+    try {
+      const response = await this.axios.get(`/service/radarr/${serverId}`);
+      return response.data.profiles || [];
+    } catch (error) {
+      logger.error(
+        `Failed to get Radarr profiles from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get quality profiles from a Sonarr server
+   */
+  async getSonarrProfiles(
+    serverId: number
+  ): Promise<{ id: number; name: string }[]> {
+    try {
+      const response = await this.axios.get(`/service/sonarr/${serverId}`);
+      return response.data.profiles || [];
+    } catch (error) {
+      logger.error(
+        `Failed to get Sonarr profiles from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get root folders from a Radarr server
+   */
+  async getRadarrRootFolders(
+    serverId: number
+  ): Promise<{ id: number; path: string }[]> {
+    try {
+      const response = await this.axios.get(`/service/radarr/${serverId}`);
+      return response.data.rootFolders || [];
+    } catch (error) {
+      logger.error(
+        `Failed to get Radarr root folders from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get root folders from a Sonarr server
+   */
+  async getSonarrRootFolders(
+    serverId: number
+  ): Promise<{ id: number; path: string }[]> {
+    try {
+      const response = await this.axios.get(`/service/sonarr/${serverId}`);
+      return response.data.rootFolders || [];
+    } catch (error) {
+      logger.error(
+        `Failed to get Sonarr root folders from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
 }
 
 export default OverseerrAPI;

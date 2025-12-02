@@ -1247,6 +1247,11 @@ components:
           description: "Selected Radarr profile ID for movies (when downloadMode is 'direct')"
           example: 3
           nullable: true
+        directDownloadRadarrRootFolder:
+          type: string
+          description: "Selected Radarr root folder path for movies (when downloadMode is 'direct')"
+          example: '/movies'
+          nullable: true
         directDownloadSonarrServerId:
           type: integer
           description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
@@ -1256,6 +1261,41 @@ components:
           type: integer
           description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
           example: 2
+          nullable: true
+        directDownloadSonarrRootFolder:
+          type: string
+          description: "Selected Sonarr root folder path for TV shows (when downloadMode is 'direct')"
+          example: '/tv'
+          nullable: true
+        overseerrRadarrServerId:
+          type: integer
+          description: "Override Radarr server ID for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: 1
+          nullable: true
+        overseerrRadarrProfileId:
+          type: integer
+          description: "Override Radarr profile ID for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: 3
+          nullable: true
+        overseerrRadarrRootFolder:
+          type: string
+          description: "Override Radarr root folder path for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: '/movies'
+          nullable: true
+        overseerrSonarrServerId:
+          type: integer
+          description: "Override Sonarr server ID for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: 1
+          nullable: true
+        overseerrSonarrProfileId:
+          type: integer
+          description: "Override Sonarr profile ID for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: 2
+          nullable: true
+        overseerrSonarrRootFolder:
+          type: string
+          description: "Override Sonarr root folder path for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: '/tv'
           nullable: true
         showUnwatchedOnly:
           type: boolean
@@ -1825,6 +1865,11 @@ components:
           description: "Selected Radarr profile ID for movies (when downloadMode is 'direct')"
           example: 3
           nullable: true
+        directDownloadRadarrRootFolder:
+          type: string
+          description: "Selected Radarr root folder path for movies (when downloadMode is 'direct')"
+          example: '/movies'
+          nullable: true
         directDownloadSonarrServerId:
           type: integer
           description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
@@ -1834,6 +1879,41 @@ components:
           type: integer
           description: "Selected Sonarr profile ID for TV shows (when downloadMode is 'direct')"
           example: 2
+          nullable: true
+        directDownloadSonarrRootFolder:
+          type: string
+          description: "Selected Sonarr root folder path for TV shows (when downloadMode is 'direct')"
+          example: '/tv'
+          nullable: true
+        overseerrRadarrServerId:
+          type: integer
+          description: "Override Radarr server ID for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: 1
+          nullable: true
+        overseerrRadarrProfileId:
+          type: integer
+          description: "Override Radarr profile ID for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: 3
+          nullable: true
+        overseerrRadarrRootFolder:
+          type: string
+          description: "Override Radarr root folder path for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: '/movies'
+          nullable: true
+        overseerrSonarrServerId:
+          type: integer
+          description: "Override Sonarr server ID for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: 1
+          nullable: true
+        overseerrSonarrProfileId:
+          type: integer
+          description: "Override Sonarr profile ID for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: 2
+          nullable: true
+        overseerrSonarrRootFolder:
+          type: string
+          description: "Override Sonarr root folder path for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: '/tv'
           nullable: true
         showUnwatchedOnly:
           type: boolean
@@ -3003,6 +3083,36 @@ components:
           type: string
           nullable: true
           example: 'https://overseerr.example.com:5055'
+        radarrServerId:
+          type: number
+          nullable: true
+          example: 1
+          description: 'Default Radarr server ID for movie requests'
+        radarrProfileId:
+          type: number
+          nullable: true
+          example: 1
+          description: 'Default Radarr quality profile ID for movie requests'
+        radarrRootFolder:
+          type: string
+          nullable: true
+          example: '/data/media/movies'
+          description: 'Default Radarr root folder path for movie requests'
+        sonarrServerId:
+          type: number
+          nullable: true
+          example: 2
+          description: 'Default Sonarr server ID for TV requests'
+        sonarrProfileId:
+          type: number
+          nullable: true
+          example: 1
+          description: 'Default Sonarr quality profile ID for TV requests'
+        sonarrRootFolder:
+          type: string
+          nullable: true
+          example: '/data/media/tv'
+          description: 'Default Sonarr root folder path for TV requests'
     ServiceUserSettings:
       type: object
       properties:
@@ -8086,13 +8196,15 @@ paths:
                   example: false
                 urlBase:
                   type: string
+                  nullable: true
                   example: '/overseerr'
               required:
                 - hostname
+                - port
                 - apiKey
       responses:
         '200':
-          description: 'Connection test successful'
+          description: 'Connection test successful with all server options'
           content:
             application/json:
               schema:
@@ -8109,6 +8221,111 @@ paths:
                     type: string
                     example: 'Template variables updated: Overseerr (https://overseerr.example.com)'
                     description: 'Message about template variable fetch result'
+                  servers:
+                    type: object
+                    properties:
+                      radarr:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: number
+                              example: 0
+                            name:
+                              type: string
+                              example: 'Radarr'
+                            hostname:
+                              type: string
+                              example: '192.168.0.236'
+                            port:
+                              type: number
+                              example: 7878
+                            is4k:
+                              type: boolean
+                              example: false
+                            isDefault:
+                              type: boolean
+                              example: true
+                      sonarr:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: number
+                              example: 0
+                            name:
+                              type: string
+                              example: 'Sonarr'
+                            hostname:
+                              type: string
+                              example: '192.168.0.236'
+                            port:
+                              type: number
+                              example: 8989
+                            is4k:
+                              type: boolean
+                              example: false
+                            isDefault:
+                              type: boolean
+                              example: true
+                  radarrServerOptions:
+                    type: object
+                    description: 'Quality profiles and root folders for all Radarr servers, keyed by server ID'
+                    additionalProperties:
+                      type: object
+                      properties:
+                        profiles:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: number
+                                example: 8
+                              name:
+                                type: string
+                                example: '1080p Quality'
+                        rootFolders:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: number
+                                example: 4
+                              path:
+                                type: string
+                                example: '/data/media/movies'
+                  sonarrServerOptions:
+                    type: object
+                    description: 'Quality profiles and root folders for all Sonarr servers, keyed by server ID'
+                    additionalProperties:
+                      type: object
+                      properties:
+                        profiles:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: number
+                                example: 14
+                              name:
+                                type: string
+                                example: '1080p Quality'
+                        rootFolders:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: number
+                                example: 3
+                              path:
+                                type: string
+                                example: '/data/media/series'
         '400':
           description: 'Missing required parameters'
         '401':

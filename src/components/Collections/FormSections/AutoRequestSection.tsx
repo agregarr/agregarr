@@ -1,5 +1,11 @@
-import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
+import type {
+  OverseerrSettings,
+  RadarrSettings,
+  SonarrSettings,
+} from '@server/lib/settings';
+import axios from 'axios';
 import { Field } from 'formik';
+import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 import FilterWithMode from './FilterWithMode';
@@ -51,6 +57,13 @@ const messages = defineMessages({
   autoApproveMissingTV: 'Auto-approve TV show requests',
   autoApproveHelp:
     'Automatically approve requests instead of requiring manual approval',
+  overseerrServerOptions: 'Overseerr Server Configuration',
+  selectOverseerrRadarrServer: 'Radarr Server (Movies)',
+  selectOverseerrRadarrProfile: 'Radarr Quality Profile (Movies)',
+  selectOverseerrRadarrRootFolder: 'Radarr Root Folder (Movies)',
+  selectOverseerrSonarrServer: 'Sonarr Server (TV Shows)',
+  selectOverseerrSonarrProfile: 'Sonarr Quality Profile (TV Shows)',
+  selectOverseerrSonarrRootFolder: 'Sonarr Root Folder (TV Shows)',
 
   // Direct download server selection
   directDownloadOptions: 'Direct Download Configuration',
@@ -97,6 +110,12 @@ interface AutoRequestSectionProps {
     directDownloadSonarrServerId?: number;
     directDownloadSonarrProfileId?: number;
     directDownloadSonarrRootFolder?: string;
+    overseerrRadarrServerId?: number;
+    overseerrRadarrProfileId?: number;
+    overseerrRadarrRootFolder?: string;
+    overseerrSonarrServerId?: number;
+    overseerrSonarrProfileId?: number;
+    overseerrSonarrRootFolder?: string;
     [key: string]: unknown;
   };
   errors: Record<string, string>;
@@ -123,6 +142,89 @@ const AutoRequestSection = ({
   const { data: sonarrServers, isLoading: sonarrLoading } = useSWR<
     SonarrSettings[]
   >('/api/v1/settings/sonarr');
+
+  // Fetch Overseerr settings
+  const { data: overseerrSettings } = useSWR<OverseerrSettings>(
+    '/api/v1/settings/overseerr'
+  );
+
+  // State for Overseerr server options
+  const [overseerrServerOptions, setOverseerrServerOptions] = useState<{
+    servers: {
+      radarr: {
+        id: number;
+        name: string;
+        hostname: string;
+        port: number;
+        is4k: boolean;
+        isDefault: boolean;
+      }[];
+      sonarr: {
+        id: number;
+        name: string;
+        hostname: string;
+        port: number;
+        is4k: boolean;
+        isDefault: boolean;
+      }[];
+    };
+    radarrServerOptions: Record<
+      number,
+      {
+        profiles: { id: number; name: string }[];
+        rootFolders: { id: number; path: string }[];
+      }
+    >;
+    sonarrServerOptions: Record<
+      number,
+      {
+        profiles: { id: number; name: string }[];
+        rootFolders: { id: number; path: string }[];
+      }
+    >;
+  }>({
+    servers: { radarr: [], sonarr: [] },
+    radarrServerOptions: {},
+    sonarrServerOptions: {},
+  });
+  const [overseerrLoading, setOverseerrLoading] = useState(false);
+
+  // Fetch Overseerr server options when Overseerr is configured
+  useEffect(() => {
+    const fetchOverseerrServers = async () => {
+      if (!overseerrSettings?.hostname || !overseerrSettings?.apiKey) {
+        return;
+      }
+
+      setOverseerrLoading(true);
+      try {
+        const response = await axios.post('/api/v1/overseerr/test', {
+          hostname: overseerrSettings.hostname,
+          port: overseerrSettings.port || 5055,
+          apiKey: overseerrSettings.apiKey,
+          useSsl: overseerrSettings.useSsl,
+          urlBase: overseerrSettings.urlBase,
+        });
+
+        setOverseerrServerOptions({
+          servers: response.data.servers || { radarr: [], sonarr: [] },
+          radarrServerOptions: response.data.radarrServerOptions || {},
+          sonarrServerOptions: response.data.sonarrServerOptions || {},
+        });
+      } catch (error) {
+        // Silently fail - Overseerr options are optional
+        setOverseerrServerOptions({
+          servers: { radarr: [], sonarr: [] },
+          radarrServerOptions: {},
+          sonarrServerOptions: {},
+        });
+      } finally {
+        setOverseerrLoading(false);
+      }
+    };
+
+    fetchOverseerrServers();
+  }, [overseerrSettings]);
 
   // Get the effective server IDs (only when server data has loaded)
   const effectiveRadarrServerId =
@@ -687,6 +789,284 @@ const AutoRequestSection = ({
               </div>
               <div className="label-tip mt-2">
                 {intl.formatMessage(messages.autoApproveHelp)}
+              </div>
+
+              {/* Overseerr Server Configuration */}
+              <div className="mb-6">
+                <div className="mb-3 text-sm font-medium text-gray-200">
+                  {intl.formatMessage(messages.overseerrServerOptions)}
+                </div>
+                <div className="space-y-4">
+                  {/* Radarr Server Configuration - only show if movie processing is enabled */}
+                  {values.searchMissingMovies && shouldShowMovieSettings() && (
+                    <div className="rounded-md border border-gray-700 p-4">
+                      {/* Radarr Server Selection - only show if 2+ servers */}
+                      {overseerrServerOptions.servers.radarr.length > 1 && (
+                        <div>
+                          <div className="mb-2 text-sm font-medium text-gray-300">
+                            {intl.formatMessage(
+                              messages.selectOverseerrRadarrServer
+                            )}
+                          </div>
+                          <div className="form-input-field">
+                            <Field
+                              as="select"
+                              name="overseerrRadarrServerId"
+                              disabled={overseerrLoading}
+                              onChange={(
+                                e: React.ChangeEvent<HTMLSelectElement>
+                              ) => {
+                                const serverId = e.target.value
+                                  ? Number(e.target.value)
+                                  : undefined;
+                                setFieldValue?.(
+                                  'overseerrRadarrServerId',
+                                  serverId
+                                );
+                                // Clear profile and root folder when server changes
+                                setFieldValue?.(
+                                  'overseerrRadarrProfileId',
+                                  undefined
+                                );
+                                setFieldValue?.(
+                                  'overseerrRadarrRootFolder',
+                                  undefined
+                                );
+                              }}
+                            >
+                              <option value="">
+                                {overseerrLoading
+                                  ? 'Loading...'
+                                  : intl.formatMessage(messages.selectServer)}
+                              </option>
+                              {overseerrServerOptions.servers.radarr.map(
+                                (server) => (
+                                  <option key={server.id} value={server.id}>
+                                    {server.name}
+                                    {server.isDefault && ' (Default)'}
+                                  </option>
+                                )
+                              )}
+                            </Field>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Radarr Profile Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrRadarrProfile
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrRadarrProfileId"
+                            disabled={
+                              overseerrLoading ||
+                              !values.overseerrRadarrServerId
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrRadarrServerId
+                                ? intl.formatMessage(messages.selectProfile)
+                                : intl.formatMessage(
+                                    messages.selectServerFirst
+                                  )}
+                            </option>
+                            {values.overseerrRadarrServerId &&
+                              overseerrServerOptions.radarrServerOptions[
+                                values.overseerrRadarrServerId
+                              ]?.profiles.map((profile) => (
+                                <option key={profile.id} value={profile.id}>
+                                  {profile.name}
+                                </option>
+                              ))}
+                          </Field>
+                        </div>
+                      </div>
+
+                      {/* Radarr Root Folder Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrRadarrRootFolder
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrRadarrRootFolder"
+                            disabled={
+                              overseerrLoading ||
+                              !values.overseerrRadarrServerId
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrRadarrServerId
+                                ? intl.formatMessage(messages.selectRootFolder)
+                                : intl.formatMessage(
+                                    messages.selectServerFirst
+                                  )}
+                            </option>
+                            {values.overseerrRadarrServerId &&
+                              overseerrServerOptions.radarrServerOptions[
+                                values.overseerrRadarrServerId
+                              ]?.rootFolders.map((folder) => (
+                                <option key={folder.id} value={folder.path}>
+                                  {folder.path}
+                                </option>
+                              ))}
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sonarr Server Configuration - only show if TV processing is enabled */}
+                  {values.searchMissingTV && shouldShowTvSettings() && (
+                    <div className="rounded-md border border-gray-700 p-4">
+                      {/* Sonarr Server Selection - only show if 2+ servers */}
+                      {overseerrServerOptions.servers.sonarr.length > 1 && (
+                        <div>
+                          <div className="mb-2 text-sm font-medium text-gray-300">
+                            {intl.formatMessage(
+                              messages.selectOverseerrSonarrServer
+                            )}
+                          </div>
+                          <div className="form-input-field">
+                            <Field
+                              as="select"
+                              name="overseerrSonarrServerId"
+                              disabled={overseerrLoading}
+                              onChange={(
+                                e: React.ChangeEvent<HTMLSelectElement>
+                              ) => {
+                                const serverId = e.target.value
+                                  ? Number(e.target.value)
+                                  : undefined;
+                                setFieldValue?.(
+                                  'overseerrSonarrServerId',
+                                  serverId
+                                );
+                                // Clear profile and root folder when server changes
+                                setFieldValue?.(
+                                  'overseerrSonarrProfileId',
+                                  undefined
+                                );
+                                setFieldValue?.(
+                                  'overseerrSonarrRootFolder',
+                                  undefined
+                                );
+                              }}
+                            >
+                              <option value="">
+                                {overseerrLoading
+                                  ? 'Loading...'
+                                  : intl.formatMessage(messages.selectServer)}
+                              </option>
+                              {overseerrServerOptions.servers.sonarr.map(
+                                (server) => (
+                                  <option key={server.id} value={server.id}>
+                                    {server.name}
+                                    {server.isDefault && ' (Default)'}
+                                  </option>
+                                )
+                              )}
+                            </Field>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sonarr Profile Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrSonarrProfile
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrSonarrProfileId"
+                            disabled={
+                              overseerrLoading ||
+                              !values.overseerrSonarrServerId
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrSonarrServerId
+                                ? intl.formatMessage(messages.selectProfile)
+                                : intl.formatMessage(
+                                    messages.selectServerFirst
+                                  )}
+                            </option>
+                            {values.overseerrSonarrServerId &&
+                              overseerrServerOptions.sonarrServerOptions[
+                                values.overseerrSonarrServerId
+                              ]?.profiles.map((profile) => (
+                                <option key={profile.id} value={profile.id}>
+                                  {profile.name}
+                                </option>
+                              ))}
+                          </Field>
+                        </div>
+                      </div>
+
+                      {/* Sonarr Root Folder Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrSonarrRootFolder
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrSonarrRootFolder"
+                            disabled={
+                              overseerrLoading ||
+                              !values.overseerrSonarrServerId
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrSonarrServerId
+                                ? intl.formatMessage(messages.selectRootFolder)
+                                : intl.formatMessage(
+                                    messages.selectServerFirst
+                                  )}
+                            </option>
+                            {values.overseerrSonarrServerId &&
+                              overseerrServerOptions.sonarrServerOptions[
+                                values.overseerrSonarrServerId
+                              ]?.rootFolders.map((folder) => (
+                                <option key={folder.id} value={folder.path}>
+                                  {folder.path}
+                                </option>
+                              ))}
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show message if no processing options are enabled */}
+                  {!values.searchMissingMovies && !values.searchMissingTV && (
+                    <div className="text-sm text-gray-400">
+                      Enable movie or TV processing above to configure server
+                      options.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

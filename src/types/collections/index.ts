@@ -289,8 +289,17 @@ export interface CollectionFormConfig {
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
+  readonly directDownloadRadarrRootFolder?: string; // Selected Radarr root folder path for movies
   readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
+  readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
+  // Overseerr request configuration (for downloadMode: 'overseerr')
+  readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
+  readonly overseerrRadarrProfileId?: number; // Override Radarr profile ID for Overseerr movie requests
+  readonly overseerrRadarrRootFolder?: string; // Override Radarr root folder path for Overseerr movie requests
+  readonly overseerrSonarrServerId?: number; // Override Sonarr server ID for Overseerr TV requests
+  readonly overseerrSonarrProfileId?: number; // Override Sonarr profile ID for Overseerr TV requests
+  readonly overseerrSonarrRootFolder?: string; // Override Sonarr root folder path for Overseerr TV requests
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDB custom list fields
@@ -436,8 +445,17 @@ export interface CollectionConfigCreateRequest {
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
+  readonly directDownloadRadarrRootFolder?: string;
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
+  readonly directDownloadSonarrRootFolder?: string;
+  // Overseerr request configuration (for downloadMode: 'overseerr')
+  readonly overseerrRadarrServerId?: number;
+  readonly overseerrRadarrProfileId?: number;
+  readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrSonarrServerId?: number;
+  readonly overseerrSonarrProfileId?: number;
+  readonly overseerrSonarrRootFolder?: string;
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomCollectionUrl?: string;
   readonly imdbCustomListUrl?: string;
@@ -534,8 +552,16 @@ export const toCollectionCreateRequest = (
     filterSettings: config.filterSettings,
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
     directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
+    directDownloadRadarrRootFolder: config.directDownloadRadarrRootFolder,
     directDownloadSonarrServerId: config.directDownloadSonarrServerId,
     directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
+    directDownloadSonarrRootFolder: config.directDownloadSonarrRootFolder,
+    overseerrRadarrServerId: config.overseerrRadarrServerId,
+    overseerrRadarrProfileId: config.overseerrRadarrProfileId,
+    overseerrRadarrRootFolder: config.overseerrRadarrRootFolder,
+    overseerrSonarrServerId: config.overseerrSonarrServerId,
+    overseerrSonarrProfileId: config.overseerrSonarrProfileId,
+    overseerrSonarrRootFolder: config.overseerrSonarrRootFolder,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
@@ -941,6 +967,12 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly overseerrRadarrServerId?: number;
+  readonly overseerrRadarrProfileId?: number;
+  readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrSonarrServerId?: number;
+  readonly overseerrSonarrProfileId?: number;
+  readonly overseerrSonarrRootFolder?: string;
 }
 
 /**

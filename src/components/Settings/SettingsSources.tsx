@@ -7,7 +7,6 @@ import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
   MDBListSettings,
   MyAnimeListSettings,
-  OverseerrSettings,
   TautulliSettings,
   TraktSettings,
 } from '@server/lib/settings';
@@ -22,23 +21,6 @@ import * as Yup from 'yup';
 const messages = defineMessages({
   sources: 'Sources',
   sourcesDescription: 'Configure sources for Collection generation.',
-  overseerrSettings: 'Overseerr Settings',
-  overseerrSettingsDescription:
-    'Configure connection to Overseerr to enable Collection creation based on Requests. Users Collections are hidden from all other users (except server owner) through the use of labels and restrictions',
-  overseerrHostname: 'Hostname or IP Address',
-  overseerrPort: 'Port',
-  overseerrApiKey: 'API Key',
-  overseerrApiKeyTip:
-    'Get your API key from Overseerr Settings > General > API Key',
-  overseerrUseSsl: 'Use SSL',
-  overseerrUrlBase: 'URL Base',
-  overseerrExternalUrl: 'External URL',
-  testOverseerrConnection: 'Test Connection',
-  overseerrConnectionSuccess: 'Connected to Overseerr successfully!',
-  overseerrConnectionFailure: 'Failed to connect to Overseerr',
-  toastOverseerrSettingsSuccess: 'Overseerr settings saved successfully!',
-  toastOverseerrSettingsFailure:
-    'Something went wrong while saving Overseerr settings.',
   tautulliSettings: 'Tautulli Settings',
   tautulliSettingsDescription:
     'Optionally configure the settings for your Tautulli server. Agregarr fetches watch history data for your Plex media from Tautulli.',
@@ -107,7 +89,6 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const [traktTestSuccess, setTraktTestSuccess] = useState(false);
   const [mdblistTestSuccess, setMdblistTestSuccess] = useState(false);
   const [myanimelistTestSuccess, setMyanimelistTestSuccess] = useState(false);
-  const [overseerrTestSuccess, setOverseerrTestSuccess] = useState(false);
   const [tautulliTestSuccess, setTautulliTestSuccess] = useState(false);
 
   // Store the values that were successfully tested to detect changes
@@ -115,15 +96,11 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const [testedMdblistValues, setTestedMdblistValues] = useState<string>('');
   const [testedMyanimelistValues, setTestedMyanimelistValues] =
     useState<string>('');
-  const [testedOverseerrValues, setTestedOverseerrValues] =
-    useState<string>('');
   const [testedTautulliValues, setTestedTautulliValues] = useState<string>('');
 
   // Check if we're in setup mode
   const isSetupMode = !!onComplete;
 
-  const { data: dataOverseerr, mutate: revalidateOverseerr } =
-    useSWR<OverseerrSettings>('/api/v1/settings/overseerr');
   const { data: dataTautulli, mutate: revalidateTautulli } =
     useSWR<TautulliSettings>('/api/v1/settings/tautulli');
   const { data: dataTrakt, mutate: revalidateTrakt } = useSWR<TraktSettings>(
@@ -144,46 +121,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   }, [dataMdblist?.apiKey]);
 
   useEffect(() => {
-    setOverseerrTestSuccess(false);
-  }, [dataOverseerr?.hostname, dataOverseerr?.port, dataOverseerr?.apiKey]);
-
-  useEffect(() => {
     setTautulliTestSuccess(false);
   }, [dataTautulli?.hostname, dataTautulli?.port, dataTautulli?.apiKey]);
 
   useEffect(() => {
     setMyanimelistTestSuccess(false);
   }, [dataMyanimelist?.apiKey]);
-
-  const OverseerrValidationSchema = Yup.object().shape({
-    overseerrHostname: Yup.string()
-      .nullable()
-      .matches(
-        /^(([a-z]|\d|_|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*)?([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])$/i,
-        intl.formatMessage(messages.validationHostnameRequired)
-      ),
-    overseerrPort: Yup.number().nullable(),
-    overseerrUrlBase: Yup.string()
-      .nullable()
-      .test(
-        'leading-slash',
-        intl.formatMessage(messages.validationUrlBaseLeadingSlash),
-        (value) => !value || value.startsWith('/')
-      )
-      .test(
-        'no-trailing-slash',
-        intl.formatMessage(messages.validationUrlBaseTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-    overseerrApiKey: Yup.string().nullable(),
-    overseerrExternalUrl: Yup.string()
-      .url(intl.formatMessage(messages.validationUrl))
-      .test(
-        'no-trailing-slash',
-        intl.formatMessage(messages.validationUrlTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-  });
 
   const TautulliValidationSchema = Yup.object().shape(
     {
@@ -572,318 +515,6 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                           (!mdblistTestSuccess ||
                             testedMdblistValues !==
                               (values.mdblistApiKey || '')))
-                      }
-                    >
-                      <ArrowDownOnSquareIcon />
-                      <span>
-                        {isSubmitting
-                          ? intl.formatMessage(messages.saving)
-                          : intl.formatMessage(messages.save)}
-                      </span>
-                    </Button>
-                  </span>
-                </div>
-              </div>
-            </form>
-          );
-        }}
-      </Formik>
-
-      {/* Overseerr Settings */}
-      <div className="section">
-        <div className="mt-10 mb-6">
-          <h3 className="heading">
-            {intl.formatMessage(messages.overseerrSettings)}
-          </h3>
-          <p className="description">
-            {intl.formatMessage(messages.overseerrSettingsDescription)}
-          </p>
-        </div>
-      </div>
-      <Formik
-        initialValues={{
-          overseerrHostname: dataOverseerr?.hostname,
-          overseerrPort: dataOverseerr?.port ?? 5055,
-          overseerrUseSsl: dataOverseerr?.useSsl ?? false,
-          overseerrUrlBase: dataOverseerr?.urlBase,
-          overseerrApiKey: dataOverseerr?.apiKey,
-          overseerrExternalUrl: dataOverseerr?.externalUrl,
-        }}
-        validationSchema={OverseerrValidationSchema}
-        enableReinitialize
-        onSubmit={async (values) => {
-          try {
-            await axios.post('/api/v1/settings/overseerr', {
-              hostname: values.overseerrHostname,
-              port: Number(values.overseerrPort),
-              apiKey: values.overseerrApiKey,
-              useSsl: values.overseerrUseSsl,
-              urlBase: values.overseerrUrlBase,
-              externalUrl: values.overseerrExternalUrl,
-            });
-            addToast(
-              intl.formatMessage(messages.toastOverseerrSettingsSuccess),
-              {
-                appearance: 'success',
-                autoDismiss: true,
-              }
-            );
-          } catch (e) {
-            addToast(
-              intl.formatMessage(messages.toastOverseerrSettingsFailure),
-              {
-                appearance: 'error',
-                autoDismiss: true,
-              }
-            );
-          } finally {
-            revalidateOverseerr();
-          }
-        }}
-      >
-        {({
-          errors,
-          touched,
-          values,
-          handleSubmit,
-          setFieldValue,
-          isSubmitting,
-          isValid,
-        }) => {
-          const testConnection = async () => {
-            if (
-              !values.overseerrHostname ||
-              !values.overseerrPort ||
-              !values.overseerrApiKey
-            ) {
-              return;
-            }
-            try {
-              setIsTesting(true);
-              const response = await axios.post('/api/v1/overseerr/test', {
-                hostname: values.overseerrHostname,
-                port: Number(values.overseerrPort),
-                apiKey: values.overseerrApiKey,
-                useSsl: values.overseerrUseSsl,
-                urlBase: values.overseerrUrlBase,
-              });
-              if (response.data.success) {
-                setOverseerrTestSuccess(true);
-                setTestedOverseerrValues(
-                  `${values.overseerrHostname}:${values.overseerrPort}:${values.overseerrApiKey}:${values.overseerrUseSsl}:${values.overseerrUrlBase}`
-                );
-
-                // Show success message for connection
-                addToast(
-                  intl.formatMessage(messages.overseerrConnectionSuccess),
-                  {
-                    autoDismiss: true,
-                    appearance: 'success',
-                  }
-                );
-
-                // Show additional info about template data if available
-                if (response.data.templateDataMessage) {
-                  addToast(response.data.templateDataMessage, {
-                    autoDismiss: true,
-                    appearance: response.data.templateDataSuccess
-                      ? 'success'
-                      : 'warning',
-                  });
-                }
-              } else {
-                setOverseerrTestSuccess(false);
-                addToast(
-                  intl.formatMessage(messages.overseerrConnectionFailure),
-                  {
-                    autoDismiss: true,
-                    appearance: 'error',
-                  }
-                );
-              }
-            } catch (e) {
-              setOverseerrTestSuccess(false);
-
-              // Use server's detailed error message if available
-              let errorMessage =
-                e.response?.data?.message ||
-                intl.formatMessage(messages.overseerrConnectionFailure);
-
-              // If no server message, provide client-side diagnostics
-              if (!e.response?.data?.message) {
-                if (e.code === 'ECONNREFUSED') {
-                  errorMessage +=
-                    ' - Connection refused. Check hostname and port.';
-                } else if (e.code === 'ENOTFOUND') {
-                  errorMessage += ' - Host not found. Check hostname.';
-                } else if (e.code === 'ETIMEDOUT') {
-                  errorMessage +=
-                    ' - Connection timeout. Check network connectivity.';
-                } else if (e.message) {
-                  errorMessage += ` - ${e.message}`;
-                }
-              }
-
-              addToast(errorMessage, {
-                autoDismiss: true,
-                appearance: 'error',
-              });
-            } finally {
-              setIsTesting(false);
-            }
-          };
-
-          return (
-            <form className="section" onSubmit={handleSubmit}>
-              <div className="form-row">
-                <label htmlFor="overseerrHostname" className="text-label">
-                  {intl.formatMessage(messages.overseerrHostname)}
-                  <span className="label-required">*</span>
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-stone-800 px-3 text-gray-100 sm:text-sm">
-                      {values.overseerrUseSsl ? 'https://' : 'http://'}
-                    </span>
-                    <Field
-                      type="text"
-                      inputMode="url"
-                      id="overseerrHostname"
-                      name="overseerrHostname"
-                      className="rounded-r-only flex-1"
-                    />
-                  </div>
-                  {errors.overseerrHostname && touched.overseerrHostname && (
-                    <div className="error">{errors.overseerrHostname}</div>
-                  )}
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="overseerrPort" className="text-label">
-                  {intl.formatMessage(messages.overseerrPort)}
-                  <span className="label-required">*</span>
-                </label>
-                <div className="form-input-area">
-                  <Field
-                    type="text"
-                    inputMode="numeric"
-                    id="overseerrPort"
-                    name="overseerrPort"
-                    placeholder="5055"
-                    className="short"
-                  />
-                  {errors.overseerrPort && touched.overseerrPort && (
-                    <div className="error">{errors.overseerrPort}</div>
-                  )}
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="overseerrUseSsl" className="checkbox-label">
-                  {intl.formatMessage(messages.overseerrUseSsl)}
-                </label>
-                <div className="form-input-area">
-                  <Field
-                    type="checkbox"
-                    id="overseerrUseSsl"
-                    name="overseerrUseSsl"
-                    onChange={() => {
-                      setFieldValue('overseerrUseSsl', !values.overseerrUseSsl);
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="overseerrUrlBase" className="text-label">
-                  {intl.formatMessage(messages.overseerrUrlBase)}
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <Field
-                      type="text"
-                      inputMode="url"
-                      id="overseerrUrlBase"
-                      name="overseerrUrlBase"
-                      autoComplete="off"
-                      data-1pignore="true"
-                      data-lpignore="true"
-                      data-bwignore="true"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="overseerrApiKey" className="text-label">
-                  {intl.formatMessage(messages.overseerrApiKey)}
-                  <span className="label-required">*</span>
-                  <span className="label-tip">
-                    {intl.formatMessage(messages.overseerrApiKeyTip)}
-                  </span>
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <SensitiveInput
-                      as="field"
-                      id="overseerrApiKey"
-                      name="overseerrApiKey"
-                      type="text"
-                      placeholder="Your Overseerr API Key"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="form-row">
-                <label htmlFor="overseerrExternalUrl" className="text-label">
-                  {intl.formatMessage(messages.overseerrExternalUrl)}
-                </label>
-                <div className="form-input-area">
-                  <div className="form-input-field">
-                    <Field
-                      type="text"
-                      inputMode="url"
-                      id="overseerrExternalUrl"
-                      name="overseerrExternalUrl"
-                      autoComplete="off"
-                      data-1pignore="true"
-                      data-lpignore="true"
-                      data-bwignore="true"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="actions">
-                <div className="flex justify-end">
-                  <span className="ml-3 inline-flex rounded-md shadow-sm">
-                    <Button
-                      buttonType="default"
-                      type="button"
-                      disabled={
-                        !values.overseerrHostname ||
-                        !values.overseerrPort ||
-                        !values.overseerrApiKey ||
-                        isTesting
-                      }
-                      onClick={(e) => {
-                        e.preventDefault();
-                        testConnection();
-                      }}
-                    >
-                      {isTesting
-                        ? intl.formatMessage(messages.testing)
-                        : intl.formatMessage(messages.testOverseerrConnection)}
-                    </Button>
-                  </span>
-                  <span className="ml-3 inline-flex rounded-md shadow-sm">
-                    <Button
-                      buttonType="primary"
-                      type="submit"
-                      disabled={
-                        isSubmitting ||
-                        !isValid ||
-                        (isSetupMode &&
-                          !!values.overseerrApiKey &&
-                          (!overseerrTestSuccess ||
-                            testedOverseerrValues !==
-                              `${values.overseerrHostname}:${values.overseerrPort}:${values.overseerrApiKey}:${values.overseerrUseSsl}:${values.overseerrUrlBase}`))
                       }
                     >
                       <ArrowDownOnSquareIcon />
@@ -1379,6 +1010,34 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
           );
         }}
       </Formik>
+
+      {/* Helper info for Downloads page */}
+      <div className="section mt-10">
+        <Alert
+          title={
+            isSetupMode
+              ? 'Overseerr, Radarr, and Sonarr are configured on the next page'
+              : 'Overseerr, Radarr, and Sonarr are configured on the Downloads page'
+          }
+          type="info"
+        >
+          {isSetupMode ? (
+            <>
+              To use Overseerr Requests as a collection source, Radarr/Sonarr
+              tags and &ldquo;Coming Soon&rdquo; collections, or to enable
+              automatic downloading of missing items, configure these services
+              on the <strong>Downloads</strong> page (next step in setup).
+            </>
+          ) : (
+            <>
+              To use Overseerr Requests as a collection source, Radarr/Sonarr
+              tags and &ldquo;Coming Soon&rdquo; collections, or to enable
+              automatic downloading of missing items, configure these services
+              on the <strong>Settings → Downloads</strong> page.
+            </>
+          )}
+        </Alert>
+      </div>
     </>
   );
 };

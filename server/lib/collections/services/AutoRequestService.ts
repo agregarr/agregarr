@@ -252,12 +252,30 @@ export class AutoRequestService {
           const userIdToUse =
             serviceUserToUse.externalOverseerrId || serviceUserToUse.id;
 
+          // Determine server/profile/root folder based on media type and config overrides
+          let serverId: number | undefined;
+          let profileId: number | undefined;
+          let rootFolder: string | undefined;
+
+          if (item.mediaType === 'movie') {
+            serverId = config.overseerrRadarrServerId;
+            profileId = config.overseerrRadarrProfileId;
+            rootFolder = config.overseerrRadarrRootFolder;
+          } else if (item.mediaType === 'tv') {
+            serverId = config.overseerrSonarrServerId;
+            profileId = config.overseerrSonarrProfileId;
+            rootFolder = config.overseerrSonarrRootFolder;
+          }
+
           await overseerrAPI.createRequest({
             mediaId: item.tmdbId,
             mediaType: item.mediaType,
             seasons,
             is4k: false,
             userId: userIdToUse,
+            serverId,
+            profileId,
+            rootFolder,
           });
 
           // Fetch poster from TMDB

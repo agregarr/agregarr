@@ -167,6 +167,12 @@ export const linkCollectionConfig = async (
               masterConfig.directDownloadSonarrProfileId,
             directDownloadSonarrRootFolder:
               masterConfig.directDownloadSonarrRootFolder,
+            overseerrRadarrServerId: masterConfig.overseerrRadarrServerId,
+            overseerrRadarrProfileId: masterConfig.overseerrRadarrProfileId,
+            overseerrRadarrRootFolder: masterConfig.overseerrRadarrRootFolder,
+            overseerrSonarrServerId: masterConfig.overseerrSonarrServerId,
+            overseerrSonarrProfileId: masterConfig.overseerrSonarrProfileId,
+            overseerrSonarrRootFolder: masterConfig.overseerrSonarrRootFolder,
             searchMissingMovies: masterConfig.searchMissingMovies,
             searchMissingTV: masterConfig.searchMissingTV,
             autoApproveMovies: masterConfig.autoApproveMovies,

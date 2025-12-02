@@ -142,6 +142,13 @@ export interface CollectionConfig {
   readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
+  // Overseerr request configuration (for downloadMode: 'overseerr')
+  readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
+  readonly overseerrRadarrProfileId?: number; // Override Radarr profile ID for Overseerr movie requests
+  readonly overseerrRadarrRootFolder?: string; // Override Radarr root folder path for Overseerr movie requests
+  readonly overseerrSonarrServerId?: number; // Override Sonarr server ID for Overseerr TV requests
+  readonly overseerrSonarrProfileId?: number; // Override Sonarr profile ID for Overseerr TV requests
+  readonly overseerrSonarrRootFolder?: string; // Override Sonarr root folder path for Overseerr TV requests
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
   // IMDb custom list fields
@@ -391,6 +398,14 @@ export interface OverseerrSettings {
   urlBase?: string;
   apiKey?: string;
   externalUrl?: string;
+  // Movie defaults (Radarr)
+  radarrServerId?: number;
+  radarrProfileId?: number;
+  radarrRootFolder?: string;
+  // TV defaults (Sonarr)
+  sonarrServerId?: number;
+  sonarrProfileId?: number;
+  sonarrRootFolder?: string;
 }
 
 export interface ServiceUserSettings {
@@ -1936,6 +1951,12 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly overseerrRadarrServerId?: number;
+  readonly overseerrRadarrProfileId?: number;
+  readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrSonarrServerId?: number;
+  readonly overseerrSonarrProfileId?: number;
+  readonly overseerrSonarrRootFolder?: string;
   readonly collectionRatingKey?: string; // Plex collection rating key (regular or smart collection)
   readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   // Smart collection settings (unwatched filter feature)

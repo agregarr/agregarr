@@ -1,5 +1,3 @@
-import RadarrLogo from '@app/assets/services/radarr.svg';
-import SonarrLogo from '@app/assets/services/sonarr.svg';
 import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
@@ -7,7 +5,7 @@ import FolderBrowser from '@app/components/Common/FolderBrowser';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
-import SensitiveInput from '@app/components/Common/SensitiveInput';
+import OverseerrModal from '@app/components/Settings/OverseerrModal';
 import RadarrModal from '@app/components/Settings/RadarrModal';
 import SonarrModal from '@app/components/Settings/SonarrModal';
 import globalMessages from '@app/i18n/globalMessages';
@@ -18,7 +16,6 @@ import type {
   MainSettings,
   OverseerrSettings,
   RadarrSettings,
-  ServiceUserSettings,
   SonarrSettings,
 } from '@server/lib/settings';
 import axios from 'axios';
@@ -27,7 +24,6 @@ import { Fragment, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR, { mutate } from 'swr';
-import * as Yup from 'yup';
 
 const messages = defineMessages({
   downloads: 'Downloads',
@@ -44,6 +40,7 @@ const messages = defineMessages({
   is4k: '4K',
   address: 'Address',
   activeProfile: 'Active Profile',
+  addoverseerr: 'Add Overseerr Connection',
   addradarr: 'Add Radarr Server',
   addsonarr: 'Add Sonarr Server',
   noDefaultServer:
@@ -66,6 +63,12 @@ const messages = defineMessages({
   overseerrUseSsl: 'Use SSL',
   overseerrUrlBase: 'URL Base',
   overseerrExternalUrl: 'External URL',
+  overseerrServerId: 'Default Server',
+  overseerrServerIdTip: 'Default Radarr/Sonarr server for requests',
+  overseerrProfileId: 'Default Quality Profile',
+  overseerrProfileIdTip: 'Default quality profile for requests',
+  overseerrRootFolder: 'Default Root Folder',
+  overseerrRootFolderTip: 'Default root folder for requests',
   testOverseerrConnection: 'Test Connection',
   overseerrConnectionSuccess: 'Connected to Overseerr successfully!',
   overseerrConnectionFailure: 'Failed to connect to Overseerr',
@@ -111,8 +114,8 @@ interface ServerInstanceProps {
   port: number;
   isSSL?: boolean;
   externalUrl?: string;
-  profileName: string;
   isSonarr?: boolean;
+  isOverseerr?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
@@ -121,11 +124,11 @@ const ServerInstance = ({
   name,
   hostname,
   port,
-  profileName,
   is4k = false,
   isDefault = false,
   isSSL = false,
   isSonarr = false,
+  isOverseerr = false,
   externalUrl,
   onEdit,
   onDelete,
@@ -185,12 +188,6 @@ const ServerInstance = ({
               {internalUrl}
             </a>
           </p>
-          <p className="mt-1 truncate text-sm leading-5 text-stone-300">
-            <span className="mr-2 font-bold">
-              {intl.formatMessage(messages.activeProfile)}
-            </span>
-            {profileName}
-          </p>
         </div>
         <a
           href={serviceUrl}
@@ -198,10 +195,24 @@ const ServerInstance = ({
           rel="noopener noreferrer"
           className="opacity-50 hover:opacity-100"
         >
-          {isSonarr ? (
-            <SonarrLogo className="h-10 w-10 flex-shrink-0" />
+          {isOverseerr ? (
+            <img
+              src="/services/overseerr.svg"
+              alt="Overseerr"
+              className="h-10 w-10 flex-shrink-0"
+            />
+          ) : isSonarr ? (
+            <img
+              src="/services/sonarr.svg"
+              alt="Sonarr"
+              className="h-10 w-10 flex-shrink-0"
+            />
           ) : (
-            <RadarrLogo className="h-10 w-10 flex-shrink-0" />
+            <img
+              src="/services/radarr.svg"
+              alt="Radarr"
+              className="h-10 w-10 flex-shrink-0"
+            />
           )}
         </a>
       </div>
@@ -238,11 +249,15 @@ interface SettingsDownloadsProps {
 const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const intl = useIntl();
   const { addToast } = useToasts();
-  const [isTesting, setIsTesting] = useState(false);
   const [folderBrowser, setFolderBrowser] = useState<{
     isOpen: boolean;
     type: 'movie' | 'tv' | null;
   }>({ isOpen: false, type: null });
+  const [editOverseerrModal, setEditOverseerrModal] = useState<{
+    open: boolean;
+  }>({
+    open: false,
+  });
 
   const {
     data: radarrData,
@@ -284,9 +299,6 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const { data: dataOverseerr, mutate: revalidateOverseerr } =
     useSWR<OverseerrSettings>('/api/v1/settings/overseerr');
 
-  const { data: dataServiceUser, mutate: revalidateServiceUser } =
-    useSWR<ServiceUserSettings>('/api/v1/settings/serviceuser');
-
   const deleteServer = async () => {
     await axios.delete(
       `/api/v1/settings/${deleteServerModal.type}/${deleteServerModal.serverId}`
@@ -296,36 +308,6 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
     revalidateSonarr();
     mutate('/api/v1/settings/public');
   };
-
-  const OverseerrValidationSchema = Yup.object().shape({
-    overseerrHostname: Yup.string()
-      .nullable()
-      .matches(
-        /^(([a-z]|\d|_|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*)?([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])$/i,
-        intl.formatMessage(messages.validationHostnameRequired)
-      ),
-    overseerrPort: Yup.number().nullable(),
-    overseerrUrlBase: Yup.string()
-      .nullable()
-      .test(
-        'leading-slash',
-        intl.formatMessage(messages.validationUrlBaseLeadingSlash),
-        (value) => !value || value.startsWith('/')
-      )
-      .test(
-        'no-trailing-slash',
-        intl.formatMessage(messages.validationUrlBaseTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-    overseerrApiKey: Yup.string().nullable(),
-    overseerrExternalUrl: Yup.string()
-      .url(intl.formatMessage(messages.validationUrl))
-      .test(
-        'no-trailing-slash',
-        intl.formatMessage(messages.validationUrlTrailingSlash),
-        (value) => !value || !value.endsWith('/')
-      ),
-  });
 
   return (
     <>
@@ -404,287 +386,58 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
         </Modal>
       </Transition>
 
+      {/* Modals */}
+      {editOverseerrModal.open && (
+        <OverseerrModal
+          overseerr={dataOverseerr || null}
+          onClose={() => setEditOverseerrModal({ open: false })}
+          onSave={() => {
+            revalidateOverseerr();
+            mutate('/api/v1/settings/public');
+            setEditOverseerrModal({ open: false });
+          }}
+        />
+      )}
+
       {/* Overseerr Settings */}
+      <div className="mb-6">
+        <h3 className="heading">
+          {intl.formatMessage(messages.overseerrSettings)}
+        </h3>
+        <p className="description">
+          {intl.formatMessage(messages.overseerrSettingsDescription)}
+        </p>
+      </div>
       <div className="section">
-        <div className="mb-6">
-          <h3 className="heading">
-            {intl.formatMessage(messages.overseerrSettings)}
-          </h3>
-          <p className="description">
-            {intl.formatMessage(messages.overseerrSettingsDescription)}
-          </p>
-        </div>
-        <Formik
-          initialValues={{
-            overseerrHostname: dataOverseerr?.hostname,
-            overseerrPort: dataOverseerr?.port ?? 5055,
-            overseerrUseSsl: dataOverseerr?.useSsl,
-            overseerrUrlBase: dataOverseerr?.urlBase,
-            overseerrApiKey: dataOverseerr?.apiKey,
-            overseerrExternalUrl: dataOverseerr?.externalUrl,
-            userCreationMode:
-              dataServiceUser?.userCreationMode || 'per-service',
-          }}
-          enableReinitialize
-          validationSchema={OverseerrValidationSchema}
-          onSubmit={async (values) => {
-            try {
-              // Save Overseerr settings
-              await axios.post('/api/v1/settings/overseerr', {
-                hostname: values.overseerrHostname,
-                port: Number(values.overseerrPort),
-                apiKey: values.overseerrApiKey,
-                useSsl: values.overseerrUseSsl,
-                urlBase: values.overseerrUrlBase,
-                externalUrl: values.overseerrExternalUrl,
-              });
-
-              // Save Service User settings
-              await axios.post('/api/v1/settings/serviceuser', {
-                userCreationMode: values.userCreationMode,
-              });
-
-              addToast(
-                intl.formatMessage(messages.toastOverseerrSettingsSuccess),
-                {
-                  appearance: 'success',
-                  autoDismiss: true,
-                }
-              );
-            } catch (e) {
-              addToast(
-                intl.formatMessage(messages.toastOverseerrSettingsFailure),
-                {
-                  appearance: 'error',
-                  autoDismiss: true,
-                }
-              );
-            } finally {
-              revalidateOverseerr();
-              revalidateServiceUser();
-            }
-          }}
-        >
-          {({
-            errors,
-            touched,
-            values,
-            handleSubmit,
-            setFieldValue,
-            isSubmitting,
-            isValid,
-          }) => {
-            const testConnection = async () => {
-              if (
-                !values.overseerrHostname ||
-                !values.overseerrPort ||
-                !values.overseerrApiKey
-              ) {
-                return;
-              }
-              try {
-                setIsTesting(true);
-                await axios.post('/api/v1/overseerr/test', {
-                  hostname: values.overseerrHostname,
-                  port: Number(values.overseerrPort),
-                  apiKey: values.overseerrApiKey,
-                  useSsl: values.overseerrUseSsl,
-                  urlBase: values.overseerrUrlBase,
-                });
-                addToast(
-                  intl.formatMessage(messages.overseerrConnectionSuccess),
-                  {
-                    appearance: 'success',
-                    autoDismiss: true,
-                  }
-                );
-              } catch (e) {
-                // Use server's detailed error message if available
-                const errorMessage =
-                  e.response?.data?.message ||
-                  intl.formatMessage(messages.overseerrConnectionFailure);
-
-                addToast(errorMessage, {
-                  appearance: 'error',
-                  autoDismiss: true,
-                });
-              } finally {
-                setIsTesting(false);
-              }
-            };
-
-            return (
-              <form className="section" onSubmit={handleSubmit}>
-                <div className="form-row">
-                  <label htmlFor="overseerrHostname" className="text-label">
-                    {intl.formatMessage(messages.overseerrHostname)}
-                    <span className="label-required">*</span>
-                  </label>
-                  <div className="form-input-area">
-                    <div className="form-input-field">
-                      <Field
-                        id="overseerrHostname"
-                        name="overseerrHostname"
-                        type="text"
-                      />
-                    </div>
-                    {errors.overseerrHostname && touched.overseerrHostname && (
-                      <div className="error">{errors.overseerrHostname}</div>
-                    )}
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="overseerrPort" className="text-label">
-                    {intl.formatMessage(messages.overseerrPort)}
-                    <span className="label-required">*</span>
-                  </label>
-                  <div className="form-input-area">
-                    <div className="form-input-field">
-                      <Field
-                        id="overseerrPort"
-                        name="overseerrPort"
-                        type="text"
-                      />
-                    </div>
-                    {errors.overseerrPort && touched.overseerrPort && (
-                      <div className="error">{errors.overseerrPort}</div>
-                    )}
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="overseerrUseSsl" className="checkbox-label">
-                    {intl.formatMessage(messages.overseerrUseSsl)}
-                  </label>
-                  <div className="form-input-area">
-                    <Field
-                      type="checkbox"
-                      id="overseerrUseSsl"
-                      name="overseerrUseSsl"
-                      onChange={() => {
-                        setFieldValue(
-                          'overseerrUseSsl',
-                          !values.overseerrUseSsl
-                        );
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="overseerrUrlBase" className="text-label">
-                    {intl.formatMessage(messages.overseerrUrlBase)}
-                  </label>
-                  <div className="form-input-area">
-                    <div className="form-input-field">
-                      <Field
-                        id="overseerrUrlBase"
-                        name="overseerrUrlBase"
-                        type="text"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="overseerrApiKey" className="text-label">
-                    {intl.formatMessage(messages.overseerrApiKey)}
-                    <span className="label-required">*</span>
-                    <span className="label-tip">
-                      {intl.formatMessage(messages.overseerrApiKeyTip)}
-                    </span>
-                  </label>
-                  <div className="form-input-area">
-                    <div className="form-input-field">
-                      <SensitiveInput
-                        as="field"
-                        id="overseerrApiKey"
-                        name="overseerrApiKey"
-                        autoComplete="one-time-code"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="form-row">
-                  <label htmlFor="overseerrExternalUrl" className="text-label">
-                    {intl.formatMessage(messages.overseerrExternalUrl)}
-                  </label>
-                  <div className="form-input-area">
-                    <div className="form-input-field">
-                      <Field
-                        id="overseerrExternalUrl"
-                        name="overseerrExternalUrl"
-                        type="text"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service User Settings integrated here */}
-                <div className="form-row">
-                  <label className="text-label">
-                    {intl.formatMessage(messages.granularUsers)}
-                  </label>
-                  <div className="form-input-area">
-                    <div className="max-w-lg">
-                      <Field
-                        as="select"
-                        name="userCreationMode"
-                        className="form-input-field"
-                      >
-                        <option value="single">Single user (Agregarr)</option>
-                        <option value="per-service">
-                          Per service (TraktAgregarr, TMDbAgregarr)
-                        </option>
-                        <option value="granular">
-                          Granular (TraktTrendingAgregarr, TMDbPopularAgregarr)
-                        </option>
-                      </Field>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="actions">
-                  <div className="flex justify-end">
-                    <span className="ml-3 inline-flex rounded-md shadow-sm">
-                      <Button
-                        buttonType="default"
-                        type="button"
-                        disabled={
-                          !values.overseerrHostname ||
-                          !values.overseerrPort ||
-                          !values.overseerrApiKey ||
-                          isTesting
-                        }
-                        onClick={(e) => {
-                          e.preventDefault();
-                          testConnection();
-                        }}
-                      >
-                        {isTesting
-                          ? intl.formatMessage(messages.testing)
-                          : intl.formatMessage(
-                              messages.testOverseerrConnection
-                            )}
-                      </Button>
-                    </span>
-                    <span className="ml-3 inline-flex rounded-md shadow-sm">
-                      <Button
-                        buttonType="primary"
-                        type="submit"
-                        disabled={isSubmitting || !isValid}
-                      >
-                        <ArrowDownOnSquareIcon />
-                        <span>
-                          {isSubmitting
-                            ? intl.formatMessage(messages.saving)
-                            : intl.formatMessage(messages.save)}
-                        </span>
-                      </Button>
-                    </span>
-                  </div>
-                </div>
-              </form>
-            );
-          }}
-        </Formik>
+        <ul className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+          {dataOverseerr?.hostname ? (
+            <ServerInstance
+              key="overseerr-config"
+              name="Overseerr"
+              hostname={dataOverseerr.hostname}
+              port={dataOverseerr.port || 5055}
+              isOverseerr={true}
+              externalUrl={dataOverseerr.externalUrl}
+              onEdit={() => setEditOverseerrModal({ open: true })}
+              onDelete={() => {
+                // We can't actually delete Overseerr, just clear the settings
+                // For now, disable the delete button by not providing the handler
+              }}
+            />
+          ) : (
+            <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
+              <div className="flex h-full w-full items-center justify-center">
+                <Button
+                  buttonType="ghost"
+                  onClick={() => setEditOverseerrModal({ open: true })}
+                >
+                  <PlusIcon />
+                  <span>{intl.formatMessage(messages.addoverseerr)}</span>
+                </Button>
+              </div>
+            </li>
+          )}
+        </ul>
       </div>
 
       {/* Radarr Settings */}
@@ -743,7 +496,6 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   name={radarr.name || `${radarr.hostname}:${radarr.port}`}
                   hostname={radarr.hostname}
                   port={radarr.port}
-                  profileName={radarr.activeProfileName}
                   isSSL={radarr.useSsl}
                   isDefault={radarr.isDefault}
                   is4k={radarr.is4k}
@@ -758,7 +510,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   }
                 />
               ))}
-              <li className="col-span-1 h-32 rounded-lg border-2 border-dashed border-stone-400 shadow sm:h-44">
+              <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
                 <div className="flex h-full w-full items-center justify-center">
                   <Button
                     buttonType="ghost"
@@ -832,7 +584,6 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   name={sonarr.name || `${sonarr.hostname}:${sonarr.port}`}
                   hostname={sonarr.hostname}
                   port={sonarr.port}
-                  profileName={sonarr.activeProfileName}
                   isSSL={sonarr.useSsl}
                   isDefault={sonarr.isDefault}
                   is4k={sonarr.is4k}
@@ -848,7 +599,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   }
                 />
               ))}
-              <li className="col-span-1 h-32 rounded-lg border-2 border-dashed border-stone-400 shadow sm:h-44">
+              <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
                 <div className="flex h-full w-full items-center justify-center">
                   <Button
                     buttonType="ghost"

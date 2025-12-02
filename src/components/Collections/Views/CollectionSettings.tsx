@@ -339,6 +339,24 @@ const CollectionSettings = ({
             directDownloadSonarrRootFolder:
               config.directDownloadSonarrRootFolder,
           }),
+          ...(config.overseerrRadarrServerId !== undefined && {
+            overseerrRadarrServerId: config.overseerrRadarrServerId,
+          }),
+          ...(config.overseerrRadarrProfileId !== undefined && {
+            overseerrRadarrProfileId: config.overseerrRadarrProfileId,
+          }),
+          ...(config.overseerrRadarrRootFolder !== undefined && {
+            overseerrRadarrRootFolder: config.overseerrRadarrRootFolder,
+          }),
+          ...(config.overseerrSonarrServerId !== undefined && {
+            overseerrSonarrServerId: config.overseerrSonarrServerId,
+          }),
+          ...(config.overseerrSonarrProfileId !== undefined && {
+            overseerrSonarrProfileId: config.overseerrSonarrProfileId,
+          }),
+          ...(config.overseerrSonarrRootFolder !== undefined && {
+            overseerrSonarrRootFolder: config.overseerrSonarrRootFolder,
+          }),
           isLinked: config.isLinked,
           linkId: config.linkId,
           isUnlinked: config.isUnlinked,

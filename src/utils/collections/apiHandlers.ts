@@ -166,6 +166,24 @@ export const saveIndividualConfigs = async (
           directDownloadSonarrRootFolder:
             collectionConfig.directDownloadSonarrRootFolder,
         }),
+        ...(collectionConfig.overseerrRadarrServerId !== undefined && {
+          overseerrRadarrServerId: collectionConfig.overseerrRadarrServerId,
+        }),
+        ...(collectionConfig.overseerrRadarrProfileId !== undefined && {
+          overseerrRadarrProfileId: collectionConfig.overseerrRadarrProfileId,
+        }),
+        ...(collectionConfig.overseerrRadarrRootFolder !== undefined && {
+          overseerrRadarrRootFolder: collectionConfig.overseerrRadarrRootFolder,
+        }),
+        ...(collectionConfig.overseerrSonarrServerId !== undefined && {
+          overseerrSonarrServerId: collectionConfig.overseerrSonarrServerId,
+        }),
+        ...(collectionConfig.overseerrSonarrProfileId !== undefined && {
+          overseerrSonarrProfileId: collectionConfig.overseerrSonarrProfileId,
+        }),
+        ...(collectionConfig.overseerrSonarrRootFolder !== undefined && {
+          overseerrSonarrRootFolder: collectionConfig.overseerrSonarrRootFolder,
+        }),
         ...(collectionConfig.isMultiSource !== undefined && {
           isMultiSource: collectionConfig.isMultiSource,
         }),

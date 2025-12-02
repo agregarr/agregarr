@@ -1617,6 +1617,9 @@ collectionsPreviewRoutes.post(
           mediaType,
           mediaId: tmdbId,
           ...(mediaType === 'tv' && { seasons: seasons || 'all' }), // TV shows need seasons
+          ...(serverId !== undefined && { serverId }),
+          ...(profileId !== undefined && { profileId }),
+          ...(rootFolder !== undefined && { rootFolder }),
         });
 
         logger.info('Overseerr request created successfully', {
