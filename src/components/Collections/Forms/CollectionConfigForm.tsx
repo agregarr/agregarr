@@ -12,6 +12,7 @@ import type {
 } from '@app/types/collections';
 import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
 import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
 import { useMemo, useState } from 'react';
@@ -49,6 +50,14 @@ const messages = defineMessages({
   maxItems: 'Max Items',
   minimumPlays: 'Minimum Play Count',
   customPoster: 'Posters',
+  overlayConfigWarningTitle: 'No Overlay Templates Configured',
+  overlayConfigWarningMessage:
+    'You have enabled placeholder creation and overlay application, but no overlay templates are configured for {libraryNames}. Placeholders will be created without status overlays showing monitored status, release dates, etc.',
+  configureOverlays: 'Configure Overlays',
+  placeholderRootFoldersRequired: 'Placeholder Root Folders Required',
+  placeholderRootFoldersMessage:
+    'You have enabled placeholder creation, but no placeholder root folders are configured. Please configure at least one folder to enable this feature.',
+  configureDownloads: 'Configure Downloads',
   autoRequestSettings: 'Auto-Request Settings',
   timeRestrictions: 'Time Restrictions',
   createCollection: 'Create Collection',
@@ -77,6 +86,22 @@ const CollectionFormConfigForm = ({
 
   // Get current user data which includes Plex Pass status
   const { data: currentUser } = useSWR('/api/v1/auth/me');
+
+  // Fetch overlay library configs to check if overlays are configured
+  const { data: overlayConfigsResponse } = useSWR<{
+    configs: {
+      id: number;
+      libraryId: string;
+      libraryName: string;
+      mediaType: 'movie' | 'show';
+      enabledOverlays: {
+        templateId: number;
+        enabled: boolean;
+        layerOrder: number;
+      }[];
+    }[];
+  }>('/api/v1/overlay-library-configs');
+  const overlayConfigs = overlayConfigsResponse?.configs || [];
 
   // State for storing fetched titles and detected media types
   const [fetchedTitles, setFetchedTitles] = useState<{
@@ -2180,10 +2205,56 @@ const CollectionFormConfigForm = ({
                                     <p className="mt-1 text-xs text-gray-400">
                                       Creates placeholder files in Plex for
                                       items not yet available, with countdown
-                                      overlays showing release dates. Requires
-                                      placeholder root folders configured in
-                                      Settings &gt; Downloads.
+                                      overlays showing release dates.
                                     </p>
+
+                                    {/* Warning when placeholder creation enabled but no root folders configured */}
+                                    {typedValues.createPlaceholdersForMissing && (
+                                      <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
+                                        <div className="flex">
+                                          <div className="flex-shrink-0">
+                                            <svg
+                                              className="h-4 w-4 text-yellow-400"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              viewBox="0 0 20 20"
+                                              fill="currentColor"
+                                              aria-hidden="true"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          </div>
+                                          <div className="ml-2 flex-1">
+                                            <p className="text-xs font-medium text-yellow-300">
+                                              {intl.formatMessage(
+                                                messages.placeholderRootFoldersRequired
+                                              )}
+                                            </p>
+                                            <p className="mt-1 text-xs text-yellow-200">
+                                              {intl.formatMessage(
+                                                messages.placeholderRootFoldersMessage
+                                              )}
+                                            </p>
+                                            <div className="mt-2">
+                                              <a
+                                                href="/settings/downloads"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                              >
+                                                {intl.formatMessage(
+                                                  messages.configureDownloads
+                                                )}
+                                                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                              </a>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
 
                                     {/* Placeholder options - show when enabled */}
                                     {typedValues.createPlaceholdersForMissing && (
@@ -2235,6 +2306,97 @@ const CollectionFormConfigForm = ({
                                   </div>
                                 </div>
                               )}
+
+                            {/* Warning when placeholders + overlays enabled but no overlay configs exist */}
+                            {typedValues.createPlaceholdersForMissing &&
+                              (typedValues.applyOverlaysDuringSync ||
+                                typedValues.type === 'comingsoon') &&
+                              (() => {
+                                // Find libraries without overlay configurations
+                                const selectedLibraryIds =
+                                  typedValues.libraryIds || [];
+                                const librariesWithoutOverlays =
+                                  selectedLibraryIds.filter((libId) => {
+                                    const config = overlayConfigs.find(
+                                      (c) => c.libraryId === libId
+                                    );
+                                    return (
+                                      !config ||
+                                      config.enabledOverlays.filter(
+                                        (o) => o.enabled
+                                      ).length === 0
+                                    );
+                                  });
+
+                                if (librariesWithoutOverlays.length === 0) {
+                                  return null;
+                                }
+
+                                const libraryNames = librariesWithoutOverlays
+                                  .map((libId) => {
+                                    const lib = libraries?.find(
+                                      (l) => l.key === libId
+                                    );
+                                    return lib?.name || 'Unknown';
+                                  })
+                                  .join(', ');
+
+                                return (
+                                  <div className="form-row">
+                                    <div className="form-input-area">
+                                      <div className="rounded-md bg-orange-900 bg-opacity-30 p-4 ring-1 ring-orange-500">
+                                        <div className="flex">
+                                          <div className="flex-shrink-0">
+                                            <svg
+                                              className="h-5 w-5 text-orange-400"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              viewBox="0 0 20 20"
+                                              fill="currentColor"
+                                              aria-hidden="true"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          </div>
+                                          <div className="ml-3 flex-1">
+                                            <h3 className="text-sm font-medium text-orange-300">
+                                              {intl.formatMessage(
+                                                messages.overlayConfigWarningTitle
+                                              )}
+                                            </h3>
+                                            <div className="mt-2 text-sm text-orange-200">
+                                              <p>
+                                                {intl.formatMessage(
+                                                  messages.overlayConfigWarningMessage,
+                                                  {
+                                                    libraryNames,
+                                                  }
+                                                )}
+                                              </p>
+                                            </div>
+                                            <div className="mt-3">
+                                              <a
+                                                href="/settings/posters"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                              >
+                                                {intl.formatMessage(
+                                                  messages.configureOverlays
+                                                )}
+                                                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                              </a>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                             {/* Auto-Request Settings - only show for external sources */}
                             {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
