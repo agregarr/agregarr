@@ -1423,7 +1423,18 @@ async function processPreviewAsync(
     const missingItems = filteredResult.missingItems || [];
     const missingTmdbDataResults = await Promise.all(
       missingItems.map((item) =>
-        fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
+        // Skip TMDB fetch if tmdbId is 0 or missing (item couldn't be matched)
+        item.tmdbId && item.tmdbId > 0
+          ? fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
+          : Promise.resolve({
+              posterUrl: '',
+              backdropPath: undefined,
+              title: item.title,
+              year: undefined,
+              overview: undefined,
+              imdbId: undefined,
+              tmdbRating: undefined,
+            })
       )
     );
 
