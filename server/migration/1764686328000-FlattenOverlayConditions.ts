@@ -40,7 +40,7 @@ interface LegacyCondition {
  *
  * This migration converts ALL existing applicationCondition JSON in the database
  */
-export class FlattenOverlayConditions1733110913063
+export class FlattenOverlayConditions1764686328000
   implements MigrationInterface
 {
   /**
