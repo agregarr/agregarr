@@ -680,7 +680,8 @@ router.get('/:id/preview', async (req, res, next) => {
       episodeNumber: 1,
       isMonitored: true,
       downloaded: true, // Show "New Release" type overlays
-      itemType: 'real' as const,
+      isPlaceholder: false,
+      tmdbStatus: 'RETURNING SERIES',
     };
 
     // Render the overlay on the poster
@@ -828,7 +829,7 @@ router.post('/combined-preview', async (req, res, next) => {
       episodeNumber: 1,
       isMonitored: true,
       downloaded: true, // Show "New Release" type overlays
-      itemType: 'real' as const,
+      isPlaceholder: false,
     };
 
     // Apply each template in order

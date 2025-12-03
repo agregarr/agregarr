@@ -198,6 +198,7 @@ export interface OverlayRenderContext {
   network?: string; // For TV shows
   genre?: string;
   runtime?: number;
+  tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
 
   // Plex Media Info (from actual file analysis)
   resolution?: string; // '4K', '1080p', '720p'
@@ -237,7 +238,6 @@ export interface OverlayRenderContext {
   seasonNumber?: number;
   episodeNumber?: number;
   episodeLabel?: string; // "SERIES FINALE", "SEASON FINALE", or "EPISODE X"
-  category?: string; // Coming Soon category (for status variable)
   isMonitored?: boolean;
   inRadarr?: boolean;
   inSonarr?: boolean;
@@ -246,7 +246,7 @@ export interface OverlayRenderContext {
   isWatched?: boolean;
 
   // Item metadata
-  itemType: 'placeholder' | 'real';
+  isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
   mediaType: 'movie' | 'show';
 
   // Future extensibility

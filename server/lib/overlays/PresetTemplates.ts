@@ -2195,6 +2195,77 @@ export const PRESET_TEMPLATES: {
       ],
     },
   },
+
+  // ========================================
+  // TV SHOW STATUS
+  // ========================================
+
+  // TV Show Status - Top banner showing TMDB status
+  {
+    name: 'TV Show Status',
+    description:
+      'Top banner displaying TV show status (Returning Series, Ended, Cancelled, etc.) - TV shows only, for items already in library',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            { field: 'mediaType', operator: 'eq', value: 'show' },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isPlaceholder',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'status-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#1F2937',
+            fillOpacity: 85,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'status-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: -25.5,
+          width: 1000,
+          height: 146,
+          properties: {
+            segments: [{ type: 'variable', field: 'tmdbStatus' }],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
 ];
 
 /**

@@ -158,6 +158,7 @@ export interface OverlayRenderContext {
   network?: string; // For TV shows
   genre?: string;
   runtime?: number;
+  tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
 
   // Plex Media Info (from actual file analysis)
   resolution?: string; // '4K', '1080p', '720p'
@@ -197,7 +198,6 @@ export interface OverlayRenderContext {
   seasonNumber?: number;
   episodeNumber?: number;
   episodeLabel?: string; // "SERIES FINALE", "SEASON FINALE", or "EPISODE X"
-  category?: string; // Coming Soon category (for status variable)
   isMonitored?: boolean;
   inRadarr?: boolean;
   inSonarr?: boolean;
@@ -206,8 +206,8 @@ export interface OverlayRenderContext {
   isWatched?: boolean;
 
   // Item metadata
-  itemType?: 'placeholder' | 'real';
-  mediaType?: 'movie' | 'show';
+  isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
+  mediaType: 'movie' | 'show';
 
   // Legacy/Deprecated fields
   status?: string;
@@ -224,6 +224,7 @@ export const AVAILABLE_VARIABLES = {
   ratings: [
     { field: 'imdbRating', label: 'IMDb Rating', example: '8.7' },
     { field: 'imdbTop250Rank', label: 'IMDb Top 250 Rank', example: '42' },
+    { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
     { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
@@ -236,6 +237,11 @@ export const AVAILABLE_VARIABLES = {
     { field: 'network', label: 'Network (TV)', example: 'AMC' },
     { field: 'genre', label: 'Genre', example: 'Sci-Fi' },
     { field: 'runtime', label: 'Runtime (min)', example: '136' },
+    {
+      field: 'tmdbStatus',
+      label: 'TMDB Status (TV)',
+      example: 'RETURNING SERIES',
+    },
   ],
   video: [
     { field: 'resolution', label: 'Resolution', example: '4K' },
@@ -287,6 +293,11 @@ export const AVAILABLE_VARIABLES = {
     },
   ],
   status: [
+    {
+      field: 'isPlaceholder',
+      label: 'Is Placeholder (Coming Soon)',
+      example: 'true',
+    },
     { field: 'isMonitored', label: 'Is Monitored', example: 'true' },
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
@@ -309,6 +320,11 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'network', label: 'Network (TV)', example: 'AMC' },
     { field: 'genre', label: 'Genre', example: 'Sci-Fi' },
     { field: 'runtime', label: 'Runtime (min)', example: '136' },
+    {
+      field: 'tmdbStatus',
+      label: 'TMDB Status (TV)',
+      example: 'RETURNING SERIES',
+    },
     { field: 'releaseDate', label: 'Release Date', example: 'JAN 15' },
   ],
   'Plex Data': [
@@ -347,8 +363,12 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
   ],
   Status: [
-    { field: 'mediaType', label: 'Media Type', example: 'movie' },
-    { field: 'itemType', label: 'Item Type', example: 'placeholder' },
+    { field: 'mediaType', label: 'Media Type (movie/show)', example: 'movie' },
+    {
+      field: 'isPlaceholder',
+      label: 'Is Placeholder (Coming Soon)',
+      example: 'true',
+    },
     { field: 'daysUntilRelease', label: 'Days Until Release', example: '14' },
     {
       field: 'daysAgo',
@@ -443,7 +463,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isMonitored: true,
     inRadarr: true,
     downloaded: false,
-    itemType: 'placeholder',
+    isPlaceholder: true,
     mediaType: 'movie',
   },
   tv: {
@@ -460,6 +480,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     episodeLabel: 'SERIES FINALE',
     network: 'AMC',
     genre: 'Drama',
+    tmdbStatus: 'ENDED',
     resolution: '1080p',
     width: 1920,
     height: 1080,
@@ -480,7 +501,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isMonitored: true,
     inSonarr: true,
     downloaded: true,
-    itemType: 'real',
+    isPlaceholder: false,
     mediaType: 'show',
   },
 };

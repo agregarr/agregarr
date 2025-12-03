@@ -79,7 +79,10 @@ const NUMERIC_FIELDS = [
 
 // List of boolean fields
 const BOOLEAN_FIELDS = [
+  'isPlaceholder',
   'isMonitored',
+  'inRadarr',
+  'inSonarr',
   'downloaded',
   'hdr',
   'dolbyVision',

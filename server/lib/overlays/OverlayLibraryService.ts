@@ -511,7 +511,7 @@ class OverlayLibraryService {
 
       // Check if this is a Coming Soon placeholder first
       const comingSoonContext = await this.getComingSoonContext(item.ratingKey);
-      const isPlaceholder = comingSoonContext?.itemType === 'placeholder';
+      const isPlaceholder = comingSoonContext?.isPlaceholder ?? false;
 
       logger.debug('Retrieved Coming Soon context', {
         label: 'OverlayLibrary',
@@ -644,7 +644,7 @@ class OverlayLibraryService {
               daysAgo: context.daysAgo,
               mediaType: context.mediaType,
               seasonNumber: context.seasonNumber,
-              itemType: context.itemType,
+              isPlaceholder: context.isPlaceholder,
             },
           });
           continue;
@@ -747,8 +747,9 @@ class OverlayLibraryService {
     const context: OverlayRenderContext = {
       title: item.title,
       year: item.year,
-      itemType: isPlaceholder ? 'placeholder' : 'real',
+      isPlaceholder,
       mediaType,
+      downloaded: !isPlaceholder, // Real items in Plex are downloaded, placeholders are not
     };
 
     // Extract TMDb ID from GUID
@@ -891,6 +892,11 @@ class OverlayLibraryService {
           tmdbData.episode_run_time?.[0]
         ) {
           context.runtime = tmdbData.episode_run_time[0];
+        }
+
+        // TMDB Status (TV shows only)
+        if (mediaType === 'show' && 'status' in tmdbData) {
+          context.tmdbStatus = tmdbData.status.toUpperCase();
         }
       } catch (error) {
         logger.debug('Failed to fetch external metadata', {
@@ -1255,7 +1261,7 @@ class OverlayLibraryService {
         inSonarr,
         isMonitored,
         downloaded: false, // Placeholders are by definition not downloaded
-        itemType: 'placeholder',
+        isPlaceholder: true,
       };
     } catch (error) {
       // If ComingSoonItem table doesn't exist or query fails, just return undefined
