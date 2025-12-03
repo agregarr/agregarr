@@ -116,7 +116,10 @@ class OverlayApplication {
             `Applying overlays to library: ${config.libraryName}...`
           );
 
-          await overlayLibraryService.applyOverlaysToLibrary(config.libraryId);
+          await overlayLibraryService.applyOverlaysToLibrary(
+            config.libraryId,
+            () => this.cancelled
+          );
 
           processed++;
           this.updateProgress(processed, this.totalLibraries);

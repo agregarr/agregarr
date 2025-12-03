@@ -195,7 +195,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       }
 
       // Sort items by release date (closest first)
-      const sortedItems = this.sortByReleaseDate(items, sourceData);
+      const sortedItems = await this.sortByReleaseDate(items, sourceData);
 
       if (sortedItems.length === 0) {
         logger.warn('No items to create collection from after filtering', {
@@ -1021,31 +1021,28 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
   /**
    * Sort collection items by release date (closest first)
    * Items without release dates are placed at the end
+   * Uses pre-calculated releaseDate from TMDB enrichment for consistency with overlays
    */
-  private sortByReleaseDate(
+  private async sortByReleaseDate(
     items: CollectionItem[],
     sourceData: ComingSoonSourceData[]
-  ): CollectionItem[] {
+  ): Promise<CollectionItem[]> {
     // Create a map of tmdbId to release date
     const releaseDateMap = new Map<number, Date | null>();
 
     for (const source of sourceData) {
       if (!source.tmdbId) continue;
 
-      // Get the earliest available release date
+      // Use the pre-calculated release date from TMDB enrichment
+      // This was already calculated using determineReleaseDate() with proper fallbacks
+      // (Digital > Physical > Theatrical + 90 days, with movieDetails.release_date as final fallback)
       let releaseDate: Date | null = null;
 
       if (source.mediaType === 'movie') {
-        // For movies: prioritize actual availability dates (Digital > Physical > Generic)
-        // Do NOT use theatrical/cinema dates - content isn't available for Plex until home release
-        if (source.digitalRelease) {
-          releaseDate = new Date(source.digitalRelease);
-        } else if (source.physicalRelease) {
-          releaseDate = new Date(source.physicalRelease);
-        } else if (source.releaseDate) {
+        // Use pre-calculated releaseDate (set by enrichWithTMDBReleaseDates)
+        if (source.releaseDate) {
           releaseDate = new Date(source.releaseDate);
         }
-        // inCinemas deliberately excluded - theatrical release doesn't mean content is available
       } else {
         // For TV: use airDate
         if (source.airDate) {

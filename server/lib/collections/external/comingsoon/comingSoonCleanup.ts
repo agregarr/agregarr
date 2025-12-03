@@ -59,7 +59,11 @@ export async function cleanupReleasedPlaceholders(
       let hasRealFile = false;
 
       // Check if real file now exists
-      if (placeholder.source === 'radarr' || placeholder.source === 'trakt') {
+      if (
+        placeholder.source === 'radarr' ||
+        placeholder.source === 'trakt' ||
+        placeholder.source === 'tmdb'
+      ) {
         if (
           placeholder.mediaType === 'movie' &&
           settings.radarr &&
@@ -89,7 +93,11 @@ export async function cleanupReleasedPlaceholders(
         }
       }
 
-      if (placeholder.source === 'sonarr' || placeholder.source === 'trakt') {
+      if (
+        placeholder.source === 'sonarr' ||
+        placeholder.source === 'trakt' ||
+        placeholder.source === 'tmdb'
+      ) {
         if (
           placeholder.mediaType === 'tv' &&
           settings.sonarr &&
@@ -352,7 +360,8 @@ export async function cleanupReleasedPlaceholders(
           // Check if real file now exists (same logic as released items section)
           if (
             placeholder.source === 'radarr' ||
-            placeholder.source === 'trakt'
+            placeholder.source === 'trakt' ||
+            placeholder.source === 'tmdb'
           ) {
             if (
               placeholder.mediaType === 'movie' &&
@@ -384,7 +393,8 @@ export async function cleanupReleasedPlaceholders(
 
           if (
             placeholder.source === 'sonarr' ||
-            placeholder.source === 'trakt'
+            placeholder.source === 'trakt' ||
+            placeholder.source === 'tmdb'
           ) {
             if (
               placeholder.mediaType === 'tv' &&

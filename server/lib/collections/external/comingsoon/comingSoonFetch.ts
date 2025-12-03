@@ -176,14 +176,14 @@ export async function fetchMonitoredMovies(
 
         upcomingCount++;
 
-        // Pass all release date fields - categorization will determine priority
+        // Pass raw release dates - enrichWithTMDBReleaseDates will fetch fresh TMDB data and calculate final date
         items.push({
           tmdbId: movie.tmdbId,
           title: movie.title,
           mediaType: 'movie',
           source: 'radarr',
           monitored: true,
-          // Pass all available release dates for categorization to prioritize
+          // Pass Radarr dates (likely stale/incomplete) - TMDB enrichment will override these
           releaseDate: movie.releaseDate,
           digitalRelease: movie.digitalRelease,
           physicalRelease: movie.physicalRelease,
@@ -1068,47 +1068,29 @@ export async function enrichWithTMDBReleaseDates(
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
 
+  logger.debug('Starting TMDB release date enrichment', {
+    label: 'Coming Soon Collections',
+    itemCount: items.length,
+    maxDaysAway,
+  });
+
   // Track indices to remove (process in reverse to avoid index shifting)
   const indicesToRemove: number[] = [];
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
 
-    // Skip items that are already enriched (from fetchTmdbComingSoonMovies/Shows)
-    // These items already have release dates and have been filtered
-    if (
-      (item.mediaType === 'movie' && item.releaseDate) ||
-      (item.mediaType === 'tv' && item.airDate)
-    ) {
-      continue;
-    }
+    logger.debug('Enriching item with fresh TMDB data', {
+      label: 'Coming Soon Collections',
+      title: item.title,
+      source: item.source,
+      tmdbId: item.tmdbId,
+      currentReleaseDate: item.releaseDate,
+    });
 
-    // For monitored items from Radarr/Sonarr, apply priority logic and estimation
-    if (item.monitored && item.mediaType === 'movie') {
-      // Set releaseDate using priority: Digital > Physical > Theatrical (+3 months)
-      if (item.digitalRelease) {
-        // Use digital release date (highest priority)
-        item.releaseDate = item.digitalRelease.split('T')[0];
-      } else if (item.physicalRelease) {
-        // Use physical release date (second priority)
-        item.releaseDate = item.physicalRelease.split('T')[0];
-      } else if (item.releaseDate) {
-        // Only theatrical/generic - add 3 months estimate
-        const originalDate = item.releaseDate;
-        const baseDate = new Date(originalDate);
-        baseDate.setDate(baseDate.getDate() + 90);
-        item.releaseDate = baseDate.toISOString().split('T')[0];
-        item.isEstimatedDate = true;
-
-        logger.debug('Applied 3-month estimate to monitored item', {
-          label: 'Coming Soon Collections',
-          title: item.title,
-          originalDate,
-          estimatedDate: item.releaseDate,
-        });
-      }
-      continue; // Skip TMDB fetch for monitored items - use Radarr/Sonarr data
-    }
+    // ALWAYS fetch fresh TMDB data for ALL items, regardless of source
+    // This ensures consistent release dates across all collection types
+    // Overlays use the same approach - always fetch fresh TMDB
 
     try {
       if (item.mediaType === 'movie') {
@@ -1117,63 +1099,66 @@ export async function enrichWithTMDBReleaseDates(
           movieId: item.tmdbId,
         });
 
-        // Extract digital/physical/theatrical release dates from release_dates
-        // and find the earliest digital/physical date
-        let earliestReleaseDate: Date | null = null;
+        // Use SHARED helper functions - same as overlays
+        const { extractReleaseDates, determineReleaseDate } = await import(
+          '@server/utils/dateHelpers'
+        );
 
-        if (movieDetails.release_dates?.results) {
-          // Find US release dates
-          const usRelease = movieDetails.release_dates.results.find(
-            (r) => r.iso_3166_1 === 'US'
-          );
-          if (usRelease?.release_dates) {
-            for (const rd of usRelease.release_dates) {
-              // Type 4 = Digital, Type 5 = Physical, Type 3 = Theatrical
-              if (rd.type === 4 && rd.release_date) {
-                item.digitalRelease = rd.release_date;
-                const releaseDate = new Date(rd.release_date);
-                if (!earliestReleaseDate || releaseDate < earliestReleaseDate) {
-                  earliestReleaseDate = releaseDate;
-                }
+        // Extract release dates using shared helper (checks ALL countries, not just US)
+        const extracted = movieDetails.release_dates?.results
+          ? extractReleaseDates(movieDetails.release_dates.results)
+          : {};
+
+        // Set extracted dates on item
+        item.digitalRelease = extracted.digitalRelease;
+        item.physicalRelease = extracted.physicalRelease;
+        item.inCinemas = extracted.inCinemas;
+
+        // Fallback to generic release_date if no specific theatrical date (same as overlays)
+        const inCinemas =
+          extracted.inCinemas || movieDetails.release_date || undefined;
+
+        // Use shared priority logic: Digital > Physical > Theatrical (+90 days)
+        const releaseDateResult = determineReleaseDate(
+          extracted.digitalRelease,
+          extracted.physicalRelease,
+          inCinemas
+        );
+
+        if (releaseDateResult) {
+          const oldReleaseDate = item.releaseDate;
+          item.releaseDate = releaseDateResult.releaseDate;
+          item.isEstimatedDate = releaseDateResult.isEstimated;
+
+          logger.debug('Updated release date from TMDB enrichment', {
+            label: 'Coming Soon Collections',
+            title: item.title,
+            source: item.source,
+            oldReleaseDate,
+            newReleaseDate: item.releaseDate,
+            isEstimated: releaseDateResult.isEstimated,
+            digitalRelease: item.digitalRelease,
+            physicalRelease: item.physicalRelease,
+            inCinemas: item.inCinemas,
+          });
+
+          if (releaseDateResult.isEstimated) {
+            logger.debug(
+              'Using estimated release date (theatrical + 90 days)',
+              {
+                label: 'Coming Soon Collections',
+                title: item.title,
+                estimatedDate: item.releaseDate,
               }
-              if (rd.type === 5 && rd.release_date) {
-                item.physicalRelease = rd.release_date;
-                const releaseDate = new Date(rd.release_date);
-                if (!earliestReleaseDate || releaseDate < earliestReleaseDate) {
-                  earliestReleaseDate = releaseDate;
-                }
-              }
-              if (rd.type === 3 && rd.release_date) {
-                item.inCinemas = rd.release_date;
-              }
-            }
+            );
           }
         }
 
-        // Set releaseDate using priority: Digital > Physical > Theatrical (+3 months)
-        if (item.digitalRelease) {
-          // Use digital release date (highest priority)
-          item.releaseDate = item.digitalRelease.split('T')[0];
-        } else if (item.physicalRelease) {
-          // Use physical release date (second priority)
-          item.releaseDate = item.physicalRelease.split('T')[0];
-        } else if (movieDetails.release_date) {
-          // No digital/physical - use theatrical + 3 months estimate
-          const baseDate = new Date(movieDetails.release_date);
-          baseDate.setDate(baseDate.getDate() + 90);
-          item.releaseDate = baseDate.toISOString().split('T')[0];
-          item.isEstimatedDate = true;
-          earliestReleaseDate = baseDate;
+        // Filter: only include if release date is in the future and within window
+        const earliestReleaseDate = releaseDateResult
+          ? new Date(releaseDateResult.releaseDate)
+          : extracted.earliestReleaseDate || null;
 
-          logger.debug('Using estimated release date (theatrical + 3 months)', {
-            label: 'Coming Soon Collections',
-            title: item.title,
-            originalDate: movieDetails.release_date,
-            estimatedDate: item.releaseDate,
-          });
-        }
-
-        // Filter: only include if earliest release date is in the future and within window
         if (
           !earliestReleaseDate ||
           earliestReleaseDate < today ||
@@ -1429,17 +1414,22 @@ export async function markMonitoredStatus(
     }
   }
 
-  // Enrich Trakt items with data from Radarr/Sonarr
+  // Cross-reference items with Radarr/Sonarr to add monitoring/file status
+  // DO NOT overwrite release dates - items from TMDB already have fresh dates
   for (const item of items) {
     if (item.mediaType === 'movie') {
       const radarrData = radarrMovieMap.get(item.tmdbId);
       if (radarrData) {
         item.monitored = radarrData.monitored;
         item.hasFile = radarrData.hasFile;
-        item.releaseDate = radarrData.releaseDate;
-        item.digitalRelease = radarrData.digitalRelease;
-        item.physicalRelease = radarrData.physicalRelease;
-        item.inCinemas = radarrData.inCinemas;
+        // Only use Radarr dates if item doesn't have them yet (from TMDB source)
+        // This preserves fresh TMDB dates from fetchTmdbComingSoonMovies()
+        if (!item.releaseDate) item.releaseDate = radarrData.releaseDate;
+        if (!item.digitalRelease)
+          item.digitalRelease = radarrData.digitalRelease;
+        if (!item.physicalRelease)
+          item.physicalRelease = radarrData.physicalRelease;
+        if (!item.inCinemas) item.inCinemas = radarrData.inCinemas;
       } else {
         // Not in Radarr
         item.monitored = false;
@@ -1450,7 +1440,8 @@ export async function markMonitoredStatus(
       if (sonarrData) {
         item.monitored = sonarrData.monitored;
         item.hasFile = sonarrData.hasFile;
-        item.airDate = sonarrData.airDate;
+        // Only use Sonarr airDate if not already set
+        if (!item.airDate) item.airDate = sonarrData.airDate;
         item.downloadedDate = sonarrData.downloadedDate;
       } else {
         // Not in Sonarr
@@ -1460,7 +1451,8 @@ export async function markMonitoredStatus(
     }
   }
 
-  // Fetch TMDB release dates for non-monitored items (external_request items)
+  // Fetch fresh TMDB release dates for all items (except those already enriched by fetchTmdbComingSoon*)
+  // This ensures monitored Radarr/Sonarr items get fresh TMDB data instead of stale *arr dates
   // Also filters out already-released items
   await enrichWithTMDBReleaseDates(items, maxDaysAway);
 

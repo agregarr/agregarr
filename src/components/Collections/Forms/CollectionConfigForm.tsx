@@ -103,6 +103,12 @@ const CollectionFormConfigForm = ({
   }>('/api/v1/overlay-library-configs');
   const overlayConfigs = overlayConfigsResponse?.configs || [];
 
+  // Fetch settings to check if placeholder root folders are configured
+  const { data: settingsData } = useSWR<{
+    placeholderMovieRootFolder?: string;
+    placeholderTVRootFolder?: string;
+  }>('/api/v1/settings/main');
+
   // State for storing fetched titles and detected media types
   const [fetchedTitles, setFetchedTitles] = useState<{
     trakt?: string;
@@ -2316,52 +2322,54 @@ const CollectionFormConfigForm = ({
                                     </p>
 
                                     {/* Warning when placeholder creation enabled but no root folders configured */}
-                                    {typedValues.createPlaceholdersForMissing && (
-                                      <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
-                                        <div className="flex">
-                                          <div className="flex-shrink-0">
-                                            <svg
-                                              className="h-4 w-4 text-yellow-400"
-                                              xmlns="http://www.w3.org/2000/svg"
-                                              viewBox="0 0 20 20"
-                                              fill="currentColor"
-                                              aria-hidden="true"
-                                            >
-                                              <path
-                                                fillRule="evenodd"
-                                                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
-                                                clipRule="evenodd"
-                                              />
-                                            </svg>
-                                          </div>
-                                          <div className="ml-2 flex-1">
-                                            <p className="text-xs font-medium text-yellow-300">
-                                              {intl.formatMessage(
-                                                messages.placeholderRootFoldersRequired
-                                              )}
-                                            </p>
-                                            <p className="mt-1 text-xs text-yellow-200">
-                                              {intl.formatMessage(
-                                                messages.placeholderRootFoldersMessage
-                                              )}
-                                            </p>
-                                            <div className="mt-2">
-                                              <a
-                                                href="/settings/downloads"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                    {typedValues.createPlaceholdersForMissing &&
+                                      !settingsData?.placeholderMovieRootFolder &&
+                                      !settingsData?.placeholderTVRootFolder && (
+                                        <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
+                                          <div className="flex">
+                                            <div className="flex-shrink-0">
+                                              <svg
+                                                className="h-4 w-4 text-yellow-400"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                                aria-hidden="true"
                                               >
+                                                <path
+                                                  fillRule="evenodd"
+                                                  d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                                                  clipRule="evenodd"
+                                                />
+                                              </svg>
+                                            </div>
+                                            <div className="ml-2 flex-1">
+                                              <p className="text-xs font-medium text-yellow-300">
                                                 {intl.formatMessage(
-                                                  messages.configureDownloads
+                                                  messages.placeholderRootFoldersRequired
                                                 )}
-                                                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                                              </a>
+                                              </p>
+                                              <p className="mt-1 text-xs text-yellow-200">
+                                                {intl.formatMessage(
+                                                  messages.placeholderRootFoldersMessage
+                                                )}
+                                              </p>
+                                              <div className="mt-2">
+                                                <a
+                                                  href="/settings/downloads"
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                                >
+                                                  {intl.formatMessage(
+                                                    messages.configureDownloads
+                                                  )}
+                                                  <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                                </a>
+                                              </div>
                                             </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    )}
+                                      )}
 
                                     {/* Placeholder options - show when enabled */}
                                     {typedValues.createPlaceholdersForMissing && (

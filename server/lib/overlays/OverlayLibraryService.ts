@@ -3,6 +3,8 @@ import ImdbRatingsAPI from '@server/api/imdbRatings';
 import type { PlexLibraryItem } from '@server/api/plexapi';
 import PlexAPI from '@server/api/plexapi';
 import RottenTomatoes from '@server/api/rottentomatoes';
+import type { RadarrMovie } from '@server/api/servarr/radarr';
+import type { SonarrSeries } from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
@@ -34,6 +36,10 @@ class OverlayLibraryService {
   // Shared API clients to avoid creating new instances for each item
   private imdbClient?: ImdbAPI;
 
+  // Cache for Radarr/Sonarr library data (per job)
+  private radarrMoviesCache?: Map<string, RadarrMovie[]>;
+  private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
+
   /**
    * Get or create shared IMDb client
    */
@@ -45,10 +51,114 @@ class OverlayLibraryService {
   }
 
   /**
+   * Clear library caches (call at start of overlay job)
+   */
+  private clearLibraryCaches() {
+    this.radarrMoviesCache = new Map();
+    this.sonarrSeriesCache = new Map();
+  }
+
+  /**
+   * Get all movies from a Radarr instance (with caching)
+   */
+  private async getRadarrMovies(radarrSettings: {
+    hostname: string;
+    port: number;
+    useSsl: boolean;
+    baseUrl?: string;
+    apiKey: string;
+  }): Promise<RadarrMovie[]> {
+    const RadarrAPI = (await import('@server/api/servarr/radarr')).default;
+
+    // Build URL manually (same pattern as buildUrl)
+    const protocol = radarrSettings.useSsl ? 'https' : 'http';
+    const url = `${protocol}://${radarrSettings.hostname}:${
+      radarrSettings.port
+    }${radarrSettings.baseUrl || ''}/api/v3`;
+    const cacheKey = url;
+
+    if (!this.radarrMoviesCache) {
+      this.radarrMoviesCache = new Map();
+    }
+
+    const cached = this.radarrMoviesCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const radarr = new RadarrAPI({
+      url,
+      apiKey: radarrSettings.apiKey,
+    });
+
+    const movies = await radarr.getMovies();
+    this.radarrMoviesCache.set(cacheKey, movies);
+
+    logger.debug('Cached Radarr movies', {
+      label: 'OverlayLibrary',
+      url,
+      movieCount: movies.length,
+    });
+
+    return movies;
+  }
+
+  /**
+   * Get all series from a Sonarr instance (with caching)
+   */
+  private async getSonarrSeries(sonarrSettings: {
+    hostname: string;
+    port: number;
+    useSsl: boolean;
+    baseUrl?: string;
+    apiKey: string;
+  }): Promise<SonarrSeries[]> {
+    const SonarrAPI = (await import('@server/api/servarr/sonarr')).default;
+
+    // Build URL manually (same pattern as buildUrl)
+    const protocol = sonarrSettings.useSsl ? 'https' : 'http';
+    const url = `${protocol}://${sonarrSettings.hostname}:${
+      sonarrSettings.port
+    }${sonarrSettings.baseUrl || ''}/api/v3`;
+    const cacheKey = url;
+
+    if (!this.sonarrSeriesCache) {
+      this.sonarrSeriesCache = new Map();
+    }
+
+    const cached = this.sonarrSeriesCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const sonarr = new SonarrAPI({
+      url,
+      apiKey: sonarrSettings.apiKey,
+    });
+
+    const series = await sonarr.getSeries();
+    this.sonarrSeriesCache.set(cacheKey, series);
+
+    logger.debug('Cached Sonarr series', {
+      label: 'OverlayLibrary',
+      url,
+      seriesCount: series.length,
+    });
+
+    return series;
+  }
+
+  /**
    * Apply overlays to all items in a library
    */
-  async applyOverlaysToLibrary(libraryId: string): Promise<void> {
+  async applyOverlaysToLibrary(
+    libraryId: string,
+    checkCancelled?: () => boolean
+  ): Promise<void> {
     try {
+      // Clear library caches at start of job
+      this.clearLibraryCaches();
+
       logger.info('Starting overlay application for library', {
         label: 'OverlayLibrary',
         libraryId,
@@ -147,6 +257,20 @@ class OverlayLibraryService {
       let errorCount = 0;
 
       for (const item of allItems) {
+        // Check for cancellation
+        if (checkCancelled && checkCancelled()) {
+          logger.info(
+            'Overlay application cancelled during library processing',
+            {
+              label: 'OverlayLibrary',
+              libraryId,
+              processedItems: successCount + errorCount,
+              totalItems: allItems.length,
+            }
+          );
+          break;
+        }
+
         try {
           // Fetch full metadata including Stream details (needed for HDR, bitDepth, etc.)
           const fullMetadata = await plexApi.getMetadata(item.ratingKey);
@@ -205,6 +329,9 @@ class OverlayLibraryService {
     libraryId: string
   ): Promise<void> {
     try {
+      // Clear library caches at start of job
+      this.clearLibraryCaches();
+
       // Normalize input to OverlayItemInput[]
       const normalizedItems: OverlayItemInput[] = items.map((item) =>
         typeof item === 'string' ? { ratingKey: item } : item
@@ -476,12 +603,24 @@ class OverlayLibraryService {
         }
       }
 
-      // Merge contexts: base → coming soon → fresh release dates → explicit overrides
+      // Check monitoring status for real items (not placeholders)
+      // Sets inRadarr/inSonarr and isMonitored with clear semantic meaning
+      let monitoringContext: Partial<OverlayRenderContext> | undefined;
+      if (!isPlaceholder && tmdbId) {
+        monitoringContext = await this.checkRealItemMonitoringStatus(
+          tmdbId,
+          mediaType
+        );
+      }
+
+      // Merge contexts: base → coming soon → fresh release dates → monitoring → explicit overrides
       // Fresh release dates override Coming Soon context (which may be stale)
+      // Monitoring status overrides Coming Soon monitoring (for real items)
       const context: OverlayRenderContext = {
         ...baseContext,
         ...comingSoonContext,
         ...freshReleaseDateContext,
+        ...monitoringContext,
         ...contextOverrides,
       };
 
@@ -994,7 +1133,11 @@ class OverlayLibraryService {
       }
 
       // Check if item is actually monitored in Radarr/Sonarr
+      // Use semantic variables: inRadarr/inSonarr + isMonitored
+      let inRadarr = false;
+      let inSonarr = false;
       let isMonitored = false;
+
       try {
         const settings = getSettings();
 
@@ -1003,31 +1146,57 @@ class OverlayLibraryService {
           settings.radarr.length > 0
         ) {
           // Check Radarr for movies
-          const RadarrAPI = (await import('@server/api/servarr/radarr'))
-            .default;
-
           // Try each configured Radarr instance
           for (const radarrSettings of settings.radarr) {
-            // Skip if baseUrl is not configured
-            if (!radarrSettings.baseUrl) {
+            // Skip if hostname is not configured
+            if (!radarrSettings.hostname) {
               continue;
             }
 
             try {
-              const radarr = new RadarrAPI({
-                url: radarrSettings.baseUrl,
-                apiKey: radarrSettings.apiKey,
+              // Get cached Radarr movies and find by TMDB ID
+              logger.debug('Checking Radarr for movie', {
+                label: 'OverlayLibrary',
+                tmdbId: comingSoonItem.tmdbId,
+                hostname: radarrSettings.hostname,
               });
 
-              const movie = await radarr.getMovieByTmdbId(
-                comingSoonItem.tmdbId
+              const movies = await this.getRadarrMovies(radarrSettings);
+
+              logger.debug('Retrieved Radarr movies from cache', {
+                label: 'OverlayLibrary',
+                movieCount: movies.length,
+                hostname: radarrSettings.hostname,
+              });
+
+              const movie = movies.find(
+                (m) => m.tmdbId === comingSoonItem.tmdbId
               );
-              if (movie && movie.monitored) {
-                isMonitored = true;
+
+              if (movie) {
+                logger.debug('Found movie in Radarr', {
+                  label: 'OverlayLibrary',
+                  tmdbId: comingSoonItem.tmdbId,
+                  monitored: movie.monitored,
+                });
+                inRadarr = true;
+                isMonitored = movie.monitored;
                 break;
+              } else {
+                logger.debug('Movie not found in Radarr movies', {
+                  label: 'OverlayLibrary',
+                  tmdbId: comingSoonItem.tmdbId,
+                  radarrMovieCount: movies.length,
+                });
               }
-            } catch {
-              // Movie not found in this Radarr instance, try next
+            } catch (err) {
+              // Failed to get movies from this Radarr instance, try next
+              logger.error('Error checking Radarr instance', {
+                label: 'OverlayLibrary',
+                hostname: radarrSettings.hostname,
+                error: err instanceof Error ? err.message : String(err),
+                stack: err instanceof Error ? err.stack : undefined,
+              });
               continue;
             }
           }
@@ -1036,47 +1205,44 @@ class OverlayLibraryService {
           settings.sonarr.length > 0
         ) {
           // Check Sonarr for TV shows
-          const SonarrAPI = (await import('@server/api/servarr/sonarr'))
-            .default;
-
           // Try each configured Sonarr instance
           for (const sonarrSettings of settings.sonarr) {
-            // Skip if baseUrl is not configured
-            if (!sonarrSettings.baseUrl) {
+            // Skip if hostname is not configured
+            if (!sonarrSettings.hostname) {
               continue;
             }
 
             try {
-              const sonarr = new SonarrAPI({
-                url: sonarrSettings.baseUrl,
-                apiKey: sonarrSettings.apiKey,
-              });
-
               // Sonarr uses TVDB ID, not TMDB ID
               if (comingSoonItem.tvdbId) {
-                const series = await sonarr.getSeriesByTvdbId(
-                  comingSoonItem.tvdbId
+                // Get cached Sonarr series and find by TVDB ID
+                const allSeries = await this.getSonarrSeries(sonarrSettings);
+                const series = allSeries.find(
+                  (s) => s.tvdbId === comingSoonItem.tvdbId
                 );
-                if (series && series.monitored) {
-                  isMonitored = true;
+
+                if (series) {
+                  inSonarr = true;
+                  isMonitored = series.monitored;
                   break;
                 }
               }
             } catch {
-              // Series not found in this Sonarr instance, try next
+              // Failed to get series from this Sonarr instance, try next
               continue;
             }
           }
         }
       } catch (error) {
-        logger.debug('Failed to check monitored status in Radarr/Sonarr', {
+        logger.error('Failed to check monitored status in Radarr/Sonarr', {
           label: 'OverlayLibrary',
           mediaType: comingSoonItem.mediaType,
           tmdbId: comingSoonItem.tmdbId,
           tvdbId: comingSoonItem.tvdbId,
           error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
         });
-        // If we can't check, default to false (not monitored)
+        // If we can't check, default to false (not monitored, not in *arr)
       }
 
       // Build context with Coming Soon specific fields
@@ -1085,6 +1251,8 @@ class OverlayLibraryService {
         daysUntilRelease,
         daysAgo,
         seasonNumber: comingSoonItem.seasonNumber,
+        inRadarr,
+        inSonarr,
         isMonitored,
         downloaded: false, // Placeholders are by definition not downloaded
         itemType: 'placeholder',
@@ -1094,6 +1262,144 @@ class OverlayLibraryService {
       logger.debug('Failed to fetch Coming Soon context', {
         label: 'OverlayLibrary',
         ratingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
+  }
+
+  /**
+   * Check monitoring status for real items (non-placeholders) in Radarr/Sonarr
+   * Returns semantic status with clear meaning:
+   * - inRadarr/inSonarr: Whether item exists in any *arr instance
+   * - isMonitored: Whether item is monitored (only set if found in *arr)
+   */
+  private async checkRealItemMonitoringStatus(
+    tmdbId: number,
+    mediaType: 'movie' | 'show'
+  ): Promise<{
+    inRadarr?: boolean;
+    inSonarr?: boolean;
+    isMonitored?: boolean;
+  }> {
+    try {
+      const settings = getSettings();
+
+      if (mediaType === 'movie' && settings.radarr.length > 0) {
+        // Check Radarr for movies
+        // Try each configured Radarr instance
+        for (const radarrSettings of settings.radarr) {
+          if (!radarrSettings.hostname) {
+            continue;
+          }
+
+          try {
+            // Get cached Radarr movies and find by TMDB ID
+            const movies = await this.getRadarrMovies(radarrSettings);
+            const movie = movies.find((m) => m.tmdbId === tmdbId);
+
+            if (movie) {
+              // Movie found in Radarr
+              logger.debug('Found movie in Radarr', {
+                label: 'OverlayLibrary',
+                tmdbId,
+                monitored: movie.monitored,
+              });
+              return {
+                inRadarr: true,
+                isMonitored: movie.monitored,
+              };
+            }
+          } catch {
+            // Failed to get movies from this instance, try next
+            continue;
+          }
+        }
+
+        // Not found in any Radarr instance
+        logger.debug('Movie not found in any Radarr instance', {
+          label: 'OverlayLibrary',
+          tmdbId,
+        });
+        return { inRadarr: false };
+      } else if (mediaType === 'show' && settings.sonarr.length > 0) {
+        // Check Sonarr for TV shows
+        // Get TVDB ID from TMDB (Sonarr uses TVDB)
+        const tvdbId = await this.getTvdbIdFromTmdb(tmdbId);
+
+        if (!tvdbId) {
+          logger.debug('Cannot check Sonarr - no TVDB ID available', {
+            label: 'OverlayLibrary',
+            tmdbId,
+          });
+          return {};
+        }
+
+        // Try each configured Sonarr instance
+        for (const sonarrSettings of settings.sonarr) {
+          if (!sonarrSettings.hostname) {
+            continue;
+          }
+
+          try {
+            // Get cached Sonarr series and find by TVDB ID
+            const allSeries = await this.getSonarrSeries(sonarrSettings);
+            const series = allSeries.find((s) => s.tvdbId === tvdbId);
+
+            if (series) {
+              // Series found in Sonarr
+              logger.debug('Found series in Sonarr', {
+                label: 'OverlayLibrary',
+                tmdbId,
+                tvdbId,
+                monitored: series.monitored,
+              });
+              return {
+                inSonarr: true,
+                isMonitored: series.monitored,
+              };
+            }
+          } catch {
+            // Failed to get series from this instance, try next
+            continue;
+          }
+        }
+
+        // Not found in any Sonarr instance
+        logger.debug('Series not found in any Sonarr instance', {
+          label: 'OverlayLibrary',
+          tmdbId,
+        });
+        return { inSonarr: false };
+      }
+
+      // No *arr instances configured
+      return {};
+    } catch (error) {
+      logger.debug('Failed to check monitoring status', {
+        label: 'OverlayLibrary',
+        mediaType,
+        tmdbId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {};
+    }
+  }
+
+  /**
+   * Get TVDB ID from TMDB ID for TV shows
+   * Required for Sonarr lookups since Sonarr uses TVDB IDs
+   */
+  private async getTvdbIdFromTmdb(tmdbId: number): Promise<number | undefined> {
+    try {
+      const tmdbClient = new TheMovieDb();
+      const showDetails = await tmdbClient.getTvShow({ tvId: tmdbId });
+
+      return showDetails.external_ids?.tvdb_id;
+    } catch (error) {
+      logger.debug('Failed to get TVDB ID from TMDB', {
+        label: 'OverlayLibrary',
+        tmdbId,
         error: error instanceof Error ? error.message : String(error),
       });
       return undefined;

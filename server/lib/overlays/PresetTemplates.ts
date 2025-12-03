@@ -202,14 +202,31 @@ export const PRESET_TEMPLATES: {
     },
   },
 
-  // Request Needed (Top Banner) - For unmonitored items
+  // Request Needed (Top Banner) - For items not in Plex and not monitored
   {
     name: 'Request Needed',
-    description: 'Top banner showing REQUEST NEEDED for unmonitored items',
+    description:
+      'Top banner showing REQUEST NEEDED for items not downloaded and either not in *arr or not monitored',
     type: 'status',
     applicationCondition: {
       sections: [
         {
+          rules: [
+            // Not downloaded (placeholder or not in Plex)
+            { field: 'downloaded', operator: 'eq', value: false },
+          ],
+        },
+        {
+          // AND (not in *arr OR not monitored)
+          sectionOperator: 'and',
+          rules: [
+            // Not in Radarr
+            { field: 'inRadarr', operator: 'eq', value: false },
+          ],
+        },
+        {
+          // OR not monitored (even if in *arr)
+          sectionOperator: 'or',
           rules: [{ field: 'isMonitored', operator: 'eq', value: false }],
         },
       ],
@@ -261,7 +278,8 @@ export const PRESET_TEMPLATES: {
   // Awaiting Download - Top banner (released but not downloaded yet)
   {
     name: 'Awaiting Download',
-    description: 'Top banner for released monitored content awaiting download',
+    description:
+      'Top banner for released monitored content in *arr awaiting download',
     type: 'status',
     applicationCondition: {
       sections: [
@@ -272,17 +290,25 @@ export const PRESET_TEMPLATES: {
             { field: 'daysAgo', operator: 'gte', value: 0 },
             {
               ruleOperator: 'and',
-              field: 'isMonitored',
-              operator: 'eq',
-              value: true,
-            },
-            {
-              ruleOperator: 'and',
               field: 'downloaded',
               operator: 'eq',
               value: false,
             },
           ],
+        },
+        {
+          // AND (in Radarr OR in Sonarr)
+          sectionOperator: 'and',
+          rules: [{ field: 'inRadarr', operator: 'eq', value: true }],
+        },
+        {
+          sectionOperator: 'or',
+          rules: [{ field: 'inSonarr', operator: 'eq', value: true }],
+        },
+        {
+          // AND monitored
+          sectionOperator: 'and',
+          rules: [{ field: 'isMonitored', operator: 'eq', value: true }],
         },
       ],
     },
@@ -375,7 +401,8 @@ export const PRESET_TEMPLATES: {
   // Returning Soon - TV S02+ - SEASON N countdown (2+ days away)
   {
     name: 'Returning Soon (Monitored)',
-    description: 'Bottom banner for returning TV shows (S02+) with countdown',
+    description:
+      'Bottom banner for returning TV shows (S02+) monitored in Sonarr with countdown',
     type: 'status',
     applicationCondition: {
       sections: [
@@ -393,6 +420,12 @@ export const PRESET_TEMPLATES: {
               field: 'mediaType',
               operator: 'eq',
               value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
             {
               ruleOperator: 'and',
@@ -453,11 +486,37 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Returning Soon (Unmonitored)',
     description:
-      'Bottom banner for unmonitored returning TV shows (S02+) with countdown',
+      'Bottom banner for returning TV shows (S02+) not monitored or not in Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
+          // (>1 day AND S02+ AND show) AND NOT inSonarr
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (>1 day AND S02+ AND show) AND NOT monitored
+          sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
             {
@@ -532,7 +591,7 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Returning Tomorrow (Monitored)',
     description:
-      'Bottom banner for monitored returning TV shows (S02+) releasing tomorrow',
+      'Bottom banner for returning TV shows (S02+) monitored in Sonarr releasing tomorrow',
     type: 'status',
     applicationCondition: {
       sections: [
@@ -550,6 +609,12 @@ export const PRESET_TEMPLATES: {
               field: 'mediaType',
               operator: 'eq',
               value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
             {
               ruleOperator: 'and',
@@ -608,11 +673,37 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Returning Tomorrow (Unmonitored)',
     description:
-      'Bottom banner for returning TV shows (S02+) releasing tomorrow',
+      'Bottom banner for returning TV shows (S02+) releasing tomorrow not monitored or not in Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
+          // (tomorrow AND S02+ AND show) AND NOT inSonarr
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (tomorrow AND S02+ AND show) AND NOT monitored
+          sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
             {
@@ -685,7 +776,7 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Returning Today (Monitored)',
     description:
-      'Bottom banner for returning TV shows (S02+) releasing today, not downloaded',
+      'Bottom banner for returning TV shows (S02+) monitored in Sonarr releasing today',
     type: 'status',
     applicationCondition: {
       sections: [
@@ -703,6 +794,12 @@ export const PRESET_TEMPLATES: {
               field: 'mediaType',
               operator: 'eq',
               value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
             {
               ruleOperator: 'and',
@@ -761,11 +858,37 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Returning Today (Unmonitored)',
     description:
-      'Bottom banner for returning TV shows (S02+) releasing today, not downloaded',
+      'Bottom banner for returning TV shows (S02+) releasing today not monitored or not in Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
+          // (today AND S02+ AND show) AND NOT inSonarr
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'gt',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'eq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (today AND S02+ AND show) AND NOT monitored
+          sectionOperator: 'or',
           rules: [
             { field: 'daysAgo', operator: 'eq', value: 0 },
             {
@@ -842,12 +965,12 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Far Future Release Date (Monitored)',
     description:
-      'Bottom banner showing formatted date for releases >30 days away',
+      'Bottom banner showing formatted date for monitored releases >30 days away in Radarr/Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by "Returning Soon" template)
+          // Movies: >30 days, monitored, not a show, in Radarr
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
             {
@@ -862,9 +985,16 @@ export const PRESET_TEMPLATES: {
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
         {
+          // OR TV S01: >30 days, monitored, season <= 1, in Sonarr
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
@@ -879,6 +1009,12 @@ export const PRESET_TEMPLATES: {
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
           ],
         },
@@ -930,43 +1066,82 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Far Future Release Date (Unmonitored)',
     description:
-      'Bottom banner showing formatted date for releases >30 days away',
+      'Bottom banner showing formatted date for releases >30 days away not monitored or not in *arr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by "Returning Soon" template)
+          // Movies: (>30 days AND movie) AND NOT inRadarr
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
-            {
-              ruleOperator: 'and',
-              field: 'isMonitored',
-              operator: 'eq',
-              value: false,
-            },
             {
               ruleOperator: 'and',
               field: 'mediaType',
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
+          // OR (>30 days AND movie) AND NOT monitored
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: false,
             },
+          ],
+        },
+        {
+          // OR TV S01: (>30 days AND season <= 1) AND NOT inSonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 30 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (>30 days AND season <= 1) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 30 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1019,13 +1194,13 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Countdown (Monitored)',
     description:
-      'Bottom countdown banner for monitored releases within 30 days',
+      'Bottom countdown banner for monitored releases within 30 days in Radarr/Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by separate template)
           rules: [
+            // Base condition: 2-30 days until release
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
             {
               ruleOperator: 'and',
@@ -1033,21 +1208,30 @@ export const PRESET_TEMPLATES: {
               operator: 'lte',
               value: 30,
             },
+            // AND monitored
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: true,
             },
+            // AND ((movie in Radarr) OR (TV S01 in Sonarr))
             {
               ruleOperator: 'and',
               field: 'mediaType',
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
         {
+          // OR TV Season 1
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
@@ -1068,6 +1252,12 @@ export const PRESET_TEMPLATES: {
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
           ],
         },
@@ -1125,12 +1315,12 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Countdown (Unmonitored)',
     description:
-      'Bottom countdown banner for unmonitored releases 2-30 days away',
+      'Bottom countdown banner for releases 2-30 days away not monitored or not in *arr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by separate template)
+          // Movies: (2-30 days AND movie) AND NOT inRadarr
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
             {
@@ -1141,19 +1331,20 @@ export const PRESET_TEMPLATES: {
             },
             {
               ruleOperator: 'and',
-              field: 'isMonitored',
-              operator: 'eq',
-              value: false,
-            },
-            {
-              ruleOperator: 'and',
               field: 'mediaType',
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
+          // OR (2-30 days AND movie) AND NOT monitored
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
@@ -1165,15 +1356,65 @@ export const PRESET_TEMPLATES: {
             },
             {
               ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: false,
+            },
+          ],
+        },
+        {
+          // OR TV S01: (2-30 days AND season <= 1) AND NOT inSonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
             },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (2-30 days AND season <= 1) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1226,12 +1467,13 @@ export const PRESET_TEMPLATES: {
   // Tomorrow (Monitored) - Bottom banner only
   {
     name: 'Releasing Tomorrow (Monitored)',
-    description: 'Bottom banner for monitored releases coming tomorrow',
+    description:
+      'Bottom banner for monitored releases coming tomorrow in Radarr/Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by separate template)
+          // Movies: tomorrow, monitored, not a show, in Radarr
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
             {
@@ -1246,9 +1488,16 @@ export const PRESET_TEMPLATES: {
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
         {
+          // OR TV S01: tomorrow, monitored, season <= 1, in Sonarr
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
@@ -1263,6 +1512,12 @@ export const PRESET_TEMPLATES: {
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
           ],
         },
@@ -1311,43 +1566,83 @@ export const PRESET_TEMPLATES: {
   // Tomorrow (Unmonitored) - Bottom banner only (ORANGE)
   {
     name: 'Releasing Tomorrow (Unmonitored)',
-    description: 'Bottom banner for unmonitored releases coming tomorrow',
+    description:
+      'Bottom banner for releases coming tomorrow not monitored or not in *arr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by separate template)
+          // Movies: (tomorrow AND movie) AND NOT inRadarr
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
-            {
-              ruleOperator: 'and',
-              field: 'isMonitored',
-              operator: 'eq',
-              value: false,
-            },
             {
               ruleOperator: 'and',
               field: 'mediaType',
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
+          // OR (tomorrow AND movie) AND NOT monitored
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: false,
             },
+          ],
+        },
+        {
+          // OR TV S01: (tomorrow AND season <= 1) AND NOT inSonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (tomorrow AND season <= 1) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1396,47 +1691,55 @@ export const PRESET_TEMPLATES: {
   // Today (Monitored) - Bottom banner only
   {
     name: 'Releasing Today (Monitored)',
-    description: 'Bottom banner for monitored releases coming today',
+    description:
+      'Bottom banner for monitored releases released today in Radarr/Sonarr (downloaded)',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by separate template)
+          // Movies: today, downloaded, monitored, not a show, in Radarr
           rules: [
             { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: true,
+            },
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: true,
             },
-            {
-              ruleOperator: 'and',
-              field: 'downloaded',
-              operator: 'eq',
-              value: true,
-            }, // Only show if downloaded
             {
               ruleOperator: 'and',
               field: 'mediaType',
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
         {
+          // OR TV S01: today, downloaded, monitored, season <= 1, in Sonarr
           sectionOperator: 'or',
           rules: [
             { field: 'daysAgo', operator: 'eq', value: 0 },
             {
               ruleOperator: 'and',
-              field: 'isMonitored',
+              field: 'downloaded',
               operator: 'eq',
               value: true,
             },
             {
               ruleOperator: 'and',
-              field: 'downloaded',
+              field: 'isMonitored',
               operator: 'eq',
               value: true,
             },
@@ -1445,6 +1748,12 @@ export const PRESET_TEMPLATES: {
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
             },
           ],
         },
@@ -1493,43 +1802,83 @@ export const PRESET_TEMPLATES: {
   // Today (Unmonitored) - Bottom banner only (ORANGE)
   {
     name: 'Releasing Today (Unmonitored)',
-    description: 'Bottom banner for unmonitored releases coming today',
+    description:
+      'Bottom banner for releases released today not monitored or not in *arr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
-          // Exclude returning TV shows (handled by separate template)
+          // Movies: (today AND movie) AND NOT inRadarr
           rules: [
             { field: 'daysAgo', operator: 'eq', value: 0 },
-            {
-              ruleOperator: 'and',
-              field: 'isMonitored',
-              operator: 'eq',
-              value: false,
-            },
             {
               ruleOperator: 'and',
               field: 'mediaType',
               operator: 'neq',
               value: 'show',
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
+          // OR (today AND movie) AND NOT monitored
           sectionOperator: 'or',
           rules: [
             { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: false,
             },
+          ],
+        },
+        {
+          // OR TV S01: (today AND season <= 1) AND NOT inSonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
               operator: 'lte',
               value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (today AND season <= 1) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1583,11 +1932,12 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Released Days Ago (Monitored)',
     description:
-      'Single banner showing days since release for downloaded content',
+      'Single banner showing days since release for downloaded monitored content in Radarr/Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
+          // Movies: downloaded, 0-7 days ago, monitored, in Radarr
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
@@ -1601,13 +1951,50 @@ export const PRESET_TEMPLATES: {
               field: 'daysAgo',
               operator: 'lte',
               value: 7,
-            }, // Only show for 7 days
+            },
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: true,
-            }, // Only for monitored items
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+        {
+          // OR TV: downloaded, 0-7 days ago, monitored, in Sonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'lte',
+              value: 7,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
       ],
@@ -1660,11 +2047,12 @@ export const PRESET_TEMPLATES: {
   {
     name: 'Released Days Ago (Unmonitored)',
     description:
-      'Bottom banner showing days since release for unmonitored content',
+      'Bottom banner showing days since release for downloaded content not monitored or not in *arr',
     type: 'status',
     applicationCondition: {
       sections: [
         {
+          // Movies: (downloaded AND 0-7 days ago) AND NOT inRadarr
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
@@ -1678,13 +2066,88 @@ export const PRESET_TEMPLATES: {
               field: 'daysAgo',
               operator: 'lte',
               value: 7,
-            }, // Only show for 7 days
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (downloaded AND 0-7 days ago) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'lte',
+              value: 7,
+            },
             {
               ruleOperator: 'and',
               field: 'isMonitored',
               operator: 'eq',
               value: false,
-            }, // Only for monitored items
+            },
+          ],
+        },
+        {
+          // OR TV: (downloaded AND 0-7 days ago) AND NOT inSonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'lte',
+              value: 7,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (downloaded AND 0-7 days ago) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'lte',
+              value: 7,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
       ],
