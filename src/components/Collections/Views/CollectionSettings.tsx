@@ -27,9 +27,12 @@ import {
   PlusIcon,
 } from '@heroicons/react/24/solid';
 import type {
+  OverseerrSettings,
   PlexHubConfig,
   PlexSettings,
   PreExistingCollectionConfig,
+  RadarrSettings,
+  SonarrSettings,
 } from '@server/lib/settings';
 import axios from 'axios';
 import { useRouter } from 'next/router';
@@ -55,6 +58,17 @@ const CollectionSettings = ({
   const router = useRouter();
   const { mutate: revalidate } = useSWR('/api/v1/settings/plex');
   const { data } = useSWR<PlexSettings>('/api/v1/settings/plex');
+
+  // Fetch settings for defaults
+  const { data: overseerrSettings } = useSWR<OverseerrSettings>(
+    '/api/v1/settings/overseerr'
+  );
+  const { data: radarrSettings } = useSWR<RadarrSettings[]>(
+    '/api/v1/settings/radarr'
+  );
+  const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
+    '/api/v1/settings/sonarr'
+  );
 
   // Load libraries: use prop if provided, otherwise fetch directly from Plex
   const { data: plexLibraries = [], error: librariesError } = useSWR(
@@ -339,6 +353,26 @@ const CollectionSettings = ({
             directDownloadSonarrRootFolder:
               config.directDownloadSonarrRootFolder,
           }),
+          ...(config.directDownloadRadarrTags !== undefined && {
+            directDownloadRadarrTags: config.directDownloadRadarrTags,
+          }),
+          ...(config.directDownloadRadarrMonitor !== undefined && {
+            directDownloadRadarrMonitor: config.directDownloadRadarrMonitor,
+          }),
+          ...(config.directDownloadRadarrSearchOnAdd !== undefined && {
+            directDownloadRadarrSearchOnAdd:
+              config.directDownloadRadarrSearchOnAdd,
+          }),
+          ...(config.directDownloadSonarrTags !== undefined && {
+            directDownloadSonarrTags: config.directDownloadSonarrTags,
+          }),
+          ...(config.directDownloadSonarrMonitor !== undefined && {
+            directDownloadSonarrMonitor: config.directDownloadSonarrMonitor,
+          }),
+          ...(config.directDownloadSonarrSearchOnAdd !== undefined && {
+            directDownloadSonarrSearchOnAdd:
+              config.directDownloadSonarrSearchOnAdd,
+          }),
           ...(config.overseerrRadarrServerId !== undefined && {
             overseerrRadarrServerId: config.overseerrRadarrServerId,
           }),
@@ -356,6 +390,12 @@ const CollectionSettings = ({
           }),
           ...(config.overseerrSonarrRootFolder !== undefined && {
             overseerrSonarrRootFolder: config.overseerrSonarrRootFolder,
+          }),
+          ...(config.overseerrRadarrTags !== undefined && {
+            overseerrRadarrTags: config.overseerrRadarrTags,
+          }),
+          ...(config.overseerrSonarrTags !== undefined && {
+            overseerrSonarrTags: config.overseerrSonarrTags,
           }),
           isLinked: config.isLinked,
           linkId: config.linkId,
@@ -425,6 +465,13 @@ const CollectionSettings = ({
   };
 
   const addCollectionConfig = () => {
+    // Get default Radarr instance (first default or first in array)
+    const defaultRadarr =
+      radarrSettings?.find((r) => r.isDefault) || radarrSettings?.[0];
+    // Get default Sonarr instance (first default or first in array)
+    const defaultSonarr =
+      sonarrSettings?.find((s) => s.isDefault) || sonarrSettings?.[0];
+
     const newConfig: CollectionFormConfig = {
       id: '', // Will be assigned on save
       name: '', // Will be generated from template
@@ -453,6 +500,29 @@ const CollectionSettings = ({
       maxSeasonsToRequest: 0, // Default: no limit
       seasonsPerShowLimit: 0, // Default: all seasons
       seasonGrabOrder: 'first', // Default to first N seasons
+      // Overseerr defaults
+      overseerrRadarrServerId: overseerrSettings?.radarrServerId,
+      overseerrRadarrProfileId: overseerrSettings?.radarrProfileId,
+      overseerrRadarrRootFolder: overseerrSettings?.radarrRootFolder,
+      overseerrRadarrTags: overseerrSettings?.radarrTags || [],
+      overseerrSonarrServerId: overseerrSettings?.sonarrServerId,
+      overseerrSonarrProfileId: overseerrSettings?.sonarrProfileId,
+      overseerrSonarrRootFolder: overseerrSettings?.sonarrRootFolder,
+      overseerrSonarrTags: overseerrSettings?.sonarrTags || [],
+      // Direct download Radarr defaults
+      directDownloadRadarrServerId: defaultRadarr?.id,
+      directDownloadRadarrProfileId: defaultRadarr?.activeProfileId,
+      directDownloadRadarrRootFolder: defaultRadarr?.activeDirectory,
+      directDownloadRadarrTags: defaultRadarr?.tags || [],
+      directDownloadRadarrMonitor: defaultRadarr?.monitorByDefault ?? true,
+      directDownloadRadarrSearchOnAdd: defaultRadarr?.searchOnAdd ?? true,
+      // Direct download Sonarr defaults
+      directDownloadSonarrServerId: defaultSonarr?.id,
+      directDownloadSonarrProfileId: defaultSonarr?.activeProfileId,
+      directDownloadSonarrRootFolder: defaultSonarr?.activeDirectory,
+      directDownloadSonarrTags: defaultSonarr?.tags || [],
+      directDownloadSonarrMonitor: defaultSonarr?.monitorByDefault ?? true,
+      directDownloadSonarrSearchOnAdd: defaultSonarr?.searchOnAdd ?? true,
     };
     setEditingConfig(newConfig);
     setShowConfigForm(true);

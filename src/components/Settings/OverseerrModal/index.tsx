@@ -10,6 +10,7 @@ import axios from 'axios';
 import { Field, Formik } from 'formik';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import Select from 'react-select';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
@@ -36,15 +37,21 @@ const messages = defineMessages({
   profileIdTip: 'Default quality profile for requests',
   rootFolder: 'Default Root Folder',
   rootFolderTip: 'Default root folder for requests',
+  tags: 'Default Tags',
+  tagsTip: 'Default tags for requests',
   selectServer: 'Select a server',
   selectProfile: 'Select a quality profile',
   selectRootFolder: 'Select a root folder',
+  selectTags: 'Select tags',
   loadingServers: 'Loading servers…',
   loadingProfiles: 'Loading quality profiles…',
   loadingRootFolders: 'Loading root folders…',
+  loadingTags: 'Loading tags…',
   testFirstServers: 'Test connection to load servers',
   testFirstProfiles: 'Select a server first',
   testFirstRootFolders: 'Select a server first',
+  testFirstTags: 'Select a server first',
+  noTagOptions: 'No tags.',
   validationUrl: 'You must provide a valid URL',
   validationUrlTrailingSlash: 'URL must not end in a trailing slash',
   validationUrlBaseLeadingSlash: 'URL base must have a leading slash',
@@ -76,6 +83,7 @@ interface TestResponse {
     {
       profiles: { id: number; name: string }[];
       rootFolders: { id: number; path: string }[];
+      tags: { id: number; label: string }[];
     }
   >;
   sonarrServerOptions: Record<
@@ -83,8 +91,14 @@ interface TestResponse {
     {
       profiles: { id: number; name: string }[];
       rootFolders: { id: number; path: string }[];
+      tags: { id: number; label: string }[];
     }
   >;
+}
+
+interface OptionType {
+  value: number;
+  label: string;
 }
 
 interface OverseerrModalProps {
@@ -270,9 +284,11 @@ const OverseerrModal = ({
           radarrServerId: overseerr?.radarrServerId,
           radarrProfileId: overseerr?.radarrProfileId,
           radarrRootFolder: overseerr?.radarrRootFolder,
+          radarrTags: overseerr?.radarrTags || [],
           sonarrServerId: overseerr?.sonarrServerId,
           sonarrProfileId: overseerr?.sonarrProfileId,
           sonarrRootFolder: overseerr?.sonarrRootFolder,
+          sonarrTags: overseerr?.sonarrTags || [],
           userCreationMode: dataServiceUser?.userCreationMode || 'per-service',
         }}
         validationSchema={OverseerrSettingsSchema}
@@ -296,6 +312,7 @@ const OverseerrModal = ({
                   ? Number(values.radarrProfileId)
                   : undefined,
               radarrRootFolder: values.radarrRootFolder,
+              radarrTags: values.radarrTags,
               sonarrServerId:
                 values.sonarrServerId !== undefined &&
                 values.sonarrServerId !== null
@@ -307,6 +324,7 @@ const OverseerrModal = ({
                   ? Number(values.sonarrProfileId)
                   : undefined,
               sonarrRootFolder: values.sonarrRootFolder,
+              sonarrTags: values.sonarrTags,
             };
 
             const serviceUserSubmission = {
@@ -653,6 +671,78 @@ const OverseerrModal = ({
                   </div>
                 </div>
 
+                <div className="form-row">
+                  <label htmlFor="radarrTags" className="text-label">
+                    {intl.formatMessage(messages.tags)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.tagsTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Select<OptionType, true>
+                      options={
+                        values.radarrServerId !== undefined &&
+                        values.radarrServerId !== null &&
+                        testResponse.radarrServerOptions[
+                          Number(values.radarrServerId)
+                        ]
+                          ? testResponse.radarrServerOptions[
+                              Number(values.radarrServerId)
+                            ].tags.map((tag) => ({
+                              label: tag.label,
+                              value: tag.id,
+                            }))
+                          : []
+                      }
+                      isMulti
+                      isDisabled={
+                        values.radarrServerId === undefined ||
+                        values.radarrServerId === null ||
+                        !testResponse.radarrServerOptions[
+                          Number(values.radarrServerId)
+                        ]
+                      }
+                      placeholder={
+                        values.radarrServerId === undefined ||
+                        values.radarrServerId === null
+                          ? intl.formatMessage(messages.testFirstTags)
+                          : isTesting
+                          ? intl.formatMessage(messages.loadingTags)
+                          : intl.formatMessage(messages.selectTags)
+                      }
+                      noOptionsMessage={() =>
+                        intl.formatMessage(messages.noTagOptions)
+                      }
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      value={
+                        values.radarrServerId !== undefined &&
+                        values.radarrServerId !== null &&
+                        testResponse.radarrServerOptions[
+                          Number(values.radarrServerId)
+                        ]
+                          ? testResponse.radarrServerOptions[
+                              Number(values.radarrServerId)
+                            ].tags
+                              .filter((tag) =>
+                                values.radarrTags?.includes(tag.id)
+                              )
+                              .map((tag) => ({
+                                label: tag.label,
+                                value: tag.id,
+                              }))
+                          : []
+                      }
+                      onChange={(value) => {
+                        setFieldValue(
+                          'radarrTags',
+                          value?.map((v) => v.value) || []
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {/* TV Shows (Sonarr) Defaults */}
                 <div className="form-row">
                   <div className="text-label font-semibold">
@@ -785,6 +875,78 @@ const OverseerrModal = ({
                           ))}
                       </Field>
                     </div>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <label htmlFor="sonarrTags" className="text-label">
+                    {intl.formatMessage(messages.tags)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.tagsTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Select<OptionType, true>
+                      options={
+                        values.sonarrServerId !== undefined &&
+                        values.sonarrServerId !== null &&
+                        testResponse.sonarrServerOptions[
+                          Number(values.sonarrServerId)
+                        ]
+                          ? testResponse.sonarrServerOptions[
+                              Number(values.sonarrServerId)
+                            ].tags.map((tag) => ({
+                              label: tag.label,
+                              value: tag.id,
+                            }))
+                          : []
+                      }
+                      isMulti
+                      isDisabled={
+                        values.sonarrServerId === undefined ||
+                        values.sonarrServerId === null ||
+                        !testResponse.sonarrServerOptions[
+                          Number(values.sonarrServerId)
+                        ]
+                      }
+                      placeholder={
+                        values.sonarrServerId === undefined ||
+                        values.sonarrServerId === null
+                          ? intl.formatMessage(messages.testFirstTags)
+                          : isTesting
+                          ? intl.formatMessage(messages.loadingTags)
+                          : intl.formatMessage(messages.selectTags)
+                      }
+                      noOptionsMessage={() =>
+                        intl.formatMessage(messages.noTagOptions)
+                      }
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      value={
+                        values.sonarrServerId !== undefined &&
+                        values.sonarrServerId !== null &&
+                        testResponse.sonarrServerOptions[
+                          Number(values.sonarrServerId)
+                        ]
+                          ? testResponse.sonarrServerOptions[
+                              Number(values.sonarrServerId)
+                            ].tags
+                              .filter((tag) =>
+                                values.sonarrTags?.includes(tag.id)
+                              )
+                              .map((tag) => ({
+                                label: tag.label,
+                                value: tag.id,
+                              }))
+                          : []
+                      }
+                      onChange={(value) => {
+                        setFieldValue(
+                          'sonarrTags',
+                          value?.map((v) => v.value) || []
+                        );
+                      }}
+                    />
                   </div>
                 </div>
 

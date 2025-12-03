@@ -564,15 +564,23 @@ const CollectionFormConfigForm = ({
     directDownloadRadarrServerId: Yup.number().integer().min(0),
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
     directDownloadRadarrRootFolder: Yup.string(),
+    directDownloadRadarrTags: Yup.array().of(Yup.number().integer()),
+    directDownloadRadarrMonitor: Yup.boolean(),
+    directDownloadRadarrSearchOnAdd: Yup.boolean(),
     directDownloadSonarrServerId: Yup.number().integer().min(0),
     directDownloadSonarrProfileId: Yup.number().positive().integer(),
     directDownloadSonarrRootFolder: Yup.string(),
+    directDownloadSonarrTags: Yup.array().of(Yup.number().integer()),
+    directDownloadSonarrMonitor: Yup.boolean(),
+    directDownloadSonarrSearchOnAdd: Yup.boolean(),
     overseerrRadarrServerId: Yup.number().integer().min(0),
     overseerrRadarrProfileId: Yup.number().positive().integer(),
     overseerrRadarrRootFolder: Yup.string(),
+    overseerrRadarrTags: Yup.array().of(Yup.number().integer()),
     overseerrSonarrServerId: Yup.number().integer().min(0),
     overseerrSonarrProfileId: Yup.number().positive().integer(),
     overseerrSonarrRootFolder: Yup.string(),
+    overseerrSonarrTags: Yup.array().of(Yup.number().integer()),
 
     // Multi-source field validation
     isMultiSource: Yup.boolean(),
@@ -1067,6 +1075,12 @@ const CollectionFormConfigForm = ({
           directDownloadRadarrRootFolder:
             (config as CollectionFormConfig).directDownloadRadarrRootFolder ??
             undefined,
+          directDownloadRadarrTags:
+            (config as CollectionFormConfig).directDownloadRadarrTags ?? [],
+          directDownloadRadarrMonitor: (config as CollectionFormConfig)
+            .directDownloadRadarrMonitor,
+          directDownloadRadarrSearchOnAdd: (config as CollectionFormConfig)
+            .directDownloadRadarrSearchOnAdd,
           directDownloadSonarrServerId:
             (config as CollectionFormConfig).directDownloadSonarrServerId ??
             undefined,
@@ -1076,6 +1090,12 @@ const CollectionFormConfigForm = ({
           directDownloadSonarrRootFolder:
             (config as CollectionFormConfig).directDownloadSonarrRootFolder ??
             undefined,
+          directDownloadSonarrTags:
+            (config as CollectionFormConfig).directDownloadSonarrTags ?? [],
+          directDownloadSonarrMonitor: (config as CollectionFormConfig)
+            .directDownloadSonarrMonitor,
+          directDownloadSonarrSearchOnAdd: (config as CollectionFormConfig)
+            .directDownloadSonarrSearchOnAdd,
           overseerrRadarrServerId:
             (config as CollectionFormConfig).overseerrRadarrServerId ??
             undefined,
@@ -1085,6 +1105,8 @@ const CollectionFormConfigForm = ({
           overseerrRadarrRootFolder:
             (config as CollectionFormConfig).overseerrRadarrRootFolder ??
             undefined,
+          overseerrRadarrTags:
+            (config as CollectionFormConfig).overseerrRadarrTags ?? [],
           overseerrSonarrServerId:
             (config as CollectionFormConfig).overseerrSonarrServerId ??
             undefined,
@@ -1094,9 +1116,11 @@ const CollectionFormConfigForm = ({
           overseerrSonarrRootFolder:
             (config as CollectionFormConfig).overseerrSonarrRootFolder ??
             undefined,
+          overseerrSonarrTags:
+            (config as CollectionFormConfig).overseerrSonarrTags ?? [],
           visibilityConfig: {
             usersHome: config.visibilityConfig?.usersHome ?? false,
-            serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? true,
+            serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? false,
             libraryRecommended:
               config.visibilityConfig?.libraryRecommended ?? false,
           },
@@ -1247,6 +1271,15 @@ const CollectionFormConfigForm = ({
           const directRadarrRootFolder = values.enableGrabMissingItems
             ? optionalString(values.directDownloadRadarrRootFolder)
             : undefined;
+          const directRadarrTags = values.enableGrabMissingItems
+            ? values.directDownloadRadarrTags
+            : undefined;
+          const directRadarrMonitor = values.enableGrabMissingItems
+            ? values.directDownloadRadarrMonitor
+            : undefined;
+          const directRadarrSearchOnAdd = values.enableGrabMissingItems
+            ? values.directDownloadRadarrSearchOnAdd
+            : undefined;
 
           const directSonarrServerId = values.enableGrabMissingItems
             ? optionalNumber(values.directDownloadSonarrServerId)
@@ -1256,6 +1289,15 @@ const CollectionFormConfigForm = ({
             : undefined;
           const directSonarrRootFolder = values.enableGrabMissingItems
             ? optionalString(values.directDownloadSonarrRootFolder)
+            : undefined;
+          const directSonarrTags = values.enableGrabMissingItems
+            ? values.directDownloadSonarrTags
+            : undefined;
+          const directSonarrMonitor = values.enableGrabMissingItems
+            ? values.directDownloadSonarrMonitor
+            : undefined;
+          const directSonarrSearchOnAdd = values.enableGrabMissingItems
+            ? values.directDownloadSonarrSearchOnAdd
             : undefined;
 
           const overseerrRadarrServerId = values.enableGrabMissingItems
@@ -1267,6 +1309,9 @@ const CollectionFormConfigForm = ({
           const overseerrRadarrRootFolder = values.enableGrabMissingItems
             ? optionalString(values.overseerrRadarrRootFolder)
             : undefined;
+          const overseerrRadarrTags = values.enableGrabMissingItems
+            ? values.overseerrRadarrTags
+            : undefined;
 
           const overseerrSonarrServerId = values.enableGrabMissingItems
             ? optionalNumber(values.overseerrSonarrServerId)
@@ -1276,6 +1321,9 @@ const CollectionFormConfigForm = ({
             : undefined;
           const overseerrSonarrRootFolder = values.enableGrabMissingItems
             ? optionalString(values.overseerrSonarrRootFolder)
+            : undefined;
+          const overseerrSonarrTags = values.enableGrabMissingItems
+            ? values.overseerrSonarrTags
             : undefined;
 
           const configToSave: CollectionFormConfig = {
@@ -1386,16 +1434,24 @@ const CollectionFormConfigForm = ({
             directDownloadRadarrServerId: directRadarrServerId,
             directDownloadRadarrProfileId: directRadarrProfileId,
             directDownloadRadarrRootFolder: directRadarrRootFolder,
+            directDownloadRadarrTags: directRadarrTags,
+            directDownloadRadarrMonitor: directRadarrMonitor,
+            directDownloadRadarrSearchOnAdd: directRadarrSearchOnAdd,
             directDownloadSonarrServerId: directSonarrServerId,
             directDownloadSonarrProfileId: directSonarrProfileId,
             directDownloadSonarrRootFolder: directSonarrRootFolder,
+            directDownloadSonarrTags: directSonarrTags,
+            directDownloadSonarrMonitor: directSonarrMonitor,
+            directDownloadSonarrSearchOnAdd: directSonarrSearchOnAdd,
             // Overseerr request configuration
             overseerrRadarrServerId: overseerrRadarrServerId,
             overseerrRadarrProfileId: overseerrRadarrProfileId,
             overseerrRadarrRootFolder: overseerrRadarrRootFolder,
+            overseerrRadarrTags: overseerrRadarrTags,
             overseerrSonarrServerId: overseerrSonarrServerId,
             overseerrSonarrProfileId: overseerrSonarrProfileId,
             overseerrSonarrRootFolder: overseerrSonarrRootFolder,
+            overseerrSonarrTags: overseerrSonarrTags,
             // Radarr/Sonarr tag configuration (explicitly preserve these fields)
             radarrInstanceId: values.radarrInstanceId,
             radarrTagId: values.radarrTagId,

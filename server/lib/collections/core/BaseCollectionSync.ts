@@ -819,10 +819,10 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         collectionName,
         mediaType,
         visibilityConfig: {
-          usersHome: config.visibilityConfig?.usersHome ?? true,
+          usersHome: config.visibilityConfig?.usersHome ?? false,
           serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? false,
           libraryRecommended:
-            config.visibilityConfig?.libraryRecommended ?? true,
+            config.visibilityConfig?.libraryRecommended ?? false,
           isActive: config.isActive,
         },
         customLabel,

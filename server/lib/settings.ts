@@ -139,16 +139,24 @@ export interface CollectionConfig {
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
   readonly directDownloadRadarrRootFolder?: string; // Selected Radarr root folder path for movies
+  readonly directDownloadRadarrTags?: number[]; // Selected Radarr tags for movies
+  readonly directDownloadRadarrMonitor?: boolean; // Override Radarr monitor setting for movies
+  readonly directDownloadRadarrSearchOnAdd?: boolean; // Override Radarr search on add setting for movies
   readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
+  readonly directDownloadSonarrTags?: number[]; // Selected Sonarr tags for TV shows
+  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows
+  readonly directDownloadSonarrSearchOnAdd?: boolean; // Override Sonarr search on add setting for TV shows
   // Overseerr request configuration (for downloadMode: 'overseerr')
   readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
   readonly overseerrRadarrProfileId?: number; // Override Radarr profile ID for Overseerr movie requests
   readonly overseerrRadarrRootFolder?: string; // Override Radarr root folder path for Overseerr movie requests
+  readonly overseerrRadarrTags?: number[]; // Override Radarr tags for Overseerr movie requests
   readonly overseerrSonarrServerId?: number; // Override Sonarr server ID for Overseerr TV requests
   readonly overseerrSonarrProfileId?: number; // Override Sonarr profile ID for Overseerr TV requests
   readonly overseerrSonarrRootFolder?: string; // Override Sonarr root folder path for Overseerr TV requests
+  readonly overseerrSonarrTags?: number[]; // Override Sonarr tags for Overseerr TV requests
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
   // IMDb custom list fields
@@ -402,10 +410,12 @@ export interface OverseerrSettings {
   radarrServerId?: number;
   radarrProfileId?: number;
   radarrRootFolder?: string;
+  radarrTags?: number[];
   // TV defaults (Sonarr)
   sonarrServerId?: number;
   sonarrProfileId?: number;
   sonarrRootFolder?: string;
+  sonarrTags?: number[];
 }
 
 export interface ServiceUserSettings {
@@ -1948,15 +1958,23 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
   readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadRadarrTags?: number[];
+  readonly directDownloadRadarrMonitor?: boolean;
+  readonly directDownloadRadarrSearchOnAdd?: boolean;
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly directDownloadSonarrTags?: number[];
+  readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrSearchOnAdd?: boolean;
   readonly overseerrRadarrServerId?: number;
   readonly overseerrRadarrProfileId?: number;
   readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrRadarrTags?: number[];
   readonly overseerrSonarrServerId?: number;
   readonly overseerrSonarrProfileId?: number;
   readonly overseerrSonarrRootFolder?: string;
+  readonly overseerrSonarrTags?: number[];
   readonly collectionRatingKey?: string; // Plex collection rating key (regular or smart collection)
   readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   // Smart collection settings (unwatched filter feature)

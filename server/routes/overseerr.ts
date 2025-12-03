@@ -105,12 +105,13 @@ router.post('/test', async (req, res, next) => {
       }[];
     } = { radarr: [], sonarr: [] };
 
-    // Store profiles and root folders for ALL servers, keyed by server ID
+    // Store profiles, root folders, and tags for ALL servers, keyed by server ID
     const radarrServerOptions: Record<
       number,
       {
         profiles: { id: number; name: string }[];
         rootFolders: { id: number; path: string }[];
+        tags: { id: number; label: string }[];
       }
     > = {};
 
@@ -119,6 +120,7 @@ router.post('/test', async (req, res, next) => {
       {
         profiles: { id: number; name: string }[];
         rootFolders: { id: number; path: string }[];
+        tags: { id: number; label: string }[];
       }
     > = {};
 
@@ -127,14 +129,15 @@ router.post('/test', async (req, res, next) => {
       const sonarrServers = await overseerrClient.getSonarrServers();
       servers = { radarr: radarrServers, sonarr: sonarrServers };
 
-      // Fetch profiles and root folders for ALL Radarr servers
+      // Fetch profiles, root folders, and tags for ALL Radarr servers
       for (const server of radarrServers) {
         try {
-          const [profiles, rootFolders] = await Promise.all([
+          const [profiles, rootFolders, tags] = await Promise.all([
             overseerrClient.getRadarrProfiles(server.id),
             overseerrClient.getRadarrRootFolders(server.id),
+            overseerrClient.getRadarrTags(server.id),
           ]);
-          radarrServerOptions[server.id] = { profiles, rootFolders };
+          radarrServerOptions[server.id] = { profiles, rootFolders, tags };
         } catch (error) {
           logger.warn('Failed to fetch Radarr options for server', {
             label: 'Overseerr Connection',
@@ -142,18 +145,23 @@ router.post('/test', async (req, res, next) => {
             serverName: server.name,
             error: error instanceof Error ? error.message : String(error),
           });
-          radarrServerOptions[server.id] = { profiles: [], rootFolders: [] };
+          radarrServerOptions[server.id] = {
+            profiles: [],
+            rootFolders: [],
+            tags: [],
+          };
         }
       }
 
-      // Fetch profiles and root folders for ALL Sonarr servers
+      // Fetch profiles, root folders, and tags for ALL Sonarr servers
       for (const server of sonarrServers) {
         try {
-          const [profiles, rootFolders] = await Promise.all([
+          const [profiles, rootFolders, tags] = await Promise.all([
             overseerrClient.getSonarrProfiles(server.id),
             overseerrClient.getSonarrRootFolders(server.id),
+            overseerrClient.getSonarrTags(server.id),
           ]);
-          sonarrServerOptions[server.id] = { profiles, rootFolders };
+          sonarrServerOptions[server.id] = { profiles, rootFolders, tags };
         } catch (error) {
           logger.warn('Failed to fetch Sonarr options for server', {
             label: 'Overseerr Connection',
@@ -161,7 +169,11 @@ router.post('/test', async (req, res, next) => {
             serverName: server.name,
             error: error instanceof Error ? error.message : String(error),
           });
-          sonarrServerOptions[server.id] = { profiles: [], rootFolders: [] };
+          sonarrServerOptions[server.id] = {
+            profiles: [],
+            rootFolders: [],
+            tags: [],
+          };
         }
       }
     } catch (serverError) {

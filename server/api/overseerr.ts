@@ -631,6 +631,46 @@ class OverseerrAPI {
       return [];
     }
   }
+
+  /**
+   * Get tags from a Radarr server
+   */
+  async getRadarrTags(
+    serverId: number
+  ): Promise<{ id: number; label: string }[]> {
+    try {
+      const response = await this.axios.get(`/service/radarr/${serverId}`);
+      return response.data.tags || [];
+    } catch (error) {
+      logger.error(
+        `Failed to get Radarr tags from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Get tags from a Sonarr server
+   */
+  async getSonarrTags(
+    serverId: number
+  ): Promise<{ id: number; label: string }[]> {
+    try {
+      const response = await this.axios.get(`/service/sonarr/${serverId}`);
+      return response.data.tags || [];
+    } catch (error) {
+      logger.error(
+        `Failed to get Sonarr tags from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+        }
+      );
+      return [];
+    }
+  }
 }
 
 export default OverseerrAPI;

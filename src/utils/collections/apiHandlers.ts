@@ -166,6 +166,28 @@ export const saveIndividualConfigs = async (
           directDownloadSonarrRootFolder:
             collectionConfig.directDownloadSonarrRootFolder,
         }),
+        ...(collectionConfig.directDownloadRadarrTags !== undefined && {
+          directDownloadRadarrTags: collectionConfig.directDownloadRadarrTags,
+        }),
+        ...(collectionConfig.directDownloadRadarrMonitor !== undefined && {
+          directDownloadRadarrMonitor:
+            collectionConfig.directDownloadRadarrMonitor,
+        }),
+        ...(collectionConfig.directDownloadRadarrSearchOnAdd !== undefined && {
+          directDownloadRadarrSearchOnAdd:
+            collectionConfig.directDownloadRadarrSearchOnAdd,
+        }),
+        ...(collectionConfig.directDownloadSonarrTags !== undefined && {
+          directDownloadSonarrTags: collectionConfig.directDownloadSonarrTags,
+        }),
+        ...(collectionConfig.directDownloadSonarrMonitor !== undefined && {
+          directDownloadSonarrMonitor:
+            collectionConfig.directDownloadSonarrMonitor,
+        }),
+        ...(collectionConfig.directDownloadSonarrSearchOnAdd !== undefined && {
+          directDownloadSonarrSearchOnAdd:
+            collectionConfig.directDownloadSonarrSearchOnAdd,
+        }),
         ...(collectionConfig.overseerrRadarrServerId !== undefined && {
           overseerrRadarrServerId: collectionConfig.overseerrRadarrServerId,
         }),
@@ -183,6 +205,12 @@ export const saveIndividualConfigs = async (
         }),
         ...(collectionConfig.overseerrSonarrRootFolder !== undefined && {
           overseerrSonarrRootFolder: collectionConfig.overseerrSonarrRootFolder,
+        }),
+        ...(collectionConfig.overseerrRadarrTags !== undefined && {
+          overseerrRadarrTags: collectionConfig.overseerrRadarrTags,
+        }),
+        ...(collectionConfig.overseerrSonarrTags !== undefined && {
+          overseerrSonarrTags: collectionConfig.overseerrSonarrTags,
         }),
         ...(collectionConfig.isMultiSource !== undefined && {
           isMultiSource: collectionConfig.isMultiSource,

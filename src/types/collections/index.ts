@@ -290,16 +290,24 @@ export interface CollectionFormConfig {
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
   readonly directDownloadRadarrRootFolder?: string; // Selected Radarr root folder path for movies
+  readonly directDownloadRadarrTags?: number[]; // Selected Radarr tags for movies
+  readonly directDownloadRadarrMonitor?: boolean; // Override Radarr monitor setting for movies
+  readonly directDownloadRadarrSearchOnAdd?: boolean; // Override Radarr search on add setting for movies
   readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
+  readonly directDownloadSonarrTags?: number[]; // Selected Sonarr tags for TV shows
+  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows
+  readonly directDownloadSonarrSearchOnAdd?: boolean; // Override Sonarr search on add setting for TV shows
   // Overseerr request configuration (for downloadMode: 'overseerr')
   readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
   readonly overseerrRadarrProfileId?: number; // Override Radarr profile ID for Overseerr movie requests
   readonly overseerrRadarrRootFolder?: string; // Override Radarr root folder path for Overseerr movie requests
+  readonly overseerrRadarrTags?: number[]; // Override Radarr tags for Overseerr movie requests
   readonly overseerrSonarrServerId?: number; // Override Sonarr server ID for Overseerr TV requests
   readonly overseerrSonarrProfileId?: number; // Override Sonarr profile ID for Overseerr TV requests
   readonly overseerrSonarrRootFolder?: string; // Override Sonarr root folder path for Overseerr TV requests
+  readonly overseerrSonarrTags?: number[]; // Override Sonarr tags for Overseerr TV requests
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDB custom list fields
@@ -446,16 +454,24 @@ export interface CollectionConfigCreateRequest {
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
   readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadRadarrTags?: number[];
+  readonly directDownloadRadarrMonitor?: boolean;
+  readonly directDownloadRadarrSearchOnAdd?: boolean;
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly directDownloadSonarrTags?: number[];
+  readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrSearchOnAdd?: boolean;
   // Overseerr request configuration (for downloadMode: 'overseerr')
   readonly overseerrRadarrServerId?: number;
   readonly overseerrRadarrProfileId?: number;
   readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrRadarrTags?: number[];
   readonly overseerrSonarrServerId?: number;
   readonly overseerrSonarrProfileId?: number;
   readonly overseerrSonarrRootFolder?: string;
+  readonly overseerrSonarrTags?: number[];
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomCollectionUrl?: string;
   readonly imdbCustomListUrl?: string;
@@ -553,15 +569,23 @@ export const toCollectionCreateRequest = (
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
     directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
     directDownloadRadarrRootFolder: config.directDownloadRadarrRootFolder,
+    directDownloadRadarrTags: config.directDownloadRadarrTags,
+    directDownloadRadarrMonitor: config.directDownloadRadarrMonitor,
+    directDownloadRadarrSearchOnAdd: config.directDownloadRadarrSearchOnAdd,
     directDownloadSonarrServerId: config.directDownloadSonarrServerId,
     directDownloadSonarrProfileId: config.directDownloadSonarrProfileId,
     directDownloadSonarrRootFolder: config.directDownloadSonarrRootFolder,
+    directDownloadSonarrTags: config.directDownloadSonarrTags,
+    directDownloadSonarrMonitor: config.directDownloadSonarrMonitor,
+    directDownloadSonarrSearchOnAdd: config.directDownloadSonarrSearchOnAdd,
     overseerrRadarrServerId: config.overseerrRadarrServerId,
     overseerrRadarrProfileId: config.overseerrRadarrProfileId,
     overseerrRadarrRootFolder: config.overseerrRadarrRootFolder,
+    overseerrRadarrTags: config.overseerrRadarrTags,
     overseerrSonarrServerId: config.overseerrSonarrServerId,
     overseerrSonarrProfileId: config.overseerrSonarrProfileId,
     overseerrSonarrRootFolder: config.overseerrSonarrRootFolder,
+    overseerrSonarrTags: config.overseerrSonarrTags,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
     imdbCustomListUrl: config.imdbCustomListUrl,
@@ -964,15 +988,23 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
   readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadRadarrTags?: number[];
+  readonly directDownloadRadarrMonitor?: boolean;
+  readonly directDownloadRadarrSearchOnAdd?: boolean;
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly directDownloadSonarrTags?: number[];
+  readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrSearchOnAdd?: boolean;
   readonly overseerrRadarrServerId?: number;
   readonly overseerrRadarrProfileId?: number;
   readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrRadarrTags?: number[];
   readonly overseerrSonarrServerId?: number;
   readonly overseerrSonarrProfileId?: number;
   readonly overseerrSonarrRootFolder?: string;
+  readonly overseerrSonarrTags?: number[];
 }
 
 /**

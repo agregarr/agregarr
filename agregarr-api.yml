@@ -1252,6 +1252,23 @@ components:
           description: "Selected Radarr root folder path for movies (when downloadMode is 'direct')"
           example: '/movies'
           nullable: true
+        directDownloadRadarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Selected Radarr tags for movies (when downloadMode is 'direct')"
+          example: [1, 2]
+          nullable: true
+        directDownloadRadarrMonitor:
+          type: boolean
+          description: "Override Radarr monitor setting for movies (when downloadMode is 'direct')"
+          example: true
+          nullable: true
+        directDownloadRadarrSearchOnAdd:
+          type: boolean
+          description: "Override Radarr search on add setting for movies (when downloadMode is 'direct')"
+          example: true
+          nullable: true
         directDownloadSonarrServerId:
           type: integer
           description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
@@ -1266,6 +1283,23 @@ components:
           type: string
           description: "Selected Sonarr root folder path for TV shows (when downloadMode is 'direct')"
           example: '/tv'
+          nullable: true
+        directDownloadSonarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Selected Sonarr tags for TV shows (when downloadMode is 'direct')"
+          example: [1, 2]
+          nullable: true
+        directDownloadSonarrMonitor:
+          type: boolean
+          description: "Override Sonarr monitor setting for TV shows (when downloadMode is 'direct')"
+          example: true
+          nullable: true
+        directDownloadSonarrSearchOnAdd:
+          type: boolean
+          description: "Override Sonarr search on add setting for TV shows (when downloadMode is 'direct')"
+          example: true
           nullable: true
         overseerrRadarrServerId:
           type: integer
@@ -1282,6 +1316,13 @@ components:
           description: "Override Radarr root folder path for Overseerr movie requests (when downloadMode is 'overseerr')"
           example: '/movies'
           nullable: true
+        overseerrRadarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Override Radarr tags for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: [1, 2]
+          nullable: true
         overseerrSonarrServerId:
           type: integer
           description: "Override Sonarr server ID for Overseerr TV requests (when downloadMode is 'overseerr')"
@@ -1296,6 +1337,13 @@ components:
           type: string
           description: "Override Sonarr root folder path for Overseerr TV requests (when downloadMode is 'overseerr')"
           example: '/tv'
+          nullable: true
+        overseerrSonarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Override Sonarr tags for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: [1, 2]
           nullable: true
         showUnwatchedOnly:
           type: boolean
@@ -1870,6 +1918,23 @@ components:
           description: "Selected Radarr root folder path for movies (when downloadMode is 'direct')"
           example: '/movies'
           nullable: true
+        directDownloadRadarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Selected Radarr tags for movies (when downloadMode is 'direct')"
+          example: [1, 2]
+          nullable: true
+        directDownloadRadarrMonitor:
+          type: boolean
+          description: "Override Radarr monitor setting for movies (when downloadMode is 'direct')"
+          example: true
+          nullable: true
+        directDownloadRadarrSearchOnAdd:
+          type: boolean
+          description: "Override Radarr search on add setting for movies (when downloadMode is 'direct')"
+          example: true
+          nullable: true
         directDownloadSonarrServerId:
           type: integer
           description: "Selected Sonarr server ID for TV shows (when downloadMode is 'direct')"
@@ -1884,6 +1949,23 @@ components:
           type: string
           description: "Selected Sonarr root folder path for TV shows (when downloadMode is 'direct')"
           example: '/tv'
+          nullable: true
+        directDownloadSonarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Selected Sonarr tags for TV shows (when downloadMode is 'direct')"
+          example: [1, 2]
+          nullable: true
+        directDownloadSonarrMonitor:
+          type: boolean
+          description: "Override Sonarr monitor setting for TV shows (when downloadMode is 'direct')"
+          example: true
+          nullable: true
+        directDownloadSonarrSearchOnAdd:
+          type: boolean
+          description: "Override Sonarr search on add setting for TV shows (when downloadMode is 'direct')"
+          example: true
           nullable: true
         overseerrRadarrServerId:
           type: integer
@@ -1900,6 +1982,13 @@ components:
           description: "Override Radarr root folder path for Overseerr movie requests (when downloadMode is 'overseerr')"
           example: '/movies'
           nullable: true
+        overseerrRadarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Override Radarr tags for Overseerr movie requests (when downloadMode is 'overseerr')"
+          example: [1, 2]
+          nullable: true
         overseerrSonarrServerId:
           type: integer
           description: "Override Sonarr server ID for Overseerr TV requests (when downloadMode is 'overseerr')"
@@ -1914,6 +2003,13 @@ components:
           type: string
           description: "Override Sonarr root folder path for Overseerr TV requests (when downloadMode is 'overseerr')"
           example: '/tv'
+          nullable: true
+        overseerrSonarrTags:
+          type: array
+          items:
+            type: integer
+          description: "Override Sonarr tags for Overseerr TV requests (when downloadMode is 'overseerr')"
+          example: [1, 2]
           nullable: true
         showUnwatchedOnly:
           type: boolean
@@ -3098,6 +3194,13 @@ components:
           nullable: true
           example: '/data/media/movies'
           description: 'Default Radarr root folder path for movie requests'
+        radarrTags:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          example: [1, 2]
+          description: 'Default Radarr tags for movie requests'
         sonarrServerId:
           type: number
           nullable: true
@@ -3113,6 +3216,13 @@ components:
           nullable: true
           example: '/data/media/tv'
           description: 'Default Sonarr root folder path for TV requests'
+        sonarrTags:
+          type: array
+          items:
+            type: integer
+          nullable: true
+          example: [1, 2]
+          description: 'Default Sonarr tags for TV requests'
     ServiceUserSettings:
       type: object
       properties:

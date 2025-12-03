@@ -633,17 +633,31 @@ export class DirectDownloadService {
       config.directDownloadRadarrRootFolder ??
       radarrSettings.activeDirectory;
 
+    // Combine default server tags with per-collection override tags
+    const collectionTags = config.directDownloadRadarrTags || [];
+    const finalTags = [...new Set([...tagsToSend, ...collectionTags])]; // Deduplicate
+
+    // Use per-collection overrides for monitor and searchOnAdd, fallback to server defaults
+    const monitored =
+      config.directDownloadRadarrMonitor !== undefined
+        ? config.directDownloadRadarrMonitor
+        : radarrSettings.monitorByDefault ?? true;
+    const searchNow =
+      config.directDownloadRadarrSearchOnAdd !== undefined
+        ? config.directDownloadRadarrSearchOnAdd
+        : radarrSettings.searchOnAdd ?? true;
+
     await radarrAPI.addMovie({
       title: item.title,
       qualityProfileId: profileId,
       minimumAvailability: radarrSettings.minimumAvailability,
-      tags: tagsToSend,
+      tags: finalTags,
       profileId: profileId,
       year: item.year || new Date().getFullYear(), // Use item year or current year as fallback
       rootFolderPath,
       tmdbId: item.tmdbId,
-      monitored: radarrSettings.monitorByDefault ?? true,
-      searchNow: radarrSettings.searchOnAdd ?? true,
+      monitored,
+      searchNow,
     });
 
     logger.debug('Added movie to Radarr for collection', {
@@ -766,18 +780,32 @@ export class DirectDownloadService {
       config.directDownloadSonarrRootFolder ??
       sonarrSettings.activeDirectory;
 
+    // Combine default server tags with per-collection override tags
+    const collectionTags = config.directDownloadSonarrTags || [];
+    const finalTags = [...new Set([...tagsToSend, ...collectionTags])]; // Deduplicate
+
+    // Use per-collection overrides for monitor and searchOnAdd, fallback to server defaults
+    const monitored =
+      config.directDownloadSonarrMonitor !== undefined
+        ? config.directDownloadSonarrMonitor
+        : sonarrSettings.monitorByDefault ?? true;
+    const searchNow =
+      config.directDownloadSonarrSearchOnAdd !== undefined
+        ? config.directDownloadSonarrSearchOnAdd
+        : sonarrSettings.searchOnAdd ?? true;
+
     await sonarrAPI.addSeries({
       tvdbid: tvdbId,
       title: item.title,
       profileId: profileId,
       languageProfileId: sonarrSettings.activeLanguageProfileId,
       seasons: seasonsToMonitorArray, // Pass the selected season numbers
-      tags: tagsToSend,
+      tags: finalTags,
       rootFolderPath,
-      monitored: sonarrSettings.monitorByDefault ?? true,
+      monitored,
       seasonFolder: sonarrSettings.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
       seriesType: sonarrSettings.seriesType || 'standard',
-      searchNow: sonarrSettings.searchOnAdd ?? true,
+      searchNow,
     });
 
     logger.debug('Added TV series to Sonarr for collection', {

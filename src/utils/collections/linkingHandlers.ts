@@ -161,18 +161,30 @@ export const linkCollectionConfig = async (
               masterConfig.directDownloadRadarrProfileId,
             directDownloadRadarrRootFolder:
               masterConfig.directDownloadRadarrRootFolder,
+            directDownloadRadarrTags: masterConfig.directDownloadRadarrTags,
+            directDownloadRadarrMonitor:
+              masterConfig.directDownloadRadarrMonitor,
+            directDownloadRadarrSearchOnAdd:
+              masterConfig.directDownloadRadarrSearchOnAdd,
             directDownloadSonarrServerId:
               masterConfig.directDownloadSonarrServerId,
             directDownloadSonarrProfileId:
               masterConfig.directDownloadSonarrProfileId,
             directDownloadSonarrRootFolder:
               masterConfig.directDownloadSonarrRootFolder,
+            directDownloadSonarrTags: masterConfig.directDownloadSonarrTags,
+            directDownloadSonarrMonitor:
+              masterConfig.directDownloadSonarrMonitor,
+            directDownloadSonarrSearchOnAdd:
+              masterConfig.directDownloadSonarrSearchOnAdd,
             overseerrRadarrServerId: masterConfig.overseerrRadarrServerId,
             overseerrRadarrProfileId: masterConfig.overseerrRadarrProfileId,
             overseerrRadarrRootFolder: masterConfig.overseerrRadarrRootFolder,
+            overseerrRadarrTags: masterConfig.overseerrRadarrTags,
             overseerrSonarrServerId: masterConfig.overseerrSonarrServerId,
             overseerrSonarrProfileId: masterConfig.overseerrSonarrProfileId,
             overseerrSonarrRootFolder: masterConfig.overseerrSonarrRootFolder,
+            overseerrSonarrTags: masterConfig.overseerrSonarrTags,
             searchMissingMovies: masterConfig.searchMissingMovies,
             searchMissingTV: masterConfig.searchMissingTV,
             autoApproveMovies: masterConfig.autoApproveMovies,
