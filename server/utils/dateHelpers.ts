@@ -1,33 +1,123 @@
 /**
  * Date utility functions
+ * Respects TZ environment variable for calculating release dates relative to server timezone
+ * Release dates from TMDB are UTC midnight - we convert them to server timezone for comparison
  */
 
 /**
- * Parse ISO date string and normalize to start of day (UTC)
+ * Get the server timezone from TZ environment variable
+ */
+function getServerTimezone(): string {
+  return process.env.TZ || 'UTC';
+}
+
+/**
+ * Get calendar date components for a given Date in the server timezone
+ * Returns normalized Date object at midnight for comparison
+ */
+function getCalendarDateInTimezone(date: Date): Date {
+  const tz = getServerTimezone();
+
+  // Get the calendar date as it appears in the server timezone
+  const tzDateString = date.toLocaleString('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  // Parse MM/DD/YYYY format
+  const [m, d, y] = tzDateString.split('/');
+
+  // Return a Date representing midnight on this calendar date
+  // Using local Date constructor for consistent comparison
+  return new Date(parseInt(y), parseInt(m) - 1, parseInt(d), 0, 0, 0, 0);
+}
+
+/**
+ * Parse ISO date string (YYYY-MM-DD) as UTC midnight, then convert to server timezone
+ * Example: "2025-12-03" = Dec 3 midnight UTC = Dec 3 1PM in NZ = Dec 2 4PM in LA
  */
 function parseDate(isoString: string): Date {
-  const date = new Date(isoString);
-  date.setUTCHours(0, 0, 0, 0);
-  return date;
+  // Parse as UTC midnight
+  const utcDate = new Date(isoString + 'T00:00:00.000Z');
+  // Convert to calendar date in server timezone
+  return getCalendarDateInTimezone(utcDate);
 }
 
 /**
- * Get current date normalized to start of day (UTC)
+ * Get current calendar date in server timezone
+ * EXPORTED as getToday() for public use
  */
 function getNow(): Date {
-  const now = new Date();
-  now.setUTCHours(0, 0, 0, 0);
-  return now;
+  return getCalendarDateInTimezone(new Date());
 }
 
 /**
- * Calculate days since a past date (UTC)
+ * Get today's date in server timezone (normalized to midnight)
+ * @returns Date object representing today at midnight in server timezone
+ */
+export function getToday(): Date {
+  return getNow();
+}
+
+/**
+ * Check if a date is in the future (compared to today in server timezone)
+ * @param date - ISO date string (YYYY-MM-DD) or Date object
+ * @returns true if the date is after today
+ */
+export function isDateInFuture(date: string | Date): boolean {
+  const targetDate =
+    typeof date === 'string'
+      ? parseDate(date)
+      : getCalendarDateInTimezone(date);
+  const today = getNow();
+  return targetDate > today;
+}
+
+/**
+ * Check if a date is within a specified number of days from today
+ * @param date - ISO date string (YYYY-MM-DD) or Date object
+ * @param maxDays - Maximum number of days in the future
+ * @returns true if date is between today and maxDays from now
+ */
+export function isDateWithinDays(
+  date: string | Date,
+  maxDays: number
+): boolean {
+  const targetDate =
+    typeof date === 'string'
+      ? parseDate(date)
+      : getCalendarDateInTimezone(date);
+  const today = getNow();
+  const maxDate = new Date(today.getTime() + maxDays * 24 * 60 * 60 * 1000);
+
+  return targetDate >= today && targetDate <= maxDate;
+}
+
+/**
+ * Get a date X days from today in server timezone
+ * @param days - Number of days to add (can be negative for past dates)
+ * @returns Date object representing the future/past date
+ */
+export function getFutureDateFromToday(days: number): Date {
+  const today = getNow();
+  return new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Calculate days since a past date (in server timezone)
  * Returns positive number for dates in the past, negative for future dates
+ *
+ * Example: Movie releases "2025-12-03" (UTC midnight)
+ * - In LA (UTC-8): That's Dec 2 at 4 PM - shows as "released today" if it's Dec 2 in LA
+ * - In NZ (UTC+13): That's Dec 3 at 1 PM - shows as "released today" if it's Dec 3 in NZ
  */
 export function calculateDaysSince(date: Date | string): number {
   const targetDate =
-    typeof date === 'string' ? parseDate(date) : new Date(date);
-  targetDate.setUTCHours(0, 0, 0, 0);
+    typeof date === 'string'
+      ? parseDate(date)
+      : getCalendarDateInTimezone(date);
 
   const today = getNow();
   const diffTime = today.getTime() - targetDate.getTime();

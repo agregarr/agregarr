@@ -9,16 +9,13 @@ import logger from '@server/logger';
 /**
  * Check if a movie is truly upcoming (not already released/available)
  */
-function isMovieUpcoming(movie: {
+async function isMovieUpcoming(movie: {
   status?: string;
   releaseDate?: string;
   digitalRelease?: string;
   physicalRelease?: string;
   inCinemas?: string;
-}): boolean {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
+}): Promise<boolean> {
   // If status is announced, it's definitely upcoming
   if (movie.status === 'announced') {
     return true;
@@ -33,13 +30,12 @@ function isMovieUpcoming(movie: {
     movie.inCinemas,
   ].filter(Boolean);
 
+  // Check if any release date is in the future (timezone-aware)
+  const { isDateInFuture } = await import('@server/utils/dateHelpers');
+
   for (const dateStr of releaseDates) {
-    if (dateStr) {
-      const releaseDate = new Date(dateStr);
-      releaseDate.setHours(0, 0, 0, 0);
-      if (releaseDate > today) {
-        return true;
-      }
+    if (dateStr && isDateInFuture(dateStr)) {
+      return true;
     }
   }
 
@@ -66,11 +62,9 @@ export async function fetchMonitoredMovies(
     return items;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
+  const { getFutureDateFromToday } = await import('@server/utils/dateHelpers');
   const maxDaysAway = config.comingSoonDays || 360;
-  const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+  const maxDate = getFutureDateFromToday(maxDaysAway);
 
   for (const radarrInstance of settings.radarr) {
     try {
@@ -122,7 +116,7 @@ export async function fetchMonitoredMovies(
         }
 
         // Check if movie is actually upcoming (not already released/available)
-        const isUpcoming = isMovieUpcoming(movie);
+        const isUpcoming = await isMovieUpcoming(movie);
         if (!isUpcoming) {
           continue;
         }
@@ -239,11 +233,7 @@ export async function fetchMonitoredShows(
     return items;
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
   const maxDaysAway = config.comingSoonDays || 360;
-  const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
 
   for (const sonarrInstance of settings.sonarr) {
     try {
@@ -290,14 +280,16 @@ export async function fetchMonitoredShows(
           });
 
           // Find the next unaired monitored season premiere
-          const now = new Date();
+          // Import timezone-aware helper to convert UTC air dates to server timezone calendar dates
+          const { isDateInFuture } = await import('@server/utils/dateHelpers');
+
           const nextPremiere = seasonPremieres.find((ep) => {
             if (!ep.airDateUtc || !ep.monitored) {
               return false;
             }
-            const airDate = new Date(ep.airDateUtc);
             const hasFile = ep.episodeFileId > 0;
-            const isFuture = airDate > now;
+            // Convert UTC air date to calendar date in server timezone
+            const isFuture = isDateInFuture(new Date(ep.airDateUtc));
 
             logger.debug('Evaluating season premiere', {
               label: 'Coming Soon Collections',
@@ -324,17 +316,19 @@ export async function fetchMonitoredShows(
             continue;
           }
 
-          // Check if air date is within 360-day window
-          const airDate = new Date(nextPremiere.airDateUtc);
-          if (airDate > maxDate) {
+          // Check if air date is within 360-day window (using timezone-aware comparison)
+          const { isDateWithinDays } = await import(
+            '@server/utils/dateHelpers'
+          );
+          if (
+            !isDateWithinDays(new Date(nextPremiere.airDateUtc), maxDaysAway)
+          ) {
             logger.debug('Filtered out show (too far away)', {
               label: 'Coming Soon Collections',
               seriesTitle: series.title,
               season: nextPremiere.seasonNumber,
               airDate: nextPremiere.airDateUtc,
-              daysAway: Math.round(
-                (airDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)
-              ),
+              maxDaysAway,
             });
             continue;
           }
@@ -651,10 +645,12 @@ export async function fetchTmdbComingSoonMovies(
     const maxDaysAway = config.comingSoonDays || 360;
 
     // Calculate date range for upcoming releases
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { getToday, getFutureDateFromToday } = await import(
+      '@server/utils/dateHelpers'
+    );
+    const today = getToday();
     const todayStr = today.toISOString().split('T')[0];
-    const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+    const maxDate = getFutureDateFromToday(maxDaysAway);
     const maxDateStr = maxDate.toISOString().split('T')[0];
 
     let currentPage = 1;
@@ -843,10 +839,12 @@ export async function fetchTmdbComingSoonShows(
     const maxDaysAway = config.comingSoonDays || 360;
 
     // Calculate date range for upcoming air dates
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { getToday, getFutureDateFromToday } = await import(
+      '@server/utils/dateHelpers'
+    );
+    const today = getToday();
     const todayStr = today.toISOString().split('T')[0];
-    const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+    const maxDate = getFutureDateFromToday(maxDaysAway);
     const maxDateStr = maxDate.toISOString().split('T')[0];
 
     // Track unique show IDs to avoid duplicates
@@ -868,11 +866,16 @@ export async function fetchTmdbComingSoonShows(
         let nextSeasonNumber: number | undefined;
         let nextSeasonAirDate: string | undefined;
 
+        // Import timezone helper for date conversion
+        const { isDateWithinDays: checkDateWithinDays } = await import(
+          '@server/utils/dateHelpers'
+        );
+
         if (showDetails.seasons) {
           for (const season of showDetails.seasons) {
             if (season.air_date && season.season_number !== undefined) {
-              const airDate = new Date(season.air_date);
-              if (airDate >= today && airDate <= maxDate) {
+              // Check if season air date is within the configured window (timezone-aware)
+              if (checkDateWithinDays(season.air_date, maxDaysAway)) {
                 nextSeasonNumber = season.season_number;
                 nextSeasonAirDate = season.air_date;
                 break;
@@ -892,8 +895,8 @@ export async function fetchTmdbComingSoonShows(
           return null;
         }
 
-        const airDate = new Date(nextSeasonAirDate);
-        if (airDate < today || airDate > maxDate) {
+        // Verify the final air date is within the window (timezone-aware)
+        if (!checkDateWithinDays(nextSeasonAirDate, maxDaysAway)) {
           return null;
         }
 
@@ -1064,9 +1067,11 @@ export async function enrichWithTMDBReleaseDates(
   const TmdbAPI = (await import('@server/api/themoviedb')).default;
   const tmdbClient = new TmdbAPI();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const maxDate = new Date(Date.now() + maxDaysAway * 24 * 60 * 60 * 1000);
+  const { getToday, getFutureDateFromToday } = await import(
+    '@server/utils/dateHelpers'
+  );
+  const today = getToday();
+  const maxDate = getFutureDateFromToday(maxDaysAway);
 
   logger.debug('Starting TMDB release date enrichment', {
     label: 'Coming Soon Collections',
@@ -1198,15 +1203,17 @@ export async function enrichWithTMDBReleaseDates(
               .filter((s) => s.season_number > 0) // Exclude specials (season 0)
               .sort((a, b) => a.season_number - b.season_number);
 
-            // Find the next season that hasn't aired yet
+            // Import timezone helper for date checking
+            const { isDateInFuture: checkIsDateInFuture } = await import(
+              '@server/utils/dateHelpers'
+            );
+
+            // Find the next season that hasn't aired yet (timezone-aware)
             for (const season of seasons) {
-              if (season.air_date) {
-                const airDate = new Date(season.air_date);
-                if (airDate > today) {
-                  nextSeasonAirDate = season.air_date;
-                  nextSeasonNumber = season.season_number;
-                  break;
-                }
+              if (season.air_date && checkIsDateInFuture(season.air_date)) {
+                nextSeasonAirDate = season.air_date;
+                nextSeasonNumber = season.season_number;
+                break;
               }
             }
           }
@@ -1230,17 +1237,18 @@ export async function enrichWithTMDBReleaseDates(
           }
         }
 
-        // Filter TV shows: check if air date is in the future and within window
+        // Filter TV shows: check if air date is in the future and within window (timezone-aware)
         if (item.airDate) {
-          const airDate = new Date(item.airDate);
-          if (airDate < today || airDate > maxDate) {
+          const { isDateWithinDays: verifyDateWithinDays } = await import(
+            '@server/utils/dateHelpers'
+          );
+          if (!verifyDateWithinDays(item.airDate, maxDaysAway)) {
             logger.debug(
               'Filtering out TV show (already aired or too far away)',
               {
                 label: 'Coming Soon Collections',
                 title: item.title,
                 airDate: item.airDate,
-                reason: airDate < today ? 'already aired' : 'too far away',
               }
             );
             indicesToRemove.push(i);

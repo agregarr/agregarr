@@ -437,16 +437,13 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
   /**
    * Check if a movie is truly upcoming (not already released/available)
    */
-  private isMovieUpcoming(movie: {
+  private async isMovieUpcoming(movie: {
     status?: string;
     releaseDate?: string;
     digitalRelease?: string;
     physicalRelease?: string;
     inCinemas?: string;
-  }): boolean {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
+  }): Promise<boolean> {
     // If status is announced, it's definitely upcoming
     if (movie.status === 'announced') {
       return true;
@@ -461,13 +458,12 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       movie.inCinemas,
     ].filter(Boolean);
 
+    // Check if any release date is in the future (timezone-aware)
+    const { isDateInFuture } = await import('@server/utils/dateHelpers');
+
     for (const dateStr of releaseDates) {
-      if (dateStr) {
-        const releaseDate = new Date(dateStr);
-        releaseDate.setHours(0, 0, 0, 0);
-        if (releaseDate > today) {
-          return true;
-        }
+      if (dateStr && isDateInFuture(dateStr)) {
+        return true;
       }
     }
 
