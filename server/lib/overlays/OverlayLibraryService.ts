@@ -285,7 +285,8 @@ class OverlayLibraryService {
             plexApi,
             itemWithFullMetadata,
             sortedTemplates,
-            config.mediaType
+            config.mediaType,
+            libraryId
           );
           successCount++;
         } catch (error) {
@@ -416,6 +417,7 @@ class OverlayLibraryService {
               item,
               templates,
               mediaType,
+              libraryId,
               contextOverrides
             );
             successCount++;
@@ -453,6 +455,7 @@ class OverlayLibraryService {
     item: PlexLibraryItem,
     templates: OverlayTemplate[],
     mediaType: 'movie' | 'show',
+    libraryId: string,
     contextOverrides?: Partial<OverlayRenderContext>
   ): Promise<void> {
     try {
@@ -629,6 +632,53 @@ class OverlayLibraryService {
         context.downloaded = true;
       }
 
+      // Calculate overlay input hash for metadata tracking
+      // Extract which context fields are actually used by these templates
+      const { calculateOverlayInputHash, extractUsedContextFields } =
+        await import('@server/utils/metadataHashing');
+
+      const templateDataArray = templates.map((t) => t.getTemplateData());
+      const usedFields = extractUsedContextFields(templateDataArray);
+
+      const overlayInputHash = calculateOverlayInputHash({
+        templateIds: templates.map((t) => t.id).sort(),
+        usedFields: usedFields,
+        context: context as Record<string, unknown>,
+      });
+
+      // Check if overlay needs reapplication using metadata tracking
+      const metadataService = (
+        await import('@server/lib/metadata/MetadataTrackingService')
+      ).default;
+
+      try {
+        const currentPosterUrl = await plexApi.getCurrentPosterUrl(
+          item.ratingKey
+        );
+
+        const shouldReapply = await metadataService.shouldReapplyOverlay(
+          item.ratingKey,
+          overlayInputHash,
+          currentPosterUrl
+        );
+
+        if (!shouldReapply) {
+          logger.debug('Overlay inputs unchanged and URL matches, skipping', {
+            label: 'OverlayLibrary',
+            itemTitle: item.title,
+            ratingKey: item.ratingKey,
+          });
+          return; // Skip this item
+        }
+      } catch (metaError) {
+        logger.warn('Metadata check failed, proceeding with overlay', {
+          label: 'MetadataTracking',
+          error:
+            metaError instanceof Error ? metaError.message : String(metaError),
+        });
+        // Fall through to apply overlay
+      }
+
       // Apply each template in order
       let currentBuffer = posterBuffer;
       let templatesApplied = 0;
@@ -692,6 +742,30 @@ class OverlayLibraryService {
       try {
         // Upload modified poster back to Plex
         await plexApi.uploadPosterFromFile(item.ratingKey, tempFilePath);
+
+        // Record overlay metadata tracking
+        try {
+          const newPosterUrl = await plexApi.getCurrentPosterUrl(
+            item.ratingKey
+          );
+
+          if (newPosterUrl) {
+            await metadataService.recordOverlayApplication(
+              item.ratingKey,
+              libraryId,
+              overlayInputHash,
+              newPosterUrl
+            );
+          }
+        } catch (metaError) {
+          logger.error('Failed to record overlay metadata, upload succeeded', {
+            label: 'MetadataTracking',
+            error:
+              metaError instanceof Error
+                ? metaError.message
+                : String(metaError),
+          });
+        }
 
         // Manage "Overlay" label based on whether overlays were applied
         if (templatesApplied > 0) {

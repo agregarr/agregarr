@@ -216,20 +216,84 @@ class PlexPosterManager {
         return null;
       }
 
-      // Convert relative thumb path to full URL
-      const settings = getSettings();
-      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
-        settings.plex.ip
-      }:${settings.plex.port}`;
-
-      // Handle both relative paths and full URLs
-      if (item.thumb.startsWith('http')) {
+      // Return upload:// format for consistency with metadata tracking
+      if (item.thumb.startsWith('upload://')) {
         return item.thumb;
-      } else {
-        return `${baseUrl}${item.thumb}?X-Plex-Token=${this.plexApi['plexToken']}`;
       }
+
+      // Extract upload key from path like "/library/metadata/12345/thumb/67890"
+      const match = item.thumb.match(/\/thumb\/(\d+)/);
+      return match ? `upload://posters/${match[1]}` : item.thumb;
     } catch (error) {
       logger.error(`Error getting current poster for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get current art/wallpaper URL for a Plex item
+   * @param ratingKey The rating key of the item
+   * @returns The current art URL or null if none
+   */
+  public async getCurrentArtUrl(ratingKey: string): Promise<string | null> {
+    try {
+      const response = await this.plexApi['plexClient'].query(
+        `/library/metadata/${ratingKey}`
+      );
+
+      const item = response?.MediaContainer?.Metadata?.[0];
+      if (!item?.art) {
+        return null;
+      }
+
+      // Return upload:// format for consistency
+      if (item.art.startsWith('upload://')) {
+        return item.art;
+      }
+
+      // Extract upload key from path like "/library/metadata/12345/art/67890"
+      const match = item.art.match(/\/art\/(\d+)/);
+      return match ? `upload://arts/${match[1]}` : item.art;
+    } catch (error) {
+      logger.error(`Error getting current art URL for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get current theme URL for a Plex item
+   * @param ratingKey The rating key of the item
+   * @returns The current theme URL or null if none
+   */
+  public async getCurrentThemeUrl(ratingKey: string): Promise<string | null> {
+    try {
+      const response = await this.plexApi['plexClient'].query(
+        `/library/metadata/${ratingKey}`
+      );
+
+      const item = response?.MediaContainer?.Metadata?.[0];
+      if (!item?.theme) {
+        return null;
+      }
+
+      // Return upload:// format for consistency
+      if (item.theme.startsWith('upload://')) {
+        return item.theme;
+      }
+
+      // Extract upload key from path like "/library/metadata/12345/theme/67890"
+      const match = item.theme.match(/\/theme\/(\d+)/);
+      return match ? `upload://themes/${match[1]}` : item.theme;
+    } catch (error) {
+      logger.error(`Error getting current theme URL for ${ratingKey}`, {
         label: 'Plex API',
         error: error instanceof Error ? error.message : String(error),
         ratingKey,

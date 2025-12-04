@@ -1739,10 +1739,85 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           const { getPosterPath } = await import('@server/lib/posterStorage');
           const posterPath = getPosterPath(posterFilename);
 
-          await plexClient.updateCollectionPoster(
-            collectionRatingKey,
-            posterPath
-          );
+          // Check if poster needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadPoster = true;
+
+          try {
+            const currentPosterUrl = await plexClient.getCurrentPosterUrl(
+              collectionRatingKey
+            );
+
+            // Check if same poster file and URL matches (using filename as "input hash" for custom posters)
+            const repo = (await import('@server/datasource')).getRepository(
+              (await import('@server/entity/CollectionMetadata'))
+                .CollectionMetadata
+            );
+            const metadata = await repo.findOne({
+              where: { plexCollectionRatingKey: collectionRatingKey },
+            });
+
+            if (
+              metadata?.lastPosterInputHash === posterFilename &&
+              metadata?.lastPosterUploadUrl === currentPosterUrl
+            ) {
+              logger.debug('Custom poster unchanged, skipping reupload', {
+                label: `${this.source} Collections`,
+                collectionName,
+                posterFilename,
+              });
+              shouldUploadPoster = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadPoster) {
+            await plexClient.updateCollectionPoster(
+              collectionRatingKey,
+              posterPath
+            );
+
+            // Get new Plex URL after upload and record metadata
+            try {
+              const newPlexPosterUrl = await plexClient.getCurrentPosterUrl(
+                collectionRatingKey
+              );
+
+              if (newPlexPosterUrl) {
+                await metadataService.recordPosterApplication(
+                  collectionRatingKey,
+                  posterFilename, // Use filename as "input hash" for custom posters
+                  newPlexPosterUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.libraryKey,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record poster metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
 
           logger.debug(
             `Successfully uploaded poster for collection ${collectionName}`,
@@ -1790,11 +1865,80 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           );
           const wallpaperPath = getWallpaperPath(wallpaperFilename);
 
-          await plexClient.uploadArtFromFile(
-            collectionRatingKey,
-            wallpaperPath
-          );
-          await plexClient.lockArt(collectionRatingKey);
+          // Check if wallpaper needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadWallpaper = true;
+
+          try {
+            const currentArtUrl = await plexClient.getCurrentArtUrl(
+              collectionRatingKey
+            );
+
+            const shouldReapply = await metadataService.shouldReapplyWallpaper(
+              collectionRatingKey,
+              wallpaperFilename,
+              currentArtUrl
+            );
+
+            if (!shouldReapply) {
+              logger.info('Wallpaper unchanged, skipping reupload', {
+                label: `${this.source} Collections`,
+                collectionName,
+                wallpaperFilename,
+              });
+              shouldUploadWallpaper = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadWallpaper) {
+            await plexClient.uploadArtFromFile(
+              collectionRatingKey,
+              wallpaperPath
+            );
+            await plexClient.lockArt(collectionRatingKey);
+
+            // Get new Plex art URL after upload and record metadata
+            try {
+              const newArtUrl = await plexClient.getCurrentArtUrl(
+                collectionRatingKey
+              );
+
+              if (newArtUrl) {
+                await metadataService.recordWallpaperApplication(
+                  collectionRatingKey,
+                  wallpaperFilename,
+                  newArtUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.libraryKey,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record wallpaper metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
 
           logger.debug(
             `Successfully uploaded wallpaper for collection ${collectionName}`,
@@ -1825,7 +1969,6 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     if (enableCustomSummary && customSummary) {
       try {
         await plexClient.updateSummary(collectionRatingKey, customSummary);
-
         logger.debug(
           `Successfully updated summary for collection ${collectionName}`,
           {
@@ -1866,8 +2009,80 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           const { getThemePath } = await import('@server/lib/themeStorage');
           const themePath = getThemePath(themeFilename);
 
-          await plexClient.uploadThemeFromFile(collectionRatingKey, themePath);
-          await plexClient.lockTheme(collectionRatingKey);
+          // Check if theme needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadTheme = true;
+
+          try {
+            const currentThemeUrl = await plexClient.getCurrentThemeUrl(
+              collectionRatingKey
+            );
+
+            const shouldReapply = await metadataService.shouldReapplyTheme(
+              collectionRatingKey,
+              themeFilename,
+              currentThemeUrl
+            );
+
+            if (!shouldReapply) {
+              logger.info('Theme unchanged, skipping reupload', {
+                label: `${this.source} Collections`,
+                collectionName,
+                themeFilename,
+              });
+              shouldUploadTheme = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadTheme) {
+            await plexClient.uploadThemeFromFile(
+              collectionRatingKey,
+              themePath
+            );
+            await plexClient.lockTheme(collectionRatingKey);
+
+            // Get new Plex theme URL after upload and record metadata
+            try {
+              const newThemeUrl = await plexClient.getCurrentThemeUrl(
+                collectionRatingKey
+              );
+
+              if (newThemeUrl) {
+                await metadataService.recordThemeApplication(
+                  collectionRatingKey,
+                  themeFilename,
+                  newThemeUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.libraryKey,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record theme metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
 
           logger.debug(
             `Successfully uploaded theme for collection ${collectionName}`,
@@ -2984,6 +3199,73 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           ? `${config.id}-${userInfo.userId}-${mediaType}`
           : config.id;
 
+      // Calculate input hash for poster to check if regeneration needed
+      const { calculatePosterInputHash } = await import(
+        '@server/utils/metadataHashing'
+      );
+      const posterInputHash = calculatePosterInputHash({
+        templateId: config.autoPosterTemplate || null,
+        itemIds: (posterItems || [])
+          .map((item) => item.tmdbId?.toString() || item.title)
+          .sort(),
+        collectionName,
+        mediaType,
+        collectionType: config.type,
+        collectionSubtype: config.subtype,
+      });
+
+      // Check if regeneration needed using metadata tracking
+      const metadataService = (
+        await import('@server/lib/metadata/MetadataTrackingService')
+      ).default;
+
+      try {
+        const shouldRegenerate = await metadataService.shouldRegeneratePoster(
+          collectionRatingKey,
+          posterInputHash
+        );
+
+        if (!shouldRegenerate) {
+          // Check if Plex still has correct poster
+          const currentPosterUrl = await plexClient.getCurrentPosterUrl(
+            collectionRatingKey
+          );
+          const shouldReapply = await metadataService.shouldReapplyPoster(
+            collectionRatingKey,
+            currentPosterUrl
+          );
+
+          if (!shouldReapply) {
+            logger.info(
+              'Poster unchanged, skipping regeneration and reapplication',
+              {
+                label: `${this.source} Collections`,
+                collectionName,
+                collectionRatingKey,
+              }
+            );
+            return; // Skip entire poster workflow
+          }
+
+          logger.info(
+            'Poster inputs unchanged but Plex URL differs, reapplying',
+            {
+              label: `${this.source} Collections`,
+              collectionName,
+            }
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          'Metadata check failed, proceeding with poster generation',
+          {
+            label: 'MetadataTracking',
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+        // Fall through to generate poster
+      }
+
       // Generate the poster using the processed collection name
       const posterFilename = await generatePoster(
         {
@@ -3015,6 +3297,24 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       );
 
       if (plexPosterUrl) {
+        // Record metadata tracking for this poster
+        try {
+          await metadataService.recordPosterApplication(
+            collectionRatingKey,
+            posterInputHash,
+            plexPosterUrl,
+            {
+              configId: config.id,
+              libraryKey: undefined, // Library key not available in this context
+            }
+          );
+        } catch (error) {
+          logger.error('Failed to record poster metadata, upload succeeded', {
+            label: 'MetadataTracking',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
         // Complete the workflow: re-download, store hash-only, cleanup temp file
         await completeAutoGeneratedPosterWorkflow(
           posterFilename,

@@ -2340,6 +2340,20 @@ class PlexAPI {
   }
 
   /**
+   * Get current art/wallpaper URL for a Plex item
+   */
+  public async getCurrentArtUrl(ratingKey: string): Promise<string | null> {
+    return this.posterManager.getCurrentArtUrl(ratingKey);
+  }
+
+  /**
+   * Get current theme URL for a Plex item
+   */
+  public async getCurrentThemeUrl(ratingKey: string): Promise<string | null> {
+    return this.posterManager.getCurrentThemeUrl(ratingKey);
+  }
+
+  /**
    * Combined method for uploading and setting a poster (backwards compatibility)
    */
   public async updateCollectionPoster(

@@ -8,6 +8,7 @@ import type {
   TmdbExternalIdResponse,
   TmdbGenre,
   TmdbGenresResult,
+  TmdbImagesResponse,
   TmdbKeyword,
   TmdbKeywordSearchResponse,
   TmdbLanguage,
@@ -1281,6 +1282,60 @@ class TheMovieDb extends ExternalAPI {
       throw new Error(
         `[TMDB] Failed to fetch TV watch providers: ${e.message}`
       );
+    }
+  }
+
+  /**
+   * Get images (posters, backdrops, logos) for a movie with language filtering
+   */
+  public async getMovieImages({
+    movieId,
+    language,
+  }: {
+    movieId: number;
+    language?: string;
+  }): Promise<TmdbImagesResponse> {
+    try {
+      const data = await this.get<TmdbImagesResponse>(
+        `/movie/${movieId}/images`,
+        {
+          params: {
+            include_image_language: language ?? this.originalLanguage,
+          },
+        },
+        86400 // 24 hours
+      );
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch movie images: ${e.message}`);
+    }
+  }
+
+  /**
+   * Get images (posters, backdrops, logos) for a TV show with language filtering
+   */
+  public async getTvShowImages({
+    tvId,
+    language,
+  }: {
+    tvId: number;
+    language?: string;
+  }): Promise<TmdbImagesResponse> {
+    try {
+      const data = await this.get<TmdbImagesResponse>(
+        `/tv/${tvId}/images`,
+        {
+          params: {
+            include_image_language: language ?? this.originalLanguage,
+          },
+        },
+        86400 // 24 hours
+      );
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch TV show images: ${e.message}`);
     }
   }
 }
