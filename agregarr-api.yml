@@ -5549,6 +5549,19 @@ paths:
                   message:
                     type: string
                     example: 'Collection created successfully'
+        '400':
+          description: Bad request (e.g., duplicate collection name in library)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Collection "Top 10 Movies" already exists in this library'
+                  message:
+                    type: string
+                    example: 'A collection with the name "Top 10 Movies" already exists in library "Movies". Please choose a different name or template.'
         '500':
           description: Failed to create collection
   /collections/{id}/settings:
@@ -5584,6 +5597,19 @@ paths:
                   message:
                     type: string
                     example: 'Collection settings updated successfully'
+        '400':
+          description: Bad request (e.g., duplicate collection name in library)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Collection "Top 10 Movies" already exists in this library'
+                  message:
+                    type: string
+                    example: 'A collection with the name "Top 10 Movies" already exists in library "Movies". Please choose a different name or template.'
         '404':
           description: Collection not found
         '500':

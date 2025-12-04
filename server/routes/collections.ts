@@ -4,6 +4,7 @@ import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
 import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
+import { PreExistingCollectionConfigService } from '@server/lib/collections/services/PreExistingCollectionConfigService';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import collectionsSync from '@server/lib/collectionsSync';
@@ -509,6 +510,22 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
           return res.status(400).json({
             error: `Collection "${processedName}" already exists in this library`,
             message: `A collection with the name "${processedName}" already exists in library "${library?.name}". Please choose a different name or template.`,
+          });
+        }
+
+        // Also check pre-existing collections
+        const preExistingService = new PreExistingCollectionConfigService();
+        const preExistingConfigs = preExistingService.getConfigs();
+        const duplicatePreExisting = preExistingConfigs.find(
+          (config) =>
+            config.name === processedName &&
+            config.libraryId === configToUpdate.libraryId
+        );
+
+        if (duplicatePreExisting) {
+          return res.status(400).json({
+            error: `Collection "${processedName}" already exists in this library`,
+            message: `A pre-existing collection with the name "${processedName}" already exists in library "${library?.name}". Please choose a different name or template.`,
           });
         }
       }
@@ -1180,6 +1197,21 @@ collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
           return res.status(400).json({
             error: `Collection "${processedName}" already exists in this library`,
             message: `A collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
+          });
+        }
+
+        // Also check pre-existing collections
+        const preExistingService = new PreExistingCollectionConfigService();
+        const preExistingConfigs = preExistingService.getConfigs();
+        const duplicatePreExisting = preExistingConfigs.find(
+          (config) =>
+            config.name === processedName && config.libraryId === libraryId
+        );
+
+        if (duplicatePreExisting) {
+          return res.status(400).json({
+            error: `Collection "${processedName}" already exists in this library`,
+            message: `A pre-existing collection with the name "${processedName}" already exists in library "${library.name}". Please choose a different name or template.`,
           });
         }
       }
