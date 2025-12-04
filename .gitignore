@@ -34,17 +34,23 @@ yarn-error.log*
 # database
 config/db/*.sqlite3*
 config/settings.json
-config/posters/*.jpg
-config/posters/*.json
 config/*.json
-config/random-lists/*.txt
-config/icons/*.svg
-config/icons/*.jpg
-config/icons/*.jpeg
-config/icons/*.png
-config/icons/*.json
-config/temp/*.png
 
+# random lists
+config/random-lists/*.txt
+
+# custom icons/images
+config/icons/*.*
+
+# poster storage
+config/posters/*.*
+config/temp/*.*
+
+# wallpaper storage
+config/wallpapers/*.*
+
+# theme music storage
+config/themes/*.*
 
 # logs
 config/logs/*.log*

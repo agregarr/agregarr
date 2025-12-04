@@ -1766,6 +1766,131 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         }
       }
     }
+
+    // Update wallpaper/art if enabled and provided
+    const customWallpaper = options.config?.customWallpaper;
+    const enableCustomWallpaper =
+      options.config?.enableCustomWallpaper ?? false;
+    if (enableCustomWallpaper && customWallpaper) {
+      let wallpaperFilename: string | undefined;
+
+      if (typeof customWallpaper === 'string') {
+        // Legacy single wallpaper
+        wallpaperFilename = customWallpaper;
+      } else {
+        // Per-library wallpaper mapping - get wallpaper for current library
+        wallpaperFilename = customWallpaper[options.libraryKey];
+      }
+
+      if (wallpaperFilename) {
+        try {
+          // Get full path to wallpaper file
+          const { getWallpaperPath } = await import(
+            '@server/lib/wallpaperStorage'
+          );
+          const wallpaperPath = getWallpaperPath(wallpaperFilename);
+
+          await plexClient.uploadArtFromFile(
+            collectionRatingKey,
+            wallpaperPath
+          );
+          await plexClient.lockArt(collectionRatingKey);
+
+          logger.debug(
+            `Successfully uploaded wallpaper for collection ${collectionName}`,
+            {
+              label: `${this.source} Collections`,
+              collectionRatingKey,
+              wallpaperFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload wallpaper for collection ${collectionName}`,
+            {
+              label: `${this.source} Collections`,
+              collectionRatingKey,
+              wallpaperFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if wallpaper upload fails
+        }
+      }
+    }
+
+    // Update summary if enabled and provided
+    const customSummary = options.config?.customSummary;
+    const enableCustomSummary = options.config?.enableCustomSummary ?? false;
+    if (enableCustomSummary && customSummary) {
+      try {
+        await plexClient.updateSummary(collectionRatingKey, customSummary);
+
+        logger.debug(
+          `Successfully updated summary for collection ${collectionName}`,
+          {
+            label: `${this.source} Collections`,
+            collectionRatingKey,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to update summary for collection ${collectionName}`,
+          {
+            label: `${this.source} Collections`,
+            collectionRatingKey,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+        // Don't fail the entire collection sync if summary update fails
+      }
+    }
+
+    // Update theme if enabled and provided
+    const customTheme = options.config?.customTheme;
+    const enableCustomTheme = options.config?.enableCustomTheme ?? false;
+    if (enableCustomTheme && customTheme) {
+      let themeFilename: string | undefined;
+
+      if (typeof customTheme === 'string') {
+        // Legacy single theme
+        themeFilename = customTheme;
+      } else {
+        // Per-library theme mapping - get theme for current library
+        themeFilename = customTheme[options.libraryKey];
+      }
+
+      if (themeFilename) {
+        try {
+          // Get full path to theme file
+          const { getThemePath } = await import('@server/lib/themeStorage');
+          const themePath = getThemePath(themeFilename);
+
+          await plexClient.uploadThemeFromFile(collectionRatingKey, themePath);
+          await plexClient.lockTheme(collectionRatingKey);
+
+          logger.debug(
+            `Successfully uploaded theme for collection ${collectionName}`,
+            {
+              label: `${this.source} Collections`,
+              collectionRatingKey,
+              themeFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload theme for collection ${collectionName}`,
+            {
+              label: `${this.source} Collections`,
+              collectionRatingKey,
+              themeFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if theme upload fails
+        }
+      }
+    }
   }
 
   /**

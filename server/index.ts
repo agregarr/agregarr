@@ -126,6 +126,28 @@ app
       logger.error('Failed to initialize poster storage:', error);
     }
 
+    // Initialize wallpaper storage directory
+    try {
+      const { initializeWallpaperStorage } = await import(
+        '@server/lib/wallpaperStorage'
+      );
+      initializeWallpaperStorage();
+      logger.info('Wallpaper storage initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize wallpaper storage:', error);
+    }
+
+    // Initialize theme storage directory
+    try {
+      const { initializeThemeStorage } = await import(
+        '@server/lib/themeStorage'
+      );
+      initializeThemeStorage();
+      logger.info('Theme storage initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize theme storage:', error);
+    }
+
     // Initialize icon storage directory
     try {
       const { initializeIconStorage } = await import('@server/lib/iconManager');
@@ -274,6 +296,50 @@ app
       })
     );
 
+    // Direct static file serving for wallpapers
+    server.use(
+      '/wallpaper-files',
+      express.static(path.join(process.cwd(), 'config', 'wallpapers'), {
+        maxAge: '1y', // Cache for 1 year since filenames are UUIDs
+        setHeaders: (res, filePath) => {
+          // Set appropriate content type based on file extension
+          const ext = path.extname(filePath).toLowerCase();
+          if (ext === '.jpg' || ext === '.jpeg') {
+            res.setHeader('Content-Type', 'image/jpeg');
+          } else if (ext === '.png') {
+            res.setHeader('Content-Type', 'image/png');
+          } else if (ext === '.webp') {
+            res.setHeader('Content-Type', 'image/webp');
+          }
+        },
+      })
+    );
+
+    // Direct static file serving for theme music
+    server.use(
+      '/theme-files',
+      express.static(path.join(process.cwd(), 'config', 'themes'), {
+        maxAge: '1y', // Cache for 1 year since filenames are UUIDs
+        setHeaders: (res, filePath) => {
+          // Set appropriate content type based on file extension
+          const ext = path.extname(filePath).toLowerCase();
+          if (ext === '.mp3') {
+            res.setHeader('Content-Type', 'audio/mpeg');
+          } else if (ext === '.wav') {
+            res.setHeader('Content-Type', 'audio/wav');
+          } else if (ext === '.flac') {
+            res.setHeader('Content-Type', 'audio/flac');
+          } else if (ext === '.ogg') {
+            res.setHeader('Content-Type', 'audio/ogg');
+          } else if (ext === '.aac') {
+            res.setHeader('Content-Type', 'audio/aac');
+          } else if (ext === '.m4a') {
+            res.setHeader('Content-Type', 'audio/x-m4a');
+          }
+        },
+      })
+    );
+
     // Simple poster upload endpoint (bypasses complex API routing)
     server.post('/upload-poster', async (req, res) => {
       try {
@@ -321,6 +387,108 @@ app
         });
       } catch (error) {
         logger.error('Poster upload endpoint error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Simple wallpaper upload endpoint (bypasses complex API routing)
+    server.post('/upload-wallpaper', async (req, res) => {
+      try {
+        const multer = (await import('multer')).default;
+        const { saveWallpaperFile, initializeWallpaperStorage } = await import(
+          '@server/lib/wallpaperStorage'
+        );
+
+        // Initialize storage
+        initializeWallpaperStorage();
+
+        // Simple multer config
+        const upload = multer({
+          storage: multer.memoryStorage(),
+          limits: { fileSize: 10 * 1024 * 1024 },
+        }).single('wallpaper');
+
+        upload(req, res, async (err) => {
+          if (err) {
+            logger.error('Simple wallpaper upload error:', err);
+            return res
+              .status(400)
+              .json({ error: err.message || 'Upload failed' });
+          }
+
+          if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+          }
+
+          try {
+            const filename = await saveWallpaperFile(
+              req.file.buffer,
+              req.file.mimetype,
+              req.file.originalname
+            );
+            return res
+              .status(200)
+              .json({ filename, url: `/wallpaper-files/${filename}` });
+          } catch (error) {
+            logger.error('Error saving wallpaper:', error);
+            return res.status(400).json({
+              error: error instanceof Error ? error.message : 'Save failed',
+            });
+          }
+        });
+      } catch (error) {
+        logger.error('Wallpaper upload endpoint error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+
+    // Simple theme upload endpoint (bypasses complex API routing)
+    server.post('/upload-theme', async (req, res) => {
+      try {
+        const multer = (await import('multer')).default;
+        const { saveThemeFile, initializeThemeStorage } = await import(
+          '@server/lib/themeStorage'
+        );
+
+        // Initialize storage
+        initializeThemeStorage();
+
+        // Simple multer config
+        const upload = multer({
+          storage: multer.memoryStorage(),
+          limits: { fileSize: 10 * 1024 * 1024 },
+        }).single('theme');
+
+        upload(req, res, async (err) => {
+          if (err) {
+            logger.error('Simple theme upload error:', err);
+            return res
+              .status(400)
+              .json({ error: err.message || 'Upload failed' });
+          }
+
+          if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+          }
+
+          try {
+            const filename = await saveThemeFile(
+              req.file.buffer,
+              req.file.mimetype,
+              req.file.originalname
+            );
+            return res
+              .status(200)
+              .json({ filename, url: `/theme-files/${filename}` });
+          } catch (error) {
+            logger.error('Error saving theme:', error);
+            return res.status(400).json({
+              error: error instanceof Error ? error.message : 'Save failed',
+            });
+          }
+        });
+      } catch (error) {
+        logger.error('Theme upload endpoint error:', error);
         return res.status(500).json({ error: 'Internal server error' });
       }
     });

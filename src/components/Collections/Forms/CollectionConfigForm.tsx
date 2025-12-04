@@ -34,9 +34,11 @@ import NetworksConfigSection from '@app/components/Collections/FormSections/Netw
 import OriginalsConfigSection from '@app/components/Collections/FormSections/OriginalsConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
+import ThemeUploadSection from '@app/components/Collections/FormSections/ThemeUploadSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
 import VisibilitySection from '@app/components/Collections/FormSections/VisibilitySection';
+import WallpaperUploadSection from '@app/components/Collections/FormSections/WallpaperUploadSection';
 import PreviewCollectionModal from '@app/components/Collections/PreviewCollectionModal';
 
 const messages = defineMessages({
@@ -50,6 +52,13 @@ const messages = defineMessages({
   maxItems: 'Max Items',
   minimumPlays: 'Minimum Play Count',
   customPoster: 'Posters',
+  wallpapersAndTheme: 'Wallpapers and Theme',
+  enableCustomWallpaper: 'Custom Wallpaper',
+  enableCustomSummary: 'Custom Summary',
+  enableCustomTheme: 'Custom Theme Music',
+  customSummaryPlaceholder: 'Enter a custom description for this collection...',
+  customSummaryHelp:
+    'Custom description text for the collection. Will be synced to Plex.',
   overlayConfigWarningTitle: 'No Overlay Templates Configured',
   overlayConfigWarningMessage:
     'You have enabled placeholder creation and overlay application, but no overlay templates are configured for {libraryNames}. Placeholders will be created without status overlays showing monitored status, release dates, etc.',
@@ -1133,6 +1142,17 @@ const CollectionFormConfigForm = ({
           randomizeHomeOrder:
             (config as CollectionFormConfig).randomizeHomeOrder ?? false,
           customPoster: (config as CollectionFormConfig).customPoster || '',
+          customWallpaper:
+            (config as CollectionFormConfig).customWallpaper || '',
+          customSummary: (config as CollectionFormConfig).customSummary || '',
+          customTheme: (config as CollectionFormConfig).customTheme || '',
+          // Enable flags for custom features (default to false)
+          enableCustomWallpaper:
+            (config as CollectionFormConfig).enableCustomWallpaper ?? false,
+          enableCustomSummary:
+            (config as CollectionFormConfig).enableCustomSummary ?? false,
+          enableCustomTheme:
+            (config as CollectionFormConfig).enableCustomTheme ?? false,
           // Default autoPoster to false for pre-existing collections (they have their own posters),
           // true for Agregarr-created collections
           autoPoster:
@@ -1470,6 +1490,13 @@ const CollectionFormConfigForm = ({
             showUnwatchedOnly: values.showUnwatchedOnly,
             smartCollectionSort: values.smartCollectionSort,
             randomizeHomeOrder: values.randomizeHomeOrder,
+            // Wallpaper, summary, and theme settings
+            customWallpaper: values.customWallpaper,
+            customSummary: values.customSummary,
+            customTheme: values.customTheme,
+            enableCustomWallpaper: values.enableCustomWallpaper,
+            enableCustomSummary: values.enableCustomSummary,
+            enableCustomTheme: values.enableCustomTheme,
             // Ensure customSyncSchedule is explicitly included
             customSyncSchedule: values.customSyncSchedule,
             // Remove UI-only fields from the final config
@@ -2239,6 +2266,133 @@ const CollectionFormConfigForm = ({
                                 </div>
                               )}
 
+                            {/* Wallpapers and Theme - only for collections and pre-existing, not hubs */}
+                            {!isHub && (
+                              <div className="form-row">
+                                <label className="text-label">
+                                  {intl.formatMessage(
+                                    messages.wallpapersAndTheme
+                                  )}
+                                </label>
+                                <div className="form-input-area">
+                                  {/* Enable Wallpaper Checkbox */}
+                                  <div className="mb-4">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="enableCustomWallpaper"
+                                        name="enableCustomWallpaper"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="enableCustomWallpaper"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.enableCustomWallpaper
+                                        )}
+                                      </label>
+                                    </div>
+                                    {values.enableCustomWallpaper &&
+                                      (values.libraryIds?.length > 0 ||
+                                        values.libraryId) && (
+                                        <div className="mt-3">
+                                          <WallpaperUploadSection
+                                            values={
+                                              typedValues as CollectionFormConfig
+                                            }
+                                            setFieldValue={setFieldValue}
+                                            addToast={addToast}
+                                            fieldId="customWallpaper"
+                                            libraries={libraries}
+                                            selectedLibraryIds={
+                                              values.libraryIds || []
+                                            }
+                                          />
+                                        </div>
+                                      )}
+                                  </div>
+
+                                  {/* Enable Summary Checkbox */}
+                                  <div className="mb-4">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="enableCustomSummary"
+                                        name="enableCustomSummary"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="enableCustomSummary"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.enableCustomSummary
+                                        )}
+                                      </label>
+                                    </div>
+                                    {values.enableCustomSummary && (
+                                      <div className="mt-3">
+                                        <Field
+                                          as="textarea"
+                                          id="customSummary"
+                                          name="customSummary"
+                                          rows={4}
+                                          className="w-full resize-none rounded-md border border-stone-600 bg-stone-800 px-3 py-2 text-sm text-white placeholder-stone-400 focus:border-orange-500 focus:outline-none"
+                                          placeholder={intl.formatMessage(
+                                            messages.customSummaryPlaceholder
+                                          )}
+                                        />
+                                        <div className="label-tip mt-1">
+                                          {intl.formatMessage(
+                                            messages.customSummaryHelp
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Enable Theme Checkbox */}
+                                  <div className="mb-4">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="enableCustomTheme"
+                                        name="enableCustomTheme"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="enableCustomTheme"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.enableCustomTheme
+                                        )}
+                                      </label>
+                                    </div>
+                                    {values.enableCustomTheme &&
+                                      (values.libraryIds?.length > 0 ||
+                                        values.libraryId) && (
+                                        <div className="mt-3">
+                                          <ThemeUploadSection
+                                            values={
+                                              typedValues as CollectionFormConfig
+                                            }
+                                            setFieldValue={setFieldValue}
+                                            addToast={addToast}
+                                            fieldId="customTheme"
+                                            libraries={libraries}
+                                            selectedLibraryIds={
+                                              values.libraryIds || []
+                                            }
+                                          />
+                                        </div>
+                                      )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="form-row">
                               <label
                                 htmlFor="timeRestrictions"
@@ -2494,7 +2648,7 @@ const CollectionFormConfigForm = ({
                                             </div>
                                             <div className="mt-3">
                                               <a
-                                                href="/settings/posters"
+                                                href="/posters"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-stone-900"

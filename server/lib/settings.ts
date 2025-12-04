@@ -184,6 +184,13 @@ export interface CollectionConfig {
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
   readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
   // Placeholder settings (for createPlaceholdersForMissing feature)
   readonly createPlaceholdersForMissing?: boolean; // If true, create placeholder files in Plex for missing items instead of auto-requesting
   readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.

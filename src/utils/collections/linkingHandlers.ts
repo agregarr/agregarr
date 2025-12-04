@@ -215,6 +215,12 @@ export const linkCollectionConfig = async (
             showUnwatchedOnly: masterConfig.showUnwatchedOnly,
             smartCollectionSort: masterConfig.smartCollectionSort,
             randomizeHomeOrder: masterConfig.randomizeHomeOrder,
+            customWallpaper: masterConfig.customWallpaper,
+            customSummary: masterConfig.customSummary,
+            customTheme: masterConfig.customTheme,
+            enableCustomWallpaper: masterConfig.enableCustomWallpaper,
+            enableCustomSummary: masterConfig.enableCustomSummary,
+            enableCustomTheme: masterConfig.enableCustomTheme,
             mediaType: masterConfig.mediaType,
             customDays: masterConfig.customDays,
             createPlaceholdersForMissing:

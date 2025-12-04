@@ -130,6 +130,13 @@ export interface PreExistingCollectionConfig {
   customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   autoPoster?: boolean; // Auto-generate poster during sync (same as CollectionFormConfig)
   autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Wallpaper, summary, and theme support
+  customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  customSummary?: string; // Custom summary/description text for the collection
+  customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  enableCustomTheme?: boolean; // Enable custom theme sync to Plex
 }
 
 // Form metadata type for identifying config handling behavior
@@ -345,6 +352,13 @@ export interface CollectionFormConfig {
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
   readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -511,6 +525,13 @@ export interface CollectionConfigCreateRequest {
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
   readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
   readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   readonly isMultiSource?: boolean;
@@ -604,6 +625,13 @@ export const toCollectionCreateRequest = (
     autoPosterTemplate: config.autoPosterTemplate,
     useTmdbFranchisePoster: config.useTmdbFranchisePoster,
     hideIndividualItems: config.hideIndividualItems,
+    // Wallpaper, summary, and theme settings
+    customWallpaper: config.customWallpaper,
+    customSummary: config.customSummary,
+    customTheme: config.customTheme,
+    enableCustomWallpaper: config.enableCustomWallpaper,
+    enableCustomSummary: config.enableCustomSummary,
+    enableCustomTheme: config.enableCustomTheme,
     // Smart collection support
     showUnwatchedOnly: config.showUnwatchedOnly,
     smartCollectionSort: config.smartCollectionSort,

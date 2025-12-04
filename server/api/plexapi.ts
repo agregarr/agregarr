@@ -2351,6 +2351,50 @@ class PlexAPI {
       posterPath
     );
   }
+
+  /**
+   * Upload wallpaper/art from a local file path
+   */
+  public async uploadArtFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    return this.posterManager.uploadArtFromFile(ratingKey, filepath);
+  }
+
+  /**
+   * Lock the art for an item (prevents auto-updates)
+   */
+  public async lockArt(ratingKey: string): Promise<void> {
+    return this.posterManager.lockArt(ratingKey);
+  }
+
+  /**
+   * Upload theme music from a local file path
+   */
+  public async uploadThemeFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    return this.posterManager.uploadThemeFromFile(ratingKey, filepath);
+  }
+
+  /**
+   * Lock the theme for an item (prevents auto-updates)
+   */
+  public async lockTheme(ratingKey: string): Promise<void> {
+    return this.posterManager.lockTheme(ratingKey);
+  }
+
+  /**
+   * Update collection summary/description
+   */
+  public async updateSummary(
+    ratingKey: string,
+    summary: string
+  ): Promise<void> {
+    return this.posterManager.updateSummary(ratingKey, summary);
+  }
 }
 
 export default PlexAPI;

@@ -45,6 +45,24 @@ export const saveIndividualConfigs = async (
         ...(preExistingConfig.customPoster && {
           customPoster: preExistingConfig.customPoster,
         }),
+        ...(preExistingConfig.customWallpaper && {
+          customWallpaper: preExistingConfig.customWallpaper,
+        }),
+        ...(preExistingConfig.customSummary && {
+          customSummary: preExistingConfig.customSummary,
+        }),
+        ...(preExistingConfig.customTheme && {
+          customTheme: preExistingConfig.customTheme,
+        }),
+        ...(preExistingConfig.enableCustomWallpaper !== undefined && {
+          enableCustomWallpaper: preExistingConfig.enableCustomWallpaper,
+        }),
+        ...(preExistingConfig.enableCustomSummary !== undefined && {
+          enableCustomSummary: preExistingConfig.enableCustomSummary,
+        }),
+        ...(preExistingConfig.enableCustomTheme !== undefined && {
+          enableCustomTheme: preExistingConfig.enableCustomTheme,
+        }),
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
     } else if ('hubIdentifier' in config) {
@@ -316,6 +334,24 @@ export const saveIndividualConfigs = async (
         }),
         ...(collectionConfig.randomizeHomeOrder !== undefined && {
           randomizeHomeOrder: collectionConfig.randomizeHomeOrder,
+        }),
+        ...(collectionConfig.customWallpaper && {
+          customWallpaper: collectionConfig.customWallpaper,
+        }),
+        ...(collectionConfig.customSummary && {
+          customSummary: collectionConfig.customSummary,
+        }),
+        ...(collectionConfig.customTheme && {
+          customTheme: collectionConfig.customTheme,
+        }),
+        ...(collectionConfig.enableCustomWallpaper !== undefined && {
+          enableCustomWallpaper: collectionConfig.enableCustomWallpaper,
+        }),
+        ...(collectionConfig.enableCustomSummary !== undefined && {
+          enableCustomSummary: collectionConfig.enableCustomSummary,
+        }),
+        ...(collectionConfig.enableCustomTheme !== undefined && {
+          enableCustomTheme: collectionConfig.enableCustomTheme,
         }),
         ...(collectionConfig.customSyncSchedule && {
           customSyncSchedule: collectionConfig.customSyncSchedule,

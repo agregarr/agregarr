@@ -252,6 +252,188 @@ class PlexPosterManager {
     // Lock the poster to prevent Plex from overriding it
     await this.lockPoster(collectionRatingKey);
   }
+
+  /**
+   * Upload wallpaper/art from a local file path
+   * @param ratingKey The rating key of the item
+   * @param filepath The local file path to upload
+   */
+  public async uploadArtFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    try {
+      const fs = await import('fs');
+
+      // Read the file data
+      const fileData = await fs.promises.readFile(filepath);
+      const key = `/library/metadata/${ratingKey}/arts`;
+
+      // Use axios directly for file upload
+      const axios = await import('axios');
+      const settings = getSettings();
+      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+        settings.plex.ip
+      }:${settings.plex.port}`;
+
+      await axios.default.post(`${baseUrl}${key}`, fileData, {
+        headers: {
+          'X-Plex-Token': this.plexApi['plexToken'],
+          'Content-Type': 'application/octet-stream',
+        },
+        timeout: 30000,
+      });
+
+      logger.info(`Successfully uploaded art from file for ${ratingKey}`, {
+        label: 'Plex API',
+        ratingKey,
+        filepath,
+      });
+    } catch (error) {
+      logger.error(`Error uploading art from file for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+        filepath,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Lock the art for an item (prevents auto-updates)
+   * @param ratingKey The rating key of the item
+   */
+  public async lockArt(ratingKey: string): Promise<void> {
+    try {
+      const params = { 'art.locked': '1' };
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+      await this.plexApi['safePutQuery'](editUrl);
+
+      logger.info(`Successfully locked art for ${ratingKey}`, {
+        label: 'Plex API',
+        ratingKey,
+      });
+    } catch (error) {
+      logger.error(`Error locking art for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Upload theme music from a local file path
+   * @param ratingKey The rating key of the item
+   * @param filepath The local file path to upload
+   */
+  public async uploadThemeFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    try {
+      const fs = await import('fs');
+
+      // Read the file data
+      const fileData = await fs.promises.readFile(filepath);
+      const key = `/library/metadata/${ratingKey}/themes`;
+
+      // Use axios directly for file upload
+      const axios = await import('axios');
+      const settings = getSettings();
+      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+        settings.plex.ip
+      }:${settings.plex.port}`;
+
+      await axios.default.post(`${baseUrl}${key}`, fileData, {
+        headers: {
+          'X-Plex-Token': this.plexApi['plexToken'],
+          'Content-Type': 'application/octet-stream',
+        },
+        timeout: 30000,
+      });
+
+      logger.info(`Successfully uploaded theme from file for ${ratingKey}`, {
+        label: 'Plex API',
+        ratingKey,
+        filepath,
+      });
+    } catch (error) {
+      logger.error(`Error uploading theme from file for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+        filepath,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Lock the theme for an item (prevents auto-updates)
+   * @param ratingKey The rating key of the item
+   */
+  public async lockTheme(ratingKey: string): Promise<void> {
+    try {
+      const params = { 'theme.locked': '1' };
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+      await this.plexApi['safePutQuery'](editUrl);
+
+      logger.info(`Successfully locked theme for ${ratingKey}`, {
+        label: 'Plex API',
+        ratingKey,
+      });
+    } catch (error) {
+      logger.error(`Error locking theme for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Update collection summary/description
+   * @param ratingKey The rating key of the item
+   * @param summary The summary text to set
+   */
+  public async updateSummary(
+    ratingKey: string,
+    summary: string
+  ): Promise<void> {
+    try {
+      const params = { summary: summary };
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+      await this.plexApi['safePutQuery'](editUrl);
+
+      logger.info(`Successfully updated summary for ${ratingKey}`, {
+        label: 'Plex API',
+        ratingKey,
+      });
+    } catch (error) {
+      logger.error(`Error updating summary for ${ratingKey}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+        ratingKey,
+      });
+      throw error;
+    }
+  }
 }
 
 export default PlexPosterManager;

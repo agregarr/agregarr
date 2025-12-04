@@ -311,6 +311,52 @@ components:
           description: 'Apply item overlays during sync (for Coming Soon collections)'
           example: true
           nullable: true
+        customWallpaper:
+          oneOf:
+            - type: string
+              description: 'Filename of custom wallpaper image (art)'
+              example: 'wallpaper-12345.jpg'
+            - type: object
+              description: 'Per-library wallpaper mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'wallpaper-12345.jpg'
+                lib2: 'wallpaper-67890.jpg'
+          nullable: true
+        customSummary:
+          type: string
+          description: 'Custom summary/description text for the collection'
+          example: 'A curated collection of the best movies'
+          nullable: true
+        customTheme:
+          oneOf:
+            - type: string
+              description: 'Filename of custom theme music file'
+              example: 'theme-12345.mp3'
+            - type: object
+              description: 'Per-library theme mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'theme-12345.mp3'
+                lib2: 'theme-67890.mp3'
+          nullable: true
+        enableCustomWallpaper:
+          type: boolean
+          description: 'Enable custom wallpaper sync to Plex'
+          example: false
+          nullable: true
+        enableCustomSummary:
+          type: boolean
+          description: 'Enable custom summary sync to Plex'
+          example: false
+          nullable: true
+        enableCustomTheme:
+          type: boolean
+          description: 'Enable custom theme sync to Plex'
+          example: false
+          nullable: true
         visibilityConfig:
           type: object
           properties:
@@ -821,6 +867,52 @@ components:
           type: boolean
           description: 'Apply item overlays during sync (for Coming Soon collections)'
           example: true
+          nullable: true
+        customWallpaper:
+          oneOf:
+            - type: string
+              description: 'Filename of custom wallpaper image (art)'
+              example: 'wallpaper-12345.jpg'
+            - type: object
+              description: 'Per-library wallpaper mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'wallpaper-12345.jpg'
+                lib2: 'wallpaper-67890.jpg'
+          nullable: true
+        customSummary:
+          type: string
+          description: 'Custom summary/description text for the collection'
+          example: 'A curated collection of the best movies'
+          nullable: true
+        customTheme:
+          oneOf:
+            - type: string
+              description: 'Filename of custom theme music file'
+              example: 'theme-12345.mp3'
+            - type: object
+              description: 'Per-library theme mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'theme-12345.mp3'
+                lib2: 'theme-67890.mp3'
+          nullable: true
+        enableCustomWallpaper:
+          type: boolean
+          description: 'Enable custom wallpaper sync to Plex'
+          example: false
+          nullable: true
+        enableCustomSummary:
+          type: boolean
+          description: 'Enable custom summary sync to Plex'
+          example: false
+          nullable: true
+        enableCustomTheme:
+          type: boolean
+          description: 'Enable custom theme sync to Plex'
+          example: false
           nullable: true
         visibilityConfig:
           type: object
@@ -1455,6 +1547,52 @@ components:
           type: boolean
           description: 'Apply item overlays during sync (for Coming Soon collections)'
           example: true
+          nullable: true
+        customWallpaper:
+          oneOf:
+            - type: string
+              description: 'Filename of custom wallpaper image (art)'
+              example: 'wallpaper-12345.jpg'
+            - type: object
+              description: 'Per-library wallpaper mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'wallpaper-12345.jpg'
+                lib2: 'wallpaper-67890.jpg'
+          nullable: true
+        customSummary:
+          type: string
+          description: 'Custom summary/description text for the collection'
+          example: 'A curated collection of the best movies'
+          nullable: true
+        customTheme:
+          oneOf:
+            - type: string
+              description: 'Filename of custom theme music file'
+              example: 'theme-12345.mp3'
+            - type: object
+              description: 'Per-library theme mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'theme-12345.mp3'
+                lib2: 'theme-67890.mp3'
+          nullable: true
+        enableCustomWallpaper:
+          type: boolean
+          description: 'Enable custom wallpaper sync to Plex'
+          example: false
+          nullable: true
+        enableCustomSummary:
+          type: boolean
+          description: 'Enable custom summary sync to Plex'
+          example: false
+          nullable: true
+        enableCustomTheme:
+          type: boolean
+          description: 'Enable custom theme sync to Plex'
+          example: false
           nullable: true
         visibilityConfig:
           type: object
@@ -2517,6 +2655,52 @@ components:
           type: boolean
           description: 'Auto-generate poster during sync'
           example: true
+          nullable: true
+        customWallpaper:
+          oneOf:
+            - type: string
+              description: 'Filename of custom wallpaper image (art)'
+              example: 'wallpaper-12345.jpg'
+            - type: object
+              description: 'Per-library wallpaper mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'wallpaper-12345.jpg'
+                lib2: 'wallpaper-67890.jpg'
+          nullable: true
+        customSummary:
+          type: string
+          description: 'Custom summary/description text for the collection'
+          example: 'A curated collection of the best movies'
+          nullable: true
+        customTheme:
+          oneOf:
+            - type: string
+              description: 'Filename of custom theme music file'
+              example: 'theme-12345.mp3'
+            - type: object
+              description: 'Per-library theme mapping (libraryId -> filename)'
+              additionalProperties:
+                type: string
+              example:
+                lib1: 'theme-12345.mp3'
+                lib2: 'theme-67890.mp3'
+          nullable: true
+        enableCustomWallpaper:
+          type: boolean
+          description: 'Enable custom wallpaper sync to Plex'
+          example: false
+          nullable: true
+        enableCustomSummary:
+          type: boolean
+          description: 'Enable custom summary sync to Plex'
+          example: false
+          nullable: true
+        enableCustomTheme:
+          type: boolean
+          description: 'Enable custom theme sync to Plex'
+          example: false
           nullable: true
         missing:
           type: boolean
