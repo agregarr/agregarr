@@ -9,6 +9,7 @@ import type {
 import { OverlayTemplate } from '@server/entity/OverlayTemplate';
 import { overlayTemplateRenderer } from '@server/lib/overlays/OverlayTemplateRenderer';
 import { presetTemplateService } from '@server/lib/overlays/PresetTemplates';
+import { getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
@@ -45,7 +46,7 @@ async function fetchPreviewPosterMetadata(
   rtCriticsScore?: number;
   rtAudienceScore?: number;
 }> {
-  const tmdbClient = new TheMovieDb();
+  const tmdbClient = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
   let title = 'Sample Title';
   let year: number | undefined;
   let imdbId: string | undefined;
@@ -216,7 +217,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
     const tmdbId = parseInt(tmdbIdStr);
     const isMovie = type === 'movie';
 
-    const tmdb = new TheMovieDb();
+    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
     let metadata: PreviewPosterMetadata;
 

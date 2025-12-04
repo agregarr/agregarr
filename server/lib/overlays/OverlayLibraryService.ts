@@ -9,7 +9,7 @@ import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import { OverlayTemplate } from '@server/entity/OverlayTemplate';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs/promises';
@@ -481,18 +481,50 @@ class OverlayLibraryService {
       }
 
       // Fetch fresh poster from TMDB (avoids overlay-on-overlay issues)
+      const language = getTmdbLanguage();
       const tmdbClient = new TheMovieDb();
       let posterUrl: string | undefined;
 
       if (mediaType === 'movie') {
-        const movieDetails = await tmdbClient.getMovie({ movieId: tmdbId });
-        posterUrl = movieDetails.poster_path
-          ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
+        const images = await tmdbClient.getMovieImages({
+          movieId: tmdbId,
+          language,
+        });
+
+        // Find poster in selected language, fallback to null language (universal), then English
+        let poster = images.posters.find((p) => p.iso_639_1 === language);
+        if (!poster) {
+          poster = images.posters.find((p) => p.iso_639_1 === null);
+        }
+        if (!poster && language !== 'en') {
+          poster = images.posters.find((p) => p.iso_639_1 === 'en');
+        }
+        if (!poster && images.posters.length > 0) {
+          poster = images.posters[0];
+        }
+
+        posterUrl = poster
+          ? `https://image.tmdb.org/t/p/original${poster.file_path}`
           : undefined;
       } else {
-        const showDetails = await tmdbClient.getTvShow({ tvId: tmdbId });
-        posterUrl = showDetails.poster_path
-          ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
+        const images = await tmdbClient.getTvShowImages({
+          tvId: tmdbId,
+          language,
+        });
+
+        let poster = images.posters.find((p) => p.iso_639_1 === language);
+        if (!poster) {
+          poster = images.posters.find((p) => p.iso_639_1 === null);
+        }
+        if (!poster && language !== 'en') {
+          poster = images.posters.find((p) => p.iso_639_1 === 'en');
+        }
+        if (!poster && images.posters.length > 0) {
+          poster = images.posters[0];
+        }
+
+        posterUrl = poster
+          ? `https://image.tmdb.org/t/p/original${poster.file_path}`
           : undefined;
       }
 

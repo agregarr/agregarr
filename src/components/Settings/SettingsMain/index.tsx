@@ -22,6 +22,27 @@ import { useToasts } from 'react-toast-notifications';
 import useSWR, { mutate } from 'swr';
 import * as Yup from 'yup';
 
+// Curated list of common TMDB languages
+const TMDB_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Spanish (Español)' },
+  { code: 'fr', name: 'French (Français)' },
+  { code: 'de', name: 'German (Deutsch)' },
+  { code: 'it', name: 'Italian (Italiano)' },
+  { code: 'pt-BR', name: 'Portuguese - Brazil (Português)' },
+  { code: 'ja', name: 'Japanese (日本語)' },
+  { code: 'ko', name: 'Korean (한국어)' },
+  { code: 'zh-CN', name: 'Chinese Simplified (简体中文)' },
+  { code: 'zh-TW', name: 'Chinese Traditional (繁體中文)' },
+  { code: 'ru', name: 'Russian (Русский)' },
+  { code: 'nl', name: 'Dutch (Nederlands)' },
+  { code: 'pl', name: 'Polish (Polski)' },
+  { code: 'sv', name: 'Swedish (Svenska)' },
+  { code: 'no', name: 'Norwegian (Norsk)' },
+  { code: 'da', name: 'Danish (Dansk)' },
+  { code: 'fi', name: 'Finnish (Suomi)' },
+];
+
 const messages = defineMessages({
   general: 'General',
   generalsettings: 'General Settings',
@@ -47,6 +68,8 @@ const messages = defineMessages({
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   partialRequestsEnabled: 'Allow Partial Series Requests',
   locale: 'Display Language',
+  tmdbLanguage: 'TMDB Language',
+  tmdbLanguageTip: 'Language for TMDB posters',
   resetAgregarr: 'Reset',
   resetAgregarrDescription:
     'Remove all Agregarr collections from Plex and clear all user labels.',
@@ -150,6 +173,7 @@ const SettingsMain = () => {
             applicationUrl: data?.applicationUrl,
             csrfProtection: data?.csrfProtection,
             locale: data?.locale ?? 'en',
+            tmdbLanguage: data?.tmdbLanguage ?? 'en',
             trustProxy: data?.trustProxy,
           }}
           enableReinitialize
@@ -161,6 +185,7 @@ const SettingsMain = () => {
                 applicationUrl: values.applicationUrl,
                 csrfProtection: values.csrfProtection,
                 locale: values.locale,
+                tmdbLanguage: values.tmdbLanguage,
                 trustProxy: values.trustProxy,
               });
               mutate('/api/v1/settings/public');
@@ -266,6 +291,25 @@ const SettingsMain = () => {
                       typeof errors.applicationUrl === 'string' && (
                         <div className="error">{errors.applicationUrl}</div>
                       )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="tmdbLanguage" className="text-label">
+                    {intl.formatMessage(messages.tmdbLanguage)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.tmdbLanguageTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field as="select" id="tmdbLanguage" name="tmdbLanguage">
+                        {TMDB_LANGUAGES.map((lang) => (
+                          <option key={lang.code} value={lang.code}>
+                            {lang.name}
+                          </option>
+                        ))}
+                      </Field>
+                    </div>
                   </div>
                 </div>
                 <div className="form-row">

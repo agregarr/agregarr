@@ -10,7 +10,7 @@ import type {
 } from '@server/lib/collections/core/types';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import type { CollectionConfig } from '@server/lib/settings';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
@@ -689,13 +689,32 @@ async function processMultiSourcePreview(
     imdbId?: string;
     tmdbRating?: number;
   }> => {
+    const language = getTmdbLanguage();
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         if (itemMediaType === 'movie') {
           const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+          const images = await tmdbClient.getMovieImages({
+            movieId: tmdbId,
+            language,
+          });
+
+          // Find poster in selected language with fallback
+          let poster = images.posters.find((p) => p.iso_639_1 === language);
+          if (!poster) {
+            poster = images.posters.find((p) => p.iso_639_1 === null);
+          }
+          if (!poster && language !== 'en') {
+            poster = images.posters.find((p) => p.iso_639_1 === 'en');
+          }
+          if (!poster && images.posters.length > 0) {
+            poster = images.posters[0];
+          }
+
           return {
-            posterUrl: movie.poster_path
-              ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
+            posterUrl: poster
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
               : '',
             backdropPath: movie.backdrop_path || undefined,
             title: movie.title || fallbackTitle,
@@ -708,9 +727,25 @@ async function processMultiSourcePreview(
           };
         } else {
           const show = await tmdbClient.getTvShow({ tvId: tmdbId });
+          const images = await tmdbClient.getTvShowImages({
+            tvId: tmdbId,
+            language,
+          });
+
+          let poster = images.posters.find((p) => p.iso_639_1 === language);
+          if (!poster) {
+            poster = images.posters.find((p) => p.iso_639_1 === null);
+          }
+          if (!poster && language !== 'en') {
+            poster = images.posters.find((p) => p.iso_639_1 === 'en');
+          }
+          if (!poster && images.posters.length > 0) {
+            poster = images.posters[0];
+          }
+
           return {
-            posterUrl: show.poster_path
-              ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
+            posterUrl: poster
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
               : '',
             backdropPath: show.backdrop_path || undefined,
             title: show.name || fallbackTitle,
@@ -1244,13 +1279,32 @@ async function processPreviewAsync(
       imdbId?: string;
       tmdbRating?: number;
     }> => {
+      const language = getTmdbLanguage();
+
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           if (itemMediaType === 'movie') {
             const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+            const images = await tmdbClient.getMovieImages({
+              movieId: tmdbId,
+              language,
+            });
+
+            // Find poster in selected language with fallback
+            let poster = images.posters.find((p) => p.iso_639_1 === language);
+            if (!poster) {
+              poster = images.posters.find((p) => p.iso_639_1 === null);
+            }
+            if (!poster && language !== 'en') {
+              poster = images.posters.find((p) => p.iso_639_1 === 'en');
+            }
+            if (!poster && images.posters.length > 0) {
+              poster = images.posters[0];
+            }
+
             return {
-              posterUrl: movie.poster_path
-                ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
+              posterUrl: poster
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
                 : '',
               backdropPath: movie.backdrop_path || undefined,
               title: movie.title || fallbackTitle,
@@ -1263,9 +1317,25 @@ async function processPreviewAsync(
             };
           } else {
             const show = await tmdbClient.getTvShow({ tvId: tmdbId });
+            const images = await tmdbClient.getTvShowImages({
+              tvId: tmdbId,
+              language,
+            });
+
+            let poster = images.posters.find((p) => p.iso_639_1 === language);
+            if (!poster) {
+              poster = images.posters.find((p) => p.iso_639_1 === null);
+            }
+            if (!poster && language !== 'en') {
+              poster = images.posters.find((p) => p.iso_639_1 === 'en');
+            }
+            if (!poster && images.posters.length > 0) {
+              poster = images.posters[0];
+            }
+
             return {
-              posterUrl: show.poster_path
-                ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
+              posterUrl: poster
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
                 : '',
               backdropPath: show.backdrop_path || undefined,
               title: show.name || fallbackTitle,

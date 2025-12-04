@@ -7,6 +7,7 @@ import type {
   SVGElementProps,
   TextElementProps,
 } from '@server/entity/PosterTemplate';
+import { getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs';
@@ -167,10 +168,13 @@ async function getColorScheme(
 async function fetchTMDbPosterUrls(
   items: CollectionItemWithPoster[]
 ): Promise<CollectionItemWithPoster[]> {
-  const tmdb = new TheMovieDb();
+  const language = getTmdbLanguage();
+  const tmdb = new TheMovieDb({ originalLanguage: language });
   const itemsWithPosters: CollectionItemWithPoster[] = [];
 
-  logger.debug(`Fetching TMDB posters for ${items.length} items`);
+  logger.debug(
+    `Fetching TMDB posters for ${items.length} items with language: ${language}`
+  );
 
   for (const item of items) {
     // Skip items that already have a poster URL (e.g., from local storage)
@@ -193,70 +197,92 @@ async function fetchTMDbPosterUrls(
     if (item.tmdbId) {
       try {
         if (item.type === 'movie') {
-          const movieDetails = await tmdb.getMovie({ movieId: item.tmdbId });
-          if (movieDetails.poster_path) {
-            posterUrl = `https://image.tmdb.org/t/p/w300${movieDetails.poster_path}`;
-            logger.debug(`Found movie poster for ${item.title}: ${posterUrl}`);
+          // Fetch images from TMDB images endpoint for proper language filtering
+          const images = await tmdb.getMovieImages({
+            movieId: item.tmdbId,
+            language,
+          });
+
+          // Find poster in selected language, fallback to null language (universal), then English
+          let poster = images.posters.find((p) => p.iso_639_1 === language);
+          if (!poster) {
+            poster = images.posters.find((p) => p.iso_639_1 === null);
+          }
+          if (!poster && language !== 'en') {
+            poster = images.posters.find((p) => p.iso_639_1 === 'en');
+          }
+          if (!poster && images.posters.length > 0) {
+            poster = images.posters[0]; // Use first available poster
+          }
+
+          if (poster) {
+            posterUrl = `https://image.tmdb.org/t/p/w300${poster.file_path}`;
+            logger.debug(
+              `Found movie poster for ${item.title} (language: ${
+                poster.iso_639_1 || 'null'
+              }): ${posterUrl}`
+            );
           } else {
-            logger.debug(`No poster_path found for movie ${item.title}`);
+            logger.debug(`No poster found for movie ${item.title}`);
           }
         } else if (item.type === 'tv') {
           // Check if this is an episode with season info and show TMDB ID
           if (item.episodeInfo?.season && item.metadata?.showTmdbId) {
-            try {
-              // Try to get season poster first
-              const seasonDetails = await tmdb.getTvSeason({
-                tvId: item.metadata.showTmdbId,
-                seasonNumber: item.episodeInfo.season,
-              });
-              if (seasonDetails.poster_path) {
-                posterUrl = `https://image.tmdb.org/t/p/w300${seasonDetails.poster_path}`;
-                logger.debug(
-                  `Found season ${item.episodeInfo.season} poster for episode ${item.title}: ${posterUrl}`
-                );
-              } else {
-                // Fallback to show poster if season has no poster
-                const tvDetails = await tmdb.getTvShow({
-                  tvId: item.metadata.showTmdbId,
-                });
-                if (tvDetails.poster_path) {
-                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-                  logger.debug(
-                    `Using show poster as fallback for episode ${item.title}: ${posterUrl}`
-                  );
-                }
-              }
-            } catch (error) {
-              logger.warn(
-                `Failed to fetch season poster for episode ${item.title}, trying show poster:`,
-                error
+            // For episodes/seasons, fall back to the show's poster
+            // (TMDB doesn't have per-season images endpoint)
+            const images = await tmdb.getTvShowImages({
+              tvId: item.metadata.showTmdbId,
+              language,
+            });
+
+            let poster = images.posters.find((p) => p.iso_639_1 === language);
+            if (!poster) {
+              poster = images.posters.find((p) => p.iso_639_1 === null);
+            }
+            if (!poster && language !== 'en') {
+              poster = images.posters.find((p) => p.iso_639_1 === 'en');
+            }
+            if (!poster && images.posters.length > 0) {
+              poster = images.posters[0];
+            }
+
+            if (poster) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${poster.file_path}`;
+              logger.debug(
+                `Found show poster for episode ${item.title} (language: ${
+                  poster.iso_639_1 || 'null'
+                }): ${posterUrl}`
               );
-              // Fallback to show poster if season fetch fails
-              try {
-                const tvDetails = await tmdb.getTvShow({
-                  tvId: item.metadata.showTmdbId,
-                });
-                if (tvDetails.poster_path) {
-                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-                  logger.debug(
-                    `Using show poster as error fallback for episode ${item.title}: ${posterUrl}`
-                  );
-                }
-              } catch (showError) {
-                logger.warn(
-                  `Failed to fetch show poster fallback for episode ${item.title}:`,
-                  showError
-                );
-              }
+            } else {
+              logger.debug(`No poster found for episode ${item.title}`);
             }
           } else {
             // This is a regular TV show (not an episode)
-            const tvDetails = await tmdb.getTvShow({ tvId: item.tmdbId });
-            if (tvDetails.poster_path) {
-              posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-              logger.debug(`Found TV poster for ${item.title}: ${posterUrl}`);
+            const images = await tmdb.getTvShowImages({
+              tvId: item.tmdbId,
+              language,
+            });
+
+            let poster = images.posters.find((p) => p.iso_639_1 === language);
+            if (!poster) {
+              poster = images.posters.find((p) => p.iso_639_1 === null);
+            }
+            if (!poster && language !== 'en') {
+              poster = images.posters.find((p) => p.iso_639_1 === 'en');
+            }
+            if (!poster && images.posters.length > 0) {
+              poster = images.posters[0];
+            }
+
+            if (poster) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${poster.file_path}`;
+              logger.debug(
+                `Found TV poster for ${item.title} (language: ${
+                  poster.iso_639_1 || 'null'
+                }): ${posterUrl}`
+              );
             } else {
-              logger.debug(`No poster_path found for TV show ${item.title}`);
+              logger.debug(`No poster found for TV show ${item.title}`);
             }
           }
         }

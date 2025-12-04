@@ -530,8 +530,8 @@ export interface TmdbImage {
 }
 
 export interface TmdbImagesResponse {
-  backdrops: TmdbImage[];
   id: number;
+  backdrops: TmdbImage[];
   logos: TmdbImage[];
   posters: TmdbImage[];
 }

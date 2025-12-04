@@ -481,6 +481,7 @@ export interface MainSettings {
   newPlexLogin: boolean;
   trustProxy: boolean;
   locale: string;
+  tmdbLanguage?: string; // Language for TMDB API calls (poster metadata, etc.) - defaults to 'en'
   nextConfigId?: number; // Next sequential ID for collection configs (starts at 10000)
   // Global sync status tracking
   lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
@@ -568,6 +569,7 @@ class Settings {
         newPlexLogin: true,
         trustProxy: false,
         locale: 'en',
+        tmdbLanguage: 'en',
       },
       plex: {
         name: '',
@@ -1995,6 +1997,15 @@ export const getSettings = (initialSettings?: AllSettings): Settings => {
   }
 
   return settings;
+};
+
+/**
+ * Get the configured TMDB language for API calls
+ * Returns 'en' (English) as default if not configured
+ */
+export const getTmdbLanguage = (): string => {
+  const settings = getSettings();
+  return settings.main.tmdbLanguage || 'en';
 };
 
 export default Settings;

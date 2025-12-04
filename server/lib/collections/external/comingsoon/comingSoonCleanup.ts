@@ -6,7 +6,7 @@ import { ComingSoonItem } from '@server/entity/ComingSoonItem';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type { ComingSoonSourceData } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 
 /**
@@ -263,22 +263,54 @@ export async function cleanupReleasedPlaceholders(
               try {
                 const TmdbAPI = (await import('@server/api/themoviedb'))
                   .default;
+                const language = getTmdbLanguage();
                 const tmdbClient = new TmdbAPI();
 
                 let posterUrl: string | undefined;
                 if (placeholder.mediaType === 'movie') {
-                  const movieDetails = await tmdbClient.getMovie({
+                  const images = await tmdbClient.getMovieImages({
                     movieId: placeholder.tmdbId,
+                    language,
                   });
-                  posterUrl = movieDetails.poster_path
-                    ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
+
+                  // Find poster in selected language, fallback to null language, then English
+                  let poster = images.posters.find(
+                    (p) => p.iso_639_1 === language
+                  );
+                  if (!poster) {
+                    poster = images.posters.find((p) => p.iso_639_1 === null);
+                  }
+                  if (!poster && language !== 'en') {
+                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
+                  }
+                  if (!poster && images.posters.length > 0) {
+                    poster = images.posters[0];
+                  }
+
+                  posterUrl = poster
+                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
                     : undefined;
                 } else {
-                  const showDetails = await tmdbClient.getTvShow({
+                  const images = await tmdbClient.getTvShowImages({
                     tvId: placeholder.tmdbId,
+                    language,
                   });
-                  posterUrl = showDetails.poster_path
-                    ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
+
+                  let poster = images.posters.find(
+                    (p) => p.iso_639_1 === language
+                  );
+                  if (!poster) {
+                    poster = images.posters.find((p) => p.iso_639_1 === null);
+                  }
+                  if (!poster && language !== 'en') {
+                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
+                  }
+                  if (!poster && images.posters.length > 0) {
+                    poster = images.posters[0];
+                  }
+
+                  posterUrl = poster
+                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
                     : undefined;
                 }
 
@@ -539,22 +571,54 @@ export async function cleanupReleasedPlaceholders(
               try {
                 const TmdbAPI = (await import('@server/api/themoviedb'))
                   .default;
+                const language = getTmdbLanguage();
                 const tmdbClient = new TmdbAPI();
 
                 let posterUrl: string | undefined;
                 if (placeholder.mediaType === 'movie') {
-                  const movieDetails = await tmdbClient.getMovie({
+                  const images = await tmdbClient.getMovieImages({
                     movieId: placeholder.tmdbId,
+                    language,
                   });
-                  posterUrl = movieDetails.poster_path
-                    ? `https://image.tmdb.org/t/p/original${movieDetails.poster_path}`
+
+                  // Find poster in selected language, fallback to null language, then English
+                  let poster = images.posters.find(
+                    (p) => p.iso_639_1 === language
+                  );
+                  if (!poster) {
+                    poster = images.posters.find((p) => p.iso_639_1 === null);
+                  }
+                  if (!poster && language !== 'en') {
+                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
+                  }
+                  if (!poster && images.posters.length > 0) {
+                    poster = images.posters[0];
+                  }
+
+                  posterUrl = poster
+                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
                     : undefined;
                 } else {
-                  const showDetails = await tmdbClient.getTvShow({
+                  const images = await tmdbClient.getTvShowImages({
                     tvId: placeholder.tmdbId,
+                    language,
                   });
-                  posterUrl = showDetails.poster_path
-                    ? `https://image.tmdb.org/t/p/original${showDetails.poster_path}`
+
+                  let poster = images.posters.find(
+                    (p) => p.iso_639_1 === language
+                  );
+                  if (!poster) {
+                    poster = images.posters.find((p) => p.iso_639_1 === null);
+                  }
+                  if (!poster && language !== 'en') {
+                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
+                  }
+                  if (!poster && images.posters.length > 0) {
+                    poster = images.posters[0];
+                  }
+
+                  posterUrl = poster
+                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
                     : undefined;
                 }
 
