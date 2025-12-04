@@ -217,17 +217,17 @@ export const PRESET_TEMPLATES: {
           ],
         },
         {
-          // AND (not in *arr OR not monitored)
+          // AND (not in Radarr OR not monitored)
           sectionOperator: 'and',
           rules: [
-            // Not in Radarr
             { field: 'inRadarr', operator: 'eq', value: false },
+            {
+              ruleOperator: 'or',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
           ],
-        },
-        {
-          // OR not monitored (even if in *arr)
-          sectionOperator: 'or',
-          rules: [{ field: 'isMonitored', operator: 'eq', value: false }],
         },
       ],
     },
@@ -294,21 +294,26 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
         {
           // AND (in Radarr OR in Sonarr)
           sectionOperator: 'and',
-          rules: [{ field: 'inRadarr', operator: 'eq', value: true }],
-        },
-        {
-          sectionOperator: 'or',
-          rules: [{ field: 'inSonarr', operator: 'eq', value: true }],
-        },
-        {
-          // AND monitored
-          sectionOperator: 'and',
-          rules: [{ field: 'isMonitored', operator: 'eq', value: true }],
+          rules: [
+            { field: 'inRadarr', operator: 'eq', value: true },
+            {
+              ruleOperator: 'or',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
         },
       ],
     },

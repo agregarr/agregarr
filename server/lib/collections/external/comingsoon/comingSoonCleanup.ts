@@ -197,6 +197,7 @@ export async function cleanupReleasedPlaceholders(
         if (!placeholder.releasedAt) {
           placeholder.releasedAt = new Date();
           placeholder.plexRatingKey = realItemRatingKey; // Store rating key for overlay updates
+          placeholder.isPlaceholder = false; // Item now exists in Plex, no longer a placeholder
           await repository.save(placeholder);
 
           logger.info('Marked Coming Soon item as released', {
@@ -427,6 +428,7 @@ export async function cleanupReleasedPlaceholders(
           // If orphaned item now has a real file, mark as released instead of removing
           if (hasRealFile) {
             placeholder.releasedAt = new Date();
+            placeholder.isPlaceholder = false; // Item now exists in Plex, no longer a placeholder
             await repository.save(placeholder);
 
             logger.info(

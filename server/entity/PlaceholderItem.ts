@@ -61,6 +61,9 @@ export class PlaceholderItem {
   @Column({ type: 'datetime', nullable: true })
   public releasedAt?: Date; // When the real file was detected (for post-release tracking)
 
+  @Column({ type: 'boolean', default: true })
+  public isPlaceholder: boolean; // False when item exists in Plex as a real file
+
   @CreateDateColumn()
   public createdAt: Date;
 

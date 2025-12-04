@@ -624,6 +624,11 @@ class OverlayLibraryService {
         ...contextOverrides,
       };
 
+      // Real items in Plex are always downloaded, regardless of Coming Soon context
+      if (!isPlaceholder) {
+        context.downloaded = true;
+      }
+
       // Apply each template in order
       let currentBuffer = posterBuffer;
       let templatesApplied = 0;
@@ -649,6 +654,22 @@ class OverlayLibraryService {
           });
           continue;
         }
+
+        logger.debug('Applying template - condition met', {
+          label: 'OverlayLibrary',
+          itemTitle: item.title,
+          templateName: template.name,
+          condition,
+          contextData: {
+            isMonitored: context.isMonitored,
+            downloaded: context.downloaded,
+            daysUntilRelease: context.daysUntilRelease,
+            daysAgo: context.daysAgo,
+            mediaType: context.mediaType,
+            seasonNumber: context.seasonNumber,
+            isPlaceholder: context.isPlaceholder,
+          },
+        });
 
         const templateData = template.getTemplateData();
         currentBuffer = await overlayTemplateRenderer.renderOverlay(
@@ -894,9 +915,62 @@ class OverlayLibraryService {
           context.runtime = tmdbData.episode_run_time[0];
         }
 
-        // TMDB Status (TV shows only)
+        // TMDB Status (TV shows only) - using Kometa's user-friendly mapping
         if (mediaType === 'show' && 'status' in tmdbData) {
-          context.tmdbStatus = tmdbData.status.toUpperCase();
+          const rawStatus = tmdbData.status;
+
+          // Map TMDB status to user-friendly names (based on Kometa)
+          let mappedStatus: string;
+          switch (rawStatus) {
+            case 'Returning Series':
+              mappedStatus = 'RETURNING';
+              break;
+            case 'Ended':
+              mappedStatus = 'ENDED';
+              break;
+            case 'Canceled':
+              mappedStatus = 'CANCELLED';
+              break;
+            case 'Planned':
+              mappedStatus = 'PLANNED';
+              break;
+            case 'In Production':
+              mappedStatus = 'IN PRODUCTION';
+              break;
+            case 'Pilot':
+              mappedStatus = 'PILOT';
+              break;
+            default:
+              mappedStatus = rawStatus.toUpperCase();
+          }
+
+          // Check if an episode aired in last 15 days to determine "AIRING" status
+          // Only override to AIRING if status is "Returning Series"
+          // Use last_episode_to_air.air_date for accuracy (more reliable than last_air_date)
+          if (
+            rawStatus === 'Returning Series' &&
+            'last_episode_to_air' in tmdbData &&
+            tmdbData.last_episode_to_air?.air_date
+          ) {
+            const lastAired = new Date(tmdbData.last_episode_to_air.air_date);
+            const daysSinceAired = Math.floor(
+              (Date.now() - lastAired.getTime()) / (1000 * 60 * 60 * 24)
+            );
+
+            logger.debug('Checking AIRING status', {
+              label: 'OverlayLibrary',
+              title: context.title,
+              lastEpisodeAirDate: tmdbData.last_episode_to_air.air_date,
+              daysSinceAired,
+              threshold: 15,
+            });
+
+            if (daysSinceAired <= 15) {
+              mappedStatus = 'AIRING';
+            }
+          }
+
+          context.tmdbStatus = mappedStatus;
         }
       } catch (error) {
         logger.debug('Failed to fetch external metadata', {
@@ -1260,8 +1334,8 @@ class OverlayLibraryService {
         inRadarr,
         inSonarr,
         isMonitored,
-        downloaded: false, // Placeholders are by definition not downloaded
-        isPlaceholder: true,
+        downloaded: !comingSoonItem.isPlaceholder, // Real items are downloaded
+        isPlaceholder: comingSoonItem.isPlaceholder,
       };
     } catch (error) {
       // If ComingSoonItem table doesn't exist or query fails, just return undefined
