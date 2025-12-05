@@ -1048,7 +1048,9 @@ const MultiSourceConfigSection = ({
                 </div>
               )}
 
-            {values.sources?.[index]?.subtype === 'custom' && (
+            {(values.sources?.[index]?.subtype === 'custom' ||
+              (values.sources?.[index]?.type === 'letterboxd' &&
+                values.sources?.[index]?.subtype === 'watchlist')) && (
               <div>
                 <label
                   htmlFor={`source-url-${index}`}
