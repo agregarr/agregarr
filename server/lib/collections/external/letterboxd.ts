@@ -72,13 +72,16 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         );
       }
 
-      if (config.subtype !== 'custom' && config.subtype !== 'random') {
-        throw this.createSyncError(
-          CollectionSyncErrorType.CONFIGURATION_ERROR,
-          'Only custom and random Letterboxd lists are supported'
-        );
-      }
-
+      if (
+      config.subtype !== 'custom' &&
+      config.subtype !== 'random' &&
+      config.subtype !== 'watchlist'
+    ) {
+      throw this.createSyncError(
+        CollectionSyncErrorType.CONFIGURATION_ERROR,
+        'Only custom, watchlist, and random Letterboxd lists are supported'
+      );
+    }
       // Determine which URL to use based on subtype
       let listUrl: string;
       if (config.subtype === 'random') {
@@ -680,6 +683,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       const patterns = [
         // Primary pattern - current structure
         /<li[^>]*class="[^"]*posteritem[^"]*"[^>]*>(.*?)<\/li>/gs,
+        // Secondary pattern - grid items (watchlists)
+        /<li[^>]*class="[^"]*griditem[^"]*"[^>]*>(.*?)<\/li>/gs,
         // Fallback pattern - any li containing film data
         /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
       ];
@@ -797,6 +802,16 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
   }
 
   private extractListNameFromUrl(url: string): string {
+    // Check for watchlist
+    const watchlistMatch = url.match(/letterboxd\.com\/([^/]+)\/watchlist/);
+    if (watchlistMatch) {
+      const username = watchlistMatch[1]
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (l: string) => l.toUpperCase());
+      return `${username}'s Watchlist`;
+    }
+
+    // Check for standard list
     const match = url.match(/letterboxd\.com\/[^/]+\/list\/([^/?]+)/);
     if (match) {
       return match[1]
