@@ -142,11 +142,14 @@ export function validateExternalUrl(
         }
         break;
       case 'letterboxd':
-        if (!urlObj.pathname.match(/^\/[^/]+\/list\/[^/?]+\/?$/)) {
+        if (
+          !urlObj.pathname.match(/^\/[^/]+\/list\/[^/?]+\/?$/) &&
+          !urlObj.pathname.match(/^\/[^/]+\/watchlist\/?$/)
+        ) {
           return {
             isValid: false,
             error:
-              'Invalid Letterboxd list URL format. Expected: https://letterboxd.com/username/list/listname',
+              'Invalid Letterboxd list URL format. Expected: https://letterboxd.com/username/list/listname or https://letterboxd.com/username/watchlist/',
           };
         }
         break;
