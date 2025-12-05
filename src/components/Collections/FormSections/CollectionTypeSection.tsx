@@ -246,6 +246,11 @@ const CollectionTypeSection = ({
         return [
           { value: 'custom', label: 'Custom List' },
           {
+            value: 'watchlist',
+            label: 'Watchlist',
+            description: 'Import a user\'s watchlist by URL',
+          },
+          {
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured Letterboxd lists',

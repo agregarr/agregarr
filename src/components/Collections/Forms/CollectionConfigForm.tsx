@@ -488,7 +488,19 @@ const CollectionFormConfigForm = ({
             /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
             'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
           ),
-      otherwise: (schema) => schema,
+      otherwise: (schema) =>
+        schema.when(['type', 'subtype'], {
+          is: (type: string, subtype: string) =>
+            type === 'letterboxd' && subtype === 'watchlist',
+          then: (schema) =>
+            schema
+              .required('Letterboxd watchlist URL is required')
+              .matches(
+                /letterboxd\.com\/[^/]+\/watchlist\/?/,
+                'Please enter a valid Letterboxd watchlist URL (e.g., https://letterboxd.com/username/watchlist/)'
+              ),
+          otherwise: (schema) => schema,
+        }),
     }),
 
     anilistCustomListUrl: Yup.string().when(['type', 'subtype'], {

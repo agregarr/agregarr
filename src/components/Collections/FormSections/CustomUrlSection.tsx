@@ -239,49 +239,93 @@ const CustomUrlSection = ({
   }
 
   // Custom Letterboxd List URL
-  if (values.type === 'letterboxd' && values.subtype === 'custom') {
-    return (
-      <div>
-        <label
-          htmlFor="letterboxdCustomListUrl"
-          className="mb-2 block text-sm text-gray-300"
-        >
-          {intl.formatMessage(messages.customLetterboxdListUrl)}{' '}
-          <span className="text-red-500">*</span>
-        </label>
-        <div className="flex gap-2">
-          <Field
-            type="url"
-            id="letterboxdCustomListUrl"
+  if (values.type === 'letterboxd') {
+    if (values.subtype === 'custom') {
+      return (
+        <div>
+          <label
+            htmlFor="letterboxdCustomListUrl"
+            className="mb-2 block text-sm text-gray-300"
+          >
+            {intl.formatMessage(messages.customLetterboxdListUrl)}{' '}
+            <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            <Field
+              type="url"
+              id="letterboxdCustomListUrl"
+              name="letterboxdCustomListUrl"
+              placeholder="https://letterboxd.com/username/list/listname/"
+              className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            {fetchLetterboxdTitle && (
+              <button
+                type="button"
+                onClick={() => handleFetchTitle('letterboxd')}
+                disabled={
+                  !values.letterboxdCustomListUrl || isLoadingTitle.letterboxd
+                }
+                className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLoadingTitle.letterboxd
+                  ? intl.formatMessage(messages.fetching)
+                  : intl.formatMessage(messages.fetchTitle)}
+              </button>
+            )}
+          </div>
+          <ErrorMessage
             name="letterboxdCustomListUrl"
-            placeholder="https://letterboxd.com/username/list/listname/"
-            className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            component="div"
+            className="mt-1 text-sm text-red-500"
           />
-          {fetchLetterboxdTitle && (
-            <button
-              type="button"
-              onClick={() => handleFetchTitle('letterboxd')}
-              disabled={
-                !values.letterboxdCustomListUrl || isLoadingTitle.letterboxd
-              }
-              className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isLoadingTitle.letterboxd
-                ? intl.formatMessage(messages.fetching)
-                : intl.formatMessage(messages.fetchTitle)}
-            </button>
-          )}
+          <p className="mt-1 text-xs text-gray-400">
+            Example: https://letterboxd.com/username/list/listname/
+          </p>
         </div>
-        <ErrorMessage
-          name="letterboxdCustomListUrl"
-          component="div"
-          className="mt-1 text-sm text-red-500"
-        />
-        <p className="mt-1 text-xs text-gray-400">
-          Example: https://letterboxd.com/username/list/listname/
-        </p>
-      </div>
-    );
+      );
+    } else if (values.subtype === 'watchlist') {
+      return (
+        <div>
+          <label
+            htmlFor="letterboxdCustomListUrl"
+            className="mb-2 block text-sm text-gray-300"
+          >
+            Letterboxd Watchlist URL <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-2">
+            <Field
+              type="url"
+              id="letterboxdCustomListUrl"
+              name="letterboxdCustomListUrl"
+              placeholder="https://letterboxd.com/username/watchlist/"
+              className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            {fetchLetterboxdTitle && (
+              <button
+                type="button"
+                onClick={() => handleFetchTitle('letterboxd')}
+                disabled={
+                  !values.letterboxdCustomListUrl || isLoadingTitle.letterboxd
+                }
+                className="whitespace-nowrap rounded-md bg-orange-600 px-3 py-2 text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLoadingTitle.letterboxd
+                  ? intl.formatMessage(messages.fetching)
+                  : intl.formatMessage(messages.fetchTitle)}
+              </button>
+            )}
+          </div>
+          <ErrorMessage
+            name="letterboxdCustomListUrl"
+            component="div"
+            className="mt-1 text-sm text-red-500"
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Enter the full URL to your Letterboxd watchlist.
+          </p>
+        </div>
+      );
+    }
   }
 
   // Custom AniList List URL
