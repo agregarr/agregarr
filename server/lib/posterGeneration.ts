@@ -80,6 +80,7 @@ export interface CollectionItemWithPoster {
   tmdbId?: number;
   year?: number;
   posterUrl?: string;
+  director?: string; // Director name for TMDB posters
   episodeInfo?: {
     season?: number;
     episode?: number;
@@ -187,6 +188,7 @@ async function fetchTMDbPosterUrls(
     }
 
     let posterUrl: string | undefined;
+    let director: string | undefined;
 
     logger.debug(`Processing item: ${item.title}`, {
       type: item.type,
@@ -224,6 +226,21 @@ async function fetchTMDbPosterUrls(
             );
           } else {
             logger.debug(`No poster found for movie ${item.title}`);
+          }
+
+          // Fetch director information for movies
+          try {
+            const movieDetails = await tmdb.getMovie({ movieId: item.tmdbId });
+            if (movieDetails.credits?.crew) {
+              const directorCrew = movieDetails.credits.crew.find(
+                (member: { job: string; name: string }) => member.job === 'Director'
+              );
+              if (directorCrew) {
+                director = directorCrew.name;
+              }
+            }
+          } catch (error) {
+            logger.debug(`Failed to fetch director for movie ${item.title}:`, error);
           }
         } else if (item.type === 'tv') {
           // Check if this is an episode with season info and show TMDB ID
@@ -293,7 +310,7 @@ async function fetchTMDbPosterUrls(
       logger.debug(`No TMDB ID available for ${item.title}`);
     }
 
-    itemsWithPosters.push({ ...item, posterUrl });
+    itemsWithPosters.push({ ...item, posterUrl, director });
   }
 
   logger.debug(
@@ -1102,6 +1119,27 @@ async function generateTemplateContentGrid(
                 stroke="rgba(255,255,255,0.15)"
                 stroke-width="1"
                 rx="${cornerRadius}"/>
+          <!-- Director name overlay (if available) -->
+          ${
+            item.director
+              ? `
+          <rect x="0" y="${itemHeight - 45}"
+                width="${itemWidth}"
+                height="45"
+                fill="rgba(0,0,0,0.65)"
+                rx="0 0 ${cornerRadius} ${cornerRadius}"/>
+          <text x="${itemWidth / 2}" y="${itemHeight - 10}"
+                font-family="Inter, Helvetica Neue, Segoe UI, Arial, sans-serif"
+                font-size="${Math.max(10, itemWidth / 12)}"
+                font-weight="600"
+                text-anchor="middle"
+                fill="rgba(255,255,255,0.95)"
+                dominant-baseline="central">
+            ${escapeXml(item.director)}
+          </text>
+          `
+              : ''
+          }
         </g>
       `);
     } else {
