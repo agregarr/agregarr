@@ -248,6 +248,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex_library',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -627,6 +628,21 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        directorDepth:
+          type: number
+          description: 'Number of directors to create collections for (plex_library/directors)'
+          example: 5
+          nullable: true
+        directorLimit:
+          type: number
+          description: 'Maximum items per director collection (plex_library/directors)'
+          example: 30
+          nullable: true
+        directorMinimumItems:
+          type: number
+          description: 'Minimum items required to create a director collection (plex_library/directors)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -805,6 +821,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex_library',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1166,6 +1183,21 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        directorDepth:
+          type: number
+          description: 'Number of directors to create collections for (plex_library/directors)'
+          example: 5
+          nullable: true
+        directorLimit:
+          type: number
+          description: 'Maximum items per director collection (plex_library/directors)'
+          example: 30
+          nullable: true
+        directorMinimumItems:
+          type: number
+          description: 'Minimum items required to create a director collection (plex_library/directors)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -1485,6 +1517,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex_library',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1868,6 +1901,21 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        directorDepth:
+          type: number
+          description: 'Number of directors to create collections for (plex_library/directors)'
+          example: 5
+          nullable: true
+        directorLimit:
+          type: number
+          description: 'Maximum items per director collection (plex_library/directors)'
+          example: 30
+          nullable: true
+        directorMinimumItems:
+          type: number
+          description: 'Minimum items required to create a director collection (plex_library/directors)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -2197,6 +2245,7 @@ components:
               'overseerr',
               'networks',
               'originals',
+              'plex_library',
               'anilist',
               'myanimelist',
               'radarrtag',
@@ -6513,6 +6562,7 @@ paths:
                       sonarrtag,
                       comingsoon,
                       filtered_hub,
+                      plex_library,
                       multi-source,
                     ]
                   example: imdb

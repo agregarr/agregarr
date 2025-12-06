@@ -983,6 +983,28 @@ export const getTemplatePresets = (
     }
   }
 
+  // Plex Library (auto director collections)
+  if (values.type === 'plex_library') {
+    switch (values.subtype) {
+      case 'directors':
+        return [
+          {
+            label: 'Director Name',
+            value: '{director}',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      default:
+        return [
+          {
+            label: 'Plex Library Collection',
+            value: 'Plex Library Collection',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+    }
+  }
+
   // IMDb collection presets
   if (values.type === 'imdb') {
     switch (values.subtype) {
