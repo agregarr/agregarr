@@ -131,6 +131,108 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     }
   }
 
+  private async setDirectorBioAsDescription(
+    directorName: string,
+    collectionRatingKey: string,
+    plexClient: PlexAPI
+  ): Promise<boolean> {
+    try {
+      const tmdbClient = new TheMovieDb({
+        originalLanguage: getTmdbLanguage(),
+      });
+
+      const searchResults = await tmdbClient.searchMulti({
+        query: directorName,
+        language: getTmdbLanguage(),
+      });
+
+      const personResult =
+        searchResults.results.find(
+          (result: { media_type?: string; name?: string }) =>
+            result.media_type === 'person' &&
+            result.name?.toLowerCase() === directorName.toLowerCase()
+        ) ||
+        searchResults.results.find(
+          (result: { media_type?: string }) => result.media_type === 'person'
+        );
+
+      if (!personResult || !('id' in personResult)) {
+        logger.debug(
+          `No TMDB match found for director "${directorName}", skipping bio description`,
+          {
+            label: 'Plex Library Collections',
+            directorName,
+          }
+        );
+        return false;
+      }
+
+      const personDetails = await tmdbClient.getPerson({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        personId: (personResult as any).id,
+        language: getTmdbLanguage(),
+      });
+
+      if (!personDetails.biography) {
+        logger.debug(
+          `No biography found for director "${directorName}" on TMDB, skipping description`,
+          {
+            label: 'Plex Library Collections',
+            directorName,
+          }
+        );
+        return false;
+      }
+
+      // Extract first few paragraphs (up to 500 characters to keep it concise)
+      const paragraphs = personDetails.biography
+        .split('\n\n')
+        .filter((p) => p.trim());
+      let bioText = '';
+
+      for (const paragraph of paragraphs) {
+        if ((bioText + paragraph).length > 500) {
+          break;
+        }
+        bioText += (bioText ? '\n\n' : '') + paragraph;
+      }
+
+      if (!bioText) {
+        logger.debug(
+          `Director bio too short for "${directorName}", skipping description`,
+          {
+            label: 'Plex Library Collections',
+            directorName,
+          }
+        );
+        return false;
+      }
+
+      await plexClient.updateSummary(collectionRatingKey, bioText);
+
+      logger.debug(
+        `Successfully set bio description for director "${directorName}" collection`,
+        {
+          label: 'Plex Library Collections',
+          directorName,
+          bioLength: bioText.length,
+        }
+      );
+
+      return true;
+    } catch (error) {
+      logger.warn(
+        `Failed to set bio description for director "${directorName}"`,
+        {
+          label: 'Plex Library Collections',
+          directorName,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return false;
+    }
+  }
+
   protected async validateConfiguration(): Promise<void> {
     // No external API dependencies - just needs Plex
   }
@@ -287,6 +389,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             processedCollectionKeys?.add(existingCollection.ratingKey);
             updated++;
 
+            // Set director bio as collection description
+            await this.setDirectorBioAsDescription(
+              director.name,
+              existingCollection.ratingKey,
+              plexClient
+            );
+
             // Try TMDB director poster, then auto-poster fallback
             if (config.useTmdbDirectorPoster) {
               const tmdbPosterUploaded = await this.uploadTmdbDirectorPoster(
@@ -351,6 +460,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
               // Track by rating key so cleanup won't delete it
               processedCollectionKeys?.add(smartCollectionRatingKey);
               created++;
+
+              // Set director bio as collection description
+              await this.setDirectorBioAsDescription(
+                director.name,
+                smartCollectionRatingKey,
+                plexClient
+              );
 
               // Try TMDB director poster, then auto-poster fallback
               if (config.useTmdbDirectorPoster) {
