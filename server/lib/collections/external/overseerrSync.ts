@@ -1163,7 +1163,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
             libraryKey,
             itemLabelName,
             mediaType,
-            sortOption
+            sortOption,
+            config.maxItems
           );
           updated = 1;
         } catch (error) {
@@ -1196,7 +1197,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
             itemLabelName, // Filter by label instead of base collection
             mediaType,
             sortOption,
-            smartLabel // Add Agregarr management label
+            smartLabel, // Add Agregarr management label
+            config.maxItems
           );
 
         if (!createdSmartCollectionRatingKey) {

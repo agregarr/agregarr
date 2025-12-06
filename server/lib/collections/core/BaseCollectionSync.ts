@@ -1072,7 +1072,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             libraryKey,
             labelName,
             mediaType,
-            options.config.smartCollectionSort?.value
+            options.config.smartCollectionSort?.value,
+            options.config.maxItems
           );
 
           // Step 4: Migrate config - move smartCollectionRatingKey to collectionRatingKey
@@ -1122,7 +1123,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             libraryKey,
             labelName,
             mediaType,
-            options.config.smartCollectionSort?.value
+            options.config.smartCollectionSort?.value,
+            options.config.maxItems
           );
           updated = 1;
         } else {
@@ -1149,7 +1151,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             labelName,
             mediaType,
             options.config.smartCollectionSort?.value,
-            customLabel
+            customLabel,
+            options.config.maxItems
           );
 
         if (!newSmartCollectionRatingKey) {

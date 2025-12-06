@@ -2102,36 +2102,36 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Max Items - not applicable for recently_added */}
-                            {values.type !== 'filtered_hub' && (
-                              <div className="form-row">
-                                <label
-                                  htmlFor="collectionMaxItems"
-                                  className="text-label"
-                                >
-                                  Max Items
-                                </label>
-                                <div className="form-input-area">
-                                  <div className="form-input-field">
-                                    <Field
-                                      type="text"
-                                      inputMode="numeric"
-                                      id="collectionMaxItems"
-                                      name="maxItems"
-                                      className="short"
-                                    />
+                            {/* Max Items */}
+                            <div className="form-row">
+                              <label
+                                htmlFor="collectionMaxItems"
+                                className="text-label"
+                              >
+                                Max Items
+                              </label>
+                              <div className="form-input-area">
+                                <div className="form-input-field">
+                                  <Field
+                                    type="text"
+                                    inputMode="numeric"
+                                    id="collectionMaxItems"
+                                    name="maxItems"
+                                    className="short"
+                                  />
+                                </div>
+                                {errors.maxItems && touched.maxItems && (
+                                  <div className="error">
+                                    {String(errors.maxItems)}
                                   </div>
-                                  {errors.maxItems && touched.maxItems && (
-                                    <div className="error">
-                                      {String(errors.maxItems)}
-                                    </div>
-                                  )}
-                                  <div className="label-tip">
-                                    Limit the Collection to this many items
-                                  </div>
+                                )}
+                                <div className="label-tip">
+                                  Limit the Collection to this many items
+                                  {values.type === 'filtered_hub' &&
+                                    ' (applies to smart collection)'}
                                 </div>
                               </div>
-                            )}
+                            </div>
 
                             {/* Smart Collection - Show Unwatched Only */}
                             {/* Hide for: recently_added (already smart), and tmdb auto_franchise (multi-collection) */}

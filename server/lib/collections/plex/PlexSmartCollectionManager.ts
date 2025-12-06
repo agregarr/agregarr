@@ -24,6 +24,7 @@ class PlexSmartCollectionManager {
    * @param mediaType - 'movie' or 'tv'
    * @param sortOption - Sort parameter (e.g., 'titleSort', 'year:desc')
    * @param agregarrLabel - Agregarr management label to add to the smart collection
+   * @param maxItems - Maximum number of items to include in the smart collection
    * @returns The rating key of the created smart collection or null if failed
    */
   public async createLabelBasedSmartCollection(
@@ -32,7 +33,8 @@ class PlexSmartCollectionManager {
     labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
     sortOption?: string,
-    agregarrLabel?: string
+    agregarrLabel?: string,
+    maxItems?: number
   ): Promise<string | null> {
     try {
       logger.debug(
@@ -63,6 +65,11 @@ class PlexSmartCollectionManager {
         filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&label=${encodeURIComponent(
           labelName
         )}`;
+      }
+
+      // Add limit parameter if specified
+      if (maxItems && maxItems > 0) {
+        filterUri += `&limit=${maxItems}`;
       }
 
       const uri = `server://${
@@ -180,6 +187,7 @@ class PlexSmartCollectionManager {
    * @param labelName - Label name to filter by
    * @param mediaType - 'movie' or 'tv'
    * @param sortOption - Sort parameter (e.g., 'year:desc', 'titleSort')
+   * @param maxItems - Maximum number of items to include in the smart collection
    * @returns Promise<void>
    */
   public async updateLabelBasedSmartCollectionUri(
@@ -187,7 +195,8 @@ class PlexSmartCollectionManager {
     libraryKey: string,
     labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
-    sortOption?: string
+    sortOption?: string,
+    maxItems?: number
   ): Promise<void> {
     try {
       logger.debug(
@@ -218,6 +227,11 @@ class PlexSmartCollectionManager {
         filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&label=${encodeURIComponent(
           labelName
         )}`;
+      }
+
+      // Add limit parameter if specified
+      if (maxItems && maxItems > 0) {
+        filterUri += `&limit=${maxItems}`;
       }
 
       const uri = `server://${
@@ -269,13 +283,15 @@ class PlexSmartCollectionManager {
    * @param libraryKey - Library section key (e.g., "1" for movies)
    * @param mediaType - 'movie' or 'tv'
    * @param subtype - Hub subtype ('recently_added' or 'recently_released')
+   * @param maxItems - Maximum number of items to include in the smart collection
    * @returns The rating key of the created smart collection or null if failed
    */
   public async createFilteredHub(
     title: string,
     libraryKey: string,
     mediaType: 'movie' | 'tv',
-    subtype: 'recently_added' | 'recently_released'
+    subtype: 'recently_added' | 'recently_released',
+    maxItems?: number
   ): Promise<string | null> {
     try {
       logger.debug(
@@ -326,6 +342,11 @@ class PlexSmartCollectionManager {
         }
       } else {
         throw new Error(`Unsupported filtered hub subtype: ${subtype}`);
+      }
+
+      // Add limit parameter if specified
+      if (maxItems && maxItems > 0) {
+        filterUri += `&limit=${maxItems}`;
       }
 
       const uri = `server://${

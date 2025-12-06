@@ -241,7 +241,8 @@ export class FilteredHubCollectionSync extends BaseCollectionSync {
         collectionName,
         config.libraryId,
         mediaType,
-        subtype
+        subtype,
+        config.maxItems
       );
 
       if (!smartCollectionKey) {

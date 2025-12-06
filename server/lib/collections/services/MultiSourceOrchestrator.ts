@@ -1400,7 +1400,8 @@ export class MultiSourceOrchestrator {
             options.libraryKey,
             labelName,
             mediaType,
-            options.config.smartCollectionSort?.value
+            options.config.smartCollectionSort?.value,
+            options.config.maxItems
           );
 
           // Migrate config
@@ -1454,7 +1455,8 @@ export class MultiSourceOrchestrator {
             options.libraryKey,
             labelName,
             mediaType,
-            options.config.smartCollectionSort?.value
+            options.config.smartCollectionSort?.value,
+            options.config.maxItems
           );
           updated = 1;
         } else {
@@ -1482,7 +1484,8 @@ export class MultiSourceOrchestrator {
             labelName,
             mediaType,
             options.config.smartCollectionSort?.value,
-            customLabel
+            customLabel,
+            options.config.maxItems
           );
 
         if (!newSmartCollectionRatingKey) {
