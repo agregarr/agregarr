@@ -6,7 +6,7 @@ import { ComingSoonItem } from '@server/entity/ComingSoonItem';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type { ComingSoonSourceData } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
-import { getSettings, getTmdbLanguage } from '@server/lib/settings';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
 /**
@@ -261,73 +261,88 @@ export async function cleanupReleasedPlaceholders(
             // More than configured window since release date - restore original poster and remove from database
             if (placeholder.plexRatingKey) {
               try {
-                const TmdbAPI = (await import('@server/api/themoviedb'))
-                  .default;
-                const language = getTmdbLanguage();
-                const tmdbClient = new TmdbAPI();
+                // Use PlexBasePosterManager to respect overlay poster source setting
+                const { plexBasePosterManager } = await import(
+                  '@server/lib/overlays/PlexBasePosterManager'
+                );
+                const { getRepository } = await import('@server/datasource');
+                const { MediaItemMetadata } = await import(
+                  '@server/entity/MediaItemMetadata'
+                );
 
-                let posterUrl: string | undefined;
-                if (placeholder.mediaType === 'movie') {
-                  const images = await tmdbClient.getMovieImages({
-                    movieId: placeholder.tmdbId,
-                    language,
-                  });
+                // Get poster source preference from settings
+                const posterSource =
+                  settings.overlays?.defaultPosterSource || 'tmdb';
 
-                  // Find poster in selected language, fallback to main poster from movie details
-                  const poster = images.posters.find(
-                    (p) => p.iso_639_1 === language
-                  );
+                // Get stored metadata for this item
+                const metadataRepo = getRepository(MediaItemMetadata);
+                const metadata = await metadataRepo.findOne({
+                  where: {
+                    libraryKey: config.libraryId || '',
+                    plexItemRatingKey: placeholder.plexRatingKey,
+                  },
+                });
 
-                  if (poster) {
-                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-                  } else {
-                    // Fallback to main poster from movie details
-                    const movie = await tmdbClient.getMovie({
-                      movieId: placeholder.tmdbId,
-                    });
-                    posterUrl = movie.poster_path
-                      ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
-                      : undefined;
-                  }
-                } else {
-                  const images = await tmdbClient.getTvShowImages({
-                    tvId: placeholder.tmdbId,
-                    language,
-                  });
+                // Get item metadata from Plex
+                const itemMetadata = await plexClient.getMetadata(
+                  placeholder.plexRatingKey
+                );
 
-                  const poster = images.posters.find(
-                    (p) => p.iso_639_1 === language
-                  );
-
-                  if (poster) {
-                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-                  } else {
-                    // Fallback to main poster from TV show details
-                    const tvShow = await tmdbClient.getTvShow({
-                      tvId: placeholder.tmdbId,
-                    });
-                    posterUrl = tvShow.poster_path
-                      ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
-                      : undefined;
-                  }
-                }
-
-                if (posterUrl) {
-                  await plexClient.uploadPosterFromUrl(
-                    placeholder.plexRatingKey,
-                    posterUrl
-                  );
-                  logger.info(
-                    `Reset poster to original after ${releasedWindowDays}-day window from release date`,
+                // Get base poster using the configured source
+                const basePosterResult =
+                  await plexBasePosterManager.getBasePosterForOverlay(
+                    plexClient,
+                    itemMetadata,
+                    config.libraryId || '',
+                    placeholder.mediaType as 'movie' | 'show',
+                    posterSource,
                     {
-                      label: 'Coming Soon Collections',
-                      title: placeholder.title,
-                      daysSinceReleaseDate,
-                      releaseDate: placeholder.releaseDate,
-                      releasedWindowDays,
+                      basePosterSource: metadata?.basePosterSource,
+                      originalPlexPosterUrl: metadata?.originalPlexPosterUrl,
+                      ourOverlayPosterUrl: metadata?.ourOverlayPosterUrl,
+                      basePosterFilename: metadata?.basePosterFilename,
                     }
                   );
+
+                // Write poster buffer to temporary file and upload
+                const fs = await import('fs/promises');
+                const path = await import('path');
+                const tempDir = path.join(process.cwd(), 'config', 'temp');
+                await fs.mkdir(tempDir, { recursive: true });
+                const tempFilePath = path.join(
+                  tempDir,
+                  `restore-poster-${
+                    placeholder.plexRatingKey
+                  }-${Date.now()}.jpg`
+                );
+
+                await fs.writeFile(tempFilePath, basePosterResult.posterBuffer);
+
+                try {
+                  await plexClient.uploadPosterFromFile(
+                    placeholder.plexRatingKey,
+                    tempFilePath
+                  );
+                } finally {
+                  // Clean up temp file
+                  try {
+                    await fs.unlink(tempFilePath);
+                  } catch {
+                    // Ignore cleanup errors
+                  }
                 }
+
+                logger.info(
+                  `Reset poster to original (${posterSource}) after ${releasedWindowDays}-day window from release date`,
+                  {
+                    label: 'Coming Soon Collections',
+                    title: placeholder.title,
+                    daysSinceReleaseDate,
+                    releaseDate: placeholder.releaseDate,
+                    releasedWindowDays,
+                    posterSource,
+                  }
+                );
               } catch (error) {
                 logger.warn('Failed to reset poster to original', {
                   label: 'Coming Soon Collections',
@@ -564,74 +579,89 @@ export async function cleanupReleasedPlaceholders(
 
           // Only proceed with database/poster cleanup if file was successfully removed (or no file existed)
           if (fileRemovalSucceeded) {
-            // Reset poster to original TMDB poster (for items with overlays)
+            // Reset poster to original (respecting overlay poster source setting)
             if (placeholder.plexRatingKey) {
               try {
-                const TmdbAPI = (await import('@server/api/themoviedb'))
-                  .default;
-                const language = getTmdbLanguage();
-                const tmdbClient = new TmdbAPI();
+                // Use PlexBasePosterManager to respect overlay poster source setting
+                const { plexBasePosterManager } = await import(
+                  '@server/lib/overlays/PlexBasePosterManager'
+                );
+                const { getRepository } = await import('@server/datasource');
+                const { MediaItemMetadata } = await import(
+                  '@server/entity/MediaItemMetadata'
+                );
 
-                let posterUrl: string | undefined;
-                if (placeholder.mediaType === 'movie') {
-                  const images = await tmdbClient.getMovieImages({
-                    movieId: placeholder.tmdbId,
-                    language,
-                  });
+                // Get poster source preference from settings
+                const posterSource =
+                  settings.overlays?.defaultPosterSource || 'tmdb';
 
-                  // Find poster in selected language, fallback to main poster from movie details
-                  const poster = images.posters.find(
-                    (p) => p.iso_639_1 === language
-                  );
+                // Get stored metadata for this item
+                const metadataRepo = getRepository(MediaItemMetadata);
+                const metadata = await metadataRepo.findOne({
+                  where: {
+                    libraryKey: config.libraryId || '',
+                    plexItemRatingKey: placeholder.plexRatingKey,
+                  },
+                });
 
-                  if (poster) {
-                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-                  } else {
-                    // Fallback to main poster from movie details
-                    const movie = await tmdbClient.getMovie({
-                      movieId: placeholder.tmdbId,
-                    });
-                    posterUrl = movie.poster_path
-                      ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
-                      : undefined;
-                  }
-                } else {
-                  const images = await tmdbClient.getTvShowImages({
-                    tvId: placeholder.tmdbId,
-                    language,
-                  });
+                // Get item metadata from Plex
+                const itemMetadata = await plexClient.getMetadata(
+                  placeholder.plexRatingKey
+                );
 
-                  const poster = images.posters.find(
-                    (p) => p.iso_639_1 === language
-                  );
-
-                  if (poster) {
-                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-                  } else {
-                    // Fallback to main poster from TV show details
-                    const tvShow = await tmdbClient.getTvShow({
-                      tvId: placeholder.tmdbId,
-                    });
-                    posterUrl = tvShow.poster_path
-                      ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
-                      : undefined;
-                  }
-                }
-
-                if (posterUrl) {
-                  await plexClient.uploadPosterFromUrl(
-                    placeholder.plexRatingKey,
-                    posterUrl
-                  );
-                  logger.info(
-                    'Reset poster to original TMDB poster for orphaned item',
+                // Get base poster using the configured source
+                const basePosterResult =
+                  await plexBasePosterManager.getBasePosterForOverlay(
+                    plexClient,
+                    itemMetadata,
+                    config.libraryId || '',
+                    placeholder.mediaType as 'movie' | 'show',
+                    posterSource,
                     {
-                      label: 'Coming Soon Collections',
-                      title: placeholder.title,
-                      ratingKey: placeholder.plexRatingKey,
+                      basePosterSource: metadata?.basePosterSource,
+                      originalPlexPosterUrl: metadata?.originalPlexPosterUrl,
+                      ourOverlayPosterUrl: metadata?.ourOverlayPosterUrl,
+                      basePosterFilename: metadata?.basePosterFilename,
                     }
                   );
+
+                // Write poster buffer to temporary file and upload
+                const fs = await import('fs/promises');
+                const path = await import('path');
+                const tempDir = path.join(process.cwd(), 'config', 'temp');
+                await fs.mkdir(tempDir, { recursive: true });
+                const tempFilePath = path.join(
+                  tempDir,
+                  `restore-poster-${
+                    placeholder.plexRatingKey
+                  }-${Date.now()}.jpg`
+                );
+
+                await fs.writeFile(tempFilePath, basePosterResult.posterBuffer);
+
+                try {
+                  await plexClient.uploadPosterFromFile(
+                    placeholder.plexRatingKey,
+                    tempFilePath
+                  );
+                } finally {
+                  // Clean up temp file
+                  try {
+                    await fs.unlink(tempFilePath);
+                  } catch {
+                    // Ignore cleanup errors
+                  }
                 }
+
+                logger.info(
+                  `Reset poster to original (${posterSource}) for orphaned item`,
+                  {
+                    label: 'Coming Soon Collections',
+                    title: placeholder.title,
+                    ratingKey: placeholder.plexRatingKey,
+                    posterSource,
+                  }
+                );
               } catch (error) {
                 logger.warn('Failed to reset poster to original', {
                   label: 'Coming Soon Collections',

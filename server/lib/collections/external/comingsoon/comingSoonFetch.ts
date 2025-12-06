@@ -1073,227 +1073,223 @@ export async function enrichWithTMDBReleaseDates(
   const today = getToday();
   const maxDate = getFutureDateFromToday(maxDaysAway);
 
-  logger.debug('Starting TMDB release date enrichment', {
+  logger.debug('Starting TMDB release date enrichment (parallel)', {
     label: 'Coming Soon Collections',
     itemCount: items.length,
     maxDaysAway,
   });
 
-  // Track indices to remove (process in reverse to avoid index shifting)
-  const indicesToRemove: number[] = [];
+  // Use SHARED helper functions - import once at the top
+  const {
+    extractReleaseDates,
+    determineReleaseDate,
+    isDateInFuture,
+    isDateWithinDays,
+  } = await import('@server/utils/dateHelpers');
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
+  // Process all items in parallel and track which should be filtered
+  const enrichmentResults = await Promise.all(
+    items.map(async (item, index) => {
+      logger.debug('Enriching item with fresh TMDB data', {
+        label: 'Coming Soon Collections',
+        title: item.title,
+        source: item.source,
+        tmdbId: item.tmdbId,
+        currentReleaseDate: item.releaseDate,
+      });
 
-    logger.debug('Enriching item with fresh TMDB data', {
-      label: 'Coming Soon Collections',
-      title: item.title,
-      source: item.source,
-      tmdbId: item.tmdbId,
-      currentReleaseDate: item.releaseDate,
-    });
+      try {
+        if (item.mediaType === 'movie') {
+          // Fetch movie details from TMDB (includes release_dates in append_to_response)
+          const movieDetails = await tmdbClient.getMovie({
+            movieId: item.tmdbId,
+          });
 
-    // ALWAYS fetch fresh TMDB data for ALL items, regardless of source
-    // This ensures consistent release dates across all collection types
-    // Overlays use the same approach - always fetch fresh TMDB
+          // Extract release dates using shared helper (checks ALL countries, not just US)
+          const extracted = movieDetails.release_dates?.results
+            ? extractReleaseDates(movieDetails.release_dates.results)
+            : {};
 
-    try {
-      if (item.mediaType === 'movie') {
-        // Fetch movie details from TMDB (includes release_dates in append_to_response)
-        const movieDetails = await tmdbClient.getMovie({
-          movieId: item.tmdbId,
+          // Set extracted dates on item
+          item.digitalRelease = extracted.digitalRelease;
+          item.physicalRelease = extracted.physicalRelease;
+          item.inCinemas = extracted.inCinemas;
+
+          // Fallback to generic release_date if no specific theatrical date (same as overlays)
+          const inCinemas =
+            extracted.inCinemas || movieDetails.release_date || undefined;
+
+          // Use shared priority logic: Digital > Physical > Theatrical (+90 days)
+          const releaseDateResult = determineReleaseDate(
+            extracted.digitalRelease,
+            extracted.physicalRelease,
+            inCinemas
+          );
+
+          if (releaseDateResult) {
+            const oldReleaseDate = item.releaseDate;
+            item.releaseDate = releaseDateResult.releaseDate;
+            item.isEstimatedDate = releaseDateResult.isEstimated;
+
+            logger.debug('Updated release date from TMDB enrichment', {
+              label: 'Coming Soon Collections',
+              title: item.title,
+              source: item.source,
+              oldReleaseDate,
+              newReleaseDate: item.releaseDate,
+              isEstimated: releaseDateResult.isEstimated,
+              digitalRelease: item.digitalRelease,
+              physicalRelease: item.physicalRelease,
+              inCinemas: item.inCinemas,
+            });
+
+            if (releaseDateResult.isEstimated) {
+              logger.debug(
+                'Using estimated release date (theatrical + 90 days)',
+                {
+                  label: 'Coming Soon Collections',
+                  title: item.title,
+                  estimatedDate: item.releaseDate,
+                }
+              );
+            }
+          }
+
+          // Filter: only include if release date is in the future and within window
+          const earliestReleaseDate = releaseDateResult
+            ? new Date(releaseDateResult.releaseDate)
+            : extracted.earliestReleaseDate || null;
+
+          if (
+            !earliestReleaseDate ||
+            earliestReleaseDate < today ||
+            earliestReleaseDate > maxDate
+          ) {
+            logger.debug(
+              'Filtering out movie (already released, no date, or too far away)',
+              {
+                label: 'Coming Soon Collections',
+                title: item.title,
+                earliestReleaseDate: earliestReleaseDate?.toISOString(),
+                reason: !earliestReleaseDate
+                  ? 'no date'
+                  : earliestReleaseDate < today
+                  ? 'already released'
+                  : 'too far away',
+              }
+            );
+            return { index, shouldRemove: true };
+          }
+        } else if (item.mediaType === 'tv') {
+          // Only enrich airDate if not already set (Sonarr already provides season-specific dates)
+          if (!item.airDate) {
+            // Fetch TV show details from TMDB
+            const showDetails = await tmdbClient.getTvShow({
+              tvId: item.tmdbId,
+            });
+
+            // Find the next upcoming season premiere
+            let nextSeasonAirDate: string | null = null;
+            let nextSeasonNumber = 0;
+
+            if (showDetails.seasons && showDetails.seasons.length > 0) {
+              // Sort seasons by season number
+              const seasons = showDetails.seasons
+                .filter((s) => s.season_number > 0) // Exclude specials (season 0)
+                .sort((a, b) => a.season_number - b.season_number);
+
+              // Find the next season that hasn't aired yet (timezone-aware)
+              for (const season of seasons) {
+                if (season.air_date && isDateInFuture(season.air_date)) {
+                  nextSeasonAirDate = season.air_date;
+                  nextSeasonNumber = season.season_number;
+                  break;
+                }
+              }
+            }
+
+            if (nextSeasonAirDate) {
+              item.airDate = nextSeasonAirDate;
+              item.seasonNumber = nextSeasonNumber;
+              item.isReturning = nextSeasonNumber > 1;
+
+              logger.debug('Found upcoming season from TMDB for Trakt item', {
+                label: 'Coming Soon Collections',
+                title: item.title,
+                seasonNumber: nextSeasonNumber,
+                airDate: nextSeasonAirDate,
+              });
+            } else if (showDetails.first_air_date) {
+              // Fallback to first_air_date if no future seasons found
+              item.airDate = showDetails.first_air_date;
+              item.seasonNumber = 1;
+              item.isReturning = false;
+            }
+          }
+
+          // Filter TV shows: check if air date is in the future and within window (timezone-aware)
+          if (item.airDate) {
+            if (!isDateWithinDays(item.airDate, maxDaysAway)) {
+              logger.debug(
+                'Filtering out TV show (already aired or too far away)',
+                {
+                  label: 'Coming Soon Collections',
+                  title: item.title,
+                  airDate: item.airDate,
+                }
+              );
+              return { index, shouldRemove: true };
+            }
+          } else {
+            // No air date found, filter out
+            logger.debug('Filtering out TV show (no air date)', {
+              label: 'Coming Soon Collections',
+              title: item.title,
+            });
+            return { index, shouldRemove: true };
+          }
+        }
+
+        logger.debug('Enriched item with TMDB release date', {
+          label: 'Coming Soon Collections',
+          title: item.title,
+          mediaType: item.mediaType,
+          releaseDate: item.releaseDate || item.airDate,
         });
 
-        // Use SHARED helper functions - same as overlays
-        const { extractReleaseDates, determineReleaseDate } = await import(
-          '@server/utils/dateHelpers'
-        );
-
-        // Extract release dates using shared helper (checks ALL countries, not just US)
-        const extracted = movieDetails.release_dates?.results
-          ? extractReleaseDates(movieDetails.release_dates.results)
-          : {};
-
-        // Set extracted dates on item
-        item.digitalRelease = extracted.digitalRelease;
-        item.physicalRelease = extracted.physicalRelease;
-        item.inCinemas = extracted.inCinemas;
-
-        // Fallback to generic release_date if no specific theatrical date (same as overlays)
-        const inCinemas =
-          extracted.inCinemas || movieDetails.release_date || undefined;
-
-        // Use shared priority logic: Digital > Physical > Theatrical (+90 days)
-        const releaseDateResult = determineReleaseDate(
-          extracted.digitalRelease,
-          extracted.physicalRelease,
-          inCinemas
-        );
-
-        if (releaseDateResult) {
-          const oldReleaseDate = item.releaseDate;
-          item.releaseDate = releaseDateResult.releaseDate;
-          item.isEstimatedDate = releaseDateResult.isEstimated;
-
-          logger.debug('Updated release date from TMDB enrichment', {
-            label: 'Coming Soon Collections',
-            title: item.title,
-            source: item.source,
-            oldReleaseDate,
-            newReleaseDate: item.releaseDate,
-            isEstimated: releaseDateResult.isEstimated,
-            digitalRelease: item.digitalRelease,
-            physicalRelease: item.physicalRelease,
-            inCinemas: item.inCinemas,
-          });
-
-          if (releaseDateResult.isEstimated) {
-            logger.debug(
-              'Using estimated release date (theatrical + 90 days)',
-              {
-                label: 'Coming Soon Collections',
-                title: item.title,
-                estimatedDate: item.releaseDate,
-              }
-            );
-          }
-        }
-
-        // Filter: only include if release date is in the future and within window
-        const earliestReleaseDate = releaseDateResult
-          ? new Date(releaseDateResult.releaseDate)
-          : extracted.earliestReleaseDate || null;
-
-        if (
-          !earliestReleaseDate ||
-          earliestReleaseDate < today ||
-          earliestReleaseDate > maxDate
-        ) {
-          logger.debug(
-            'Filtering out movie (already released, no date, or too far away)',
-            {
-              label: 'Coming Soon Collections',
-              title: item.title,
-              earliestReleaseDate: earliestReleaseDate?.toISOString(),
-              reason: !earliestReleaseDate
-                ? 'no date'
-                : earliestReleaseDate < today
-                ? 'already released'
-                : 'too far away',
-            }
-          );
-          indicesToRemove.push(i);
-          continue;
-        }
-      } else if (item.mediaType === 'tv') {
-        // Only enrich airDate if not already set (Sonarr already provides season-specific dates)
-        if (!item.airDate) {
-          // Fetch TV show details from TMDB
-          const showDetails = await tmdbClient.getTvShow({
-            tvId: item.tmdbId,
-          });
-
-          // Find the next upcoming season premiere
-          let nextSeasonAirDate: string | null = null;
-          let nextSeasonNumber = 0;
-
-          if (showDetails.seasons && showDetails.seasons.length > 0) {
-            // Sort seasons by season number
-            const seasons = showDetails.seasons
-              .filter((s) => s.season_number > 0) // Exclude specials (season 0)
-              .sort((a, b) => a.season_number - b.season_number);
-
-            // Import timezone helper for date checking
-            const { isDateInFuture: checkIsDateInFuture } = await import(
-              '@server/utils/dateHelpers'
-            );
-
-            // Find the next season that hasn't aired yet (timezone-aware)
-            for (const season of seasons) {
-              if (season.air_date && checkIsDateInFuture(season.air_date)) {
-                nextSeasonAirDate = season.air_date;
-                nextSeasonNumber = season.season_number;
-                break;
-              }
-            }
-          }
-
-          if (nextSeasonAirDate) {
-            item.airDate = nextSeasonAirDate;
-            item.seasonNumber = nextSeasonNumber;
-            item.isReturning = nextSeasonNumber > 1;
-
-            logger.debug('Found upcoming season from TMDB for Trakt item', {
-              label: 'Coming Soon Collections',
-              title: item.title,
-              seasonNumber: nextSeasonNumber,
-              airDate: nextSeasonAirDate,
-            });
-          } else if (showDetails.first_air_date) {
-            // Fallback to first_air_date if no future seasons found
-            item.airDate = showDetails.first_air_date;
-            item.seasonNumber = 1;
-            item.isReturning = false;
-          }
-        }
-
-        // Filter TV shows: check if air date is in the future and within window (timezone-aware)
-        if (item.airDate) {
-          const { isDateWithinDays: verifyDateWithinDays } = await import(
-            '@server/utils/dateHelpers'
-          );
-          if (!verifyDateWithinDays(item.airDate, maxDaysAway)) {
-            logger.debug(
-              'Filtering out TV show (already aired or too far away)',
-              {
-                label: 'Coming Soon Collections',
-                title: item.title,
-                airDate: item.airDate,
-              }
-            );
-            indicesToRemove.push(i);
-            continue;
-          }
-        } else {
-          // No air date found, filter out
-          logger.debug('Filtering out TV show (no air date)', {
-            label: 'Coming Soon Collections',
-            title: item.title,
-          });
-          indicesToRemove.push(i);
-          continue;
-        }
+        return { index, shouldRemove: false };
+      } catch (error) {
+        logger.warn('Failed to fetch TMDB release date for item', {
+          label: 'Coming Soon Collections',
+          title: item.title,
+          tmdbId: item.tmdbId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        // Remove items that fail to fetch
+        return { index, shouldRemove: true };
       }
+    })
+  );
 
-      logger.debug('Enriched item with TMDB release date', {
-        label: 'Coming Soon Collections',
-        title: item.title,
-        mediaType: item.mediaType,
-        releaseDate: item.releaseDate || item.airDate,
-      });
-    } catch (error) {
-      logger.warn('Failed to fetch TMDB release date for item', {
-        label: 'Coming Soon Collections',
-        title: item.title,
-        tmdbId: item.tmdbId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Remove items that fail to fetch
-      indicesToRemove.push(i);
+  // Collect indices to remove and filter items (in reverse order to avoid index shifting)
+  const indicesToRemove = enrichmentResults
+    .filter((result) => result.shouldRemove)
+    .map((result) => result.index)
+    .sort((a, b) => b - a); // Sort descending for safe removal
+
+  for (const index of indicesToRemove) {
+    items.splice(index, 1);
+  }
+
+  logger.debug(
+    'Completed TMDB release date enrichment and filtering (parallel)',
+    {
+      label: 'Coming Soon Collections',
+      originalCount: enrichmentResults.length,
+      filteredOut: indicesToRemove.length,
+      remainingCount: items.length,
     }
-  }
-
-  // Remove filtered items (in reverse order to avoid index shifting)
-  for (let i = indicesToRemove.length - 1; i >= 0; i--) {
-    items.splice(indicesToRemove[i], 1);
-  }
-
-  logger.debug('Completed TMDB release date enrichment and filtering', {
-    label: 'Coming Soon Collections',
-    originalCount: items.length + indicesToRemove.length,
-    filteredOut: indicesToRemove.length,
-    remainingCount: items.length,
-  });
+  );
 }
 
 /**
