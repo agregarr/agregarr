@@ -240,7 +240,7 @@ export const AVAILABLE_VARIABLES = {
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
-      example: 'RETURNING SERIES',
+      example: 'RETURNING',
     },
   ],
   video: [
@@ -323,7 +323,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
-      example: 'RETURNING SERIES',
+      example: 'RETURNING',
     },
     { field: 'releaseDate', label: 'Release Date', example: 'JAN 15' },
   ],

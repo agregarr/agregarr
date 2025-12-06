@@ -682,7 +682,7 @@ router.get('/:id/preview', async (req, res, next) => {
       isMonitored: true,
       downloaded: true, // Show "New Release" type overlays
       isPlaceholder: false,
-      tmdbStatus: 'RETURNING SERIES',
+      tmdbStatus: 'RETURNING',
     };
 
     // Render the overlay on the poster
