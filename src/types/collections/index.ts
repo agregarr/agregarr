@@ -504,6 +504,10 @@ export interface CollectionConfigCreateRequest {
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
   readonly sortOrder?: CollectionSortOrder;
+  // Plex Library director settings (also accepted by create requests)
+  readonly directorDepth?: number; // Number of directors to create collections for (for plex_library/directors)
+  readonly directorLimit?: number; // Maximum items per director collection (for plex_library/directors)
+  readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
