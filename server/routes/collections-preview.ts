@@ -700,21 +700,14 @@ async function processMultiSourcePreview(
             language,
           });
 
-          // Find poster in selected language with fallback
-          let poster = images.posters.find((p) => p.iso_639_1 === language);
-          if (!poster) {
-            poster = images.posters.find((p) => p.iso_639_1 === null);
-          }
-          if (!poster && language !== 'en') {
-            poster = images.posters.find((p) => p.iso_639_1 === 'en');
-          }
-          if (!poster && images.posters.length > 0) {
-            poster = images.posters[0];
-          }
+          // Find poster in selected language, fallback to main poster from movie details
+          const poster = images.posters.find((p) => p.iso_639_1 === language);
 
           return {
             posterUrl: poster
               ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+              : movie.poster_path
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
               : '',
             backdropPath: movie.backdrop_path || undefined,
             title: movie.title || fallbackTitle,
@@ -732,20 +725,13 @@ async function processMultiSourcePreview(
             language,
           });
 
-          let poster = images.posters.find((p) => p.iso_639_1 === language);
-          if (!poster) {
-            poster = images.posters.find((p) => p.iso_639_1 === null);
-          }
-          if (!poster && language !== 'en') {
-            poster = images.posters.find((p) => p.iso_639_1 === 'en');
-          }
-          if (!poster && images.posters.length > 0) {
-            poster = images.posters[0];
-          }
+          const poster = images.posters.find((p) => p.iso_639_1 === language);
 
           return {
             posterUrl: poster
               ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+              : show.poster_path
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
               : '',
             backdropPath: show.backdrop_path || undefined,
             title: show.name || fallbackTitle,
@@ -1290,21 +1276,14 @@ async function processPreviewAsync(
               language,
             });
 
-            // Find poster in selected language with fallback
-            let poster = images.posters.find((p) => p.iso_639_1 === language);
-            if (!poster) {
-              poster = images.posters.find((p) => p.iso_639_1 === null);
-            }
-            if (!poster && language !== 'en') {
-              poster = images.posters.find((p) => p.iso_639_1 === 'en');
-            }
-            if (!poster && images.posters.length > 0) {
-              poster = images.posters[0];
-            }
+            // Find poster in selected language, fallback to main poster from movie details
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
 
             return {
               posterUrl: poster
                 ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+                : movie.poster_path
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
                 : '',
               backdropPath: movie.backdrop_path || undefined,
               title: movie.title || fallbackTitle,
@@ -1322,20 +1301,13 @@ async function processPreviewAsync(
               language,
             });
 
-            let poster = images.posters.find((p) => p.iso_639_1 === language);
-            if (!poster) {
-              poster = images.posters.find((p) => p.iso_639_1 === null);
-            }
-            if (!poster && language !== 'en') {
-              poster = images.posters.find((p) => p.iso_639_1 === 'en');
-            }
-            if (!poster && images.posters.length > 0) {
-              poster = images.posters[0];
-            }
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
 
             return {
               posterUrl: poster
                 ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+                : show.poster_path
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
                 : '',
               backdropPath: show.backdrop_path || undefined,
               title: show.name || fallbackTitle,

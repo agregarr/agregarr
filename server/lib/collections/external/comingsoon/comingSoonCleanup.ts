@@ -273,45 +273,43 @@ export async function cleanupReleasedPlaceholders(
                     language,
                   });
 
-                  // Find poster in selected language, fallback to null language, then English
-                  let poster = images.posters.find(
+                  // Find poster in selected language, fallback to main poster from movie details
+                  const poster = images.posters.find(
                     (p) => p.iso_639_1 === language
                   );
-                  if (!poster) {
-                    poster = images.posters.find((p) => p.iso_639_1 === null);
-                  }
-                  if (!poster && language !== 'en') {
-                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
-                  }
-                  if (!poster && images.posters.length > 0) {
-                    poster = images.posters[0];
-                  }
 
-                  posterUrl = poster
-                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
-                    : undefined;
+                  if (poster) {
+                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+                  } else {
+                    // Fallback to main poster from movie details
+                    const movie = await tmdbClient.getMovie({
+                      movieId: placeholder.tmdbId,
+                    });
+                    posterUrl = movie.poster_path
+                      ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
+                      : undefined;
+                  }
                 } else {
                   const images = await tmdbClient.getTvShowImages({
                     tvId: placeholder.tmdbId,
                     language,
                   });
 
-                  let poster = images.posters.find(
+                  const poster = images.posters.find(
                     (p) => p.iso_639_1 === language
                   );
-                  if (!poster) {
-                    poster = images.posters.find((p) => p.iso_639_1 === null);
-                  }
-                  if (!poster && language !== 'en') {
-                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
-                  }
-                  if (!poster && images.posters.length > 0) {
-                    poster = images.posters[0];
-                  }
 
-                  posterUrl = poster
-                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
-                    : undefined;
+                  if (poster) {
+                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+                  } else {
+                    // Fallback to main poster from TV show details
+                    const tvShow = await tmdbClient.getTvShow({
+                      tvId: placeholder.tmdbId,
+                    });
+                    posterUrl = tvShow.poster_path
+                      ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
+                      : undefined;
+                  }
                 }
 
                 if (posterUrl) {
@@ -581,45 +579,43 @@ export async function cleanupReleasedPlaceholders(
                     language,
                   });
 
-                  // Find poster in selected language, fallback to null language, then English
-                  let poster = images.posters.find(
+                  // Find poster in selected language, fallback to main poster from movie details
+                  const poster = images.posters.find(
                     (p) => p.iso_639_1 === language
                   );
-                  if (!poster) {
-                    poster = images.posters.find((p) => p.iso_639_1 === null);
-                  }
-                  if (!poster && language !== 'en') {
-                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
-                  }
-                  if (!poster && images.posters.length > 0) {
-                    poster = images.posters[0];
-                  }
 
-                  posterUrl = poster
-                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
-                    : undefined;
+                  if (poster) {
+                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+                  } else {
+                    // Fallback to main poster from movie details
+                    const movie = await tmdbClient.getMovie({
+                      movieId: placeholder.tmdbId,
+                    });
+                    posterUrl = movie.poster_path
+                      ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
+                      : undefined;
+                  }
                 } else {
                   const images = await tmdbClient.getTvShowImages({
                     tvId: placeholder.tmdbId,
                     language,
                   });
 
-                  let poster = images.posters.find(
+                  const poster = images.posters.find(
                     (p) => p.iso_639_1 === language
                   );
-                  if (!poster) {
-                    poster = images.posters.find((p) => p.iso_639_1 === null);
-                  }
-                  if (!poster && language !== 'en') {
-                    poster = images.posters.find((p) => p.iso_639_1 === 'en');
-                  }
-                  if (!poster && images.posters.length > 0) {
-                    poster = images.posters[0];
-                  }
 
-                  posterUrl = poster
-                    ? `https://image.tmdb.org/t/p/original${poster.file_path}`
-                    : undefined;
+                  if (poster) {
+                    posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+                  } else {
+                    // Fallback to main poster from TV show details
+                    const tvShow = await tmdbClient.getTvShow({
+                      tvId: placeholder.tmdbId,
+                    });
+                    posterUrl = tvShow.poster_path
+                      ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
+                      : undefined;
+                  }
                 }
 
                 if (posterUrl) {
