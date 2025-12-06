@@ -9,9 +9,8 @@ import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import { OverlayTemplate } from '@server/entity/OverlayTemplate';
-import { getSettings, getTmdbLanguage } from '@server/lib/settings';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import axios from 'axios';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -449,17 +448,41 @@ class OverlayLibraryService {
 
   /**
    * Apply overlays to a single Plex item
+   *
+   * NOTE: configuredLibraryType is the library's configured type, but PlexBasePosterManager
+   * will use item.type for TMDB API calls to prevent fetching wrong posters
    */
   private async applyOverlaysToItem(
     plexApi: PlexAPI,
     item: PlexLibraryItem,
     templates: OverlayTemplate[],
-    mediaType: 'movie' | 'show',
+    configuredLibraryType: 'movie' | 'show',
     libraryId: string,
     contextOverrides?: Partial<OverlayRenderContext>
   ): Promise<void> {
     try {
-      // Extract TMDB ID from item GUIDs
+      // CRITICAL: Derive actual media type from item.type, not library config
+      // This prevents TMDB API namespace mismatches that cause wrong posters
+      const actualMediaType: 'movie' | 'show' =
+        item.type === 'movie' ? 'movie' : 'show';
+
+      // Warn if there's a mismatch between item type and library config
+      if (actualMediaType !== configuredLibraryType) {
+        logger.warn('Item type does not match library configuration', {
+          label: 'OverlayLibrary',
+          itemTitle: item.title,
+          ratingKey: item.ratingKey,
+          itemType: item.type,
+          configuredLibraryType,
+          usingType: actualMediaType,
+        });
+      }
+
+      // Get poster source preference (global setting)
+      const settings = getSettings();
+      const posterSource = settings.overlays?.defaultPosterSource || 'tmdb';
+
+      // Extract TMDB ID (still needed for TMDB source and release date info)
       let tmdbId: number | undefined;
       if (item.Guid && Array.isArray(item.Guid)) {
         const tmdbGuid = item.Guid.find((g) => g.id?.includes('tmdb://'));
@@ -471,78 +494,49 @@ class OverlayLibraryService {
         }
       }
 
-      // Must have TMDB ID to fetch fresh poster
-      if (!tmdbId) {
-        logger.debug('Skipping overlay - no TMDB ID found', {
+      // Get metadata tracking for this item
+      const metadataService = (
+        await import('@server/lib/metadata/MetadataTrackingService')
+      ).default;
+      const metadata = await metadataService.getItemMetadata(item.ratingKey);
+
+      // Get base poster with change detection
+      const { plexBasePosterManager } = await import(
+        '@server/lib/overlays/PlexBasePosterManager'
+      );
+
+      let basePosterResult: {
+        posterBuffer: Buffer;
+        basePosterChanged: boolean;
+        sourceUrl: string;
+        filename: string;
+      };
+
+      try {
+        basePosterResult = await plexBasePosterManager.getBasePosterForOverlay(
+          plexApi,
+          item,
+          libraryId,
+          configuredLibraryType,
+          posterSource,
+          {
+            basePosterSource: metadata?.basePosterSource,
+            originalPlexPosterUrl: metadata?.originalPlexPosterUrl,
+            ourOverlayPosterUrl: metadata?.ourOverlayPosterUrl,
+            basePosterFilename: metadata?.basePosterFilename,
+          }
+        );
+      } catch (error) {
+        logger.error('Failed to get base poster, skipping overlay', {
           label: 'OverlayLibrary',
           itemTitle: item.title,
+          ratingKey: item.ratingKey,
+          error: error instanceof Error ? error.message : String(error),
         });
         return;
       }
 
-      // Fetch fresh poster from TMDB (avoids overlay-on-overlay issues)
-      const language = getTmdbLanguage();
-      const tmdbClient = new TheMovieDb();
-      let posterUrl: string | undefined;
-
-      if (mediaType === 'movie') {
-        const images = await tmdbClient.getMovieImages({
-          movieId: tmdbId,
-          language,
-        });
-
-        // Find poster in selected language, fallback to null language (universal), then English
-        let poster = images.posters.find((p) => p.iso_639_1 === language);
-        if (!poster) {
-          poster = images.posters.find((p) => p.iso_639_1 === null);
-        }
-        if (!poster && language !== 'en') {
-          poster = images.posters.find((p) => p.iso_639_1 === 'en');
-        }
-        if (!poster && images.posters.length > 0) {
-          poster = images.posters[0];
-        }
-
-        posterUrl = poster
-          ? `https://image.tmdb.org/t/p/original${poster.file_path}`
-          : undefined;
-      } else {
-        const images = await tmdbClient.getTvShowImages({
-          tvId: tmdbId,
-          language,
-        });
-
-        let poster = images.posters.find((p) => p.iso_639_1 === language);
-        if (!poster) {
-          poster = images.posters.find((p) => p.iso_639_1 === null);
-        }
-        if (!poster && language !== 'en') {
-          poster = images.posters.find((p) => p.iso_639_1 === 'en');
-        }
-        if (!poster && images.posters.length > 0) {
-          poster = images.posters[0];
-        }
-
-        posterUrl = poster
-          ? `https://image.tmdb.org/t/p/original${poster.file_path}`
-          : undefined;
-      }
-
-      if (!posterUrl) {
-        logger.debug('Skipping overlay - no TMDB poster available', {
-          label: 'OverlayLibrary',
-          itemTitle: item.title,
-          tmdbId,
-        });
-        return;
-      }
-
-      // Download poster
-      const posterResponse = await axios.get(posterUrl, {
-        responseType: 'arraybuffer',
-        timeout: 30000,
-      });
-      const posterBuffer = Buffer.from(posterResponse.data);
+      const posterBuffer = basePosterResult.posterBuffer;
 
       // Check if this is a Coming Soon placeholder first
       const comingSoonContext = await this.getComingSoonContext(item.ratingKey);
@@ -559,7 +553,7 @@ class OverlayLibraryService {
       // Build context for dynamic fields (skip Plex media metadata for placeholders)
       const baseContext = await this.buildRenderContext(
         item,
-        mediaType,
+        actualMediaType,
         isPlaceholder
       );
 
@@ -569,7 +563,7 @@ class OverlayLibraryService {
       if (tmdbId && item.year) {
         const releaseDateInfo = await this.fetchReleaseDateInfo(
           tmdbId,
-          mediaType,
+          actualMediaType,
           item.year
         );
 
@@ -644,7 +638,7 @@ class OverlayLibraryService {
       if (!isPlaceholder && tmdbId) {
         monitoringContext = await this.checkRealItemMonitoringStatus(
           tmdbId,
-          mediaType
+          actualMediaType
         );
       }
 
@@ -678,30 +672,40 @@ class OverlayLibraryService {
         context: context as Record<string, unknown>,
       });
 
-      // Check if overlay needs reapplication using metadata tracking
-      const metadataService = (
-        await import('@server/lib/metadata/MetadataTrackingService')
-      ).default;
-
+      // Check if we need to reapply overlays (base poster changed, overlay inputs changed, or Plex URL changed)
       try {
         const currentPosterUrl = await plexApi.getCurrentPosterUrl(
           item.ratingKey
         );
 
-        const shouldReapply = await metadataService.shouldReapplyOverlay(
-          item.ratingKey,
-          overlayInputHash,
-          currentPosterUrl
-        );
+        const overlayInputsChanged =
+          metadata?.lastOverlayInputHash !== overlayInputHash;
+        const plexPosterMissing =
+          metadata?.ourOverlayPosterUrl !== currentPosterUrl;
 
-        if (!shouldReapply) {
-          logger.debug('Overlay inputs unchanged and URL matches, skipping', {
+        if (
+          !basePosterResult.basePosterChanged &&
+          !overlayInputsChanged &&
+          !plexPosterMissing
+        ) {
+          logger.debug('Nothing changed, skipping overlay application', {
             label: 'OverlayLibrary',
             itemTitle: item.title,
             ratingKey: item.ratingKey,
+            basePosterChanged: false,
+            overlayInputsChanged: false,
+            plexPosterMissing: false,
           });
           return; // Skip this item
         }
+
+        logger.info('Applying overlays - changes detected', {
+          label: 'OverlayLibrary',
+          itemTitle: item.title,
+          basePosterChanged: basePosterResult.basePosterChanged,
+          overlayInputsChanged,
+          plexPosterMissing,
+        });
       } catch (metaError) {
         logger.warn('Metadata check failed, proceeding with overlay', {
           label: 'MetadataTracking',
@@ -775,18 +779,23 @@ class OverlayLibraryService {
         // Upload modified poster back to Plex
         await plexApi.uploadPosterFromFile(item.ratingKey, tempFilePath);
 
-        // Record overlay metadata tracking
+        // Record overlay metadata tracking with base poster info
         try {
           const newPosterUrl = await plexApi.getCurrentPosterUrl(
             item.ratingKey
           );
 
           if (newPosterUrl) {
-            await metadataService.recordOverlayApplication(
+            await metadataService.recordOverlayApplicationWithBasePoster(
               item.ratingKey,
               libraryId,
               overlayInputHash,
-              newPosterUrl
+              newPosterUrl,
+              {
+                basePosterSource: posterSource,
+                originalPlexPosterUrl: basePosterResult.sourceUrl,
+                basePosterFilename: basePosterResult.filename,
+              }
             );
           }
         } catch (metaError) {

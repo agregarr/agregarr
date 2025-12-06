@@ -157,6 +157,17 @@ app
       logger.error('Failed to initialize icon storage:', error);
     }
 
+    // Initialize base poster storage directory
+    try {
+      const { plexBasePosterManager } = await import(
+        '@server/lib/overlays/PlexBasePosterManager'
+      );
+      await plexBasePosterManager.initialize();
+      logger.info('Base poster storage initialized successfully');
+    } catch (error) {
+      logger.error('Failed to initialize base poster storage:', error);
+    }
+
     // Initialize RandomListManager for multi-source collections
     try {
       const { RandomListManager } = await import(

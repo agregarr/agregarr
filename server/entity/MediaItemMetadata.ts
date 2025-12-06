@@ -35,6 +35,19 @@ export class MediaItemMetadata {
   @Column({ type: 'datetime', nullable: true })
   public lastOverlayAppliedAt?: Date;
 
+  // === BASE POSTER TRACKING ===
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  public basePosterSource?: 'tmdb' | 'plex';
+
+  @Column({ type: 'varchar', nullable: true })
+  public originalPlexPosterUrl?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  public ourOverlayPosterUrl?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  public basePosterFilename?: string;
+
   @CreateDateColumn()
   public createdAt: Date;
 

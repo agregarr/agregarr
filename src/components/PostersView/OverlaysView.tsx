@@ -2,18 +2,23 @@ import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import { OverlayEditorModal } from '@app/components/OverlayEditor';
 import { Tab } from '@headlessui/react';
-import { ArrowUpTrayIcon, PlusIcon } from '@heroicons/react/24/solid';
+import {
+  ArrowUpTrayIcon,
+  Cog6ToothIcon,
+  PlusIcon,
+} from '@heroicons/react/24/solid';
 import type {
   ApplicationCondition,
   OverlayTemplateData,
   OverlayTemplateType,
 } from '@server/entity/OverlayTemplate';
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import LibraryConfigView from './LibraryConfigView';
 import OverlayTemplateGrid from './OverlayTemplateGrid';
+import PosterSourceSetupModal from './PosterSourceSetupModal';
 
 const messages = defineMessages({
   title: 'Overlay System',
@@ -30,6 +35,7 @@ const messages = defineMessages({
   templatesDescription:
     'Design reusable overlay templates for ratings, metadata, and more',
   librariesDescription: 'Configure which overlays are applied to each library',
+  overlaySettings: 'Posters Source',
 });
 
 interface OverlayTemplate {
@@ -48,6 +54,7 @@ const OverlaysView: React.FC = () => {
   const { addToast } = useToasts();
   const [selectedTab, setSelectedTab] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch overlay templates
@@ -57,7 +64,29 @@ const OverlaysView: React.FC = () => {
     mutate: mutateTemplates,
   } = useSWR<{ templates: OverlayTemplate[] }>('/api/v1/overlay-templates');
 
+  // Fetch overlay settings
+  const { data: overlaySettings, mutate: mutateSettings } = useSWR<{
+    defaultPosterSource: 'tmdb' | 'plex';
+    initialSetupComplete: boolean;
+  }>('/api/v1/overlay-settings');
+
   const templates = templatesData?.templates || [];
+
+  // Show setup modal when navigating to Library Configuration tab if setup not complete
+  useEffect(() => {
+    if (
+      selectedTab === 1 &&
+      overlaySettings &&
+      !overlaySettings.initialSetupComplete
+    ) {
+      setIsSetupModalOpen(true);
+    }
+  }, [selectedTab, overlaySettings]);
+
+  const handleSetupComplete = () => {
+    setIsSetupModalOpen(false);
+    mutateSettings();
+  };
 
   const handleCreateTemplate = () => {
     setIsModalOpen(true);
@@ -239,6 +268,17 @@ const OverlaysView: React.FC = () => {
               />
             </div>
           )}
+
+          {selectedTab === 1 && (
+            <Button
+              buttonType="ghost"
+              onClick={() => setIsSetupModalOpen(true)}
+              className="flex items-center space-x-2"
+            >
+              <Cog6ToothIcon className="h-5 w-5" />
+              <span>{intl.formatMessage(messages.overlaySettings)}</span>
+            </Button>
+          )}
         </div>
 
         {/* Tab description */}
@@ -271,6 +311,14 @@ const OverlaysView: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         mode="create"
         onSave={handleSave}
+      />
+
+      <PosterSourceSetupModal
+        isOpen={isSetupModalOpen}
+        onClose={() => setIsSetupModalOpen(false)}
+        onComplete={handleSetupComplete}
+        isInitialSetup={!overlaySettings?.initialSetupComplete}
+        currentPosterSource={overlaySettings?.defaultPosterSource}
       />
     </div>
   );

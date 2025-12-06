@@ -285,6 +285,60 @@ class MetadataTrackingService {
       uploadUrl,
     });
   }
+
+  async recordOverlayApplicationWithBasePoster(
+    itemRatingKey: string,
+    libraryKey: string,
+    overlayInputHash: string,
+    ourOverlayPosterUrl: string,
+    basePosterInfo: {
+      basePosterSource: 'tmdb' | 'plex';
+      originalPlexPosterUrl: string;
+      basePosterFilename: string;
+    }
+  ): Promise<void> {
+    const repo = getRepository(MediaItemMetadata);
+
+    let metadata = await repo.findOne({
+      where: { plexItemRatingKey: itemRatingKey },
+    });
+
+    if (!metadata) {
+      metadata = new MediaItemMetadata({
+        plexItemRatingKey: itemRatingKey,
+        libraryKey: libraryKey,
+      });
+    }
+
+    // Update overlay tracking
+    metadata.lastOverlayInputHash = overlayInputHash;
+    metadata.lastPosterUploadUrl = ourOverlayPosterUrl;
+    metadata.lastOverlayAppliedAt = new Date();
+
+    // Update base poster tracking
+    metadata.basePosterSource = basePosterInfo.basePosterSource;
+    metadata.originalPlexPosterUrl = basePosterInfo.originalPlexPosterUrl;
+    metadata.ourOverlayPosterUrl = ourOverlayPosterUrl;
+    metadata.basePosterFilename = basePosterInfo.basePosterFilename;
+
+    await repo.save(metadata);
+
+    logger.info('Recorded overlay application with base poster tracking', {
+      label: 'MetadataTracking',
+      itemRatingKey,
+      overlayInputHash: overlayInputHash.substring(0, 8),
+      basePosterSource: basePosterInfo.basePosterSource,
+    });
+  }
+
+  async getItemMetadata(
+    itemRatingKey: string
+  ): Promise<MediaItemMetadata | null> {
+    const repo = getRepository(MediaItemMetadata);
+    return await repo.findOne({
+      where: { plexItemRatingKey: itemRatingKey },
+    });
+  }
 }
 
 export default new MetadataTrackingService();

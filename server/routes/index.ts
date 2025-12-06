@@ -30,6 +30,7 @@ import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import myanimelistRoutes from './myanimelist';
 import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
+import overlaySettingsRoutes from './overlaySettings';
 import overlayTemplatesRoutes from './overlayTemplates';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
@@ -156,6 +157,7 @@ router.use(
   isAuthenticated(),
   overlayLibraryConfigsRoutes
 );
+router.use('/overlay-settings', isAuthenticated(), overlaySettingsRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/ratings', isAuthenticated(), ratingsRoutes);

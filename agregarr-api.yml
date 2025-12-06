@@ -12938,6 +12938,178 @@ paths:
           description: Authentication required
         '500':
           description: Failed to start overlay application
+
+  /overlay-settings:
+    get:
+      summary: Get overlay settings
+      description: Get global overlay system settings including poster source preference.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Overlay settings retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  defaultPosterSource:
+                    type: string
+                    enum: [tmdb, plex]
+                    description: Default poster source for overlays
+                    example: 'tmdb'
+                  initialSetupComplete:
+                    type: boolean
+                    description: Whether initial setup wizard has been completed
+                    example: false
+        '401':
+          description: Authentication required
+    put:
+      summary: Update overlay settings
+      description: Update global overlay system settings.
+      tags:
+        - overlays
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - defaultPosterSource
+              properties:
+                defaultPosterSource:
+                  type: string
+                  enum: [tmdb, plex]
+                  description: Default poster source for overlays
+                  example: 'tmdb'
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  defaultPosterSource:
+                    type: string
+                    enum: [tmdb, plex]
+                  initialSetupComplete:
+                    type: boolean
+        '400':
+          description: Invalid poster source
+        '401':
+          description: Authentication required
+
+  /overlay-settings/download-base-posters:
+    post:
+      summary: Download base posters from Plex
+      description: Starts a background job to download all base posters from Plex libraries for overlay processing. Only used when poster source is set to 'plex'.
+      tags:
+        - overlays
+      responses:
+        '202':
+          description: Download job started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Base poster download started'
+                  status:
+                    type: object
+                    properties:
+                      running:
+                        type: boolean
+                      cancelled:
+                        type: boolean
+                      libraries:
+                        type: object
+                      overallProgress:
+                        type: object
+                        properties:
+                          current:
+                            type: number
+                          total:
+                            type: number
+                          failed:
+                            type: number
+                          percentage:
+                            type: number
+        '401':
+          description: Authentication required
+        '409':
+          description: Download job already running or overlay application is running
+
+  /overlay-settings/download-status:
+    get:
+      summary: Get download job status
+      description: Get the current status of the base poster download job including progress per library.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Download status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                  cancelled:
+                    type: boolean
+                  libraries:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        libraryName:
+                          type: string
+                        current:
+                          type: number
+                        total:
+                          type: number
+                        failed:
+                          type: number
+                  overallProgress:
+                    type: object
+                    properties:
+                      current:
+                        type: number
+                      total:
+                        type: number
+                      failed:
+                        type: number
+                      percentage:
+                        type: number
+        '401':
+          description: Authentication required
+
+  /overlay-settings/cancel-download:
+    post:
+      summary: Cancel download job
+      description: Requests cancellation of the currently running base poster download job.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Cancellation requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Download job cancellation requested'
+        '400':
+          description: No download job running
+        '401':
+          description: Authentication required
+
 security:
   - cookieAuth: []
   - apiKey: []

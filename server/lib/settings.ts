@@ -521,6 +521,11 @@ interface JobSettings {
   schedule: string;
 }
 
+export interface OverlaySettings {
+  defaultPosterSource: 'tmdb' | 'plex';
+  initialSetupComplete: boolean;
+}
+
 export type JobId =
   | 'plex-refresh-token'
   | 'plex-collections-sync'
@@ -548,6 +553,7 @@ interface AllSettings {
   jobs: Record<JobId, JobSettings>;
   globalExclusions?: GlobalExclusions; // Global item exclusions for collections
   completedMigrations?: string[]; // Track completed migrations
+  overlays?: OverlaySettings; // Overlay system settings
 }
 
 const SETTINGS_PATH = process.env.CONFIG_DIRECTORY
@@ -902,6 +908,14 @@ class Settings {
     }
 
     return this.data.clientId;
+  }
+
+  get overlays(): OverlaySettings | undefined {
+    return this.data.overlays;
+  }
+
+  set overlays(data: OverlaySettings | undefined) {
+    this.data.overlays = data;
   }
 
   // VAPID keys methods removed - push notifications not needed in Agregarr

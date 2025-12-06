@@ -63,6 +63,17 @@ class OverlayApplication {
       return;
     }
 
+    // Safety check: don't run if base poster download is in progress
+    const { plexBasePosterDownloadJob } = await import(
+      '@server/lib/overlays/PlexBasePosterDownloadJob'
+    );
+    if (plexBasePosterDownloadJob.running) {
+      throw new Error(
+        'Cannot run overlay application while base posters are being downloaded. ' +
+          'Please wait for the download to complete.'
+      );
+    }
+
     this.running = true;
     this.cancelled = false;
     this.currentStage = '';
