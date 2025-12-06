@@ -1539,9 +1539,7 @@ const CollectionFormConfigForm = ({
             // Remove UI-only fields from the final config
             enableGrabMissingItems: undefined,
           };
-          // Director depth/limit are no longer configurable; ensure we don't send stale values
-          delete (configToSave as Partial<CollectionFormConfig>).directorDepth;
-          delete (configToSave as Partial<CollectionFormConfig>).directorLimit;
+
           onSave(configToSave);
         }}
       >
