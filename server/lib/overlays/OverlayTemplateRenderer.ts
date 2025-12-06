@@ -558,7 +558,7 @@ class OverlayTemplateRendererService {
               : '0'
           }"
           y="50%"
-          font-family="${props.fontFamily}"
+          font-family="'${props.fontFamily}'"
           font-size="${fontSize}"
           font-weight="${props.fontWeight}"
           font-style="${props.fontStyle}"
@@ -715,7 +715,7 @@ class OverlayTemplateRendererService {
               : '0'
           }"
           y="50%"
-          font-family="${props.fontFamily}"
+          font-family="'${props.fontFamily}'"
           font-size="${fontSize}"
           font-weight="${props.fontWeight}"
           font-style="${props.fontStyle}"

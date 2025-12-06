@@ -813,9 +813,7 @@ function createTemplateWrappedText(
       const lineY = textBlockStartY + index * lineHeight;
       return `
         <text x="${textX}" y="${lineY}"
-              font-family="${
-                fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily
-              }"
+              font-family="'${fontFamily}'"
               font-size="${currentFontSize}"
               font-weight="${fontWeight}"
               font-style="${fontStyle}"
