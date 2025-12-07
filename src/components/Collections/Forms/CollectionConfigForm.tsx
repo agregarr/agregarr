@@ -296,6 +296,26 @@ const CollectionFormConfigForm = ({
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema.notRequired(),
     }),
+    directorMinimumItems: Yup.number()
+      .transform((value, originalValue) => {
+        if (
+          originalValue === null ||
+          originalValue === undefined ||
+          originalValue === ''
+        ) {
+          return undefined;
+        }
+        return Number.isNaN(value) ? undefined : value;
+      })
+      .when(['type', 'subtype'], {
+        is: (type?: string, subtype?: string) =>
+          type === 'plex_library' && subtype === 'directors',
+        then: (schema) =>
+          schema
+            .required('Director minimum items is required')
+            .min(2, 'Director minimum items must be at least 2'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
 
     // Handle both libraryIds (collections) and libraryId (hubs/pre-existing)
     libraryIds: Yup.array()
@@ -1035,7 +1055,7 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).directorMinimumItems ??
             ((config as CollectionFormConfig).type === 'plex_library' &&
             (config as CollectionFormConfig).subtype === 'directors'
-              ? 3
+              ? 5
               : undefined),
           placeholderReleasedDays:
             (config as CollectionFormConfig).placeholderReleasedDays ||
@@ -1463,7 +1483,7 @@ const CollectionFormConfigForm = ({
             directorMinimumItems:
               optionalNumber(values.directorMinimumItems) ??
               (config as CollectionFormConfig).directorMinimumItems ??
-              3,
+              5,
             excludedGenres:
               values.enableGrabMissingItems && values.excludedGenres
                 ? values.excludedGenres

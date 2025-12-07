@@ -265,6 +265,13 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       };
       const coercedMinimum = maybeNumber(req.body.directorMinimumItems);
 
+      if (coercedMinimum === 1) {
+        return res.status(400).json({
+          error: 'Director minimum items must be at least 2',
+          message: 'Director collections require a minimum of 2 items, 1 is not allowed',
+        });
+      }
+
       if (coercedMinimum !== undefined) {
         req.body.directorMinimumItems = coercedMinimum;
       }
