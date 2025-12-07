@@ -105,6 +105,7 @@ const CollectionTypeSection = ({
     { value: 'overseerr', label: 'Overseerr Requests' },
     { value: 'tautulli', label: 'Tautulli Statistics' },
     { value: 'trakt', label: 'Trakt Lists' },
+    { value: 'plex_library', label: 'Plex Library' },
     { value: 'letterboxd', label: 'Letterboxd Lists' },
     { value: 'tmdb', label: 'TMDB Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
@@ -216,6 +217,15 @@ const CollectionTypeSection = ({
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured TMDB lists',
+          },
+        ];
+      case 'plex_library':
+        return [
+          {
+            value: 'directors',
+            label: 'Auto Director Collections',
+            description:
+              'Automatically create a smart collection for each top director in this library.',
           },
         ];
       case 'imdb':
@@ -517,6 +527,32 @@ const CollectionTypeSection = ({
           }
           type="info"
         />
+      )}
+
+      {/* Plex Library Directors */}
+      {values.type === 'plex_library' && values.subtype === 'directors' && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label
+              htmlFor="directorMinimumItems"
+              className="mb-2 block text-sm text-gray-300"
+            >
+              Minimum Items
+            </label>
+            <Field
+              type="number"
+              id="directorMinimumItems"
+              name="directorMinimumItems"
+              placeholder="3"
+              min="1"
+              max="50"
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Only create if a director has at least this many items (default: 3)
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Tautulli Configuration - appears when type='tautulli' and subtype is selected */}

@@ -441,6 +441,12 @@ const SortableItem = ({
                 (config as CollectionFormConfig).subtype ===
                   'auto_franchise' ? (
                 'Auto Franchise Collections'
+              ) : isCollection &&
+                (config as CollectionFormConfig).type === 'plex_library' &&
+                (config as CollectionFormConfig).subtype === 'directors' ? (
+                'Auto Director Collections'
+              ) : config.name === '{director}' ? (
+                'Auto Director Collections'
               ) : (
                 config.name || 'Unnamed Collection'
               )}
@@ -672,6 +678,11 @@ const SortableItem = ({
                             return word.charAt(0).toUpperCase() + word.slice(1);
                           })
                           .join(' ');
+                      case 'plex_library':
+                        if (subtype === 'directors') {
+                          return 'Auto Director Collections';
+                        }
+                        return subtype;
                       default:
                         return subtype;
                     }
@@ -704,6 +715,8 @@ const SortableItem = ({
                       ? 'Networks'
                       : collection.type === 'originals'
                       ? 'Originals'
+                      : collection.type === 'plex_library'
+                      ? 'Plex Library'
                       : collection.type === 'multi-source'
                       ? 'Multi-Source'
                       : collection.type === 'comingsoon'

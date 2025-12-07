@@ -320,6 +320,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.useTmdbFranchisePoster !== undefined && {
           useTmdbFranchisePoster: collectionConfig.useTmdbFranchisePoster,
         }),
+        ...(collectionConfig.useTmdbDirectorPoster !== undefined && {
+          useTmdbDirectorPoster: collectionConfig.useTmdbDirectorPoster,
+        }),
         ...(collectionConfig.hideIndividualItems !== undefined && {
           hideIndividualItems: collectionConfig.hideIndividualItems,
         }),

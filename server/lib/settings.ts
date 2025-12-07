@@ -57,6 +57,7 @@ export interface CollectionConfig {
     | 'originals'
     | 'myanimelist'
     | 'anilist'
+    | 'plex_library'
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
@@ -176,6 +177,8 @@ export interface CollectionConfig {
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Plex Library director settings (for plex_library/directors)
+  readonly directorMinimumItems?: number; // Minimum items required to create a director collection (default: 3)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
@@ -183,6 +186,7 @@ export interface CollectionConfig {
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
+  readonly useTmdbDirectorPoster?: boolean; // Use TMDB director poster instead of auto-generated poster (only for plex_library/directors collections)
   readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
   // Wallpaper, summary, and theme settings
   readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
@@ -1335,41 +1339,74 @@ class Settings {
 
     this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
       (config) => {
+        let updatedConfig = { ...config };
+        let changed = false;
+
+        // Ensure plex_library/directors configs carry required defaults
+        if (
+          updatedConfig.type === 'plex_library' &&
+          updatedConfig.subtype === 'directors'
+        ) {
+          if (updatedConfig.directorMinimumItems === undefined) {
+            updatedConfig.directorMinimumItems = 3;
+            changed = true;
+          }
+          // Standardize template/name so placeholder text doesn't leak through
+          if (!updatedConfig.template || updatedConfig.template === 'Collection') {
+            updatedConfig.template = '{director}';
+            changed = true;
+          }
+          if (
+            updatedConfig.name === '{director}' ||
+            !updatedConfig.name ||
+            updatedConfig.name === 'Collection'
+          ) {
+            updatedConfig.name = 'Auto Director Collections';
+            changed = true;
+          }
+        }
+
         const isVisibleOnHome =
-          config.visibilityConfig?.usersHome ||
-          config.visibilityConfig?.serverOwnerHome ||
-          config.visibilityConfig?.libraryRecommended;
+          updatedConfig.visibilityConfig?.usersHome ||
+          updatedConfig.visibilityConfig?.serverOwnerHome ||
+          updatedConfig.visibilityConfig?.libraryRecommended;
 
         // Check if normalization is needed
         const needsNormalization =
           (!isVisibleOnHome &&
-            config.sortOrderHome &&
-            config.sortOrderHome > 0) ||
-          (config.isLibraryPromoted === true &&
-            (!config.sortOrderLibrary || config.sortOrderLibrary === 0)) ||
-          (config.isLibraryPromoted === false &&
-            config.sortOrderLibrary &&
-            config.sortOrderLibrary > 0) ||
-          config.everLibraryPromoted === undefined;
+            updatedConfig.sortOrderHome &&
+            updatedConfig.sortOrderHome > 0) ||
+          (updatedConfig.isLibraryPromoted === true &&
+            (!updatedConfig.sortOrderLibrary ||
+              updatedConfig.sortOrderLibrary === 0)) ||
+          (updatedConfig.isLibraryPromoted === false &&
+            updatedConfig.sortOrderLibrary &&
+            updatedConfig.sortOrderLibrary > 0) ||
+          updatedConfig.everLibraryPromoted === undefined;
 
         if (needsNormalization) {
-          fixedCount++;
-          return {
-            ...config,
+          updatedConfig = {
+            ...updatedConfig,
             // Visibility rule: Only visible collections get positioning
             sortOrderHome: isVisibleOnHome ? config.sortOrderHome : 0,
             // Consistency rule: Library positioning matches promotion status
-            sortOrderLibrary: config.isLibraryPromoted
-              ? config.sortOrderLibrary
+            sortOrderLibrary: updatedConfig.isLibraryPromoted
+              ? updatedConfig.sortOrderLibrary
               : 0,
             // Historical rule: Track promotion history
             everLibraryPromoted:
-              config.isLibraryPromoted || (config.everLibraryPromoted ?? false),
+              updatedConfig.isLibraryPromoted ||
+              (updatedConfig.everLibraryPromoted ?? false),
             // No isPromotedToHub changes (calculated dynamically)
           };
+          changed = true;
         }
 
-        return config;
+        if (changed) {
+          fixedCount++;
+        }
+
+        return updatedConfig;
       }
     );
 
@@ -1606,6 +1643,35 @@ class Settings {
 
     this.data.completedMigrations.push(migrationId);
     this.save();
+  }
+
+  /**
+   * Ensure plex_library/directors configs have required defaults and naming
+   */
+  public migratePlexLibraryDirectorsDefaults(): void {
+    const migrationId = 'plex-library-directors-defaults-v1';
+
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    const fixed = this.normalizeCollectionConfigs();
+
+    this.data.completedMigrations.push(migrationId);
+
+    if (fixed > 0) {
+      logger.info(
+        `Applied director defaults to ${fixed} plex_library/directors config(s)`,
+        { label: 'Settings Migration' }
+      );
+      this.save();
+    } else {
+      this.save();
+    }
   }
 
   /**

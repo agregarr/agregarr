@@ -37,6 +37,9 @@ const messages = defineMessages({
   useTmdbFranchisePoster: 'Use TMDB Franchise Poster',
   useTmdbFranchisePosterHelp:
     'Use the official TMDB franchise poster instead of auto-generating. This setting overrules the above auto-poster option if a collection poster is available from TMDB.',
+  useTmdbDirectorPoster: 'Use TMDB Director Poster',
+  useTmdbDirectorPosterHelp:
+    'Use the director poster from TMDB instead of auto-generating. This setting overrules the above auto-poster option if a director poster is available from TMDB.',
   hideIndividualItems: 'Hide Individual Items in Collection',
   hideIndividualItemsHelp:
     'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
@@ -366,6 +369,34 @@ const PosterUploadSection = ({
               </div>
             </div>
           </>
+        )}
+
+      {/* TMDB Director Poster Toggle - only for Plex Library auto-director collections */}
+      {isAgregarrCollection &&
+        values.type === 'plex_library' &&
+        values.subtype === 'directors' && (
+          <div className="mb-6">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="useTmdbDirectorPoster"
+                checked={values.useTmdbDirectorPoster ?? false}
+                onChange={(e) =>
+                  setFieldValue('useTmdbDirectorPoster', e.target.checked)
+                }
+                className="form-checkbox"
+              />
+              <label
+                htmlFor="useTmdbDirectorPoster"
+                className="ml-2 text-sm text-gray-300"
+              >
+                {intl.formatMessage(messages.useTmdbDirectorPoster)}
+              </label>
+            </div>
+            <div className="label-tip">
+              {intl.formatMessage(messages.useTmdbDirectorPosterHelp)}
+            </div>
+          </div>
         )}
 
       {/* Manual poster uploads - show when auto-poster is disabled OR when not an Agregarr collection */}
