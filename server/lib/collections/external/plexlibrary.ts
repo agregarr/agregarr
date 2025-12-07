@@ -599,7 +599,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
     const depth = 50; // Top N directors
     const limit = 30; // Max items per director
-    const minimumItems = config.directorMinimumItems || 3; // Minimum threshold
+    const minimumItems = config.directorMinimumItems || 5; // Minimum threshold
 
     logger.info('Processing directors collection', {
       label: 'Plex Library Collections',
