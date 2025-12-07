@@ -544,12 +544,12 @@ const CollectionTypeSection = ({
               id="directorMinimumItems"
               name="directorMinimumItems"
               placeholder="3"
-              min="1"
+              min="2"
               max="50"
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
             <p className="mt-1 text-xs text-gray-400">
-              Only create if a director has at least this many items (default: 3)
+              Only create if a director has at least this many items (default: 5, minimum allowed: 2)
             </p>
           </div>
         </div>

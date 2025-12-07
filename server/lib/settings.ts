@@ -178,7 +178,7 @@ export interface CollectionConfig {
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Plex Library director settings (for plex_library/directors)
-  readonly directorMinimumItems?: number; // Minimum items required to create a director collection (default: 3)
+  readonly directorMinimumItems?: number; // Minimum items required to create a director collection (default: 5)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
@@ -1362,7 +1362,7 @@ class Settings {
           updatedConfig.subtype === 'directors'
         ) {
           if (updatedConfig.directorMinimumItems === undefined) {
-            updatedConfig.directorMinimumItems = 3;
+            updatedConfig.directorMinimumItems = 5;
             changed = true;
           }
           // Standardize template/name so placeholder text doesn't leak through
