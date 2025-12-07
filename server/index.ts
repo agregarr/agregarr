@@ -29,7 +29,8 @@ import path from 'path';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 
-const API_SPEC_PATH = path.join(__dirname, '../agregarr-api.yml');
+// Always load the OpenAPI spec from the workspace root so hot-reloads pick up changes
+const API_SPEC_PATH = path.join(process.cwd(), 'agregarr-api.yml');
 
 logger.info(`Starting Agregarr version ${getAppVersion()}`);
 const dev = process.env.NODE_ENV !== 'production';
@@ -72,6 +73,9 @@ app
 
     // Migrate legacy sort order (reverseOrder/randomizeOrder) to sortOrder enum
     settings.migrateSortOrderToEnum();
+
+    // Apply defaults for Plex Library director collections
+    settings.migratePlexLibraryDirectorsDefaults();
 
     // Migrate poster templates to unified layering system for v1.3.2
     await settings.migratePosterTemplatesV132();

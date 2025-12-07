@@ -324,10 +324,13 @@ const CollectionSettings = ({
           autoPoster: config.autoPoster,
           autoPosterTemplate: config.autoPosterTemplate,
           useTmdbFranchisePoster: config.useTmdbFranchisePoster,
+          useTmdbDirectorPoster: config.useTmdbDirectorPoster,
           hideIndividualItems: config.hideIndividualItems,
           applyOverlaysDuringSync: config.applyOverlaysDuringSync,
           showUnwatchedOnly: config.showUnwatchedOnly,
           smartCollectionSort: config.smartCollectionSort,
+          // Plex Library directors
+          directorMinimumItems: config.directorMinimumItems,
           randomizeHomeOrder: config.randomizeHomeOrder,
           customWallpaper: config.customWallpaper,
           customSummary: config.customSummary,

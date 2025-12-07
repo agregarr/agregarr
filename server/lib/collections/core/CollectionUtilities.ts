@@ -11,6 +11,7 @@ import type {
   CollectionSource,
   CollectionSyncError,
   MissingItem,
+  PlexLabel,
 } from './types';
 import { CollectionSyncErrorType } from './types';
 
@@ -393,6 +394,34 @@ export function findCollectionByConfigId(
         configType,
         configSubtype,
       });
+      return true;
+    }
+  }
+
+  // Special handling for Plex Library director collections
+  if (configType === 'plex_library' && configSubtype === 'directors') {
+    const directorLabelPrefix = `AgregarrAutoDirector-${configId}-`.toLowerCase();
+
+    const hasDirectorCollections = allCollections.some((collection) => {
+      if (!collection.labels) return false;
+      return collection.labels.some((label) => {
+        const labelText = typeof label === 'string' ? label : label.tag;
+        if (!labelText) return false;
+        const normalized = labelText.toLowerCase();
+        return normalized.startsWith(directorLabelPrefix);
+      });
+    });
+
+    if (hasDirectorCollections) {
+      logger.debug(
+        `Plex Library director collections found for config: ${configId}`,
+        {
+          label: 'Collection Matching',
+          configId,
+          configType,
+          configSubtype,
+        }
+      );
       return true;
     }
   }

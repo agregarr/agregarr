@@ -422,6 +422,110 @@ class PlexSmartCollectionManager {
   }
 
   /**
+   * Create a smart collection filtered by director name
+   */
+  public async createDirectorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    directorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    try {
+      logger.debug(
+        `Creating director smart collection "${title}" for library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          title,
+          libraryKey,
+          mediaType,
+          directorName,
+          limit,
+        }
+      );
+
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build filter URI: director filter + exclude placeholders
+      const directorFilter = encodeURIComponent(directorName);
+      let filterUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&director=${directorFilter}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&director=${directorFilter}&label!=${labelFilter}`;
+      }
+
+      if (limit && limit > 0) {
+        filterUri += `&limit=${limit}`;
+      }
+
+      const uri = `server://${getSettings().plex.machineId}/com.plexapp.plugins.library${filterUri}`;
+      const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
+        title
+      )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
+
+      const createResponse = await this.plexApi['safePostQuery'](createUrl);
+      if (
+        !createResponse ||
+        typeof createResponse !== 'object' ||
+        !('MediaContainer' in createResponse)
+      ) {
+        logger.error('Invalid response when creating director smart collection', {
+          label: 'Plex API',
+          response: createResponse,
+        });
+        return null;
+      }
+
+      const mediaContainer = createResponse.MediaContainer as {
+        Metadata?: { ratingKey: string }[];
+      };
+      if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
+        logger.error(
+          'No metadata returned when creating director smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
+        return null;
+      }
+
+      const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
+
+      // Set the collection to be filtered by user
+      await this.setCollectionUserFilter(smartCollectionRatingKey);
+
+      logger.info(
+        `Successfully created director smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          title,
+          smartCollectionRatingKey,
+          mediaType,
+          directorName,
+          limit,
+        }
+      );
+
+      return smartCollectionRatingKey;
+    } catch (error) {
+      logger.error(`Error creating director smart collection "${title}"`, {
+        label: 'Plex API',
+        title,
+        libraryKey,
+        mediaType,
+        directorName,
+        directorMinimumItems:3,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
    * @deprecated Use createFilteredHub instead
    * Legacy method for backwards compatibility
    */

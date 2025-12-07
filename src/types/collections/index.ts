@@ -154,6 +154,7 @@ export interface CollectionFormConfig {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex_library'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -334,6 +335,8 @@ export interface CollectionFormConfig {
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Plex Library director settings
+  readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
@@ -351,6 +354,7 @@ export interface CollectionFormConfig {
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
+  readonly useTmdbDirectorPoster?: boolean; // Use TMDB director poster instead of auto-generated poster (only for plex_library/directors collections)
   readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
   // Wallpaper, summary, and theme settings
   readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
@@ -401,6 +405,7 @@ export interface CollectionConfigCreateRequest {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex_library'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -497,6 +502,8 @@ export interface CollectionConfigCreateRequest {
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
   readonly sortOrder?: CollectionSortOrder;
+  // Plex Library director settings (also accepted by create requests)
+  readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
@@ -524,6 +531,7 @@ export interface CollectionConfigCreateRequest {
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
+  readonly useTmdbDirectorPoster?: boolean; // Use TMDB director poster instead of auto-generated poster (only for plex_library/directors collections)
   readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
   // Wallpaper, summary, and theme settings
   readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
@@ -618,12 +626,14 @@ export const toCollectionCreateRequest = (
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
     sortOrder: config.sortOrder,
+    directorMinimumItems: config.directorMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
     autoPosterTemplate: config.autoPosterTemplate,
     useTmdbFranchisePoster: config.useTmdbFranchisePoster,
+    useTmdbDirectorPoster: config.useTmdbDirectorPoster,
     hideIndividualItems: config.hideIndividualItems,
     // Wallpaper, summary, and theme settings
     customWallpaper: config.customWallpaper,
@@ -772,6 +782,7 @@ export type CollectionSourceType =
   | 'originals'
   | 'anilist'
   | 'myanimelist'
+  | 'plex_library'
   | 'multi-source'
   | 'radarrtag'
   | 'sonarrtag'
