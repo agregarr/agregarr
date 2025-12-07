@@ -6,6 +6,7 @@
 
 import type PlexAPI from '@server/api/plexapi';
 import TheMovieDb from '@server/api/themoviedb';
+import axios from 'axios';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
   getCollectionMediaType,
@@ -26,12 +27,28 @@ import type {
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import { getTmdbLanguage, type CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import sharp from 'sharp';
 
 type DirectorTmdbInfo = {
   tmdbPersonId: number;
   profilePath?: string;
   biography?: string;
 };
+
+const DIRECTOR_POSTER_WIDTH = 1000;
+const DIRECTOR_POSTER_HEIGHT = 1500;
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
 
 export class PlexLibraryCollectionSync extends BaseCollectionSync {
   constructor() {
@@ -132,6 +149,164 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     }
   }
 
+  private wrapDirectorName(name: string, maxLineLength = 16): string[] {
+    const words = name.trim().split(/\s+/);
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const candidate = currentLine ? `${currentLine} ${word}` : word;
+      if (candidate.length <= maxLineLength) {
+        currentLine = candidate;
+      } else if (currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        // Single very long word - keep as is
+        lines.push(candidate);
+        currentLine = '';
+      }
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    if (lines.length > 2) {
+      return [lines[0], lines.slice(1).join(' ')];
+    }
+
+    return lines;
+  }
+
+  private buildDirectorOverlaySvg(directorName: string): Buffer {
+    const lines = this.wrapDirectorName(directorName.toUpperCase());
+    const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
+
+    let fontSize = 88;
+    if (longestLine > 14) fontSize = 80;
+    if (longestLine > 18) fontSize = 72;
+    if (longestLine > 22) fontSize = 64;
+
+    const lineHeight = fontSize * 1.05;
+    const titleX = 70;
+    const titleStartY = 150;
+    const titleSvg = lines
+      .map(
+        (line, index) => `
+          <text x="${titleX}" y="${titleStartY + index * lineHeight}"
+                font-family="Helvetica Neue, Segoe UI, Arial, sans-serif"
+                font-size="${fontSize}"
+                font-weight="700"
+                fill="#ffffff"
+                letter-spacing="2"
+                filter="url(#shadow)"
+                dominant-baseline="hanging">
+            ${escapeXml(line)}
+          </text>`
+      )
+      .join('');
+
+    const collectionY = titleStartY + lineHeight * lines.length + 60;
+    const ruleY = collectionY + 16;
+    const ruleEndX = DIRECTOR_POSTER_WIDTH - 80;
+
+    const svg = `
+      <svg width="${DIRECTOR_POSTER_WIDTH}" height="${DIRECTOR_POSTER_HEIGHT}" viewBox="0 0 ${DIRECTOR_POSTER_WIDTH} ${DIRECTOR_POSTER_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="topFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#000" stop-opacity="0.75"/>
+            <stop offset="45%" stop-color="#000" stop-opacity="0.35"/>
+            <stop offset="80%" stop-color="#000" stop-opacity="0.05"/>
+            <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+          </linearGradient>
+          <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="6" stdDeviation="12" flood-color="#000" flood-opacity="0.4"/>
+          </filter>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#topFade)"/>
+        ${titleSvg}
+        <text x="${titleX}" y="${collectionY}"
+              font-family="Helvetica Neue, Segoe UI, Arial, sans-serif"
+              font-size="42"
+              font-weight="600"
+              fill="rgba(255,255,255,0.7)"
+              letter-spacing="6"
+              filter="url(#shadow)"
+              dominant-baseline="hanging">
+          COLLECTION
+        </text>
+        <line x1="${titleX}" y1="${ruleY}" x2="${ruleEndX}" y2="${ruleY}"
+              stroke="rgba(255,255,255,0.35)"
+              stroke-width="3"
+              stroke-linecap="round"/>
+      </svg>
+    `;
+
+    return Buffer.from(svg);
+  }
+
+  private async generateDirectorPosterWithOverlay(
+    directorName: string,
+    imageUrl: string
+  ): Promise<string | null> {
+    let tempPosterPath: string | null = null;
+
+    try {
+      const response = await axios.get<ArrayBuffer>(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 20000,
+      });
+
+      const baseImage = await sharp(Buffer.from(response.data))
+        .resize(DIRECTOR_POSTER_WIDTH, DIRECTOR_POSTER_HEIGHT, {
+          fit: 'cover',
+          position: 'centre',
+        })
+        .jpeg({ quality: 92 })
+        .toBuffer();
+
+      const overlay = this.buildDirectorOverlaySvg(directorName);
+      const composite = await sharp(baseImage)
+        .composite([{ input: overlay, top: 0, left: 0 }])
+        .jpeg({ quality: 92 })
+        .toBuffer();
+
+      const tempDir = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), 'agregarr-director-')
+      );
+      const safeName = this.sanitizeDirectorNameForLabel(directorName) || 'director';
+      tempPosterPath = path.join(tempDir, `${safeName}.jpg`);
+
+      await fs.promises.writeFile(tempPosterPath, composite);
+      return tempPosterPath;
+    } catch (error) {
+      logger.warn('Failed to generate stylized director poster, falling back to TMDB image', {
+        label: 'Plex Library Collections',
+        directorName,
+        imageUrl,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  private async cleanupTempPoster(tempPath: string | null): Promise<void> {
+    if (!tempPath) return;
+    try {
+      await fs.promises.rm(path.dirname(tempPath), { recursive: true, force: true });
+    } catch (cleanupError) {
+      logger.debug('Failed to clean up temp director poster', {
+        label: 'Plex Library Collections',
+        tempPath,
+        error:
+          cleanupError instanceof Error
+            ? cleanupError.message
+            : String(cleanupError),
+      });
+    }
+  }
+
   private async uploadTmdbDirectorPoster(
     directorName: string,
     collectionName: string,
@@ -159,7 +334,58 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       const posterManager = plexClient['posterManager'];
 
       logger.debug(
-        `Uploading TMDB director poster for "${collectionName}" from ${tmdbPosterUrl}`,
+        `Preparing stylized TMDB director poster for "${collectionName}" from ${tmdbPosterUrl}`,
+        {
+          label: 'Plex Library Collections',
+          collectionName,
+          tmdbPosterUrl,
+          collectionRatingKey,
+        }
+      );
+
+      let overlayPosterPath: string | null = null;
+
+      try {
+        overlayPosterPath = await this.generateDirectorPosterWithOverlay(
+          directorName,
+          tmdbPosterUrl
+        );
+
+        if (overlayPosterPath) {
+          await posterManager.uploadPosterFromFile(
+            collectionRatingKey,
+            overlayPosterPath
+          );
+          await posterManager.lockPoster(collectionRatingKey);
+
+          logger.info(
+            `Successfully uploaded stylized TMDB director poster for "${collectionName}"`,
+            {
+              label: 'Plex Library Collections',
+              collectionName,
+            }
+          );
+
+          return true;
+        }
+      } catch (overlayError) {
+        logger.warn(
+          'Failed to upload stylized TMDB director poster, falling back to raw image',
+          {
+            label: 'Plex Library Collections',
+            collectionName,
+            error:
+              overlayError instanceof Error
+                ? overlayError.message
+                : String(overlayError),
+          }
+        );
+      } finally {
+        await this.cleanupTempPoster(overlayPosterPath);
+      }
+
+      logger.debug(
+        `Uploading raw TMDB director poster for "${collectionName}" (no overlay)`,
         {
           label: 'Plex Library Collections',
           collectionName,
