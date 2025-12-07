@@ -264,6 +264,34 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     }
   }
 
+  private async applyDirectorMetadata(
+    plexClient: PlexAPI,
+    collectionRatingKey: string,
+    collectionName: string,
+    directorLabel: string,
+    mediaType: 'movie' | 'tv',
+    config: CollectionConfig
+  ): Promise<void> {
+    const visibilityConfig: CollectionVisibilityConfig = {
+      usersHome: config.visibilityConfig?.usersHome ?? false,
+      serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? false,
+      libraryRecommended: config.visibilityConfig?.libraryRecommended ?? false,
+      isActive: config.isActive ?? true,
+    };
+
+    await this.updateCollectionMetadata(plexClient, collectionRatingKey, {
+      collectionName,
+      mediaType,
+      visibilityConfig,
+      customLabel: directorLabel,
+      sortOrderLibrary: config.sortOrderLibrary,
+      isLibraryPromoted: config.isLibraryPromoted,
+      customPoster: config.customPoster,
+      libraryKey: config.libraryId,
+      config,
+    });
+  }
+
   protected async validateConfiguration(): Promise<void> {
     // No external API dependencies - just needs Plex
   }
@@ -404,60 +432,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
               c.title === collectionName && c.libraryKey === config.libraryId
           );
 
+          let collectionRatingKey: string | null = null;
+
           if (existingCollection) {
-            // Already exists, ensure it's tagged as Agregarr-managed
-            await this.addDirectorLabel(
-              plexClient,
-              existingCollection.ratingKey,
-              directorLabel
-            );
-
-            // Track by rating key so cleanup doesn't treat it as unmanaged
-            processedCollectionKeys?.add(existingCollection.ratingKey);
+            collectionRatingKey = existingCollection.ratingKey;
             updated++;
-
-            // Set director bio as collection description
-            await this.setDirectorBioAsDescription(
-              director.name,
-              existingCollection.ratingKey,
-              plexClient,
-              directorInfo
-            );
-
-            // Try TMDB director poster, then auto-poster fallback
-            if (config.useTmdbDirectorPoster) {
-              const tmdbPosterUploaded = await this.uploadTmdbDirectorPoster(
-                director.name,
-                collectionName,
-                existingCollection.ratingKey,
-                plexClient,
-                directorInfo
-              );
-
-              if (!tmdbPosterUploaded) {
-                const shouldGeneratePoster = config.autoPoster ?? true;
-                if (shouldGeneratePoster) {
-                  await this.generateAutoPoster(
-                    collectionName,
-                    config,
-                    existingCollection.ratingKey,
-                    plexClient
-                  );
-                }
-              }
-            } else {
-              const shouldGeneratePoster = config.autoPoster ?? true;
-              if (shouldGeneratePoster) {
-                await this.generateAutoPoster(
-                  collectionName,
-                  config,
-                  existingCollection.ratingKey,
-                  plexClient
-                );
-              }
-            }
           } else {
-            const smartCollectionRatingKey =
+            collectionRatingKey =
               await plexClient['smartCollectionManager'].createDirectorCollection(
                 collectionName,
                 config.libraryId,
@@ -466,63 +447,74 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
                 limit
               );
 
-            if (smartCollectionRatingKey) {
-              // Tag collection so discovery recognizes it as Agregarr-managed
-              await this.addDirectorLabel(
-                plexClient,
-                smartCollectionRatingKey,
-                directorLabel
-              );
-
-              // Track by rating key so cleanup won't delete it
-              processedCollectionKeys?.add(smartCollectionRatingKey);
+            if (collectionRatingKey) {
               created++;
-
-              // Set director bio as collection description
-              await this.setDirectorBioAsDescription(
-                director.name,
-                smartCollectionRatingKey,
-                plexClient,
-                directorInfo
-              );
-
-              // Try TMDB director poster, then auto-poster fallback
-              if (config.useTmdbDirectorPoster) {
-                const tmdbPosterUploaded = await this.uploadTmdbDirectorPoster(
-                  director.name,
-                  collectionName,
-                  smartCollectionRatingKey,
-                  plexClient,
-                  directorInfo
-                );
-
-                if (!tmdbPosterUploaded) {
-                  const shouldGeneratePoster = config.autoPoster ?? true;
-                  if (shouldGeneratePoster) {
-                    await this.generateAutoPoster(
-                      collectionName,
-                      config,
-                      smartCollectionRatingKey,
-                      plexClient
-                    );
-                  }
-                }
-              } else {
-                const shouldGeneratePoster = config.autoPoster ?? true;
-                if (shouldGeneratePoster) {
-                  await this.generateAutoPoster(
-                    collectionName,
-                    config,
-                    smartCollectionRatingKey,
-                    plexClient
-                  );
-                }
-              }
             } else {
-              logger.warn(`Failed to create collection for director: ${director.name}`, {
-                label: 'Plex Library Collections',
-              });
+              logger.warn(
+                `Failed to create collection for director: ${director.name}`,
+                {
+                  label: 'Plex Library Collections',
+                }
+              );
+              continue;
             }
+          }
+
+          // Tag collection so discovery recognizes it as Agregarr-managed
+          await this.addDirectorLabel(
+            plexClient,
+            collectionRatingKey,
+            directorLabel
+          );
+
+          // Track by rating key so cleanup doesn't treat it as unmanaged
+          processedCollectionKeys?.add(collectionRatingKey);
+
+          // Set director bio as collection description (custom summaries will override this later)
+          await this.setDirectorBioAsDescription(
+            director.name,
+            collectionRatingKey,
+            plexClient,
+            directorInfo
+          );
+
+          // Apply the same metadata/ordering handling used by standard collections
+          await this.applyDirectorMetadata(
+            plexClient,
+            collectionRatingKey,
+            collectionName,
+            directorLabel,
+            mediaType,
+            config
+          );
+
+          const shouldGeneratePoster = config.autoPoster ?? true;
+
+          // Try TMDB director poster, then auto-poster fallback
+          if (config.useTmdbDirectorPoster) {
+            const tmdbPosterUploaded = await this.uploadTmdbDirectorPoster(
+              director.name,
+              collectionName,
+              collectionRatingKey,
+              plexClient,
+              directorInfo
+            );
+
+            if (!tmdbPosterUploaded && shouldGeneratePoster) {
+              await this.generateAutoPoster(
+                collectionName,
+                config,
+                collectionRatingKey,
+                plexClient
+              );
+            }
+          } else if (shouldGeneratePoster) {
+            await this.generateAutoPoster(
+              collectionName,
+              config,
+              collectionRatingKey,
+              plexClient
+            );
           }
         } catch (error) {
           logger.error(`Error creating collection for director ${director.name}`, {

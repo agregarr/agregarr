@@ -1665,27 +1665,39 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       if (isLibraryPromoted && sortOrderLibrary > 0) {
         // Promoted: Set exclamation marks
         const sameLibraryConfigs = allConfigs.filter((config) => {
-          const configLibraryId = Array.isArray(config.libraryId)
-            ? config.libraryId[0]
-            : config.libraryId;
-          return (
-            configLibraryId === options.libraryKey &&
-            config.sortOrderLibrary !== undefined &&
-            config.isLibraryPromoted === true
-          );
-        });
+      const configLibraryId = Array.isArray(config.libraryId)
+        ? config.libraryId[0]
+        : config.libraryId;
+      return (
+        configLibraryId === options.libraryKey &&
+        config.sortOrderLibrary !== undefined &&
+        config.isLibraryPromoted === true
+      );
+    });
 
-        if (sameLibraryConfigs.length > 0) {
-          const sortOrders = sameLibraryConfigs
-            .map((c) => c.sortOrderLibrary)
-            .filter((order): order is number => order !== undefined);
-          const maxSortOrder = Math.max(...sortOrders);
-          const exclamationCount = maxSortOrder - sortOrderLibrary + 2;
-          const exclamationPrefix = '!'.repeat(exclamationCount);
-          sortTitle = `${exclamationPrefix}${collectionName}`;
-        } else {
-          sortTitle = `!!${collectionName}`;
-        }
+    const preExistingConfigs =
+      settings.plex.preExistingCollectionConfigs || [];
+    const sameLibraryPreExisting = preExistingConfigs.filter((config) => {
+      return (
+        config.libraryId === options.libraryKey &&
+        config.sortOrderLibrary !== undefined &&
+        config.isLibraryPromoted === true
+      );
+    });
+
+    const combinedSortOrders = [
+      ...sameLibraryConfigs.map((c) => c.sortOrderLibrary),
+      ...sameLibraryPreExisting.map((c) => c.sortOrderLibrary),
+    ].filter((order): order is number => order !== undefined);
+
+    if (combinedSortOrders.length > 0) {
+      const maxSortOrder = Math.max(...combinedSortOrders);
+      const exclamationCount = maxSortOrder - sortOrderLibrary + 2;
+      const exclamationPrefix = '!'.repeat(exclamationCount);
+      sortTitle = `${exclamationPrefix}${collectionName}`;
+    } else {
+      sortTitle = `!!${collectionName}`;
+    }
       } else {
         // Demoted: Reset to natural title and mark as cleaned
         sortTitle = collectionName;
