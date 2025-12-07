@@ -336,8 +336,6 @@ export interface CollectionFormConfig {
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Plex Library director settings
-  readonly directorDepth?: number; // Number of directors to create collections for (for plex_library/directors)
-  readonly directorLimit?: number; // Maximum items per director collection (for plex_library/directors)
   readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
@@ -505,8 +503,6 @@ export interface CollectionConfigCreateRequest {
   readonly sonarrTagId?: number;
   readonly sortOrder?: CollectionSortOrder;
   // Plex Library director settings (also accepted by create requests)
-  readonly directorDepth?: number; // Number of directors to create collections for (for plex_library/directors)
-  readonly directorLimit?: number; // Maximum items per director collection (for plex_library/directors)
   readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
@@ -630,8 +626,6 @@ export const toCollectionCreateRequest = (
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
     sortOrder: config.sortOrder,
-    directorDepth: config.directorDepth,
-    directorLimit: config.directorLimit,
     directorMinimumItems: config.directorMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,

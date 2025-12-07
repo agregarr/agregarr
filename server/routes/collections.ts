@@ -262,21 +262,12 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       req.body?.type === 'plex_library' &&
       req.body?.subtype === 'directors'
     ) {
-      // Coerce director fields to numbers when provided
       const maybeNumber = (value: unknown): number | undefined => {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : undefined;
       };
-      const coercedDepth = maybeNumber(req.body.directorDepth);
-      const coercedLimit = maybeNumber(req.body.directorLimit);
       const coercedMinimum = maybeNumber(req.body.directorMinimumItems);
 
-      if (coercedDepth !== undefined) {
-        req.body.directorDepth = coercedDepth;
-      }
-      if (coercedLimit !== undefined) {
-        req.body.directorLimit = coercedLimit;
-      }
       if (coercedMinimum !== undefined) {
         req.body.directorMinimumItems = coercedMinimum;
       }
@@ -284,8 +275,6 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       logger.info('Updating plex_library/directors config', {
         label: 'Collections API',
         id,
-        incomingDirectorDepth: req.body.directorDepth,
-        incomingDirectorLimit: req.body.directorLimit,
         incomingDirectorMinimumItems: req.body.directorMinimumItems,
         rawBodyKeys: Object.keys(req.body || {}),
         rawBody: req.body,

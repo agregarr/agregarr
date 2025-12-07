@@ -628,16 +628,6 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
-        directorDepth:
-          type: number
-          description: 'Number of directors to create collections for (plex_library/directors)'
-          example: 5
-          nullable: true
-        directorLimit:
-          type: number
-          description: 'Maximum items per director collection (plex_library/directors)'
-          example: 30
-          nullable: true
         directorMinimumItems:
           type: number
           description: 'Minimum items required to create a director collection (plex_library/directors)'
@@ -1182,16 +1172,6 @@ components:
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
-          nullable: true
-        directorDepth:
-          type: number
-          description: 'Number of directors to create collections for (plex_library/directors)'
-          example: 5
-          nullable: true
-        directorLimit:
-          type: number
-          description: 'Maximum items per director collection (plex_library/directors)'
-          example: 30
           nullable: true
         directorMinimumItems:
           type: number
@@ -1900,16 +1880,6 @@ components:
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
-          nullable: true
-        directorDepth:
-          type: number
-          description: 'Number of directors to create collections for (plex_library/directors)'
-          example: 5
-          nullable: true
-        directorLimit:
-          type: number
-          description: 'Maximum items per director collection (plex_library/directors)'
-          example: 30
           nullable: true
         directorMinimumItems:
           type: number

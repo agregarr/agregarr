@@ -178,8 +178,6 @@ export interface CollectionConfig {
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Plex Library director settings (for plex_library/directors)
-  readonly directorDepth?: number; // Number of directors to create collections for (default: 5)
-  readonly directorLimit?: number; // Maximum items per director collection (default: 30)
   readonly directorMinimumItems?: number; // Minimum items required to create a director collection (default: 3)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
@@ -1349,14 +1347,6 @@ class Settings {
           updatedConfig.type === 'plex_library' &&
           updatedConfig.subtype === 'directors'
         ) {
-          if (updatedConfig.directorDepth === undefined) {
-            updatedConfig.directorDepth = 5;
-            changed = true;
-          }
-          if (updatedConfig.directorLimit === undefined) {
-            updatedConfig.directorLimit = 30;
-            changed = true;
-          }
           if (updatedConfig.directorMinimumItems === undefined) {
             updatedConfig.directorMinimumItems = 3;
             changed = true;

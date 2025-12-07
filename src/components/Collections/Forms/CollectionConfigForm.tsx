@@ -2215,8 +2215,10 @@ const CollectionFormConfigForm = ({
                             {/* Hide for: recently_added (already smart), and tmdb auto_franchise (multi-collection) */}
                             {values.type !== 'filtered_hub' &&
                               !(
-                                values.type === 'tmdb' &&
-                                values.subtype === 'auto_franchise'
+                                (values.type === 'tmdb' &&
+                                  values.subtype === 'auto_franchise') ||
+                                (values.type === 'plex_library' &&
+                                  values.subtype === 'directors')
                               ) && (
                                 <div className="form-row">
                                   <label className="text-label">

@@ -842,7 +842,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     // Skip for multi-collection patterns (one config generates multiple collections)
     const isMultiCollectionPattern =
       (config.type === 'overseerr' && config.subtype === 'users') ||
-      (config.type === 'tmdb' && config.subtype === 'auto_franchise');
+      (config.type === 'tmdb' && config.subtype === 'auto_franchise') ||
+      (config.type === 'plex_library' && config.subtype === 'directors');
     if (updateResult.collectionRatingKey && !isMultiCollectionPattern) {
       this.updateConfigWithRatingKey(config, updateResult.collectionRatingKey);
     }
@@ -1337,7 +1338,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       // Skip for multi-collection patterns (one config generates multiple collections)
       const isMultiCollectionPattern =
         (config?.type === 'overseerr' && config?.subtype === 'users') ||
-        (config?.type === 'tmdb' && config?.subtype === 'auto_franchise');
+        (config?.type === 'tmdb' && config?.subtype === 'auto_franchise') ||
+        (config?.type === 'plex_library' && config?.subtype === 'directors');
       if (config?.collectionRatingKey && !isMultiCollectionPattern) {
         try {
           const existingByRatingKey = await plexClient.getCollectionMetadata(

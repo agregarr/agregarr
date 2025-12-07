@@ -27,17 +27,54 @@ import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import { getTmdbLanguage, type CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
+type DirectorTmdbInfo = {
+  tmdbPersonId: number;
+  profilePath?: string;
+  biography?: string;
+};
+
 export class PlexLibraryCollectionSync extends BaseCollectionSync {
   constructor() {
     super('plex_library');
   }
 
-  private async uploadTmdbDirectorPoster(
-    directorName: string,
-    collectionName: string,
+  private sanitizeDirectorNameForLabel(name: string): string {
+    const sanitized = name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return sanitized || 'director';
+  }
+
+  private buildDirectorLabel(
+    configId: string,
+    slug: string | number
+  ): string {
+    const suffix = String(slug).toLowerCase();
+    return `AgregarrAutoDirector-${configId}-${suffix}`;
+  }
+
+  private async addDirectorLabel(
+    plexClient: PlexAPI,
     collectionRatingKey: string,
-    plexClient: PlexAPI
-  ): Promise<boolean> {
+    label: string
+  ): Promise<void> {
+    try {
+      await plexClient.addLabelToCollection(collectionRatingKey, label);
+    } catch (labelError) {
+      logger.warn(`Failed to add label "${label}" to director collection`, {
+        label: 'Plex Library Collections',
+        collectionRatingKey,
+        error:
+          labelError instanceof Error ? labelError.message : String(labelError),
+      });
+    }
+  }
+
+  private async fetchTmdbDirectorInfo(
+    directorName: string
+  ): Promise<DirectorTmdbInfo | null> {
     try {
       const tmdbClient = new TheMovieDb({
         originalLanguage: getTmdbLanguage(),
@@ -59,25 +96,53 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         );
 
       if (!personResult || !('id' in personResult)) {
-        logger.warn(
-          `No TMDB match found for director "${directorName}", skipping TMDB poster`,
+        logger.debug(
+          `No TMDB match found for director "${directorName}", skipping media lookups`,
           {
             label: 'Plex Library Collections',
-            collectionName,
+            directorName,
           }
         );
-        return false;
+        return null;
       }
 
+      const personId = Number((personResult as any).id);
+
       const personDetails = await tmdbClient.getPerson({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        personId: (personResult as any).id,
+        personId,
         language: getTmdbLanguage(),
       });
 
-      const profilePath =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (personResult as any).profile_path || personDetails.profile_path;
+      return {
+        tmdbPersonId: personId,
+        profilePath:
+          (personResult as any).profile_path || personDetails.profile_path || undefined,
+        biography: personDetails.biography || undefined,
+      };
+    } catch (error) {
+      logger.warn(
+        `Failed to fetch TMDB director info for "${directorName}"`,
+        {
+          label: 'Plex Library Collections',
+          directorName,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return null;
+    }
+  }
+
+  private async uploadTmdbDirectorPoster(
+    directorName: string,
+    collectionName: string,
+    collectionRatingKey: string,
+    plexClient: PlexAPI,
+    directorInfo?: DirectorTmdbInfo
+  ): Promise<boolean> {
+    try {
+      const info =
+        directorInfo ?? (await this.fetchTmdbDirectorInfo(directorName));
+      const profilePath = info?.profilePath;
 
       if (!profilePath) {
         logger.warn(
@@ -134,31 +199,17 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
   private async setDirectorBioAsDescription(
     directorName: string,
     collectionRatingKey: string,
-    plexClient: PlexAPI
+    plexClient: PlexAPI,
+    directorInfo?: DirectorTmdbInfo
   ): Promise<boolean> {
     try {
-      const tmdbClient = new TheMovieDb({
-        originalLanguage: getTmdbLanguage(),
-      });
+      const info =
+        directorInfo ?? (await this.fetchTmdbDirectorInfo(directorName));
+      const biography = info?.biography;
 
-      const searchResults = await tmdbClient.searchMulti({
-        query: directorName,
-        language: getTmdbLanguage(),
-      });
-
-      const personResult =
-        searchResults.results.find(
-          (result: { media_type?: string; name?: string }) =>
-            result.media_type === 'person' &&
-            result.name?.toLowerCase() === directorName.toLowerCase()
-        ) ||
-        searchResults.results.find(
-          (result: { media_type?: string }) => result.media_type === 'person'
-        );
-
-      if (!personResult || !('id' in personResult)) {
+      if (!biography) {
         logger.debug(
-          `No TMDB match found for director "${directorName}", skipping bio description`,
+          `No TMDB biography found for director "${directorName}", skipping description`,
           {
             label: 'Plex Library Collections',
             directorName,
@@ -167,27 +218,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         return false;
       }
 
-      const personDetails = await tmdbClient.getPerson({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        personId: (personResult as any).id,
-        language: getTmdbLanguage(),
-      });
-
-      if (!personDetails.biography) {
-        logger.debug(
-          `No biography found for director "${directorName}" on TMDB, skipping description`,
-          {
-            label: 'Plex Library Collections',
-            directorName,
-          }
-        );
-        return false;
-      }
-
-      // Extract first few paragraphs (up to 500 characters to keep it concise)
-      const paragraphs = personDetails.biography
-        .split('\n\n')
-        .filter((p) => p.trim());
+      const paragraphs = biography.split('\n\n').filter((p) => p.trim());
       let bioText = '';
 
       for (const paragraph of paragraphs) {
@@ -199,7 +230,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
       if (!bioText) {
         logger.debug(
-          `Director bio too short for "${directorName}", skipping description`,
+          `Biography truncated to empty string for director "${directorName}", skipping description`,
           {
             label: 'Plex Library Collections',
             directorName,
@@ -312,8 +343,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       );
     }
 
-    const depth = 50; //config.directorDepth || 5; // Top N directors
-    const limit = config.directorLimit || 30; // Max items per director
+    const depth = 50; // Top N directors
+    const limit = 30; // Max items per director
     const minimumItems = config.directorMinimumItems || 3; // Minimum threshold
 
     logger.info('Processing directors collection', {
@@ -325,8 +356,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       minimumItems,
     });
 
-    // Use a consistent Agregarr label so discovery won't treat these as pre-existing
-    const customLabel = `AgregarrPlexLibrary${config.id}`;
+    const directorLabelPrefix = `AgregarrAutoDirector-${config.id}-`;
 
     try {
       // Fetch top directors from library
@@ -359,6 +389,15 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       for (const director of topDirectors) {
         try {
           const collectionName = director.name;
+          const directorInfo =
+            (await this.fetchTmdbDirectorInfo(director.name)) ?? undefined;
+          const labelSuffix =
+            directorInfo?.tmdbPersonId?.toString() ??
+            this.sanitizeDirectorNameForLabel(director.name);
+          const directorLabel = this.buildDirectorLabel(
+            config.id,
+            directorInfo?.tmdbPersonId ?? labelSuffix
+          );
 
           const existingCollection = allCollections.find(
             (c) =>
@@ -367,23 +406,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
           if (existingCollection) {
             // Already exists, ensure it's tagged as Agregarr-managed
-            try {
-              await plexClient.addLabelToCollection(
-                existingCollection.ratingKey,
-                customLabel
-              );
-            } catch (labelError) {
-              logger.warn(
-                `Failed to add Agregarr label to existing director collection "${collectionName}"`,
-                {
-                  label: 'Plex Library Collections',
-                  error:
-                    labelError instanceof Error
-                      ? labelError.message
-                      : String(labelError),
-                }
-              );
-            }
+            await this.addDirectorLabel(
+              plexClient,
+              existingCollection.ratingKey,
+              directorLabel
+            );
 
             // Track by rating key so cleanup doesn't treat it as unmanaged
             processedCollectionKeys?.add(existingCollection.ratingKey);
@@ -393,7 +420,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             await this.setDirectorBioAsDescription(
               director.name,
               existingCollection.ratingKey,
-              plexClient
+              plexClient,
+              directorInfo
             );
 
             // Try TMDB director poster, then auto-poster fallback
@@ -402,7 +430,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
                 director.name,
                 collectionName,
                 existingCollection.ratingKey,
-                plexClient
+                plexClient,
+                directorInfo
               );
 
               if (!tmdbPosterUploaded) {
@@ -439,23 +468,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
             if (smartCollectionRatingKey) {
               // Tag collection so discovery recognizes it as Agregarr-managed
-              try {
-                await plexClient.addLabelToCollection(
-                  smartCollectionRatingKey,
-                  customLabel
-                );
-              } catch (labelError) {
-                logger.warn(
-                  `Failed to add Agregarr label to new director collection "${collectionName}"`,
-                  {
-                    label: 'Plex Library Collections',
-                    error:
-                      labelError instanceof Error
-                        ? labelError.message
-                        : String(labelError),
-                  }
-                );
-              }
+              await this.addDirectorLabel(
+                plexClient,
+                smartCollectionRatingKey,
+                directorLabel
+              );
 
               // Track by rating key so cleanup won't delete it
               processedCollectionKeys?.add(smartCollectionRatingKey);
@@ -465,7 +482,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
               await this.setDirectorBioAsDescription(
                 director.name,
                 smartCollectionRatingKey,
-                plexClient
+                plexClient,
+                directorInfo
               );
 
               // Try TMDB director poster, then auto-poster fallback
@@ -474,7 +492,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
                   director.name,
                   collectionName,
                   smartCollectionRatingKey,
-                  plexClient
+                  plexClient,
+                  directorInfo
                 );
 
                 if (!tmdbPosterUploaded) {
@@ -523,13 +542,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           return false;
         }
 
-        const labels = Array.isArray(collection.labels)
-          ? collection.labels
-          : [];
+        const labels = Array.isArray(collection.labels) ? collection.labels : [];
 
         return labels.some((label: string | PlexLabel) => {
           const labelText = typeof label === 'string' ? label : label.tag;
-          return labelText?.toLowerCase() === customLabel.toLowerCase();
+          if (!labelText) return false;
+          const normalized = labelText.toLowerCase();
+          return normalized.startsWith(directorLabelPrefix.toLowerCase());
         });
       });
 
