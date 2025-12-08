@@ -47,6 +47,7 @@ const messages = defineMessages({
   fontFamily: 'Font Family',
   fontWeight: 'Font Weight',
   fontStyle: 'Font Style',
+  textTransform: 'Text Transform',
   textColor: 'Text Color',
   textAlign: 'Text Align',
   maxLines: 'Max Lines',
@@ -56,6 +57,10 @@ const messages = defineMessages({
   normal: 'Normal',
   bold: 'Bold',
   italic: 'Italic',
+  transformNone: 'None',
+  uppercase: 'Uppercase',
+  lowercase: 'Lowercase',
+  capitalize: 'Capitalize',
   // Size properties
   width: 'Width',
   height: 'Height',
@@ -519,6 +524,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               color: '#ffffff',
               textAlign: 'center',
               maxLines: 2,
+              textTransform: 'none',
             } as TextElementProps,
           };
           break;
@@ -1557,6 +1563,43 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         </option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Text Transform */}
+                  <div>
+                    <label className="mb-1 block text-xs text-stone-400">
+                      {intl.formatMessage(messages.textTransform)}
+                    </label>
+                    <select
+                      value={
+                        (selectedElement.properties as TextElementProps)
+                          .textTransform || 'none'
+                      }
+                      onChange={(e) => {
+                        updateElementProperties(selectedElement.id, {
+                          textTransform: (e.target as HTMLSelectElement)
+                            .value as
+                            | 'none'
+                            | 'uppercase'
+                            | 'lowercase'
+                            | 'capitalize',
+                        });
+                      }}
+                      className="w-full rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white focus:border-orange-500 focus:outline-none"
+                    >
+                      <option value="none">
+                        {intl.formatMessage(messages.transformNone)}
+                      </option>
+                      <option value="uppercase">
+                        {intl.formatMessage(messages.uppercase)}
+                      </option>
+                      <option value="lowercase">
+                        {intl.formatMessage(messages.lowercase)}
+                      </option>
+                      <option value="capitalize">
+                        {intl.formatMessage(messages.capitalize)}
+                      </option>
+                    </select>
                   </div>
 
                   {/* Max Lines */}
