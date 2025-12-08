@@ -634,15 +634,23 @@ class PlexAPI {
         labels,
       };
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.includes('response code: 404')) {
+        logger.debug(`Collection ${ratingKey} not found (404)`, {
+          label: 'Plex API',
+        });
+        return null;
+      }
+
       logger.error(`Failed to get collection metadata for ${ratingKey}`, {
         label: 'Plex API',
-        error,
+        error: errorMessage,
       });
       // Throw error to distinguish from "collection not found"
       throw new Error(
-        `API error getting collection metadata: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+        `API error getting collection metadata: ${errorMessage}`
       );
     }
   }
