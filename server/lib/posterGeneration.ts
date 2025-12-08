@@ -4,6 +4,7 @@ import type {
   LayeredElement,
   PosterTemplateData,
   RasterElementProps,
+  PersonElementProps,
   SVGElementProps,
   TextElementProps,
 } from '@server/entity/PosterTemplate';
@@ -72,6 +73,7 @@ export interface PosterGenerationConfig {
   autoPosterTemplate?: number | null; // Template ID for auto-generated posters
   templateData?: PosterTemplateData; // Template data for customized colors and layout
   dynamicLogo?: string; // Path to dynamic logo file
+  personImageUrl?: string; // Dynamic person image (e.g., director portrait)
 }
 
 export interface CollectionItemWithPoster {
@@ -1443,7 +1445,9 @@ async function generateUnifiedLayeredElements(
   collectionName: string,
   collectionType?: string,
   dynamicLogo?: string,
-  itemsWithPosters: CollectionItemWithPoster[] = []
+  itemsWithPosters: CollectionItemWithPoster[] = [],
+  personImageBase64?: string,
+  personImageUrl?: string
 ): Promise<string> {
   // Sort elements by layer order to ensure proper rendering sequence
   const sortedElements = [...elements].sort(
@@ -1487,6 +1491,16 @@ async function generateUnifiedLayeredElements(
             element,
             props,
             itemsWithPosters
+          );
+          break;
+        }
+        case 'person': {
+          const props = element.properties as PersonElementProps;
+          elementContent = await generatePersonElement(
+            element,
+            props,
+            personImageBase64,
+            personImageUrl
           );
           break;
         }
@@ -1538,6 +1552,45 @@ async function generateRasterElement(
       height: element.height,
     },
   ]);
+}
+
+/**
+ * Generate person element content (e.g., director portrait backdrops)
+ */
+async function generatePersonElement(
+  element: LayeredElement,
+  props: PersonElementProps,
+  personImageBase64?: string,
+  personImageUrl?: string
+): Promise<string> {
+  const imageHref = personImageBase64 || personImageUrl || props.imagePath;
+
+  if (!imageHref) {
+    return '';
+  }
+
+  const overlayOpacity = Math.min(
+    1,
+    Math.max(0, props.overlayOpacity ?? 0.55)
+  );
+  const overlayColor = props.overlayColor || 'rgba(0,0,0,0.6)';
+
+  return `
+    <g>
+      <image xlink:href="${imageHref}"
+             x="${element.x}" y="${element.y}"
+             width="${element.width}" height="${element.height}"
+             preserveAspectRatio="xMidYMid slice"/>
+      ${
+        overlayOpacity > 0
+          ? `<rect x="${element.x}" y="${element.y}"
+                   width="${element.width}" height="${element.height}"
+                   fill="${overlayColor}"
+                   opacity="${overlayOpacity}"/>`
+          : ''
+      }
+    </g>
+  `;
 }
 
 /**
@@ -1688,6 +1741,17 @@ export async function generatePosterSVG(
     }
   }
 
+  // Fetch person image for person layers if provided
+  let personImageBase64: string | undefined;
+  if (config.personImageUrl) {
+    try {
+      personImageBase64 =
+        (await downloadImageAsBase64(config.personImageUrl)) || undefined;
+    } catch (error) {
+      logger.warn('Failed to fetch person image for poster:', error);
+    }
+  }
+
   // Generate background based on template data
   const backgroundContent = await generateTemplateBackground(
     templateData.background,
@@ -1713,7 +1777,9 @@ export async function generatePosterSVG(
     collectionName,
     collectionType,
     config.dynamicLogo,
-    itemsWithPosters
+    itemsWithPosters,
+    personImageBase64,
+    config.personImageUrl
   );
 
   return `
@@ -1796,6 +1862,7 @@ export async function generatePosterBuffer(
           mediaType: config.mediaType || 'movie',
           items: config.items || [],
           dynamicLogo: config.dynamicLogo,
+          personImageUrl: config.personImageUrl,
         });
 
         logger.info('Poster generated successfully using template', {

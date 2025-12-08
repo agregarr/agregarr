@@ -53,6 +53,7 @@ export function calculatePosterInputHash(config: {
   mediaType?: string;
   collectionType?: string;
   collectionSubtype?: string;
+  personImageUrl?: string;
 }): string {
   return calculateInputHash({
     ...config,

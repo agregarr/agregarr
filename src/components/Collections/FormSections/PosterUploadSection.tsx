@@ -37,9 +37,6 @@ const messages = defineMessages({
   useTmdbFranchisePoster: 'Use TMDB Franchise Poster',
   useTmdbFranchisePosterHelp:
     'Use the official TMDB franchise poster instead of auto-generating. This setting overrules the above auto-poster option if a collection poster is available from TMDB.',
-  useTmdbDirectorPoster: 'Use TMDB Director Poster',
-  useTmdbDirectorPosterHelp:
-    'Use the director poster from TMDB instead of auto-generating. This setting overrules the above auto-poster option if a director poster is available from TMDB.',
   hideIndividualItems: 'Hide Individual Items in Collection',
   hideIndividualItemsHelp:
     'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
@@ -142,9 +139,14 @@ const PosterUploadSection = ({
 
   // Get current selected template - if none selected, use the default template
   const defaultTemplate = templates?.find((t) => t.isDefault);
+  const directorTemplate =
+    templates?.find((t) => t.name === 'Person Spotlight') ||
+    templates?.find((t) => t.name === 'Director Spotlight');
   const selectedTemplateId =
     values.autoPosterTemplate || defaultTemplate?.id || null;
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
+  const isDirectorCollection =
+    values.type === 'plex_library' && values.subtype === 'directors';
 
   const handleAutoPosterChange = (enabled: boolean) => {
     setFieldValue('autoPoster', enabled);
@@ -156,10 +158,31 @@ const PosterUploadSection = ({
 
   // Auto-select default template when templates load and no template is currently selected
   useEffect(() => {
-    if (templates && !values.autoPosterTemplate && defaultTemplate) {
+    if (!templates) {
+      return;
+    }
+
+    if (
+      isDirectorCollection &&
+      directorTemplate &&
+      (!values.autoPosterTemplate ||
+        values.autoPosterTemplate === defaultTemplate?.id)
+    ) {
+      setFieldValue('autoPosterTemplate', directorTemplate.id);
+      return;
+    }
+
+    if (!values.autoPosterTemplate && defaultTemplate) {
       setFieldValue('autoPosterTemplate', defaultTemplate.id);
     }
-  }, [templates, values.autoPosterTemplate, defaultTemplate, setFieldValue]);
+  }, [
+    templates,
+    values.autoPosterTemplate,
+    defaultTemplate,
+    directorTemplate,
+    isDirectorCollection,
+    setFieldValue,
+  ]);
 
   const handleRemovePoster = (libraryId: string) => {
     const updatedPosters = { ...currentPosters };
@@ -369,34 +392,6 @@ const PosterUploadSection = ({
               </div>
             </div>
           </>
-        )}
-
-      {/* TMDB Director Poster Toggle - only for Plex Library auto-director collections */}
-      {isAgregarrCollection &&
-        values.type === 'plex_library' &&
-        values.subtype === 'directors' && (
-          <div className="mb-6">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="useTmdbDirectorPoster"
-                checked={values.useTmdbDirectorPoster ?? false}
-                onChange={(e) =>
-                  setFieldValue('useTmdbDirectorPoster', e.target.checked)
-                }
-                className="form-checkbox"
-              />
-              <label
-                htmlFor="useTmdbDirectorPoster"
-                className="ml-2 text-sm text-gray-300"
-              >
-                {intl.formatMessage(messages.useTmdbDirectorPoster)}
-              </label>
-            </div>
-            <div className="label-tip">
-              {intl.formatMessage(messages.useTmdbDirectorPosterHelp)}
-            </div>
-          </div>
         )}
 
       {/* Manual poster uploads - show when auto-poster is disabled OR when not an Agregarr collection */}

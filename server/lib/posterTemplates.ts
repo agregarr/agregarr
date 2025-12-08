@@ -117,7 +117,11 @@ export function validateTemplateData(
       if (!element.id) {
         errors.push(`Element ${index} missing required id`);
       }
-      if (!['text', 'raster', 'svg', 'content-grid'].includes(element.type)) {
+      if (
+        !['text', 'raster', 'svg', 'content-grid', 'person'].includes(
+          element.type
+        )
+      ) {
         errors.push(`Element ${index} has invalid type: ${element.type}`);
       }
       if (typeof element.layerOrder !== 'number') {
@@ -156,6 +160,7 @@ export async function applyTemplate(
     mediaType?: 'movie' | 'tv';
     items?: CollectionItemWithPoster[];
     dynamicLogo?: string;
+    personImageUrl?: string;
   }
 ): Promise<Buffer> {
   const templateRepository = getRepository(PosterTemplate);
@@ -191,6 +196,7 @@ export async function applyTemplate(
     templateData: templateData,
     // Pass through dynamic logo if available
     dynamicLogo: config.dynamicLogo,
+    personImageUrl: config.personImageUrl,
   };
 
   // Generate poster directly using SVG system to avoid recursion

@@ -3123,7 +3123,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     collectionRatingKey: string,
     plexClient: PlexAPI,
     items?: CollectionItem[],
-    userInfo?: { userId?: number | string; customLabel?: string }
+    userInfo?: { userId?: number | string; customLabel?: string },
+    personImageUrl?: string
   ): Promise<void> {
     try {
       const mediaType = getCollectionMediaType(config);
@@ -3134,13 +3135,64 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         mediaType,
       });
 
+      const isDirectorCollection =
+        config.type === 'plex_library' && config.subtype === 'directors';
+      let resolvedTemplateId = config.autoPosterTemplate ?? null;
+
+      // Prefer the Person Spotlight template for director collections when none is selected
+      // or when the chosen template is the generic default.
+      if (isDirectorCollection) {
+        try {
+          const { getRepository } = await import('@server/datasource');
+          const { PosterTemplate } = await import(
+            '@server/entity/PosterTemplate'
+          );
+          const templateRepository = getRepository(PosterTemplate);
+
+          const [directorTemplate, currentTemplate] = await Promise.all([
+            (async () => {
+              const personTemplate = await templateRepository.findOne({
+                where: { name: 'Person Spotlight', isActive: true },
+              });
+              if (personTemplate) return personTemplate;
+              return templateRepository.findOne({
+                where: { name: 'Director Spotlight', isActive: true },
+              });
+            })(),
+            resolvedTemplateId
+              ? templateRepository.findOne({
+                  where: { id: resolvedTemplateId, isActive: true },
+                })
+              : Promise.resolve(null),
+          ]);
+
+          const currentIsGenericDefault = currentTemplate?.isDefault === true;
+
+          if (directorTemplate && (!resolvedTemplateId || currentIsGenericDefault)) {
+            resolvedTemplateId = directorTemplate.id;
+            logger.debug('Defaulting to Person Spotlight template', {
+              label: `${this.source} Collections`,
+              configId: config.id,
+              templateId: directorTemplate.id,
+              reason: resolvedTemplateId ? 'generic-default-replaced' : 'unset',
+            });
+          }
+        } catch (error) {
+          logger.warn('Failed to resolve director poster template', {
+            label: `${this.source} Collections`,
+            configId: config.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
       // Convert items to poster format if available
       let posterItems: CollectionItemWithPoster[] | undefined;
       if (items && items.length > 0) {
         // Determine how many items we need based on the template's content grid
         let maxItems = 4; // Default fallback for old templates
 
-        if (config.autoPosterTemplate) {
+        if (resolvedTemplateId) {
           try {
             const { getRepository } = await import('@server/datasource');
             const { PosterTemplate } = await import(
@@ -3149,7 +3201,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             const templateRepository = getRepository(PosterTemplate);
 
             const template = await templateRepository.findOne({
-              where: { id: config.autoPosterTemplate, isActive: true },
+              where: { id: resolvedTemplateId, isActive: true },
             });
 
             if (template) {
@@ -3176,7 +3228,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
               logger.debug(
                 `Template grid size calculated for collection poster: ${maxItems} items needed`,
                 {
-                  templateId: config.autoPosterTemplate,
+                  templateId: resolvedTemplateId,
                   hasElements: !!templateData.elements,
                 }
               );
@@ -3185,7 +3237,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
             logger.warn(
               'Failed to get template grid size, using default limit',
               {
-                templateId: config.autoPosterTemplate,
+                templateId: resolvedTemplateId,
                 error: error instanceof Error ? error.message : String(error),
               }
             );
@@ -3218,7 +3270,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         '@server/utils/metadataHashing'
       );
       const posterInputHash = calculatePosterInputHash({
-        templateId: config.autoPosterTemplate || null,
+        templateId: resolvedTemplateId || null,
         itemIds: (posterItems || [])
           .map((item) => item.tmdbId?.toString() || item.title)
           .sort(),
@@ -3226,6 +3278,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         mediaType,
         collectionType: config.type,
         collectionSubtype: config.subtype,
+        personImageUrl,
       });
 
       // Check if regeneration needed using metadata tracking
@@ -3288,7 +3341,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           collectionSubtype: config.subtype,
           mediaType,
           items: posterItems,
-          autoPosterTemplate: config.autoPosterTemplate,
+          autoPosterTemplate: resolvedTemplateId,
+          personImageUrl,
         },
         `Auto-generated: ${collectionName}`,
         collectionIdentifier
