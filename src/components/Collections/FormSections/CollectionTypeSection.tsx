@@ -90,8 +90,7 @@ const CollectionTypeSection = ({
       values.type === 'plex_library' && values.subtype === 'directors';
     const hasValue =
       values.directorMinimumItems !== undefined &&
-      values.directorMinimumItems !== null &&
-      values.directorMinimumItems !== '';
+      values.directorMinimumItems !== null;
 
     if (isDirectorConfig && !hasValue) {
       setFieldValue('directorMinimumItems', 5);

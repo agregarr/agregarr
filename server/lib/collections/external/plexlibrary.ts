@@ -55,6 +55,74 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     super('plex_library');
   }
 
+  private async setDirectorBioAsDescription(
+    directorName: string,
+    collectionRatingKey: string,
+    plexClient: PlexAPI,
+    directorInfo?: DirectorTmdbInfo
+  ): Promise<boolean> {
+    try {
+      const info =
+        directorInfo ?? (await this.fetchTmdbDirectorInfo(directorName));
+      const biography = info?.biography;
+
+      if (!biography) {
+        logger.debug(
+          `No TMDB biography found for director "${directorName}", skipping description`,
+          {
+            label: 'Plex Library Collections',
+            directorName,
+          }
+        );
+        return false;
+      }
+
+      const paragraphs = biography.split('\n\n').filter((p) => p.trim());
+      let bioText = '';
+
+      for (const paragraph of paragraphs) {
+        if ((bioText + paragraph).length > 500) {
+          break;
+        }
+        bioText += (bioText ? '\n\n' : '') + paragraph;
+      }
+
+      if (!bioText) {
+        logger.debug(
+          `Biography truncated to empty string for director "${directorName}", skipping description`,
+          {
+            label: 'Plex Library Collections',
+            directorName,
+          }
+        );
+        return false;
+      }
+
+      await plexClient.updateSummary(collectionRatingKey, bioText);
+
+      logger.debug(
+        `Successfully set bio description for director "${directorName}" collection`,
+        {
+          label: 'Plex Library Collections',
+          directorName,
+          bioLength: bioText.length,
+        }
+      );
+
+      return true;
+    } catch (error) {
+      logger.warn(
+        `Failed to set bio description for director "${directorName}"`,
+        {
+          label: 'Plex Library Collections',
+          directorName,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return false;
+    }
+  }
+
   private sanitizeDirectorNameForLabel(name: string): string {
     const sanitized = name
       .toLowerCase()
@@ -303,31 +371,6 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     };
   }
 
-  public async fetchSourceData(
-    _config: CollectionConfig,
-    _options?: CollectionSyncOptions,
-    _libraryCache?: LibraryItemsCache
-  ): Promise<CollectionSourceData[]> {
-    return [];
-  }
-
-  public async mapSourceDataToItems(
-    _sourceData: CollectionSourceData[],
-    _config: CollectionConfig,
-    _plexClient?: PlexAPI,
-    _libraryCache?: LibraryItemsCache
-  ): Promise<{
-    items: CollectionItem[];
-    missingItems?: MissingItem[];
-    stats?: FilteringStats;
-  }> {
-    return {
-      items: [],
-      missingItems: [],
-      stats: { original: 0, filtered: 0, removed: 0 },
-    };
-  }
-
   protected async createCollection(
     _items: CollectionItem[],
     _mediaType: 'movie' | 'tv',
@@ -463,14 +506,6 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           // Track by rating key so cleanup doesn't treat it as unmanaged
           processedCollectionKeys?.add(collectionRatingKey);
 
-          // Set director bio as collection description (custom summaries will override this later)
-          await this.setDirectorBioAsDescription(
-            director.name,
-            collectionRatingKey,
-            plexClient,
-            directorInfo
-          );
-
           // Apply the same metadata/ordering handling used by standard collections
           await this.applyDirectorMetadata(
             plexClient,
@@ -498,6 +533,14 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
           // Generate auto-poster with director portrait background
           if (shouldGeneratePoster) {
+            // Update summary with TMDB bio if available (custom summaries override later)
+            await this.setDirectorBioAsDescription(
+              director.name,
+              collectionRatingKey,
+              plexClient,
+              directorInfo
+            );
+
             await this.generateAutoPoster(
               collectionName,
               config,
