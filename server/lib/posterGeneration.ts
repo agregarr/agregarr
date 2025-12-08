@@ -328,6 +328,11 @@ async function downloadImageAsBase64(
   url: string,
   retries = 2
 ): Promise<string | null> {
+  // Handle data URIs directly (already encoded)
+  if (url.startsWith('data:')) {
+    return url;
+  }
+
   // Check cache first
   if (base64Cache.has(url)) {
     const cachedResult = base64Cache.get(url);
