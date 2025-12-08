@@ -38,6 +38,7 @@ export interface TextElementProps {
   color: string;
   textAlign: 'left' | 'center' | 'right';
   maxLines?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
 }
 
 export interface RasterElementProps {

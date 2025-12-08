@@ -92,7 +92,7 @@ async function seedDefaultTemplate() {
       migrated: true,
     };
 
-    const directorTemplateData: PosterTemplateData = {
+    const personTemplateData: PosterTemplateData = {
       width: 1000,
       height: 1500,
       background: {
@@ -113,60 +113,76 @@ async function seedDefaultTemplate() {
           height: 1500,
           properties: {
             imagePath: '',
-            overlayColor: 'rgba(28,27,31,0.55)', // Subtle charcoal tint similar to reference
-            overlayOpacity: 0.55,
+            overlayColor: 'rgba(24,23,27,0.55)', // Subtle charcoal tint similar to reference
+            overlayOpacity: 0.4,
           } as PersonElementProps,
         },
         {
-          id: 'director-tagline',
+          id: 'person-tagline',
           layerOrder: 8,
           type: 'text',
-          x: 72,
-          y: 260,
-          width: 560,
-          height: 64,
+          x: 76,
+          y: 396,
+          width: 420,
+          height: 70,
           properties: {
             elementType: 'custom-text',
-            text: 'COLLECTION',
-            fontSize: 30,
+            text: 'Collection',
+            fontSize: 40,
             fontFamily: 'Inter',
-            fontWeight: 'bold',
+            fontWeight: 'normal',
             fontStyle: 'normal',
-            color: 'rgba(255,255,255,0.72)',
+            color: '#ffffff',
             textAlign: 'left',
             maxLines: 1,
+            textTransform: 'uppercase',
           } as TextElementProps,
         },
         {
-          id: 'director-logo',
+          id: 'person-line',
+          layerOrder: 9,
+          type: 'svg',
+          x: 72,
+          y: 360,
+          width: 260,
+          height: 8,
+          properties: {
+            iconType: 'custom-icon',
+            iconPath: '/api/v1/posters/icons/system/person-spotlight-line.svg',
+            grayscale: false,
+          } as SVGElementProps,
+        },
+        {
+          id: 'person-logo',
           layerOrder: 10,
           type: 'svg',
           x: 860,
-          y: 88,
-          width: 72,
-          height: 72,
+          y: 86,
+          width: 64,
+          height: 64,
           properties: {
             iconType: 'source-logo',
             grayscale: false,
           } as SVGElementProps,
         },
         {
-          id: 'director-title',
+          id: 'person-title',
           layerOrder: 20,
           type: 'text',
           x: 72,
-          y: 120,
-          width: 856,
-          height: 200,
+          y: 96,
+          width: 760,
+          height: 180,
           properties: {
             elementType: 'collection-title',
-            fontSize: 82,
+            fontSize: 84,
             fontFamily: 'Inter',
             fontWeight: 'bold',
             fontStyle: 'normal',
             color: '#ffffff',
             textAlign: 'left',
             maxLines: 3,
+            textTransform: 'uppercase',
           } as TextElementProps,
         },
       ],
@@ -205,39 +221,35 @@ async function seedDefaultTemplate() {
     }
 
     // Seed a person-focused template that can be selected for auto posters
-    const directorTemplateName = 'Person Spotlight';
-    const existingDirectorTemplate =
-      (await templateRepository.findOne({
-        where: { name: directorTemplateName },
-      })) ||
-      (await templateRepository.findOne({
-        where: { name: 'Director Spotlight' },
-      }));
+    const personTemplateName = 'Person Spotlight';
+    const existingPersonTemplate = await templateRepository.findOne({
+      where: { name: personTemplateName },
+    });
 
-    if (existingDirectorTemplate) {
-      existingDirectorTemplate.name = directorTemplateName;
-      existingDirectorTemplate.setTemplateData(directorTemplateData);
-      existingDirectorTemplate.isActive = true;
-      existingDirectorTemplate.description =
+    if (existingPersonTemplate) {
+      existingPersonTemplate.name = personTemplateName;
+      existingPersonTemplate.setTemplateData(personTemplateData);
+      existingPersonTemplate.isActive = true;
+      existingPersonTemplate.description =
         'Full-bleed person portrait backdrop with bold title and collection label over a dark gradient, tuned for directors/people.';
-      await templateRepository.save(existingDirectorTemplate);
-      logger.info('Director poster template refreshed', {
-        templateId: existingDirectorTemplate.id,
-        name: existingDirectorTemplate.name,
+      await templateRepository.save(existingPersonTemplate);
+      logger.info('Person poster template refreshed', {
+        templateId: existingPersonTemplate.id,
+        name: existingPersonTemplate.name,
       });
     } else {
-      const directorTemplate = new PosterTemplate({
-        name: directorTemplateName,
+      const personTemplate = new PosterTemplate({
+        name: personTemplateName,
         description:
           'Full-bleed person portrait backdrop with bold title and collection label over a dark gradient, tuned for directors/people.',
         isDefault: false,
         isActive: true,
       });
 
-      directorTemplate.setTemplateData(directorTemplateData);
-      const savedTemplate = await templateRepository.save(directorTemplate);
+      personTemplate.setTemplateData(personTemplateData);
+      const savedTemplate = await templateRepository.save(personTemplate);
 
-      logger.info('Seeded director poster template', {
+      logger.info('Seeded person poster template', {
         templateId: savedTemplate.id,
         name: savedTemplate.name,
       });

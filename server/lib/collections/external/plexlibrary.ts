@@ -371,6 +371,33 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     };
   }
 
+  public override async fetchSourceData(
+    _config: CollectionConfig,
+    _options?: CollectionSyncOptions,
+    _libraryCache?: LibraryItemsCache
+  ): Promise<CollectionSourceData[]> {
+    // Director collections use Plex library data gathered during processing; no external source fetch required.
+    return [];
+  }
+
+  public override async mapSourceDataToItems(
+    _sourceData: CollectionSourceData[],
+    _config: CollectionConfig,
+    _plexClient?: PlexAPI,
+    _libraryCache?: LibraryItemsCache
+  ): Promise<{
+    items: CollectionItem[];
+    missingItems?: MissingItem[];
+    stats?: FilteringStats;
+  }> {
+    // Items are derived directly from Plex during processConfiguration.
+    return {
+      items: [],
+      missingItems: [],
+      stats: { original: 0, filtered: 0, removed: 0 },
+    };
+  }
+
   protected async createCollection(
     _items: CollectionItem[],
     _mediaType: 'movie' | 'tv',
