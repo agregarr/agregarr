@@ -210,7 +210,6 @@ export const linkCollectionConfig = async (
             sortOrder: masterConfig.sortOrder,
             customPoster: masterConfig.customPoster,
             useTmdbFranchisePoster: masterConfig.useTmdbFranchisePoster,
-            useTmdbDirectorPoster: masterConfig.useTmdbDirectorPoster,
             hideIndividualItems: masterConfig.hideIndividualItems,
             applyOverlaysDuringSync: masterConfig.applyOverlaysDuringSync,
             showUnwatchedOnly: masterConfig.showUnwatchedOnly,

@@ -72,6 +72,84 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     return `AgregarrAutoDirector-${configId}-${suffix}`;
   }
 
+  private extractTmdbIdFromGuids(
+    guids?: { id?: string }[]
+  ): number | undefined {
+    if (!guids || guids.length === 0) {
+      return undefined;
+    }
+
+    const tmdbGuid = guids.find(
+      (guid) => guid.id && guid.id.startsWith('tmdb://')
+    );
+    if (!tmdbGuid?.id) {
+      return undefined;
+    }
+
+    const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+    return match ? Number(match[1]) : undefined;
+  }
+
+  private async buildDirectorPosterItems(
+    directorName: string,
+    mediaType: 'movie' | 'tv',
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    maxItems = 12
+  ): Promise<CollectionItem[]> {
+    if (!config.libraryId) {
+      return [];
+    }
+
+    const cappedMaxItems = Math.max(1, Math.min(maxItems, 12));
+    const itemLimit = Math.max(
+      1,
+      Math.min(config.maxItems ?? cappedMaxItems, cappedMaxItems)
+    );
+
+    try {
+      const plexItems = await plexClient.getItemsByDirector(
+        config.libraryId,
+        directorName,
+        mediaType,
+        itemLimit
+      );
+
+      const mappedItems = plexItems.map((item) => {
+        const tmdbId = this.extractTmdbIdFromGuids(item.Guid);
+        return {
+          ratingKey: item.ratingKey,
+          title: item.title,
+          type: mediaType === 'movie' ? 'movie' : 'tv',
+          year: item.year,
+          tmdbId: tmdbId ?? undefined,
+          metadata: {
+            libraryKey: config.libraryId,
+          },
+        } as CollectionItem;
+      });
+
+      logger.debug(
+        `Prepared ${mappedItems.length} items for director poster generation`,
+        {
+          label: 'Plex Library Collections',
+          directorName,
+          libraryId: config.libraryId,
+        }
+      );
+
+      return mappedItems.slice(0, itemLimit);
+    } catch (error) {
+      logger.warn('Failed to fetch director items for poster generation', {
+        label: 'Plex Library Collections',
+        directorName,
+        libraryId: config.libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
   private async addDirectorLabel(
     plexClient: PlexAPI,
     collectionRatingKey: string,
@@ -715,31 +793,30 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           );
 
           const shouldGeneratePoster = config.autoPoster ?? true;
+          const directorPhotoUrl = directorInfo?.profilePath
+            ? `https://image.tmdb.org/t/p/original${directorInfo.profilePath}`
+            : undefined;
+          const posterItems =
+            shouldGeneratePoster && mediaType
+              ? await this.buildDirectorPosterItems(
+                  director.name,
+                  mediaType,
+                  config,
+                  plexClient,
+                  limit
+                )
+              : [];
 
-          // Try TMDB director poster, then auto-poster fallback
-          if (config.useTmdbDirectorPoster) {
-            const tmdbPosterUploaded = await this.uploadTmdbDirectorPoster(
-              director.name,
-              collectionName,
-              collectionRatingKey,
-              plexClient,
-              directorInfo
-            );
-
-            if (!tmdbPosterUploaded && shouldGeneratePoster) {
-              await this.generateAutoPoster(
-                collectionName,
-                config,
-                collectionRatingKey,
-                plexClient
-              );
-            }
-          } else if (shouldGeneratePoster) {
+          // Generate auto-poster with director portrait background
+          if (shouldGeneratePoster) {
             await this.generateAutoPoster(
               collectionName,
               config,
               collectionRatingKey,
-              plexClient
+              plexClient,
+              posterItems,
+              undefined,
+              directorPhotoUrl
             );
           }
         } catch (error) {

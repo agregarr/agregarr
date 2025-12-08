@@ -12,7 +12,7 @@ import type {
   TraktSettings,
 } from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
-import type React from 'react';
+import React, { useEffect } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -83,6 +83,25 @@ const CollectionTypeSection = ({
   );
 
   if (!isVisible) return null;
+
+  // Ensure director minimum items defaults to 5 when empty
+  useEffect(() => {
+    const isDirectorConfig =
+      values.type === 'plex_library' && values.subtype === 'directors';
+    const hasValue =
+      values.directorMinimumItems !== undefined &&
+      values.directorMinimumItems !== null &&
+      values.directorMinimumItems !== '';
+
+    if (isDirectorConfig && !hasValue) {
+      setFieldValue('directorMinimumItems', 5);
+    }
+  }, [
+    values.type,
+    values.subtype,
+    values.directorMinimumItems,
+    setFieldValue,
+  ]);
 
   // Validate API keys for the current collection type
   const apiKeyValidation = validateApiKeysForCollectionType(
@@ -543,7 +562,7 @@ const CollectionTypeSection = ({
               type="number"
               id="directorMinimumItems"
               name="directorMinimumItems"
-              placeholder="3"
+              placeholder="5"
               min="2"
               max="50"
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
