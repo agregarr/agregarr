@@ -39,9 +39,6 @@ interface LocalPosterItem {
   posterPath: string;
 }
 
-// Data URI placeholder to avoid network fetch failures during previews
-const DEFAULT_PERSON_PREVIEW_IMAGE =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1200'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='40%25' r='60%25'%3E%3Cstop offset='0%25' stop-color='%23555'/%3E%3Cstop offset='100%25' stop-color='%231a1a1d'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='800' height='1200' fill='url(%23g)'/%3E%3C/svg%3E";
 
 /**
  * Load local poster mapping for preview rendering
