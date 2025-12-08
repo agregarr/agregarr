@@ -1028,6 +1028,7 @@ async function generateTemplateTextElements(
     color: string;
     textAlign: string;
     maxLines?: number;
+    textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   }[],
   collectionName: string
 ): Promise<string> {
@@ -1036,6 +1037,20 @@ async function generateTemplateTextElements(
   for (const element of textElements) {
     const text =
       element.type === 'collection-title' ? collectionName : element.text || '';
+    const transform = element.textTransform || 'none';
+    const applyTransform = (value: string): string => {
+      switch (transform) {
+        case 'uppercase':
+          return value.toUpperCase();
+        case 'lowercase':
+          return value.toLowerCase();
+        case 'capitalize':
+          return value.replace(/\b\w/g, (c) => c.toUpperCase());
+        default:
+          return value;
+      }
+    };
+    const finalText = applyTransform(text);
 
     // Handle text wrapping based on element dimensions
     // Use line height (fontSize * 1.1) for accurate calculation to match createTemplateWrappedText
@@ -1043,7 +1058,7 @@ async function generateTemplateTextElements(
     const maxLines =
       element.maxLines || Math.floor(element.height / lineHeight);
     const wrappedText = createTemplateWrappedText(
-      text,
+      finalText,
       element.x,
       element.y,
       element.width,
@@ -1659,6 +1674,7 @@ async function generateTextElement(
         color: props.color,
         textAlign: props.textAlign,
         maxLines: props.maxLines,
+        textTransform: props.textTransform,
       },
     ],
     collectionName

@@ -70,6 +70,7 @@ export interface TextElementProps {
   // Text-specific source colors for templates
   useSourceColors?: boolean;
   sourceColorType?: string;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
 }
 
 export interface RasterElementProps {

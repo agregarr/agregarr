@@ -3,6 +3,7 @@ import {
   PosterTemplate,
   type ContentGridProps,
   type PosterTemplateData,
+  type TextElementProps,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
 import fs from 'fs';
@@ -144,7 +145,49 @@ export function validateTemplateData(
   return {
     isValid: errors.length === 0,
     errors,
-    warnings,
+  warnings,
+};
+}
+
+/**
+ * Ensure textTransform defaults are present (and apply Person Spotlight uppercase fallback)
+ */
+function normalizeTextTransforms(
+  templateData: PosterTemplateData,
+  templateName?: string
+): PosterTemplateData {
+  if (!Array.isArray(templateData.elements)) {
+    return templateData;
+  }
+
+  const prefersUppercase =
+    templateName?.toLowerCase().includes('person spotlight') ||
+    templateName?.toLowerCase().includes('director spotlight');
+
+  const normalizedElements = templateData.elements.map((el) => {
+    if (el.type !== 'text') {
+      return el;
+    }
+
+    const props = el.properties as TextElementProps;
+    const textTransform =
+      props.textTransform ??
+      (prefersUppercase && props.elementType === 'collection-title'
+        ? 'uppercase'
+        : 'none');
+
+    return {
+      ...el,
+      properties: {
+        ...props,
+        textTransform,
+      },
+    };
+  });
+
+  return {
+    ...templateData,
+    elements: normalizedElements,
   };
 }
 
@@ -173,7 +216,10 @@ export async function applyTemplate(
     throw new Error(`Template ${templateId} not found`);
   }
 
-  const templateData = template.getTemplateData();
+  const templateData = normalizeTextTransforms(
+    template.getTemplateData(),
+    template.name
+  );
 
   // Validate template before applying
   const validation = validateTemplateData(templateData);
@@ -229,7 +275,13 @@ export async function generateTemplatePreview(
     throw new Error(`Template ${templateId} not found`);
   }
 
-  const templateData = template.getTemplateData();
+  const templateData = normalizeTextTransforms(
+    template.getTemplateData(),
+    template.name
+  );
+  const hasPersonLayer =
+    Array.isArray(templateData.elements) &&
+    templateData.elements.some((el) => el.type === 'person');
 
   // Generate enough sample items to fill the content grid
   let gridSize = 0;
