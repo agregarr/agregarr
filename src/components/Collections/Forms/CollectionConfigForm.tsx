@@ -1193,8 +1193,6 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).autoPosterTemplate ?? null,
           useTmdbFranchisePoster:
             (config as CollectionFormConfig).useTmdbFranchisePoster ?? false,
-          useTmdbDirectorPoster:
-            (config as CollectionFormConfig).useTmdbDirectorPoster ?? false,
           hideIndividualItems:
             (config as CollectionFormConfig).hideIndividualItems ?? false,
           showUnwatchedOnly:
@@ -1530,7 +1528,6 @@ const CollectionFormConfigForm = ({
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
             useTmdbFranchisePoster: values.useTmdbFranchisePoster,
-            useTmdbDirectorPoster: values.useTmdbDirectorPoster,
             hideIndividualItems: values.hideIndividualItems,
             showUnwatchedOnly: values.showUnwatchedOnly,
             smartCollectionSort: values.smartCollectionSort,

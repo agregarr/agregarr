@@ -295,6 +295,8 @@ export const PosterCanvas = forwardRef<PosterCanvasRef, PosterCanvasProps>(
           return <TextElement {...shapeProps} />;
         case 'raster':
           return <ImageElement {...shapeProps} />;
+        case 'person':
+          return <ImageElement {...shapeProps} />;
         case 'svg':
           return <SVGElement {...shapeProps} />;
         case 'content-grid':

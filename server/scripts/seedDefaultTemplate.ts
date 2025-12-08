@@ -5,6 +5,7 @@ import {
   type ContentGridProps,
   type PosterTemplateData,
   type SVGElementProps,
+  type PersonElementProps,
   type TextElementProps,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
@@ -91,6 +92,87 @@ async function seedDefaultTemplate() {
       migrated: true,
     };
 
+    const directorTemplateData: PosterTemplateData = {
+      width: 1000,
+      height: 1500,
+      background: {
+        type: 'gradient',
+        color: '#2b2a30',
+        secondaryColor: '#1a1a1d',
+        intensity: 55,
+        useSourceColors: false,
+      },
+      elements: [
+        {
+          id: 'person-backdrop',
+          layerOrder: 5,
+          type: 'person',
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 1500,
+          properties: {
+            imagePath: '',
+            overlayColor: 'rgba(28,27,31,0.55)', // Subtle charcoal tint similar to reference
+            overlayOpacity: 0.55,
+          } as PersonElementProps,
+        },
+        {
+          id: 'director-tagline',
+          layerOrder: 8,
+          type: 'text',
+          x: 72,
+          y: 260,
+          width: 560,
+          height: 64,
+          properties: {
+            elementType: 'custom-text',
+            text: 'COLLECTION',
+            fontSize: 30,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: 'rgba(255,255,255,0.72)',
+            textAlign: 'left',
+            maxLines: 1,
+          } as TextElementProps,
+        },
+        {
+          id: 'director-logo',
+          layerOrder: 10,
+          type: 'svg',
+          x: 860,
+          y: 88,
+          width: 72,
+          height: 72,
+          properties: {
+            iconType: 'source-logo',
+            grayscale: false,
+          } as SVGElementProps,
+        },
+        {
+          id: 'director-title',
+          layerOrder: 20,
+          type: 'text',
+          x: 72,
+          y: 120,
+          width: 856,
+          height: 200,
+          properties: {
+            elementType: 'collection-title',
+            fontSize: 82,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#ffffff',
+            textAlign: 'left',
+            maxLines: 3,
+          } as TextElementProps,
+        },
+      ],
+      migrated: true,
+    };
+
     // Check if default template already exists
     const existingTemplate = await templateRepository.findOne({
       where: { isDefault: true },
@@ -104,25 +186,62 @@ async function seedDefaultTemplate() {
         templateId: existingTemplate.id,
         name: existingTemplate.name,
       });
-      return;
+    } else {
+      const defaultTemplate = new PosterTemplate({
+        name: 'Default Agregarr Template',
+        description:
+          'The original Agregarr auto-poster design converted to a template',
+        isDefault: true,
+        isActive: true,
+      });
+
+      defaultTemplate.setTemplateData(defaultTemplateData);
+      await templateRepository.save(defaultTemplate);
+
+      logger.info('Successfully seeded default poster template', {
+        templateId: defaultTemplate.id,
+        name: defaultTemplate.name,
+      });
     }
 
-    const defaultTemplate = new PosterTemplate({
-      name: 'Default Agregarr Template',
-      description:
-        'The original Agregarr auto-poster design converted to a template',
-      isDefault: true,
-      isActive: true,
-    });
+    // Seed a person-focused template that can be selected for auto posters
+    const directorTemplateName = 'Person Spotlight';
+    const existingDirectorTemplate =
+      (await templateRepository.findOne({
+        where: { name: directorTemplateName },
+      })) ||
+      (await templateRepository.findOne({
+        where: { name: 'Director Spotlight' },
+      }));
 
-    defaultTemplate.setTemplateData(defaultTemplateData);
+    if (existingDirectorTemplate) {
+      existingDirectorTemplate.name = directorTemplateName;
+      existingDirectorTemplate.setTemplateData(directorTemplateData);
+      existingDirectorTemplate.isActive = true;
+      existingDirectorTemplate.description =
+        'Full-bleed person portrait backdrop with bold title and collection label over a dark gradient, tuned for directors/people.';
+      await templateRepository.save(existingDirectorTemplate);
+      logger.info('Director poster template refreshed', {
+        templateId: existingDirectorTemplate.id,
+        name: existingDirectorTemplate.name,
+      });
+    } else {
+      const directorTemplate = new PosterTemplate({
+        name: directorTemplateName,
+        description:
+          'Full-bleed person portrait backdrop with bold title and collection label over a dark gradient, tuned for directors/people.',
+        isDefault: false,
+        isActive: true,
+      });
 
-    await templateRepository.save(defaultTemplate);
+      directorTemplate.setTemplateData(directorTemplateData);
+      const savedTemplate = await templateRepository.save(directorTemplate);
 
-    logger.info('Successfully seeded default poster template', {
-      templateId: defaultTemplate.id,
-      name: defaultTemplate.name,
-    });
+      logger.info('Seeded director poster template', {
+        templateId: savedTemplate.id,
+        name: savedTemplate.name,
+      });
+    }
   } catch (error) {
     logger.error('Failed to seed default template:', error);
     throw error;
