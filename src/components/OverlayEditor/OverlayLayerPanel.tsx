@@ -814,7 +814,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                           </option>
                         ))}
                       </optgroup>
-                      <optgroup label="Status (Coming Soon)">
+                      <optgroup label="Coming Soon">
                         {AVAILABLE_VARIABLES['coming-soon'].map((v) => (
                           <option key={v.field} value={v.field}>
                             {v.label}
@@ -825,9 +825,12 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
 
                     {/* Date format dropdown - show for date fields */}
                     {segment.field &&
-                      ['releaseDate', 'lastPlayed', 'dateAdded'].includes(
-                        segment.field
-                      ) && (
+                      [
+                        'releaseDate',
+                        'nextEpisodeAirDate',
+                        'lastPlayed',
+                        'dateAdded',
+                      ].includes(segment.field) && (
                         <div className="mt-2">
                           <label className="mb-1 block text-xs text-stone-400">
                             {intl.formatMessage(messages.dateFormat)}

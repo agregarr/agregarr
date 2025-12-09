@@ -35,12 +35,15 @@ function getCalendarDateInTimezone(date: Date): Date {
 }
 
 /**
- * Parse ISO date string (YYYY-MM-DD) as UTC midnight, then convert to server timezone
+ * Parse ISO date string (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SSZ) as UTC midnight, then convert to server timezone
  * Example: "2025-12-03" = Dec 3 midnight UTC = Dec 3 1PM in NZ = Dec 2 4PM in LA
+ * Example: "2025-12-03T15:30:00Z" = Dec 3 midnight UTC (time component stripped)
  */
 function parseDate(isoString: string): Date {
+  // Extract just the date part (YYYY-MM-DD) if a datetime string is provided
+  const dateOnly = isoString.split('T')[0];
   // Parse as UTC midnight
-  const utcDate = new Date(isoString + 'T00:00:00.000Z');
+  const utcDate = new Date(dateOnly + 'T00:00:00.000Z');
   // Convert to calendar date in server timezone
   return getCalendarDateInTimezone(utcDate);
 }

@@ -259,7 +259,7 @@ export interface CollectionFormConfig {
   readonly tautulliStatType?: 'plays' | 'duration'; // Tautulli stat type
   // Placeholder settings (for createPlaceholdersForMissing feature - unified for all collection types)
   readonly createPlaceholdersForMissing?: boolean; // Create placeholder files for missing items
-  readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7)
+  readonly placeholderReleasedDays?: number; // Days to keep orphaned placeholders after they fall off source list (from release date if released, otherwise from creation date) (default: 7)
   readonly placeholderDaysAhead?: number; // Days to look ahead for release dates (default: 360)
   readonly applyOverlaysDuringSync?: boolean; // Apply overlays immediately after sync (default: true for Coming Soon)
   // Download mode settings

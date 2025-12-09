@@ -96,6 +96,28 @@ export class TraktCollectionSync extends BaseCollectionSync {
       const { items, missingItems, mappingStats, filteringStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        // Extract tmdbIds from items and missingItems for orphan detection
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
+      }
+
       // Process missing items - creates placeholders and/or sends to auto-requests
       let finalItems = items;
       if (missingItems && missingItems.length > 0) {

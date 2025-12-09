@@ -413,7 +413,7 @@ export const PRESET_TEMPLATES: {
       sections: [
         {
           rules: [
-            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            { field: 'daysUntilNextSeason', operator: 'gt', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
@@ -473,7 +473,7 @@ export const PRESET_TEMPLATES: {
               { type: 'text', value: 'SEASON ' },
               { type: 'variable', field: 'seasonNumber' },
               { type: 'text', value: ' IN ' },
-              { type: 'variable', field: 'daysUntilRelease' },
+              { type: 'variable', field: 'daysUntilNextSeason' },
               { type: 'text', value: ' DAYS' },
             ],
             fontSize: 74,
@@ -498,7 +498,7 @@ export const PRESET_TEMPLATES: {
         {
           // (>1 day AND S02+ AND show) AND NOT inSonarr
           rules: [
-            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            { field: 'daysUntilNextSeason', operator: 'gt', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
@@ -523,7 +523,7 @@ export const PRESET_TEMPLATES: {
           // OR (>1 day AND S02+ AND show) AND NOT monitored
           sectionOperator: 'or',
           rules: [
-            { field: 'daysUntilRelease', operator: 'gt', value: 1 },
+            { field: 'daysUntilNextSeason', operator: 'gt', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
@@ -577,7 +577,7 @@ export const PRESET_TEMPLATES: {
               { type: 'text', value: 'SEASON ' },
               { type: 'variable', field: 'seasonNumber' },
               { type: 'text', value: ' IN ' },
-              { type: 'variable', field: 'daysUntilRelease' },
+              { type: 'variable', field: 'daysUntilNextSeason' },
               { type: 'text', value: ' DAYS' },
             ],
             fontSize: 74,
@@ -602,7 +602,7 @@ export const PRESET_TEMPLATES: {
       sections: [
         {
           rules: [
-            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            { field: 'daysUntilNextSeason', operator: 'eq', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
@@ -685,7 +685,7 @@ export const PRESET_TEMPLATES: {
         {
           // (tomorrow AND S02+ AND show) AND NOT inSonarr
           rules: [
-            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            { field: 'daysUntilNextSeason', operator: 'eq', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',
@@ -710,7 +710,7 @@ export const PRESET_TEMPLATES: {
           // OR (tomorrow AND S02+ AND show) AND NOT monitored
           sectionOperator: 'or',
           rules: [
-            { field: 'daysUntilRelease', operator: 'eq', value: 1 },
+            { field: 'daysUntilNextSeason', operator: 'eq', value: 1 },
             {
               ruleOperator: 'and',
               field: 'seasonNumber',

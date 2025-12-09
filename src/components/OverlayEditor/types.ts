@@ -192,12 +192,25 @@ export interface OverlayRenderContext {
   dateAdded?: Date; // Date added to Plex
 
   // Status fields (for Coming Soon / New Release)
-  releaseDate?: string; // ISO date string
-  daysUntilRelease?: number;
-  daysAgo?: number; // Days since release
+  // PRIMARY RELEASE DATE - Smart calculated field
+  // MOVIES: Digital > Physical > Theatrical (+90 days estimate)
+  // TV SHOWS: Series premiere date (NOT next episode!)
+  releaseDate?: string;
+  daysUntilRelease?: number; // Days until releaseDate
+  daysAgo?: number; // Days since releaseDate
+
+  // TV SHOWS - Episode/Season countdowns (separate from releaseDate)
+  nextEpisodeAirDate?: string; // Raw date for ANY next episode (including mid-season)
+  daysUntilNextEpisode?: number; // Calculated days until ANY next episode
+  nextSeasonAirDate?: string; // Raw date for SEASON PREMIERES only (episode 1)
+  daysUntilNextSeason?: number; // Calculated days until next SEASON PREMIERE only
+
+  // Episode information
   seasonNumber?: number;
   episodeNumber?: number;
   episodeLabel?: string; // "SERIES FINALE", "SEASON FINALE", or "EPISODE X"
+
+  // Monitoring status
   isMonitored?: boolean;
   inRadarr?: boolean;
   inSonarr?: boolean;
@@ -284,6 +297,26 @@ export const AVAILABLE_VARIABLES = {
       label: 'Days Since Release (incl. release day)',
       example: '3',
     },
+    {
+      field: 'nextEpisodeAirDate',
+      label: 'Next Episode Air Date (TV)',
+      example: 'JAN 22',
+    },
+    {
+      field: 'daysUntilNextEpisode',
+      label: 'Days Until Next Episode (TV)',
+      example: '7',
+    },
+    {
+      field: 'nextSeasonAirDate',
+      label: 'Next Season Premiere Date (TV)',
+      example: 'FEB 05',
+    },
+    {
+      field: 'daysUntilNextSeason',
+      label: 'Days Until Next Season (TV)',
+      example: '45',
+    },
     { field: 'seasonNumber', label: 'Season Number', example: '5' },
     { field: 'episodeNumber', label: 'Episode Number', example: '16' },
     {
@@ -325,7 +358,6 @@ export const CONDITION_FIELD_CATEGORIES = {
       label: 'TMDB Status (TV)',
       example: 'RETURNING',
     },
-    { field: 'releaseDate', label: 'Release Date', example: 'JAN 15' },
   ],
   'Plex Data': [
     { field: 'resolution', label: 'Resolution', example: '4K' },
@@ -374,6 +406,26 @@ export const CONDITION_FIELD_CATEGORIES = {
       field: 'daysAgo',
       label: 'Days Since Release (incl. release day)',
       example: '3',
+    },
+    {
+      field: 'nextEpisodeAirDate',
+      label: 'Next Episode Air Date (TV)',
+      example: 'JAN 22',
+    },
+    {
+      field: 'daysUntilNextEpisode',
+      label: 'Days Until Next Episode (TV)',
+      example: '7',
+    },
+    {
+      field: 'nextSeasonAirDate',
+      label: 'Next Season Premiere Date (TV)',
+      example: 'FEB 05',
+    },
+    {
+      field: 'daysUntilNextSeason',
+      label: 'Days Until Next Season (TV)',
+      example: '45',
     },
     { field: 'seasonNumber', label: 'Season Number', example: '5' },
     { field: 'episodeNumber', label: 'Episode Number', example: '16' },
@@ -458,6 +510,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitrate: 15000,
     fileSize: 4500000000,
     viewCount: 5,
+    releaseDate: '2025-02-15', // Primary release date (digital)
     daysUntilRelease: 14,
     runtime: 136,
     isMonitored: true,
@@ -497,6 +550,11 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitrate: 8000,
     fileSize: 3000000000,
     viewCount: 12,
+    releaseDate: '2008-01-20', // Series premiere (NOT next episode)
+    nextEpisodeAirDate: '2025-01-22', // Next episode (any episode, including mid-season)
+    daysUntilNextEpisode: 7, // Days until next episode
+    nextSeasonAirDate: '2025-02-05', // Next SEASON premiere (episode 1 only)
+    daysUntilNextSeason: 45, // Days until next season
     daysAgo: 0,
     isMonitored: true,
     inSonarr: true,

@@ -612,7 +612,7 @@ class Settings {
           schedule: '0 0 6 * * *',
         },
         'overlay-application': {
-          schedule: '0 0 0 * * *', // Every 24 hours at midnight
+          schedule: '0 0 3 * * *', // Every 24 hours at 3am
         },
       },
       globalExclusions: {

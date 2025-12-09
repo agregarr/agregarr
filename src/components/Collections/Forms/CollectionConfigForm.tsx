@@ -2554,7 +2554,7 @@ const CollectionFormConfigForm = ({
                                             htmlFor="placeholderReleasedDays"
                                             className="block text-sm font-medium text-gray-300"
                                           >
-                                            Post-Release Window
+                                            Orphaned Item Window
                                           </label>
                                           <Field
                                             type="number"
@@ -2566,8 +2566,10 @@ const CollectionFormConfigForm = ({
                                             className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
                                           />
                                           <p className="mt-1 text-xs text-gray-400">
-                                            Days to keep released items with
-                                            overlay before cleanup
+                                            Days to keep placeholders after they
+                                            fall off the source list (from
+                                            release date if released, otherwise
+                                            from creation date)
                                           </p>
                                         </div>
                                       </div>

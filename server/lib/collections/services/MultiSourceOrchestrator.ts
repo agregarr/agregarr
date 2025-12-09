@@ -3,7 +3,6 @@ import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionU
 import type {
   CollectionItem,
   CollectionSyncOptions,
-  ComingSoonSourceData,
   MissingItem,
   PlexCollection,
 } from '@server/lib/collections/core/types';
@@ -368,6 +367,72 @@ export class MultiSourceOrchestrator {
         }
       );
 
+      // Clean up placeholders for multi-source collection
+      // This handles: released items (real content arrived), orphaned items (no longer in any source), stale items (7+ days old)
+      if (config.createPlaceholdersForMissing) {
+        try {
+          // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
+          const allSourceTmdbIds = new Set<number>();
+
+          // Add tmdbIds from items that exist in Plex
+          for (const item of combinedItems) {
+            if (item.tmdbId !== undefined) {
+              allSourceTmdbIds.add(item.tmdbId);
+            }
+          }
+
+          // Add tmdbIds from missing items across all sources
+          for (const missingGroup of missingItemGroups) {
+            for (const missingItem of missingGroup) {
+              allSourceTmdbIds.add(missingItem.tmdbId);
+            }
+          }
+
+          logger.info(
+            `Running placeholder cleanup for multi-source collection: ${collectionNameForSync}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              sourceTmdbIdCount: allSourceTmdbIds.size,
+            }
+          );
+
+          // Import cleanup function
+          const { cleanupPlaceholdersForConfig } = await import(
+            '@server/lib/collections/services/PlaceholderService'
+          );
+
+          // Run cleanup with parent config and combined source IDs
+          await cleanupPlaceholdersForConfig(
+            configForSync as unknown as CollectionConfig,
+            plexClient,
+            libraryCache,
+            allSourceTmdbIds
+          );
+
+          logger.debug(
+            'Placeholder cleanup completed for multi-source collection',
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+            }
+          );
+        } catch (cleanupError) {
+          logger.error(
+            `Failed to cleanup placeholders for multi-source collection: ${collectionNameForSync}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              error:
+                cleanupError instanceof Error
+                  ? cleanupError.message
+                  : String(cleanupError),
+            }
+          );
+          // Don't throw - cleanup failure shouldn't break collection sync
+        }
+      }
+
       // Create/update collection directly in Plex
       const result = await this.createOrUpdatePlexCollection(
         finalItems,
@@ -568,57 +633,9 @@ export class MultiSourceOrchestrator {
         }
       }
 
-      // Special handling for Coming Soon: add released items to collection
-      // This handles items with real files within the configured post-release window
-      // (includes returning TV shows, recently released movies, etc.)
-      // Note: Overlays are applied by the overlay sync job
-      if (source.type === 'comingsoon') {
-        try {
-          const comingSoonSync = syncService as ComingSoonCollectionSync;
-
-          // Access private method using bracket notation
-          const getReleasedItemsWithinWindow =
-            comingSoonSync['getReleasedItemsWithinWindow'].bind(comingSoonSync);
-
-          // Get released items within the configured window (uses database + library cache)
-          const releasedItems = await getReleasedItemsWithinWindow(
-            tempConfig,
-            sourceData as ComingSoonSourceData[],
-            libraryCache
-          );
-
-          if (releasedItems.length > 0) {
-            logger.info(
-              `Adding ${releasedItems.length} released Coming Soon items to collection`,
-              {
-                label: 'Multi-Source Orchestrator',
-                sourceId: source.id,
-                releasedCount: releasedItems.length,
-                releasedWindowDays: tempConfig.comingSoonReleasedDays || 7,
-              }
-            );
-
-            // Add released items to the collection (overlays applied by overlay sync)
-            items.push(...releasedItems);
-
-            logger.info('Added released Coming Soon items to collection', {
-              label: 'Multi-Source Orchestrator',
-              sourceId: source.id,
-              addedCount: releasedItems.length,
-              totalItemsNow: items.length,
-            });
-          }
-        } catch (error) {
-          logger.error(
-            'Failed to process released Coming Soon items in multi-source',
-            {
-              label: 'Multi-Source Orchestrator',
-              sourceId: source.id,
-              error: error instanceof Error ? error.message : String(error),
-            }
-          );
-        }
-      }
+      // Note: We no longer add "released" items for Coming Soon
+      // When real content is detected, placeholder is deleted immediately
+      // Real items appear naturally if still in the source list
 
       logger.debug(
         `Successfully fetched ${items.length} items from ${source.type}`,
@@ -1684,6 +1701,54 @@ export class MultiSourceOrchestrator {
       collectionRatingKey,
       options.libraryKey
     );
+
+    // Apply overlays if enabled for this collection
+    if (options.config.applyOverlaysDuringSync && collectionRatingKey) {
+      try {
+        logger.info(
+          'Applying overlays to multi-source collection items after sync',
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionName,
+            configId: options.config.id,
+            collectionRatingKey,
+          }
+        );
+
+        const { overlayLibraryService } = await import(
+          '@server/lib/overlays/OverlayLibraryService'
+        );
+
+        // Get item rating keys from this specific collection
+        const itemRatingKeys = await plexClient.getCollectionItems(
+          collectionRatingKey
+        );
+
+        if (itemRatingKeys && itemRatingKeys.length > 0) {
+          logger.info('Applying overlays to collection items', {
+            label: 'Multi-Source Orchestrator',
+            collectionName,
+            itemCount: itemRatingKeys.length,
+          });
+
+          // Apply overlays only to collection items
+          await overlayLibraryService.applyOverlaysToCollectionItems(
+            itemRatingKeys,
+            options.libraryKey
+          );
+        }
+      } catch (overlayError) {
+        logger.error('Failed to apply overlays after multi-source sync', {
+          label: 'Multi-Source Orchestrator',
+          collectionName,
+          error:
+            overlayError instanceof Error
+              ? overlayError.message
+              : String(overlayError),
+        });
+        // Don't fail the sync if overlay application fails
+      }
+    }
 
     return { created, updated };
   }

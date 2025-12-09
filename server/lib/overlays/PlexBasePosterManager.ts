@@ -105,13 +105,24 @@ class PlexBasePosterManager {
       );
     }
 
-    const settings = getSettings();
-    const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
-      settings.plex.ip
-    }:${settings.plex.port}`;
+    let fullUrl: string;
 
-    // Build full URL with token
-    const fullUrl = `${baseUrl}${downloadPath}?X-Plex-Token=${plexApi['plexToken']}`;
+    // If thumbUrl is already a full URL (starts with http:// or https://), use it directly
+    if (
+      downloadPath.startsWith('http://') ||
+      downloadPath.startsWith('https://')
+    ) {
+      fullUrl = downloadPath;
+    } else {
+      // Otherwise, build full URL from relative path
+      const settings = getSettings();
+      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+        settings.plex.ip
+      }:${settings.plex.port}`;
+
+      // Build full URL with token
+      fullUrl = `${baseUrl}${downloadPath}?X-Plex-Token=${plexApi['plexToken']}`;
+    }
 
     const response = await axios.get(fullUrl, {
       responseType: 'arraybuffer',
@@ -174,6 +185,124 @@ class PlexBasePosterManager {
         ratingKey,
       });
       return null;
+    }
+  }
+
+  /**
+   * Check if base poster has changed WITHOUT downloading it
+   * Returns true if poster needs to be re-downloaded (URL changed or source switched)
+   * Much faster than full download - only makes lightweight API calls
+   */
+  async hasBasePosterChanged(
+    plexApi: PlexAPI,
+    item: PlexLibraryItem,
+    posterSource: 'tmdb' | 'plex',
+    metadata: {
+      basePosterSource?: 'tmdb' | 'plex';
+      originalPlexPosterUrl?: string;
+    }
+  ): Promise<boolean> {
+    // Check if source switched (TMDB ↔ Plex)
+    if (
+      metadata.basePosterSource &&
+      metadata.basePosterSource !== posterSource
+    ) {
+      return true; // Source changed - need new poster
+    }
+
+    // First time - no metadata
+    if (!metadata.basePosterSource) {
+      return true;
+    }
+
+    if (posterSource === 'plex') {
+      // ===== PLEX SOURCE =====
+      const currentPlexPosterUrl = await plexApi.getCurrentPosterUrl(
+        item.ratingKey
+      );
+
+      if (!currentPlexPosterUrl) {
+        throw new Error('Item has no poster in Plex');
+      }
+
+      // Check if current URL is different from what we stored
+      const urlChanged =
+        currentPlexPosterUrl !== metadata.originalPlexPosterUrl;
+      return urlChanged;
+    } else {
+      // ===== TMDB SOURCE =====
+      const TheMovieDb = (await import('@server/api/themoviedb')).default;
+      const { getTmdbLanguage } = await import('@server/lib/settings');
+
+      // Extract TMDB ID
+      let tmdbId: number | undefined;
+      if (item.Guid) {
+        const tmdbGuid = item.Guid.find((g) => g.id?.includes('tmdb://'));
+        if (tmdbGuid) {
+          const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+          if (match) {
+            tmdbId = parseInt(match[1]);
+          }
+        }
+      }
+
+      if (!tmdbId) {
+        throw new Error('No TMDB ID found for item');
+      }
+
+      // Determine media type from item.type
+      const mediaType: 'movie' | 'show' =
+        item.type === 'movie' ? 'movie' : 'show';
+
+      // Get TMDB poster URL (lightweight - no download)
+      const language = getTmdbLanguage();
+      const tmdbClient = new TheMovieDb();
+
+      let posterUrl: string | undefined;
+
+      if (mediaType === 'movie') {
+        const images = await tmdbClient.getMovieImages({
+          movieId: tmdbId,
+          language,
+        });
+
+        const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+        if (poster) {
+          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+        } else {
+          // Fallback to main poster from movie details
+          const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+          posterUrl = movie.poster_path
+            ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
+            : undefined;
+        }
+      } else {
+        const images = await tmdbClient.getTvShowImages({
+          tvId: tmdbId,
+          language,
+        });
+
+        const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+        if (poster) {
+          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+        } else {
+          // Fallback to main poster from TV show details
+          const tvShow = await tmdbClient.getTvShow({ tvId: tmdbId });
+          posterUrl = tvShow.poster_path
+            ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
+            : undefined;
+        }
+      }
+
+      if (!posterUrl) {
+        throw new Error('No TMDB poster available');
+      }
+
+      // Check if TMDB URL changed
+      const tmdbUrlChanged = metadata.originalPlexPosterUrl !== posterUrl;
+      return tmdbUrlChanged;
     }
   }
 
@@ -263,8 +392,12 @@ class PlexBasePosterManager {
         // No cache - fall through to download
       }
 
-      // Check if poster changed using URL comparison
-      if (currentPlexPosterUrl === metadata.ourOverlayPosterUrl) {
+      // Check if poster changed using normalized URL comparison
+      const { posterUrlsMatch } = await import(
+        '@server/utils/posterUrlHelpers'
+      );
+
+      if (posterUrlsMatch(currentPlexPosterUrl, metadata.ourOverlayPosterUrl)) {
         // Plex still has our overlaid poster - use cached base
         const cachedPoster = await this.getStoredBasePoster(
           libraryId,
@@ -284,7 +417,9 @@ class PlexBasePosterManager {
         );
       }
 
-      if (currentPlexPosterUrl === metadata.originalPlexPosterUrl) {
+      if (
+        posterUrlsMatch(currentPlexPosterUrl, metadata.originalPlexPosterUrl)
+      ) {
         // Plex reverted to original - use cached base
         const cachedPoster = await this.getStoredBasePoster(
           libraryId,
@@ -294,7 +429,7 @@ class PlexBasePosterManager {
           return {
             posterBuffer: cachedPoster,
             basePosterChanged: false,
-            sourceUrl: metadata.originalPlexPosterUrl,
+            sourceUrl: metadata.originalPlexPosterUrl || currentPlexPosterUrl,
             filename: metadata.basePosterFilename || '',
           };
         }

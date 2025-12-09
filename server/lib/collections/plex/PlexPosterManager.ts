@@ -216,14 +216,18 @@ class PlexPosterManager {
         return null;
       }
 
-      // Return upload:// format for consistency with metadata tracking
-      if (item.thumb.startsWith('upload://')) {
-        return item.thumb;
-      }
+      // Convert relative thumb path to full URL
+      const settings = getSettings();
+      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
+        settings.plex.ip
+      }:${settings.plex.port}`;
 
-      // Extract upload key from path like "/library/metadata/12345/thumb/67890"
-      const match = item.thumb.match(/\/thumb\/(\d+)/);
-      return match ? `upload://posters/${match[1]}` : item.thumb;
+      // Handle both relative paths and full URLs
+      if (item.thumb.startsWith('http')) {
+        return item.thumb;
+      } else {
+        return `${baseUrl}${item.thumb}?X-Plex-Token=${this.plexApi['plexToken']}`;
+      }
     } catch (error) {
       logger.error(`Error getting current poster for ${ratingKey}`, {
         label: 'Plex API',

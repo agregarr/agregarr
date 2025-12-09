@@ -109,6 +109,27 @@ export class AnilistCollectionSync extends BaseCollectionSync {
         config
       );
 
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
+      }
+
       // Handle auto-requests for missing items using the unified download service
       if (missingItems && missingItems.length > 0) {
         try {

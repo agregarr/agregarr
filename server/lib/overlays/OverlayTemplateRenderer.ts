@@ -232,16 +232,30 @@ export interface OverlayRenderContext {
   dateAdded?: Date; // Date added to Plex
 
   // Status fields (for Coming Soon / New Release)
-  releaseDate?: string; // ISO date string
-  daysUntilRelease?: number;
-  daysAgo?: number; // Days since release
+  // PRIMARY RELEASE DATE - Smart calculated field
+  // MOVIES: Digital > Physical > Theatrical (+90 days estimate)
+  // TV SHOWS: Series premiere date (NOT next episode!)
+  releaseDate?: string;
+  daysUntilRelease?: number; // Days until releaseDate
+  daysAgo?: number; // Days since releaseDate
+
+  // TV SHOWS - Episode/Season countdowns (separate from releaseDate)
+  nextEpisodeAirDate?: string; // Raw date for ANY next episode (including mid-season)
+  daysUntilNextEpisode?: number; // Calculated days until ANY next episode
+  nextSeasonAirDate?: string; // Raw date for SEASON PREMIERES only (episode 1)
+  daysUntilNextSeason?: number; // Calculated days until next SEASON PREMIERE only
+
+  // Episode information
   seasonNumber?: number;
   episodeNumber?: number;
   episodeLabel?: string; // "SERIES FINALE", "SEASON FINALE", or "EPISODE X"
+
+  // Monitoring status
   isMonitored?: boolean;
   inRadarr?: boolean;
   inSonarr?: boolean;
-  downloaded?: boolean;
+  hasFile?: boolean; // Whether *arr reports item has files
+  downloaded?: boolean; // Derived from hasFile for monitored items, or !isPlaceholder for others
   isTrending?: boolean;
   isWatched?: boolean;
 
@@ -658,9 +672,12 @@ class OverlayTemplateRendererService {
         let formattedValue = '';
 
         // Check if this is a date field with custom format
-        const isDateField = ['releaseDate', 'lastPlayed', 'dateAdded'].includes(
-          segment.field
-        );
+        const isDateField = [
+          'releaseDate',
+          'nextEpisodeAirDate',
+          'lastPlayed',
+          'dateAdded',
+        ].includes(segment.field);
 
         if (
           isDateField &&

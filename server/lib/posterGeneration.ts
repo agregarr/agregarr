@@ -1,4 +1,5 @@
 import TheMovieDb from '@server/api/themoviedb';
+import { getRepository } from '@server/datasource';
 import type {
   ContentGridProps,
   LayeredElement,
@@ -7,12 +8,14 @@ import type {
   SVGElementProps,
   TextElementProps,
 } from '@server/entity/PosterTemplate';
+import { PosterTemplate } from '@server/entity/PosterTemplate';
 import { getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { loadIconFile } from './iconManager';
 import { applyTemplate } from './posterTemplates';
 import { sourceColorsService } from './services/SourceColorsService';
 
@@ -34,12 +37,27 @@ interface CanvasModule {
 }
 
 let canvasModule: CanvasModule | null = null;
-try {
-  canvasModule = require('canvas');
-} catch (error) {
-  logger.debug(
-    'Canvas module not available, text measurement will use estimation fallback'
-  );
+let canvasInitialized = false;
+
+/**
+ * Initialize canvas module with proper Fontconfig setup
+ */
+async function initializeCanvas(): Promise<void> {
+  if (canvasInitialized) return;
+
+  try {
+    const canvas = await import('canvas');
+    // Initialize Fontconfig properly before any font operations
+    if (canvas && typeof canvas === 'object') {
+      canvasModule = canvas as unknown as CanvasModule;
+      canvasInitialized = true;
+    }
+  } catch (error) {
+    logger.debug(
+      'Canvas module not available, text measurement will use estimation fallback'
+    );
+    canvasInitialized = true; // Mark as attempted
+  }
 }
 
 // Cache for base64 converted images to avoid re-processing
@@ -546,6 +564,9 @@ function getTextWidth(
     }
   }
 
+  // Initialize canvas module if needed
+  initializeCanvas();
+
   // Check if canvas module is available
   if (canvasModule && canvasModule.createCanvas) {
     try {
@@ -600,6 +621,9 @@ function getFontMetrics(
   fontFamily = 'Arial',
   fontWeight = 'normal'
 ): { ascent: number; descent: number; height: number } {
+  // Initialize canvas module if needed
+  initializeCanvas();
+
   // Check if canvas module is available
   if (canvasModule && canvasModule.createCanvas) {
     try {
@@ -1152,8 +1176,6 @@ async function embedRasterIconInSVG(
   }
 ): Promise<string | null> {
   try {
-    const { loadIconFile } = await import('./iconManager');
-
     const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
     if (!urlMatch) {
       logger.warn(`Icon path does not match expected format: ${iconPath}`);
@@ -1240,8 +1262,6 @@ async function embedSVGIconInSVG(
   }
 ): Promise<string | null> {
   try {
-    const { loadIconFile } = await import('./iconManager');
-
     const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
     if (!urlMatch) {
       logger.warn(`SVG icon path does not match expected format: ${iconPath}`);
@@ -1758,10 +1778,6 @@ export async function generatePosterBuffer(
         config.autoPosterTemplate === undefined ||
         config.autoPosterTemplate === null
       ) {
-        const { getRepository } = await import('@server/datasource');
-        const { PosterTemplate } = await import(
-          '@server/entity/PosterTemplate'
-        );
         const templateRepository = getRepository(PosterTemplate);
 
         const defaultTemplate = await templateRepository.findOne({

@@ -555,6 +555,27 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         mappedResult,
         config
       );
+
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
+      }
       logger.debug('Source data mapped to items', {
         label: 'Letterboxd Collections Debug',
         configName: config.name,

@@ -1,6 +1,5 @@
 import type PlexAPI from '@server/api/plexapi';
-import { getRepository } from '@server/datasource';
-import { ComingSoonItem } from '@server/entity/ComingSoonItem';
+import type { ComingSoonItem } from '@server/entity/ComingSoonItem';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
   findPlexItemsByTmdbIds,
@@ -18,11 +17,11 @@ import type {
   SyncResult,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { cleanupPlaceholdersForConfig } from '@server/lib/collections/services/PlaceholderService';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import fs from 'fs/promises';
-import { cleanupReleasedPlaceholders } from './comingsoon/comingSoonCleanup';
 import {
   enrichWithTMDBReleaseDates,
   fetchMonitoredMovies,
@@ -128,14 +127,6 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         });
       }
 
-      // Clean up placeholders (released items, orphaned items, stale items)
-      await cleanupReleasedPlaceholders(
-        config,
-        plexClient,
-        libraryCache,
-        sourceData
-      );
-
       if (sourceData.length === 0) {
         logger.warn('No upcoming content found', {
           label: 'Coming Soon Collections',
@@ -158,6 +149,15 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       const { items, missingItems, mappingStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
+      // Clean up placeholders (released items, orphaned items, stale items)
+      const sourceTmdbIds = new Set(sourceData.map((item) => item.tmdbId));
+      await cleanupPlaceholdersForConfig(
+        config,
+        plexClient,
+        libraryCache,
+        sourceTmdbIds
+      );
+
       // Handle placeholder creation for missing items using unified flow
       // This respects the createPlaceholdersForMissing checkbox (which should be force-enabled for Coming Soon)
       if (missingItems && missingItems.length > 0) {
@@ -171,28 +171,9 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
         items.push(...newlyCreatedItems);
       }
 
-      // Add released items to collection (overlays will be applied by overlay sync)
-      const releasedItems = await this.getReleasedItemsWithinWindow(
-        config,
-        sourceData,
-        libraryCache
-      );
-      if (releasedItems.length > 0) {
-        logger.info(
-          'Adding released items to collection (overlays handled by overlay sync)',
-          {
-            label: 'Coming Soon Collections',
-            count: releasedItems.length,
-            releasedWindowDays:
-              config.placeholderReleasedDays ||
-              config.comingSoonReleasedDays ||
-              7,
-          }
-        );
-
-        // Add released items to the collection
-        items.push(...releasedItems);
-      }
+      // Note: We don't show "released" items anymore
+      // When real content is detected, placeholder is deleted immediately
+      // So there's no need to fetch or add released items
 
       // Sort items by release date (closest first)
       const sortedItems = await this.sortByReleaseDate(items, sourceData);
@@ -651,6 +632,9 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
           ratingKey: itemData.ratingKey,
         });
 
+        // Note: Orphaned placeholder recovery is handled by PlaceholderService
+        // No need for duplicate logic here
+
         // Ensure placeholder has the correct label for Recently Added filtering
         // This fixes placeholders that may have been created without the label
         if (sourceItem.mediaType === 'movie') {
@@ -825,134 +809,6 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
       });
       return false;
     }
-  }
-
-  /**
-   * Get released items that are within the configured post-release window (default: 7 days)
-   * These are items that now have real files in Plex
-   */
-  private async getReleasedItemsWithinWindow(
-    config: CollectionConfig,
-    sourceData: ComingSoonSourceData[],
-    libraryCache: LibraryItemsCache | undefined
-  ): Promise<CollectionItem[]> {
-    const { calculateDaysSince } = await import('@server/utils/dateHelpers');
-    const releasedItems: CollectionItem[] = [];
-
-    // Get released items from database
-    let repository;
-    let dbReleasedItems: ComingSoonItem[];
-    try {
-      repository = getRepository(ComingSoonItem);
-      dbReleasedItems = await repository.find({
-        where: { configId: config.id },
-      });
-    } catch {
-      // If table doesn't exist yet, return empty
-      return [];
-    }
-
-    // Filter for items that are released and within configured window from RELEASE DATE
-    const releasedWindowDays =
-      config.placeholderReleasedDays || config.comingSoonReleasedDays || 7;
-    const itemsWithinWindow = dbReleasedItems.filter((item) => {
-      // Must have been marked as released (real file detected)
-      if (!item.releasedAt) return false;
-      // Must have release date to calculate window
-      if (!item.releaseDate) return false;
-      // Check if release date is within configured window
-      const daysSinceReleaseDate = calculateDaysSince(item.releaseDate);
-      return (
-        daysSinceReleaseDate >= 0 && daysSinceReleaseDate <= releasedWindowDays
-      );
-    });
-
-    if (itemsWithinWindow.length === 0) {
-      return [];
-    }
-
-    logger.info(
-      `Found released items within ${releasedWindowDays}-day window`,
-      {
-        label: 'Coming Soon Collections',
-        count: itemsWithinWindow.length,
-        releasedWindowDays,
-      }
-    );
-
-    // Find these items in Plex library cache
-    for (const dbItem of itemsWithinWindow) {
-      try {
-        let ratingKey: string | undefined;
-
-        if (libraryCache) {
-          // Search library cache for the real item
-          const allLibraries = Object.values(libraryCache);
-          for (const library of allLibraries) {
-            const plexItem = library.find((item) => {
-              const tmdbGuid = item.Guid?.find((guid) =>
-                guid.id.startsWith('tmdb://')
-              );
-              const tmdbMatch = tmdbGuid?.id.match(/tmdb:\/\/(\d+)/);
-              const itemTmdbId = tmdbMatch ? parseInt(tmdbMatch[1], 10) : null;
-
-              if (dbItem.mediaType === 'movie') {
-                return itemTmdbId === dbItem.tmdbId;
-              }
-
-              // For TV shows, also check TVDB
-              const tvdbGuid = item.Guid?.find((guid) =>
-                guid.id.startsWith('tvdb://')
-              );
-              const tvdbMatch = tvdbGuid?.id.match(/tvdb:\/\/(\d+)/);
-              const itemTvdbId = tvdbMatch ? parseInt(tvdbMatch[1], 10) : null;
-
-              return (
-                itemTmdbId === dbItem.tmdbId ||
-                (dbItem.tvdbId && itemTvdbId === dbItem.tvdbId)
-              );
-            });
-
-            if (plexItem) {
-              ratingKey = plexItem.ratingKey;
-              break;
-            }
-          }
-        } else if (dbItem.plexRatingKey) {
-          // Use stored rating key
-          ratingKey = dbItem.plexRatingKey;
-        }
-
-        if (ratingKey) {
-          releasedItems.push({
-            ratingKey,
-            title: dbItem.title,
-            type: dbItem.mediaType,
-            tmdbId: dbItem.tmdbId,
-            releasedAt: dbItem.releasedAt,
-          } as CollectionItem & { releasedAt: Date });
-
-          logger.debug('Added released item to collection', {
-            label: 'Coming Soon Collections',
-            title: dbItem.title,
-            tmdbId: dbItem.tmdbId,
-            ratingKey,
-            daysSinceReleaseDate: dbItem.releaseDate
-              ? calculateDaysSince(dbItem.releaseDate)
-              : 0,
-            releaseDate: dbItem.releaseDate,
-          });
-        }
-      } catch (error) {
-        logger.warn('Failed to find released item in Plex', {
-          label: 'Coming Soon Collections',
-          title: dbItem.title,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return releasedItems;
   }
 
   /**

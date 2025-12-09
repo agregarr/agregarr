@@ -156,10 +156,15 @@ const RuleItem: React.FC<RuleItemProps> = ({
       <select
         value={field}
         onChange={(e) => {
+          const newField = e.target.value;
+          const isNewFieldBoolean = BOOLEAN_FIELDS.includes(newField);
+
+          // Reset to appropriate defaults when changing field
           onChange({
             ...rule,
-            field: e.target.value,
-            value: '',
+            field: newField,
+            operator: isNewFieldBoolean ? 'eq' : rule.operator,
+            value: isNewFieldBoolean ? true : '',
           });
         }}
         className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
@@ -206,13 +211,21 @@ const RuleItem: React.FC<RuleItemProps> = ({
             </option>
           </>
         )}
-        <option value="in">{intl.formatMessage(messages.opIn)}</option>
-        <option value="contains">
-          {intl.formatMessage(messages.opContains)}
-        </option>
-        <option value="regex">{intl.formatMessage(messages.opRegex)}</option>
-        <option value="begins">{intl.formatMessage(messages.opBegins)}</option>
-        <option value="ends">{intl.formatMessage(messages.opEnds)}</option>
+        {!isBoolean && (
+          <>
+            <option value="in">{intl.formatMessage(messages.opIn)}</option>
+            <option value="contains">
+              {intl.formatMessage(messages.opContains)}
+            </option>
+            <option value="regex">
+              {intl.formatMessage(messages.opRegex)}
+            </option>
+            <option value="begins">
+              {intl.formatMessage(messages.opBegins)}
+            </option>
+            <option value="ends">{intl.formatMessage(messages.opEnds)}</option>
+          </>
+        )}
       </select>
 
       {/* Value Input */}

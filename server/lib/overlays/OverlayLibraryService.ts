@@ -478,11 +478,13 @@ class OverlayLibraryService {
         });
       }
 
-      // Get poster source preference (global setting)
-      const settings = getSettings();
-      const posterSource = settings.overlays?.defaultPosterSource || 'tmdb';
+      // Get metadata tracking for this item
+      const metadataService = (
+        await import('@server/lib/metadata/MetadataTrackingService')
+      ).default;
+      const metadata = await metadataService.getItemMetadata(item.ratingKey);
 
-      // Extract TMDB ID (still needed for TMDB source and release date info)
+      // Extract TMDB ID from item GUIDs
       let tmdbId: number | undefined;
       if (item.Guid && Array.isArray(item.Guid)) {
         const tmdbGuid = item.Guid.find((g) => g.id?.includes('tmdb://'));
@@ -494,11 +496,276 @@ class OverlayLibraryService {
         }
       }
 
-      // Get metadata tracking for this item
-      const metadataService = (
-        await import('@server/lib/metadata/MetadataTrackingService')
-      ).default;
-      const metadata = await metadataService.getItemMetadata(item.ratingKey);
+      // Check if this is a placeholder (async version with API call for suspicious items)
+      const { placeholderContextService } = await import(
+        '@server/lib/collections/services/PlaceholderContextService'
+      );
+      const plexMetadata = item as {
+        type: string;
+        guid?: string;
+        editionTitle?: string;
+        Guid?: { id: string }[];
+        childCount?: number;
+        Children?: { Metadata?: unknown[] };
+        seasonCount?: number;
+        leafCount?: number;
+        ratingKey?: string;
+      };
+
+      logger.debug('Calling async placeholder detection', {
+        label: 'OverlayLibrary',
+        itemTitle: item.title,
+        ratingKey: item.ratingKey,
+        leafCount: plexMetadata.leafCount,
+        type: plexMetadata.type,
+      });
+
+      const isPlaceholder =
+        await placeholderContextService.isPlaceholderItemAsync(
+          plexMetadata,
+          plexApi['plexClient'] as {
+            query: (path: string) => Promise<{
+              MediaContainer?: { Directory?: unknown[]; Metadata?: unknown[] };
+            }>;
+          }
+        );
+
+      logger.debug('Async placeholder detection result', {
+        label: 'OverlayLibrary',
+        itemTitle: item.title,
+        ratingKey: item.ratingKey,
+        isPlaceholder,
+      });
+
+      // Build base context for dynamic fields
+      const baseContext = await this.buildRenderContext(
+        item,
+        actualMediaType,
+        isPlaceholder
+      );
+
+      // Fetch fresh release date information for ALL items with TMDB ID
+      let releaseDateContext: Partial<OverlayRenderContext> = {};
+      if (tmdbId) {
+        const releaseDateInfo = await this.fetchReleaseDateInfo(
+          tmdbId,
+          actualMediaType
+        );
+
+        if (releaseDateInfo) {
+          // Calculate days until release and days ago
+          const { calculateDaysSince } = await import(
+            '@server/utils/dateHelpers'
+          );
+          let daysUntilRelease: number | undefined;
+          let daysAgo: number | undefined;
+          let daysUntilNextEpisode: number | undefined;
+          let daysUntilNextSeason: number | undefined;
+
+          if (releaseDateInfo.releaseDate) {
+            const daysSince = calculateDaysSince(releaseDateInfo.releaseDate);
+            if (daysSince < 0) {
+              daysUntilRelease = -daysSince;
+            } else {
+              daysAgo = daysSince;
+            }
+          }
+
+          if (releaseDateInfo.nextEpisodeAirDate) {
+            const daysSince = calculateDaysSince(
+              releaseDateInfo.nextEpisodeAirDate
+            );
+            if (daysSince < 0) {
+              daysUntilNextEpisode = -daysSince;
+            }
+          }
+
+          if (releaseDateInfo.nextSeasonAirDate) {
+            const daysSince = calculateDaysSince(
+              releaseDateInfo.nextSeasonAirDate
+            );
+            if (daysSince < 0) {
+              daysUntilNextSeason = -daysSince;
+            }
+          }
+
+          releaseDateContext = {
+            releaseDate: releaseDateInfo.releaseDate,
+            daysUntilRelease,
+            daysAgo,
+            nextEpisodeAirDate: releaseDateInfo.nextEpisodeAirDate,
+            daysUntilNextEpisode,
+            nextSeasonAirDate: releaseDateInfo.nextSeasonAirDate,
+            daysUntilNextSeason,
+            seasonNumber: releaseDateInfo.seasonNumber,
+          };
+        }
+      }
+
+      // Check monitoring status for ALL items with TMDB ID
+      let monitoringContext: Partial<OverlayRenderContext> = {};
+      if (tmdbId) {
+        monitoringContext = await this.checkMonitoringStatus(
+          tmdbId,
+          actualMediaType
+        );
+      }
+
+      // Merge contexts: base → release dates → monitoring → explicit overrides
+      // Set isPlaceholder and downloaded at the end so they're always present
+
+      // CRITICAL: If *arr reports hasFile=true, the item CANNOT be a placeholder
+      // This overrides incorrect placeholder detection (e.g., corrupted metadata)
+      let actualIsPlaceholder = isPlaceholder;
+      if (monitoringContext.hasFile === true) {
+        actualIsPlaceholder = false; // *arr has files, so it's definitely not a placeholder
+      }
+
+      // For downloaded: placeholders are never downloaded, real items check *arr hasFile status
+      let downloaded: boolean;
+      if (actualIsPlaceholder) {
+        downloaded = false; // Placeholders are never downloaded
+      } else if (typeof monitoringContext.hasFile === 'boolean') {
+        downloaded = monitoringContext.hasFile; // Real monitored items use *arr hasFile status
+      } else {
+        downloaded = true; // Real items not in *arr are assumed downloaded (they exist in Plex)
+      }
+
+      const context: OverlayRenderContext = {
+        ...baseContext,
+        ...releaseDateContext,
+        ...monitoringContext,
+        ...contextOverrides,
+        isPlaceholder: actualIsPlaceholder,
+        downloaded,
+      };
+
+      // Filter templates by conditions to get only templates that will actually be applied
+      // CRITICAL: Hash must be based on MATCHING templates, not all enabled templates
+      // This ensures hash changes when different templates match due to context changes
+      const matchingTemplates = templates.filter((template) => {
+        const condition = template.getApplicationCondition();
+        return evaluateCondition(condition, context);
+      });
+
+      // Calculate overlay input hash for metadata tracking
+      // Extract which context fields are actually used by MATCHING templates
+      // CRITICAL: Hash uses matching template IDs + variable field values + condition field values
+      // Template IDs capture which templates match, field values capture all data affecting rendering
+      const { calculateOverlayInputHash, extractUsedContextFields } =
+        await import('@server/utils/metadataHashing');
+
+      const templateDataArray = matchingTemplates.map((t) =>
+        t.getTemplateData()
+      );
+      const applicationConditions = matchingTemplates.map((t) =>
+        t.getApplicationCondition()
+      );
+      const usedFields = extractUsedContextFields(
+        templateDataArray,
+        applicationConditions
+      );
+
+      const overlayInputHash = calculateOverlayInputHash({
+        templateIds: matchingTemplates.map((t) => t.id).sort(),
+        usedFields: usedFields,
+        context: context as Record<string, unknown>,
+      });
+
+      // Debug logging for hash comparison
+      logger.debug('Overlay hash comparison', {
+        label: 'OverlayLibrary',
+        itemTitle: item.title,
+        ratingKey: item.ratingKey,
+        oldHash: metadata?.lastOverlayInputHash,
+        newHash: overlayInputHash,
+        matchingTemplateIds: matchingTemplates.map((t) => t.id).sort(),
+        matchingTemplateNames: matchingTemplates.map((t) => t.name),
+        usedFields: Array.from(usedFields),
+        contextValues: {
+          downloaded: context.downloaded,
+          hasFile: context.hasFile,
+          isMonitored: context.isMonitored,
+          inSonarr: context.inSonarr,
+          daysAgo: context.daysAgo,
+          isPlaceholder: context.isPlaceholder,
+        },
+      });
+
+      // OPTIMIZATION: Check if overlay inputs changed BEFORE downloading poster
+      // This prevents expensive poster downloads when nothing has changed
+      try {
+        const currentPosterUrl = await plexApi.getCurrentPosterUrl(
+          item.ratingKey
+        );
+
+        const overlayInputsChanged =
+          metadata?.lastOverlayInputHash !== overlayInputHash;
+
+        // Check if Plex poster changed using normalized comparison
+        // This handles different URL formats (upload://, /library/metadata/, http://...)
+        const { posterUrlsMatch, extractThumbId } = await import(
+          '@server/utils/posterUrlHelpers'
+        );
+        const plexPosterMissing = !posterUrlsMatch(
+          metadata?.ourOverlayPosterUrl,
+          currentPosterUrl
+        );
+
+        // Debug logging for poster URL comparison
+        logger.debug('Poster URL comparison', {
+          label: 'OverlayLibrary',
+          itemTitle: item.title,
+          storedUrl: metadata?.ourOverlayPosterUrl,
+          currentUrl: currentPosterUrl,
+          storedThumbId: extractThumbId(metadata?.ourOverlayPosterUrl),
+          currentThumbId: extractThumbId(currentPosterUrl),
+          urlsMatch: !plexPosterMissing,
+          plexPosterMissing,
+        });
+
+        // Also check if base poster source changed (TMDB vs Plex)
+        const settings = getSettings();
+        const posterSource = settings.overlays?.defaultPosterSource || 'tmdb';
+        const basePosterSourceChanged =
+          metadata?.basePosterSource !== posterSource;
+
+        if (
+          !overlayInputsChanged &&
+          !plexPosterMissing &&
+          !basePosterSourceChanged
+        ) {
+          logger.debug('Nothing changed, skipping overlay application', {
+            label: 'OverlayLibrary',
+            itemTitle: item.title,
+            ratingKey: item.ratingKey,
+            overlayInputsChanged: false,
+            plexPosterMissing: false,
+            basePosterSourceChanged: false,
+          });
+          return; // Skip this item - no need to download poster
+        }
+
+        logger.info('Applying overlays - changes detected', {
+          label: 'OverlayLibrary',
+          itemTitle: item.title,
+          overlayInputsChanged,
+          plexPosterMissing,
+          basePosterSourceChanged,
+        });
+      } catch (metaError) {
+        logger.warn('Metadata check failed, proceeding with overlay', {
+          label: 'MetadataTracking',
+          error:
+            metaError instanceof Error ? metaError.message : String(metaError),
+        });
+        // Fall through to apply overlay
+      }
+
+      // ONLY download poster if we've determined changes exist
+      // Get poster source preference (global setting)
+      const settings = getSettings();
+      const posterSource = settings.overlays?.defaultPosterSource || 'tmdb';
 
       // Get base poster with change detection
       const { plexBasePosterManager } = await import(
@@ -538,183 +805,6 @@ class OverlayLibraryService {
 
       const posterBuffer = basePosterResult.posterBuffer;
 
-      // Check if this is a Coming Soon placeholder first
-      const comingSoonContext = await this.getComingSoonContext(item.ratingKey);
-      const isPlaceholder = comingSoonContext?.isPlaceholder ?? false;
-
-      logger.debug('Retrieved Coming Soon context', {
-        label: 'OverlayLibrary',
-        itemTitle: item.title,
-        ratingKey: item.ratingKey,
-        comingSoonContext,
-        isPlaceholder,
-      });
-
-      // Build context for dynamic fields (skip Plex media metadata for placeholders)
-      const baseContext = await this.buildRenderContext(
-        item,
-        actualMediaType,
-        isPlaceholder
-      );
-
-      // Fetch fresh release date information for recent items (year >= currentYear - 1)
-      // This applies to ALL items, not just placeholders
-      let freshReleaseDateContext: Partial<OverlayRenderContext> | undefined;
-      if (tmdbId && item.year) {
-        const releaseDateInfo = await this.fetchReleaseDateInfo(
-          tmdbId,
-          actualMediaType,
-          item.year
-        );
-
-        if (releaseDateInfo) {
-          // Calculate days until release and days ago
-          const { calculateDaysSince } = await import(
-            '@server/utils/dateHelpers'
-          );
-          let daysUntilRelease: number | undefined;
-          let daysAgo: number | undefined;
-
-          if (releaseDateInfo.releaseDate) {
-            const daysSince = calculateDaysSince(releaseDateInfo.releaseDate);
-            if (daysSince < 0) {
-              daysUntilRelease = -daysSince;
-            } else {
-              daysAgo = daysSince;
-            }
-          }
-
-          freshReleaseDateContext = {
-            releaseDate: releaseDateInfo.releaseDate,
-            daysUntilRelease,
-            daysAgo,
-            // Real items exist in Plex, so they're downloaded
-            // Placeholders will override this with downloaded: false from comingSoonContext
-            downloaded: !isPlaceholder,
-          };
-
-          logger.debug('Fetched fresh release date context', {
-            label: 'OverlayLibrary',
-            itemTitle: item.title,
-            tmdbId,
-            freshReleaseDateContext,
-          });
-
-          // Update placeholder database record if this is a placeholder
-          if (isPlaceholder && releaseDateInfo.releaseDate) {
-            try {
-              const { getRepository } = await import('@server/datasource');
-              const { ComingSoonItem } = await import(
-                '@server/entity/ComingSoonItem'
-              );
-              const repository = getRepository(ComingSoonItem);
-
-              await repository.update(
-                { plexRatingKey: item.ratingKey },
-                { releaseDate: releaseDateInfo.releaseDate }
-              );
-
-              logger.debug('Updated placeholder record with release date', {
-                label: 'OverlayLibrary',
-                itemTitle: item.title,
-                ratingKey: item.ratingKey,
-                releaseDate: releaseDateInfo.releaseDate,
-              });
-            } catch (error) {
-              logger.debug('Failed to update placeholder record', {
-                label: 'OverlayLibrary',
-                itemTitle: item.title,
-                ratingKey: item.ratingKey,
-                error: error instanceof Error ? error.message : String(error),
-              });
-            }
-          }
-        }
-      }
-
-      // Check monitoring status for real items (not placeholders)
-      // Sets inRadarr/inSonarr and isMonitored with clear semantic meaning
-      let monitoringContext: Partial<OverlayRenderContext> | undefined;
-      if (!isPlaceholder && tmdbId) {
-        monitoringContext = await this.checkRealItemMonitoringStatus(
-          tmdbId,
-          actualMediaType
-        );
-      }
-
-      // Merge contexts: base → coming soon → fresh release dates → monitoring → explicit overrides
-      // Fresh release dates override Coming Soon context (which may be stale)
-      // Monitoring status overrides Coming Soon monitoring (for real items)
-      const context: OverlayRenderContext = {
-        ...baseContext,
-        ...comingSoonContext,
-        ...freshReleaseDateContext,
-        ...monitoringContext,
-        ...contextOverrides,
-      };
-
-      // Real items in Plex are always downloaded, regardless of Coming Soon context
-      if (!isPlaceholder) {
-        context.downloaded = true;
-      }
-
-      // Calculate overlay input hash for metadata tracking
-      // Extract which context fields are actually used by these templates
-      const { calculateOverlayInputHash, extractUsedContextFields } =
-        await import('@server/utils/metadataHashing');
-
-      const templateDataArray = templates.map((t) => t.getTemplateData());
-      const usedFields = extractUsedContextFields(templateDataArray);
-
-      const overlayInputHash = calculateOverlayInputHash({
-        templateIds: templates.map((t) => t.id).sort(),
-        usedFields: usedFields,
-        context: context as Record<string, unknown>,
-      });
-
-      // Check if we need to reapply overlays (base poster changed, overlay inputs changed, or Plex URL changed)
-      try {
-        const currentPosterUrl = await plexApi.getCurrentPosterUrl(
-          item.ratingKey
-        );
-
-        const overlayInputsChanged =
-          metadata?.lastOverlayInputHash !== overlayInputHash;
-        const plexPosterMissing =
-          metadata?.ourOverlayPosterUrl !== currentPosterUrl;
-
-        if (
-          !basePosterResult.basePosterChanged &&
-          !overlayInputsChanged &&
-          !plexPosterMissing
-        ) {
-          logger.debug('Nothing changed, skipping overlay application', {
-            label: 'OverlayLibrary',
-            itemTitle: item.title,
-            ratingKey: item.ratingKey,
-            basePosterChanged: false,
-            overlayInputsChanged: false,
-            plexPosterMissing: false,
-          });
-          return; // Skip this item
-        }
-
-        logger.info('Applying overlays - changes detected', {
-          label: 'OverlayLibrary',
-          itemTitle: item.title,
-          basePosterChanged: basePosterResult.basePosterChanged,
-          overlayInputsChanged,
-          plexPosterMissing,
-        });
-      } catch (metaError) {
-        logger.warn('Metadata check failed, proceeding with overlay', {
-          label: 'MetadataTracking',
-          error:
-            metaError instanceof Error ? metaError.message : String(metaError),
-        });
-        // Fall through to apply overlay
-      }
-
       // Apply each template in order
       let currentBuffer = posterBuffer;
       let templatesApplied = 0;
@@ -723,39 +813,8 @@ class OverlayLibraryService {
         // Check if application condition is met
         const condition = template.getApplicationCondition();
         if (!evaluateCondition(condition, context)) {
-          logger.debug('Skipping template - condition not met', {
-            label: 'OverlayLibrary',
-            itemTitle: item.title,
-            templateName: template.name,
-            condition,
-            contextData: {
-              isMonitored: context.isMonitored,
-              downloaded: context.downloaded,
-              daysUntilRelease: context.daysUntilRelease,
-              daysAgo: context.daysAgo,
-              mediaType: context.mediaType,
-              seasonNumber: context.seasonNumber,
-              isPlaceholder: context.isPlaceholder,
-            },
-          });
           continue;
         }
-
-        logger.debug('Applying template - condition met', {
-          label: 'OverlayLibrary',
-          itemTitle: item.title,
-          templateName: template.name,
-          condition,
-          contextData: {
-            isMonitored: context.isMonitored,
-            downloaded: context.downloaded,
-            daysUntilRelease: context.daysUntilRelease,
-            daysAgo: context.daysAgo,
-            mediaType: context.mediaType,
-            seasonNumber: context.seasonNumber,
-            isPlaceholder: context.isPlaceholder,
-          },
-        });
 
         const templateData = template.getTemplateData();
         currentBuffer = await overlayTemplateRenderer.renderOverlay(
@@ -1142,7 +1201,6 @@ class OverlayLibraryService {
             context.bitDepth = parseInt(String(videoStream.bitDepth), 10);
           }
         }
-
         // Find audio stream (streamType 2) - prefer first one
         const audioStream = streams.find((s) => s.streamType === 2);
         if (audioStream) {
@@ -1183,98 +1241,98 @@ class OverlayLibraryService {
 
     // TV-specific
     if (mediaType === 'show') {
-      context.seasonNumber = item.parentIndex;
-      context.episodeNumber = item.index;
+      // For episode-level items, use parentIndex for season
+      // For show-level items (placeholders/shows), parentIndex is undefined
+      if (item.parentIndex !== undefined) {
+        context.seasonNumber = item.parentIndex;
+      }
+
+      if (item.index !== undefined) {
+        context.episodeNumber = item.index;
+      }
     }
 
     return context;
   }
 
   /**
-   * Fetch fresh release date information from TMDB
-   * For items with year >= currentYear - 1
+   * Fetch release date information from TMDB
+   * For movies: Gets digital/physical/theatrical release dates
+   * For TV: Gets next episode air date
    */
   private async fetchReleaseDateInfo(
     tmdbId: number,
-    mediaType: 'movie' | 'show',
-    itemYear?: number
+    mediaType: 'movie' | 'show'
   ): Promise<
     | {
         releaseDate?: string;
-        digitalRelease?: string;
-        physicalRelease?: string;
-        inCinemas?: string;
-        airDate?: string;
-        isEstimated?: boolean;
+        nextEpisodeAirDate?: string;
+        nextSeasonAirDate?: string;
+        seasonNumber?: number;
       }
     | undefined
   > {
-    const currentYear = new Date().getFullYear();
-
-    // Only fetch for recent items (last year and beyond)
-    if (!itemYear || itemYear < currentYear - 1) {
-      return undefined;
-    }
-
     try {
       const tmdbClient = new TheMovieDb();
 
       if (mediaType === 'movie') {
         const movieDetails = await tmdbClient.getMovie({ movieId: tmdbId });
 
-        // Extract release dates using shared helper
-        const { extractReleaseDates, determineReleaseDate } = await import(
-          '@server/utils/dateHelpers'
-        );
+        // For movies, use proper release date calculation (digital > physical > theatrical+90)
+        // This matches PlaceholderContextService implementation
+        if (movieDetails.release_dates?.results) {
+          const { extractReleaseDates, determineReleaseDate } = await import(
+            '@server/utils/dateHelpers'
+          );
+          const extracted = extractReleaseDates(
+            movieDetails.release_dates.results
+          );
 
-        const extracted = movieDetails.release_dates?.results
-          ? extractReleaseDates(movieDetails.release_dates.results)
-          : {};
+          const determined = determineReleaseDate(
+            extracted.digitalRelease,
+            extracted.physicalRelease,
+            extracted.inCinemas
+          );
 
-        // Fallback to generic release_date if no specific theatrical date
-        const inCinemas =
-          extracted.inCinemas || movieDetails.release_date || undefined;
+          if (determined) {
+            return {
+              releaseDate: determined.releaseDate,
+            };
+          }
+        }
 
-        // Use shared priority logic: Digital > Physical > Theatrical (+90 days)
-        const releaseDateResult = determineReleaseDate(
-          extracted.digitalRelease,
-          extracted.physicalRelease,
-          inCinemas
-        );
-
-        if (releaseDateResult) {
-          logger.debug('Fetched release dates from TMDB (movie)', {
-            label: 'OverlayLibrary',
-            tmdbId,
-            releaseDate: releaseDateResult.releaseDate,
-            digitalRelease: extracted.digitalRelease,
-            physicalRelease: extracted.physicalRelease,
-            inCinemas,
-            isEstimated: releaseDateResult.isEstimated,
-          });
-
+        // Fallback to simple release_date if release_dates not available
+        if (movieDetails.release_date) {
           return {
-            releaseDate: releaseDateResult.releaseDate,
-            digitalRelease: extracted.digitalRelease,
-            physicalRelease: extracted.physicalRelease,
-            inCinemas,
-            isEstimated: releaseDateResult.isEstimated,
+            releaseDate: movieDetails.release_date,
           };
         }
       } else {
+        // For TV shows
         const showDetails = await tmdbClient.getTvShow({ tvId: tmdbId });
 
-        if (showDetails.next_episode_to_air?.air_date) {
-          logger.debug('Fetched release dates from TMDB (TV)', {
-            label: 'OverlayLibrary',
-            tmdbId,
-            airDate: showDetails.next_episode_to_air.air_date,
-          });
+        // Get next episode info
+        const nextEpisode = showDetails.next_episode_to_air;
+        if (nextEpisode?.air_date) {
+          const seasonNumber = nextEpisode.season_number;
+          const episodeNumber = nextEpisode.episode_number;
+
+          // nextSeasonAirDate is ONLY for season premieres (episode 1)
+          const nextSeasonAirDate =
+            episodeNumber === 1 ? nextEpisode.air_date : undefined;
 
           return {
-            releaseDate: showDetails.next_episode_to_air.air_date,
-            airDate: showDetails.next_episode_to_air.air_date,
-            isEstimated: false,
+            releaseDate: showDetails.first_air_date || nextEpisode.air_date,
+            nextEpisodeAirDate: nextEpisode.air_date,
+            nextSeasonAirDate,
+            seasonNumber,
+          };
+        }
+
+        // No next episode, use first_air_date if available
+        if (showDetails.first_air_date) {
+          return {
+            releaseDate: showDetails.first_air_date,
           };
         }
       }
@@ -1292,283 +1350,144 @@ class OverlayLibraryService {
   }
 
   /**
-   * Get Coming Soon context data for placeholder items
-   * Returns undefined if item is not a Coming Soon placeholder
+   * Check monitoring status in Radarr/Sonarr
+   * Returns whether item exists in *arr and if it's monitored (series-level)
    */
-  private async getComingSoonContext(
-    ratingKey: string
-  ): Promise<Partial<OverlayRenderContext> | undefined> {
-    try {
-      const { getRepository } = await import('@server/datasource');
-      const { ComingSoonItem } = await import('@server/entity/ComingSoonItem');
-
-      const repository = getRepository(ComingSoonItem);
-      const comingSoonItem = await repository.findOne({
-        where: { plexRatingKey: ratingKey },
-      });
-
-      if (!comingSoonItem) {
-        return undefined;
-      }
-
-      // Calculate days until release and days ago
-      const { calculateDaysSince } = await import('@server/utils/dateHelpers');
-      let daysUntilRelease: number | undefined;
-      let daysAgo: number | undefined;
-
-      if (comingSoonItem.releaseDate) {
-        const daysSince = calculateDaysSince(comingSoonItem.releaseDate);
-        if (daysSince < 0) {
-          // Future date - negate to get days until
-          daysUntilRelease = -daysSince;
-        } else {
-          // Past date - this is days ago
-          daysAgo = daysSince;
-        }
-      }
-
-      // Check if item is actually monitored in Radarr/Sonarr
-      // Use semantic variables: inRadarr/inSonarr + isMonitored
-      let inRadarr = false;
-      let inSonarr = false;
-      let isMonitored = false;
-
-      try {
-        const settings = getSettings();
-
-        if (
-          comingSoonItem.mediaType === 'movie' &&
-          settings.radarr.length > 0
-        ) {
-          // Check Radarr for movies
-          // Try each configured Radarr instance
-          for (const radarrSettings of settings.radarr) {
-            // Skip if hostname is not configured
-            if (!radarrSettings.hostname) {
-              continue;
-            }
-
-            try {
-              // Get cached Radarr movies and find by TMDB ID
-              logger.debug('Checking Radarr for movie', {
-                label: 'OverlayLibrary',
-                tmdbId: comingSoonItem.tmdbId,
-                hostname: radarrSettings.hostname,
-              });
-
-              const movies = await this.getRadarrMovies(radarrSettings);
-
-              logger.debug('Retrieved Radarr movies from cache', {
-                label: 'OverlayLibrary',
-                movieCount: movies.length,
-                hostname: radarrSettings.hostname,
-              });
-
-              const movie = movies.find(
-                (m) => m.tmdbId === comingSoonItem.tmdbId
-              );
-
-              if (movie) {
-                logger.debug('Found movie in Radarr', {
-                  label: 'OverlayLibrary',
-                  tmdbId: comingSoonItem.tmdbId,
-                  monitored: movie.monitored,
-                });
-                inRadarr = true;
-                isMonitored = movie.monitored;
-                break;
-              } else {
-                logger.debug('Movie not found in Radarr movies', {
-                  label: 'OverlayLibrary',
-                  tmdbId: comingSoonItem.tmdbId,
-                  radarrMovieCount: movies.length,
-                });
-              }
-            } catch (err) {
-              // Failed to get movies from this Radarr instance, try next
-              logger.error('Error checking Radarr instance', {
-                label: 'OverlayLibrary',
-                hostname: radarrSettings.hostname,
-                error: err instanceof Error ? err.message : String(err),
-                stack: err instanceof Error ? err.stack : undefined,
-              });
-              continue;
-            }
-          }
-        } else if (
-          comingSoonItem.mediaType === 'tv' &&
-          settings.sonarr.length > 0
-        ) {
-          // Check Sonarr for TV shows
-          // Try each configured Sonarr instance
-          for (const sonarrSettings of settings.sonarr) {
-            // Skip if hostname is not configured
-            if (!sonarrSettings.hostname) {
-              continue;
-            }
-
-            try {
-              // Sonarr uses TVDB ID, not TMDB ID
-              if (comingSoonItem.tvdbId) {
-                // Get cached Sonarr series and find by TVDB ID
-                const allSeries = await this.getSonarrSeries(sonarrSettings);
-                const series = allSeries.find(
-                  (s) => s.tvdbId === comingSoonItem.tvdbId
-                );
-
-                if (series) {
-                  inSonarr = true;
-                  isMonitored = series.monitored;
-                  break;
-                }
-              }
-            } catch {
-              // Failed to get series from this Sonarr instance, try next
-              continue;
-            }
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to check monitored status in Radarr/Sonarr', {
-          label: 'OverlayLibrary',
-          mediaType: comingSoonItem.mediaType,
-          tmdbId: comingSoonItem.tmdbId,
-          tvdbId: comingSoonItem.tvdbId,
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        });
-        // If we can't check, default to false (not monitored, not in *arr)
-      }
-
-      // Build context with Coming Soon specific fields
-      return {
-        releaseDate: comingSoonItem.releaseDate,
-        daysUntilRelease,
-        daysAgo,
-        seasonNumber: comingSoonItem.seasonNumber,
-        inRadarr,
-        inSonarr,
-        isMonitored,
-        downloaded: !comingSoonItem.isPlaceholder, // Real items are downloaded
-        isPlaceholder: comingSoonItem.isPlaceholder,
-      };
-    } catch (error) {
-      // If ComingSoonItem table doesn't exist or query fails, just return undefined
-      logger.debug('Failed to fetch Coming Soon context', {
-        label: 'OverlayLibrary',
-        ratingKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return undefined;
-    }
-  }
-
-  /**
-   * Check monitoring status for real items (non-placeholders) in Radarr/Sonarr
-   * Returns semantic status with clear meaning:
-   * - inRadarr/inSonarr: Whether item exists in any *arr instance
-   * - isMonitored: Whether item is monitored (only set if found in *arr)
-   */
-  private async checkRealItemMonitoringStatus(
+  private async checkMonitoringStatus(
     tmdbId: number,
     mediaType: 'movie' | 'show'
   ): Promise<{
     inRadarr?: boolean;
     inSonarr?: boolean;
     isMonitored?: boolean;
+    hasFile?: boolean;
   }> {
     try {
       const settings = getSettings();
 
-      if (mediaType === 'movie' && settings.radarr.length > 0) {
+      if (
+        mediaType === 'movie' &&
+        settings.radarr &&
+        settings.radarr.length > 0
+      ) {
         // Check Radarr for movies
-        // Try each configured Radarr instance
         for (const radarrSettings of settings.radarr) {
           if (!radarrSettings.hostname) {
             continue;
           }
 
           try {
-            // Get cached Radarr movies and find by TMDB ID
             const movies = await this.getRadarrMovies(radarrSettings);
             const movie = movies.find((m) => m.tmdbId === tmdbId);
 
             if (movie) {
-              // Movie found in Radarr
               logger.debug('Found movie in Radarr', {
                 label: 'OverlayLibrary',
                 tmdbId,
                 monitored: movie.monitored,
+                hasFile: movie.hasFile,
               });
               return {
                 inRadarr: true,
                 isMonitored: movie.monitored,
+                hasFile: movie.hasFile,
               };
             }
-          } catch {
-            // Failed to get movies from this instance, try next
+          } catch (error) {
+            logger.debug('Failed to check Radarr instance', {
+              label: 'OverlayLibrary',
+              hostname: radarrSettings.hostname,
+              error: error instanceof Error ? error.message : String(error),
+            });
             continue;
           }
         }
 
-        // Not found in any Radarr instance
-        logger.debug('Movie not found in any Radarr instance', {
-          label: 'OverlayLibrary',
-          tmdbId,
-        });
-        return { inRadarr: false };
-      } else if (mediaType === 'show' && settings.sonarr.length > 0) {
-        // Check Sonarr for TV shows
-        // Get TVDB ID from TMDB (Sonarr uses TVDB)
+        return { inRadarr: false, isMonitored: false };
+      } else if (
+        mediaType === 'show' &&
+        settings.sonarr &&
+        settings.sonarr.length > 0
+      ) {
+        // Check Sonarr for TV shows - prefer TVDB ID, fallback to title match
         const tvdbId = await this.getTvdbIdFromTmdb(tmdbId);
 
+        // Get title from TMDB for fallback matching
+        let tmdbTitle: string | undefined;
         if (!tvdbId) {
-          logger.debug('Cannot check Sonarr - no TVDB ID available', {
-            label: 'OverlayLibrary',
-            tmdbId,
-          });
-          return {};
+          try {
+            const tmdbClient = new TheMovieDb();
+            const showDetails = await tmdbClient.getTvShow({ tvId: tmdbId });
+            tmdbTitle = showDetails.name || showDetails.original_name;
+          } catch {
+            // Ignore errors, just won't have title fallback
+          }
         }
 
-        // Try each configured Sonarr instance
         for (const sonarrSettings of settings.sonarr) {
           if (!sonarrSettings.hostname) {
             continue;
           }
 
           try {
-            // Get cached Sonarr series and find by TVDB ID
             const allSeries = await this.getSonarrSeries(sonarrSettings);
-            const series = allSeries.find((s) => s.tvdbId === tvdbId);
+            let series;
+
+            // Try TVDB ID first if available
+            if (tvdbId) {
+              series = allSeries.find((s) => s.tvdbId === tvdbId);
+            }
+
+            // Fallback to title match if no TVDB ID or not found
+            if (!series && tmdbTitle) {
+              const normalizedTmdbTitle = tmdbTitle.toLowerCase();
+              const normalizedTmdbTitleNoSpecial = normalizedTmdbTitle.replace(
+                /[^\w\s]/g,
+                ''
+              );
+              series = allSeries.find(
+                (s) =>
+                  s.title.toLowerCase() === normalizedTmdbTitle ||
+                  s.title.toLowerCase().replace(/[^\w\s]/g, '') ===
+                    normalizedTmdbTitleNoSpecial
+              );
+            }
 
             if (series) {
-              // Series found in Sonarr
+              const hasFile = (series.statistics?.episodeFileCount || 0) > 0;
+
               logger.debug('Found series in Sonarr', {
                 label: 'OverlayLibrary',
                 tmdbId,
                 tvdbId,
+                tmdbTitle,
+                sonarrTitle: series.title,
+                matchedBy:
+                  tvdbId && series.tvdbId === tvdbId ? 'tvdbId' : 'title',
                 monitored: series.monitored,
+                episodeFileCount: series.statistics?.episodeFileCount,
+                hasFile,
               });
+
               return {
                 inSonarr: true,
                 isMonitored: series.monitored,
+                hasFile,
               };
             }
-          } catch {
-            // Failed to get series from this instance, try next
+          } catch (error) {
+            logger.debug('Failed to check Sonarr instance', {
+              label: 'OverlayLibrary',
+              hostname: sonarrSettings.hostname,
+              error: error instanceof Error ? error.message : String(error),
+            });
             continue;
           }
         }
 
-        // Not found in any Sonarr instance
-        logger.debug('Series not found in any Sonarr instance', {
-          label: 'OverlayLibrary',
-          tmdbId,
-        });
-        return { inSonarr: false };
+        return { inSonarr: false, isMonitored: false };
       }
 
-      // No *arr instances configured
       return {};
     } catch (error) {
       logger.debug('Failed to check monitoring status', {

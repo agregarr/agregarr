@@ -22,9 +22,12 @@ import type { OverlayItemInput } from '@server/lib/overlays/OverlayLibraryServic
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import path from 'path';
 
-// Re-export cleanup functions (these are still in comingsoon folder)
-export { cleanupReleasedPlaceholders } from '@server/lib/collections/external/comingsoon/comingSoonCleanup';
+// Cleanup imports
+import RadarrAPI from '@server/api/servarr/radarr';
+import SonarrAPI from '@server/api/servarr/sonarr';
+import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 
 /**
  * Convert MissingItem array to PlaceholderSourceData array
@@ -710,6 +713,363 @@ async function createPlaceholders(
     skipped: missingItems.length - itemsWithPosters.length,
   });
 
+  // Step 0.5: Check for existing orphaned placeholders in Plex and adopt them
+  // This fixes placeholders that lost their database records
+  const { placeholderContextService } = await import(
+    '@server/lib/collections/services/PlaceholderContextService'
+  );
+
+  logger.info('Checking Plex for existing orphaned placeholders', {
+    label: 'PlaceholderService',
+    libraryId: config.libraryId,
+  });
+
+  // Get all items in the library
+  const libraryItems = await plexClient.getLibraryContents(config.libraryId);
+  const orphanedPlaceholders: {
+    sourceItem: ComingSoonSourceData;
+    plexItem: { ratingKey: string; title: string };
+    placeholderPath: string;
+  }[] = [];
+
+  // Get existing database records to check for orphans
+  const placeholderRepository = getRepository(ComingSoonItem);
+  const existingRecords = await placeholderRepository.find({
+    where: { configId: config.id },
+  });
+  const existingByTmdbId = new Map(existingRecords.map((r) => [r.tmdbId, r]));
+
+  // Check each library item to see if it's an orphaned placeholder
+  for (const item of libraryItems.items) {
+    // Check if this is a placeholder using PlaceholderContextService
+    const itemExtended = item as {
+      type: string;
+      guid?: string;
+      editionTitle?: string;
+      Guid?: { id: string }[];
+      childCount?: number;
+      Children?: { Metadata?: unknown[] };
+      seasonCount?: number;
+      leafCount?: number;
+    };
+
+    const isPlaceholder = placeholderContextService.isPlaceholderItem({
+      type: itemExtended.type,
+      guid: itemExtended.guid,
+      editionTitle: itemExtended.editionTitle,
+      Guid: itemExtended.Guid,
+      childCount: itemExtended.childCount,
+      Children: itemExtended.Children,
+      seasonCount: itemExtended.seasonCount,
+      leafCount: itemExtended.leafCount,
+    });
+
+    if (!isPlaceholder) {
+      continue;
+    }
+
+    // Extract TMDB ID from Plex item
+    let tmdbId: number | undefined;
+    if (item.Guid && Array.isArray(item.Guid)) {
+      const tmdbGuid = item.Guid.find((g: { id?: string }) =>
+        g.id?.includes('tmdb://')
+      );
+      if (tmdbGuid) {
+        const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+        if (match) {
+          tmdbId = parseInt(match[1], 10);
+        }
+      }
+    }
+
+    if (!tmdbId) {
+      continue;
+    }
+
+    // Check if it has a database record
+    const hasRecord = existingByTmdbId.has(tmdbId);
+
+    if (!hasRecord) {
+      // Check if this placeholder is in our source data
+      const sourceItem = sourceMap.get(tmdbId);
+      if (!sourceItem) {
+        // Orphaned placeholder not in our source - still adopt it so cleanup can remove it later
+        // We need to get basic metadata from TMDB to create the record
+        logger.warn(
+          'Found orphaned placeholder not in source - adopting for cleanup',
+          {
+            label: 'PlaceholderService',
+            title: item.title,
+            tmdbId,
+            ratingKey: item.ratingKey,
+          }
+        );
+
+        // Create minimal source data for orphaned items
+        const orphanedSourceItem: ComingSoonSourceData = {
+          tmdbId,
+          title: item.title,
+          mediaType: itemExtended.type === 'movie' ? 'movie' : 'tv',
+          year: (item as { year?: number }).year,
+          source: 'tmdb', // Use tmdb as default source for orphaned items
+          monitored: false,
+          hasFile: false,
+        };
+
+        // Add to sourceMap so it gets processed
+        sourceMap.set(tmdbId, orphanedSourceItem);
+      }
+    } else {
+      // Has database record - check if it's in our source
+      const sourceItem = sourceMap.get(tmdbId);
+      if (!sourceItem) {
+        continue; // Already has DB record but not in our source - cleanup will handle it
+      }
+    }
+
+    // Get sourceItem (either from original source or newly created for orphaned)
+    const sourceItem = sourceMap.get(tmdbId);
+    if (!sourceItem) {
+      continue; // Shouldn't happen, but safety check
+    }
+
+    if (!hasRecord) {
+      // This is an orphaned placeholder - it exists in Plex but has no database record
+      logger.warn('Found orphaned placeholder in Plex - will adopt it', {
+        label: 'PlaceholderService',
+        title: item.title,
+        tmdbId,
+        ratingKey: item.ratingKey,
+      });
+
+      // Get the placeholder file path
+      let placeholderPath = '';
+      try {
+        let plexFilePath = '';
+
+        if (sourceItem.mediaType === 'movie') {
+          // For movies, get file path directly from metadata
+          const fullMetadata = await plexClient.getMetadata(item.ratingKey);
+
+          if (
+            fullMetadata.Media &&
+            Array.isArray(fullMetadata.Media) &&
+            fullMetadata.Media.length > 0
+          ) {
+            const media = fullMetadata.Media[0];
+            if (
+              media.Part &&
+              Array.isArray(media.Part) &&
+              media.Part.length > 0
+            ) {
+              plexFilePath = media.Part[0].file || '';
+            }
+          }
+        } else {
+          // For TV shows, we need to get an episode from Season 00
+          // Show-level items don't have Media/Part, only episodes do
+          const fullMetadata = await plexClient.getMetadata(item.ratingKey);
+
+          // Get children (seasons)
+          if (!fullMetadata.Children?.Metadata) {
+            logger.warn('Could not extract file path - no Children.Metadata', {
+              label: 'PlaceholderService',
+              title: item.title,
+              ratingKey: item.ratingKey,
+            });
+            continue;
+          }
+
+          const seasons = fullMetadata.Children.Metadata;
+
+          // Find Season 00
+          const season00 = seasons.find(
+            (s: { index?: number }) => s.index === 0
+          );
+
+          if (!season00 || !('ratingKey' in season00)) {
+            logger.warn('Could not extract file path - no Season 00 found', {
+              label: 'PlaceholderService',
+              title: item.title,
+              seasonCount: seasons.length,
+            });
+            continue;
+          }
+
+          // Get episodes from Season 00
+          const seasonMetadata = await plexClient.getMetadata(
+            String(season00.ratingKey)
+          );
+
+          if (
+            !seasonMetadata.Children?.Metadata ||
+            seasonMetadata.Children.Metadata.length === 0
+          ) {
+            logger.warn(
+              'Could not extract file path - Season 00 has no episodes',
+              {
+                label: 'PlaceholderService',
+                title: item.title,
+                season00RatingKey: season00.ratingKey,
+              }
+            );
+            continue;
+          }
+
+          const firstEpisode = seasonMetadata.Children.Metadata[0];
+
+          if (!('ratingKey' in firstEpisode)) {
+            logger.warn(
+              'Could not extract file path - episode has no ratingKey',
+              {
+                label: 'PlaceholderService',
+                title: item.title,
+              }
+            );
+            continue;
+          }
+
+          // Get file path from episode
+          const episodeMetadata = await plexClient.getMetadata(
+            String(firstEpisode.ratingKey)
+          );
+
+          if (
+            !episodeMetadata.Media ||
+            !Array.isArray(episodeMetadata.Media) ||
+            episodeMetadata.Media.length === 0
+          ) {
+            logger.warn('Could not extract file path - episode has no Media', {
+              label: 'PlaceholderService',
+              title: item.title,
+              episodeRatingKey: firstEpisode.ratingKey,
+            });
+            continue;
+          }
+
+          const media = episodeMetadata.Media[0];
+          if (
+            !media.Part ||
+            !Array.isArray(media.Part) ||
+            media.Part.length === 0
+          ) {
+            logger.warn('Could not extract file path - media has no Part', {
+              label: 'PlaceholderService',
+              title: item.title,
+            });
+            continue;
+          }
+
+          plexFilePath = media.Part[0].file || '';
+        }
+
+        if (!plexFilePath) {
+          logger.warn('Could not extract file path - file is empty', {
+            label: 'PlaceholderService',
+            title: item.title,
+            mediaType: sourceItem.mediaType,
+          });
+          continue;
+        }
+
+        // Extract relative path from Plex full path
+        // Plex path: /plex/mount/tv/ShowName (Year)/Season 00/file.mp4 (Unix)
+        // Plex path: E:\data\media\series\ShowName (Year)\Season 00\file.mp4 (Windows)
+        // We need: ShowName (Year)/Season 00/file.mp4
+
+        // Normalize path separators - handle both Unix (/) and Windows (\)
+        const normalizedPath = plexFilePath.replace(/\\/g, '/');
+        const pathParts = normalizedPath.split('/').filter((p) => p);
+
+        let relativePath = '';
+        if (sourceItem.mediaType === 'movie') {
+          // Movies: Take last 2 parts (folder + filename)
+          relativePath = pathParts.slice(-2).join('/');
+        } else {
+          // TV: Take last 3 parts (show folder + Season 00 + filename)
+          relativePath = pathParts.slice(-3).join('/');
+        }
+
+        if (!relativePath) {
+          logger.warn('Could not extract relative path', {
+            label: 'PlaceholderService',
+            title: item.title,
+            plexFilePath,
+          });
+          continue;
+        }
+
+        // Verify file exists in our library
+        const settings = getSettings();
+        const libraryPath =
+          sourceItem.mediaType === 'movie'
+            ? settings.main.placeholderMovieRootFolder
+            : settings.main.placeholderTVRootFolder;
+
+        if (!libraryPath) {
+          logger.warn('Placeholder library path not configured', {
+            label: 'PlaceholderService',
+            title: item.title,
+            mediaType: sourceItem.mediaType,
+          });
+          continue;
+        }
+
+        const fullPath = path.join(libraryPath, relativePath);
+
+        // Check if file exists
+        const fs = await import('fs/promises');
+        try {
+          await fs.access(fullPath);
+          placeholderPath = relativePath; // Store relative path
+
+          logger.debug('Found orphaned placeholder file', {
+            label: 'PlaceholderService',
+            title: item.title,
+            relativePath,
+          });
+        } catch {
+          logger.warn('Orphaned placeholder file not found at expected path', {
+            label: 'PlaceholderService',
+            title: item.title,
+            expectedPath: fullPath,
+          });
+          continue;
+        }
+      } catch (error) {
+        logger.warn('Failed to locate placeholder file for orphaned item', {
+          label: 'PlaceholderService',
+          title: item.title,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
+
+      if (placeholderPath) {
+        orphanedPlaceholders.push({
+          sourceItem,
+          plexItem: { ratingKey: item.ratingKey, title: item.title },
+          placeholderPath,
+        });
+
+        // Remove from itemsWithPosters so we don't try to create a duplicate
+        const indexToRemove = itemsWithPosters.findIndex(
+          (mi) => mi.tmdbId === tmdbId
+        );
+        if (indexToRemove !== -1) {
+          itemsWithPosters.splice(indexToRemove, 1);
+        }
+      }
+    }
+  }
+
+  if (orphanedPlaceholders.length > 0) {
+    logger.info('Found orphaned placeholders to adopt', {
+      label: 'PlaceholderService',
+      count: orphanedPlaceholders.length,
+    });
+  }
+
   // Step 1: Create ALL placeholder files (without scanning/overlays)
   const createdPlaceholders: {
     sourceItem: ComingSoonSourceData;
@@ -741,28 +1101,44 @@ async function createPlaceholders(
     }
   }
 
-  if (createdPlaceholders.length === 0) {
-    logger.warn('No placeholder files were created', {
-      label: 'PlaceholderService',
-    });
+  // Check if we have any work to do (created or orphaned placeholders)
+  if (createdPlaceholders.length === 0 && orphanedPlaceholders.length === 0) {
+    logger.warn(
+      'No placeholder files were created and no orphaned placeholders found',
+      {
+        label: 'PlaceholderService',
+      }
+    );
     return [];
   }
 
-  // Step 2: Trigger ONE Plex library scan for all files
-  logger.info('Triggering Plex library scan for all placeholders', {
-    label: 'PlaceholderService',
-    libraryId: config.libraryId,
-    fileCount: createdPlaceholders.length,
-  });
+  // Step 2: Trigger ONE Plex library scan for newly created files (skip if only orphaned)
+  let discoveredItemsMap = new Map<
+    number,
+    { ratingKey: string; title: string }
+  >();
 
-  await plexClient.scanLibrary(config.libraryId);
+  if (createdPlaceholders.length > 0) {
+    logger.info('Triggering Plex library scan for newly created placeholders', {
+      label: 'PlaceholderService',
+      libraryId: config.libraryId,
+      fileCount: createdPlaceholders.length,
+    });
 
-  // Step 3: Poll for ALL items to be discovered
-  const discoveredItemsMap = await waitForPlexDiscovery(
-    createdPlaceholders,
-    config,
-    plexClient
-  );
+    await plexClient.scanLibrary(config.libraryId);
+
+    // Step 3: Poll for ALL items to be discovered
+    discoveredItemsMap = await waitForPlexDiscovery(
+      createdPlaceholders,
+      config,
+      plexClient
+    );
+  }
+
+  // Add orphaned placeholders to discovered map (they're already in Plex)
+  for (const orphaned of orphanedPlaceholders) {
+    discoveredItemsMap.set(orphaned.sourceItem.tmdbId, orphaned.plexItem);
+  }
 
   const matchedPlaceholders = createdPlaceholders.filter((placeholder) =>
     discoveredItemsMap.has(placeholder.sourceItem.tmdbId)
@@ -779,8 +1155,16 @@ async function createPlaceholders(
     );
   }
 
-  // Step 4: Apply overlays to discovered items using the unified overlay system
-  if (matchedPlaceholders.length > 0) {
+  // Step 4: Apply overlays to ALL placeholders (newly created + orphaned)
+  const allPlaceholders = [
+    ...matchedPlaceholders.map((p) => ({
+      sourceItem: p.sourceItem,
+      placeholderPath: p.placeholderPath,
+    })),
+    ...orphanedPlaceholders,
+  ];
+
+  if (allPlaceholders.length > 0) {
     const { overlayLibraryService } = await import(
       '@server/lib/overlays/OverlayLibraryService'
     );
@@ -788,7 +1172,7 @@ async function createPlaceholders(
     // Build overlay items with Coming Soon context overrides
     const overlayItems: OverlayItemInput[] = [];
 
-    for (const { sourceItem } of matchedPlaceholders) {
+    for (const { sourceItem } of allPlaceholders) {
       const plexItem = discoveredItemsMap.get(sourceItem.tmdbId);
       if (!plexItem) continue;
 
@@ -818,22 +1202,30 @@ async function createPlaceholders(
     }
 
     if (overlayItems.length > 0) {
+      logger.info('Applying overlays to placeholders', {
+        label: 'PlaceholderService',
+        total: overlayItems.length,
+        newlyCreated: matchedPlaceholders.length,
+        orphanedAdopted: orphanedPlaceholders.length,
+      });
+
       await overlayLibraryService.applyOverlaysToCollectionItems(
         overlayItems,
         config.libraryId
       );
     }
   } else {
-    logger.warn('No placeholders matched in Plex after creation', {
+    logger.warn('No placeholders to apply overlays to', {
       label: 'PlaceholderService',
-      count: createdPlaceholders.length,
+      createdCount: createdPlaceholders.length,
+      orphanedCount: orphanedPlaceholders.length,
     });
   }
 
   // Step 5: Set metadata markers and save to database for cleanup tracking
   const repository = getRepository(ComingSoonItem);
 
-  for (const { sourceItem, placeholderPath } of matchedPlaceholders) {
+  for (const { sourceItem, placeholderPath } of allPlaceholders) {
     const plexItem = discoveredItemsMap.get(sourceItem.tmdbId);
     if (!plexItem) continue;
 
@@ -903,28 +1295,74 @@ async function createPlaceholders(
         });
       }
 
-      // Save placeholder to database for cleanup tracking
-      const placeholderRecord = repository.create({
-        configId: config.id,
-        mediaType: sourceItem.mediaType,
-        tmdbId: sourceItem.tmdbId,
-        tvdbId: sourceItem.tvdbId,
-        title: sourceItem.title,
-        year: sourceItem.year,
-        releaseDate: sourceItem.releaseDate,
-        isEstimatedDate: sourceItem.isEstimatedDate || false,
-        seasonNumber: sourceItem.seasonNumber,
-        source: sourceItem.source,
-        placeholderPath: placeholderPath,
-        plexRatingKey: plexItem.ratingKey,
+      // Save placeholder to database for lifecycle tracking only
+      // NOTE: We don't store cached context (releaseDate, seasonNumber, isPlaceholder)
+      // Those are fetched fresh from live sources (TMDB, Plex, Sonarr/Radarr)
+
+      // Check if record already exists for THIS collection
+      // Note: The same tmdbId can exist in multiple collections, so we check by both configId and tmdbId
+      const existingRecord = await repository.findOne({
+        where: {
+          configId: config.id,
+          tmdbId: sourceItem.tmdbId,
+        },
       });
 
-      await repository.save(placeholderRecord);
+      // Convert absolute path to relative path before storing
+      const settings = getSettings();
+      const libraryPath =
+        sourceItem.mediaType === 'movie'
+          ? settings.main.placeholderMovieRootFolder
+          : settings.main.placeholderTVRootFolder;
 
-      logger.debug('Saved placeholder to database', {
-        label: 'PlaceholderService',
-        title: sourceItem.title,
-      });
+      let relativePath = placeholderPath;
+      if (libraryPath && placeholderPath.startsWith(libraryPath)) {
+        // Remove library root to get relative path
+        relativePath = path.relative(libraryPath, placeholderPath);
+      } else if (libraryPath && !path.isAbsolute(placeholderPath)) {
+        // Already relative
+        relativePath = placeholderPath;
+      }
+
+      if (existingRecord) {
+        // Update existing record with new plexRatingKey and path
+        existingRecord.plexRatingKey = plexItem.ratingKey;
+        existingRecord.placeholderPath = relativePath;
+        await repository.save(existingRecord);
+
+        logger.info('Updated existing database record for placeholder', {
+          label: 'PlaceholderService',
+          title: sourceItem.title,
+          tmdbId: sourceItem.tmdbId,
+          configId: config.id,
+        });
+      } else {
+        // Create new record for THIS collection
+        // If this is an orphaned placeholder, it gets adopted by this collection
+        const placeholderRecord = repository.create({
+          configId: config.id, // Always use the current collection's ID
+          mediaType: sourceItem.mediaType,
+          tmdbId: sourceItem.tmdbId,
+          tvdbId: sourceItem.tvdbId,
+          title: sourceItem.title,
+          year: sourceItem.year,
+          source: sourceItem.source,
+          placeholderPath: relativePath,
+          plexRatingKey: plexItem.ratingKey,
+        });
+
+        await repository.save(placeholderRecord);
+
+        logger.info('Created database record for placeholder', {
+          label: 'PlaceholderService',
+          title: sourceItem.title,
+          tmdbId: sourceItem.tmdbId,
+          configId: config.id,
+          isOrphaned: orphanedPlaceholders.some(
+            (o) => o.sourceItem.tmdbId === sourceItem.tmdbId
+          ),
+        });
+      }
     } catch (error) {
       logger.error('Failed to set metadata markers for placeholder', {
         label: 'PlaceholderService',
@@ -1047,8 +1485,707 @@ export async function processPlaceholdersForMissingItems(
   );
 }
 
+/**
+ * Clean up placeholders for a collection:
+ * 1. Items that now have real files in Radarr/Sonarr (released items)
+ * 2. Items no longer in source data (orphaned items)
+ * 3. Items that have been placeholders for 7+ days (stale items)
+ *
+ * Released items are tracked for configured window (placeholderReleasedDays, default: 7 days),
+ * then database records are removed and overlay system automatically updates posters.
+ *
+ * Works for ANY collection type that creates placeholders.
+ *
+ * @param config - Collection configuration
+ * @param plexClient - Plex API client
+ * @param libraryCache - Optional cached library items for verification
+ * @param sourceTmdbIds - Optional set of tmdbIds from current source for orphan detection
+ */
+export async function cleanupPlaceholdersForConfig(
+  config: CollectionConfig,
+  plexClient: PlexAPI,
+  libraryCache?: LibraryItemsCache,
+  sourceTmdbIds?: Set<number>
+): Promise<void> {
+  let repository;
+  let placeholders;
+
+  try {
+    repository = getRepository(ComingSoonItem);
+    placeholders = await repository.find({ where: { configId: config.id } });
+  } catch (error) {
+    // If table doesn't exist yet (first run), skip cleanup
+    logger.debug('Skipping placeholder cleanup - table not initialized yet', {
+      label: 'PlaceholderService',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+
+  if (placeholders.length === 0) {
+    return;
+  }
+
+  logger.info('Checking placeholders for cleanup', {
+    label: 'PlaceholderService',
+    configName: config.name,
+    count: placeholders.length,
+  });
+
+  const settings = getSettings();
+  let removedCount = 0;
+
+  // Get released window from general config (not Coming Soon specific!)
+  const releasedWindowDays = getReleasedDays(config);
+
+  for (const placeholder of placeholders) {
+    try {
+      let hasRealFile = false;
+
+      // Check if real file now exists in Radarr/Sonarr
+      // This works for ANY placeholder regardless of source
+      if (
+        placeholder.mediaType === 'movie' &&
+        settings.radarr &&
+        settings.radarr.length > 0
+      ) {
+        for (const radarrInstance of settings.radarr) {
+          const radarrClient = new RadarrAPI({
+            url: `${radarrInstance.useSsl ? 'https' : 'http'}://${
+              radarrInstance.hostname
+            }:${radarrInstance.port}${radarrInstance.baseUrl || ''}/api/v3`,
+            apiKey: radarrInstance.apiKey,
+          });
+
+          const movies = await radarrClient.getMovies();
+          const movie = movies.find((m) => m.tmdbId === placeholder.tmdbId);
+
+          if (movie && movie.hasFile) {
+            hasRealFile = true;
+            logger.info('Found real file for placeholder', {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+              source: placeholder.source,
+              radarrInstance: radarrInstance.name,
+            });
+            break;
+          }
+        }
+      }
+
+      if (
+        placeholder.mediaType === 'tv' &&
+        settings.sonarr &&
+        settings.sonarr.length > 0
+      ) {
+        for (const sonarrInstance of settings.sonarr) {
+          const sonarrClient = new SonarrAPI({
+            url: `${sonarrInstance.useSsl ? 'https' : 'http'}://${
+              sonarrInstance.hostname
+            }:${sonarrInstance.port}${sonarrInstance.baseUrl || ''}/api/v3`,
+            apiKey: sonarrInstance.apiKey,
+          });
+
+          const allSeries = await sonarrClient.getSeries();
+          const series = allSeries.find((s) => s.tvdbId === placeholder.tvdbId);
+
+          if (series && series.statistics?.episodeFileCount > 0) {
+            hasRealFile = true;
+            logger.info('Found real file for placeholder', {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+              source: placeholder.source,
+              sonarrInstance: sonarrInstance.name,
+            });
+            break;
+          }
+        }
+      }
+
+      if (hasRealFile) {
+        // Verify the real file actually exists in Plex before cleanup
+        let realItemInPlex = false;
+        let realItemRatingKey: string | undefined;
+        let foundPlexItem:
+          | {
+              type: string;
+              ratingKey: string;
+              seasonCount?: number;
+              childCount?: number;
+              editionTitle?: string;
+              Media?: { Part?: { file?: string }[] }[];
+            }
+          | undefined = undefined;
+
+        if (libraryCache) {
+          // Use cached library data to verify the real item exists in Plex
+          const allLibraries = Object.values(libraryCache);
+          for (const library of allLibraries) {
+            const item = library.find((i) => {
+              // Extract tmdbId from Guid array
+              const tmdbGuid = i.Guid?.find((guid) =>
+                guid.id.startsWith('tmdb://')
+              );
+              const tmdbMatch = tmdbGuid?.id.match(/tmdb:\/\/(\d+)/);
+              const itemTmdbId = tmdbMatch ? parseInt(tmdbMatch[1], 10) : null;
+
+              if (placeholder.mediaType === 'movie') {
+                return itemTmdbId === placeholder.tmdbId;
+              }
+
+              // For TV shows, also check TVDB
+              const tvdbGuid = i.Guid?.find((guid) =>
+                guid.id.startsWith('tvdb://')
+              );
+              const tvdbMatch = tvdbGuid?.id.match(/tvdb:\/\/(\d+)/);
+              const itemTvdbId = tvdbMatch ? parseInt(tvdbMatch[1], 10) : null;
+
+              return (
+                itemTmdbId === placeholder.tmdbId ||
+                itemTvdbId === placeholder.tvdbId
+              );
+            });
+
+            if (item) {
+              realItemInPlex = true;
+              realItemRatingKey = item.ratingKey;
+              // Cast item to unknown first to access extended properties
+              const extendedItem = item as unknown as {
+                seasonCount?: number;
+                childCount?: number;
+                editionTitle?: string;
+                Media?: { Part?: { file?: string }[] }[];
+              };
+              foundPlexItem = {
+                type: placeholder.mediaType === 'movie' ? 'movie' : 'show',
+                ratingKey: item.ratingKey,
+                seasonCount: extendedItem.seasonCount,
+                childCount: extendedItem.childCount,
+                editionTitle: extendedItem.editionTitle,
+                Media: extendedItem.Media,
+              };
+              break;
+            }
+          }
+        } else {
+          // No library cache available - defer cleanup until next sync
+          logger.debug(
+            'Library cache not available - deferring cleanup verification',
+            {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+            }
+          );
+          continue;
+        }
+
+        if (!realItemInPlex || !foundPlexItem) {
+          logger.info(
+            'Real file exists in Radarr/Sonarr but not yet in Plex - skipping cleanup',
+            {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+            }
+          );
+          continue; // Skip cleanup until Plex has scanned the file
+        }
+
+        // Real content detected - delete placeholder IMMEDIATELY
+        // CRITICAL: Only delete if the Plex item is REAL content (not still a placeholder)
+
+        // Import PlaceholderContextService to check if Plex item is a placeholder
+        const { placeholderContextService } = await import(
+          '@server/lib/collections/services/PlaceholderContextService'
+        );
+
+        // Check if the Plex item itself is a placeholder
+        const plexItemIsPlaceholder =
+          placeholderContextService.isPlaceholderItem(foundPlexItem);
+
+        if (plexItemIsPlaceholder) {
+          // Plex item is still a placeholder - just update rating key, don't delete
+          logger.debug('Plex item is still a placeholder, not deleting', {
+            label: 'PlaceholderService',
+            title: placeholder.title,
+            ratingKey: realItemRatingKey,
+          });
+          placeholder.plexRatingKey = realItemRatingKey;
+          await repository.save(placeholder);
+          continue; // Skip cleanup - still a placeholder
+        }
+
+        // Plex item is REAL content - delete placeholder immediately
+        logger.info('Real content detected - deleting placeholder', {
+          label: 'PlaceholderService',
+          title: placeholder.title,
+          source: placeholder.source,
+        });
+
+        // Remove placeholder file first
+        let fileRemovalSucceeded = false;
+        if (placeholder.placeholderPath) {
+          const { removePlaceholder } = await import(
+            '@server/lib/comingsoon/placeholderManager'
+          );
+          const settings = getSettings();
+          const libraryPath =
+            placeholder.mediaType === 'movie'
+              ? settings.main.placeholderMovieRootFolder
+              : settings.main.placeholderTVRootFolder;
+
+          if (!libraryPath) {
+            logger.error(
+              'Library path not configured - cannot remove placeholder file',
+              {
+                label: 'PlaceholderService',
+                title: placeholder.title,
+                mediaType: placeholder.mediaType,
+              }
+            );
+            continue; // Keep database record if we can't remove file
+          }
+
+          // Construct full path from relative path
+          const fullPath = path.join(libraryPath, placeholder.placeholderPath);
+
+          try {
+            await removePlaceholder(fullPath, placeholder.mediaType);
+            fileRemovalSucceeded = true;
+            logger.info('Removed placeholder file for real item', {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+            });
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('ENOENT')) {
+              // File doesn't exist - that's fine, consider it removed
+              fileRemovalSucceeded = true;
+            } else {
+              logger.error(
+                'Failed to remove placeholder file - keeping database record',
+                {
+                  label: 'PlaceholderService',
+                  title: placeholder.title,
+                  path: fullPath,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              continue; // Keep database record if removal failed
+            }
+          }
+        } else {
+          fileRemovalSucceeded = true; // No file to remove
+        }
+
+        // Only delete from database if file removal succeeded
+        if (fileRemovalSucceeded) {
+          await repository.remove(placeholder);
+          removedCount++;
+
+          logger.info('Deleted placeholder record (real content exists)', {
+            label: 'PlaceholderService',
+            title: placeholder.title,
+            source: placeholder.source,
+          });
+        }
+      }
+    } catch (error) {
+      logger.error('Error checking placeholder for cleanup', {
+        label: 'PlaceholderService',
+        title: placeholder.title,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  // Check for orphaned items (not in source) and stale items (too old)
+  if (sourceTmdbIds && sourceTmdbIds.size > 0) {
+    const STALE_THRESHOLD_DAYS = 7; // 7 days
+    let orphanedCount = 0;
+    let staleCount = 0;
+
+    for (const placeholder of placeholders) {
+      try {
+        // No need to skip items - we process all orphaned items
+
+        const isOrphaned = !sourceTmdbIds.has(placeholder.tmdbId);
+        const isStale =
+          placeholder.createdAt &&
+          Date.now() - placeholder.createdAt.getTime() >
+            STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
+
+        // For orphaned items, check if they now have a real file
+        if (isOrphaned && !isStale) {
+          let hasRealFile = false;
+
+          // Check Radarr/Sonarr (same logic as above)
+          if (
+            placeholder.mediaType === 'movie' &&
+            settings.radarr &&
+            settings.radarr.length > 0
+          ) {
+            for (const radarrInstance of settings.radarr) {
+              const radarrClient = new RadarrAPI({
+                url: `${radarrInstance.useSsl ? 'https' : 'http'}://${
+                  radarrInstance.hostname
+                }:${radarrInstance.port}${radarrInstance.baseUrl || ''}/api/v3`,
+                apiKey: radarrInstance.apiKey,
+              });
+
+              const movies = await radarrClient.getMovies();
+              const movie = movies.find((m) => m.tmdbId === placeholder.tmdbId);
+
+              if (movie && movie.hasFile) {
+                hasRealFile = true;
+                break;
+              }
+            }
+          }
+
+          if (
+            placeholder.mediaType === 'tv' &&
+            settings.sonarr &&
+            settings.sonarr.length > 0
+          ) {
+            for (const sonarrInstance of settings.sonarr) {
+              const sonarrClient = new SonarrAPI({
+                url: `${sonarrInstance.useSsl ? 'https' : 'http'}://${
+                  sonarrInstance.hostname
+                }:${sonarrInstance.port}${sonarrInstance.baseUrl || ''}/api/v3`,
+                apiKey: sonarrInstance.apiKey,
+              });
+
+              const allSeries = await sonarrClient.getSeries();
+              const series = allSeries.find(
+                (s) => s.tvdbId === placeholder.tvdbId
+              );
+
+              if (series && series.statistics?.episodeFileCount > 0) {
+                hasRealFile = true;
+                break;
+              }
+            }
+          }
+
+          // If orphaned item now has a real file, delete placeholder immediately
+          if (hasRealFile) {
+            logger.info('Orphaned item has real file - deleting placeholder', {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+              source: placeholder.source,
+            });
+
+            // Remove placeholder file first
+            let fileRemovalSucceeded = false;
+            if (placeholder.placeholderPath) {
+              const { removePlaceholder } = await import(
+                '@server/lib/comingsoon/placeholderManager'
+              );
+              const settings = getSettings();
+              const libraryPath =
+                placeholder.mediaType === 'movie'
+                  ? settings.main.placeholderMovieRootFolder
+                  : settings.main.placeholderTVRootFolder;
+
+              if (!libraryPath) {
+                logger.error(
+                  'Library path not configured - cannot remove orphaned placeholder file',
+                  {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    mediaType: placeholder.mediaType,
+                  }
+                );
+                continue; // Keep database record if we can't remove file
+              }
+
+              // Construct full path from relative path
+              const fullPath = path.join(
+                libraryPath,
+                placeholder.placeholderPath
+              );
+
+              try {
+                await removePlaceholder(fullPath, placeholder.mediaType);
+                fileRemovalSucceeded = true;
+              } catch (error) {
+                if (
+                  error instanceof Error &&
+                  error.message.includes('ENOENT')
+                ) {
+                  // File doesn't exist - that's fine, consider it removed
+                  fileRemovalSucceeded = true;
+                } else {
+                  logger.error(
+                    'Failed to remove orphaned placeholder file - keeping database record',
+                    {
+                      label: 'PlaceholderService',
+                      title: placeholder.title,
+                      path: fullPath,
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    }
+                  );
+                  continue; // Keep database record if removal failed
+                }
+              }
+            } else {
+              fileRemovalSucceeded = true; // No file to remove
+            }
+
+            // Only delete from database if file removal succeeded
+            if (fileRemovalSucceeded) {
+              await repository.remove(placeholder);
+              removedCount++;
+              orphanedCount++;
+
+              logger.info('Deleted orphaned placeholder (real file exists)', {
+                label: 'PlaceholderService',
+                title: placeholder.title,
+                source: placeholder.source,
+              });
+            }
+
+            continue;
+          }
+
+          // Orphaned item with no real file - check if past configured window
+          // This handles items that fall off source lists (e.g., Trakt Trending)
+          // Keep them for placeholderReleasedDays from:
+          // - Release date (if released) - so users see "recently released" items
+          // - Creation date (if not released yet) - so users see upcoming items
+
+          // Fetch release date from TMDB to determine window start
+          const { placeholderContextService } = await import(
+            '@server/lib/collections/services/PlaceholderContextService'
+          );
+          const context = await placeholderContextService.getPlaceholderContext(
+            placeholder
+          );
+
+          let windowStartDate: Date = placeholder.createdAt;
+          let windowType = 'creation';
+
+          if (context.releaseDate) {
+            // Check if release date is in the past (item has been released)
+            const { isDateInFuture } = await import(
+              '@server/utils/dateHelpers'
+            );
+
+            if (!isDateInFuture(context.releaseDate)) {
+              // Item has been released - use release date as window start
+              // Parse ISO date string (YYYY-MM-DD) as UTC midnight
+              const dateOnly = context.releaseDate.split('T')[0];
+              windowStartDate = new Date(dateOnly + 'T00:00:00.000Z');
+              windowType = 'release';
+            }
+          }
+
+          const daysSinceWindowStart = Math.floor(
+            (Date.now() - windowStartDate.getTime()) / (24 * 60 * 60 * 1000)
+          );
+
+          if (daysSinceWindowStart > releasedWindowDays) {
+            const reason = `orphaned (${daysSinceWindowStart} days since ${windowType}, window: ${releasedWindowDays} days)`;
+
+            logger.info('Removing orphaned placeholder past window', {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+              source: placeholder.source,
+              reason,
+              windowType,
+              daysSinceWindowStart,
+              releasedWindowDays,
+              releaseDate: context.releaseDate,
+            });
+
+            // Remove placeholder file if it exists
+            let fileRemovalSucceeded = false;
+            if (placeholder.placeholderPath) {
+              const { removePlaceholder } = await import(
+                '@server/lib/comingsoon/placeholderManager'
+              );
+              const settings = getSettings();
+              const libraryPath =
+                placeholder.mediaType === 'movie'
+                  ? settings.main.placeholderMovieRootFolder
+                  : settings.main.placeholderTVRootFolder;
+
+              if (!libraryPath) {
+                logger.error(
+                  'Library path not configured - cannot remove placeholder file',
+                  {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    mediaType: placeholder.mediaType,
+                  }
+                );
+                continue;
+              }
+
+              // Construct full path from relative path
+              const fullPath = path.join(
+                libraryPath,
+                placeholder.placeholderPath
+              );
+
+              try {
+                await removePlaceholder(fullPath, placeholder.mediaType);
+                fileRemovalSucceeded = true;
+                logger.info('Removed placeholder file', {
+                  label: 'PlaceholderService',
+                  title: placeholder.title,
+                  path: fullPath,
+                });
+              } catch (error) {
+                logger.error(
+                  'Failed to remove placeholder file - keeping database record',
+                  {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    path: fullPath,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+                continue;
+              }
+            } else {
+              fileRemovalSucceeded = true; // No file to remove
+            }
+
+            // Remove from database if file removal succeeded
+            if (fileRemovalSucceeded) {
+              await repository.remove(placeholder);
+              removedCount++;
+              orphanedCount++;
+
+              logger.info('Removed placeholder from database', {
+                label: 'PlaceholderService',
+                title: placeholder.title,
+                source: placeholder.source,
+                reason,
+              });
+            }
+          }
+        }
+
+        // Stale items (7+ days old) - always remove
+        if (isStale) {
+          const reason = `stale (${STALE_THRESHOLD_DAYS}+ days old)`;
+
+          logger.info('Removing stale placeholder', {
+            label: 'PlaceholderService',
+            title: placeholder.title,
+            source: placeholder.source,
+            reason,
+            age: placeholder.createdAt
+              ? Math.floor(
+                  (Date.now() - placeholder.createdAt.getTime()) /
+                    (24 * 60 * 60 * 1000)
+                )
+              : 'unknown',
+          });
+
+          // Remove placeholder file if it exists
+          let fileRemovalSucceeded = false;
+          if (placeholder.placeholderPath) {
+            const { removePlaceholder } = await import(
+              '@server/lib/comingsoon/placeholderManager'
+            );
+            const settings = getSettings();
+            const libraryPath =
+              placeholder.mediaType === 'movie'
+                ? settings.main.placeholderMovieRootFolder
+                : settings.main.placeholderTVRootFolder;
+
+            if (!libraryPath) {
+              logger.error(
+                'Library path not configured - cannot remove placeholder file',
+                {
+                  label: 'PlaceholderService',
+                  title: placeholder.title,
+                  mediaType: placeholder.mediaType,
+                }
+              );
+              continue;
+            }
+
+            // Construct full path from relative path
+            const fullPath = path.join(
+              libraryPath,
+              placeholder.placeholderPath
+            );
+
+            try {
+              await removePlaceholder(fullPath, placeholder.mediaType);
+              fileRemovalSucceeded = true;
+              logger.info('Removed placeholder file', {
+                label: 'PlaceholderService',
+                title: placeholder.title,
+                path: fullPath,
+              });
+            } catch (error) {
+              logger.error(
+                'Failed to remove placeholder file - keeping database record',
+                {
+                  label: 'PlaceholderService',
+                  title: placeholder.title,
+                  path: fullPath,
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+              continue;
+            }
+          } else {
+            fileRemovalSucceeded = true; // No file to remove
+          }
+
+          // Remove from database if file removal succeeded
+          if (fileRemovalSucceeded) {
+            await repository.remove(placeholder);
+            removedCount++;
+            staleCount++;
+
+            logger.info('Removed placeholder from database', {
+              label: 'PlaceholderService',
+              title: placeholder.title,
+              source: placeholder.source,
+              reason,
+            });
+          }
+        }
+      } catch (error) {
+        logger.error('Error removing stale placeholder', {
+          label: 'PlaceholderService',
+          title: placeholder.title,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    if (orphanedCount > 0 || staleCount > 0) {
+      logger.info('Orphaned/stale placeholder cleanup summary', {
+        label: 'PlaceholderService',
+        configName: config.name,
+        orphaned: orphanedCount,
+        stale: staleCount,
+        total: orphanedCount + staleCount,
+      });
+    }
+  }
+
+  if (removedCount > 0) {
+    logger.info('Placeholder cleanup completed', {
+      label: 'PlaceholderService',
+      configName: config.name,
+      removed: removedCount,
+    });
+  }
+}
+
 export default {
   processPlaceholdersForMissingItems,
+  cleanupPlaceholdersForConfig,
   isPlaceholderCreationEnabled,
   getReleasedDays,
   getDaysAhead,
