@@ -13110,6 +13110,120 @@ paths:
         '401':
           description: Authentication required
 
+  /overlay-settings/reset-library-posters:
+    post:
+      summary: Reset all posters in a library
+      description: Starts a background job to reset all posters in a specified library to their base versions (without overlays). Respects the configured poster source setting.
+      tags:
+        - overlays
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - libraryId
+              properties:
+                libraryId:
+                  type: string
+                  description: The Plex library ID to reset posters for
+                  example: '1'
+      responses:
+        '202':
+          description: Poster reset job started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Poster reset started'
+                  status:
+                    type: object
+                    properties:
+                      running:
+                        type: boolean
+                      cancelled:
+                        type: boolean
+                      currentLibrary:
+                        type: string
+                      currentLibraryName:
+                        type: string
+                      current:
+                        type: number
+                      total:
+                        type: number
+                      failed:
+                        type: number
+        '400':
+          description: Library ID not provided
+        '401':
+          description: Authentication required
+        '409':
+          description: Reset job already running, or overlay application/download is running
+
+  /overlay-settings/reset-status:
+    get:
+      summary: Get poster reset job status
+      description: Get the current status of the poster reset job including progress.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Reset status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    description: Whether the reset job is currently running
+                  cancelled:
+                    type: boolean
+                    description: Whether the reset job was cancelled
+                  currentLibrary:
+                    type: string
+                    description: Current library ID being processed
+                  currentLibraryName:
+                    type: string
+                    description: Current library name being processed
+                  current:
+                    type: number
+                    description: Number of items processed
+                  total:
+                    type: number
+                    description: Total number of items to process
+                  failed:
+                    type: number
+                    description: Number of items that failed to reset
+        '401':
+          description: Authentication required
+
+  /overlay-settings/cancel-reset:
+    post:
+      summary: Cancel poster reset job
+      description: Requests cancellation of the currently running poster reset job.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Cancellation requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Poster reset cancellation requested'
+        '400':
+          description: No reset job running
+        '401':
+          description: Authentication required
+
 security:
   - cookieAuth: []
   - apiKey: []

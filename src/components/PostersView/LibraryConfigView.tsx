@@ -1,11 +1,13 @@
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowUturnLeftIcon } from '@heroicons/react/24/solid';
 import type { OverlayTemplateType } from '@server/entity/OverlayTemplate';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 import LibraryDetailConfigView from './LibraryDetailConfigView';
+import PosterResetModal from './PosterResetModal';
 
 const messages = defineMessages({
   libraryConfig: 'Library Configuration',
@@ -14,6 +16,7 @@ const messages = defineMessages({
   noLibraries: 'No libraries found',
   configure: 'Configure',
   overlaysEnabled: '{count} overlays enabled',
+  resetPosters: 'Reset All Posters',
 });
 
 interface PlexLibrary {
@@ -167,12 +170,26 @@ const LibraryConfigView: React.FC = () => {
   const [refreshTriggers, setRefreshTriggers] = useState<
     Record<string, number>
   >({});
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetLibraryId, setResetLibraryId] = useState<string>('');
+  const [resetLibraryName, setResetLibraryName] = useState<string>('');
 
   const handleCyclePoster = (libraryId: string) => {
     setRefreshTriggers((prev) => ({
       ...prev,
       [libraryId]: (prev[libraryId] || 0) + 1,
     }));
+  };
+
+  const handleOpenResetModal = (libraryId: string, libraryName: string) => {
+    setResetLibraryId(libraryId);
+    setResetLibraryName(libraryName);
+    setResetModalOpen(true);
+  };
+
+  const handleResetComplete = () => {
+    // Refresh the library configs after reset
+    setResetModalOpen(false);
   };
 
   // Fetch Plex libraries - backend returns array directly
@@ -190,7 +207,14 @@ const LibraryConfigView: React.FC = () => {
     '/api/v1/overlay-templates'
   );
 
+  // Fetch overlay settings to get poster source
+  const { data: overlaySettings } = useSWR<{
+    defaultPosterSource: 'tmdb' | 'plex';
+    initialSetupComplete: boolean;
+  }>('/api/v1/overlay-settings');
+
   const templates = templatesData?.templates || [];
+  const posterSource = overlaySettings?.defaultPosterSource || 'tmdb';
 
   if (librariesError) {
     return (
@@ -300,6 +324,18 @@ const LibraryConfigView: React.FC = () => {
                       <ArrowPathIcon className="h-4 w-4" />
                     </button>
                   )}
+                  {hasOverlays && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenResetModal(library.key, library.name);
+                      }}
+                      className="flex items-center justify-center rounded-md bg-stone-700 p-2 text-stone-300 transition-colors hover:bg-stone-600"
+                      title={intl.formatMessage(messages.resetPosters)}
+                    >
+                      <ArrowUturnLeftIcon className="h-4 w-4" />
+                    </button>
+                  )}
                   <Button
                     buttonType="primary"
                     buttonSize="sm"
@@ -329,6 +365,17 @@ const LibraryConfigView: React.FC = () => {
           libraryId={selectedLibraryId}
           libraryName={selectedLibraryName}
           libraryType={selectedLibraryType}
+        />
+      )}
+
+      {resetModalOpen && (
+        <PosterResetModal
+          isOpen={resetModalOpen}
+          onClose={() => setResetModalOpen(false)}
+          onComplete={handleResetComplete}
+          libraryId={resetLibraryId}
+          libraryName={resetLibraryName}
+          posterSource={posterSource}
         />
       )}
     </div>
