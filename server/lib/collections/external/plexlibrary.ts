@@ -575,6 +575,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
               plexClient,
               posterItems,
               undefined,
+              undefined,
               directorPhotoUrl
             );
           }
