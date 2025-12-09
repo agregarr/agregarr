@@ -207,11 +207,31 @@ const PosterSourceSetupModal: React.FC<PosterSourceSetupModalProps> = ({
     }
   };
 
-  const handleRedownloadConfirm = () => {
-    if (redownloadConfirmText === 'I HAVE CLEAN POSTERS') {
-      startDownload();
-    } else {
+  const handleRedownloadConfirm = async () => {
+    if (redownloadConfirmText !== 'I HAVE CLEAN POSTERS') {
       addToast(intl.formatMessage(messages.redownloadInvalidConfirmation), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+      return;
+    }
+
+    // Save settings first before downloading
+    try {
+      const response = await fetch('/api/v1/overlay-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultPosterSource: selectedSource }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+
+      // Settings saved, now start download
+      await startDownload();
+    } catch (error) {
+      addToast(intl.formatMessage(messages.settingsFailed), {
         appearance: 'error',
         autoDismiss: true,
       });
