@@ -277,14 +277,10 @@ export async function generateTemplatePreview(
     throw new Error(`Template ${templateId} not found`);
   }
 
-<<<<<<< HEAD
   const templateData = normalizeTextTransforms(
     template.getTemplateData(),
     template.name
   );
-=======
-  const templateData = template.getTemplateData();
->>>>>>> cbc458e (feat: enhance image handling in poster generation and add support for person image URLs in templates)
   const hasPersonLayer =
     Array.isArray(templateData.elements) &&
     templateData.elements.some((el) => el.type === 'person');
