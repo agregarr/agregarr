@@ -39,6 +39,13 @@ interface LocalPosterItem {
   posterPath: string;
 }
 
+interface LocalPersonItem {
+  name: string;
+  tmdbId: number;
+  filename: string;
+  profilePath: string;
+}
+
 
 /**
  * Load local poster mapping for preview rendering
@@ -66,6 +73,35 @@ function loadLocalPosterMapping(): LocalPosterItem[] {
   } catch (error) {
     logger.warn(
       'Failed to load local poster mapping, falling back to TMDB fetching:',
+      error
+    );
+    return [];
+  }
+}
+
+function loadLocalPersonMapping(): LocalPersonItem[] {
+  try {
+    const mappingPath = path.join(
+      process.cwd(),
+      'public',
+      'preview-persons',
+      'person-mapping.json'
+    );
+    if (!fs.existsSync(mappingPath)) {
+      logger.warn(
+        'Local person mapping file not found, falling back to generated person images'
+      );
+      return [];
+    }
+
+    const mappingData = fs.readFileSync(mappingPath, 'utf8');
+    const personItems: LocalPersonItem[] = JSON.parse(mappingData);
+
+    logger.debug(`Loaded ${personItems.length} local preview persons`);
+    return personItems;
+  } catch (error) {
+    logger.warn(
+      'Failed to load local person mapping, falling back to generated person images:',
       error
     );
     return [];
@@ -311,6 +347,7 @@ export async function generateTemplatePreview(
 
   // Load local poster mapping for fast preview rendering
   const localPosters = loadLocalPosterMapping();
+  const localPersons = loadLocalPersonMapping();
 
   let sampleItems: CollectionItemWithPoster[] = [];
   let personImageUrl: string | undefined = previewConfig?.personImageUrl;
@@ -341,8 +378,6 @@ export async function generateTemplatePreview(
       });
     }
     sampleItems = localSampleItems;
-    // Prefer a real image for person layers; fall back to first local poster
-    // Do not auto-assign a person image for previews; keep empty unless explicitly provided
   } else {
     // Fallback to hardcoded list if local posters aren't available
     logger.warn('Local posters not available, falling back to hardcoded list');
@@ -746,7 +781,30 @@ export async function generateTemplatePreview(
       });
     }
     sampleItems = fallbackSampleItems;
-    // Do not auto-assign a person image for previews; keep empty unless explicitly provided
+  }
+
+  if (!personImageUrl && hasPersonLayer) {
+    if (localPersons.length > 0) {
+      const personAsset = localPersons[0];
+      const absolutePersonPath = path.join(
+        process.cwd(),
+        'public',
+        'preview-persons',
+        personAsset.filename
+      );
+      personImageUrl = `file://${absolutePersonPath}`;
+      logger.debug(
+        `Assigned local person image for preview: ${personAsset.name} (${personAsset.tmdbId})`
+      );
+    } else {
+      const fallbackPosterUrl = sampleItems[0]?.posterUrl;
+      if (fallbackPosterUrl) {
+        personImageUrl = fallbackPosterUrl;
+        logger.debug(
+          'Using first poster from preview grid as fallback person image'
+        );
+      }
+    }
   }
 
   const config = {
