@@ -1,10 +1,14 @@
+import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import {
+  CogIcon,
+  ExclamationCircleIcon,
   FilmIcon,
   PlayIcon,
   RectangleStackIcon as CollectionIcon,
   TvIcon,
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -19,6 +23,10 @@ const messages = defineMessages({
   fromCollections: 'from collections',
   totalServer: 'total',
   thisWeek: 'this week',
+  tautulliRequired: 'Tautulli Setup Required',
+  tautulliDescription:
+    'Configure Tautulli in your settings to view play statistics from your Plex server.',
+  configureTautulli: 'Configure Tautulli',
 });
 
 interface DashboardData {
@@ -102,6 +110,34 @@ const DashboardStats: React.FC = () => {
       <div className="rounded-lg bg-stone-800 p-6 shadow-sm">
         <div className="flex justify-center">
           <LoadingSpinner />
+        </div>
+      </div>
+    );
+  }
+
+  // Check if Tautulli is not configured
+  const isTautulliConfigured =
+    dashboardData.tautulli?.isConnected === true ||
+    dashboardData.activity !== null;
+
+  // If Tautulli is not configured, show setup message
+  if (!isTautulliConfigured) {
+    return (
+      <div className="rounded-lg bg-stone-800 p-6 shadow-sm">
+        <div className="flex flex-col items-center py-8 text-center">
+          <ExclamationCircleIcon className="mb-4 h-12 w-12 text-orange-400" />
+          <h4 className="mb-2 text-lg font-semibold text-white">
+            {intl.formatMessage(messages.tautulliRequired)}
+          </h4>
+          <p className="mb-6 max-w-md text-gray-400">
+            {intl.formatMessage(messages.tautulliDescription)}
+          </p>
+          <Link href="/settings/sources" passHref>
+            <Button as="a" buttonType="primary">
+              <CogIcon className="mr-2 h-5 w-5" />
+              {intl.formatMessage(messages.configureTautulli)}
+            </Button>
+          </Link>
         </div>
       </div>
     );
