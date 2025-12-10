@@ -54,7 +54,12 @@ export interface OverlayTileElementProps {
   fillOpacity: number; // 0-100
   borderColor?: string;
   borderWidth?: number; // Absolute pixels in template canvas
-  borderRadius?: number; // Absolute pixels
+  borderRadius?: number; // Absolute pixels (deprecated - use individual corners)
+  borderRadiusTopLeft?: number; // Absolute pixels
+  borderRadiusTopRight?: number; // Absolute pixels
+  borderRadiusBottomLeft?: number; // Absolute pixels
+  borderRadiusBottomRight?: number; // Absolute pixels
+  lockCorners?: boolean; // When true, all corners use topLeft value
 }
 
 /**

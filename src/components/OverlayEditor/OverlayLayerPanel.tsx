@@ -5,6 +5,8 @@ import {
   ArrowUpIcon,
   CodeBracketSquareIcon,
   DocumentTextIcon,
+  LockClosedIcon,
+  LockOpenIcon,
   PhotoIcon,
   PlusIcon,
   Square3Stack3DIcon,
@@ -59,6 +61,13 @@ const messages = defineMessages({
   borderColor: 'Border Color',
   borderWidth: 'Border Width',
   borderRadius: 'Border Radius',
+  cornerRadii: 'Corner Radii',
+  topLeft: 'Top Left',
+  topRight: 'Top Right',
+  bottomLeft: 'Bottom Left',
+  bottomRight: 'Bottom Right',
+  lockCorners: 'Lock Corners',
+  unlockCorners: 'Unlock Corners',
   // Variable properties
   variableField: 'Variable',
   prefix: 'Prefix Text',
@@ -200,7 +209,8 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         fillOpacity: 70,
         borderColor: '#FFFFFF',
         borderWidth: 2,
-        borderRadius: 10,
+        lockCorners: true,
+        borderRadiusTopLeft: 10,
       },
     };
 
@@ -613,26 +623,320 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-stone-300">
-            {intl.formatMessage(messages.borderRadius)} (
-            {props.borderRadius || 0}px)
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            value={props.borderRadius || 0}
-            onChange={(e) =>
-              handleUpdateElement(element.id, {
-                properties: {
-                  ...props,
-                  borderRadius: parseInt(e.target.value, 10),
-                },
-              })
-            }
-            className="w-full"
-          />
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-xs font-medium text-stone-300">
+              {intl.formatMessage(messages.cornerRadii)}
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const isCurrentlyLocked =
+                  props.lockCorners === undefined
+                    ? props.borderRadius !== undefined
+                    : props.lockCorners;
+
+                if (isCurrentlyLocked) {
+                  // Unlocking - set all corners to current value
+                  const currentRadius =
+                    props.borderRadiusTopLeft ?? props.borderRadius ?? 0;
+                  handleUpdateElement(element.id, {
+                    properties: {
+                      ...props,
+                      lockCorners: false,
+                      borderRadiusTopLeft: currentRadius,
+                      borderRadiusTopRight: currentRadius,
+                      borderRadiusBottomLeft: currentRadius,
+                      borderRadiusBottomRight: currentRadius,
+                      borderRadius: undefined,
+                    },
+                  });
+                } else {
+                  // Locking - use topLeft value for all
+                  const lockValue = props.borderRadiusTopLeft ?? 0;
+                  handleUpdateElement(element.id, {
+                    properties: {
+                      ...props,
+                      lockCorners: true,
+                      borderRadiusTopLeft: lockValue,
+                      borderRadiusTopRight: undefined,
+                      borderRadiusBottomLeft: undefined,
+                      borderRadiusBottomRight: undefined,
+                    },
+                  });
+                }
+              }}
+              className="flex items-center gap-1 rounded bg-stone-700 px-2 py-1 text-xs text-stone-300 transition hover:bg-stone-600"
+              title={
+                props.lockCorners === undefined
+                  ? props.borderRadius !== undefined
+                    ? intl.formatMessage(messages.unlockCorners)
+                    : intl.formatMessage(messages.lockCorners)
+                  : props.lockCorners
+                  ? intl.formatMessage(messages.unlockCorners)
+                  : intl.formatMessage(messages.lockCorners)
+              }
+            >
+              {props.lockCorners === undefined ? (
+                props.borderRadius !== undefined ? (
+                  <>
+                    <LockClosedIcon className="h-3 w-3" />
+                    <span>Locked</span>
+                  </>
+                ) : (
+                  <>
+                    <LockOpenIcon className="h-3 w-3" />
+                    <span>Unlocked</span>
+                  </>
+                )
+              ) : props.lockCorners ? (
+                <>
+                  <LockClosedIcon className="h-3 w-3" />
+                  <span>Locked</span>
+                </>
+              ) : (
+                <>
+                  <LockOpenIcon className="h-3 w-3" />
+                  <span>Unlocked</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {props.lockCorners === undefined ? (
+            props.borderRadius !== undefined ? (
+              // Legacy mode or locked mode
+              <div>
+                <label className="mb-1 block text-xs text-stone-400">
+                  {intl.formatMessage(messages.borderRadius)} (
+                  {props.borderRadiusTopLeft ?? props.borderRadius ?? 0}px)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={props.borderRadiusTopLeft ?? props.borderRadius ?? 0}
+                  onChange={(e) =>
+                    handleUpdateElement(element.id, {
+                      properties: {
+                        ...props,
+                        borderRadius: parseInt(e.target.value, 10),
+                      },
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              // Unlocked mode - individual corners
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs text-stone-400">
+                    {intl.formatMessage(messages.topLeft)} (
+                    {props.borderRadiusTopLeft ?? 0}px)
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={props.borderRadiusTopLeft ?? 0}
+                    onChange={(e) =>
+                      handleUpdateElement(element.id, {
+                        properties: {
+                          ...props,
+                          borderRadiusTopLeft: parseInt(e.target.value, 10),
+                        },
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-stone-400">
+                    {intl.formatMessage(messages.topRight)} (
+                    {props.borderRadiusTopRight ?? 0}px)
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={props.borderRadiusTopRight ?? 0}
+                    onChange={(e) =>
+                      handleUpdateElement(element.id, {
+                        properties: {
+                          ...props,
+                          borderRadiusTopRight: parseInt(e.target.value, 10),
+                        },
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-stone-400">
+                    {intl.formatMessage(messages.bottomLeft)} (
+                    {props.borderRadiusBottomLeft ?? 0}px)
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={props.borderRadiusBottomLeft ?? 0}
+                    onChange={(e) =>
+                      handleUpdateElement(element.id, {
+                        properties: {
+                          ...props,
+                          borderRadiusBottomLeft: parseInt(e.target.value, 10),
+                        },
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-stone-400">
+                    {intl.formatMessage(messages.bottomRight)} (
+                    {props.borderRadiusBottomRight ?? 0}px)
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={props.borderRadiusBottomRight ?? 0}
+                    onChange={(e) =>
+                      handleUpdateElement(element.id, {
+                        properties: {
+                          ...props,
+                          borderRadiusBottomRight: parseInt(e.target.value, 10),
+                        },
+                      })
+                    }
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )
+          ) : props.lockCorners ? (
+            // Locked mode
+            <div>
+              <label className="mb-1 block text-xs text-stone-400">
+                {intl.formatMessage(messages.borderRadius)} (
+                {props.borderRadiusTopLeft ?? 0}px)
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={props.borderRadiusTopLeft ?? 0}
+                onChange={(e) =>
+                  handleUpdateElement(element.id, {
+                    properties: {
+                      ...props,
+                      borderRadiusTopLeft: parseInt(e.target.value, 10),
+                    },
+                  })
+                }
+                className="w-full"
+              />
+            </div>
+          ) : (
+            // Unlocked mode - individual corners
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-xs text-stone-400">
+                  {intl.formatMessage(messages.topLeft)} (
+                  {props.borderRadiusTopLeft ?? 0}px)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={props.borderRadiusTopLeft ?? 0}
+                  onChange={(e) =>
+                    handleUpdateElement(element.id, {
+                      properties: {
+                        ...props,
+                        borderRadiusTopLeft: parseInt(e.target.value, 10),
+                      },
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-stone-400">
+                  {intl.formatMessage(messages.topRight)} (
+                  {props.borderRadiusTopRight ?? 0}px)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={props.borderRadiusTopRight ?? 0}
+                  onChange={(e) =>
+                    handleUpdateElement(element.id, {
+                      properties: {
+                        ...props,
+                        borderRadiusTopRight: parseInt(e.target.value, 10),
+                      },
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-stone-400">
+                  {intl.formatMessage(messages.bottomLeft)} (
+                  {props.borderRadiusBottomLeft ?? 0}px)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={props.borderRadiusBottomLeft ?? 0}
+                  onChange={(e) =>
+                    handleUpdateElement(element.id, {
+                      properties: {
+                        ...props,
+                        borderRadiusBottomLeft: parseInt(e.target.value, 10),
+                      },
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-stone-400">
+                  {intl.formatMessage(messages.bottomRight)} (
+                  {props.borderRadiusBottomRight ?? 0}px)
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={props.borderRadiusBottomRight ?? 0}
+                  onChange={(e) =>
+                    handleUpdateElement(element.id, {
+                      properties: {
+                        ...props,
+                        borderRadiusBottomRight: parseInt(e.target.value, 10),
+                      },
+                    })
+                  }
+                  className="w-full"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

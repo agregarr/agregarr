@@ -402,8 +402,8 @@ class OverlayTemplateRendererService {
           );
 
           // Position the rotated buffer so its center aligns with the element center
-          const left = centerX - Math.floor(overlayWidth / 2);
-          const top = centerY - Math.floor(overlayHeight / 2);
+          const left = centerX - Math.round(overlayWidth / 2);
+          const top = centerY - Math.round(overlayHeight / 2);
 
           overlays.push({
             input: safeOverlayBuffer,
@@ -616,26 +616,106 @@ class OverlayTemplateRendererService {
     const borderWidth = props.borderWidth
       ? Math.round(props.borderWidth * scaleX)
       : 0;
-    const borderRadius = props.borderRadius
-      ? Math.round(props.borderRadius * scaleX)
-      : 0;
 
-    // Create SVG for tile rendering
+    // Determine corner radii (with backward compatibility)
+    let radiusTopLeft = 0;
+    let radiusTopRight = 0;
+    let radiusBottomLeft = 0;
+    let radiusBottomRight = 0;
+
+    if (props.lockCorners || props.borderRadius !== undefined) {
+      // Locked mode or legacy borderRadius - all corners same
+      const baseRadius = props.borderRadiusTopLeft ?? props.borderRadius ?? 0;
+      const scaledRadius = Math.round(baseRadius * scaleX);
+      radiusTopLeft = scaledRadius;
+      radiusTopRight = scaledRadius;
+      radiusBottomLeft = scaledRadius;
+      radiusBottomRight = scaledRadius;
+    } else {
+      // Unlocked mode - individual corners
+      radiusTopLeft = props.borderRadiusTopLeft
+        ? Math.round(props.borderRadiusTopLeft * scaleX)
+        : 0;
+      radiusTopRight = props.borderRadiusTopRight
+        ? Math.round(props.borderRadiusTopRight * scaleX)
+        : 0;
+      radiusBottomLeft = props.borderRadiusBottomLeft
+        ? Math.round(props.borderRadiusBottomLeft * scaleX)
+        : 0;
+      radiusBottomRight = props.borderRadiusBottomRight
+        ? Math.round(props.borderRadiusBottomRight * scaleX)
+        : 0;
+    }
+
+    // Create SVG path for rectangle with individual corner radii
+    const path = this.createRoundedRectPath(
+      width,
+      height,
+      radiusTopLeft,
+      radiusTopRight,
+      radiusBottomRight,
+      radiusBottomLeft
+    );
+
     const svg = `
       <svg width="${width}" height="${height}">
-        <rect
-          width="${width}"
-          height="${height}"
+        <path
+          d="${path}"
           fill="${props.fillColor}"
           fill-opacity="${props.fillOpacity / 100}"
           ${props.borderColor ? `stroke="${props.borderColor}"` : ''}
           ${borderWidth > 0 ? `stroke-width="${borderWidth}"` : ''}
-          rx="${borderRadius}"
         />
       </svg>
     `;
 
     return await sharp(Buffer.from(svg)).png().toBuffer();
+  }
+
+  /**
+   * Create SVG path for rounded rectangle with individual corner radii
+   */
+  private createRoundedRectPath(
+    width: number,
+    height: number,
+    radiusTopLeft: number,
+    radiusTopRight: number,
+    radiusBottomRight: number,
+    radiusBottomLeft: number
+  ): string {
+    // Clamp radii to not exceed half the width/height
+    const maxRadiusX = width / 2;
+    const maxRadiusY = height / 2;
+
+    const rtl = Math.min(radiusTopLeft, maxRadiusX, maxRadiusY);
+    const rtr = Math.min(radiusTopRight, maxRadiusX, maxRadiusY);
+    const rbr = Math.min(radiusBottomRight, maxRadiusX, maxRadiusY);
+    const rbl = Math.min(radiusBottomLeft, maxRadiusX, maxRadiusY);
+
+    // SVG path for rounded rectangle
+    // Move to top-left corner (after arc)
+    // Draw line to top-right corner arc
+    // Arc around top-right
+    // Draw line to bottom-right corner arc
+    // Arc around bottom-right
+    // Draw line to bottom-left corner arc
+    // Arc around bottom-left
+    // Draw line back to top-left arc
+    // Arc around top-left
+    // Close path
+
+    return `
+      M ${rtl} 0
+      L ${width - rtr} 0
+      Q ${width} 0 ${width} ${rtr}
+      L ${width} ${height - rbr}
+      Q ${width} ${height} ${width - rbr} ${height}
+      L ${rbl} ${height}
+      Q 0 ${height} 0 ${height - rbl}
+      L 0 ${rtl}
+      Q 0 0 ${rtl} 0
+      Z
+    `.trim();
   }
 
   /**

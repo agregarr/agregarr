@@ -35,7 +35,12 @@ export interface OverlayTileElementProps {
   fillOpacity: number;
   borderColor?: string;
   borderWidth?: number;
-  borderRadius?: number;
+  borderRadius?: number; // Deprecated - use individual corners
+  borderRadiusTopLeft?: number;
+  borderRadiusTopRight?: number;
+  borderRadiusBottomLeft?: number;
+  borderRadiusBottomRight?: number;
+  lockCorners?: boolean; // When true, all corners use topLeft value
 }
 
 /**

@@ -30,6 +30,23 @@ export const TileElement: React.FC<TileElementComponentProps> = ({
   const props = element.properties as OverlayTileElementProps;
   const groupRef = useRef<Konva.Group | null>(null);
 
+  // Determine corner radii (with backward compatibility)
+  let cornerRadius: number | number[];
+
+  if (props.lockCorners || props.borderRadius !== undefined) {
+    // Locked mode or legacy - all corners same
+    const radius = props.borderRadiusTopLeft ?? props.borderRadius ?? 0;
+    cornerRadius = radius;
+  } else {
+    // Unlocked mode - individual corners [top-left, top-right, bottom-right, bottom-left]
+    cornerRadius = [
+      props.borderRadiusTopLeft ?? 0,
+      props.borderRadiusTopRight ?? 0,
+      props.borderRadiusBottomRight ?? 0,
+      props.borderRadiusBottomLeft ?? 0,
+    ];
+  }
+
   return (
     <Group
       ref={groupRef}
@@ -92,7 +109,7 @@ export const TileElement: React.FC<TileElementComponentProps> = ({
         opacity={props.fillOpacity / 100}
         stroke={props.borderColor}
         strokeWidth={props.borderWidth || 0}
-        cornerRadius={props.borderRadius || 0}
+        cornerRadius={cornerRadius}
         listening={false}
       />
 
@@ -104,7 +121,7 @@ export const TileElement: React.FC<TileElementComponentProps> = ({
           fill="transparent"
           stroke="#ff6b35"
           strokeWidth={2}
-          cornerRadius={props.borderRadius || 0}
+          cornerRadius={cornerRadius}
           listening={false}
         />
       )}

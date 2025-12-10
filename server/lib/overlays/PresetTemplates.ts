@@ -40,7 +40,11 @@ export const PRESET_TEMPLATES: {
           properties: {
             fillColor: '#000000',
             fillOpacity: 50,
-            borderRadius: 15,
+            borderRadiusBottomLeft: 0,
+            borderRadiusBottomRight: 5,
+            borderRadiusTopLeft: 0,
+            borderRadiusTopRight: 0,
+            lockCorners: false,
           },
         },
         {
@@ -100,7 +104,11 @@ export const PRESET_TEMPLATES: {
           properties: {
             fillColor: '#000000',
             fillOpacity: 50,
-            borderRadius: 15,
+            borderRadiusBottomLeft: 0,
+            borderRadiusBottomRight: 10,
+            borderRadiusTopLeft: 0,
+            borderRadiusTopRight: 5,
+            lockCorners: false,
           },
         },
         {
