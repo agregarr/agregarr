@@ -14,7 +14,7 @@ Agregarr keeps your Plex Home and Recommended fresh by frequently updating it wi
 - **Randomise Home Order**: Keep your home screen dynamic by rotating the order in which collections appear (separate scheduling available)
 - **Template System**: Easily set collection names with flexible templating and title importing from lists.
 - **Time Restrictions**: Schedule collections to be active only during specific time periods
-- **Exising Collection Integration**: Any pre-existing Collections in Plex and Default Hubs (Recently Added etc) can be managed alongside Agregarr Collections
+- **Existing Collection Integration**: Any pre-existing Collections in Plex and Default Hubs (Recently Added etc) can be managed alongside Agregarr Collections
 - **Collection Statistics**: Dashboard showing Most Popular Collections (from Tautulli), and recently added Missing Items
 - **Poster Templates**: Create your own Poster Templates which can be dynamically filled with content per-collection
 - **Preview Collections**: Preview the collection and its matching/missing items, and add them individually via Radarr/Sonarr or Overseerr, or add items to the global exclusions list.
@@ -35,12 +35,12 @@ services:
       # Linux/Mac: - /mnt/serverdata/configs/agregarr:/app/config
       # Windows:   - C:\serverdata\configs\agregarr:/app/config
 
-      # Develop branch only (optional): For Coming Soon feature
-      # Linux/Mac: - /path/to/movies:/data/movies
-      #            - /path/to/tv:/data/tv
-      # Windows:   - E:\media\movies:/data/movies
-      #            - E:\media\tv:/data/tv
-      # And then select your root folder in Settings -> Downloads
+      # Develop branch only (optional): For Coming Soon/Placeholder feature
+      # Linux/Mac: - /path/to/placeholder/movies:/data/movies
+      #            - /path/to/placeholder/tv:/data/tv
+      # Windows:   - E:\media\placeholders\movies:/data/movies
+      #            - E:\media\placeholders\tv:/data/tv
+      # And then select your root folders in Settings -> Downloads
     ports:
       - 7171:7171
     restart: unless-stopped
@@ -48,7 +48,7 @@ services:
 
 The application will be available at `http://localhost:7171`
 
-> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because your volume is not set correctly. The Coming Soon feature requires media volumes to be mounted, this should the same folder as your Plex/Sonarr/Radarr folders. Without media mounts, Agregarr can run remotely and all other features will work normally.
+> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because your volume is not set correctly. The Coming Soon/Placeholder feature requires media volumes to be mounted, these folders should be added to Plex, but not added to Radarr/Sonarr. Without media mounts, Agregarr can run remotely and all other features will work normally.
 
 ## License
 
