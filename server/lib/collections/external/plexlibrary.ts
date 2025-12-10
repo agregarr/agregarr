@@ -544,7 +544,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           );
 
           const shouldGeneratePoster = config.autoPoster ?? true;
-          const directorPhotoUrl = directorInfo?.profilePath
+          const personImageUrl = directorInfo?.profilePath
             ? `https://image.tmdb.org/t/p/original${directorInfo.profilePath}`
             : undefined;
           const posterItems =
@@ -575,7 +575,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
               plexClient,
               posterItems,
               undefined,
-              directorPhotoUrl
+              undefined,
+              personImageUrl
             );
           }
         } catch (error) {
