@@ -341,6 +341,24 @@ export class NetworksCollectionSync extends BaseCollectionSync {
         );
 
         if (bestMatch) {
+          // CRITICAL FIX: Skip items that don't match the library type
+          // When using "Overall" FlixPatrol lists in a specific library (movie or TV),
+          // only include items that match that library type.
+          // Example: "Shrek" (movie) in an overall list should be skipped in a TV library
+          if (mediaType !== 'both' && bestMatch.mediaType !== mediaType) {
+            logger.debug(
+              `Skipping ${bestMatch.mediaType} "${item.title}" - doesn't match ${mediaType} library type`,
+              {
+                label: 'Networks Collections',
+                itemTitle: item.title,
+                tmdbType: bestMatch.mediaType,
+                libraryType: mediaType,
+                tmdbId: bestMatch.result.id,
+              }
+            );
+            continue; // Skip this item entirely
+          }
+
           const tmdbTitle =
             bestMatch.mediaType === 'movie'
               ? (bestMatch.result as { title: string }).title
@@ -679,26 +697,24 @@ export class NetworksCollectionSync extends BaseCollectionSync {
       score: number;
     }[] = [];
 
-    // Only include results that match the collection media type (unless it's 'both')
-    if (collectionMediaType === 'movie' || collectionMediaType === 'both') {
-      movieResults.forEach((result) => {
-        scoredResults.push({
-          result,
-          mediaType: 'movie',
-          score: calculateScore(result, 'movie'),
-        });
+    // Score all results from both movie and TV searches
+    // The best match is chosen based on title similarity, popularity, and votes
+    // Library type filtering happens after the best match is chosen
+    movieResults.forEach((result) => {
+      scoredResults.push({
+        result,
+        mediaType: 'movie',
+        score: calculateScore(result, 'movie'),
       });
-    }
+    });
 
-    if (collectionMediaType === 'tv' || collectionMediaType === 'both') {
-      tvResults.forEach((result) => {
-        scoredResults.push({
-          result,
-          mediaType: 'tv',
-          score: calculateScore(result, 'tv'),
-        });
+    tvResults.forEach((result) => {
+      scoredResults.push({
+        result,
+        mediaType: 'tv',
+        score: calculateScore(result, 'tv'),
       });
-    }
+    });
 
     // Sort by score (highest first)
     scoredResults.sort((a, b) => b.score - a.score);
