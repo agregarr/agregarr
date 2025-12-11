@@ -867,7 +867,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     const isMultiCollectionPattern =
       (config.type === 'overseerr' && config.subtype === 'users') ||
       (config.type === 'tmdb' && config.subtype === 'auto_franchise') ||
-      (config.type === 'plex_library' && config.subtype === 'directors');
+      (config.type === 'plex_library' &&
+        (config.subtype === 'directors' || config.subtype === 'actors'));
     if (updateResult.collectionRatingKey && !isMultiCollectionPattern) {
       this.updateConfigWithRatingKey(config, updateResult.collectionRatingKey);
     }
@@ -1366,7 +1367,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       const isMultiCollectionPattern =
         (config?.type === 'overseerr' && config?.subtype === 'users') ||
         (config?.type === 'tmdb' && config?.subtype === 'auto_franchise') ||
-        (config?.type === 'plex_library' && config?.subtype === 'directors');
+        (config?.type === 'plex_library' &&
+          (config?.subtype === 'directors' || config?.subtype === 'actors'));
       if (config?.collectionRatingKey && !isMultiCollectionPattern) {
         try {
           const existingByRatingKey = await plexClient.getCollectionMetadata(
@@ -3165,11 +3167,12 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         mediaType,
       });
 
-      const isDirectorCollection =
-        config.type === 'plex_library' && config.subtype === 'directors';
+      const isPersonCollection =
+        config.type === 'plex_library' &&
+        (config.subtype === 'directors' || config.subtype === 'actors');
       let resolvedTemplateId = config.autoPosterTemplate ?? null;
 
-      if (isDirectorCollection) {
+      if (isPersonCollection) {
         try {
           const { getRepository } = await import('@server/datasource');
           const { PosterTemplate } = await import(
@@ -3177,7 +3180,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           );
           const templateRepository = getRepository(PosterTemplate);
 
-          const [directorTemplate, currentTemplate] = await Promise.all([
+          const [personTemplate, currentTemplate] = await Promise.all([
             (async () => {
               const personTemplate = await templateRepository.findOne({
                 where: { name: 'Person Spotlight', isActive: true },
@@ -3196,19 +3199,19 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
 
           const currentIsGenericDefault = currentTemplate?.isDefault === true;
 
-          if (directorTemplate && (!resolvedTemplateId || currentIsGenericDefault)) {
-            resolvedTemplateId = directorTemplate.id;
+          if (personTemplate && (!resolvedTemplateId || currentIsGenericDefault)) {
+            resolvedTemplateId = personTemplate.id;
             logger.debug('Defaulting to Person Spotlight template', {
               label: `${this.source} Collections`,
               configId: config.id,
-              templateId: directorTemplate.id,
+              templateId: personTemplate.id,
               reason: resolvedTemplateId
                 ? 'generic-default-replaced'
                 : 'unset',
             });
           }
         } catch (error) {
-          logger.warn('Failed to resolve director poster template', {
+          logger.warn('Failed to resolve person poster template', {
             label: `${this.source} Collections`,
             configId: config.id,
             error: error instanceof Error ? error.message : String(error),

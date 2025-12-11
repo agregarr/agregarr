@@ -102,6 +102,24 @@ const CollectionTypeSection = ({
     setFieldValue,
   ]);
 
+  // Ensure actor minimum items defaults to 5 when empty
+  useEffect(() => {
+    const isActorConfig =
+      values.type === 'plex_library' && values.subtype === 'actors';
+    const hasValue =
+      values.actorMinimumItems !== undefined &&
+      values.actorMinimumItems !== null;
+
+    if (isActorConfig && !hasValue) {
+      setFieldValue('actorMinimumItems', 5);
+    }
+  }, [
+    values.type,
+    values.subtype,
+    values.actorMinimumItems,
+    setFieldValue,
+  ]);
+
   // Validate API keys for the current collection type
   const apiKeyValidation = validateApiKeysForCollectionType(
     values.type || '',
@@ -244,6 +262,12 @@ const CollectionTypeSection = ({
             label: 'Auto Director Collections',
             description:
               'Automatically create a smart collection for each top director in this library.',
+          },
+          {
+            value: 'actors',
+            label: 'Auto Actor Collections',
+            description:
+              'Automatically create smart collections for the top 5 actors in this library.',
           },
         ];
       case 'imdb':
@@ -542,31 +566,45 @@ const CollectionTypeSection = ({
         />
       )}
 
-      {/* Plex Library Directors */}
-      {values.type === 'plex_library' && values.subtype === 'directors' && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label
-              htmlFor="directorMinimumItems"
-              className="mb-2 block text-sm text-gray-300"
-            >
-              Minimum Items
-            </label>
-            <Field
-              type="number"
-              id="directorMinimumItems"
-              name="directorMinimumItems"
-              placeholder="5"
-              min="2"
-              max="50"
-              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Only create if a director has at least this many items (default: 5, minimum allowed: 2)
-            </p>
+      {/* Plex Library Person Minimum Item Limit */}
+      {values.type === 'plex_library' &&
+        (values.subtype === 'directors' || values.subtype === 'actors') && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              {(() => {
+                const fieldName =
+                  values.subtype === 'actors'
+                    ? 'actorMinimumItems'
+                    : 'directorMinimumItems';
+                const label =
+                  values.subtype === 'actors' ? 'Actor' : 'Director';
+                return (
+                  <>
+                    <label
+                      htmlFor={fieldName}
+                      className="mb-2 block text-sm text-gray-300"
+                    >
+                      Minimum Items
+                    </label>
+                    <Field
+                      type="number"
+                      id={fieldName}
+                      name={fieldName}
+                      placeholder="5"
+                      min="2"
+                      max="50"
+                      className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      Only create if a {label.toLowerCase()} has at least this
+                      many items (default: 5, minimum allowed: 2)
+                    </p>
+                  </>
+                );
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Tautulli Configuration - appears when type='tautulli' and subtype is selected */}
       {values.type === 'tautulli' && values.subtype && (

@@ -809,8 +809,11 @@ const AllCollectionsView: React.FC = () => {
                           <em>Title will be updated on Collection Sync</em>
                         ) : isCollection &&
                           originalCollectionConfig?.type === 'plex_library' &&
-                          originalCollectionConfig?.subtype === 'directors' ? (
-                          'Auto Director Collections'
+                          (originalCollectionConfig?.subtype === 'directors' ||
+                            originalCollectionConfig?.subtype === 'actors') ? (
+                          originalCollectionConfig?.subtype === 'actors'
+                            ? 'Auto Actor Collections'
+                            : 'Auto Director Collections'
                         ) : isCollection &&
                           originalCollectionConfig?.type === 'tmdb' &&
                           originalCollectionConfig?.subtype === 'auto_franchise' ? (

@@ -316,6 +316,26 @@ const CollectionFormConfigForm = ({
             .min(2, 'Director minimum items must be at least 2'),
         otherwise: (schema) => schema.notRequired(),
       }),
+    actorMinimumItems: Yup.number()
+      .transform((value, originalValue) => {
+        if (
+          originalValue === null ||
+          originalValue === undefined ||
+          originalValue === ''
+        ) {
+          return undefined;
+        }
+        return Number.isNaN(value) ? undefined : value;
+      })
+      .when(['type', 'subtype'], {
+        is: (type?: string, subtype?: string) =>
+          type === 'plex_library' && subtype === 'actors',
+        then: (schema) =>
+          schema
+            .required('Actor minimum items is required')
+            .min(2, 'Actor minimum items must be at least 2'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
 
     // Handle both libraryIds (collections) and libraryId (hubs/pre-existing)
     libraryIds: Yup.array()
@@ -1032,10 +1052,18 @@ const CollectionFormConfigForm = ({
           })(),
           template:
             (config as CollectionFormConfig).template ||
-            ((config as CollectionFormConfig).type === 'plex_library' &&
-            (config as CollectionFormConfig).subtype === 'directors'
-              ? '{director}'
-              : ''),
+            (() => {
+              if (
+                (config as CollectionFormConfig).type === 'plex_library' &&
+                ((config as CollectionFormConfig).subtype === 'directors' ||
+                  (config as CollectionFormConfig).subtype === 'actors')
+              ) {
+                return (config as CollectionFormConfig).subtype === 'actors'
+                  ? '{actor}'
+                  : '{director}';
+              }
+              return '';
+            })(),
           libraryId: config.libraryId || undefined,
           libraryIds:
             (config as CollectionFormConfigForEditing).libraryIds ||
@@ -1055,6 +1083,12 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).directorMinimumItems ??
             ((config as CollectionFormConfig).type === 'plex_library' &&
             (config as CollectionFormConfig).subtype === 'directors'
+              ? 5
+              : undefined),
+          actorMinimumItems:
+            (config as CollectionFormConfig).actorMinimumItems ??
+            ((config as CollectionFormConfig).type === 'plex_library' &&
+            (config as CollectionFormConfig).subtype === 'actors'
               ? 5
               : undefined),
           placeholderReleasedDays:
@@ -1382,6 +1416,9 @@ const CollectionFormConfigForm = ({
           const overseerrSonarrTags = values.enableGrabMissingItems
             ? values.overseerrSonarrTags
             : undefined;
+          const isPersonCollection =
+            values.type === 'plex_library' &&
+            (values.subtype === 'directors' || values.subtype === 'actors');
 
           const configToSave: CollectionFormConfig = {
             ...values,
@@ -1390,14 +1427,18 @@ const CollectionFormConfigForm = ({
             subtype: finalSubtype,
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
-            // Force deterministic name/template for auto director collections
+            // Force deterministic name/template for auto person collections
             name:
-              values.type === 'plex_library' && values.subtype === 'directors'
-                ? 'Auto Director Collections'
+              isPersonCollection
+                ? values.subtype === 'actors'
+                  ? 'Auto Actor Collections'
+                  : 'Auto Director Collections'
                 : generateCollectionName(values as CollectionFormConfig),
             template:
-              values.type === 'plex_library' && values.subtype === 'directors'
-                ? '{director}'
+              isPersonCollection
+                ? values.subtype === 'actors'
+                  ? '{actor}'
+                  : '{director}'
                 : values.template,
             // Send template as-is - let backend handle custom template selection per library
             customMovieTemplate:
@@ -1481,6 +1522,10 @@ const CollectionFormConfigForm = ({
             directorMinimumItems:
               optionalNumber(values.directorMinimumItems) ??
               (config as CollectionFormConfig).directorMinimumItems ??
+              5,
+            actorMinimumItems:
+              optionalNumber(values.actorMinimumItems) ??
+              (config as CollectionFormConfig).actorMinimumItems ??
               5,
             excludedGenres:
               values.enableGrabMissingItems && values.excludedGenres
@@ -1599,7 +1644,7 @@ const CollectionFormConfigForm = ({
                 secondaryTooltip={linkingTooltip}
                 secondaryButtonType={isLinked ? 'warning' : 'primary'}
                 // Add preview button for collections (not hubs or pre-existing)
-                // Disable for multi-collection patterns (overseerr users, tmdb franchise, plex_library auto-directors)
+                // Disable for multi-collection patterns (overseerr users, tmdb franchise, plex_library auto-directors/actors)
                 onTertiary={
                   isCollection &&
                   values.type &&
@@ -1614,7 +1659,7 @@ const CollectionFormConfigForm = ({
                   ) &&
                   !(
                     values.type === 'plex_library' &&
-                    values.subtype === 'directors'
+                    (values.subtype === 'directors' || values.subtype === 'actors')
                   )
                     ? () => setShowPreview(true)
                     : undefined
@@ -1633,7 +1678,7 @@ const CollectionFormConfigForm = ({
                   ) &&
                   !(
                     values.type === 'plex_library' &&
-                    values.subtype === 'directors'
+                    (values.subtype === 'directors' || values.subtype === 'actors')
                   )
                     ? intl.formatMessage(messages.previewCollection)
                     : undefined
@@ -1883,10 +1928,11 @@ const CollectionFormConfigForm = ({
                             </div>
                           </div>
                         )}
-                      {/* Simple explanation for Plex Library Auto Director Collections */}
+                      {/* Simple explanation for Plex Library Auto Person Collections */}
                       {isCollection &&
                         values.type === 'plex_library' &&
-                        values.subtype === 'directors' && (
+                        (values.subtype === 'directors' ||
+                          values.subtype === 'actors') && (
                           <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
                             <div className="flex">
                               <svg
@@ -1902,12 +1948,16 @@ const CollectionFormConfigForm = ({
                               </svg>
                               <div>
                                 <p className="text-sm text-gray-400">
-                                  Automatically finds top directors in this Plex
-                                  library and creates a smart collection for each
-                                  (up to your limits). These collections stay
-                                  synced via Plex smart filters and exclude trailer
-                                  placeholders. Managed here as a single “Auto
-                                  Director Collections” config.
+                                  Automatically finds top{' '}
+                                  {values.subtype === 'actors'
+                                    ? 'actors'
+                                    : 'directors'}{' '}
+                                  in this Plex library and creates a smart collection
+                                  for each (up to your limits). These collections
+                                  stay synced via Plex smart filters and exclude
+                                  trailer placeholders. Managed here as a single “Auto{' '}
+                                  {values.subtype === 'actors' ? 'Actor' : 'Director'}{' '}
+                                  Collections” config.
                                 </p>
                               </div>
                             </div>
@@ -2150,7 +2200,8 @@ const CollectionFormConfigForm = ({
                                     (values.type === 'tmdb' &&
                                       values.subtype === 'auto_franchise') ||
                                     (values.type === 'plex_library' &&
-                                      values.subtype === 'directors')
+                                      (values.subtype === 'directors' ||
+                                        values.subtype === 'actors'))
                                   }
                                   restrictToServerOwnerOnly={
                                     values.type === 'overseerr' &&
@@ -2223,7 +2274,8 @@ const CollectionFormConfigForm = ({
                                 (values.type === 'tmdb' &&
                                   values.subtype === 'auto_franchise') ||
                                 (values.type === 'plex_library' &&
-                                  values.subtype === 'directors')
+                                  (values.subtype === 'directors' ||
+                                    values.subtype === 'actors'))
                               ) && (
                                 <div className="form-row">
                                   <label className="text-label">
@@ -2508,7 +2560,7 @@ const CollectionFormConfigForm = ({
                             )}
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}
-                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex_library directors */}
+                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex_library directors/actors */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
@@ -2519,7 +2571,8 @@ const CollectionFormConfigForm = ({
                               ) &&
                               !(
                                 typedValues.type === 'plex_library' &&
-                                typedValues.subtype === 'directors'
+                                (typedValues.subtype === 'directors' ||
+                                  typedValues.subtype === 'actors')
                               ) && (
                                 <div className="form-row">
                                   <label
@@ -2759,7 +2812,7 @@ const CollectionFormConfigForm = ({
                               })()}
 
                             {/* Auto-Request Settings - only show for external sources */}
-                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex_library directors */}
+                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex_library directors/actors */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
@@ -2770,7 +2823,8 @@ const CollectionFormConfigForm = ({
                               ) &&
                               !(
                                 typedValues.type === 'plex_library' &&
-                                typedValues.subtype === 'directors'
+                                (typedValues.subtype === 'directors' ||
+                                  typedValues.subtype === 'actors')
                               ) && (
                                 <div className="form-row">
                                   <label className="text-label">
@@ -3059,8 +3113,16 @@ const CollectionFormConfigForm = ({
       return values.name || 'User Collection';
     }
 
-    if (values.type === 'plex_library' && values.subtype === 'directors') {
-      return values.name || 'Auto Director Collections';
+    if (
+      values.type === 'plex_library' &&
+      (values.subtype === 'directors' || values.subtype === 'actors')
+    ) {
+      return (
+        values.name ||
+        (values.subtype === 'actors'
+          ? 'Auto Actor Collections'
+          : 'Auto Director Collections')
+      );
     }
 
     // Handle custom templates - show appropriate preview

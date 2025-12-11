@@ -398,23 +398,28 @@ export function findCollectionByConfigId(
     }
   }
 
-  // Special handling for Plex Library director collections
-  if (configType === 'plex_library' && configSubtype === 'directors') {
-    const directorLabelPrefix = `AgregarrAutoDirector-${configId}-`.toLowerCase();
+  // Special handling for Plex Library person collections (directors/actors)
+  if (
+    configType === 'plex_library' &&
+    (configSubtype === 'directors' || configSubtype === 'actors')
+  ) {
+    const prefix = `AgregarrAuto${
+      configSubtype === 'actors' ? 'Actor' : 'Director'
+    }-${configId}-`.toLowerCase();
 
-    const hasDirectorCollections = allCollections.some((collection) => {
+    const hasPersonCollections = allCollections.some((collection) => {
       if (!collection.labels) return false;
       return collection.labels.some((label) => {
         const labelText = typeof label === 'string' ? label : label.tag;
         if (!labelText) return false;
         const normalized = labelText.toLowerCase();
-        return normalized.startsWith(directorLabelPrefix);
+        return normalized.startsWith(prefix);
       });
     });
 
-    if (hasDirectorCollections) {
+    if (hasPersonCollections) {
       logger.debug(
-        `Plex Library director collections found for config: ${configId}`,
+        `Plex Library ${configSubtype} collections found for config: ${configId}`,
         {
           label: 'Collection Matching',
           configId,

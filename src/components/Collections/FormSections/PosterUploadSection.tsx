@@ -145,8 +145,9 @@ const PosterUploadSection = ({
   const selectedTemplateId =
     values.autoPosterTemplate || defaultTemplate?.id || null;
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
-  const isDirectorCollection =
-    values.type === 'plex_library' && values.subtype === 'directors';
+  const isPersonCollection =
+    values.type === 'plex_library' &&
+    (values.subtype === 'directors' || values.subtype === 'actors');
 
   const handleAutoPosterChange = (enabled: boolean) => {
     setFieldValue('autoPoster', enabled);
@@ -163,7 +164,7 @@ const PosterUploadSection = ({
     }
 
     if (
-      isDirectorCollection &&
+      isPersonCollection &&
       directorTemplate &&
       (!values.autoPosterTemplate ||
         values.autoPosterTemplate === defaultTemplate?.id)
@@ -180,7 +181,7 @@ const PosterUploadSection = ({
     values.autoPosterTemplate,
     defaultTemplate,
     directorTemplate,
-    isDirectorCollection,
+    isPersonCollection,
     setFieldValue,
   ]);
 

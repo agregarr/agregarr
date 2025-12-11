@@ -337,6 +337,8 @@ export interface CollectionFormConfig {
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Plex Library director settings
   readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
+  // Plex Library actor settings
+  readonly actorMinimumItems?: number; // Minimum items required to create an actor collection (for plex_library/actors)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
@@ -503,6 +505,7 @@ export interface CollectionConfigCreateRequest {
   readonly sortOrder?: CollectionSortOrder;
   // Plex Library director settings (also accepted by create requests)
   readonly directorMinimumItems?: number; // Minimum items required to create a director collection (for plex_library/directors)
+  readonly actorMinimumItems?: number; // Minimum items required to create an actor collection (for plex_library/actors)
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
@@ -625,6 +628,7 @@ export const toCollectionCreateRequest = (
     sonarrTagId: config.sonarrTagId,
     sortOrder: config.sortOrder,
     directorMinimumItems: config.directorMinimumItems,
+    actorMinimumItems: config.actorMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,

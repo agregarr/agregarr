@@ -179,6 +179,8 @@ export interface CollectionConfig {
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Plex Library director settings (for plex_library/directors)
   readonly directorMinimumItems?: number; // Minimum items required to create a director collection (default: 5)
+  // Plex Library actor settings (for plex_library/actors)
+  readonly actorMinimumItems?: number; // Minimum items required to create an actor collection (default: 5)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
@@ -1355,26 +1357,38 @@ class Settings {
         let updatedConfig = { ...config };
         let changed = false;
 
-        // Ensure plex_library/directors configs carry required defaults
+        // Ensure plex_library person configs carry required defaults
         if (
           updatedConfig.type === 'plex_library' &&
-          updatedConfig.subtype === 'directors'
+          (updatedConfig.subtype === 'directors' ||
+            updatedConfig.subtype === 'actors')
         ) {
-          if (updatedConfig.directorMinimumItems === undefined) {
-            updatedConfig.directorMinimumItems = 5;
+          const isActors = updatedConfig.subtype === 'actors';
+          const minimumItemsKey = isActors
+            ? 'actorMinimumItems'
+            : 'directorMinimumItems';
+
+          if ((updatedConfig as any)[minimumItemsKey] === undefined) {
+            (updatedConfig as any)[minimumItemsKey] = 5;
             changed = true;
           }
           // Standardize template/name so placeholder text doesn't leak through
-          if (!updatedConfig.template || updatedConfig.template === 'Collection') {
-            updatedConfig.template = '{director}';
+          const placeholder = isActors ? '{actor}' : '{director}';
+          if (
+            !updatedConfig.template ||
+            updatedConfig.template === 'Collection'
+          ) {
+            updatedConfig.template = placeholder;
             changed = true;
           }
           if (
-            updatedConfig.name === '{director}' ||
+            updatedConfig.name === placeholder ||
             !updatedConfig.name ||
             updatedConfig.name === 'Collection'
           ) {
-            updatedConfig.name = 'Auto Director Collections';
+            updatedConfig.name = isActors
+              ? 'Auto Actor Collections'
+              : 'Auto Director Collections';
             changed = true;
           }
         }

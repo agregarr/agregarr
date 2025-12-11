@@ -1,7 +1,7 @@
 /**
  * Plex Library Collection Sync
  *
- * Creates smart collections based on Plex library metadata (e.g., directors).
+ * Creates smart collections based on Plex library metadata (e.g., directors, actors).
  */
 
 import type PlexAPI from '@server/api/plexapi';
@@ -32,11 +32,13 @@ import os from 'os';
 import path from 'path';
 import sharp from 'sharp';
 
-type DirectorTmdbInfo = {
+type PersonTmdbInfo = {
   tmdbPersonId: number;
   profilePath?: string;
   biography?: string;
 };
+
+type PersonCollectionSubtype = 'directors' | 'actors';
 
 const DIRECTOR_POSTER_WIDTH = 1000;
 const DIRECTOR_POSTER_HEIGHT = 1500;
@@ -55,23 +57,39 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     super('plex_library');
   }
 
-  private async setDirectorBioAsDescription(
-    directorName: string,
+  private getPersonTypeLabel(subtype: PersonCollectionSubtype): string {
+    return subtype === 'actors' ? 'actor' : 'director';
+  }
+
+  private getPersonLabelPrefix(
+    subtype: PersonCollectionSubtype,
+    configId: string
+  ): string {
+    const labelType =
+      subtype === 'actors' ? 'AgregarrAutoActor' : 'AgregarrAutoDirector';
+    return `${labelType}-${configId}-`;
+  }
+
+  private async setPersonBioAsDescription(
+    personName: string,
     collectionRatingKey: string,
     plexClient: PlexAPI,
-    directorInfo?: DirectorTmdbInfo
+    subtype: PersonCollectionSubtype,
+    personInfo?: PersonTmdbInfo
   ): Promise<boolean> {
     try {
       const info =
-        directorInfo ?? (await this.fetchTmdbDirectorInfo(directorName));
+        personInfo ?? (await this.fetchTmdbPersonInfo(personName));
       const biography = info?.biography;
+      const personLabel = this.getPersonTypeLabel(subtype);
 
       if (!biography) {
         logger.debug(
-          `No TMDB biography found for director "${directorName}", skipping description`,
+          `No TMDB biography found for ${personLabel} "${personName}", skipping description`,
           {
             label: 'Plex Library Collections',
-            directorName,
+            personName,
+            subtype,
           }
         );
         return false;
@@ -89,10 +107,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
       if (!bioText) {
         logger.debug(
-          `Biography truncated to empty string for director "${directorName}", skipping description`,
+          `Biography truncated to empty string for ${personLabel} "${personName}", skipping description`,
           {
             label: 'Plex Library Collections',
-            directorName,
+            personName,
+            subtype,
           }
         );
         return false;
@@ -101,10 +120,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       await plexClient.updateSummary(collectionRatingKey, bioText);
 
       logger.debug(
-        `Successfully set bio description for director "${directorName}" collection`,
+        `Successfully set bio description for ${personLabel} "${personName}" collection`,
         {
           label: 'Plex Library Collections',
-          directorName,
+          personName,
+          subtype,
           bioLength: bioText.length,
         }
       );
@@ -112,10 +132,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return true;
     } catch (error) {
       logger.warn(
-        `Failed to set bio description for director "${directorName}"`,
+        `Failed to set bio description for ${this.getPersonTypeLabel(subtype)} "${personName}"`,
         {
           label: 'Plex Library Collections',
-          directorName,
+          personName,
+          subtype,
           error: error instanceof Error ? error.message : String(error),
         }
       );
@@ -123,21 +144,23 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     }
   }
 
-  private sanitizeDirectorNameForLabel(name: string): string {
+  private sanitizePersonNameForLabel(name: string): string {
     const sanitized = name
       .toLowerCase()
       .normalize('NFD')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-    return sanitized || 'director';
+    return sanitized || 'person';
   }
 
-  private buildDirectorLabel(
+  private buildPersonLabel(
+    subtype: PersonCollectionSubtype,
     configId: string,
     slug: string | number
   ): string {
     const suffix = String(slug).toLowerCase();
-    return `AgregarrAutoDirector-${configId}-${suffix}`;
+    const labelPrefix = this.getPersonLabelPrefix(subtype, configId);
+    return `${labelPrefix}${suffix}`;
   }
 
   private extractTmdbIdFromGuids(
@@ -158,8 +181,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     return match ? Number(match[1]) : undefined;
   }
 
-  private async buildDirectorPosterItems(
-    directorName: string,
+  private async buildPersonPosterItems(
+    subtype: PersonCollectionSubtype,
+    personName: string,
     mediaType: 'movie' | 'tv',
     config: CollectionConfig,
     plexClient: PlexAPI,
@@ -176,12 +200,20 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     );
 
     try {
-      const plexItems = await plexClient.getItemsByDirector(
-        config.libraryId,
-        directorName,
-        mediaType,
-        itemLimit
-      );
+      const plexItems =
+        subtype === 'actors'
+          ? await plexClient.getItemsByActor(
+              config.libraryId,
+              personName,
+              mediaType,
+              itemLimit
+            )
+          : await plexClient.getItemsByDirector(
+              config.libraryId,
+              personName,
+              mediaType,
+              itemLimit
+            );
 
       const mappedItems = plexItems.map((item) => {
         const tmdbId = this.extractTmdbIdFromGuids(item.Guid);
@@ -198,27 +230,33 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       });
 
       logger.debug(
-        `Prepared ${mappedItems.length} items for director poster generation`,
+        `Prepared ${mappedItems.length} items for ${this.getPersonTypeLabel(subtype)} poster generation`,
         {
           label: 'Plex Library Collections',
-          directorName,
+          personName,
+          subtype,
           libraryId: config.libraryId,
         }
       );
 
       return mappedItems.slice(0, itemLimit);
     } catch (error) {
-      logger.warn('Failed to fetch director items for poster generation', {
-        label: 'Plex Library Collections',
-        directorName,
-        libraryId: config.libraryId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.warn(
+        `Failed to fetch ${this.getPersonTypeLabel(subtype)} items for poster generation`,
+        {
+          label: 'Plex Library Collections',
+          personName,
+          subtype,
+          libraryId: config.libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
       return [];
     }
   }
 
-  private async addDirectorLabel(
+  private async addPersonLabel(
+    subtype: PersonCollectionSubtype,
     plexClient: PlexAPI,
     collectionRatingKey: string,
     label: string
@@ -226,25 +264,31 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     try {
       await plexClient.addLabelToCollection(collectionRatingKey, label);
     } catch (labelError) {
-      logger.warn(`Failed to add label "${label}" to director collection`, {
-        label: 'Plex Library Collections',
-        collectionRatingKey,
-        error:
-          labelError instanceof Error ? labelError.message : String(labelError),
-      });
+      logger.warn(
+        `Failed to add label "${label}" to ${this.getPersonTypeLabel(subtype)} collection`,
+        {
+          label: 'Plex Library Collections',
+          collectionRatingKey,
+          subtype,
+          error:
+            labelError instanceof Error
+              ? labelError.message
+              : String(labelError),
+        }
+      );
     }
   }
 
-  private async fetchTmdbDirectorInfo(
-    directorName: string
-  ): Promise<DirectorTmdbInfo | null> {
+  private async fetchTmdbPersonInfo(
+    personName: string
+  ): Promise<PersonTmdbInfo | null> {
     try {
       const tmdbClient = new TheMovieDb({
         originalLanguage: getTmdbLanguage(),
       });
 
       const searchResults = await tmdbClient.searchMulti({
-        query: directorName,
+        query: personName,
         language: getTmdbLanguage(),
       });
 
@@ -252,7 +296,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         searchResults.results.find(
           (result: { media_type?: string; name?: string }) =>
             result.media_type === 'person' &&
-            result.name?.toLowerCase() === directorName.toLowerCase()
+            result.name?.toLowerCase() === personName.toLowerCase()
         ) ||
         searchResults.results.find(
           (result: { media_type?: string }) => result.media_type === 'person'
@@ -260,10 +304,10 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
       if (!personResult || !('id' in personResult)) {
         logger.debug(
-          `No TMDB match found for director "${directorName}", skipping media lookups`,
+          `No TMDB match found for person "${personName}", skipping media lookups`,
           {
             label: 'Plex Library Collections',
-            directorName,
+            personName,
           }
         );
         return null;
@@ -283,19 +327,16 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         biography: personDetails.biography || undefined,
       };
     } catch (error) {
-      logger.warn(
-        `Failed to fetch TMDB director info for "${directorName}"`,
-        {
-          label: 'Plex Library Collections',
-          directorName,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
+      logger.warn(`Failed to fetch TMDB person info for "${personName}"`, {
+        label: 'Plex Library Collections',
+        personName,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   }
 
-  private wrapDirectorName(name: string, maxLineLength = 16): string[] {
+  private wrapPersonName(name: string, maxLineLength = 16): string[] {
     const words = name.trim().split(/\s+/);
     const lines: string[] = [];
     let currentLine = '';
@@ -325,11 +366,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     return lines;
   }
 
-  private async applyDirectorMetadata(
+  private async applyPersonMetadata(
     plexClient: PlexAPI,
     collectionRatingKey: string,
     collectionName: string,
-    directorLabel: string,
+    personLabel: string,
     mediaType: 'movie' | 'tv',
     config: CollectionConfig
   ): Promise<void> {
@@ -344,7 +385,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       collectionName,
       mediaType,
       visibilityConfig,
-      customLabel: directorLabel,
+      customLabel: personLabel,
       sortOrderLibrary: config.sortOrderLibrary,
       isLibraryPromoted: config.isLibraryPromoted,
       customPoster: config.customPoster,
@@ -361,13 +402,17 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     config: CollectionConfig,
     _mediaType: 'movie' | 'tv'
   ): Promise<Record<string, unknown>> {
+    const personPlaceholder =
+      config.subtype === 'actors' ? '{actor}' : '{director}';
+
     return {
       source: 'plex_library',
       subtype: config.subtype,
-      // Per-director collections use the director name as the title; expose placeholders
+      // Per-person collections use the person name as the title; expose placeholders
       director: '{director}',
-      name: '{director}',
-      collectionName: '{director}',
+      actor: '{actor}',
+      name: personPlaceholder,
+      collectionName: personPlaceholder,
     };
   }
 
@@ -415,7 +460,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
   }
 
   /**
-   * Process directors collection - creates collections for top directors
+   * Process person collections - creates collections for top directors/actors
    */
   protected async processConfiguration(
     config: CollectionConfig,
@@ -427,18 +472,22 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
   ): Promise<SyncResult> {
     const mediaType = getCollectionMediaType(config);
     const subtype = config.subtype;
-    if (!subtype || subtype !== 'directors') {
+    if (!subtype || (subtype !== 'directors' && subtype !== 'actors')) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        `Invalid plex_library subtype: ${subtype}. Currently only 'directors' is supported.`
+        `Invalid plex_library subtype: ${subtype}. Currently only 'directors' and 'actors' are supported.`
       );
     }
 
-    const depth = 50; // Top N directors
-    const limit = 30; // Max items per director
-    const minimumItems = config.directorMinimumItems || 5; // Minimum threshold
+    const personTypeLabel = this.getPersonTypeLabel(subtype);
+    const depth = subtype === 'actors' ? 5 : 50; // Top N per person type
+    const limit = 30; // Max items per person
+    const minimumItems =
+      subtype === 'actors'
+        ? config.actorMinimumItems ?? 5
+        : config.directorMinimumItems ?? 5; // Minimum threshold
 
-    logger.info('Processing directors collection', {
+    logger.info(`Processing ${subtype} collection`, {
       label: 'Plex Library Collections',
       configName: config.name,
       libraryId: config.libraryId,
@@ -447,29 +496,33 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       minimumItems,
     });
 
-    const directorLabelPrefix = `AgregarrAutoDirector-${config.id}-`;
+    const personLabelPrefix = this.getPersonLabelPrefix(subtype, config.id);
 
     try {
-      // Fetch top directors from library
-      const directors = await plexClient.getLibraryDirectors(
-        config.libraryId,
-        depth * 2 // Fetch extra in case some don't meet minimum threshold
-      );
+      // Fetch top people from library
+      const people =
+        subtype === 'actors'
+          ? await plexClient.getLibraryActors(
+              config.libraryId,
+              depth * 2 // Fetch extra in case some don't meet minimum threshold
+            )
+          : await plexClient.getLibraryDirectors(
+              config.libraryId,
+              depth * 2 // Fetch extra in case some don't meet minimum threshold
+            );
 
-      // Filter directors by minimum items threshold
-      const qualifyingDirectors = directors.filter(
-        (d) => d.count >= minimumItems
-      );
+      // Filter people by minimum items threshold
+      const qualifyingPeople = people.filter((person) => person.count >= minimumItems);
 
       // Limit to depth
-      const topDirectors = qualifyingDirectors.slice(0, depth);
+      const topPeople = qualifyingPeople.slice(0, depth);
 
       logger.info(
-        `Creating collections for ${topDirectors.length} directors (${qualifyingDirectors.length} qualified, ${directors.length} total)`,
+        `Creating collections for ${topPeople.length} ${personTypeLabel}s (${qualifyingPeople.length} qualified, ${people.length} total)`,
         {
           label: 'Plex Library Collections',
           configName: config.name,
-          topDirectors: topDirectors.map((d) => `${d.name} (${d.count} items)`),
+          topPeople: topPeople.map((person) => `${person.name} (${person.count} items)`),
         }
       );
 
@@ -477,17 +530,18 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       let updated = 0;
       let deleted = 0;
 
-      for (const director of topDirectors) {
+      for (const person of topPeople) {
         try {
-          const collectionName = director.name;
-          const directorInfo =
-            (await this.fetchTmdbDirectorInfo(director.name)) ?? undefined;
+          const collectionName = person.name;
+          const personInfo =
+            (await this.fetchTmdbPersonInfo(person.name)) ?? undefined;
           const labelSuffix =
-            directorInfo?.tmdbPersonId?.toString() ??
-            this.sanitizeDirectorNameForLabel(director.name);
-          const directorLabel = this.buildDirectorLabel(
+            personInfo?.tmdbPersonId?.toString() ??
+            this.sanitizePersonNameForLabel(person.name);
+          const personLabel = this.buildPersonLabel(
+            subtype,
             config.id,
-            directorInfo?.tmdbPersonId ?? labelSuffix
+            personInfo?.tmdbPersonId ?? labelSuffix
           );
 
           const existingCollection = allCollections.find(
@@ -502,19 +556,27 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             updated++;
           } else {
             collectionRatingKey =
-              await plexClient['smartCollectionManager'].createDirectorCollection(
-                collectionName,
-                config.libraryId,
-                mediaType,
-                director.name,
-                limit
-              );
+              subtype === 'actors'
+                ? await plexClient['smartCollectionManager'].createActorCollection(
+                    collectionName,
+                    config.libraryId,
+                    mediaType,
+                    person.name,
+                    limit
+                  )
+                : await plexClient['smartCollectionManager'].createDirectorCollection(
+                    collectionName,
+                    config.libraryId,
+                    mediaType,
+                    person.name,
+                    limit
+                  );
 
             if (collectionRatingKey) {
               created++;
             } else {
               logger.warn(
-                `Failed to create collection for director: ${director.name}`,
+                `Failed to create collection for ${personTypeLabel}: ${person.name}`,
                 {
                   label: 'Plex Library Collections',
                 }
@@ -524,33 +586,35 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           }
 
           // Tag collection so discovery recognizes it as Agregarr-managed
-          await this.addDirectorLabel(
+          await this.addPersonLabel(
+            subtype,
             plexClient,
             collectionRatingKey,
-            directorLabel
+            personLabel
           );
 
           // Track by rating key so cleanup doesn't treat it as unmanaged
           processedCollectionKeys?.add(collectionRatingKey);
 
           // Apply the same metadata/ordering handling used by standard collections
-          await this.applyDirectorMetadata(
+          await this.applyPersonMetadata(
             plexClient,
             collectionRatingKey,
             collectionName,
-            directorLabel,
+            personLabel,
             mediaType,
             config
           );
 
           const shouldGeneratePoster = config.autoPoster ?? true;
-          const personImageUrl = directorInfo?.profilePath
-            ? `https://image.tmdb.org/t/p/original${directorInfo.profilePath}`
+          const personImageUrl = personInfo?.profilePath
+            ? `https://image.tmdb.org/t/p/original${personInfo.profilePath}`
             : undefined;
           const posterItems =
             shouldGeneratePoster && mediaType
-              ? await this.buildDirectorPosterItems(
-                  director.name,
+              ? await this.buildPersonPosterItems(
+                  subtype,
+                  person.name,
                   mediaType,
                   config,
                   plexClient,
@@ -558,14 +622,15 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
                 )
               : [];
 
-          // Generate auto-poster with director portrait background
+          // Generate auto-poster with portrait background
           if (shouldGeneratePoster) {
             // Update summary with TMDB bio if available (custom summaries override later)
-            await this.setDirectorBioAsDescription(
-              director.name,
+            await this.setPersonBioAsDescription(
+              person.name,
               collectionRatingKey,
               plexClient,
-              directorInfo
+              subtype,
+              personInfo
             );
 
             await this.generateAutoPoster(
@@ -580,17 +645,21 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             );
           }
         } catch (error) {
-          logger.error(`Error creating collection for director ${director.name}`, {
-            label: 'Plex Library Collections',
-            directorName: director.name,
-            error: error instanceof Error ? error.message : String(error),
-          });
+          logger.error(
+            `Error creating collection for ${personTypeLabel} ${person.name}`,
+            {
+              label: 'Plex Library Collections',
+              personName: person.name,
+              subtype,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
         }
       }
 
-      // Remove any previously created director collections that are now outside the depth limit
-      const topDirectorNames = new Set(
-        topDirectors.map((director) => director.name.toLowerCase())
+      // Remove any previously created collections that are now outside the depth limit
+      const topPersonNames = new Set(
+        topPeople.map((person) => person.name.toLowerCase())
       );
       const managedCollections = allCollections.filter((collection) => {
         if (collection.libraryKey !== config.libraryId) {
@@ -603,12 +672,12 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           const labelText = typeof label === 'string' ? label : label.tag;
           if (!labelText) return false;
           const normalized = labelText.toLowerCase();
-          return normalized.startsWith(directorLabelPrefix.toLowerCase());
+          return normalized.startsWith(personLabelPrefix.toLowerCase());
         });
       });
 
       for (const collection of managedCollections) {
-        if (topDirectorNames.has(collection.title.toLowerCase())) {
+        if (topPersonNames.has(collection.title.toLowerCase())) {
           continue;
         }
 
@@ -616,7 +685,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           await plexClient.deleteCollection(collection.ratingKey);
           deleted++;
           logger.info(
-            `Removed director collection outside current limit: ${collection.title}`,
+            `Removed ${personTypeLabel} collection outside current limit: ${collection.title}`,
             {
               label: 'Plex Library Collections',
               collectionName: collection.title,
@@ -626,7 +695,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           );
         } catch (deleteError) {
           logger.warn(
-            `Failed to delete outdated director collection "${collection.title}"`,
+            `Failed to delete outdated ${personTypeLabel} collection "${collection.title}"`,
             {
               label: 'Plex Library Collections',
               error:
@@ -640,13 +709,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         }
       }
 
-      logger.info('Directors collection sync completed', {
+      logger.info(`${subtype} collection sync completed`, {
         label: 'Plex Library Collections',
         configName: config.name,
         created,
         updated,
         deleted,
-        total: topDirectors.length,
+        total: topPeople.length,
       });
 
       return {
@@ -655,7 +724,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         details: deleted ? { deleted } : undefined,
       };
     } catch (error) {
-      logger.error('Failed to process directors collection', {
+      logger.error(`Failed to process ${subtype} collection`, {
         label: 'Plex Library Collections',
         configName: config.name,
         error: error instanceof Error ? error.message : String(error),
@@ -663,7 +732,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
-        `Failed to fetch directors from library: ${
+        `Failed to fetch ${subtype} from library: ${
           error instanceof Error ? error.message : String(error)
         }`
       );

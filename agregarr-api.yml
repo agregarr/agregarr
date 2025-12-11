@@ -633,6 +633,11 @@ components:
           description: 'Minimum items required to create a director collection (plex_library/directors)'
           example: 3
           nullable: true
+        actorMinimumItems:
+          type: number
+          description: 'Minimum items required to create an actor collection (plex_library/actors)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -1176,6 +1181,11 @@ components:
         directorMinimumItems:
           type: number
           description: 'Minimum items required to create a director collection (plex_library/directors)'
+          example: 3
+          nullable: true
+        actorMinimumItems:
+          type: number
+          description: 'Minimum items required to create an actor collection (plex_library/actors)'
           example: 3
           nullable: true
         excludeFromCollections:
@@ -1884,6 +1894,11 @@ components:
         directorMinimumItems:
           type: number
           description: 'Minimum items required to create a director collection (plex_library/directors)'
+          example: 3
+          nullable: true
+        actorMinimumItems:
+          type: number
+          description: 'Minimum items required to create an actor collection (plex_library/actors)'
           example: 3
           nullable: true
         excludeFromCollections:

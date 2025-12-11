@@ -254,32 +254,36 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
 
     const existingConfig = configs[existingConfigIndex];
 
-    // Debug logging for director settings payload
+    // Debug logging for person settings payload (directors/actors)
     if (
       req.body?.type === 'plex_library' &&
-      req.body?.subtype === 'directors'
+      (req.body?.subtype === 'directors' || req.body?.subtype === 'actors')
     ) {
       const maybeNumber = (value: unknown): number | undefined => {
         const parsed = Number(value);
         return Number.isFinite(parsed) ? parsed : undefined;
       };
-      const coercedMinimum = maybeNumber(req.body.directorMinimumItems);
+      const minimumField =
+        req.body.subtype === 'actors'
+          ? 'actorMinimumItems'
+          : 'directorMinimumItems';
+      const coercedMinimum = maybeNumber(req.body[minimumField]);
 
       if (coercedMinimum === 1) {
         return res.status(400).json({
-          error: 'Director minimum items must be at least 2',
-          message: 'Director collections require a minimum of 2 items, 1 is not allowed',
+          error: `${req.body.subtype} minimum items must be at least 2`,
+          message: 'Person collections require a minimum of 2 items, 1 is not allowed',
         });
       }
 
       if (coercedMinimum !== undefined) {
-        req.body.directorMinimumItems = coercedMinimum;
+        req.body[minimumField] = coercedMinimum;
       }
 
-      logger.info('Updating plex_library/directors config', {
+      logger.info(`Updating plex_library/${req.body.subtype} config`, {
         label: 'Collections API',
         id,
-        incomingDirectorMinimumItems: req.body.directorMinimumItems,
+        incomingMinimumItems: req.body[minimumField],
         rawBodyKeys: Object.keys(req.body || {}),
         rawBody: req.body,
       });

@@ -994,6 +994,14 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
+      case 'actors':
+        return [
+          {
+            label: 'Actor Name',
+            value: '{actor}',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
       default:
         return [
           {

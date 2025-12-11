@@ -443,10 +443,15 @@ const SortableItem = ({
                 'Auto Franchise Collections'
               ) : isCollection &&
                 (config as CollectionFormConfig).type === 'plex_library' &&
-                (config as CollectionFormConfig).subtype === 'directors' ? (
-                'Auto Director Collections'
-              ) : config.name === '{director}' ? (
-                'Auto Director Collections'
+                ((config as CollectionFormConfig).subtype === 'directors' ||
+                  (config as CollectionFormConfig).subtype === 'actors') ? (
+                (config as CollectionFormConfig).subtype === 'actors'
+                  ? 'Auto Actor Collections'
+                  : 'Auto Director Collections'
+              ) : config.name === '{director}' || config.name === '{actor}' ? (
+                config.name === '{actor}'
+                  ? 'Auto Actor Collections'
+                  : 'Auto Director Collections'
               ) : (
                 config.name || 'Unnamed Collection'
               )}
@@ -681,6 +686,9 @@ const SortableItem = ({
                       case 'plex_library':
                         if (subtype === 'directors') {
                           return 'Auto Director Collections';
+                        }
+                        if (subtype === 'actors') {
+                          return 'Auto Actor Collections';
                         }
                         return subtype;
                       default:
