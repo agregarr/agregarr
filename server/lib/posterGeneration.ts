@@ -5,6 +5,7 @@ import type {
   LayeredElement,
   PosterTemplateData,
   RasterElementProps,
+  PersonElementProps,
   SVGElementProps,
   TextElementProps,
 } from '@server/entity/PosterTemplate';
@@ -16,7 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { loadIconFile } from './iconManager';
-import { applyTemplate } from './posterTemplates';
+import { applyTemplate, isPersonDefaultTemplate } from './posterTemplates';
 import { sourceColorsService } from './services/SourceColorsService';
 
 // Import Canvas with fallback handling
@@ -90,6 +91,7 @@ export interface PosterGenerationConfig {
   autoPosterTemplate?: number | null; // Template ID for auto-generated posters
   templateData?: PosterTemplateData; // Template data for customized colors and layout
   dynamicLogo?: string; // Path to dynamic logo file
+  personImageUrl?: string; // Dynamic person image (e.g., director portrait)
 }
 
 export interface CollectionItemWithPoster {
@@ -152,6 +154,8 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   crunchyroll: 'crunchyroll.svg',
   'discovery-plus': 'discovery-plus.svg',
   hulu: 'hulu.svg',
+  // Legacy Plex Library alias
+  plex_library: 'plex.svg',
 };
 
 /**
@@ -326,6 +330,11 @@ async function downloadImageAsBase64(
   url: string,
   retries = 2
 ): Promise<string | null> {
+  // Handle data URIs directly (already encoded)
+  if (url.startsWith('data:')) {
+    return url;
+  }
+
   // Check cache first
   if (base64Cache.has(url)) {
     const cachedResult = base64Cache.get(url);
@@ -1026,6 +1035,7 @@ async function generateTemplateTextElements(
     color: string;
     textAlign: string;
     maxLines?: number;
+    textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   }[],
   collectionName: string
 ): Promise<string> {
@@ -1034,6 +1044,20 @@ async function generateTemplateTextElements(
   for (const element of textElements) {
     const text =
       element.type === 'collection-title' ? collectionName : element.text || '';
+    const transform = element.textTransform || 'none';
+    const applyTransform = (value: string): string => {
+      switch (transform) {
+        case 'uppercase':
+          return value.toUpperCase();
+        case 'lowercase':
+          return value.toLowerCase();
+        case 'capitalize':
+          return value.replace(/\b\w/g, (c) => c.toUpperCase());
+        default:
+          return value;
+      }
+    };
+    const finalText = applyTransform(text);
 
     // Handle text wrapping based on element dimensions
     // Use line height (fontSize * 1.1) for accurate calculation to match createTemplateWrappedText
@@ -1041,7 +1065,7 @@ async function generateTemplateTextElements(
     const maxLines =
       element.maxLines || Math.floor(element.height / lineHeight);
     const wrappedText = createTemplateWrappedText(
-      text,
+      finalText,
       element.x,
       element.y,
       element.width,
@@ -1457,7 +1481,9 @@ async function generateUnifiedLayeredElements(
   collectionName: string,
   collectionType?: string,
   dynamicLogo?: string,
-  itemsWithPosters: CollectionItemWithPoster[] = []
+  itemsWithPosters: CollectionItemWithPoster[] = [],
+  personImageBase64?: string,
+  personImageUrl?: string
 ): Promise<string> {
   // Sort elements by layer order to ensure proper rendering sequence
   const sortedElements = [...elements].sort(
@@ -1501,6 +1527,16 @@ async function generateUnifiedLayeredElements(
             element,
             props,
             itemsWithPosters
+          );
+          break;
+        }
+        case 'person': {
+          const props = element.properties as PersonElementProps;
+          elementContent = await generatePersonElement(
+            element,
+            props,
+            personImageBase64,
+            personImageUrl
           );
           break;
         }
@@ -1555,6 +1591,45 @@ async function generateRasterElement(
 }
 
 /**
+ * Generate person element content (e.g., director portrait backdrops)
+ */
+async function generatePersonElement(
+  element: LayeredElement,
+  props: PersonElementProps,
+  personImageBase64?: string,
+  personImageUrl?: string
+): Promise<string> {
+  const imageHref = personImageBase64 || personImageUrl || props.imagePath;
+
+  if (!imageHref) {
+    return '';
+  }
+
+  const overlayOpacity = Math.min(
+    1,
+    Math.max(0, props.overlayOpacity ?? 0.55)
+  );
+  const overlayColor = props.overlayColor || 'rgba(0,0,0,0.6)';
+
+  return `
+    <g>
+      <image xlink:href="${imageHref}"
+             x="${element.x}" y="${element.y}"
+             width="${element.width}" height="${element.height}"
+             preserveAspectRatio="xMidYMid slice"/>
+      ${
+        overlayOpacity > 0
+          ? `<rect x="${element.x}" y="${element.y}"
+                   width="${element.width}" height="${element.height}"
+                   fill="${overlayColor}"
+                   opacity="${overlayOpacity}"/>`
+          : ''
+      }
+    </g>
+  `;
+}
+
+/**
  * Generate SVG element content
  */
 async function generateSVGElement(
@@ -1606,6 +1681,7 @@ async function generateTextElement(
         color: props.color,
         textAlign: props.textAlign,
         maxLines: props.maxLines,
+        textTransform: props.textTransform,
       },
     ],
     collectionName
@@ -1702,6 +1778,17 @@ export async function generatePosterSVG(
     }
   }
 
+  // Fetch person image for person layers if provided
+  let personImageBase64: string | undefined;
+  if (config.personImageUrl) {
+    try {
+      personImageBase64 =
+        (await downloadImageAsBase64(config.personImageUrl)) || undefined;
+    } catch (error) {
+      logger.warn('Failed to fetch person image for poster:', error);
+    }
+  }
+
   // Generate background based on template data
   const backgroundContent = await generateTemplateBackground(
     templateData.background,
@@ -1727,7 +1814,9 @@ export async function generatePosterSVG(
     collectionName,
     collectionType,
     config.dynamicLogo,
-    itemsWithPosters
+    itemsWithPosters,
+    personImageBase64,
+    config.personImageUrl
   );
 
   return `
@@ -1780,9 +1869,35 @@ export async function generatePosterBuffer(
       ) {
         const templateRepository = getRepository(PosterTemplate);
 
-        const defaultTemplate = await templateRepository.findOne({
+        const defaultTemplates = await templateRepository.find({
           where: { isDefault: true, isActive: true },
+          order: { updatedAt: 'DESC' },
         });
+
+        let defaultTemplate = defaultTemplates.find(
+          (template) => !isPersonDefaultTemplate(template.name)
+        );
+
+        if (!defaultTemplate) {
+          const personDefault = defaultTemplates.find((template) =>
+            isPersonDefaultTemplate(template.name)
+          );
+
+          if (personDefault) {
+            logger.warn(
+              'Person-focused template flagged as generic default; ignoring',
+              {
+                templateId: personDefault.id,
+                templateName: personDefault.name,
+              }
+            );
+          }
+
+          defaultTemplate =
+            (await templateRepository.findOne({
+              where: { name: 'Default Agregarr Template', isActive: true },
+            })) ?? undefined;
+        }
 
         if (!defaultTemplate) {
           logger.warn(
@@ -1806,6 +1921,7 @@ export async function generatePosterBuffer(
           mediaType: config.mediaType || 'movie',
           items: config.items || [],
           dynamicLogo: config.dynamicLogo,
+          personImageUrl: config.personImageUrl,
         });
 
         logger.info('Poster generated successfully using template', {

@@ -441,6 +441,17 @@ const SortableItem = ({
                 (config as CollectionFormConfig).subtype ===
                   'auto_franchise' ? (
                 'Auto Franchise Collections'
+              ) : isCollection &&
+                (config as CollectionFormConfig).type === 'plex' &&
+                ((config as CollectionFormConfig).subtype === 'directors' ||
+                  (config as CollectionFormConfig).subtype === 'actors') ? (
+                (config as CollectionFormConfig).subtype === 'actors'
+                  ? 'Auto Actor Collections'
+                  : 'Auto Director Collections'
+              ) : config.name === '{director}' || config.name === '{actor}' ? (
+                config.name === '{actor}'
+                  ? 'Auto Actor Collections'
+                  : 'Auto Director Collections'
               ) : (
                 config.name || 'Unnamed Collection'
               )}
@@ -672,6 +683,14 @@ const SortableItem = ({
                             return word.charAt(0).toUpperCase() + word.slice(1);
                           })
                           .join(' ');
+                      case 'plex':
+                        if (subtype === 'directors') {
+                          return 'Auto Director Collections';
+                        }
+                        if (subtype === 'actors') {
+                          return 'Auto Actor Collections';
+                        }
+                        return subtype;
                       default:
                         return subtype;
                     }
@@ -704,6 +723,8 @@ const SortableItem = ({
                       ? 'Networks'
                       : collection.type === 'originals'
                       ? 'Originals'
+                      : collection.type === 'plex'
+                      ? 'Plex Library'
                       : collection.type === 'multi-source'
                       ? 'Multi-Source'
                       : collection.type === 'comingsoon'

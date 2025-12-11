@@ -61,6 +61,9 @@ class RateLimiter {
 
 export const rateLimiter = new RateLimiter();
 
+const normalizeCollectionType = (type?: string): string | undefined =>
+  type === 'plex_library' ? 'plex' : type;
+
 /**
  * Validate and sanitize external URLs for security
  */
@@ -243,6 +246,7 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
   try {
     const { id } = req.params;
     const settings = getSettings();
+    req.body.type = normalizeCollectionType(req.body.type);
 
     // Find the existing collection config
     const configs = settings.plex.collectionConfigs || [];
@@ -256,6 +260,37 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     }
 
     const existingConfig = configs[existingConfigIndex];
+
+    // Debug logging for person settings payload (directors/actors)
+    if (
+      req.body?.type === 'plex' &&
+      (req.body?.subtype === 'directors' || req.body?.subtype === 'actors')
+    ) {
+      const maybeNumber = (value: unknown): number | undefined => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      };
+      const personMinimum = maybeNumber(req.body.personMinimumItems);
+
+      if (personMinimum !== undefined && personMinimum < 2) {
+        return res.status(400).json({
+          error: `${req.body.subtype} minimum items must be at least 2`,
+          message: 'Person collections require a minimum of 2 items, 1 is not allowed',
+        });
+      }
+
+      if (personMinimum !== undefined) {
+        req.body.personMinimumItems = personMinimum;
+      }
+
+      logger.info(`Updating plex/${req.body.subtype} config`, {
+        label: 'Collections API',
+        id,
+        incomingMinimumItems: personMinimum,
+        rawBodyKeys: Object.keys(req.body || {}),
+        rawBody: req.body,
+      });
+    }
 
     // Check if this is a linked collection - if so, update all linked configs
     const configsToUpdate = [];
@@ -1114,6 +1149,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
 collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
   try {
     const settings = getSettings();
+    req.body.type = normalizeCollectionType(req.body.type);
     const { IdGenerator } = await import('@server/utils/idGenerator');
 
     // Cache warming removed - caused double requests and rate limiting issues

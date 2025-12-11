@@ -3,6 +3,7 @@ import {
   PosterTemplate,
   type ContentGridProps,
   type PosterTemplateData,
+  type TextElementProps,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
 import fs from 'fs';
@@ -20,6 +21,7 @@ export interface TemplatePreviewConfig {
   collectionSubtype?: string;
   mediaType?: 'movie' | 'tv';
   items?: CollectionItemWithPoster[];
+  personImageUrl?: string;
 }
 
 export interface TemplateValidationResult {
@@ -36,6 +38,24 @@ interface LocalPosterItem {
   filename: string;
   posterPath: string;
 }
+
+interface LocalPersonItem {
+  name: string;
+  tmdbId: number;
+  filename: string;
+  profilePath: string;
+}
+
+const PERSON_DEFAULT_TEMPLATE_NAMES = ['person spotlight', 'director spotlight'];
+
+export function isPersonDefaultTemplate(name?: string | null): boolean {
+  if (!name) {
+    return false;
+  }
+
+  return PERSON_DEFAULT_TEMPLATE_NAMES.includes(name.toLowerCase());
+}
+
 
 /**
  * Load local poster mapping for preview rendering
@@ -63,6 +83,35 @@ function loadLocalPosterMapping(): LocalPosterItem[] {
   } catch (error) {
     logger.warn(
       'Failed to load local poster mapping, falling back to TMDB fetching:',
+      error
+    );
+    return [];
+  }
+}
+
+function loadLocalPersonMapping(): LocalPersonItem[] {
+  try {
+    const mappingPath = path.join(
+      process.cwd(),
+      'public',
+      'preview-persons',
+      'person-mapping.json'
+    );
+    if (!fs.existsSync(mappingPath)) {
+      logger.warn(
+        'Local person mapping file not found, falling back to generated person images'
+      );
+      return [];
+    }
+
+    const mappingData = fs.readFileSync(mappingPath, 'utf8');
+    const personItems: LocalPersonItem[] = JSON.parse(mappingData);
+
+    logger.debug(`Loaded ${personItems.length} local preview persons`);
+    return personItems;
+  } catch (error) {
+    logger.warn(
+      'Failed to load local person mapping, falling back to generated person images:',
       error
     );
     return [];
@@ -117,7 +166,11 @@ export function validateTemplateData(
       if (!element.id) {
         errors.push(`Element ${index} missing required id`);
       }
-      if (!['text', 'raster', 'svg', 'content-grid'].includes(element.type)) {
+      if (
+        !['text', 'raster', 'svg', 'content-grid', 'person'].includes(
+          element.type
+        )
+      ) {
         errors.push(`Element ${index} has invalid type: ${element.type}`);
       }
       if (typeof element.layerOrder !== 'number') {
@@ -140,7 +193,49 @@ export function validateTemplateData(
   return {
     isValid: errors.length === 0,
     errors,
-    warnings,
+  warnings,
+};
+}
+
+/**
+ * Ensure textTransform defaults are present (and apply Person Spotlight uppercase fallback)
+ */
+function normalizeTextTransforms(
+  templateData: PosterTemplateData,
+  templateName?: string
+): PosterTemplateData {
+  if (!Array.isArray(templateData.elements)) {
+    return templateData;
+  }
+
+  const prefersUppercase =
+    templateName?.toLowerCase().includes('person spotlight') ||
+    templateName?.toLowerCase().includes('director spotlight');
+
+  const normalizedElements = templateData.elements.map((el) => {
+    if (el.type !== 'text') {
+      return el;
+    }
+
+    const props = el.properties as TextElementProps;
+    const textTransform =
+      props.textTransform ??
+      (prefersUppercase && props.elementType === 'collection-title'
+        ? 'uppercase'
+        : 'none');
+
+    return {
+      ...el,
+      properties: {
+        ...props,
+        textTransform,
+      },
+    };
+  });
+
+  return {
+    ...templateData,
+    elements: normalizedElements,
   };
 }
 
@@ -156,6 +251,7 @@ export async function applyTemplate(
     mediaType?: 'movie' | 'tv';
     items?: CollectionItemWithPoster[];
     dynamicLogo?: string;
+    personImageUrl?: string;
   }
 ): Promise<Buffer> {
   const templateRepository = getRepository(PosterTemplate);
@@ -168,7 +264,10 @@ export async function applyTemplate(
     throw new Error(`Template ${templateId} not found`);
   }
 
-  const templateData = template.getTemplateData();
+  const templateData = normalizeTextTransforms(
+    template.getTemplateData(),
+    template.name
+  );
 
   // Validate template before applying
   const validation = validateTemplateData(templateData);
@@ -191,6 +290,7 @@ export async function applyTemplate(
     templateData: templateData,
     // Pass through dynamic logo if available
     dynamicLogo: config.dynamicLogo,
+    personImageUrl: config.personImageUrl,
   };
 
   // Generate poster directly using SVG system to avoid recursion
@@ -223,7 +323,13 @@ export async function generateTemplatePreview(
     throw new Error(`Template ${templateId} not found`);
   }
 
-  const templateData = template.getTemplateData();
+  const templateData = normalizeTextTransforms(
+    template.getTemplateData(),
+    template.name
+  );
+  const hasPersonLayer =
+    Array.isArray(templateData.elements) &&
+    templateData.elements.some((el) => el.type === 'person');
 
   // Generate enough sample items to fill the content grid
   let gridSize = 0;
@@ -251,8 +357,10 @@ export async function generateTemplatePreview(
 
   // Load local poster mapping for fast preview rendering
   const localPosters = loadLocalPosterMapping();
+  const localPersons = loadLocalPersonMapping();
 
   let sampleItems: CollectionItemWithPoster[] = [];
+  let personImageUrl: string | undefined = previewConfig?.personImageUrl;
 
   if (localPosters.length > 0) {
     // Use local posters for much faster preview rendering
@@ -685,12 +793,38 @@ export async function generateTemplatePreview(
     sampleItems = fallbackSampleItems;
   }
 
+  if (!personImageUrl && hasPersonLayer) {
+    if (localPersons.length > 0) {
+      const personAsset = localPersons[0];
+      const absolutePersonPath = path.join(
+        process.cwd(),
+        'public',
+        'preview-persons',
+        personAsset.filename
+      );
+      personImageUrl = `file://${absolutePersonPath}`;
+      logger.debug(
+        `Assigned local person image for preview: ${personAsset.name} (${personAsset.tmdbId})`
+      );
+    } else {
+      const fallbackPosterUrl = sampleItems[0]?.posterUrl;
+      if (fallbackPosterUrl) {
+        personImageUrl = fallbackPosterUrl;
+        logger.debug(
+          'Using first poster from preview grid as fallback person image'
+        );
+      }
+    }
+  }
+
   const config = {
     collectionName: previewConfig?.collectionName || 'Sample Collection',
     collectionType: previewConfig?.collectionType || 'trakt',
     collectionSubtype: previewConfig?.collectionSubtype,
     mediaType: previewConfig?.mediaType || ('movie' as const),
     items: previewConfig?.items || sampleItems,
+    // Do not auto-assign a person image for previews
+    personImageUrl: previewConfig?.personImageUrl || personImageUrl,
   };
 
   return await applyTemplate(templateId, config);
