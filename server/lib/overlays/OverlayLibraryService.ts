@@ -349,27 +349,47 @@ class OverlayLibraryService {
         where: { libraryId },
       });
 
-      // Get enabled overlay templates (if any configured for this library)
-      let templates: OverlayTemplate[] = [];
-      if (config && config.enabledOverlays.length > 0) {
-        const templateRepository = getRepository(OverlayTemplate);
-        const enabledTemplateIds = config.enabledOverlays
-          .filter((o) => o.enabled)
-          .map((o) => o.templateId);
-
-        templates = await templateRepository.findByIds(enabledTemplateIds);
-
-        // Sort templates by layer order
-        templates = templates.sort((a, b) => {
-          const orderA =
-            config.enabledOverlays.find((o) => o.templateId === a.id)
-              ?.layerOrder || 0;
-          const orderB =
-            config.enabledOverlays.find((o) => o.templateId === b.id)
-              ?.layerOrder || 0;
-          return orderA - orderB;
-        });
+      // Early return if no overlays configured (same logic as applyOverlaysToLibrary)
+      if (!config || config.enabledOverlays.length === 0) {
+        logger.info(
+          'No overlays enabled for library, skipping overlay application',
+          {
+            label: 'OverlayLibrary',
+            libraryId,
+          }
+        );
+        return;
       }
+
+      // Get enabled overlay templates
+      const templateRepository = getRepository(OverlayTemplate);
+      const enabledTemplateIds = config.enabledOverlays
+        .filter((o) => o.enabled)
+        .map((o) => o.templateId);
+
+      const templates = await templateRepository.findByIds(enabledTemplateIds);
+
+      if (templates.length === 0) {
+        logger.info(
+          'No templates found for library, skipping overlay application',
+          {
+            label: 'OverlayLibrary',
+            libraryId,
+          }
+        );
+        return;
+      }
+
+      // Sort templates by layer order
+      const sortedTemplates = templates.sort((a, b) => {
+        const orderA =
+          config.enabledOverlays.find((o) => o.templateId === a.id)
+            ?.layerOrder || 0;
+        const orderB =
+          config.enabledOverlays.find((o) => o.templateId === b.id)
+            ?.layerOrder || 0;
+        return orderA - orderB;
+      });
 
       // Get admin user for Plex API
       const { getAdminUser } = await import(
@@ -384,7 +404,7 @@ class OverlayLibraryService {
       const plexApi = new PlexAPI({ plexToken: admin.plexToken });
 
       // Determine media type from library config
-      const mediaType = config?.mediaType || 'movie';
+      const mediaType = config.mediaType || 'movie';
 
       // Process each item
       let successCount = 0;
@@ -414,7 +434,7 @@ class OverlayLibraryService {
             await this.applyOverlaysToItem(
               plexApi,
               item,
-              templates,
+              sortedTemplates,
               mediaType,
               libraryId,
               contextOverrides
