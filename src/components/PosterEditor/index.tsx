@@ -5,4 +5,5 @@ export type {
   EditorMode,
   PosterEditorData,
   PosterEditorModalProps,
+  PreviewCollectionConfig,
 } from './PosterEditorModal';

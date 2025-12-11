@@ -11,6 +11,7 @@ import type {
   CollectionSource,
   CollectionSyncError,
   MissingItem,
+  PlexLabel,
 } from './types';
 import { CollectionSyncErrorType } from './types';
 
@@ -393,6 +394,39 @@ export function findCollectionByConfigId(
         configType,
         configSubtype,
       });
+      return true;
+    }
+  }
+
+  // Special handling for Plex Library person collections (directors/actors)
+  if (
+    configType === 'plex' &&
+    (configSubtype === 'directors' || configSubtype === 'actors')
+  ) {
+    const prefix = `AgregarrAuto${
+      configSubtype === 'actors' ? 'Actor' : 'Director'
+    }-${configId}-`.toLowerCase();
+
+    const hasPersonCollections = allCollections.some((collection) => {
+      if (!collection.labels) return false;
+      return collection.labels.some((label) => {
+        const labelText = typeof label === 'string' ? label : label.tag;
+        if (!labelText) return false;
+        const normalized = labelText.toLowerCase();
+        return normalized.startsWith(prefix);
+      });
+    });
+
+    if (hasPersonCollections) {
+      logger.debug(
+        `Plex Library ${configSubtype} collections found for config: ${configId}`,
+        {
+          label: 'Collection Matching',
+          configId,
+          configType,
+          configSubtype,
+        }
+      );
       return true;
     }
   }
