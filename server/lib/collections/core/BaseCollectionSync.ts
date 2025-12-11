@@ -2847,6 +2847,47 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
           // Remove the collection from Plex
           await plexClient.deleteCollection(collection.ratingKey);
 
+          // Also remove from hub management to prevent stale hub entries
+          if (collection.libraryKey) {
+            const hubIdentifier = `custom.collection.${collection.libraryKey}.${collection.ratingKey}`;
+
+            try {
+              await plexClient.deleteHubItem(
+                collection.libraryKey,
+                hubIdentifier
+              );
+              logger.debug(
+                `Removed collection from hub management: ${collection.title}`,
+                {
+                  label: `${this.source} Collections`,
+                  configId: config.id,
+                  hubIdentifier,
+                }
+              );
+            } catch (error) {
+              // Log as warning - hub item may already be deleted or never existed
+              logger.warn(
+                `Could not remove from hub management (may already be deleted): ${collection.title}`,
+                {
+                  label: `${this.source} Collections`,
+                  configId: config.id,
+                  hubIdentifier,
+                  error:
+                    error instanceof Error ? error.message : 'Unknown error',
+                }
+              );
+            }
+          } else {
+            logger.warn(
+              `Cannot remove from hub management - collection has no libraryKey: ${collection.title}`,
+              {
+                label: `${this.source} Collections`,
+                configId: config.id,
+                collectionRatingKey: collection.ratingKey,
+              }
+            );
+          }
+
           // Note: We no longer clear the rating key here because the smart missing item detection
           // in DiscoveryService now properly handles inactive collections with removeFromPlexWhenInactive
 

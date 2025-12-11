@@ -738,7 +738,7 @@ export class DiscoveryService {
     // Counters for summary logging
     let skippedAgregarrCollections = 0;
     let processedHubs = 0;
-    let processedPreExisting = 0;
+    const processedPreExisting = 0;
 
     for (const library of libraries) {
       logger.debug('Discovering hubs for library', {
@@ -1190,31 +1190,37 @@ export class DiscoveryService {
                   );
 
                   if (!alreadyEnhanced) {
-                    // This collection wasn't found in step 1 (maybe only exists as promoted hub) - create proper pre-existing config
-                    const preExistingConfig =
-                      createPreExistingConfigFromDiscovery(
-                        parsedHub.ratingKey,
+                    // This collection is in hub management but NOT in actual Plex collections
+                    // This indicates a stale/orphaned hub entry (e.g., collection was deleted)
+                    // Clean it up instead of creating a pre-existing config for it
+                    try {
+                      logger.info(
+                        `Cleaning up stale hub entry for deleted collection: ${hub.title}`,
                         {
-                          title: hub.title, // Use hub title as fallback
-                          // No titleSort available from hub API
-                          promotedToSharedHome: hub.promotedToSharedHome,
-                          promotedToOwnHome: hub.promotedToOwnHome,
-                          promotedToRecommended: hub.promotedToRecommended,
-                        },
-                        library,
-                        {
-                          library: hubConfig.sortOrderLibrary,
-                          home: hubConfig.sortOrderHome,
+                          label: 'Discovery Service - Cleanup',
+                          libraryId: library.key,
+                          hubIdentifier: hub.identifier,
+                          ratingKey: parsedHub.ratingKey,
                         }
                       );
-                    // Pre-existing collection discovered in hub management - set initial promotion status
-                    (
-                      preExistingConfig as PreExistingCollectionConfig & {
-                        isPromotedToHub: boolean;
-                      }
-                    ).isPromotedToHub = true;
-                    discoveredPreExistingConfigs.push(preExistingConfig);
-                    processedPreExisting++;
+                      await plexClient.deleteHubItem(
+                        library.key,
+                        hub.identifier
+                      );
+                    } catch (error) {
+                      logger.warn(
+                        `Failed to clean up stale hub entry: ${hub.title}`,
+                        {
+                          label: 'Discovery Service - Cleanup',
+                          libraryId: library.key,
+                          hubIdentifier: hub.identifier,
+                          error:
+                            error instanceof Error
+                              ? error.message
+                              : String(error),
+                        }
+                      );
+                    }
                   }
                 }
               }

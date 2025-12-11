@@ -2145,6 +2145,32 @@ export class MultiSourceOrchestrator {
       // Remove the collection from Plex
       await plexClient.deleteCollection(existingCollection.ratingKey);
 
+      // Also remove from hub management to prevent stale hub entries
+      const hubIdentifier = `custom.collection.${config.libraryId}.${existingCollection.ratingKey}`;
+
+      try {
+        await plexClient.deleteHubItem(config.libraryId, hubIdentifier);
+        logger.debug(
+          `Removed multi-source collection from hub management: ${config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            hubIdentifier,
+          }
+        );
+      } catch (error) {
+        // Log as warning - hub item may already be deleted or never existed
+        logger.warn(
+          `Could not remove from hub management (may already be deleted): ${config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            hubIdentifier,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
+
       // Track as processed to prevent cleanup service from trying to delete it again
       if (processedCollectionKeys) {
         processedCollectionKeys.add(existingCollection.ratingKey);
