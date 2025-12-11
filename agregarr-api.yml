@@ -248,6 +248,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -627,6 +628,26 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        directorMinimumItems:
+          type: number
+          description: 'Minimum items required to create a director collection (plex/directors)'
+          example: 3
+          nullable: true
+        actorMinimumItems:
+          type: number
+          description: 'Minimum items required to create an actor collection (plex/actors)'
+          example: 3
+          nullable: true
+        useSeparator:
+          type: boolean
+          description: 'Create a separator collection for auto actor/director collections'
+          example: false
+          nullable: true
+        separatorTitle:
+          type: string
+          description: 'Title for the separator collection'
+          example: 'Actors Collections'
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -805,6 +826,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1166,6 +1188,26 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        directorMinimumItems:
+          type: number
+          description: 'Minimum items required to create a director collection (plex/directors)'
+          example: 3
+          nullable: true
+        actorMinimumItems:
+          type: number
+          description: 'Minimum items required to create an actor collection (plex/actors)'
+          example: 3
+          nullable: true
+        useSeparator:
+          type: boolean
+          description: 'Create a separator collection for auto actor/director collections'
+          example: false
+          nullable: true
+        separatorTitle:
+          type: string
+          description: 'Title for the separator collection'
+          example: 'Actors Collections'
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -1485,6 +1527,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1868,6 +1911,26 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        directorMinimumItems:
+          type: number
+          description: 'Minimum items required to create a director collection (plex/directors)'
+          example: 3
+          nullable: true
+        actorMinimumItems:
+          type: number
+          description: 'Minimum items required to create an actor collection (plex/actors)'
+          example: 3
+          nullable: true
+        useSeparator:
+          type: boolean
+          description: 'Create a separator collection for auto actor/director collections'
+          example: false
+          nullable: true
+        separatorTitle:
+          type: string
+          description: 'Title for the separator collection'
+          example: 'Actors Collections'
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -2197,6 +2260,7 @@ components:
               'overseerr',
               'networks',
               'originals',
+              'plex',
               'anilist',
               'myanimelist',
               'radarrtag',
@@ -6513,6 +6577,7 @@ paths:
                       sonarrtag,
                       comingsoon,
                       filtered_hub,
+                      plex,
                       multi-source,
                     ]
                   example: imdb

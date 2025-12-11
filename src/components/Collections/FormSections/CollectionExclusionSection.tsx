@@ -68,6 +68,14 @@ const CollectionExclusionSection: React.FC<CollectionExclusionSectionProps> = ({
     return null;
   }
 
+  // Hide for Plex person collections (actors/directors) to avoid exclusions
+  if (
+    values.type === 'plex' &&
+    (values.subtype === 'actors' || values.subtype === 'directors')
+  ) {
+    return null;
+  }
+
   // Don't show section if there are no available collections to exclude from
   if (availableCollections.length === 0) {
     return null;

@@ -2,15 +2,15 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useMemo, useRef } from 'react';
 import { Group, Rect } from 'react-konva';
-import type { ContentGridProps, LayeredElement } from './PosterEditorModal';
+import type {
+  ContentGridProps,
+  LayeredElement,
+  PreviewCollectionConfig,
+} from './PosterEditorModal';
 
 interface ContentGridElementProps {
   element: LayeredElement;
-  previewCollectionConfig?: {
-    name: string;
-    type?: string;
-    mediaType?: 'movie' | 'tv';
-  };
+  previewCollectionConfig?: PreviewCollectionConfig;
   isSelected: boolean;
   onSelect: (node: Konva.Node) => void;
   onDragMove: (node: Konva.Node) => void;

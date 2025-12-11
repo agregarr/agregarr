@@ -31,6 +31,7 @@ const messages = defineMessages({
   createFirstTemplate: 'Create your first template to get started',
   createTemplate: 'Create Template',
   lastUpdated: 'Last updated',
+  personDefault: 'Person Default',
 });
 
 interface PosterTemplate {
@@ -39,6 +40,7 @@ interface PosterTemplate {
   description?: string;
   templateData: PosterEditorData;
   isDefault: boolean;
+  isPersonDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -303,6 +305,11 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                     </p>
                   )}
                   <div className="mt-2 flex items-center space-x-2">
+                    {template.isPersonDefault && (
+                      <Badge badgeType="success" className="text-xs">
+                        {intl.formatMessage(messages.personDefault)}
+                      </Badge>
+                    )}
                     {template.isDefault && (
                       <Badge badgeType="success" className="text-xs">
                         {intl.formatMessage(messages.default)}
@@ -342,15 +349,6 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                   <ArrowDownTrayIcon className="mr-2 h-3 w-3" />
                   {intl.formatMessage(messages.export)}
                 </button>
-                {!template.isDefault && (
-                  <button
-                    onClick={() => handleSetDefault(template.id)}
-                    className="flex items-center rounded-md bg-blue-900/50 px-3 py-2 text-xs text-blue-400 transition-colors hover:bg-blue-900 hover:text-blue-300"
-                    title={intl.formatMessage(messages.setDefault)}
-                  >
-                    {intl.formatMessage(messages.setDefault)}
-                  </button>
-                )}
                 <button
                   onClick={() => setDeleteConfirmId(template.id)}
                   className="flex items-center rounded-md bg-red-900/50 px-3 py-2 text-xs text-red-400 transition-colors hover:bg-red-900 hover:text-red-300"
