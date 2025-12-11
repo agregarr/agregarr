@@ -345,10 +345,14 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
         const axios = (await import('axios')).default;
 
         try {
-          const urlMatch = sanitizedUrl.match(
+          const watchlistMatch = sanitizedUrl.match(
+            /letterboxd\.com\/([^/]+)\/watchlist/
+          );
+          const listMatch = sanitizedUrl.match(
             /letterboxd\.com\/([^/]+)\/list\/([^/?]+)/
           );
-          if (!urlMatch) {
+
+          if (!watchlistMatch && !listMatch) {
             return res.status(400).json({
               status: 'error',
               message: 'Invalid Letterboxd list URL format',
@@ -363,48 +367,55 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             timeout: 10000,
           });
 
-          // Extract title from HTML and clean it up
-          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
-          if (titleMatch) {
-            let rawTitle = titleMatch[1];
+          if (watchlistMatch) {
+            const username = watchlistMatch[1]
+              .replace(/-/g, ' ')
+              .replace(/\b\w/g, (l: string) => l.toUpperCase());
+            title = `${username}'s Watchlist`;
+          } else {
+            // Extract title from HTML and clean it up
+            const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+            if (titleMatch) {
+              let rawTitle = titleMatch[1];
 
-            // Decode HTML entities
-            rawTitle = rawTitle
-              .replace(/&lrm;/g, '') // Remove left-to-right mark
-              .replace(/&rlm;/g, '') // Remove right-to-left mark
-              .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
-              .replace(/&ndash;/g, '–') // Replace en-dash
-              .replace(/&mdash;/g, '—') // Replace em-dash
-              .replace(/&hellip;/g, '…') // Replace ellipsis
-              .replace(/&quot;/g, '"') // Replace quotes
-              .replace(/&#39;/g, "'") // Replace apostrophe
-              .replace(/&amp;/g, '&') // Replace ampersand (do this last)
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>');
+              // Decode HTML entities
+              rawTitle = rawTitle
+                .replace(/&lrm;/g, '') // Remove left-to-right mark
+                .replace(/&rlm;/g, '') // Remove right-to-left mark
+                .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
+                .replace(/&ndash;/g, '–') // Replace en-dash
+                .replace(/&mdash;/g, '—') // Replace em-dash
+                .replace(/&hellip;/g, '…') // Replace ellipsis
+                .replace(/&quot;/g, '"') // Replace quotes
+                .replace(/&#39;/g, "'") // Replace apostrophe
+                .replace(/&amp;/g, '&') // Replace ampersand (do this last)
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>');
 
-            // Extract list name (everything before " • Letterboxd" or ", a list of films by")
-            const patterns = [
-              /^(.*?),\s*a\s+list\s+of\s+films?\s+by/i, // ", a list of films by"
-              /^(.*?)\s*•\s*Letterboxd/i, // " • Letterboxd"
-              /^(.*?)\s*-\s*Letterboxd/i, // " - Letterboxd"
-              /^(.*?)\s*\|\s*Letterboxd/i, // " | Letterboxd"
-            ];
+              // Extract list name (everything before " • Letterboxd" or ", a list of films by")
+              const patterns = [
+                /^(.*?),\s*a\s+list\s+of\s+films?\s+by/i, // ", a list of films by"
+                /^(.*?)\s*•\s*Letterboxd/i, // " • Letterboxd"
+                /^(.*?)\s*-\s*Letterboxd/i, // " - Letterboxd"
+                /^(.*?)\s*\|\s*Letterboxd/i, // " | Letterboxd"
+              ];
 
-            for (const pattern of patterns) {
-              const match = rawTitle.match(pattern);
-              if (match && match[1]) {
-                title = match[1].trim();
-                break;
+              for (const pattern of patterns) {
+                const match = rawTitle.match(pattern);
+                if (match && match[1]) {
+                  title = match[1].trim();
+                  break;
+                }
               }
-            }
 
-            // If no pattern matched, use fallback cleanup
-            if (!title) {
-              title = rawTitle
-                .replace(/\s*•\s*Letterboxd.*$/i, '') // Remove " • Letterboxd" suffix
-                .replace(/\s*-\s*Letterboxd.*$/i, '') // Remove " - Letterboxd" suffix
-                .replace(/\s*\|\s*Letterboxd.*$/i, '') // Remove " | Letterboxd" suffix
-                .trim();
+              // If no pattern matched, use fallback cleanup
+              if (!title) {
+                title = rawTitle
+                  .replace(/\s*•\s*Letterboxd.*$/i, '') // Remove " • Letterboxd" suffix
+                  .replace(/\s*-\s*Letterboxd.*$/i, '') // Remove " - Letterboxd" suffix
+                  .replace(/\s*\|\s*Letterboxd.*$/i, '') // Remove " | Letterboxd" suffix
+                  .trim();
+              }
             }
           }
 
