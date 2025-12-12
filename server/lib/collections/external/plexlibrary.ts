@@ -579,6 +579,17 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         }
       );
 
+      // Set separator to inherit library default (collectionMode = -1); avoids hard-coding visibility
+      try {
+        await plexClient.updateCollectionMode(separatorRatingKey, -1);
+      } catch (modeError) {
+        logger.debug('Failed to set separator collection mode', {
+          label: 'Plex Library Collections',
+          error:
+            modeError instanceof Error ? modeError.message : String(modeError),
+        });
+      }
+
       // Align separator sort title with user ordering (matching prefix, underscore to float before group)
       try {
         const sortTitle = this.buildSeparatorSortTitle(
