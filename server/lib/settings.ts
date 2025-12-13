@@ -2014,6 +2014,13 @@ export interface MultiSourceCollectionConfig {
   // Smart collection settings (unwatched filter feature)
   readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {
