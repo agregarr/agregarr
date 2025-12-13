@@ -3,6 +3,7 @@ import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 import { rateLimiter, validateExternalUrl } from './collections';
+import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
 
 const fetchTitleRoutes = Router();
 
@@ -56,14 +57,24 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
         const TraktAPI = (await import('@server/api/trakt')).default;
         const settings = getSettings();
 
-        if (!settings.trakt.apiKey) {
+        const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+        const redirectUri = buildTraktRedirectUri(settings, req);
+        if (!clientId) {
           return res.status(400).json({
             status: 'error',
-            message: 'Trakt API key not configured',
+            message: 'Trakt is not configured',
           });
         }
 
-        const traktClient = new TraktAPI(settings.trakt.apiKey);
+        const traktClient = new TraktAPI({
+          clientId,
+          accessToken: settings.trakt.accessToken,
+          clientSecret: settings.trakt.clientSecret,
+          refreshToken: settings.trakt.refreshToken,
+          tokenExpiresAt: settings.trakt.tokenExpiresAt,
+          redirectUri,
+          onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+        });
 
         // Get list metadata to extract real title, then validate with items
         try {

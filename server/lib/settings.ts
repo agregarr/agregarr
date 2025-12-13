@@ -386,7 +386,13 @@ export interface PlexSettings {
 }
 
 export interface TraktSettings {
+  // Legacy API key support (Client ID was previously stored here)
   apiKey?: string;
+  clientId?: string;
+  clientSecret?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
 }
 
 export interface MDBListSettings {

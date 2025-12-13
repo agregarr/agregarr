@@ -5,6 +5,7 @@ import type { ComingSoonSourceData } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
 
 /**
  * Check if a movie is truly upcoming (not already released/available)
@@ -456,12 +457,21 @@ export async function fetchTraktAnticipatedMovies(
   const settings = getSettings();
   const items: ComingSoonSourceData[] = [];
 
-  if (!settings.trakt.apiKey) {
+  const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+  if (!clientId) {
     return items;
   }
 
   try {
-    const traktClient = new TraktAPI(settings.trakt.apiKey);
+    const traktClient = new TraktAPI({
+      clientId,
+      accessToken: settings.trakt.accessToken,
+      clientSecret: settings.trakt.clientSecret,
+      refreshToken: settings.trakt.refreshToken,
+      tokenExpiresAt: settings.trakt.tokenExpiresAt,
+      redirectUri: buildTraktRedirectUri(settings),
+      onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+    });
 
     const perPage = 100; // Fetch 100 per page (Trakt max)
 
@@ -545,12 +555,21 @@ export async function fetchTraktAnticipatedShows(
   const settings = getSettings();
   const items: ComingSoonSourceData[] = [];
 
-  if (!settings.trakt.apiKey) {
+  const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+  if (!clientId) {
     return items;
   }
 
   try {
-    const traktClient = new TraktAPI(settings.trakt.apiKey);
+    const traktClient = new TraktAPI({
+      clientId,
+      accessToken: settings.trakt.accessToken,
+      clientSecret: settings.trakt.clientSecret,
+      refreshToken: settings.trakt.refreshToken,
+      tokenExpiresAt: settings.trakt.tokenExpiresAt,
+      redirectUri: buildTraktRedirectUri(settings),
+      onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+    });
 
     const perPage = 100; // Fetch 100 per page (Trakt max)
 
