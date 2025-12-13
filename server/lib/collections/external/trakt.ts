@@ -350,6 +350,27 @@ export class TraktCollectionSync extends BaseCollectionSync {
           break;
         }
 
+        case 'recommendations': {
+          if (!settings.trakt.accessToken) {
+            throw this.createSyncError(
+              CollectionSyncErrorType.CONFIGURATION_ERROR,
+              'Trakt access token is required for recommendations'
+            );
+          }
+
+          const recommendations = await traktClient.getRecommendations(
+            mediaType === 'tv' ? 'shows' : 'movies',
+            {
+              ignoreCollected: false,
+              ignoreWatchlisted: false,
+              limit: 100,
+            }
+          );
+
+          traktData.push(...recommendations);
+          break;
+        }
+
         case 'boxoffice':
           // Box office is movies only
           if (mediaType === 'movie') {
@@ -862,6 +883,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
       'favorited_monthly',
       'favorited_all',
       'boxoffice',
+      'recommendations',
       'custom',
       'random',
     ];
@@ -915,6 +937,8 @@ export class TraktCollectionSync extends BaseCollectionSync {
         return 'favorited';
       case 'boxoffice':
         return 'boxoffice';
+      case 'recommendations':
+        return 'recommendations';
       case 'custom':
         return 'custom';
       case 'random':

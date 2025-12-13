@@ -630,6 +630,8 @@ export class TemplateEngine {
         return 'Most Collected';
       case 'boxoffice':
         return 'Box Office';
+      case 'recommendations':
+        return 'Recommendations';
       case 'custom':
         return 'Custom List';
 
