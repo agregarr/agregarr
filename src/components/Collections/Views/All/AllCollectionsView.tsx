@@ -1017,6 +1017,15 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'filtered_hub':
+                                switch (subtype) {
+                                  case 'recently_added':
+                                    return 'Recently Added';
+                                  case 'recently_released':
+                                    return 'Recently Released';
+                                  default:
+                                    return subtype;
+                                }
                               case 'networks':
                                 // Format platform names like "netflix_top_10" -> "Netflix"
                                 // and "neon-tv" -> "Neon TV"
@@ -1089,7 +1098,7 @@ const AllCollectionsView: React.FC = () => {
                               : config.type === 'comingsoon'
                               ? 'Coming Soon'
                               : config.type === 'filtered_hub'
-                              ? 'Recently Added'
+                              ? 'Filtered Hub'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(

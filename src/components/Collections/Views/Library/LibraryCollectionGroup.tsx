@@ -643,6 +643,15 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'filtered_hub':
+                        switch (subtype) {
+                          case 'recently_added':
+                            return 'Recently Added';
+                          case 'recently_released':
+                            return 'Recently Released';
+                          default:
+                            return subtype;
+                        }
                       case 'networks':
                         // Format platform names like "netflix_top_10" -> "Netflix"
                         // and "neon-tv" -> "Neon TV"
@@ -709,7 +718,7 @@ const SortableItem = ({
                       : collection.type === 'comingsoon'
                       ? 'Coming Soon'
                       : collection.type === 'filtered_hub'
-                      ? 'Recently Added'
+                      ? 'Filtered Hub'
                       : collection.type || '';
 
                   const subtypeLabel = getSubtypeLabel(
