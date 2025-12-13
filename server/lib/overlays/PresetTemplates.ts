@@ -149,6 +149,42 @@ export const PRESET_TEMPLATES: {
   },
 
   // ========================================
+  // PLACEHOLDER OVERLAY (applies to all placeholder items)
+  // ========================================
+  {
+    name: 'Placeholder Overlay',
+    description: '25% opacity darkening overlay for all placeholder items',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'isPlaceholder', operator: 'eq', value: true }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'placeholder-overlay',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 1500,
+          properties: {
+            fillColor: '#000000',
+            fillOpacity: 25,
+            borderRadius: 0,
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
   // COMING SOON TEMPLATES
   // ========================================
   {
