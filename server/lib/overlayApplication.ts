@@ -74,6 +74,21 @@ class OverlayApplication {
       );
     }
 
+    // Wait for Overlays Quick Sync to complete if running
+    const overlaysQuickSync = (await import('@server/lib/overlaysQuickSync'))
+      .default;
+    if (overlaysQuickSync.status.running) {
+      logger.info(
+        'Overlays Quick Sync is currently running, waiting for completion...',
+        {
+          label: 'Overlay Application',
+        }
+      );
+      while (overlaysQuickSync.status.running) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
     this.running = true;
     this.cancelled = false;
     this.currentStage = '';

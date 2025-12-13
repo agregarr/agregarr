@@ -526,6 +526,68 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   }
 
   /**
+   * Store missing items in database for Quick Sync feature
+   * Replaces any existing missing items for this collection
+   *
+   * @param missingItems - Items not found in Plex during sync
+   * @param collectionId - Collection configuration ID
+   * @param libraryId - Plex library key (can be array for multi-library configs)
+   */
+  protected async storeMissingItems(
+    missingItems: MissingItem[],
+    collectionId: string,
+    libraryId: string | string[]
+  ): Promise<void> {
+    try {
+      const { getRepository } = await import('@server/datasource');
+      const { CollectionMissingItems } = await import(
+        '@server/entity/CollectionMissingItems'
+      );
+
+      const repository = getRepository(CollectionMissingItems);
+      const timestamp = new Date();
+
+      // Handle both single and multi-library configs (use first library for storage)
+      const targetLibraryId = Array.isArray(libraryId)
+        ? libraryId[0]
+        : libraryId;
+
+      // Delete existing entries for this collection (replace strategy)
+      await repository.delete({ collectionId });
+
+      // Insert new missing items
+      const entities = missingItems.map((item) => ({
+        collectionId,
+        libraryId: targetLibraryId,
+        tmdbId: item.tmdbId,
+        tvdbId: item.tvdbId,
+        mediaType: item.mediaType,
+        title: item.title,
+        year: item.year,
+        originalPosition: item.originalPosition,
+        source: item.source,
+        fullSyncTimestamp: timestamp,
+      }));
+
+      if (entities.length > 0) {
+        await repository.insert(entities);
+        logger.debug(`Stored ${entities.length} missing items for Quick Sync`, {
+          label: `${this.source} Collections`,
+          collectionId,
+          missingItemCount: entities.length,
+        });
+      }
+    } catch (error) {
+      // Don't fail the sync if storage fails - just log the error
+      logger.warn('Failed to store missing items for Quick Sync', {
+        label: `${this.source} Collections`,
+        collectionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
    * Process missing items - create placeholders AND/OR send to auto-requests
    * This is the main entry point for handling missing items in any collection type.
    *
@@ -549,6 +611,9 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     if (!missingItems || missingItems.length === 0) {
       return [];
     }
+
+    // Store missing items for Quick Sync feature
+    await this.storeMissingItems(missingItems, config.id, config.libraryId);
 
     let placeholderItems: CollectionItem[] = [];
 
