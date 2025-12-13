@@ -27,6 +27,7 @@ import { isAuthenticated } from '@server/middleware/auth';
 import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
 import parser from 'cron-parser';
+import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
@@ -34,14 +35,25 @@ import { escapeRegExp, merge, set, sortBy } from 'lodash';
 import { rescheduleJob } from 'node-schedule';
 import path from 'path';
 import { URL } from 'url';
+import axios from 'axios';
+import { randomUUID } from 'crypto';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+  TRAKT_OOB_REDIRECT_URI,
+} from '@server/utils/traktAuth';
 // Notification routes removed - not needed for Agregarr
 import radarrRoutes from './radarr';
 import sonarrRoutes from './sonarr';
 const settingsRoutes = Router();
+export const traktOAuthRouter = Router();
 
 settingsRoutes.use('/radarr', radarrRoutes);
 settingsRoutes.use('/sonarr', sonarrRoutes);
 // Discover settings routes removed - discovery functionality not needed in Agregarr
+
+const TRAKT_STATE_TTL = 10 * 60 * 1000;
+const traktStateStore = new Map<string, number>();
 
 const filteredMainSettings = (
   user: User,
@@ -49,6 +61,20 @@ const filteredMainSettings = (
 ): Partial<MainSettings> => {
   // Permission system removed - all authenticated users get full settings
   return main;
+};
+
+const clearExpiredTraktStates = () => {
+  const now = Date.now();
+  for (const [state, expiresAt] of traktStateStore.entries()) {
+    if (expiresAt <= now) {
+      traktStateStore.delete(state);
+    }
+  }
+};
+
+const getTraktRedirectUri = (req?: Request) => {
+  const settings = getSettings();
+  return buildTraktRedirectUri(settings, req);
 };
 
 settingsRoutes.get('/main', (req, res, next) => {
@@ -251,6 +277,89 @@ settingsRoutes.get('/plex/devices/servers', async (req, res, next) => {
     });
   }
 });
+
+async function exchangeTraktOauth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { code, clientId: bodyClientId, clientSecret: bodyClientSecret } =
+      req.body;
+    const settings = getSettings();
+    const clientId =
+      bodyClientId || settings.trakt.clientId || settings.trakt.apiKey;
+    const clientSecret = bodyClientSecret || settings.trakt.clientSecret;
+    const redirectUri = TRAKT_OOB_REDIRECT_URI;
+
+    if (!code) {
+      return next({ status: 400, message: 'Authorization code is required' });
+    }
+
+    if (!clientId || !clientSecret) {
+      return next({
+        status: 400,
+        message: 'Client ID and Client Secret are required',
+      });
+    }
+
+    const tokenResponse = await axios.post(
+      'https://api.trakt.tv/oauth/token',
+      {
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+
+    settings.trakt.clientId = clientId;
+    settings.trakt.clientSecret = clientSecret;
+    settings.trakt.accessToken = tokenResponse.data.access_token;
+    settings.trakt.refreshToken = tokenResponse.data.refresh_token;
+    settings.trakt.tokenExpiresAt =
+      Date.now() + (tokenResponse.data.expires_in || 0) * 1000;
+    settings.save();
+
+    return res.status(200).json({
+      success: true,
+      accessToken: settings.trakt.accessToken,
+      refreshToken: settings.trakt.refreshToken,
+      tokenExpiresAt: settings.trakt.tokenExpiresAt,
+    });
+  } catch (e) {
+    const status = e.response?.status || 500;
+    const traktMessage =
+      e.response?.data?.error_description ||
+      e.response?.data?.error ||
+      e.response?.data?.message;
+
+    logger.error('Trakt OAuth exchange failed', {
+      label: 'Trakt OAuth',
+      error: e instanceof Error ? e.message : String(e),
+      status: e.response?.status,
+      data: e.response?.data,
+    });
+    return next({
+      status,
+      message:
+        traktMessage ||
+        'Failed to exchange Trakt authorization code. Please verify the code and try again.',
+    });
+  }
+}
+
+settingsRoutes.post('/trakt/oauth/exchange', exchangeTraktOauth);
+
+// Public router for OAuth endpoints (bypass main settings auth guard)
+traktOAuthRouter.get('/oauth/proxy', proxyTraktOauth);
+traktOAuthRouter.get('/oauth/callback', callbackTraktOauth);
+traktOAuthRouter.post('/oauth/exchange', exchangeTraktOauth);
+traktOAuthRouter.get('/oauth/start', startTraktOauth);
 
 settingsRoutes.get('/plex/library', async (req, res) => {
   const settings = getSettings();
@@ -545,11 +654,167 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
   }
 });
 
+function startTraktOauth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const settings = getSettings();
+    const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+    const clientSecret = settings.trakt.clientSecret;
+    const redirectUri = TRAKT_OOB_REDIRECT_URI;
+
+    if (!clientId || !clientSecret) {
+      return next({
+        status: 400,
+        message: 'Client ID and Client Secret are required before starting OAuth',
+      });
+    }
+
+    clearExpiredTraktStates();
+    const state = randomUUID();
+    traktStateStore.set(state, Date.now() + TRAKT_STATE_TTL);
+
+    const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&state=${state}`;
+
+    return res.status(200).json({ url: authUrl, state });
+  } catch (e) {
+    return next({
+      status: 500,
+      message: 'Unable to start Trakt OAuth flow',
+    });
+  }
+};
+
+function proxyTraktOauth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { state } = req.query;
+    const settings = getSettings();
+    const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+    const clientSecret = settings.trakt.clientSecret;
+    const redirectUri = TRAKT_OOB_REDIRECT_URI;
+
+    if (!state || typeof state !== 'string') {
+      return next({ status: 400, message: 'Missing OAuth state' });
+    }
+
+    clearExpiredTraktStates();
+    const stateExpiry = traktStateStore.get(state);
+    if (!stateExpiry || stateExpiry < Date.now()) {
+      return next({ status: 400, message: 'Invalid or expired OAuth state' });
+    }
+
+    if (!clientId || !clientSecret) {
+      return next({
+        status: 400,
+        message: 'Client ID and Client Secret are required',
+      });
+    }
+
+    const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&state=${state}`;
+
+    return res.redirect(authUrl);
+  } catch (e) {
+    return next({
+      status: 500,
+      message: 'Unable to redirect to Trakt',
+    });
+  }
+};
+
+async function callbackTraktOauth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { code, state } = req.query;
+    const settings = getSettings();
+    const redirectUri = TRAKT_OOB_REDIRECT_URI;
+
+    if (!code || typeof code !== 'string') {
+      return next({ status: 400, message: 'Missing authorization code' });
+    }
+
+    if (!state || typeof state !== 'string') {
+      return next({ status: 400, message: 'Missing OAuth state' });
+    }
+
+    clearExpiredTraktStates();
+    const stateExpiry = traktStateStore.get(state);
+    traktStateStore.delete(state);
+
+    if (!stateExpiry || stateExpiry < Date.now()) {
+      return next({ status: 400, message: 'Invalid or expired OAuth state' });
+    }
+
+    const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+    const clientSecret = settings.trakt.clientSecret;
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      return next({
+        status: 400,
+        message: 'Client ID, Client Secret, and redirect URI are required',
+      });
+    }
+
+    const tokenResponse = await axios.post(
+      'https://api.trakt.tv/oauth/token',
+      {
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+
+    settings.trakt.accessToken = tokenResponse.data.access_token;
+    settings.trakt.refreshToken = tokenResponse.data.refresh_token;
+    settings.trakt.tokenExpiresAt =
+      Date.now() + (tokenResponse.data.expires_in || 0) * 1000;
+    settings.save();
+
+    const targetBase =
+      settings.main.applicationUrl ||
+      `${req.protocol}://${req.get('host') || 'localhost'}`;
+
+    return res.redirect(
+      `${targetBase.replace(/\/$/, '')}/settings/sources?traktAuth=success`
+    );
+  } catch (e) {
+    logger.error('Trakt OAuth callback failed', {
+      label: 'Trakt OAuth',
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Failed to complete Trakt OAuth flow',
+    });
+  }
+}
+
 settingsRoutes.get('/trakt', (_req, res) => {
   const settings = getSettings();
 
   res.status(200).json(settings.trakt);
 });
+
+settingsRoutes.get('/trakt/oauth/start', isAuthenticated(), startTraktOauth);
+settingsRoutes.get('/trakt/oauth/proxy', proxyTraktOauth);
+settingsRoutes.get('/trakt/oauth/callback', callbackTraktOauth);
 
 settingsRoutes.post('/trakt', async (req, res) => {
   const settings = getSettings();
@@ -564,21 +829,38 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
   const startTime = Date.now();
 
   try {
-    const { apiKey } = req.body;
+    const settings = getSettings();
+    const { clientId, clientSecret, accessToken, refreshToken } = {
+      clientId: req.body.clientId || settings.trakt.clientId || settings.trakt.apiKey,
+      clientSecret: req.body.clientSecret || settings.trakt.clientSecret,
+      accessToken: req.body.accessToken || settings.trakt.accessToken,
+      refreshToken: req.body.refreshToken || settings.trakt.refreshToken,
+    };
+    const redirectUri = getTraktRedirectUri(req);
 
-    if (!apiKey) {
+    if (!clientId || !accessToken || !clientSecret) {
       return next({
         status: 400,
-        message: 'API key is required',
+        message: 'Client ID, Client Secret, and Access Token are required',
       });
     }
 
     logger.debug('Trakt connection test requested', {
       label: 'Trakt Connection',
-      apiKeyLength: apiKey.length,
+      clientIdLength: String(clientId).length,
+      hasAccessToken: !!accessToken,
+      hasClientSecret: !!clientSecret,
     });
 
-    const traktClient = new TraktAPI(apiKey);
+    const traktClient = new TraktAPI({
+      clientId,
+      accessToken,
+      clientSecret,
+      refreshToken,
+      tokenExpiresAt: settings.trakt.tokenExpiresAt,
+      redirectUri,
+      onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+    });
     await traktClient.testConnection();
 
     logger.info('Trakt connection test successful', {
@@ -599,7 +881,8 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
       status = e.response.status;
 
       if (status === 401 || status === 403) {
-        message = 'Invalid API key - Authentication failed';
+        message =
+          'Invalid client credentials or access token - Authentication failed';
       } else if (status === 404) {
         message = 'Trakt API endpoint not found';
       } else if (status === 429) {

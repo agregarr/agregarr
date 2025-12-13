@@ -46,6 +46,7 @@ import type {
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
 
 // Interfaces for better type safety
 interface CollectionVisibilityConfig {
@@ -2319,14 +2320,25 @@ export class MultiSourceOrchestrator {
           const TraktAPI = (await import('@server/api/trakt')).default;
           const settings = getSettings();
 
-          if (!settings.trakt.apiKey) {
-            logger.warn('Trakt API key not configured for title fetch', {
+          const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+          const redirectUri = buildTraktRedirectUri(settings);
+
+          if (!clientId) {
+            logger.warn('Trakt client ID not configured for title fetch', {
               label: 'Multi-Source Orchestrator',
             });
             return null;
           }
 
-          const traktClient = new TraktAPI(settings.trakt.apiKey);
+          const traktClient = new TraktAPI({
+            clientId,
+            accessToken: settings.trakt.accessToken,
+            clientSecret: settings.trakt.clientSecret,
+            refreshToken: settings.trakt.refreshToken,
+            tokenExpiresAt: settings.trakt.tokenExpiresAt,
+            redirectUri,
+            onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+          });
           const listMetadata = await traktClient.getListMetadata(
             source.customUrl
           );

@@ -3318,10 +3318,36 @@ components:
     TraktSettings:
       type: object
       properties:
+        clientId:
+          type: string
+          nullable: true
+          description: 'Trakt client ID'
+          example: 'your-trakt-client-id'
+        clientSecret:
+          type: string
+          nullable: true
+          description: 'Trakt client secret'
+          example: 'your-trakt-client-secret'
+        accessToken:
+          type: string
+          nullable: true
+          description: 'Trakt personal access token'
+          example: 'your-trakt-access-token'
+        refreshToken:
+          type: string
+          nullable: true
+          description: 'Trakt refresh token'
+          example: 'your-trakt-refresh-token'
+        tokenExpiresAt:
+          type: integer
+          format: int64
+          nullable: true
+          description: 'Unix epoch milliseconds when the current access token expires'
         apiKey:
           type: string
           nullable: true
-          example: 'your-trakt-api-key-here'
+          deprecated: true
+          description: 'Legacy Trakt client ID field (deprecated)'
     MDBListSettings:
       type: object
       properties:
@@ -8298,7 +8324,7 @@ paths:
   /settings/trakt/test:
     post:
       summary: Test Trakt connection
-      description: Tests connection to Trakt API with the provided API key.
+      description: Tests connection to Trakt API with the provided client ID, client secret, and access token.
       tags:
         - settings-integrations
       requestBody:
@@ -8308,11 +8334,19 @@ paths:
             schema:
               type: object
               properties:
-                apiKey:
+                clientId:
                   type: string
-                  description: Trakt API key (Client ID)
+                  description: Trakt client ID
+                clientSecret:
+                  type: string
+                  description: Trakt client secret
+                accessToken:
+                  type: string
+                  description: Trakt personal access token
               required:
-                - apiKey
+                - clientId
+                - clientSecret
+                - accessToken
       responses:
         '200':
           description: 'Connection test successful'
@@ -8328,6 +8362,122 @@ paths:
           description: 'Missing required parameters'
         '500':
           description: 'Connection test failed'
+  /settings/trakt/oauth/start:
+    get:
+      summary: Start Trakt OAuth flow
+      description: Returns the authorization URL to redirect the user to Trakt for OAuth.
+      tags:
+        - settings-integrations
+      responses:
+        '200':
+          description: 'Authorization URL generated'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    description: 'Trakt OAuth authorization URL'
+                  state:
+                    type: string
+                    description: 'Opaque state value for CSRF protection'
+        '400':
+          description: 'Client ID/Secret missing or application URL not configured'
+        '500':
+          description: 'Failed to create authorization URL'
+  /settings/trakt/oauth/exchange:
+    post:
+      summary: Exchange Trakt authorization code for tokens
+      description: Exchanges the provided Trakt authorization code for access and refresh tokens.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Authorization code returned by Trakt
+                clientId:
+                  type: string
+                  description: Optional client ID override
+                clientSecret:
+                  type: string
+                  description: Optional client secret override
+              required:
+                - code
+      responses:
+        '200':
+          description: 'Tokens exchanged successfully'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  tokenExpiresAt:
+                    type: integer
+                    description: Expiration timestamp (ms since epoch)
+        '400':
+          description: 'Missing or invalid parameters'
+        '500':
+          description: 'Failed to exchange authorization code'
+  /trakt/oauth/exchange:
+    post:
+      summary: Exchange Trakt authorization code (public endpoint)
+      description: Public duplicate endpoint to exchange a Trakt authorization code for tokens.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Authorization code returned by Trakt
+                clientId:
+                  type: string
+                  description: Optional client ID override
+                clientSecret:
+                  type: string
+                  description: Optional client secret override
+              required:
+                - code
+      responses:
+        '200':
+          description: 'Tokens exchanged successfully'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  tokenExpiresAt:
+                    type: integer
+                    description: Expiration timestamp (ms since epoch)
+        '400':
+          description: 'Missing or invalid parameters'
+        '500':
+          description: 'Failed to exchange authorization code'
   /settings/mdblist:
     get:
       summary: Get MDBList settings
