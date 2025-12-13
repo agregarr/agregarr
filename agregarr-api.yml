@@ -248,6 +248,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -627,6 +628,11 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        personMinimumItems:
+          type: number
+          description: 'Minimum items required to create actor/director collections (plex)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -805,6 +811,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1166,6 +1173,11 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        personMinimumItems:
+          type: number
+          description: 'Minimum items required to create actor/director collections (plex)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -1485,6 +1497,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1868,6 +1881,11 @@ components:
           example: 'default'
           default: 'default'
           nullable: true
+        personMinimumItems:
+          type: number
+          description: 'Minimum items required to create actor/director collections (plex)'
+          example: 3
+          nullable: true
         excludeFromCollections:
           type: array
           items:
@@ -2197,6 +2215,7 @@ components:
               'overseerr',
               'networks',
               'originals',
+              'plex',
               'anilist',
               'myanimelist',
               'radarrtag',
@@ -6513,6 +6532,7 @@ paths:
                       sonarrtag,
                       comingsoon,
                       filtered_hub,
+                      plex,
                       multi-source,
                     ]
                   example: imdb

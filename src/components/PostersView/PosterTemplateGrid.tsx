@@ -22,8 +22,8 @@ const messages = defineMessages({
   export: 'Export',
   exportSuccess: 'Template exported successfully',
   exportError: 'Failed to export template',
-  setDefault: 'Set Default',
   default: 'Default',
+  personDefault: 'Person Default',
   confirmDelete: 'Are you sure you want to delete this template?',
   deleteTemplate: 'Delete Template',
   cancel: 'Cancel',
@@ -39,6 +39,7 @@ interface PosterTemplate {
   description?: string;
   templateData: PosterEditorData;
   isDefault: boolean;
+  isPersonDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -107,19 +108,6 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
     if (response.ok) {
       onTemplateUpdate();
       setDeleteConfirmId(null);
-    }
-  };
-
-  const handleSetDefault = async (templateId: number) => {
-    const response = await fetch(
-      `/api/v1/posters/templates/${templateId}/set-default`,
-      {
-        method: 'POST',
-      }
-    );
-
-    if (response.ok) {
-      onTemplateUpdate();
     }
   };
 
@@ -303,6 +291,11 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                     </p>
                   )}
                   <div className="mt-2 flex items-center space-x-2">
+                    {template.isPersonDefault && (
+                      <Badge badgeType="success" className="text-xs">
+                        {intl.formatMessage(messages.personDefault)}
+                      </Badge>
+                    )}
                     {template.isDefault && (
                       <Badge badgeType="success" className="text-xs">
                         {intl.formatMessage(messages.default)}
@@ -342,15 +335,6 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                   <ArrowDownTrayIcon className="mr-2 h-3 w-3" />
                   {intl.formatMessage(messages.export)}
                 </button>
-                {!template.isDefault && (
-                  <button
-                    onClick={() => handleSetDefault(template.id)}
-                    className="flex items-center rounded-md bg-blue-900/50 px-3 py-2 text-xs text-blue-400 transition-colors hover:bg-blue-900 hover:text-blue-300"
-                    title={intl.formatMessage(messages.setDefault)}
-                  >
-                    {intl.formatMessage(messages.setDefault)}
-                  </button>
-                )}
                 <button
                   onClick={() => setDeleteConfirmId(template.id)}
                   className="flex items-center rounded-md bg-red-900/50 px-3 py-2 text-xs text-red-400 transition-colors hover:bg-red-900 hover:text-red-300"

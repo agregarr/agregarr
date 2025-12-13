@@ -8,6 +8,7 @@ import {
   PlusIcon,
   Squares2X2Icon,
   TrashIcon,
+  UserIcon,
 } from '@heroicons/react/24/outline';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,6 +37,7 @@ const messages = defineMessages({
   collectionTitle: 'Collection Title',
   customText: 'Custom Text',
   rasterImage: 'Image',
+  personImage: 'Person Image',
   sourceIcon: 'Source Icon',
   customIcon: 'Custom Icon',
   contentGrid: 'Content Grid',
@@ -45,6 +47,7 @@ const messages = defineMessages({
   fontFamily: 'Font Family',
   fontWeight: 'Font Weight',
   fontStyle: 'Font Style',
+  textTransform: 'Text Transform',
   textColor: 'Text Color',
   textAlign: 'Text Align',
   maxLines: 'Max Lines',
@@ -54,6 +57,10 @@ const messages = defineMessages({
   normal: 'Normal',
   bold: 'Bold',
   italic: 'Italic',
+  transformNone: 'None',
+  uppercase: 'Uppercase',
+  lowercase: 'Lowercase',
+  capitalize: 'Capitalize',
   // Size properties
   width: 'Width',
   height: 'Height',
@@ -517,6 +524,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               color: '#ffffff',
               textAlign: 'center',
               maxLines: 2,
+              textTransform: 'none',
             } as TextElementProps,
           };
           break;
@@ -597,6 +605,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
         return DocumentTextIcon;
       case 'raster':
         return PhotoIcon;
+      case 'person':
+        return UserIcon;
       case 'svg':
         return CodeBracketSquareIcon;
       case 'content-grid':
@@ -616,6 +626,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
       }
       case 'raster':
         return intl.formatMessage(messages.rasterImage);
+      case 'person':
+        return intl.formatMessage(messages.personImage);
       case 'svg': {
         const props = element.properties as SVGElementProps;
         return props.iconType === 'source-logo'
@@ -665,6 +677,26 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               />
             ) : null}
             <PhotoIcon className="h-4 w-4 text-white" />
+          </div>
+        );
+      }
+      case 'person': {
+        const props = element.properties as RasterElementProps;
+        return (
+          <div className="flex h-6 w-8 items-center justify-center rounded bg-gradient-to-br from-indigo-600 to-stone-800">
+            {props.imagePath ? (
+              <img
+                src={props.imagePath}
+                alt="Preview"
+                className="h-full w-full rounded object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  target.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            <UserIcon className="h-4 w-4 text-white" />
           </div>
         );
       }
@@ -1531,6 +1563,43 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         </option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Text Transform */}
+                  <div>
+                    <label className="mb-1 block text-xs text-stone-400">
+                      {intl.formatMessage(messages.textTransform)}
+                    </label>
+                    <select
+                      value={
+                        (selectedElement.properties as TextElementProps)
+                          .textTransform || 'none'
+                      }
+                      onChange={(e) => {
+                        updateElementProperties(selectedElement.id, {
+                          textTransform: (e.target as HTMLSelectElement)
+                            .value as
+                            | 'none'
+                            | 'uppercase'
+                            | 'lowercase'
+                            | 'capitalize',
+                        });
+                      }}
+                      className="w-full rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white focus:border-orange-500 focus:outline-none"
+                    >
+                      <option value="none">
+                        {intl.formatMessage(messages.transformNone)}
+                      </option>
+                      <option value="uppercase">
+                        {intl.formatMessage(messages.uppercase)}
+                      </option>
+                      <option value="lowercase">
+                        {intl.formatMessage(messages.lowercase)}
+                      </option>
+                      <option value="capitalize">
+                        {intl.formatMessage(messages.capitalize)}
+                      </option>
+                    </select>
                   </div>
 
                   {/* Max Lines */}

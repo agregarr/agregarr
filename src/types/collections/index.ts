@@ -154,6 +154,7 @@ export interface CollectionFormConfig {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -334,6 +335,8 @@ export interface CollectionFormConfig {
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Plex Library person settings
+  readonly personMinimumItems?: number; // Minimum items required to create actor/director collections (for plex/directors or plex/actors)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
@@ -401,6 +404,7 @@ export interface CollectionConfigCreateRequest {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -497,6 +501,8 @@ export interface CollectionConfigCreateRequest {
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
   readonly sortOrder?: CollectionSortOrder;
+  // Plex Library person settings (also accepted by create requests)
+  readonly personMinimumItems?: number; // Minimum items required to create actor/director collections (for plex/directors or plex/actors)
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
@@ -618,6 +624,7 @@ export const toCollectionCreateRequest = (
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
     sortOrder: config.sortOrder,
+    personMinimumItems: config.personMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
@@ -772,6 +779,7 @@ export type CollectionSourceType =
   | 'originals'
   | 'anilist'
   | 'myanimelist'
+  | 'plex'
   | 'multi-source'
   | 'radarrtag'
   | 'sonarrtag'

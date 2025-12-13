@@ -257,6 +257,44 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
 
     const existingConfig = configs[existingConfigIndex];
 
+    // Debug logging for person settings payload (directors/actors)
+    if (
+      req.body?.type === 'plex' &&
+      (req.body?.subtype === 'directors' || req.body?.subtype === 'actors')
+    ) {
+      const maybeNumber = (value: unknown): number | undefined => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      };
+      const coercedMinimum = maybeNumber(
+        req.body.personMinimumItems ??
+          req.body.actorMinimumItems ??
+          req.body.directorMinimumItems
+      );
+
+      if (coercedMinimum === 1) {
+        return res.status(400).json({
+          error: `${req.body.subtype} minimum items must be at least 2`,
+          message:
+            'Person collections require a minimum of 2 items, 1 is not allowed',
+        });
+      }
+
+      if (coercedMinimum !== undefined) {
+        req.body.personMinimumItems = coercedMinimum;
+        delete req.body.actorMinimumItems;
+        delete req.body.directorMinimumItems;
+      }
+
+      logger.info(`Updating plex/${req.body.subtype} config`, {
+        label: 'Collections API',
+        id,
+        incomingMinimumItems: req.body.personMinimumItems,
+        rawBodyKeys: Object.keys(req.body || {}),
+        rawBody: req.body,
+      });
+    }
+
     // Check if this is a linked collection - if so, update all linked configs
     const configsToUpdate = [];
     if (existingConfig.isLinked && existingConfig.linkId) {

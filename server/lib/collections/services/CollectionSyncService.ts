@@ -205,8 +205,17 @@ export class CollectionSyncService {
         let created = 0;
         let updated = 0;
 
+        const displayName =
+          config.type === 'plex' &&
+          (config.subtype === 'directors' || config.subtype === 'actors') &&
+          (config.name === '{actor}' || config.name === '{director}')
+            ? config.subtype === 'actors'
+              ? 'Auto Actor Collections'
+              : 'Auto Director Collections'
+            : config.name;
+
         // Report collection processing start
-        onProgress?.(processedCount, `Processing "${config.name}"...`);
+        onProgress?.(processedCount, `Processing "${displayName}"...`);
 
         // Wait for API access for this collection type to prevent concurrent access
         const { IndividualCollectionScheduler } = await import(
@@ -215,7 +224,7 @@ export class CollectionSyncService {
         await IndividualCollectionScheduler.waitForApiAccess(
           config.type,
           config.id,
-          config.name,
+          displayName,
           config.libraryId
         );
 
@@ -226,7 +235,7 @@ export class CollectionSyncService {
           // Skip content sync for custom scheduled collections - just ensure it's tracked
           onProgress?.(
             processedCount,
-            `Skipping content sync for "${config.name}" (custom scheduled)...`
+            `Skipping content sync for "${displayName}" (custom scheduled)...`
           );
 
           const collectionKey = `${config.libraryId}-${config.name}`;
@@ -565,6 +574,12 @@ export class CollectionSyncService {
           '../external/recentlyadded'
         );
         return new FilteredHubCollectionSync();
+      }
+      case 'plex': {
+        const { PlexLibraryCollectionSync } = await import(
+          '../external/plexlibrary'
+        );
+        return new PlexLibraryCollectionSync();
       }
       case 'multi-source':
         throw new Error(

@@ -57,6 +57,7 @@ export interface CollectionConfig {
     | 'originals'
     | 'myanimelist'
     | 'anilist'
+    | 'plex'
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
@@ -176,6 +177,8 @@ export interface CollectionConfig {
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Plex Library person settings (for plex/directors or plex/actors)
+  readonly personMinimumItems?: number; // Minimum items required to create actor/director collections (default: 5)
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
@@ -1349,41 +1352,100 @@ class Settings {
 
     this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
       (config) => {
+        let updatedConfig = { ...config };
+        let changed = false;
+
+        // Ensure plex person configs carry required defaults
+        if (
+          updatedConfig.type === 'plex' &&
+          (updatedConfig.subtype === 'directors' ||
+            updatedConfig.subtype === 'actors')
+        ) {
+          const isActors = updatedConfig.subtype === 'actors';
+          const legacyMinimum =
+            (updatedConfig as any).actorMinimumItems ??
+            (updatedConfig as any).directorMinimumItems;
+
+          if (updatedConfig.personMinimumItems === undefined) {
+            const resolvedMinimum = legacyMinimum ?? 5;
+            updatedConfig.personMinimumItems = resolvedMinimum;
+            changed = true;
+          }
+
+          // Clean up legacy minimum fields if present
+          if (
+            'actorMinimumItems' in updatedConfig ||
+            'directorMinimumItems' in updatedConfig
+          ) {
+            delete (updatedConfig as any).actorMinimumItems;
+            delete (updatedConfig as any).directorMinimumItems;
+            changed = true;
+          }
+          // Standardize template/name so placeholder text doesn't leak through
+          const placeholder = isActors ? '{actor}' : '{director}';
+          if (
+            !updatedConfig.template ||
+            updatedConfig.template === 'Collection'
+          ) {
+            updatedConfig.template = placeholder;
+            changed = true;
+          }
+          if (
+            updatedConfig.name === placeholder ||
+            !updatedConfig.name ||
+            updatedConfig.name === 'Collection'
+          ) {
+            updatedConfig.name = isActors
+              ? 'Auto Actor Collections'
+              : 'Auto Director Collections';
+            changed = true;
+          }
+        }
+
+        // Drop mutual exclusion settings for person collections only
+        // Do not drop excludeFromCollections; person collections can use it too
+
         const isVisibleOnHome =
-          config.visibilityConfig?.usersHome ||
-          config.visibilityConfig?.serverOwnerHome ||
-          config.visibilityConfig?.libraryRecommended;
+          updatedConfig.visibilityConfig?.usersHome ||
+          updatedConfig.visibilityConfig?.serverOwnerHome ||
+          updatedConfig.visibilityConfig?.libraryRecommended;
 
         // Check if normalization is needed
         const needsNormalization =
           (!isVisibleOnHome &&
-            config.sortOrderHome &&
-            config.sortOrderHome > 0) ||
-          (config.isLibraryPromoted === true &&
-            (!config.sortOrderLibrary || config.sortOrderLibrary === 0)) ||
-          (config.isLibraryPromoted === false &&
-            config.sortOrderLibrary &&
-            config.sortOrderLibrary > 0) ||
-          config.everLibraryPromoted === undefined;
+            updatedConfig.sortOrderHome &&
+            updatedConfig.sortOrderHome > 0) ||
+          (updatedConfig.isLibraryPromoted === true &&
+            (!updatedConfig.sortOrderLibrary ||
+              updatedConfig.sortOrderLibrary === 0)) ||
+          (updatedConfig.isLibraryPromoted === false &&
+            updatedConfig.sortOrderLibrary &&
+            updatedConfig.sortOrderLibrary > 0) ||
+          updatedConfig.everLibraryPromoted === undefined;
 
         if (needsNormalization) {
-          fixedCount++;
-          return {
-            ...config,
+          updatedConfig = {
+            ...updatedConfig,
             // Visibility rule: Only visible collections get positioning
             sortOrderHome: isVisibleOnHome ? config.sortOrderHome : 0,
             // Consistency rule: Library positioning matches promotion status
-            sortOrderLibrary: config.isLibraryPromoted
-              ? config.sortOrderLibrary
+            sortOrderLibrary: updatedConfig.isLibraryPromoted
+              ? updatedConfig.sortOrderLibrary
               : 0,
             // Historical rule: Track promotion history
             everLibraryPromoted:
-              config.isLibraryPromoted || (config.everLibraryPromoted ?? false),
+              updatedConfig.isLibraryPromoted ||
+              (updatedConfig.everLibraryPromoted ?? false),
             // No isPromotedToHub changes (calculated dynamically)
           };
+          changed = true;
         }
 
-        return config;
+        if (changed) {
+          fixedCount++;
+        }
+
+        return updatedConfig;
       }
     );
 
@@ -1620,6 +1682,35 @@ class Settings {
 
     this.data.completedMigrations.push(migrationId);
     this.save();
+  }
+
+  /**
+   * Ensure plex/directors configs have required defaults and naming
+   */
+  public migratePlexLibraryDirectorsDefaults(): void {
+    const migrationId = 'plex-library-directors-defaults-v1';
+
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    const fixed = this.normalizeCollectionConfigs();
+
+    this.data.completedMigrations.push(migrationId);
+
+    if (fixed > 0) {
+      logger.info(
+        `Applied director defaults to ${fixed} plex/directors config(s)`,
+        { label: 'Settings Migration' }
+      );
+      this.save();
+    } else {
+      this.save();
+    }
   }
 
   /**

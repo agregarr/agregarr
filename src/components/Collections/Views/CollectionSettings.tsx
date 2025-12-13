@@ -328,6 +328,9 @@ const CollectionSettings = ({
           applyOverlaysDuringSync: config.applyOverlaysDuringSync,
           showUnwatchedOnly: config.showUnwatchedOnly,
           smartCollectionSort: config.smartCollectionSort,
+          // Plex Library person collections
+          personMinimumItems: config.personMinimumItems,
+          excludeFromCollections: config.excludeFromCollections,
           randomizeHomeOrder: config.randomizeHomeOrder,
           customWallpaper: config.customWallpaper,
           customSummary: config.customSummary,
@@ -429,9 +432,6 @@ const CollectionSettings = ({
           }),
           ...(config.filterSettings !== undefined && {
             filterSettings: config.filterSettings,
-          }),
-          ...(config.excludeFromCollections !== undefined && {
-            excludeFromCollections: config.excludeFromCollections,
           }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),

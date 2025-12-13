@@ -14,6 +14,7 @@ import {
 } from '@server/lib/posterFileManager';
 import {
   generateTemplatePreview,
+  isPersonDefaultTemplate,
   sanitizeTemplateData,
   validateTemplateData,
 } from '@server/lib/posterTemplates';
@@ -42,15 +43,20 @@ router.get('/templates', async (req, res, next) => {
       order: { isDefault: 'DESC', createdAt: 'ASC' },
     });
 
-    const templatesResponse = templates.map((template: PosterTemplate) => ({
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      isDefault: template.isDefault,
-      templateData: template.getTemplateData(),
-      createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
-    }));
+    const templatesResponse = templates.map((template: PosterTemplate) => {
+      const isPersonDefault = isPersonDefaultTemplate(template.name);
+
+      return {
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        isDefault: template.isDefault && !isPersonDefault,
+        isPersonDefault,
+        templateData: template.getTemplateData(),
+        createdAt: template.createdAt,
+        updatedAt: template.updatedAt,
+      };
+    });
 
     return res.status(200).json({
       templates: templatesResponse,
@@ -115,7 +121,10 @@ router.post('/templates', async (req, res, next) => {
       id: savedTemplate.id,
       name: savedTemplate.name,
       description: savedTemplate.description,
-      isDefault: savedTemplate.isDefault,
+      isDefault:
+        savedTemplate.isDefault &&
+        !isPersonDefaultTemplate(savedTemplate.name),
+      isPersonDefault: isPersonDefaultTemplate(savedTemplate.name),
       templateData: savedTemplate.getTemplateData(),
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
@@ -183,7 +192,10 @@ router.put('/templates/:id', async (req, res, next) => {
       id: savedTemplate.id,
       name: savedTemplate.name,
       description: savedTemplate.description,
-      isDefault: savedTemplate.isDefault,
+      isDefault:
+        savedTemplate.isDefault &&
+        !isPersonDefaultTemplate(savedTemplate.name),
+      isPersonDefault: isPersonDefaultTemplate(savedTemplate.name),
       templateData: savedTemplate.getTemplateData(),
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
@@ -216,6 +228,12 @@ router.delete('/templates/:id', async (req, res, next) => {
     if (!template) {
       return res.status(404).json({
         error: 'Template not found',
+      });
+    }
+
+    if (isPersonDefaultTemplate(template.name)) {
+      return res.status(400).json({
+        error: 'Cannot delete person default templates',
       });
     }
 
@@ -270,6 +288,12 @@ router.post('/templates/:id/set-default', async (req, res, next) => {
       });
     }
 
+    if (isPersonDefaultTemplate(template.name)) {
+      return res.status(400).json({
+        error: 'Person default templates cannot be set as the generic default',
+      });
+    }
+
     // First, remove default flag from all templates
     await templateRepository.update({ isDefault: true }, { isDefault: false });
 
@@ -288,7 +312,9 @@ router.post('/templates/:id/set-default', async (req, res, next) => {
       template: {
         id: template.id,
         name: template.name,
-        isDefault: template.isDefault,
+        isDefault:
+          template.isDefault && !isPersonDefaultTemplate(template.name),
+        isPersonDefault: isPersonDefaultTemplate(template.name),
       },
     });
   } catch (error) {
