@@ -2853,6 +2853,7 @@ export class MultiSourceOrchestrator {
         collected: 'Most Collected',
         favorited: 'Most Favorited',
         boxoffice: 'Box Office',
+        recommendations: 'Recommendations',
       },
       tmdb: {
         trending_day: 'Trending Today',
