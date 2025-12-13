@@ -1,5 +1,10 @@
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { Squares2X2Icon } from '@heroicons/react/24/outline';
+import {
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/solid';
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
@@ -27,6 +32,7 @@ const messages = defineMessages({
     'Choose a collection to see how your template will look with real data. This is for preview only - templates save as reusable designs.',
   undo: 'Undo',
   redo: 'Redo',
+  snapToGuides: 'Snap to Guides',
 });
 
 export type EditorMode =
@@ -531,6 +537,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
 
                   {/* Center - Canvas */}
                   <div className="col-span-6 flex items-center justify-center overflow-hidden rounded-lg bg-stone-800">
+                    {/* Canvas Area */}
                     <PosterCanvas
                       ref={canvasRef}
                       posterData={posterData}
@@ -544,6 +551,46 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       sourceColorsData={sourceColorsData}
                       aspectRatioLocked={aspectRatioLocked}
                     />
+
+                    {/* Vertical Toolbar */}
+                    <div className="flex flex-col items-center space-y-1 border-l border-stone-700 px-2 py-3">
+                      {/* Undo */}
+                      <button
+                        type="button"
+                        onClick={undo}
+                        disabled={!canUndo}
+                        className="rounded p-1.5 text-stone-400 hover:bg-stone-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                        title="Undo (Ctrl+Z)"
+                      >
+                        <ArrowUturnLeftIcon className="h-4 w-4" />
+                      </button>
+                      {/* Redo */}
+                      <button
+                        type="button"
+                        onClick={redo}
+                        disabled={!canRedo}
+                        className="rounded p-1.5 text-stone-400 hover:bg-stone-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                        title="Redo (Ctrl+Shift+Z)"
+                      >
+                        <ArrowUturnRightIcon className="h-4 w-4" />
+                      </button>
+
+                      <div className="my-1 h-px w-4 bg-stone-600" />
+
+                      {/* Snap to guides */}
+                      <button
+                        type="button"
+                        onClick={() => setSnapToGuides(!snapToGuides)}
+                        className={`rounded p-1.5 ${
+                          snapToGuides
+                            ? 'bg-orange-600 text-white'
+                            : 'text-stone-400 hover:bg-stone-700 hover:text-white'
+                        }`}
+                        title={snapToGuides ? 'Snap: ON' : 'Snap: OFF'}
+                      >
+                        <Squares2X2Icon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Right sidebar - Tools */}
@@ -554,16 +601,10 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       selectedElementId={selectedElementId}
                       onElementSelect={setSelectedElementId}
                       mode={mode}
-                      snapToGuides={snapToGuides}
-                      onSnapToGuidesChange={setSnapToGuides}
                       onCurrentlyEditingSourceChange={setCurrentlyEditingSource}
                       addToast={addToast}
                       aspectRatioLocked={aspectRatioLocked}
                       onAspectRatioLockedChange={setAspectRatioLocked}
-                      onUndo={undo}
-                      onRedo={redo}
-                      canUndo={canUndo}
-                      canRedo={canRedo}
                     />
                   </div>
                 </div>
