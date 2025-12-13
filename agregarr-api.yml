@@ -12955,7 +12955,7 @@ paths:
                 properties:
                   defaultPosterSource:
                     type: string
-                    enum: [tmdb, plex]
+                    enum: [tmdb, plex, local]
                     description: Default poster source for overlays
                     example: 'tmdb'
                   initialSetupComplete:
@@ -12980,7 +12980,7 @@ paths:
               properties:
                 defaultPosterSource:
                   type: string
-                  enum: [tmdb, plex]
+                  enum: [tmdb, plex, local]
                   description: Default poster source for overlays
                   example: 'tmdb'
       responses:
@@ -12993,7 +12993,7 @@ paths:
                 properties:
                   defaultPosterSource:
                     type: string
-                    enum: [tmdb, plex]
+                    enum: [tmdb, plex, local]
                   initialSetupComplete:
                     type: boolean
         '400':
@@ -13221,6 +13221,238 @@ paths:
                     example: 'Poster reset cancellation requested'
         '400':
           description: No reset job running
+        '401':
+          description: Authentication required
+
+  /overlay-settings/generate-local-folders:
+    post:
+      summary: Generate local poster folder structure
+      description: Creates empty folder structure for local posters. Creates folders for all library items in the format /config/plex-base-posters/{LibraryName}-{ID}/{Title} ({Year}) tmdb-{TMDBID}/. Note that folders are also created automatically when overlays are applied, so this is mainly useful for bulk folder creation upfront.
+      tags:
+        - overlays
+      responses:
+        '202':
+          description: Folder generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Folder generation started'
+                  status:
+                    type: object
+                    properties:
+                      running:
+                        type: boolean
+                      cancelled:
+                        type: boolean
+                      libraries:
+                        type: object
+                      overallProgress:
+                        type: object
+                        properties:
+                          current:
+                            type: number
+                          total:
+                            type: number
+                          failed:
+                            type: number
+                          skipped:
+                            type: number
+                            description: Items skipped due to missing TMDB ID
+                          percentage:
+                            type: number
+        '409':
+          description: Folder generation already running or overlay application is running
+        '401':
+          description: Authentication required
+
+  /overlay-settings/generate-local-folders-status:
+    get:
+      summary: Get folder generation status
+      description: Returns the current status of the folder generation job.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Folder generation status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                  cancelled:
+                    type: boolean
+                  libraries:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        libraryName:
+                          type: string
+                        current:
+                          type: number
+                        total:
+                          type: number
+                        failed:
+                          type: number
+                        skipped:
+                          type: number
+                  overallProgress:
+                    type: object
+                    properties:
+                      current:
+                        type: number
+                      total:
+                        type: number
+                      failed:
+                        type: number
+                      skipped:
+                        type: number
+                      percentage:
+                        type: number
+        '401':
+          description: Authentication required
+
+  /overlay-settings/cancel-generate-local-folders:
+    post:
+      summary: Cancel folder generation
+      description: Requests cancellation of the currently running folder generation job.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Cancellation requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Folder generation cancellation requested'
+        '400':
+          description: No folder generation running
+        '401':
+          description: Authentication required
+
+  /overlay-settings/populate-local-from-plex:
+    post:
+      summary: Populate local folders with Plex posters
+      description: Downloads all current Plex posters and saves them to the local poster folder structure. Great for migrating from Plex posters to local posters.
+      tags:
+        - overlays
+      responses:
+        '202':
+          description: Plex poster population started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Plex poster population started'
+                  status:
+                    type: object
+                    properties:
+                      running:
+                        type: boolean
+                      cancelled:
+                        type: boolean
+                      libraries:
+                        type: object
+                      overallProgress:
+                        type: object
+                        properties:
+                          current:
+                            type: number
+                          total:
+                            type: number
+                          failed:
+                            type: number
+                          skipped:
+                            type: number
+                            description: Items skipped due to missing TMDB ID or poster URL
+                          percentage:
+                            type: number
+        '409':
+          description: Plex poster population already running or overlay application is running
+        '401':
+          description: Authentication required
+
+  /overlay-settings/populate-local-from-plex-status:
+    get:
+      summary: Get Plex poster population status
+      description: Returns the current status of the Plex poster population job.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Plex poster population status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                  cancelled:
+                    type: boolean
+                  libraries:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        libraryName:
+                          type: string
+                        current:
+                          type: number
+                        total:
+                          type: number
+                        failed:
+                          type: number
+                        skipped:
+                          type: number
+                  overallProgress:
+                    type: object
+                    properties:
+                      current:
+                        type: number
+                      total:
+                        type: number
+                      failed:
+                        type: number
+                      skipped:
+                        type: number
+                      percentage:
+                        type: number
+        '401':
+          description: Authentication required
+
+  /overlay-settings/cancel-populate-local-from-plex:
+    post:
+      summary: Cancel Plex poster population
+      description: Requests cancellation of the currently running Plex poster population job.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Cancellation requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Plex poster population cancellation requested'
+        '400':
+          description: No Plex poster population running
         '401':
           description: Authentication required
 

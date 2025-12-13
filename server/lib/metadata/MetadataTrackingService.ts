@@ -292,9 +292,10 @@ class MetadataTrackingService {
     overlayInputHash: string,
     ourOverlayPosterUrl: string,
     basePosterInfo: {
-      basePosterSource: 'tmdb' | 'plex';
+      basePosterSource: 'tmdb' | 'plex' | 'local';
       originalPlexPosterUrl: string;
       basePosterFilename: string;
+      localPosterModifiedTime?: number | null;
     }
   ): Promise<void> {
     const repo = getRepository(MediaItemMetadata);
@@ -320,6 +321,8 @@ class MetadataTrackingService {
     metadata.originalPlexPosterUrl = basePosterInfo.originalPlexPosterUrl;
     metadata.ourOverlayPosterUrl = ourOverlayPosterUrl;
     metadata.basePosterFilename = basePosterInfo.basePosterFilename;
+    metadata.localPosterModifiedTime =
+      basePosterInfo.localPosterModifiedTime || undefined;
 
     await repo.save(metadata);
 

@@ -525,7 +525,7 @@ interface JobSettings {
 }
 
 export interface OverlaySettings {
-  defaultPosterSource: 'tmdb' | 'plex';
+  defaultPosterSource: 'tmdb' | 'plex' | 'local';
   initialSetupComplete: boolean;
 }
 

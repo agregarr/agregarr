@@ -45,8 +45,8 @@ config/icons/*.*
 # poster storage
 config/posters/*.*
 config/temp/*.*
-config/plex-base-posters/*.*
-config/plex-base-posters/orphaned/*.*
+config/plex-base-posters/**
+
 
 
 # wallpaper storage

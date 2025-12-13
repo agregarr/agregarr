@@ -189,6 +189,111 @@ class PlexBasePosterManager {
   }
 
   /**
+   * Build folder path for local poster storage
+   * Format: /config/plex-base-posters/{libraryName}-{libraryId}/{title} ({year}) tmdb-{tmdbId}/
+   */
+  private async buildLocalPosterPath(
+    libraryId: string,
+    libraryName: string,
+    itemTitle: string,
+    itemYear: number | undefined,
+    tmdbId: number
+  ): Promise<string> {
+    const { sanitizeForFilename } = await import(
+      '@server/utils/fileSystemHelpers'
+    );
+
+    // Sanitize components
+    const safeName = sanitizeForFilename(libraryName);
+    const safeTitle = sanitizeForFilename(itemTitle);
+
+    // Build folder name
+    const yearPart = itemYear ? ` (${itemYear})` : '';
+    const folderName = `${safeTitle}${yearPart} tmdb-${tmdbId}`;
+
+    return path.join(BASE_POSTERS_DIR, `${safeName}-${libraryId}`, folderName);
+  }
+
+  /**
+   * Scan for local poster file and check if it changed
+   * Returns poster buffer if found and valid, null if missing/invalid
+   * Also returns whether the file changed since last check
+   * Automatically creates folder if it doesn't exist
+   */
+  private async scanLocalPoster(
+    localPosterPath: string,
+    previousModTime: number | undefined
+  ): Promise<{
+    posterBuffer: Buffer | null;
+    fileModTime: number | null;
+    fileChanged: boolean;
+  }> {
+    const { findImageFile, getFileModTime, validateImageFile } = await import(
+      '@server/utils/fileSystemHelpers'
+    );
+
+    // Automatically create folder if it doesn't exist
+    try {
+      await fs.access(localPosterPath);
+    } catch {
+      // Folder doesn't exist, create it
+      try {
+        await fs.mkdir(localPosterPath, { recursive: true });
+        logger.debug('Auto-created local poster folder', {
+          label: 'PlexBasePosterManager',
+          folderPath: localPosterPath,
+        });
+      } catch (error) {
+        logger.warn('Failed to auto-create local poster folder', {
+          label: 'PlexBasePosterManager',
+          folderPath: localPosterPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Find image file in directory
+    const imageFilePath = await findImageFile(localPosterPath);
+
+    if (!imageFilePath) {
+      logger.debug('No local poster file found', {
+        label: 'PlexBasePosterManager',
+        searchPath: localPosterPath,
+      });
+      return { posterBuffer: null, fileModTime: null, fileChanged: false };
+    }
+
+    // Validate image file
+    const isValid = await validateImageFile(imageFilePath);
+    if (!isValid) {
+      logger.warn('Local poster file invalid or unreadable', {
+        label: 'PlexBasePosterManager',
+        filePath: imageFilePath,
+      });
+      return { posterBuffer: null, fileModTime: null, fileChanged: false };
+    }
+
+    // Get file modification time
+    const fileModTime = await getFileModTime(imageFilePath);
+
+    // Check if file changed
+    const fileChanged = !previousModTime || previousModTime !== fileModTime;
+
+    // Read file
+    const posterBuffer = await fs.readFile(imageFilePath);
+
+    logger.info('Found local poster file', {
+      label: 'PlexBasePosterManager',
+      filePath: imageFilePath,
+      fileSize: posterBuffer.length,
+      fileModTime,
+      fileChanged,
+    });
+
+    return { posterBuffer, fileModTime, fileChanged };
+  }
+
+  /**
    * Check if base poster has changed WITHOUT downloading it
    * Returns true if poster needs to be re-downloaded (URL changed or source switched)
    * Much faster than full download - only makes lightweight API calls
@@ -318,19 +423,23 @@ class PlexBasePosterManager {
     plexApi: PlexAPI,
     item: PlexLibraryItem,
     libraryId: string,
+    libraryName: string,
     configuredLibraryType: 'movie' | 'show',
-    posterSource: 'tmdb' | 'plex',
+    posterSource: 'tmdb' | 'plex' | 'local',
     metadata: {
-      basePosterSource?: 'tmdb' | 'plex';
+      basePosterSource?: 'tmdb' | 'plex' | 'local';
       originalPlexPosterUrl?: string;
       ourOverlayPosterUrl?: string;
       basePosterFilename?: string;
-    }
+      localPosterModifiedTime?: number;
+    },
+    tmdbId?: number
   ): Promise<{
     posterBuffer: Buffer;
     basePosterChanged: boolean;
     sourceUrl: string;
     filename: string;
+    fileModTime?: number | null;
   }> {
     // CRITICAL FIX: Use item.type from Plex API, not library config type!
     // - item.type comes from Plex's metadata and is authoritative
@@ -351,6 +460,61 @@ class PlexBasePosterManager {
         usingType: mediaType,
       });
     }
+
+    if (posterSource === 'local') {
+      // ===== LOCAL SOURCE =====
+
+      // Validate required parameters
+      if (!tmdbId) {
+        throw new Error('TMDB ID required for local poster source');
+      }
+
+      // Build local poster path
+      const localPosterPath = await this.buildLocalPosterPath(
+        libraryId,
+        libraryName,
+        item.title,
+        item.year,
+        tmdbId
+      );
+
+      // Check if source switched from different source
+      const switchedFromDifferentSource =
+        metadata.basePosterSource && metadata.basePosterSource !== 'local';
+      const firstTime = !metadata.basePosterSource;
+
+      // Scan for local poster
+      const localPosterResult = await this.scanLocalPoster(
+        localPosterPath,
+        metadata.localPosterModifiedTime
+      );
+
+      if (localPosterResult.posterBuffer) {
+        // Local poster found
+        return {
+          posterBuffer: localPosterResult.posterBuffer,
+          basePosterChanged:
+            localPosterResult.fileChanged ||
+            switchedFromDifferentSource ||
+            firstTime,
+          sourceUrl: `local://${localPosterPath}`, // Custom URL scheme for tracking
+          filename: '', // No caching for local posters
+          fileModTime: localPosterResult.fileModTime,
+        };
+      }
+
+      // No local poster found - fallback to TMDB
+      logger.info('No local poster found, falling back to TMDB', {
+        label: 'PlexBasePosterManager',
+        itemTitle: item.title,
+        ratingKey: item.ratingKey,
+        localPosterPath,
+      });
+
+      // Fall through to TMDB logic below (change posterSource temporarily)
+      posterSource = 'tmdb';
+    }
+
     if (posterSource === 'plex') {
       // ===== PLEX SOURCE =====
       const currentPlexPosterUrl = await plexApi.getCurrentPosterUrl(
@@ -387,6 +551,7 @@ class PlexBasePosterManager {
             basePosterChanged: true, // Force TRUE - source changed or first time
             sourceUrl: currentPlexPosterUrl,
             filename: this.generateFilename(libraryId, item.ratingKey),
+            fileModTime: undefined,
           };
         }
         // No cache - fall through to download
@@ -409,6 +574,7 @@ class PlexBasePosterManager {
             basePosterChanged: false,
             sourceUrl: metadata.originalPlexPosterUrl || currentPlexPosterUrl,
             filename: metadata.basePosterFilename || '',
+            fileModTime: undefined,
           };
         }
         // Cache missing but current poster is our overlay - DON'T download it as base!
@@ -431,6 +597,7 @@ class PlexBasePosterManager {
             basePosterChanged: false,
             sourceUrl: metadata.originalPlexPosterUrl || currentPlexPosterUrl,
             filename: metadata.basePosterFilename || '',
+            fileModTime: undefined,
           };
         }
         // Cache missing but we can safely re-download the original
@@ -466,6 +633,7 @@ class PlexBasePosterManager {
         basePosterChanged: true,
         sourceUrl: currentPlexPosterUrl,
         filename,
+        fileModTime: undefined,
       };
     } else {
       // ===== TMDB SOURCE =====
@@ -565,6 +733,7 @@ class PlexBasePosterManager {
         basePosterChanged: tmdbUrlChanged, // Only changed if URL is different
         sourceUrl: posterUrl,
         filename: '', // NO LOCAL CACHE for TMDB
+        fileModTime: undefined,
       };
     }
   }
