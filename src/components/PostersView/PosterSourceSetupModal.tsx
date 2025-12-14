@@ -8,8 +8,7 @@ import { useToasts } from 'react-toast-notifications';
 
 const messages = defineMessages({
   title: 'Choose Poster Source',
-  description:
-    'NOTE: If you have already setup poster overlays in a previous develop build and this is your first time seeing this screen, then you must select TMDB Posters, otherwise overlays will be applied on top of overlays. If you want to use your own base posters, setup your posters in Plex, and change the below setting to Plex Posters which will download your current Plex posters.',
+  description: 'Select the source to use as the base poster for overlays.',
   tmdbOption: 'TMDB Posters',
   tmdbDescription:
     'Grabs the most popular poster from TMDB every run, language option can be selected in Settings -> General',
@@ -18,7 +17,7 @@ const messages = defineMessages({
     'Plex posters will be downloaded and used as the base poster for future overlay runs. If you want to change the base poster used, just update it in Plex and Agregarr will detect the change on the next run and download the new poster and use it going forward.',
   localOption: 'Local Posters',
   localDescription:
-    'Use custom poster images from organized folders. Place images in the folder structure shown below. Falls back to TMDB if file not found.',
+    'Use custom poster images from organized folders. Place images in the folder structure shown below. Can be populated with Plex Posters. Falls back to TMDB if file not found.',
   localFolderFormat: 'Folder Format',
   localFolderExample:
     '/config/plex-base-posters/{LibraryName}-{ID}/{Title} ({Year}) tmdb-{TMDBID}/',
