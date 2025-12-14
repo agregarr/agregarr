@@ -10,7 +10,7 @@ import logger from '@server/logger';
 import { checkUser, isAuthenticated } from '@server/middleware/auth';
 import { mapProductionCompany } from '@server/models/Movie';
 import { mapNetwork } from '@server/models/Tv';
-import settingsRoutes, { traktOAuthRouter } from '@server/routes/settings';
+import settingsRoutes from '@server/routes/settings';
 import { appDataPath, appDataStatus } from '@server/utils/appDataVolume';
 import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
 import restartFlag from '@server/utils/restartFlag';
@@ -37,6 +37,7 @@ import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
 import sourceColorsRoutes from './sourceColors';
+import traktOAuthRoutes from './trakt-oauth';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -138,8 +139,8 @@ router.get('/settings/public', async (req, res) => {
   return res.status(200).json(settings.fullPublicSettings);
 });
 // Pushover notification route removed - notification system not needed
-router.use('/settings', traktOAuthRouter); // Public OAuth endpoints
-router.use('/trakt', traktOAuthRouter); // Duplicate mount for direct /trakt/oauth/*
+// Public Trakt OAuth endpoints (no auth required for OAuth callback flow)
+router.use('/trakt', traktOAuthRoutes);
 router.use('/settings', isAuthenticated(), settingsRoutes);
 router.use('/dashboard', isAuthenticated(), dashboardRoutes);
 router.use('/filesystem', isAuthenticated(), filesystemRoutes);

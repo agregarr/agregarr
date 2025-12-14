@@ -1,5 +1,5 @@
-import type { Request } from 'express';
 import type Settings from '@server/lib/settings';
+import type { Request } from 'express';
 
 export const TRAKT_OOB_REDIRECT_URI = 'urn:ietf:wg:oauth:2.0:oob';
 
@@ -21,7 +21,7 @@ export const buildTraktRedirectUri = (
     return TRAKT_OOB_REDIRECT_URI;
   }
 
-  return `${baseUrl.replace(/\/$/, '')}/api/v1/settings/trakt/oauth/callback`;
+  return `${baseUrl.replace(/\/$/, '')}/api/v1/trakt/oauth/callback`;
 };
 
 export const persistTraktTokens = (

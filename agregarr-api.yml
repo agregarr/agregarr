@@ -8324,7 +8324,7 @@ paths:
   /settings/trakt/test:
     post:
       summary: Test Trakt connection
-      description: Tests connection to Trakt API with the provided client ID, client secret, and access token.
+      description: Tests connection to Trakt API. Supports basic mode (clientId only) or OAuth mode (clientId + clientSecret + accessToken).
       tags:
         - settings-integrations
       requestBody:
@@ -8336,17 +8336,18 @@ paths:
               properties:
                 clientId:
                   type: string
-                  description: Trakt client ID
+                  description: Trakt client ID (required for all modes)
                 clientSecret:
                   type: string
-                  description: Trakt client secret
+                  description: Trakt client secret (optional, required for OAuth mode)
                 accessToken:
                   type: string
-                  description: Trakt personal access token
+                  description: Trakt access token (optional, required for OAuth mode)
+                refreshToken:
+                  type: string
+                  description: Trakt refresh token (optional)
               required:
                 - clientId
-                - clientSecret
-                - accessToken
       responses:
         '200':
           description: 'Connection test successful'
