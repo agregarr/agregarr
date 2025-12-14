@@ -130,6 +130,13 @@ export interface PosterEditorData {
   migrated: boolean; // Flag to track if template has been migrated to new system
 }
 
+export interface PreviewCollectionConfig {
+  name: string;
+  type?: string;
+  mediaType?: 'movie' | 'tv';
+  sourceName?: string;
+}
+
 export interface PosterEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -137,22 +144,23 @@ export interface PosterEditorModalProps {
   initialData?: PosterEditorData;
   initialName?: string;
   initialDescription?: string;
-  previewCollectionConfig?: {
-    name: string;
-    type?: string;
-    mediaType?: 'movie' | 'tv';
-  };
+  previewCollectionConfig?: PreviewCollectionConfig;
   onSave: (data: {
     name: string;
     description?: string;
     posterData: PosterEditorData;
   }) => Promise<void>;
   setPreviewCollectionConfig?: (
-    config:
-      | { name: string; type?: string; mediaType?: 'movie' | 'tv' }
-      | undefined
+    config: PreviewCollectionConfig | undefined
   ) => void;
 }
+
+const buildPreviewCollectionName = (
+  collection: PreviewCollectionConfig
+): string => {
+  const base = collection.sourceName || collection.name;
+  return collection.mediaType ? `${base} (${collection.mediaType})` : base;
+};
 
 const DEFAULT_POSTER_DATA: PosterEditorData = {
   width: 1000,
@@ -203,14 +211,8 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   const maxHistorySize = 50;
 
   // Internal preview collection state (for template/poster creation from PostersView)
-  const [internalPreviewConfig, setInternalPreviewConfig] = useState<
-    | {
-        name: string;
-        type?: string;
-        mediaType?: 'movie' | 'tv';
-      }
-    | undefined
-  >(undefined);
+  const [internalPreviewConfig, setInternalPreviewConfig] =
+    useState<PreviewCollectionConfig | undefined>(undefined);
 
   // Use external config if provided, otherwise use internal state
   const rawPreviewCollectionConfig =
@@ -534,6 +536,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                               name: selected.name,
                               type: selected.type,
                               mediaType: selected.mediaType || 'movie',
+                              sourceName: selected.name,
                             });
                           } else if (
                             !e.target.value &&
