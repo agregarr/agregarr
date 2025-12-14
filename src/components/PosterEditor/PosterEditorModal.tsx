@@ -211,8 +211,9 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   const maxHistorySize = 50;
 
   // Internal preview collection state (for template/poster creation from PostersView)
-  const [internalPreviewConfig, setInternalPreviewConfig] =
-    useState<PreviewCollectionConfig | undefined>(undefined);
+  const [internalPreviewConfig, setInternalPreviewConfig] = useState<
+    PreviewCollectionConfig | undefined
+  >(undefined);
 
   // Use external config if provided, otherwise use internal state
   const rawPreviewCollectionConfig =
