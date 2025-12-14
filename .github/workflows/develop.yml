@@ -31,7 +31,7 @@ jobs:
       - name: Type Check
         run: yarn typecheck
       - name: Formatting
-        run: yarn format:check
+        run: npx prettier --check .
       - name: Build
         run: yarn build
 
