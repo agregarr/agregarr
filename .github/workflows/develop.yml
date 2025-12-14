@@ -17,6 +17,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            python3 make g++ gcc libc6-compat bash \
+            build-base cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
       - name: Install dependencies
         env:
           HUSKY: 0
@@ -32,6 +37,7 @@ jobs:
 
   build_and_push:
     name: Build & Publish Docker Images
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
