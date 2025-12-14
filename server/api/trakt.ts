@@ -561,9 +561,7 @@ class TraktAPI {
         ignoreCollected,
         ignoreWatchlisted,
       });
-      throw new Error(
-        `[Trakt] Failed to fetch recommendations: ${e.message}`
-      );
+      throw new Error(`[Trakt] Failed to fetch recommendations: ${e.message}`);
     }
   }
 
