@@ -46,7 +46,10 @@ interface LocalPersonItem {
   profilePath: string;
 }
 
-const PERSON_DEFAULT_TEMPLATE_NAMES = ['person spotlight', 'director spotlight'];
+const PERSON_DEFAULT_TEMPLATE_NAMES = [
+  'person spotlight',
+  'director spotlight',
+];
 
 export function isPersonDefaultTemplate(name?: string | null): boolean {
   if (!name) {
@@ -55,7 +58,6 @@ export function isPersonDefaultTemplate(name?: string | null): boolean {
 
   return PERSON_DEFAULT_TEMPLATE_NAMES.includes(name.toLowerCase());
 }
-
 
 /**
  * Load local poster mapping for preview rendering
@@ -193,8 +195,8 @@ export function validateTemplateData(
   return {
     isValid: errors.length === 0,
     errors,
-  warnings,
-};
+    warnings,
+  };
 }
 
 /**

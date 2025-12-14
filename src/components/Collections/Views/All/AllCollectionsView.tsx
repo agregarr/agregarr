@@ -847,12 +847,15 @@ const AllCollectionsView: React.FC = () => {
                           originalCollectionConfig?.type === 'plex' &&
                           (originalCollectionConfig?.subtype === 'directors' ||
                             originalCollectionConfig?.subtype === 'actors') ? (
-                          originalCollectionConfig?.subtype === 'actors'
-                            ? 'Auto Actor Collections'
-                            : 'Auto Director Collections'
+                          originalCollectionConfig?.subtype === 'actors' ? (
+                            'Auto Actor Collections'
+                          ) : (
+                            'Auto Director Collections'
+                          )
                         ) : isCollection &&
                           originalCollectionConfig?.type === 'tmdb' &&
-                          originalCollectionConfig?.subtype === 'auto_franchise' ? (
+                          originalCollectionConfig?.subtype ===
+                            'auto_franchise' ? (
                           'Auto Franchise Collections'
                         ) : (
                           collection.name || 'Unnamed Collection'

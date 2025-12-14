@@ -124,9 +124,7 @@ export const ImageElement: React.FC<ImageElementProps> = ({
   const offsetX = (element.width - scaledWidth) / 2;
   const offsetY = (element.height - scaledHeight) / 2;
   const imageOpacity =
-    typeof props.overlayOpacity === 'number'
-      ? props.overlayOpacity
-      : 1;
+    typeof props.overlayOpacity === 'number' ? props.overlayOpacity : 1;
 
   return (
     <Group

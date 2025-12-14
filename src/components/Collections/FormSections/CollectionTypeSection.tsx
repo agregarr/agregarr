@@ -12,7 +12,8 @@ import type {
   TraktSettings,
 } from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -82,8 +83,6 @@ const CollectionTypeSection = ({
     '/api/v1/settings/sonarr'
   );
 
-  if (!isVisible) return null;
-
   // Ensure person minimum items defaults to 5 when empty
   useEffect(() => {
     const isPersonConfig =
@@ -95,12 +94,7 @@ const CollectionTypeSection = ({
     if ((isPersonConfig || isDirectorConfig) && !hasValue) {
       setFieldValue('personMinimumItems', 5);
     }
-  }, [
-    values.type,
-    values.subtype,
-    values.personMinimumItems,
-    setFieldValue,
-  ]);
+  }, [values.type, values.subtype, values.personMinimumItems, setFieldValue]);
 
   // Validate API keys for the current collection type
   const apiKeyValidation = validateApiKeysForCollectionType(
@@ -411,6 +405,10 @@ const CollectionTypeSection = ({
 
   const subtypeOptions = getSubtypeOptions(String(values.type || ''));
 
+  if (!isVisible) {
+    return null;
+  }
+
   return (
     <div className="space-y-4">
       {/* Collection Type */}
@@ -584,7 +582,7 @@ const CollectionTypeSection = ({
                 (default: 5, minimum allowed: 2)
               </p>
             </div>
-            <div className="md:col-span-2 rounded-md border border-gray-500/20 bg-transparent p-4">
+            <div className="rounded-md border border-gray-500/20 bg-transparent p-4 md:col-span-2">
               <div className="flex items-center justify-between">
                 <div>
                   <label

@@ -1092,8 +1092,7 @@ const CollectionFormConfigForm = ({
               (config as CollectionFormConfig).subtype === 'directors')
               ? 5
               : undefined),
-          useSeparator:
-            (config as CollectionFormConfig).useSeparator ?? false,
+          useSeparator: (config as CollectionFormConfig).useSeparator ?? false,
           separatorTitle:
             (config as CollectionFormConfig).separatorTitle ||
             ((config as CollectionFormConfig).type === 'plex' &&
@@ -1437,8 +1436,7 @@ const CollectionFormConfigForm = ({
               : 'Director Collections';
           const separatorTitle =
             isPersonCollection && values.useSeparator
-              ? optionalString(values.separatorTitle) ||
-                defaultSeparatorTitle
+              ? optionalString(values.separatorTitle) || defaultSeparatorTitle
               : undefined;
 
           const configToSave: CollectionFormConfig = {
@@ -1449,18 +1447,16 @@ const CollectionFormConfigForm = ({
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
             // Force deterministic name/template for auto person collections
-            name:
-              isPersonCollection
-                ? values.subtype === 'actors'
-                  ? 'Auto Actor Collections'
-                  : 'Auto Director Collections'
-                : generateCollectionName(values as CollectionFormConfig),
-            template:
-              isPersonCollection
-                ? values.subtype === 'actors'
-                  ? '{actor}'
-                  : '{director}'
-                : values.template,
+            name: isPersonCollection
+              ? values.subtype === 'actors'
+                ? 'Auto Actor Collections'
+                : 'Auto Director Collections'
+              : generateCollectionName(values as CollectionFormConfig),
+            template: isPersonCollection
+              ? values.subtype === 'actors'
+                ? '{actor}'
+                : '{director}'
+              : values.template,
             useSeparator: isPersonCollection
               ? Boolean(values.useSeparator)
               : undefined,
@@ -1686,7 +1682,8 @@ const CollectionFormConfigForm = ({
                   ) &&
                   !(
                     values.type === 'plex' &&
-                    (values.subtype === 'directors' || values.subtype === 'actors')
+                    (values.subtype === 'directors' ||
+                      values.subtype === 'actors')
                   )
                     ? () => setShowPreview(true)
                     : undefined
@@ -1705,7 +1702,8 @@ const CollectionFormConfigForm = ({
                   ) &&
                   !(
                     values.type === 'plex' &&
-                    (values.subtype === 'directors' || values.subtype === 'actors')
+                    (values.subtype === 'directors' ||
+                      values.subtype === 'actors')
                   )
                     ? intl.formatMessage(messages.previewCollection)
                     : undefined
@@ -1979,11 +1977,14 @@ const CollectionFormConfigForm = ({
                                   {values.subtype === 'actors'
                                     ? 'actors'
                                     : 'directors'}{' '}
-                                  in this Plex library and creates a smart collection
-                                  for each (up to your limits). These collections
-                                  stay synced via Plex smart filters and exclude
-                                  trailer placeholders. Managed here as a single “Auto{' '}
-                                  {values.subtype === 'actors' ? 'Actor' : 'Director'}{' '}
+                                  in this Plex library and creates a smart
+                                  collection for each (up to your limits). These
+                                  collections stay synced via Plex smart filters
+                                  and exclude trailer placeholders. Managed here
+                                  as a single “Auto{' '}
+                                  {values.subtype === 'actors'
+                                    ? 'Actor'
+                                    : 'Director'}{' '}
                                   Collections” config.
                                 </p>
                               </div>

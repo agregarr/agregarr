@@ -271,7 +271,8 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
       if (personMinimum !== undefined && personMinimum < 2) {
         return res.status(400).json({
           error: `${req.body.subtype} minimum items must be at least 2`,
-          message: 'Person collections require a minimum of 2 items, 1 is not allowed',
+          message:
+            'Person collections require a minimum of 2 items, 1 is not allowed',
         });
       }
 

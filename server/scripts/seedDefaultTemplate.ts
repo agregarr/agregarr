@@ -3,9 +3,9 @@ import dataSource, { getRepository } from '@server/datasource';
 import {
   PosterTemplate,
   type ContentGridProps,
+  type PersonElementProps,
   type PosterTemplateData,
   type SVGElementProps,
-  type PersonElementProps,
   type TextElementProps,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';
@@ -102,21 +102,21 @@ async function seedDefaultTemplate() {
         intensity: 55,
         useSourceColors: false,
       },
-    elements: [
-      {
-        id: 'person-backdrop',
-        layerOrder: 5,
-        type: 'person',
-        x: 0,
-        y: 0,
-        width: 1000,
-        height: 1500,
-        properties: {
-          imagePath: '',
-          overlayColor: 'rgba(24,23,27,0.55)', // Subtle charcoal tint similar to reference
-          overlayOpacity: 0.85,
-        } as PersonElementProps,
-      },
+      elements: [
+        {
+          id: 'person-backdrop',
+          layerOrder: 5,
+          type: 'person',
+          x: 0,
+          y: 0,
+          width: 1000,
+          height: 1500,
+          properties: {
+            imagePath: '',
+            overlayColor: 'rgba(24,23,27,0.55)', // Subtle charcoal tint similar to reference
+            overlayOpacity: 0.85,
+          } as PersonElementProps,
+        },
         {
           id: 'person-tagline',
           layerOrder: 8,

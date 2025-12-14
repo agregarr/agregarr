@@ -11,7 +11,6 @@ import type {
   CollectionSource,
   CollectionSyncError,
   MissingItem,
-  PlexLabel,
 } from './types';
 import { CollectionSyncErrorType } from './types';
 

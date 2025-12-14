@@ -122,8 +122,7 @@ router.post('/templates', async (req, res, next) => {
       name: savedTemplate.name,
       description: savedTemplate.description,
       isDefault:
-        savedTemplate.isDefault &&
-        !isPersonDefaultTemplate(savedTemplate.name),
+        savedTemplate.isDefault && !isPersonDefaultTemplate(savedTemplate.name),
       isPersonDefault: isPersonDefaultTemplate(savedTemplate.name),
       templateData: savedTemplate.getTemplateData(),
       createdAt: savedTemplate.createdAt,
@@ -193,8 +192,7 @@ router.put('/templates/:id', async (req, res, next) => {
       name: savedTemplate.name,
       description: savedTemplate.description,
       isDefault:
-        savedTemplate.isDefault &&
-        !isPersonDefaultTemplate(savedTemplate.name),
+        savedTemplate.isDefault && !isPersonDefaultTemplate(savedTemplate.name),
       isPersonDefault: isPersonDefaultTemplate(savedTemplate.name),
       templateData: savedTemplate.getTemplateData(),
       createdAt: savedTemplate.createdAt,

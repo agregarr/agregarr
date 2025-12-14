@@ -445,13 +445,17 @@ const SortableItem = ({
                 (config as CollectionFormConfig).type === 'plex' &&
                 ((config as CollectionFormConfig).subtype === 'directors' ||
                   (config as CollectionFormConfig).subtype === 'actors') ? (
-                (config as CollectionFormConfig).subtype === 'actors'
-                  ? 'Auto Actor Collections'
-                  : 'Auto Director Collections'
+                (config as CollectionFormConfig).subtype === 'actors' ? (
+                  'Auto Actor Collections'
+                ) : (
+                  'Auto Director Collections'
+                )
               ) : config.name === '{director}' || config.name === '{actor}' ? (
-                config.name === '{actor}'
-                  ? 'Auto Actor Collections'
-                  : 'Auto Director Collections'
+                config.name === '{actor}' ? (
+                  'Auto Actor Collections'
+                ) : (
+                  'Auto Director Collections'
+                )
               ) : (
                 config.name || 'Unnamed Collection'
               )}

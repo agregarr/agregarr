@@ -18,8 +18,8 @@ import { IconSelector } from './IconSelector';
 import type {
   ContentGridProps,
   LayeredElement,
-  PosterEditorData,
   PersonElementProps,
+  PosterEditorData,
   RasterElementProps,
   SVGElementProps,
   TextElementProps,
@@ -1779,7 +1779,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   <div>
                     <label className="mb-1 block text-xs text-stone-400">
                       {intl.formatMessage(messages.opacity)} (
-                      {localSliderValues[`personOpacity-${selectedElement.id}`] ??
+                      {localSliderValues[
+                        `personOpacity-${selectedElement.id}`
+                      ] ??
                         Math.round(
                           ((selectedElement.properties as PersonElementProps)
                             .overlayOpacity ?? 1) * 100
@@ -1791,7 +1793,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       min="0"
                       max="100"
                       value={
-                        localSliderValues[`personOpacity-${selectedElement.id}`] ??
+                        localSliderValues[
+                          `personOpacity-${selectedElement.id}`
+                        ] ??
                         Math.round(
                           ((selectedElement.properties as PersonElementProps)
                             .overlayOpacity ?? 1) * 100

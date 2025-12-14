@@ -2491,7 +2491,9 @@ class PlexAPI {
           libraryId,
           totalDirectors: directorCounts.size,
           returned: directors.length,
-          topDirectors: directors.slice(0, 5).map((d) => `${d.name} (${d.count})`),
+          topDirectors: directors
+            .slice(0, 5)
+            .map((d) => `${d.name} (${d.count})`),
         }
       );
 

@@ -8,7 +8,6 @@ import { PosterTemplate } from '@server/entity/PosterTemplate';
 
 import type PlexAPI from '@server/api/plexapi';
 import TheMovieDb from '@server/api/themoviedb';
-import axios from 'axios';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
   getCollectionMediaType,
@@ -28,15 +27,11 @@ import type {
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import {
-  getTmdbLanguage,
   getSettings,
+  getTmdbLanguage,
   type CollectionConfig,
 } from '@server/lib/settings';
 import logger from '@server/logger';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import sharp from 'sharp';
 
 type PersonTmdbInfo = {
   tmdbPersonId: number;
@@ -44,22 +39,18 @@ type PersonTmdbInfo = {
   biography?: string;
 };
 
+type TmdbSearchResult = {
+  media_type?: string;
+  name?: string;
+  id?: number | string;
+  profile_path?: string;
+};
+
 type PersonCollectionSubtype = 'directors' | 'actors';
 
-const DIRECTOR_POSTER_WIDTH = 1000;
-const DIRECTOR_POSTER_HEIGHT = 1500;
 const DEFAULT_SEPARATOR_POSTER = 'generated_seperator.jpg';
 
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-export class PlexLibraryCollectionSync extends BaseCollectionSync {
+export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
   constructor() {
     super('plex');
   }
@@ -159,8 +150,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     personInfo?: PersonTmdbInfo
   ): Promise<boolean> {
     try {
-      const info =
-        personInfo ?? (await this.fetchTmdbPersonInfo(personName));
+      const info = personInfo ?? (await this.fetchTmdbPersonInfo(personName));
       const biography = info?.biography;
       const personLabel = this.getPersonTypeLabel(subtype);
 
@@ -213,7 +203,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return true;
     } catch (error) {
       logger.warn(
-        `Failed to set bio description for ${this.getPersonTypeLabel(subtype)} "${personName}"`,
+        `Failed to set bio description for ${this.getPersonTypeLabel(
+          subtype
+        )} "${personName}"`,
         {
           label: 'Plex Library Collections',
           personName,
@@ -311,7 +303,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       });
 
       logger.debug(
-        `Prepared ${mappedItems.length} items for ${this.getPersonTypeLabel(subtype)} poster generation`,
+        `Prepared ${mappedItems.length} items for ${this.getPersonTypeLabel(
+          subtype
+        )} poster generation`,
         {
           label: 'Plex Library Collections',
           personName,
@@ -323,7 +317,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return mappedItems.slice(0, itemLimit);
     } catch (error) {
       logger.warn(
-        `Failed to fetch ${this.getPersonTypeLabel(subtype)} items for poster generation`,
+        `Failed to fetch ${this.getPersonTypeLabel(
+          subtype
+        )} items for poster generation`,
         {
           label: 'Plex Library Collections',
           personName,
@@ -346,7 +342,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       await plexClient.addLabelToCollection(collectionRatingKey, label);
     } catch (labelError) {
       logger.warn(
-        `Failed to add label "${label}" to ${this.getPersonTypeLabel(subtype)} collection`,
+        `Failed to add label "${label}" to ${this.getPersonTypeLabel(
+          subtype
+        )} collection`,
         {
           label: 'Plex Library Collections',
           collectionRatingKey,
@@ -373,17 +371,16 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         language: getTmdbLanguage(),
       });
 
+      const results = (searchResults.results ?? []) as TmdbSearchResult[];
+
       const personResult =
-        searchResults.results.find(
-          (result: { media_type?: string; name?: string }) =>
+        results.find(
+          (result) =>
             result.media_type === 'person' &&
             result.name?.toLowerCase() === personName.toLowerCase()
-        ) ||
-        searchResults.results.find(
-          (result: { media_type?: string }) => result.media_type === 'person'
-        );
+        ) || results.find((result) => result.media_type === 'person');
 
-      if (!personResult || !('id' in personResult)) {
+      if (!personResult || personResult.id == null) {
         logger.debug(
           `No TMDB match found for person "${personName}", skipping media lookups`,
           {
@@ -394,7 +391,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         return null;
       }
 
-      const personId = Number((personResult as any).id);
+      const personId = Number(personResult.id);
 
       const personDetails = await tmdbClient.getPerson({
         personId,
@@ -404,7 +401,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return {
         tmdbPersonId: personId,
         profilePath:
-          (personResult as any).profile_path || personDetails.profile_path || undefined,
+          personResult.profile_path || personDetails.profile_path || undefined,
         biography: personDetails.biography || undefined,
       };
     } catch (error) {
@@ -489,9 +486,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         return false;
       }
 
-      const labels = Array.isArray(collection.labels)
-        ? collection.labels
-        : [];
+      const labels = Array.isArray(collection.labels) ? collection.labels : [];
 
       const hasLabel = labels.some(
         (label: string | PlexLabel) =>
@@ -500,8 +495,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
       return (
         hasLabel ||
-        (collection.title &&
-          collection.title.toLowerCase() === normalizedTitle)
+        (collection.title && collection.title.toLowerCase() === normalizedTitle)
       );
     });
   }
@@ -529,8 +523,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           config.libraryId
         ));
 
-      let ratingKey: string | null | undefined =
-        existingCollection?.ratingKey;
+      let ratingKey: string | null | undefined = existingCollection?.ratingKey;
 
       if (!ratingKey) {
         ratingKey = await plexClient.createEmptyCollection(
@@ -559,25 +552,22 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       const visibilityConfig: CollectionVisibilityConfig = {
         usersHome: config.visibilityConfig?.usersHome ?? false,
         serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? false,
-        libraryRecommended: config.visibilityConfig?.libraryRecommended ?? false,
+        libraryRecommended:
+          config.visibilityConfig?.libraryRecommended ?? false,
         isActive: config.isActive ?? true,
       };
 
-      await this.updateCollectionMetadata(
-        plexClient,
-        separatorRatingKey,
-        {
-          collectionName: separatorTitle,
-          mediaType,
-          visibilityConfig,
-          customLabel: separatorLabel,
-          sortOrderLibrary: config.sortOrderLibrary,
-          isLibraryPromoted: config.isLibraryPromoted,
-          customPoster: undefined,
-          libraryKey: config.libraryId,
-          config,
-        }
-      );
+      await this.updateCollectionMetadata(plexClient, separatorRatingKey, {
+        collectionName: separatorTitle,
+        mediaType,
+        visibilityConfig,
+        customLabel: separatorLabel,
+        sortOrderLibrary: config.sortOrderLibrary,
+        isLibraryPromoted: config.isLibraryPromoted,
+        customPoster: undefined,
+        libraryKey: config.libraryId,
+        config,
+      });
 
       // Set separator to inherit library default (collectionMode = -1); avoids hard-coding visibility
       try {
@@ -592,10 +582,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
 
       // Align separator sort title with user ordering (matching prefix, underscore to float before group)
       try {
-        const sortTitle = this.buildSeparatorSortTitle(
-          config,
-          separatorTitle
-        );
+        const sortTitle = this.buildSeparatorSortTitle(config, separatorTitle);
         await plexClient.updateCollectionSortTitle(
           separatorRatingKey,
           sortTitle
@@ -607,7 +594,6 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             sortError instanceof Error ? sortError.message : String(sortError),
         });
       }
-
 
       // Generate poster via pipeline using the Seperator template; fall back to static poster on failure
       const separatorTemplateId = await this.resolveSeparatorTemplateId();
@@ -633,27 +619,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
                 : String(posterError),
           });
 
-          await this.updateCollectionMetadata(
-            plexClient,
-            separatorRatingKey,
-            {
-              collectionName: separatorTitle,
-              mediaType,
-              visibilityConfig,
-              customLabel: separatorLabel,
-              sortOrderLibrary: config.sortOrderLibrary,
-              isLibraryPromoted: config.isLibraryPromoted,
-              customPoster: DEFAULT_SEPARATOR_POSTER,
-              libraryKey: config.libraryId,
-              config,
-            }
-          );
-        }
-      } else {
-        await this.updateCollectionMetadata(
-          plexClient,
-          separatorRatingKey,
-          {
+          await this.updateCollectionMetadata(plexClient, separatorRatingKey, {
             collectionName: separatorTitle,
             mediaType,
             visibilityConfig,
@@ -663,19 +629,28 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             customPoster: DEFAULT_SEPARATOR_POSTER,
             libraryKey: config.libraryId,
             config,
-          }
-        );
+          });
+        }
+      } else {
+        await this.updateCollectionMetadata(plexClient, separatorRatingKey, {
+          collectionName: separatorTitle,
+          mediaType,
+          visibilityConfig,
+          customLabel: separatorLabel,
+          sortOrderLibrary: config.sortOrderLibrary,
+          isLibraryPromoted: config.isLibraryPromoted,
+          customPoster: DEFAULT_SEPARATOR_POSTER,
+          libraryKey: config.libraryId,
+          config,
+        });
       }
     } catch (error) {
-      logger.warn(
-        `Failed to sync separator collection for ${config.subtype}`,
-        {
-          label: 'Plex Library Collections',
-          configId: config.id,
-          libraryId: config.libraryId,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
+      logger.warn(`Failed to sync separator collection for ${config.subtype}`, {
+        label: 'Plex Library Collections',
+        configId: config.id,
+        libraryId: config.libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -691,9 +666,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         return false;
       }
 
-      const labels = Array.isArray(collection.labels)
-        ? collection.labels
-        : [];
+      const labels = Array.isArray(collection.labels) ? collection.labels : [];
 
       return labels.some(
         (label: string | PlexLabel) =>
@@ -736,6 +709,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     config: CollectionConfig,
     _mediaType: 'movie' | 'tv'
   ): Promise<Record<string, unknown>> {
+    void _mediaType;
     const personPlaceholder =
       config.subtype === 'actors' ? '{actor}' : '{director}';
 
@@ -755,6 +729,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     _options?: CollectionSyncOptions,
     _libraryCache?: LibraryItemsCache
   ): Promise<CollectionSourceData[]> {
+    void _config;
+    void _options;
+    void _libraryCache;
     // Director collections use Plex library data gathered during processing; no external source fetch required.
     return [];
   }
@@ -769,6 +746,10 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     missingItems?: MissingItem[];
     stats?: FilteringStats;
   }> {
+    void _sourceData;
+    void _config;
+    void _plexClient;
+    void _libraryCache;
     // Items are derived directly from Plex during processConfiguration.
     return {
       items: [],
@@ -786,6 +767,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     _config: CollectionConfig,
     _processedCollectionKeys?: Set<string>
   ): Promise<CollectionOperationResult> {
+    void _items;
+    void _mediaType;
+    void _collectionName;
+    void _plexClient;
+    void _allCollections;
+    void _config;
+    void _processedCollectionKeys;
     return {
       created: 0,
       updated: 0,
@@ -804,6 +792,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     _libraryCache?: LibraryItemsCache,
     _options?: CollectionSyncOptions
   ): Promise<SyncResult> {
+    void _libraryCache;
+    void _options;
     const mediaType = getCollectionMediaType(config);
     const subtype = config.subtype;
     if (!subtype || (subtype !== 'directors' && subtype !== 'actors')) {
@@ -849,7 +839,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           : await plexClient.getLibraryDirectors(config.libraryId);
 
       // Filter people by minimum items threshold
-      const qualifyingPeople = people.filter((person) => person.count >= minimumItems);
+      const qualifyingPeople = people.filter(
+        (person) => person.count >= minimumItems
+      );
       const qualifyingPersonNames = new Set(
         qualifyingPeople.map((person) => person.name.toLowerCase())
       );
@@ -862,7 +854,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         {
           label: 'Plex Library Collections',
           configName: config.name,
-          topPeople: topPeople.map((person) => `${person.name} (${person.count} items)`),
+          topPeople: topPeople.map(
+            (person) => `${person.name} (${person.count} items)`
+          ),
         }
       );
 
@@ -897,14 +891,18 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           } else {
             collectionRatingKey =
               subtype === 'actors'
-                ? await plexClient['smartCollectionManager'].createActorCollection(
+                ? await plexClient[
+                    'smartCollectionManager'
+                  ].createActorCollection(
                     collectionName,
                     config.libraryId,
                     mediaType,
                     person.name,
                     limit
                   )
-                : await plexClient['smartCollectionManager'].createDirectorCollection(
+                : await plexClient[
+                    'smartCollectionManager'
+                  ].createDirectorCollection(
                     collectionName,
                     config.libraryId,
                     mediaType,
@@ -980,11 +978,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
               plexClient,
               posterItems,
               undefined,
-              undefined,
-              personImageUrl
+              {
+                personImageUrl,
+              }
             );
           }
-
         } catch (error) {
           logger.error(
             `Error creating collection for ${personTypeLabel} ${person.name}`,
@@ -1004,7 +1002,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           return false;
         }
 
-        const labels = Array.isArray(collection.labels) ? collection.labels : [];
+        const labels = Array.isArray(collection.labels)
+          ? collection.labels
+          : [];
 
         return labels.some((label: string | PlexLabel) => {
           const labelText = typeof label === 'string' ? label : label.tag;

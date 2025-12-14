@@ -418,7 +418,7 @@ class PlexSmartCollectionManager {
         error: error instanceof Error ? error.message : String(error),
       });
       return null;
-   }
+    }
   }
 
   /**
@@ -461,7 +461,9 @@ class PlexSmartCollectionManager {
         filterUri += `&limit=${limit}`;
       }
 
-      const uri = `server://${getSettings().plex.machineId}/com.plexapp.plugins.library${filterUri}`;
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
       const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
         title
       )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
@@ -472,10 +474,13 @@ class PlexSmartCollectionManager {
         typeof createResponse !== 'object' ||
         !('MediaContainer' in createResponse)
       ) {
-        logger.error('Invalid response when creating director smart collection', {
-          label: 'Plex API',
-          response: createResponse,
-        });
+        logger.error(
+          'Invalid response when creating director smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
         return null;
       }
 
@@ -564,7 +569,9 @@ class PlexSmartCollectionManager {
         filterUri += `&limit=${limit}`;
       }
 
-      const uri = `server://${getSettings().plex.machineId}/com.plexapp.plugins.library${filterUri}`;
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
       const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
         title
       )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;

@@ -6,7 +6,14 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type React from 'react';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
@@ -245,15 +252,20 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   // Use external config if provided, otherwise use internal state
   const rawPreviewCollectionConfig =
     externalPreviewConfig || internalPreviewConfig;
-  const previewCollectionConfig = rawPreviewCollectionConfig
-    ? {
-        ...rawPreviewCollectionConfig,
-        name: buildPreviewCollectionName(rawPreviewCollectionConfig),
-        sourceName:
-          rawPreviewCollectionConfig.sourceName ||
-          rawPreviewCollectionConfig.name,
-      }
-    : undefined;
+
+  const previewCollectionConfig = useMemo(() => {
+    if (!rawPreviewCollectionConfig) {
+      return undefined;
+    }
+
+    return {
+      ...rawPreviewCollectionConfig,
+      name: buildPreviewCollectionName(rawPreviewCollectionConfig),
+      sourceName:
+        rawPreviewCollectionConfig.sourceName ||
+        rawPreviewCollectionConfig.name,
+    };
+  }, [rawPreviewCollectionConfig]);
   const setPreviewCollectionConfig =
     externalSetPreviewConfig || setInternalPreviewConfig;
   const [selectedPreviewCollectionId, setSelectedPreviewCollectionId] =
@@ -569,8 +581,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                           const collectionConfigs =
                             collectionsData?.collectionConfigs || [];
                           const selected = collectionConfigs.find(
-                            (c) =>
-                              (c.id || c.name) === selectedValue
+                            (c) => (c.id || c.name) === selectedValue
                           );
                           if (selected && setPreviewCollectionConfig) {
                             const previewName =
@@ -585,7 +596,10 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                             setSelectedPreviewCollectionId(
                               selected.id || selected.name
                             );
-                          } else if (!selectedValue && setPreviewCollectionConfig) {
+                          } else if (
+                            !selectedValue &&
+                            setPreviewCollectionConfig
+                          ) {
                             // Clear selection
                             setPreviewCollectionConfig(undefined);
                             setSelectedPreviewCollectionId('');
