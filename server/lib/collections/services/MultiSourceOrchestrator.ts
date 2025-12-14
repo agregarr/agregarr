@@ -10,6 +10,7 @@ import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 // getCollectionMediaType removed - using items[0]?.type instead
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  applyCollectionExclusions,
   createCollectionLabel,
   createSyncError,
   getCollectionSyncCounter,
@@ -334,11 +335,19 @@ export class MultiSourceOrchestrator {
         );
       }
 
+      // Apply collection mutual exclusion if configured
+      const itemsAfterExclusion = await applyCollectionExclusions(
+        validItems,
+        configForSync,
+        plexClient,
+        'multi-source'
+      );
+
       // Apply maxItems limit if specified
       const finalItems =
         config.maxItems && config.maxItems > 0
-          ? validItems.slice(0, config.maxItems)
-          : validItems;
+          ? itemsAfterExclusion.slice(0, config.maxItems)
+          : itemsAfterExclusion;
 
       if (finalItems.length === 0) {
         logger.warn(

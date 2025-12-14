@@ -156,7 +156,8 @@ export type CollectionSource =
   | 'radarrtag'
   | 'sonarrtag'
   | 'comingsoon'
-  | 'filtered_hub';
+  | 'filtered_hub'
+  | 'multi-source';
 
 /**
  * Configuration for creating/updating collections in Plex
