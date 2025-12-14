@@ -507,6 +507,22 @@ export class OverseerrCollectionSync extends BaseCollectionSync {
           allCollections
         );
 
+        // Auto-generate poster if enabled (same logic as standardized path)
+        // Default to true for existing collections that don't have this field set
+        const shouldGeneratePoster = config.autoPoster ?? true;
+        if (shouldGeneratePoster && result.collectionRatingKey) {
+          await this.generateAutoPoster(
+            collectionName,
+            config,
+            result.collectionRatingKey,
+            plexClient,
+            items,
+            {
+              userId: userContext?.plexId || userContext?.id,
+            }
+          );
+        }
+
         return {
           created: result.created,
           updated: result.updated,

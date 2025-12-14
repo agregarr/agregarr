@@ -65,7 +65,14 @@ class MetadataTrackingService {
       return true;
     }
 
-    const needsReapplication = metadata.lastPosterUploadUrl !== currentPlexUrl;
+    // Use normalized URL comparison to handle different URL formats
+    // (upload://posters/123, /library/metadata/456/thumb/123, http://...?token=xyz)
+    const { posterUrlsMatch } = await import('@server/utils/posterUrlHelpers');
+    const urlsMatch = posterUrlsMatch(
+      metadata.lastPosterUploadUrl,
+      currentPlexUrl
+    );
+    const needsReapplication = !urlsMatch;
 
     logger.debug('Poster reapplication check', {
       label: 'MetadataTracking',
