@@ -65,7 +65,14 @@ class MetadataTrackingService {
       return true;
     }
 
-    const needsReapplication = metadata.lastPosterUploadUrl !== currentPlexUrl;
+    // Use normalized URL comparison to handle different URL formats
+    // (upload://posters/123, /library/metadata/456/thumb/123, http://...?token=xyz)
+    const { posterUrlsMatch } = await import('@server/utils/posterUrlHelpers');
+    const urlsMatch = posterUrlsMatch(
+      metadata.lastPosterUploadUrl,
+      currentPlexUrl
+    );
+    const needsReapplication = !urlsMatch;
 
     logger.debug('Poster reapplication check', {
       label: 'MetadataTracking',
@@ -292,9 +299,10 @@ class MetadataTrackingService {
     overlayInputHash: string,
     ourOverlayPosterUrl: string,
     basePosterInfo: {
-      basePosterSource: 'tmdb' | 'plex';
+      basePosterSource: 'tmdb' | 'plex' | 'local';
       originalPlexPosterUrl: string;
       basePosterFilename: string;
+      localPosterModifiedTime?: number | null;
     }
   ): Promise<void> {
     const repo = getRepository(MediaItemMetadata);
@@ -320,6 +328,8 @@ class MetadataTrackingService {
     metadata.originalPlexPosterUrl = basePosterInfo.originalPlexPosterUrl;
     metadata.ourOverlayPosterUrl = ourOverlayPosterUrl;
     metadata.basePosterFilename = basePosterInfo.basePosterFilename;
+    metadata.localPosterModifiedTime =
+      basePosterInfo.localPosterModifiedTime || undefined;
 
     await repo.save(metadata);
 

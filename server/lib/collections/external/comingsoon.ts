@@ -62,7 +62,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync {
 
     const hasRadarr = settings.radarr && settings.radarr.length > 0;
     const hasSonarr = settings.sonarr && settings.sonarr.length > 0;
-    const hasTrakt = !!settings.trakt.apiKey;
+    const hasTrakt = !!(settings.trakt.clientId || settings.trakt.apiKey);
 
     if (!hasRadarr && !hasSonarr && !hasTrakt) {
       throw this.createSyncError(

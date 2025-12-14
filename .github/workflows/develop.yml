@@ -13,10 +13,15 @@ jobs:
     name: Lint & Test Build
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-22.04
-    container: node:18.18.2-alpine
+    container: node:20.19.5-alpine
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          apk add --no-cache \
+            python3 make g++ gcc libc6-compat bash \
+            build-base cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
       - name: Install dependencies
         env:
           HUSKY: 0
@@ -26,12 +31,13 @@ jobs:
       - name: Type Check
         run: yarn typecheck
       - name: Formatting
-        run: yarn format:check
+        run: npx prettier --check .
       - name: Build
         run: yarn build
 
   build_and_push:
     name: Build & Publish Docker Images
+    if: github.event_name == 'push'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout

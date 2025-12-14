@@ -37,6 +37,7 @@ import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
 import sourceColorsRoutes from './sourceColors';
+import traktOAuthRoutes from './trakt-oauth';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -138,6 +139,8 @@ router.get('/settings/public', async (req, res) => {
   return res.status(200).json(settings.fullPublicSettings);
 });
 // Pushover notification route removed - notification system not needed
+// Public Trakt OAuth endpoints (no auth required for OAuth callback flow)
+router.use('/trakt', traktOAuthRoutes);
 router.use('/settings', isAuthenticated(), settingsRoutes);
 router.use('/dashboard', isAuthenticated(), dashboardRoutes);
 router.use('/filesystem', isAuthenticated(), filesystemRoutes);

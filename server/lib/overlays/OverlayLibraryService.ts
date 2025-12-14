@@ -285,7 +285,8 @@ class OverlayLibraryService {
             itemWithFullMetadata,
             sortedTemplates,
             config.mediaType,
-            libraryId
+            libraryId,
+            config.libraryName
           );
           successCount++;
         } catch (error) {
@@ -437,6 +438,7 @@ class OverlayLibraryService {
               sortedTemplates,
               mediaType,
               libraryId,
+              config.libraryName,
               contextOverrides
             );
             successCount++;
@@ -478,6 +480,7 @@ class OverlayLibraryService {
     templates: OverlayTemplate[],
     configuredLibraryType: 'movie' | 'show',
     libraryId: string,
+    libraryName: string,
     contextOverrides?: Partial<OverlayRenderContext>
   ): Promise<void> {
     try {
@@ -797,6 +800,7 @@ class OverlayLibraryService {
         basePosterChanged: boolean;
         sourceUrl: string;
         filename: string;
+        fileModTime?: number | null;
       };
 
       try {
@@ -804,6 +808,7 @@ class OverlayLibraryService {
           plexApi,
           item,
           libraryId,
+          libraryName,
           configuredLibraryType,
           posterSource,
           {
@@ -811,7 +816,9 @@ class OverlayLibraryService {
             originalPlexPosterUrl: metadata?.originalPlexPosterUrl,
             ourOverlayPosterUrl: metadata?.ourOverlayPosterUrl,
             basePosterFilename: metadata?.basePosterFilename,
-          }
+            localPosterModifiedTime: metadata?.localPosterModifiedTime,
+          },
+          tmdbId
         );
       } catch (error) {
         logger.error('Failed to get base poster, skipping overlay', {
@@ -874,6 +881,7 @@ class OverlayLibraryService {
                 basePosterSource: posterSource,
                 originalPlexPosterUrl: basePosterResult.sourceUrl,
                 basePosterFilename: basePosterResult.filename,
+                localPosterModifiedTime: basePosterResult.fileModTime,
               }
             );
           }

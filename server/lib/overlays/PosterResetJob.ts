@@ -174,6 +174,7 @@ class PosterResetJob {
             plexApi,
             item,
             libraryId,
+            this.currentLibraryName || library.title,
             libraryType,
             posterSource
           );
@@ -216,8 +217,9 @@ class PosterResetJob {
     plexApi: PlexAPI,
     item: PlexLibraryItem,
     libraryId: string,
+    libraryName: string,
     libraryType: 'movie' | 'show',
-    posterSource: 'tmdb' | 'plex'
+    posterSource: 'tmdb' | 'plex' | 'local'
   ): Promise<void> {
     try {
       // Get base poster based on poster source
@@ -239,12 +241,30 @@ class PosterResetJob {
       ).default;
       const metadata = await metadataService.getItemMetadata(item.ratingKey);
 
+      // Extract TMDB ID from item GUIDs
+      let tmdbId: number | undefined;
+      if (
+        itemWithFullMetadata.Guid &&
+        Array.isArray(itemWithFullMetadata.Guid)
+      ) {
+        const tmdbGuid = itemWithFullMetadata.Guid.find((g) =>
+          g.id?.includes('tmdb://')
+        );
+        if (tmdbGuid) {
+          const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+          if (match) {
+            tmdbId = parseInt(match[1]);
+          }
+        }
+      }
+
       // Get base poster without applying overlays
       const basePosterResult =
         await plexBasePosterManager.getBasePosterForOverlay(
           plexApi,
           itemWithFullMetadata,
           libraryId,
+          libraryName,
           libraryType,
           posterSource,
           {
@@ -252,7 +272,9 @@ class PosterResetJob {
             originalPlexPosterUrl: metadata?.originalPlexPosterUrl,
             ourOverlayPosterUrl: metadata?.ourOverlayPosterUrl,
             basePosterFilename: metadata?.basePosterFilename,
-          }
+            localPosterModifiedTime: metadata?.localPosterModifiedTime,
+          },
+          tmdbId
         );
 
       // Ensure poster is in WebP format and properly sized

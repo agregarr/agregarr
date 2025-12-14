@@ -102,7 +102,8 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
     mutate: revalidate,
   } = useSWR<PlexSettings>('/api/v1/settings/plex');
 
-  useSWR<SyncStatus>('/api/v1/settings/plex/sync', { // revalidateSync removed - not used
+  useSWR<SyncStatus>('/api/v1/settings/plex/sync', {
+    // revalidateSync removed - not used
     refreshInterval: 1000,
   });
 
