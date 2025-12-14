@@ -248,7 +248,7 @@ const CollectionTypeSection = ({
           {
             value: 'watchlist',
             label: 'Watchlist',
-            description: 'Import a user\'s watchlist by URL',
+            description: "Import a user's watchlist by URL",
           },
           {
             value: 'random',

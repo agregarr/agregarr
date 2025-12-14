@@ -1,5 +1,7 @@
 import Alert from '@app/components/Common/Alert';
+import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
+import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
 import globalMessages from '@app/i18n/globalMessages';
@@ -12,6 +14,7 @@ import type {
 } from '@server/lib/settings';
 import axios from 'axios';
 import { Field, Formik } from 'formik';
+import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
@@ -39,9 +42,34 @@ const messages = defineMessages({
   toastTautulliSettingsFailure:
     'Something went wrong while saving Tautulli settings.',
   traktSettings: 'Trakt Settings',
-  traktSettingsDescription:
-    'Configure your Trakt API key to enable Trakt-based collections with preset lists and custom list option.',
-  traktApiKey: 'Trakt API Key',
+  traktBasicSetup: 'Basic Trakt Setup',
+  traktBasicDescription:
+    'Use public Trakt features like trending, popular, and public custom lists. Just enter your Client ID.',
+  traktBasicTip:
+    'Create an application at https://trakt.tv/oauth/applications/new with redirect URI urn:ietf:wg:oauth:2.0:oob and copy the Client ID.',
+  traktOAuthSetup: 'Advanced OAuth Setup (Optional)',
+  traktOAuthDescription: 'Enable Trakt OAuth for access to private lists',
+  traktOAuthBenefits: 'Access private lists, watchlists, and recommendations.',
+  traktConnect: 'Connect with Trakt',
+  traktConnectFailed: 'Unable to start Trakt OAuth flow',
+  traktOauthSuccess: 'Trakt authorized successfully!',
+  traktClientId: 'Trakt Client ID',
+  traktClientSecret: 'Trakt Client Secret',
+  traktAccessToken: 'Trakt Access Token',
+  traktCredentialsTip:
+    'Create an application at https://trakt.tv/oauth/applications/new and copy the Client ID, Client Secret, and personal Access Token.',
+  traktAccessTokenTip:
+    'The access token is fetched via OAuth and auto-refreshed.',
+  traktStatusLabel: 'Status',
+  traktStatusConnected: 'Connected',
+  traktStatusPending: 'Not tested',
+  traktStatusMissing: 'Not configured',
+  traktCredsHint:
+    '(redirect URI: urn:ietf:wg:oauth:2.0:oob) and copy the Client ID and Client Secret.',
+  traktReconnect: 'Reconnect',
+  traktDisconnect: 'Disconnect',
+  traktDisconnected: 'Disconnected from Trakt',
+  traktDisconnectFailed: 'Unable to disconnect from Trakt',
   toastTraktSettingsSuccess: 'Trakt settings saved successfully!',
   toastTraktSettingsFailure:
     'Something went wrong while saving Trakt settings.',
@@ -85,14 +113,19 @@ interface SettingsSourcesProps {
 const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const intl = useIntl();
   const { addToast } = useToasts();
+  const router = useRouter();
   const [isTesting, setIsTesting] = useState(false);
-  const [traktTestSuccess, setTraktTestSuccess] = useState(false);
+  const [isStartingTraktAuth, setIsStartingTraktAuth] = useState(false);
+  const [traktBasicTestSuccess, setTraktBasicTestSuccess] = useState(false);
   const [mdblistTestSuccess, setMdblistTestSuccess] = useState(false);
   const [myanimelistTestSuccess, setMyanimelistTestSuccess] = useState(false);
   const [tautulliTestSuccess, setTautulliTestSuccess] = useState(false);
+  const [testingService, setTestingService] = useState<string | null>(null);
+  const [isDisconnectingTrakt, setIsDisconnectingTrakt] = useState(false);
 
   // Store the values that were successfully tested to detect changes
-  const [testedTraktValues, setTestedTraktValues] = useState<string>('');
+  const [testedTraktBasicClientId, setTestedTraktBasicClientId] =
+    useState<string>('');
   const [testedMdblistValues, setTestedMdblistValues] = useState<string>('');
   const [testedMyanimelistValues, setTestedMyanimelistValues] =
     useState<string>('');
@@ -110,11 +143,30 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
     useSWR<MDBListSettings>('/api/v1/settings/mdblist');
   const { data: dataMyanimelist, mutate: revalidateMyanimelist } =
     useSWR<MyAnimeListSettings>('/api/v1/settings/myanimelist');
+  const [showTraktCodeModal, setShowTraktCodeModal] = useState(false);
+  const [traktCode, setTraktCode] = useState('');
+  const [isExchangingCode, setIsExchangingCode] = useState(false);
 
   // Reset test success states when data changes (prevents gaming the system)
   useEffect(() => {
-    setTraktTestSuccess(false);
-  }, [dataTrakt?.apiKey]);
+    setTraktBasicTestSuccess(false);
+    setTestedTraktBasicClientId('');
+  }, [dataTrakt?.apiKey, dataTrakt?.clientId]);
+
+  useEffect(() => {
+    if (router.query.traktAuth === 'success') {
+      addToast(intl.formatMessage(messages.traktOauthSuccess), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+      revalidateTrakt();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { traktAuth, ...rest } = router.query;
+      router.replace({ pathname: router.pathname, query: rest }, undefined, {
+        shallow: true,
+      });
+    }
+  }, [router, addToast, intl, revalidateTrakt]);
 
   useEffect(() => {
     setMdblistTestSuccess(false);
@@ -166,8 +218,13 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
     ]
   );
 
-  const TraktSettingsSchema = Yup.object().shape({
-    traktApiKey: Yup.string().nullable(),
+  const TraktBasicSettingsSchema = Yup.object().shape({
+    traktClientId: Yup.string().nullable(),
+  });
+
+  const TraktOAuthSettingsSchema = Yup.object().shape({
+    traktClientSecret: Yup.string().nullable(),
+    traktAccessToken: Yup.string().nullable(),
   });
 
   const MdblistSettingsSchema = Yup.object().shape({
@@ -202,25 +259,30 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
 
       {/* Trakt Settings */}
       <div className="section">
-        <div className="mt-10 mb-6">
+        <div className="mb-6">
           <h3 className="heading">
             {intl.formatMessage(messages.traktSettings)}
           </h3>
           <p className="description">
-            {intl.formatMessage(messages.traktSettingsDescription)}
+            {intl.formatMessage(messages.traktBasicDescription)}
           </p>
         </div>
       </div>
+
       <Formik
         initialValues={{
-          traktApiKey: dataTrakt?.apiKey,
+          traktClientId: dataTrakt?.clientId || dataTrakt?.apiKey || '',
         }}
-        validationSchema={TraktSettingsSchema}
+        validationSchema={TraktBasicSettingsSchema}
         enableReinitialize
         onSubmit={async (values) => {
           try {
             await axios.post('/api/v1/settings/trakt', {
-              apiKey: values.traktApiKey,
+              clientId: values.traktClientId,
+              clientSecret: dataTrakt?.clientSecret,
+              accessToken: dataTrakt?.accessToken,
+              refreshToken: dataTrakt?.refreshToken,
+              tokenExpiresAt: dataTrakt?.tokenExpiresAt,
             });
             addToast(intl.formatMessage(messages.toastTraktSettingsSuccess), {
               appearance: 'success',
@@ -237,82 +299,61 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
         }}
       >
         {({ handleSubmit, isSubmitting, isValid, values }) => {
-          const testTraktConnection = async () => {
-            if (!values.traktApiKey) {
+          const testBasicConnection = async () => {
+            if (!values.traktClientId) {
               return;
             }
             try {
               setIsTesting(true);
+              setTestingService('trakt-basic');
               const response = await axios.post('/api/v1/settings/trakt/test', {
-                apiKey: values.traktApiKey,
+                clientId: values.traktClientId,
               });
               if (response.data.success) {
-                setTraktTestSuccess(true);
-                setTestedTraktValues(values.traktApiKey || '');
+                setTraktBasicTestSuccess(true);
+                setTestedTraktBasicClientId(values.traktClientId || '');
                 addToast(intl.formatMessage(messages.traktConnectionSuccess), {
                   autoDismiss: true,
                   appearance: 'success',
                 });
               } else {
-                setTraktTestSuccess(false);
+                setTraktBasicTestSuccess(false);
                 addToast(intl.formatMessage(messages.traktConnectionFailure), {
                   autoDismiss: true,
                   appearance: 'error',
                 });
               }
             } catch (e) {
-              setTraktTestSuccess(false);
-
-              // Use server's detailed error message if available
-              let errorMessage =
+              setTraktBasicTestSuccess(false);
+              const errorMessage =
                 e.response?.data?.message ||
                 intl.formatMessage(messages.traktConnectionFailure);
-
-              // If no server message, provide client-side diagnostics
-              if (!e.response?.data?.message) {
-                if (e.code === 'ECONNREFUSED') {
-                  errorMessage +=
-                    ' - Connection refused. Check network connectivity.';
-                } else if (e.code === 'ENOTFOUND') {
-                  errorMessage +=
-                    ' - Unable to reach Trakt API. Check network connectivity.';
-                } else if (e.code === 'ETIMEDOUT') {
-                  errorMessage +=
-                    ' - Connection timeout. Check network connectivity.';
-                } else if (e.message) {
-                  errorMessage += ` - ${e.message}`;
-                }
-              }
-
               addToast(errorMessage, {
                 autoDismiss: true,
                 appearance: 'error',
               });
             } finally {
               setIsTesting(false);
+              setTestingService(null);
             }
           };
 
           return (
             <form className="section" onSubmit={handleSubmit}>
               <div className="form-row">
-                <label htmlFor="traktApiKey" className="text-label">
-                  {intl.formatMessage(messages.traktApiKey)}
-                  <span className="label-tip mb-2">
-                    Get your API key from
-                    <code>https://trakt.tv/oauth/applications/new</code> and
-                    copy the Client ID. Use{' '}
-                    <code>urn:ietf:wg:oauth:2.0:oob</code> as the redirect URI
-                    when creating the application.
+                <label htmlFor="traktClientId" className="text-label">
+                  {intl.formatMessage(messages.traktClientId)}
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.traktBasicTip)}
                   </span>
                 </label>
                 <div className="form-input-area">
                   <div className="form-input-field">
                     <SensitiveInput
                       as="field"
-                      id="traktApiKey"
-                      name="traktApiKey"
-                      autoComplete="one-time-code"
+                      id="traktClientId"
+                      name="traktClientId"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -323,13 +364,13 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                     <Button
                       buttonType="default"
                       type="button"
-                      disabled={!values.traktApiKey || isTesting}
+                      disabled={!values.traktClientId || isTesting}
                       onClick={(e) => {
                         e.preventDefault();
-                        testTraktConnection();
+                        testBasicConnection();
                       }}
                     >
-                      {isTesting
+                      {isTesting && testingService === 'trakt-basic'
                         ? intl.formatMessage(messages.testing)
                         : intl.formatMessage(messages.testTraktConnection)}
                     </Button>
@@ -342,9 +383,10 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                         isSubmitting ||
                         !isValid ||
                         (isSetupMode &&
-                          !!values.traktApiKey &&
-                          (!traktTestSuccess ||
-                            testedTraktValues !== (values.traktApiKey || '')))
+                          !!values.traktClientId &&
+                          (!traktBasicTestSuccess ||
+                            testedTraktBasicClientId !==
+                              (values.traktClientId || '')))
                       }
                     >
                       <ArrowDownOnSquareIcon />
@@ -358,6 +400,319 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 </div>
               </div>
             </form>
+          );
+        }}
+      </Formik>
+
+      {/* OAuth Setup - subsection within Trakt Settings */}
+      <div className="section">
+        <div className="mt-6 mb-4">
+          <h4 className="mb-2 text-lg font-semibold text-white">
+            {intl.formatMessage(messages.traktOAuthSetup)}
+          </h4>
+          <p className="text-sm text-gray-300">
+            {intl.formatMessage(messages.traktOAuthDescription)}
+          </p>
+          <p className="mt-2 text-sm text-gray-400">
+            {intl.formatMessage(messages.traktOAuthBenefits)}
+          </p>
+        </div>
+      </div>
+
+      <Formik
+        initialValues={{
+          traktClientSecret: dataTrakt?.clientSecret || '',
+          traktAccessToken: dataTrakt?.accessToken || '',
+          traktRefreshToken: dataTrakt?.refreshToken || '',
+          traktTokenExpiresAt: dataTrakt?.tokenExpiresAt,
+        }}
+        validationSchema={TraktOAuthSettingsSchema}
+        enableReinitialize
+        onSubmit={async (values) => {
+          try {
+            await axios.post('/api/v1/settings/trakt', {
+              clientId: dataTrakt?.clientId || dataTrakt?.apiKey,
+              clientSecret: values.traktClientSecret,
+              accessToken: values.traktAccessToken,
+              refreshToken: values.traktRefreshToken,
+              tokenExpiresAt: values.traktTokenExpiresAt,
+            });
+            addToast(intl.formatMessage(messages.toastTraktSettingsSuccess), {
+              appearance: 'success',
+              autoDismiss: true,
+            });
+          } catch (e) {
+            addToast(intl.formatMessage(messages.toastTraktSettingsFailure), {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+          } finally {
+            revalidateTrakt();
+          }
+        }}
+      >
+        {({ handleSubmit, values, setFieldValue }) => {
+          const isConnected = !!values.traktAccessToken;
+          const hasClientId = !!(dataTrakt?.clientId || dataTrakt?.apiKey);
+          const hasClientSecret = !!values.traktClientSecret;
+          const canConnect = hasClientId && hasClientSecret;
+
+          const extractTraktCode = (raw: string) => {
+            const trimmed = raw.trim();
+            if (!trimmed) return '';
+            const match = trimmed.match(/[?&]code=([^&]+)/);
+            if (match?.[1]) {
+              return decodeURIComponent(match[1]);
+            }
+            return trimmed;
+          };
+
+          const exchangeTraktCode = async (codeToUse?: string) => {
+            const code = extractTraktCode(codeToUse ?? traktCode);
+            if (!code) {
+              addToast('Please paste the code from Trakt.', {
+                appearance: 'error',
+                autoDismiss: true,
+              });
+              return;
+            }
+            try {
+              setIsExchangingCode(true);
+              const response = await axios.post(
+                '/api/v1/trakt/oauth/exchange',
+                {
+                  code,
+                  clientId: dataTrakt?.clientId || dataTrakt?.apiKey,
+                  clientSecret: values.traktClientSecret,
+                }
+              );
+
+              if (response.data?.accessToken) {
+                setFieldValue('traktAccessToken', response.data.accessToken);
+              }
+              if (response.data?.refreshToken) {
+                setFieldValue('traktRefreshToken', response.data.refreshToken);
+              }
+              if (response.data?.tokenExpiresAt) {
+                setFieldValue(
+                  'traktTokenExpiresAt',
+                  response.data.tokenExpiresAt
+                );
+              }
+              addToast(intl.formatMessage(messages.traktOauthSuccess), {
+                appearance: 'success',
+                autoDismiss: true,
+              });
+              revalidateTrakt();
+              setShowTraktCodeModal(false);
+              setTraktCode('');
+            } catch (error) {
+              const serverMessage =
+                error.response?.data?.message ||
+                intl.formatMessage(messages.traktConnectFailed);
+              addToast(serverMessage, {
+                appearance: 'error',
+                autoDismiss: true,
+              });
+            } finally {
+              setIsExchangingCode(false);
+            }
+          };
+
+          const startTraktAuthFlow = async () => {
+            if (!canConnect) {
+              addToast('Please configure Client ID and Client Secret first.', {
+                appearance: 'error',
+                autoDismiss: true,
+              });
+              return;
+            }
+
+            setShowTraktCodeModal(true);
+            setTraktCode('');
+
+            const authorizeUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${encodeURIComponent(
+              dataTrakt?.clientId || dataTrakt?.apiKey || ''
+            )}&redirect_uri=urn:ietf:wg:oauth:2.0:oob`;
+
+            try {
+              setIsStartingTraktAuth(true);
+              const opened = window.open(
+                authorizeUrl,
+                '_blank',
+                'noopener,noreferrer'
+              );
+              if (!opened) {
+                addToast(intl.formatMessage(messages.traktConnectFailed), {
+                  appearance: 'error',
+                  autoDismiss: true,
+                });
+              }
+            } catch (error) {
+              const serverMessage =
+                error.response?.data?.message ||
+                intl.formatMessage(messages.traktConnectFailed);
+              addToast(serverMessage, {
+                appearance: 'error',
+                autoDismiss: true,
+              });
+            } finally {
+              setIsStartingTraktAuth(false);
+            }
+          };
+
+          const disconnectTrakt = async () => {
+            try {
+              setIsDisconnectingTrakt(true);
+              await axios.post('/api/v1/settings/trakt', {
+                clientId: dataTrakt?.clientId || dataTrakt?.apiKey,
+                clientSecret: values.traktClientSecret,
+                accessToken: '',
+                refreshToken: '',
+                tokenExpiresAt: undefined,
+              });
+              setFieldValue('traktAccessToken', '');
+              setFieldValue('traktRefreshToken', '');
+              setFieldValue('traktTokenExpiresAt', undefined);
+              addToast(intl.formatMessage(messages.traktDisconnected), {
+                appearance: 'success',
+                autoDismiss: true,
+              });
+              revalidateTrakt();
+            } catch (error) {
+              const serverMessage =
+                error.response?.data?.message ||
+                intl.formatMessage(messages.traktDisconnectFailed);
+              addToast(serverMessage, {
+                appearance: 'error',
+                autoDismiss: true,
+              });
+            } finally {
+              setIsDisconnectingTrakt(false);
+            }
+          };
+
+          return (
+            <>
+              <div className="section">
+                {isConnected ? (
+                  <div className="rounded-lg border border-gray-700 bg-stone-900 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-2">
+                        <Badge badgeType="success">
+                          {intl.formatMessage(messages.traktStatusConnected)}
+                        </Badge>
+                        <p className="text-sm text-gray-300">
+                          OAuth tokens are saved and will auto-refresh.
+                          Reconnect to update, or disconnect to remove them.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          buttonType="primary"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            startTraktAuthFlow();
+                          }}
+                          disabled={isStartingTraktAuth}
+                        >
+                          {isStartingTraktAuth
+                            ? intl.formatMessage(messages.testing)
+                            : intl.formatMessage(messages.traktReconnect)}
+                        </Button>
+                        <Button
+                          buttonType="default"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            disconnectTrakt();
+                          }}
+                          disabled={isDisconnectingTrakt}
+                        >
+                          {intl.formatMessage(messages.traktDisconnect)}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmit}>
+                    {!hasClientId && (
+                      <Alert title="Configure Basic Setup First" type="warning">
+                        You must configure and save your Trakt Client ID in the
+                        Basic Setup section above before setting up OAuth.
+                      </Alert>
+                    )}
+                    <div className="form-row">
+                      <label htmlFor="traktClientSecret" className="text-label">
+                        {intl.formatMessage(messages.traktClientSecret)}
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.traktCredsHint)}
+                        </span>
+                      </label>
+                      <div className="form-input-area">
+                        <div className="form-input-field">
+                          <SensitiveInput
+                            as="field"
+                            id="traktClientSecret"
+                            name="traktClientSecret"
+                            autoComplete="off"
+                            disabled={!hasClientId}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="text-label">Connect with Trakt</div>
+                      <div className="form-input-area">
+                        <Button
+                          buttonType="primary"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            startTraktAuthFlow();
+                          }}
+                          disabled={!canConnect || isStartingTraktAuth}
+                        >
+                          {isStartingTraktAuth
+                            ? intl.formatMessage(messages.testing)
+                            : intl.formatMessage(messages.traktConnect)}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {showTraktCodeModal && (
+                <Modal
+                  title="Enter Trakt Code"
+                  subTitle="Paste the code from the Trakt authorization window."
+                  onCancel={() => {
+                    setShowTraktCodeModal(false);
+                    setTraktCode('');
+                  }}
+                  onOk={(e) => {
+                    e?.preventDefault();
+                    exchangeTraktCode();
+                  }}
+                  okText="Exchange Code"
+                  okDisabled={!traktCode.trim()}
+                  loading={isExchangingCode}
+                >
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-300">
+                      After approving access in the Trakt window, copy the code
+                      shown and paste it here to finish connecting.
+                    </p>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border border-gray-700 bg-stone-800 px-3 py-2 text-sm text-white focus:border-orange-500 focus:outline-none"
+                      placeholder="e.g. 86f043a6 or full native URL"
+                      value={traktCode}
+                      onChange={(e) => setTraktCode(e.target.value)}
+                    />
+                  </div>
+                </Modal>
+              )}
+            </>
           );
         }}
       </Formik>
@@ -405,6 +760,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             }
             try {
               setIsTesting(true);
+              setTestingService('mdblist');
               const response = await axios.post(
                 '/api/v1/settings/mdblist/test',
                 {
@@ -460,6 +816,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 appearance: 'error',
               });
             } finally {
+              setTestingService(null);
               setIsTesting(false);
             }
           };
@@ -602,6 +959,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
               return;
             }
             setIsTesting(true);
+            setTestingService('tautulli');
             try {
               const response = await axios.post(
                 '/api/v1/settings/tautulli/test',
@@ -665,6 +1023,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 appearance: 'error',
               });
             } finally {
+              setTestingService(null);
               setIsTesting(false);
             }
           };
@@ -877,6 +1236,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
             }
             try {
               setIsTesting(true);
+              setTestingService('myanimelist');
               const response = await axios.post(
                 '/api/v1/settings/myanimelist/test',
                 {
@@ -933,6 +1293,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 appearance: 'error',
               });
             } finally {
+              setTestingService(null);
               setIsTesting(false);
             }
           };

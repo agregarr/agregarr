@@ -1,4 +1,5 @@
 import logger from '@server/logger';
+import { TRAKT_OOB_REDIRECT_URI } from '@server/utils/traktAuth';
 import type { AxiosInstance } from 'axios';
 import axios from 'axios';
 
@@ -107,17 +108,143 @@ export interface TraktListSummary {
 
 class TraktAPI {
   private axios: AxiosInstance;
+  private hasAuthToken: boolean;
+  private clientId: string;
+  private clientSecret?: string;
+  private accessToken?: string;
+  private refreshToken?: string;
+  private tokenExpiresAt?: number;
+  private redirectUri?: string;
+  private refreshPromise?: Promise<void>;
+  private onTokenRefreshed?: (tokens: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt?: number;
+  }) => Promise<void> | void;
 
-  constructor(apiKey: string) {
+  constructor(
+    config:
+      | string
+      | {
+          clientId: string;
+          clientSecret?: string;
+          accessToken?: string;
+          refreshToken?: string;
+          tokenExpiresAt?: number;
+          redirectUri?: string;
+          onTokenRefreshed?: (tokens: {
+            accessToken: string;
+            refreshToken?: string;
+            expiresAt?: number;
+          }) => Promise<void> | void;
+        }
+  ) {
+    this.clientId = typeof config === 'string' ? config : config.clientId;
+    this.clientSecret =
+      typeof config === 'string' ? undefined : config.clientSecret;
+    this.accessToken =
+      typeof config === 'string' ? undefined : config.accessToken;
+    this.refreshToken =
+      typeof config === 'string' ? undefined : config.refreshToken;
+    this.tokenExpiresAt =
+      typeof config === 'string' ? undefined : config.tokenExpiresAt;
+    this.redirectUri =
+      typeof config === 'string'
+        ? TRAKT_OOB_REDIRECT_URI
+        : config.redirectUri || TRAKT_OOB_REDIRECT_URI;
+    this.onTokenRefreshed =
+      typeof config === 'string' ? undefined : config.onTokenRefreshed;
+
+    this.hasAuthToken = !!this.accessToken;
+
     this.axios = axios.create({
       baseURL: 'https://api.trakt.tv',
       headers: {
         'Content-Type': 'application/json',
         'trakt-api-version': '2',
-        'trakt-api-key': apiKey,
+        'trakt-api-key': this.clientId,
+        ...(this.accessToken
+          ? { Authorization: `Bearer ${this.accessToken}` }
+          : {}),
       },
       timeout: 30000,
     });
+  }
+
+  private async ensureAccessTokenValid(): Promise<void> {
+    if (!this.hasAuthToken) {
+      return;
+    }
+
+    if (
+      this.tokenExpiresAt &&
+      Date.now() < this.tokenExpiresAt - 60 * 1000 // refresh 1 minute before expiry
+    ) {
+      return;
+    }
+
+    await this.refreshAccessToken();
+  }
+
+  private async refreshAccessToken(): Promise<void> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    if (!this.refreshToken || !this.clientSecret) {
+      throw new Error(
+        'Trakt refresh token or client secret missing; cannot refresh access token'
+      );
+    }
+
+    if (!this.redirectUri) {
+      throw new Error(
+        'Trakt redirect URI missing; cannot refresh access token'
+      );
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const response = await axios.post(
+          'https://api.trakt.tv/oauth/token',
+          {
+            refresh_token: this.refreshToken,
+            client_id: this.clientId,
+            client_secret: this.clientSecret,
+            redirect_uri: this.redirectUri,
+            grant_type: 'refresh_token',
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+
+        this.accessToken = response.data.access_token;
+        this.refreshToken = response.data.refresh_token;
+        this.tokenExpiresAt =
+          Date.now() + (response.data.expires_in || 0) * 1000;
+        this.hasAuthToken = !!this.accessToken;
+
+        // Update axios defaults for subsequent requests
+        if (this.accessToken) {
+          this.axios.defaults.headers.common.Authorization = `Bearer ${this.accessToken}`;
+        } else {
+          delete this.axios.defaults.headers.common.Authorization;
+        }
+
+        if (this.onTokenRefreshed && this.accessToken) {
+          await this.onTokenRefreshed({
+            accessToken: this.accessToken,
+            refreshToken: this.refreshToken,
+            expiresAt: this.tokenExpiresAt,
+          });
+        }
+      } finally {
+        this.refreshPromise = undefined;
+      }
+    })();
+
+    return this.refreshPromise;
   }
 
   private async retryRequest<T>(
@@ -125,10 +252,34 @@ class TraktAPI {
     maxRetries = 3,
     delay = 1000
   ): Promise<T> {
+    await this.ensureAccessTokenValid();
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await requestFn();
       } catch (error) {
+        // Attempt refresh on unauthorized responses if possible
+        const shouldRefresh =
+          this.hasAuthToken &&
+          (error.response?.status === 401 || error.response?.status === 403) &&
+          this.refreshToken &&
+          this.clientSecret;
+
+        if (shouldRefresh) {
+          try {
+            await this.refreshAccessToken();
+            return await requestFn();
+          } catch (refreshError) {
+            logger.warn('Trakt token refresh failed during request', {
+              label: 'Trakt API',
+              error:
+                refreshError instanceof Error
+                  ? refreshError.message
+                  : refreshError,
+            });
+          }
+        }
+
         if (attempt === maxRetries) {
           throw error;
         }
@@ -528,9 +679,14 @@ class TraktAPI {
   }
 
   public async testConnection(): Promise<boolean> {
-    // Test connection with a simple request to trending movies
-    // Throw the original error to preserve response status for proper error handling
-    await this.getTrending('movies', 1);
+    // If we have an auth token, validate it against a user endpoint; otherwise fallback to a public endpoint
+    if (this.hasAuthToken) {
+      await this.axios.get('/users/settings');
+    } else {
+      // Test connection with a simple request to trending movies
+      // Throw the original error to preserve response status for proper error handling
+      await this.getTrending('movies', 1);
+    }
     return true;
   }
 }

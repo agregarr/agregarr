@@ -26,7 +26,12 @@ import { isAuthenticated } from '@server/middleware/auth';
 // Discover settings routes removed - discovery functionality not needed in Agregarr
 import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 import parser from 'cron-parser';
+import type { Request } from 'express';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
@@ -49,6 +54,11 @@ const filteredMainSettings = (
 ): Partial<MainSettings> => {
   // Permission system removed - all authenticated users get full settings
   return main;
+};
+
+const getTraktRedirectUri = (req?: Request) => {
+  const settings = getSettings();
+  return buildTraktRedirectUri(settings, req);
 };
 
 settingsRoutes.get('/main', (req, res, next) => {
@@ -564,21 +574,50 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
   const startTime = Date.now();
 
   try {
-    const { apiKey } = req.body;
+    const settings = getSettings();
+    const { clientId, clientSecret, accessToken, refreshToken } = {
+      clientId:
+        req.body.clientId || settings.trakt.clientId || settings.trakt.apiKey,
+      clientSecret: req.body.clientSecret || settings.trakt.clientSecret,
+      accessToken: req.body.accessToken || settings.trakt.accessToken,
+      refreshToken: req.body.refreshToken || settings.trakt.refreshToken,
+    };
+    const redirectUri = getTraktRedirectUri(req);
 
-    if (!apiKey) {
+    if (!clientId) {
       return next({
         status: 400,
-        message: 'API key is required',
+        message: 'Client ID is required',
       });
     }
 
+    // Determine mode: Basic (clientId only) or OAuth (full auth)
+    const isOAuthMode = !!(clientSecret && accessToken);
+
     logger.debug('Trakt connection test requested', {
       label: 'Trakt Connection',
-      apiKeyLength: apiKey.length,
+      mode: isOAuthMode ? 'OAuth' : 'Basic',
+      clientIdLength: String(clientId).length,
+      hasAccessToken: !!accessToken,
+      hasClientSecret: !!clientSecret,
     });
 
-    const traktClient = new TraktAPI(apiKey);
+    let traktClient: TraktAPI;
+    if (isOAuthMode) {
+      // OAuth mode: full authentication
+      traktClient = new TraktAPI({
+        clientId,
+        accessToken,
+        clientSecret,
+        refreshToken,
+        tokenExpiresAt: settings.trakt.tokenExpiresAt,
+        redirectUri,
+        onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+      });
+    } else {
+      // Basic mode: clientId only (for public endpoints)
+      traktClient = new TraktAPI(clientId);
+    }
     await traktClient.testConnection();
 
     logger.info('Trakt connection test successful', {
@@ -599,7 +638,8 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
       status = e.response.status;
 
       if (status === 401 || status === 403) {
-        message = 'Invalid API key - Authentication failed';
+        message =
+          'Invalid client credentials or access token - Authentication failed';
       } else if (status === 404) {
         message = 'Trakt API endpoint not found';
       } else if (status === 429) {
