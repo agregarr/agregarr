@@ -2,7 +2,6 @@ import ImdbRatingsAPI from '@server/api/imdbRatings';
 import type PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { CollectionMetadata } from '@server/entity/CollectionMetadata';
-import { PosterTemplate } from '@server/entity/PosterTemplate';
 import cacheManager from '@server/lib/cache';
 import type { ServiceUserManager } from '@server/lib/collections/services/ServiceUserManager';
 import { serviceUserManager } from '@server/lib/collections/services/ServiceUserManager';

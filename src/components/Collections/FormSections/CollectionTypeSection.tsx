@@ -12,7 +12,8 @@ import type {
   TraktSettings,
 } from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
+import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -81,8 +82,6 @@ const CollectionTypeSection = ({
   const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
     '/api/v1/settings/sonarr'
   );
-
-  if (!isVisible) return null;
 
   // Ensure person minimum items defaults to 5 when empty
   useEffect(() => {
@@ -406,6 +405,10 @@ const CollectionTypeSection = ({
   };
 
   const subtypeOptions = getSubtypeOptions(String(values.type || ''));
+
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <div className="space-y-4">

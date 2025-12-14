@@ -6,7 +6,6 @@
 
 import type PlexAPI from '@server/api/plexapi';
 import TheMovieDb from '@server/api/themoviedb';
-import axios from 'axios';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
   getCollectionMediaType,
@@ -27,10 +26,6 @@ import type {
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import { getTmdbLanguage, type CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import sharp from 'sharp';
 
 type PersonTmdbInfo = {
   tmdbPersonId: number;
@@ -40,17 +35,12 @@ type PersonTmdbInfo = {
 
 type PersonCollectionSubtype = 'directors' | 'actors';
 
-const DIRECTOR_POSTER_WIDTH = 1000;
-const DIRECTOR_POSTER_HEIGHT = 1500;
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+type TmdbSearchResult = {
+  media_type?: string;
+  name?: string;
+  id?: number | string;
+  profile_path?: string;
+};
 
 export class PlexLibraryCollectionSync extends BaseCollectionSync {
   constructor() {
@@ -292,17 +282,16 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         language: getTmdbLanguage(),
       });
 
+      const results = (searchResults.results ?? []) as TmdbSearchResult[];
+
       const personResult =
-        searchResults.results.find(
-          (result: { media_type?: string; name?: string }) =>
+        results.find(
+          (result) =>
             result.media_type === 'person' &&
             result.name?.toLowerCase() === personName.toLowerCase()
-        ) ||
-        searchResults.results.find(
-          (result: { media_type?: string }) => result.media_type === 'person'
-        );
+        ) || results.find((result) => result.media_type === 'person');
 
-      if (!personResult || !('id' in personResult)) {
+      if (!personResult || personResult.id == null) {
         logger.debug(
           `No TMDB match found for person "${personName}", skipping media lookups`,
           {
@@ -313,7 +302,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         return null;
       }
 
-      const personId = Number((personResult as any).id);
+      const personId = Number(personResult.id);
 
       const personDetails = await tmdbClient.getPerson({
         personId,
@@ -323,7 +312,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return {
         tmdbPersonId: personId,
         profilePath:
-          (personResult as any).profile_path || personDetails.profile_path || undefined,
+          personResult.profile_path || personDetails.profile_path || undefined,
         biography: personDetails.biography || undefined,
       };
     } catch (error) {
@@ -402,6 +391,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     config: CollectionConfig,
     _mediaType: 'movie' | 'tv'
   ): Promise<Record<string, unknown>> {
+    void _mediaType;
     const personPlaceholder =
       config.subtype === 'actors' ? '{actor}' : '{director}';
 
@@ -421,6 +411,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     _options?: CollectionSyncOptions,
     _libraryCache?: LibraryItemsCache
   ): Promise<CollectionSourceData[]> {
+    void _config;
+    void _options;
+    void _libraryCache;
     // Director collections use Plex library data gathered during processing; no external source fetch required.
     return [];
   }
@@ -435,6 +428,10 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     missingItems?: MissingItem[];
     stats?: FilteringStats;
   }> {
+    void _sourceData;
+    void _config;
+    void _plexClient;
+    void _libraryCache;
     // Items are derived directly from Plex during processConfiguration.
     return {
       items: [],
@@ -452,6 +449,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     _config: CollectionConfig,
     _processedCollectionKeys?: Set<string>
   ): Promise<CollectionOperationResult> {
+    void _items;
+    void _mediaType;
+    void _collectionName;
+    void _plexClient;
+    void _allCollections;
+    void _config;
+    void _processedCollectionKeys;
     return {
       created: 0,
       updated: 0,
@@ -470,6 +474,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     _libraryCache?: LibraryItemsCache,
     _options?: CollectionSyncOptions
   ): Promise<SyncResult> {
+    void _libraryCache;
+    void _options;
     const mediaType = getCollectionMediaType(config);
     const subtype = config.subtype;
     if (!subtype || (subtype !== 'directors' && subtype !== 'actors')) {
