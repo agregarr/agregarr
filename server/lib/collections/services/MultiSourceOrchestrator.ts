@@ -46,6 +46,10 @@ import type {
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 // Interfaces for better type safety
 interface CollectionVisibilityConfig {
@@ -1806,6 +1810,271 @@ export class MultiSourceOrchestrator {
       );
     }
 
+    // 5. Update wallpaper/art if enabled and provided
+    const customWallpaper = options.config?.customWallpaper;
+    const enableCustomWallpaper =
+      options.config?.enableCustomWallpaper ?? false;
+    if (enableCustomWallpaper && customWallpaper) {
+      let wallpaperFilename: string | undefined;
+
+      if (typeof customWallpaper === 'string') {
+        // Legacy single wallpaper
+        wallpaperFilename = customWallpaper;
+      } else {
+        // Per-library wallpaper mapping - get wallpaper for current library
+        wallpaperFilename = customWallpaper[options.config.libraryId];
+      }
+
+      if (wallpaperFilename) {
+        try {
+          // Get full path to wallpaper file
+          const { getWallpaperPath } = await import(
+            '@server/lib/wallpaperStorage'
+          );
+          const wallpaperPath = getWallpaperPath(wallpaperFilename);
+
+          // Check if wallpaper needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadWallpaper = true;
+
+          try {
+            const currentArtUrl = await plexClient.getCurrentArtUrl(
+              collectionRatingKey
+            );
+
+            const shouldReapply = await metadataService.shouldReapplyWallpaper(
+              collectionRatingKey,
+              wallpaperFilename,
+              currentArtUrl
+            );
+
+            if (!shouldReapply) {
+              logger.info('Wallpaper unchanged, skipping reupload', {
+                label: 'Multi-Source Orchestrator',
+                collectionName: options.config.name,
+                wallpaperFilename,
+              });
+              shouldUploadWallpaper = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadWallpaper) {
+            await plexClient.uploadArtFromFile(
+              collectionRatingKey,
+              wallpaperPath
+            );
+            await plexClient.lockArt(collectionRatingKey);
+
+            // Get new Plex art URL after upload and record metadata
+            try {
+              const newArtUrl = await plexClient.getCurrentArtUrl(
+                collectionRatingKey
+              );
+
+              if (newArtUrl) {
+                await metadataService.recordWallpaperApplication(
+                  collectionRatingKey,
+                  wallpaperFilename,
+                  newArtUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.config.libraryId,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record wallpaper metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
+
+          logger.debug(
+            `Successfully uploaded wallpaper for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              wallpaperFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload wallpaper for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              wallpaperFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if wallpaper upload fails
+        }
+      }
+    }
+
+    // 6. Update summary if enabled and provided
+    const customSummary = options.config?.customSummary;
+    const enableCustomSummary = options.config?.enableCustomSummary ?? false;
+    if (enableCustomSummary && customSummary) {
+      try {
+        await plexClient.updateSummary(collectionRatingKey, customSummary);
+        logger.debug(
+          `Successfully updated summary for multi-source collection ${options.config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionRatingKey,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to update summary for multi-source collection ${options.config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionRatingKey,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+        // Don't fail the entire collection sync if summary update fails
+      }
+    }
+
+    // 7. Update theme if enabled and provided
+    const customTheme = options.config?.customTheme;
+    const enableCustomTheme = options.config?.enableCustomTheme ?? false;
+    if (enableCustomTheme && customTheme) {
+      let themeFilename: string | undefined;
+
+      if (typeof customTheme === 'string') {
+        // Legacy single theme
+        themeFilename = customTheme;
+      } else {
+        // Per-library theme mapping - get theme for current library
+        themeFilename = customTheme[options.config.libraryId];
+      }
+
+      if (themeFilename) {
+        try {
+          // Get full path to theme file
+          const { getThemePath } = await import('@server/lib/themeStorage');
+          const themePath = getThemePath(themeFilename);
+
+          // Check if theme needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadTheme = true;
+
+          try {
+            const currentThemeUrl = await plexClient.getCurrentThemeUrl(
+              collectionRatingKey
+            );
+
+            const shouldReapply = await metadataService.shouldReapplyTheme(
+              collectionRatingKey,
+              themeFilename,
+              currentThemeUrl
+            );
+
+            if (!shouldReapply) {
+              logger.info('Theme unchanged, skipping reupload', {
+                label: 'Multi-Source Orchestrator',
+                collectionName: options.config.name,
+                themeFilename,
+              });
+              shouldUploadTheme = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadTheme) {
+            await plexClient.uploadThemeFromFile(
+              collectionRatingKey,
+              themePath
+            );
+            await plexClient.lockTheme(collectionRatingKey);
+
+            // Get new Plex theme URL after upload and record metadata
+            try {
+              const newThemeUrl = await plexClient.getCurrentThemeUrl(
+                collectionRatingKey
+              );
+
+              if (newThemeUrl) {
+                await metadataService.recordThemeApplication(
+                  collectionRatingKey,
+                  themeFilename,
+                  newThemeUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.config.libraryId,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record theme metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
+
+          logger.debug(
+            `Successfully uploaded theme for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              themeFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload theme for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              themeFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if theme upload fails
+        }
+      }
+    }
+
     logger.debug(`Applied standardized metadata to multi-source collection`, {
       label: 'Multi-Source Orchestrator',
       configId: options.config.id,
@@ -2319,14 +2588,25 @@ export class MultiSourceOrchestrator {
           const TraktAPI = (await import('@server/api/trakt')).default;
           const settings = getSettings();
 
-          if (!settings.trakt.apiKey) {
-            logger.warn('Trakt API key not configured for title fetch', {
+          const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+          const redirectUri = buildTraktRedirectUri(settings);
+
+          if (!clientId) {
+            logger.warn('Trakt client ID not configured for title fetch', {
               label: 'Multi-Source Orchestrator',
             });
             return null;
           }
 
-          const traktClient = new TraktAPI(settings.trakt.apiKey);
+          const traktClient = new TraktAPI({
+            clientId,
+            accessToken: settings.trakt.accessToken,
+            clientSecret: settings.trakt.clientSecret,
+            refreshToken: settings.trakt.refreshToken,
+            tokenExpiresAt: settings.trakt.tokenExpiresAt,
+            redirectUri,
+            onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+          });
           const listMetadata = await traktClient.getListMetadata(
             source.customUrl
           );
@@ -2573,6 +2853,7 @@ export class MultiSourceOrchestrator {
         collected: 'Most Collected',
         favorited: 'Most Favorited',
         boxoffice: 'Box Office',
+        recommendations: 'Recommendations',
       },
       tmdb: {
         trending_day: 'Trending Today',

@@ -1,4 +1,5 @@
 import overlayApplication from '@server/lib/overlayApplication';
+import { localPosterFolderService } from '@server/lib/overlays/LocalPosterFolderService';
 import { plexBasePosterDownloadJob } from '@server/lib/overlays/PlexBasePosterDownloadJob';
 import { posterResetJob } from '@server/lib/overlays/PosterResetJob';
 import { getSettings } from '@server/lib/settings';
@@ -26,7 +27,7 @@ router.get('/', isAuthenticated(), (_req, res) => {
 router.put('/', isAuthenticated(), async (req, res) => {
   const { defaultPosterSource } = req.body;
 
-  if (!['tmdb', 'plex'].includes(defaultPosterSource)) {
+  if (!['tmdb', 'plex', 'local'].includes(defaultPosterSource)) {
     return res.status(400).json({ error: 'Invalid poster source' });
   }
 
@@ -162,5 +163,131 @@ router.post('/cancel-reset', isAuthenticated(), (_req, res) => {
     message: 'Poster reset cancellation requested',
   });
 });
+
+/**
+ * POST /api/v1/overlay-settings/generate-local-folders
+ * Generate empty folder structure for local posters
+ */
+router.post('/generate-local-folders', isAuthenticated(), async (_req, res) => {
+  // Check if job is already running
+  if (localPosterFolderService.running) {
+    return res.status(409).json({ error: 'Folder generation already running' });
+  }
+
+  // Check if overlay application is running (safety check)
+  if (overlayApplication.running) {
+    return res.status(409).json({
+      error: 'Cannot generate folders while overlay application is running',
+    });
+  }
+
+  // Start job in background
+  localPosterFolderService
+    .generateFolderStructureForAllLibraries()
+    .catch(() => {
+      // Error already logged in service
+    });
+
+  return res.status(202).json({
+    message: 'Folder generation started',
+    status: localPosterFolderService.status,
+  });
+});
+
+/**
+ * GET /api/v1/overlay-settings/generate-local-folders-status
+ * Get folder generation status
+ */
+router.get('/generate-local-folders-status', isAuthenticated(), (_req, res) => {
+  return res.status(200).json(localPosterFolderService.status);
+});
+
+/**
+ * POST /api/v1/overlay-settings/cancel-generate-local-folders
+ * Cancel folder generation
+ */
+router.post(
+  '/cancel-generate-local-folders',
+  isAuthenticated(),
+  (_req, res) => {
+    if (!localPosterFolderService.running) {
+      return res.status(400).json({ error: 'No folder generation running' });
+    }
+
+    localPosterFolderService.cancel();
+
+    return res.status(200).json({
+      message: 'Folder generation cancellation requested',
+    });
+  }
+);
+
+/**
+ * POST /api/v1/overlay-settings/populate-local-from-plex
+ * Populate local folders with Plex posters
+ */
+router.post(
+  '/populate-local-from-plex',
+  isAuthenticated(),
+  async (_req, res) => {
+    // Check if job is already running
+    if (localPosterFolderService.running) {
+      return res
+        .status(409)
+        .json({ error: 'Plex poster population already running' });
+    }
+
+    // Check if overlay application is running (safety check)
+    if (overlayApplication.running) {
+      return res.status(409).json({
+        error: 'Cannot populate posters while overlay application is running',
+      });
+    }
+
+    // Start job in background
+    localPosterFolderService.populateFromPlexForAllLibraries().catch(() => {
+      // Error already logged in service
+    });
+
+    return res.status(202).json({
+      message: 'Plex poster population started',
+      status: localPosterFolderService.status,
+    });
+  }
+);
+
+/**
+ * GET /api/v1/overlay-settings/populate-local-from-plex-status
+ * Get Plex poster population status
+ */
+router.get(
+  '/populate-local-from-plex-status',
+  isAuthenticated(),
+  (_req, res) => {
+    return res.status(200).json(localPosterFolderService.status);
+  }
+);
+
+/**
+ * POST /api/v1/overlay-settings/cancel-populate-local-from-plex
+ * Cancel Plex poster population
+ */
+router.post(
+  '/cancel-populate-local-from-plex',
+  isAuthenticated(),
+  (_req, res) => {
+    if (!localPosterFolderService.running) {
+      return res
+        .status(400)
+        .json({ error: 'No Plex poster population running' });
+    }
+
+    localPosterFolderService.cancel();
+
+    return res.status(200).json({
+      message: 'Plex poster population cancellation requested',
+    });
+  }
+);
 
 export default router;

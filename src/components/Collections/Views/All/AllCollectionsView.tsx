@@ -909,6 +909,16 @@ const AllCollectionsView: React.FC = () => {
                                     return 'Collected Monthly';
                                   case 'collected_all':
                                     return 'Most Collected All Time';
+                                  case 'favorited_daily':
+                                    return 'Favorited Daily';
+                                  case 'favorited_weekly':
+                                    return 'Favorited Weekly';
+                                  case 'favorited_monthly':
+                                    return 'Favorited Monthly';
+                                  case 'favorited_all':
+                                    return 'Most Favorited All Time';
+                                  case 'recommendations':
+                                    return 'Recommendations';
                                   default:
                                     return subtype
                                       .replace(/_/g, ' ')
@@ -1025,6 +1035,15 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'filtered_hub':
+                                switch (subtype) {
+                                  case 'recently_added':
+                                    return 'Recently Added';
+                                  case 'recently_released':
+                                    return 'Recently Released';
+                                  default:
+                                    return subtype;
+                                }
                               case 'networks':
                                 // Format platform names like "netflix_top_10" -> "Netflix"
                                 // and "neon-tv" -> "Neon TV"
@@ -1097,7 +1116,7 @@ const AllCollectionsView: React.FC = () => {
                               : config.type === 'comingsoon'
                               ? 'Coming Soon'
                               : config.type === 'filtered_hub'
-                              ? 'Recently Added'
+                              ? 'Filtered Hub'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(

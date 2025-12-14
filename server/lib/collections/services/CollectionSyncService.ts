@@ -295,6 +295,13 @@ export class CollectionSyncService {
               customPoster: config.customPoster,
               autoPoster: config.autoPoster,
               autoPosterTemplate: config.autoPosterTemplate,
+              // Wallpaper, summary, and theme settings
+              customWallpaper: config.customWallpaper,
+              customSummary: config.customSummary,
+              customTheme: config.customTheme,
+              enableCustomWallpaper: config.enableCustomWallpaper,
+              enableCustomSummary: config.enableCustomSummary,
+              enableCustomTheme: config.enableCustomTheme,
               // Missing items / auto-download settings
               downloadMode: config.downloadMode,
               searchMissingMovies: config.searchMissingMovies,

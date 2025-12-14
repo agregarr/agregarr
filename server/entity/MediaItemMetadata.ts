@@ -37,7 +37,7 @@ export class MediaItemMetadata {
 
   // === BASE POSTER TRACKING ===
   @Column({ type: 'varchar', length: 10, nullable: true })
-  public basePosterSource?: 'tmdb' | 'plex';
+  public basePosterSource?: 'tmdb' | 'plex' | 'local';
 
   @Column({ type: 'varchar', nullable: true })
   public originalPlexPosterUrl?: string;
@@ -47,6 +47,9 @@ export class MediaItemMetadata {
 
   @Column({ type: 'varchar', nullable: true })
   public basePosterFilename?: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  public localPosterModifiedTime?: number;
 
   @CreateDateColumn()
   public createdAt: Date;

@@ -23,6 +23,10 @@ import { RandomListManager } from '@server/lib/collections/utils/RandomListManag
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 interface TraktCollectionItem extends CollectionItem {
   tmdbId: number;
@@ -49,10 +53,10 @@ export class TraktCollectionSync extends BaseCollectionSync {
    */
   protected async validateConfiguration(): Promise<void> {
     const settings = getSettings();
-    if (!settings.trakt.apiKey) {
+    if (!settings.trakt.clientId && !settings.trakt.apiKey) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'Trakt API key not configured'
+        'Trakt client ID not configured'
       );
     }
   }
@@ -222,14 +226,17 @@ export class TraktCollectionSync extends BaseCollectionSync {
     libraryCache?: LibraryItemsCache
   ): Promise<TraktSourceData[]> {
     const settings = getSettings();
-    const apiKey = settings.trakt.apiKey;
-    if (!apiKey) {
+    const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+    if (!clientId) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'Trakt API key not configured'
+        'Trakt client ID not configured'
       );
     }
-    const traktClient = this.getTraktClient(apiKey);
+    const traktClient = this.getTraktClient(
+      clientId,
+      settings.trakt.accessToken
+    );
     const statType = this.getStatTypeFromSubtype(config.subtype);
 
     const traktData: TraktSourceData[] = [];
@@ -343,6 +350,27 @@ export class TraktCollectionSync extends BaseCollectionSync {
             );
             traktData.push(...showData);
           }
+          break;
+        }
+
+        case 'recommendations': {
+          if (!settings.trakt.accessToken) {
+            throw this.createSyncError(
+              CollectionSyncErrorType.CONFIGURATION_ERROR,
+              'Trakt access token is required for recommendations'
+            );
+          }
+
+          const recommendations = await traktClient.getRecommendations(
+            mediaType === 'tv' ? 'shows' : 'movies',
+            {
+              ignoreCollected: false,
+              ignoreWatchlisted: false,
+              limit: 100,
+            }
+          );
+
+          traktData.push(...recommendations);
           break;
         }
 
@@ -808,13 +836,28 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
   // Private helper methods
 
-  private getTraktClient(apiKey: string): TraktAPI {
-    if (!this.traktClients.has(apiKey)) {
-      this.traktClients.set(apiKey, new TraktAPI(apiKey));
+  private getTraktClient(clientId: string, accessToken?: string): TraktAPI {
+    const settings = getSettings();
+    const cacheKey = `${clientId}:${accessToken || ''}:${
+      settings.trakt.refreshToken || ''
+    }`;
+    if (!this.traktClients.has(cacheKey)) {
+      this.traktClients.set(
+        cacheKey,
+        new TraktAPI({
+          clientId,
+          accessToken,
+          clientSecret: settings.trakt.clientSecret,
+          refreshToken: settings.trakt.refreshToken,
+          tokenExpiresAt: settings.trakt.tokenExpiresAt,
+          redirectUri: buildTraktRedirectUri(settings),
+          onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+        })
+      );
     }
-    const client = this.traktClients.get(apiKey);
+    const client = this.traktClients.get(cacheKey);
     if (!client) {
-      throw new Error(`Failed to get Trakt client for API key`);
+      throw new Error(`Failed to get Trakt client for client ID`);
     }
     return client;
   }
@@ -845,6 +888,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
       'favorited_monthly',
       'favorited_all',
       'boxoffice',
+      'recommendations',
       'custom',
       'random',
     ];
@@ -898,6 +942,8 @@ export class TraktCollectionSync extends BaseCollectionSync {
         return 'favorited';
       case 'boxoffice':
         return 'boxoffice';
+      case 'recommendations':
+        return 'recommendations';
       case 'custom':
         return 'custom';
       case 'random':

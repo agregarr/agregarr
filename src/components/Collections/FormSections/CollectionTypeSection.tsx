@@ -174,6 +174,12 @@ const CollectionTypeSection = ({
             description: 'Most popular based on ratings and votes',
           },
           {
+            value: 'recommendations',
+            label: 'Recommendations',
+            description:
+              'Personalized Trakt recommendations (uses your library media type)',
+          },
+          {
             value: 'played',
             label: 'Most Played',
             description: 'Most played content (supports time periods)',
@@ -282,7 +288,7 @@ const CollectionTypeSection = ({
           {
             value: 'watchlist',
             label: 'Watchlist',
-            description: 'Import a user\'s watchlist by URL',
+            description: "Import a user's watchlist by URL",
           },
           {
             value: 'random',

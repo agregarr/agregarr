@@ -776,6 +776,18 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
+      case 'recommendations':
+        return [
+          {
+            label: 'Recommendations',
+            value: 'Recommendations',
+          },
+          {
+            label: 'Recommended {mediaType}s',
+            value: 'Recommended {mediaType}s',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
       case 'custom':
         return getCustomUrlPresets(fetchedTitles?.trakt || '', 'trakt');
       case 'random':

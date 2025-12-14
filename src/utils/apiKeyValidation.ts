@@ -41,13 +41,17 @@ export function validateApiKeysForCollectionType(
   createPlaceholdersForMissing?: boolean
 ): ApiKeyValidationResult {
   const requirements: ApiKeyRequirement[] = [];
+  // Trakt can work with just clientId (basic mode) OR full OAuth
+  const hasTraktBasic = Boolean(
+    settings.trakt?.clientId || settings.trakt?.apiKey
+  );
 
   switch (collectionType) {
     case 'trakt':
       requirements.push({
         service: 'Trakt',
         required: true,
-        configured: !!settings.trakt?.apiKey,
+        configured: hasTraktBasic,
         settingsPath: '/settings/sources',
       });
       break;
@@ -103,7 +107,7 @@ export function validateApiKeysForCollectionType(
         requirements.push({
           service: 'Trakt',
           required: true,
-          configured: !!settings.trakt?.apiKey,
+          configured: hasTraktBasic,
           settingsPath: '/settings/sources',
         });
       } else if (subtype === 'monitored') {

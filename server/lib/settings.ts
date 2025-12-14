@@ -392,7 +392,13 @@ export interface PlexSettings {
 }
 
 export interface TraktSettings {
+  // Legacy API key support (Client ID was previously stored here)
   apiKey?: string;
+  clientId?: string;
+  clientSecret?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
 }
 
 export interface MDBListSettings {
@@ -493,6 +499,9 @@ export interface MainSettings {
   lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
   globalSyncError?: string; // Last sync error message if any (master error)
   syncCounter?: number; // Counter for alternating Plex hub ordering methods (prevents precision convergence)
+  // Quick Sync timestamps
+  lastCollectionsQuickSyncAt?: string; // ISO string timestamp of last collections quick sync
+  lastOverlaysQuickSyncAt?: string; // ISO string timestamp of last overlays quick sync
   // External service data for template variables
   adminUsername?: string; // Admin's Plex username
   adminNickname?: string; // Admin's Plex title/display name
@@ -528,15 +537,17 @@ interface JobSettings {
 }
 
 export interface OverlaySettings {
-  defaultPosterSource: 'tmdb' | 'plex';
+  defaultPosterSource: 'tmdb' | 'plex' | 'local';
   initialSetupComplete: boolean;
 }
 
 export type JobId =
   | 'plex-refresh-token'
   | 'plex-collections-sync'
+  | 'plex-collections-quick-sync'
   | 'plex-randomize-home-order'
-  | 'overlay-application';
+  | 'overlay-application'
+  | 'overlay-quick-sync';
 
 export interface GlobalExclusions {
   movies: number[]; // TMDB IDs for excluded movies
@@ -614,11 +625,17 @@ class Settings {
         'plex-collections-sync': {
           schedule: '0 0 */12 * * *',
         },
+        'plex-collections-quick-sync': {
+          schedule: '0 */30 * * * *', // Every 30 minutes (user customizable)
+        },
         'plex-randomize-home-order': {
           schedule: '0 0 6 * * *',
         },
         'overlay-application': {
           schedule: '0 0 3 * * *', // Every 24 hours at 3am
+        },
+        'overlay-quick-sync': {
+          schedule: '0 */30 * * * *', // Every 30 minutes (user customizable)
         },
       },
       globalExclusions: {
@@ -2152,6 +2169,13 @@ export interface MultiSourceCollectionConfig {
   // Smart collection settings (unwatched filter feature)
   readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {
