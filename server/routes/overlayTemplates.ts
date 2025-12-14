@@ -2,6 +2,7 @@ import ImdbRatingsAPI from '@server/api/imdbRatings';
 import RottenTomatoes from '@server/api/rottentomatoes';
 import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
+import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import type {
   OverlayTileElementProps,
   OverlayVariableElementProps,
@@ -596,9 +597,28 @@ router.delete('/:id', async (req, res, next) => {
     template.isActive = false;
     await templateRepository.save(template);
 
+    // Clean up orphaned references in library configs
+    const libraryConfigRepository = getRepository(OverlayLibraryConfig);
+    const allLibraryConfigs = await libraryConfigRepository.find();
+
+    let cleanedConfigsCount = 0;
+    for (const config of allLibraryConfigs) {
+      const originalLength = config.enabledOverlays.length;
+      config.enabledOverlays = config.enabledOverlays.filter(
+        (overlay) => overlay.templateId !== templateId
+      );
+
+      // Only save if we actually removed something
+      if (config.enabledOverlays.length < originalLength) {
+        await libraryConfigRepository.save(config);
+        cleanedConfigsCount++;
+      }
+    }
+
     logger.info('Deleted overlay template', {
       templateId: template.id,
       name: template.name,
+      cleanedLibraryConfigs: cleanedConfigsCount,
       userId: req.user?.id,
     });
 
