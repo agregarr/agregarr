@@ -5,7 +5,10 @@ import type { ComingSoonSourceData } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 /**
  * Check if a movie is truly upcoming (not already released/available)

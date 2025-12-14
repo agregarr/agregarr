@@ -3043,7 +3043,20 @@ components:
                           example: 'imdbRating'
                         operator:
                           type: string
-                          enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'regex', 'begins', 'ends']
+                          enum:
+                            [
+                              'eq',
+                              'neq',
+                              'gt',
+                              'gte',
+                              'lt',
+                              'lte',
+                              'in',
+                              'contains',
+                              'regex',
+                              'begins',
+                              'ends',
+                            ]
                           description: 'Comparison operator'
                           example: 'gte'
                         value:

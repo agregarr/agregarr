@@ -46,7 +46,10 @@ import type {
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 // Interfaces for better type safety
 interface CollectionVisibilityConfig {

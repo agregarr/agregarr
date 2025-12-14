@@ -73,15 +73,15 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       }
 
       if (
-      config.subtype !== 'custom' &&
-      config.subtype !== 'random' &&
-      config.subtype !== 'watchlist'
-    ) {
-      throw this.createSyncError(
-        CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'Only custom, watchlist, and random Letterboxd lists are supported'
-      );
-    }
+        config.subtype !== 'custom' &&
+        config.subtype !== 'random' &&
+        config.subtype !== 'watchlist'
+      ) {
+        throw this.createSyncError(
+          CollectionSyncErrorType.CONFIGURATION_ERROR,
+          'Only custom, watchlist, and random Letterboxd lists are supported'
+        );
+      }
       // Determine which URL to use based on subtype
       let listUrl: string;
       if (config.subtype === 'random') {

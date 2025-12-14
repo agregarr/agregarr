@@ -1,7 +1,7 @@
 import logger from '@server/logger';
+import { TRAKT_OOB_REDIRECT_URI } from '@server/utils/traktAuth';
 import type { AxiosInstance } from 'axios';
 import axios from 'axios';
-import { TRAKT_OOB_REDIRECT_URI } from '@server/utils/traktAuth';
 
 export interface TraktMovie {
   title: string;
@@ -140,9 +140,12 @@ class TraktAPI {
         }
   ) {
     this.clientId = typeof config === 'string' ? config : config.clientId;
-    this.clientSecret = typeof config === 'string' ? undefined : config.clientSecret;
-    this.accessToken = typeof config === 'string' ? undefined : config.accessToken;
-    this.refreshToken = typeof config === 'string' ? undefined : config.refreshToken;
+    this.clientSecret =
+      typeof config === 'string' ? undefined : config.clientSecret;
+    this.accessToken =
+      typeof config === 'string' ? undefined : config.accessToken;
+    this.refreshToken =
+      typeof config === 'string' ? undefined : config.refreshToken;
     this.tokenExpiresAt =
       typeof config === 'string' ? undefined : config.tokenExpiresAt;
     this.redirectUri =
@@ -160,7 +163,9 @@ class TraktAPI {
         'Content-Type': 'application/json',
         'trakt-api-version': '2',
         'trakt-api-key': this.clientId,
-        ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+        ...(this.accessToken
+          ? { Authorization: `Bearer ${this.accessToken}` }
+          : {}),
       },
       timeout: 30000,
     });
@@ -193,7 +198,9 @@ class TraktAPI {
     }
 
     if (!this.redirectUri) {
-      throw new Error('Trakt redirect URI missing; cannot refresh access token');
+      throw new Error(
+        'Trakt redirect URI missing; cannot refresh access token'
+      );
     }
 
     this.refreshPromise = (async () => {
@@ -214,7 +221,8 @@ class TraktAPI {
 
         this.accessToken = response.data.access_token;
         this.refreshToken = response.data.refresh_token;
-        this.tokenExpiresAt = Date.now() + (response.data.expires_in || 0) * 1000;
+        this.tokenExpiresAt =
+          Date.now() + (response.data.expires_in || 0) * 1000;
         this.hasAuthToken = !!this.accessToken;
 
         // Update axios defaults for subsequent requests
@@ -264,7 +272,10 @@ class TraktAPI {
           } catch (refreshError) {
             logger.warn('Trakt token refresh failed during request', {
               label: 'Trakt API',
-              error: refreshError instanceof Error ? refreshError.message : refreshError,
+              error:
+                refreshError instanceof Error
+                  ? refreshError.message
+                  : refreshError,
             });
           }
         }

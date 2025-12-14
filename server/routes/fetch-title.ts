@@ -1,9 +1,12 @@
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 import { Router } from 'express';
 import { rateLimiter, validateExternalUrl } from './collections';
-import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
 
 const fetchTitleRoutes = Router();
 

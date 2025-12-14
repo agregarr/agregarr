@@ -23,7 +23,10 @@ import { RandomListManager } from '@server/lib/collections/utils/RandomListManag
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 interface TraktCollectionItem extends CollectionItem {
   tmdbId: number;
@@ -814,7 +817,9 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
   private getTraktClient(clientId: string, accessToken?: string): TraktAPI {
     const settings = getSettings();
-    const cacheKey = `${clientId}:${accessToken || ''}:${settings.trakt.refreshToken || ''}`;
+    const cacheKey = `${clientId}:${accessToken || ''}:${
+      settings.trakt.refreshToken || ''
+    }`;
     if (!this.traktClients.has(cacheKey)) {
       this.traktClients.set(
         cacheKey,

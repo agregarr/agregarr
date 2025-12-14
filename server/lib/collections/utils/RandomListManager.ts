@@ -1,9 +1,12 @@
 import type { TraktListResponse } from '@server/api/trakt';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import logger from '@server/logger';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 import fs from 'fs';
 import path from 'path';
-import { buildTraktRedirectUri, persistTraktTokens } from '@server/utils/traktAuth';
 
 /**
  * RandomListManager - Manages random list configuration files with built-in defaults
@@ -238,7 +241,8 @@ https://letterboxd.com/cinema/list/criterion-collection/
           const { getSettings } = await import('@server/lib/settings');
           const settings = getSettings();
 
-          const traktClientId = settings.trakt.clientId || settings.trakt.apiKey;
+          const traktClientId =
+            settings.trakt.clientId || settings.trakt.apiKey;
           if (!traktClientId) {
             return 'Trakt List';
           }
