@@ -901,6 +901,16 @@ const AllCollectionsView: React.FC = () => {
                                     return 'Collected Monthly';
                                   case 'collected_all':
                                     return 'Most Collected All Time';
+                                  case 'favorited_daily':
+                                    return 'Favorited Daily';
+                                  case 'favorited_weekly':
+                                    return 'Favorited Weekly';
+                                  case 'favorited_monthly':
+                                    return 'Favorited Monthly';
+                                  case 'favorited_all':
+                                    return 'Most Favorited All Time';
+                                  case 'recommendations':
+                                    return 'Recommendations';
                                   default:
                                     return subtype
                                       .replace(/_/g, ' ')

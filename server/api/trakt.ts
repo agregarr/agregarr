@@ -528,6 +528,43 @@ class TraktAPI {
     }
   }
 
+  public async getRecommendations(
+    mediaType: 'movies' | 'shows',
+    {
+      ignoreCollected = false,
+      ignoreWatchlisted = false,
+      limit = 100,
+    }: {
+      ignoreCollected?: boolean;
+      ignoreWatchlisted?: boolean;
+      limit?: number;
+    } = {}
+  ): Promise<TraktPopularResponse[]> {
+    try {
+      const response = await this.axios.get<TraktPopularResponse[]>(
+        `/recommendations/${mediaType}`,
+        {
+          params: {
+            ignore_collected: ignoreCollected,
+            ignore_watchlisted: ignoreWatchlisted,
+            limit,
+          },
+        }
+      );
+      return response.data;
+    } catch (e) {
+      logger.error('Something went wrong fetching recommendations from Trakt', {
+        label: 'Trakt API',
+        errorMessage: e.message,
+        mediaType,
+        limit,
+        ignoreCollected,
+        ignoreWatchlisted,
+      });
+      throw new Error(`[Trakt] Failed to fetch recommendations: ${e.message}`);
+    }
+  }
+
   public async getCustomList(
     listUrl: string,
     limit = 9999
