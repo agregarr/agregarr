@@ -3,9 +3,9 @@ import dataSource, { getRepository } from '@server/datasource';
 import {
   PosterTemplate,
   type ContentGridProps,
+  type PersonElementProps,
   type PosterTemplateData,
   type SVGElementProps,
-  type PersonElementProps,
   type TextElementProps,
 } from '@server/entity/PosterTemplate';
 import logger from '@server/logger';

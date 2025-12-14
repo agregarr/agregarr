@@ -68,8 +68,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
     personInfo?: PersonTmdbInfo
   ): Promise<boolean> {
     try {
-      const info =
-        personInfo ?? (await this.fetchTmdbPersonInfo(personName));
+      const info = personInfo ?? (await this.fetchTmdbPersonInfo(personName));
       const biography = info?.biography;
       const personLabel = this.getPersonTypeLabel(subtype);
 
@@ -122,7 +121,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return true;
     } catch (error) {
       logger.warn(
-        `Failed to set bio description for ${this.getPersonTypeLabel(subtype)} "${personName}"`,
+        `Failed to set bio description for ${this.getPersonTypeLabel(
+          subtype
+        )} "${personName}"`,
         {
           label: 'Plex Library Collections',
           personName,
@@ -220,7 +221,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       });
 
       logger.debug(
-        `Prepared ${mappedItems.length} items for ${this.getPersonTypeLabel(subtype)} poster generation`,
+        `Prepared ${mappedItems.length} items for ${this.getPersonTypeLabel(
+          subtype
+        )} poster generation`,
         {
           label: 'Plex Library Collections',
           personName,
@@ -232,7 +235,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       return mappedItems.slice(0, itemLimit);
     } catch (error) {
       logger.warn(
-        `Failed to fetch ${this.getPersonTypeLabel(subtype)} items for poster generation`,
+        `Failed to fetch ${this.getPersonTypeLabel(
+          subtype
+        )} items for poster generation`,
         {
           label: 'Plex Library Collections',
           personName,
@@ -255,7 +260,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
       await plexClient.addLabelToCollection(collectionRatingKey, label);
     } catch (labelError) {
       logger.warn(
-        `Failed to add label "${label}" to ${this.getPersonTypeLabel(subtype)} collection`,
+        `Failed to add label "${label}" to ${this.getPersonTypeLabel(
+          subtype
+        )} collection`,
         {
           label: 'Plex Library Collections',
           collectionRatingKey,
@@ -515,7 +522,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
             );
 
       // Filter people by minimum items threshold
-      const qualifyingPeople = people.filter((person) => person.count >= minimumItems);
+      const qualifyingPeople = people.filter(
+        (person) => person.count >= minimumItems
+      );
 
       // Limit to depth
       const topPeople = qualifyingPeople.slice(0, depth);
@@ -525,7 +534,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
         {
           label: 'Plex Library Collections',
           configName: config.name,
-          topPeople: topPeople.map((person) => `${person.name} (${person.count} items)`),
+          topPeople: topPeople.map(
+            (person) => `${person.name} (${person.count} items)`
+          ),
         }
       );
 
@@ -560,14 +571,18 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           } else {
             collectionRatingKey =
               subtype === 'actors'
-                ? await plexClient['smartCollectionManager'].createActorCollection(
+                ? await plexClient[
+                    'smartCollectionManager'
+                  ].createActorCollection(
                     collectionName,
                     config.libraryId,
                     mediaType,
                     person.name,
                     limit
                   )
-                : await plexClient['smartCollectionManager'].createDirectorCollection(
+                : await plexClient[
+                    'smartCollectionManager'
+                  ].createDirectorCollection(
                     collectionName,
                     config.libraryId,
                     mediaType,
@@ -669,7 +684,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync {
           return false;
         }
 
-        const labels = Array.isArray(collection.labels) ? collection.labels : [];
+        const labels = Array.isArray(collection.labels)
+          ? collection.labels
+          : [];
 
         return labels.some((label: string | PlexLabel) => {
           const labelText = typeof label === 'string' ? label : label.tag;

@@ -12,8 +12,8 @@ import type {
   TraktSettings,
 } from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
-import { useEffect } from 'react';
 import type React from 'react';
+import { useEffect } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 

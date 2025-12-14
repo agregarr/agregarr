@@ -3,9 +3,9 @@ import { getRepository } from '@server/datasource';
 import type {
   ContentGridProps,
   LayeredElement,
+  PersonElementProps,
   PosterTemplateData,
   RasterElementProps,
-  PersonElementProps,
   SVGElementProps,
   TextElementProps,
 } from '@server/entity/PosterTemplate';
@@ -1603,10 +1603,7 @@ async function generatePersonElement(
     return '';
   }
 
-  const overlayOpacity = Math.min(
-    1,
-    Math.max(0, props.overlayOpacity ?? 0.55)
-  );
+  const overlayOpacity = Math.min(1, Math.max(0, props.overlayOpacity ?? 0.55));
   const overlayColor = props.overlayColor || 'rgba(0,0,0,0.6)';
 
   return `

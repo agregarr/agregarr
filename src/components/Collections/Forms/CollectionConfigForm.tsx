@@ -309,8 +309,7 @@ const CollectionFormConfigForm = ({
       })
       .when(['type', 'subtype'], {
         is: (type?: string, subtype?: string) =>
-          type === 'plex' &&
-          (subtype === 'directors' || subtype === 'actors'),
+          type === 'plex' && (subtype === 'directors' || subtype === 'actors'),
         then: (schema) =>
           schema
             .required('Minimum items is required')
@@ -1418,18 +1417,16 @@ const CollectionFormConfigForm = ({
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
             // Force deterministic name/template for auto person collections
-            name:
-              isPersonCollection
-                ? values.subtype === 'actors'
-                  ? 'Auto Actor Collections'
-                  : 'Auto Director Collections'
-                : generateCollectionName(values as CollectionFormConfig),
-            template:
-              isPersonCollection
-                ? values.subtype === 'actors'
-                  ? '{actor}'
-                  : '{director}'
-                : values.template,
+            name: isPersonCollection
+              ? values.subtype === 'actors'
+                ? 'Auto Actor Collections'
+                : 'Auto Director Collections'
+              : generateCollectionName(values as CollectionFormConfig),
+            template: isPersonCollection
+              ? values.subtype === 'actors'
+                ? '{actor}'
+                : '{director}'
+              : values.template,
             // Send template as-is - let backend handle custom template selection per library
             customMovieTemplate:
               values.template === 'custom'
@@ -1648,7 +1645,8 @@ const CollectionFormConfigForm = ({
                   ) &&
                   !(
                     values.type === 'plex' &&
-                    (values.subtype === 'directors' || values.subtype === 'actors')
+                    (values.subtype === 'directors' ||
+                      values.subtype === 'actors')
                   )
                     ? () => setShowPreview(true)
                     : undefined
@@ -1667,7 +1665,8 @@ const CollectionFormConfigForm = ({
                   ) &&
                   !(
                     values.type === 'plex' &&
-                    (values.subtype === 'directors' || values.subtype === 'actors')
+                    (values.subtype === 'directors' ||
+                      values.subtype === 'actors')
                   )
                     ? intl.formatMessage(messages.previewCollection)
                     : undefined
@@ -1941,11 +1940,14 @@ const CollectionFormConfigForm = ({
                                   {values.subtype === 'actors'
                                     ? 'actors'
                                     : 'directors'}{' '}
-                                  in this Plex library and creates a smart collection
-                                  for each (up to your limits). These collections
-                                  stay synced via Plex smart filters and exclude
-                                  trailer placeholders. Managed here as a single “Auto{' '}
-                                  {values.subtype === 'actors' ? 'Actor' : 'Director'}{' '}
+                                  in this Plex library and creates a smart
+                                  collection for each (up to your limits). These
+                                  collections stay synced via Plex smart filters
+                                  and exclude trailer placeholders. Managed here
+                                  as a single “Auto{' '}
+                                  {values.subtype === 'actors'
+                                    ? 'Actor'
+                                    : 'Director'}{' '}
                                   Collections” config.
                                 </p>
                               </div>
@@ -2527,30 +2529,32 @@ const CollectionFormConfigForm = ({
                                 {intl.formatMessage(messages.timeRestrictions)}
                               </label>
                               <div className="form-input-area">
-                            <TimeRestrictionsSection
-                              values={typedValues as CollectionFormConfig}
-                              setFieldValue={setFieldValue}
-                              isEnhancedForm={false}
-                              isDefaultPlexHub={isHub}
-                              isPreExisting={isPreExisting}
-                            />
-                          </div>
-                        </div>
+                                <TimeRestrictionsSection
+                                  values={typedValues as CollectionFormConfig}
+                                  setFieldValue={setFieldValue}
+                                  isEnhancedForm={false}
+                                  isDefaultPlexHub={isHub}
+                                  isPreExisting={isPreExisting}
+                                />
+                              </div>
+                            </div>
 
-                        {/* Collection Mutual Exclusion */}
-                        {isCollection && (
-                          <CollectionExclusionSection
-                            values={typedValues as CollectionFormConfig}
-                            setFieldValue={setFieldValue}
-                            allCollectionConfigs={allCollectionConfigs || []}
-                          />
-                        )}
+                            {/* Collection Mutual Exclusion */}
+                            {isCollection && (
+                              <CollectionExclusionSection
+                                values={typedValues as CollectionFormConfig}
+                                setFieldValue={setFieldValue}
+                                allCollectionConfigs={
+                                  allCollectionConfigs || []
+                                }
+                              />
+                            )}
 
-                        {/* Placeholder Creation - show for external sources that can have missing items */}
-                        {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex directors/actors */}
-                        {typedValues.type &&
-                          typedValues.type !== 'overseerr' &&
-                          typedValues.type !== 'tautulli' &&
+                            {/* Placeholder Creation - show for external sources that can have missing items */}
+                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex directors/actors */}
+                            {typedValues.type &&
+                              typedValues.type !== 'overseerr' &&
+                              typedValues.type !== 'tautulli' &&
                               typedValues.type !== 'filtered_hub' &&
                               !(
                                 typedValues.type === 'tmdb' &&
