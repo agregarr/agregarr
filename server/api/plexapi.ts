@@ -29,6 +29,7 @@ export interface PlexLibraryItem {
   year?: number;
   index?: number;
   parentIndex?: number;
+  editionTitle?: string;
   Guid?: {
     id: string;
   }[];
@@ -532,7 +533,7 @@ class PlexAPI {
   ): Promise<PlexLibraryItem[]> {
     const response = await this.plexClient.query<PlexLibraryResponse>({
       uri: `/library/sections/${id}/all?type=${
-        mediaType === 'show' ? '4' : '1'
+        mediaType === 'show' ? '2' : '1'
       }&sort=addedAt%3Adesc&addedAt>>=${Math.floor(options.addedAt / 1000)}`,
       extraHeaders: {
         'X-Plex-Container-Start': `0`,

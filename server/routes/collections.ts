@@ -8,7 +8,6 @@ import { PreExistingCollectionConfigService } from '@server/lib/collections/serv
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import collectionsSync from '@server/lib/collectionsSync';
-import { initializePosterStorage } from '@server/lib/posterStorage';
 import type {
   CollectionConfig,
   MultiSourceCombineMode,
@@ -187,9 +186,6 @@ export function validateExternalUrl(
 }
 
 const collectionsRoutes = Router();
-
-// Initialize poster storage directory
-initializePosterStorage();
 
 // Configure multer for poster uploads
 export const posterUpload = multer({
