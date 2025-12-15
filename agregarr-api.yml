@@ -6344,6 +6344,12 @@ paths:
           schema:
             type: string
             example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg'
+        - in: query
+          name: v
+          required: false
+          description: Cache-busting version parameter (typically file modification timestamp)
+          schema:
+            type: number
       responses:
         '200':
           description: Poster image served successfully
@@ -6358,7 +6364,7 @@ paths:
           description: Internal server error
     delete:
       summary: Delete a poster image
-      description: Deletes a poster image by filename. Authentication required.
+      description: Deletes a poster image by filename. If poster is in use by collections, returns 409 unless force=true is specified. Authentication required.
       tags:
         - collections-posters
       parameters:
@@ -6369,6 +6375,13 @@ paths:
           schema:
             type: string
             example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg'
+        - in: query
+          name: force
+          required: false
+          description: If true, delete poster even if it's currently in use by collections
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: Poster deleted successfully
@@ -6380,6 +6393,89 @@ paths:
                   message:
                     type: string
                     example: 'Poster deleted successfully'
+        '403':
+          description: Authentication required
+        '404':
+          description: Poster not found
+        '409':
+          description: Poster is currently in use by collections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Poster is currently in use'
+                  inUse:
+                    type: boolean
+                    example: true
+                  usedBy:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [collection, preExisting]
+                          example: 'collection'
+                        id:
+                          type: string
+                          example: 'col_123'
+                        name:
+                          type: string
+                          example: 'Marvel Movies'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
+        '500':
+          description: Internal server error
+  /collections/poster/{filename}/usage:
+    get:
+      summary: Check poster usage
+      description: Check which collections are currently using a specific poster file. Authentication required.
+      tags:
+        - collections-posters
+      parameters:
+        - in: path
+          name: filename
+          required: true
+          description: The filename of the poster to check.
+          schema:
+            type: string
+            example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg'
+      responses:
+        '200':
+          description: Usage information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                    example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479.jpg'
+                  inUse:
+                    type: boolean
+                    example: true
+                  usedBy:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [collection, preExisting]
+                          example: 'collection'
+                        id:
+                          type: string
+                          example: 'col_123'
+                        name:
+                          type: string
+                          example: 'Marvel Movies'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
         '403':
           description: Authentication required
         '404':
@@ -11780,7 +11876,7 @@ paths:
           description: Failed to update saved poster
     delete:
       summary: Delete saved poster
-      description: Deletes a saved poster. Supports both database posters (integer ID) and file-based posters (string ID with 'file-' prefix). Users can only delete their own posters.
+      description: Deletes a saved poster. Supports both database posters (integer ID) and file-based posters (string ID with 'file-' prefix). If poster is in use by collections, returns 409 unless force=true is specified. Users can only delete their own posters.
       tags:
         - poster-saved
       parameters:
@@ -11795,6 +11891,13 @@ paths:
                 pattern: '^file-.+$'
                 description: File-based poster ID (starts with 'file-')
           description: Poster ID (integer for database posters, or string starting with 'file-' for file-based posters)
+        - in: query
+          name: force
+          required: false
+          description: If true, delete poster even if it's currently in use by collections
+          schema:
+            type: boolean
+            default: false
       responses:
         '204':
           description: Saved poster deleted successfully
@@ -11812,14 +11915,27 @@ paths:
                   error:
                     type: string
                     example: 'Poster is currently in use'
-                  message:
-                    type: string
-                    example: 'This poster is being used by the following collections: Movie Collection, TV Collection'
-                  collections:
+                  inUse:
+                    type: boolean
+                    example: true
+                  usedBy:
                     type: array
                     items:
-                      type: string
-                    example: ['Movie Collection', 'TV Collection']
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [collection, preExisting]
+                          example: 'collection'
+                        id:
+                          type: string
+                          example: 'col_123'
+                        name:
+                          type: string
+                          example: 'Marvel Movies'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
         '500':
           description: Failed to delete saved poster
 
@@ -12089,6 +12205,12 @@ paths:
           schema:
             type: string
           description: Poster filename
+        - in: query
+          name: v
+          required: false
+          description: Cache-busting version parameter (typically file modification timestamp)
+          schema:
+            type: number
       responses:
         '200':
           description: Poster image served successfully
@@ -12117,6 +12239,12 @@ paths:
           schema:
             type: string
           description: Thumbnail filename
+        - in: query
+          name: v
+          required: false
+          description: Cache-busting version parameter (typically file modification timestamp)
+          schema:
+            type: number
       responses:
         '200':
           description: Thumbnail image served successfully

@@ -1,5 +1,6 @@
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
+import Modal from '@app/components/Common/Modal';
 import type {
   EditorMode,
   PosterEditorData,
@@ -32,6 +33,15 @@ const messages = defineMessages({
   confirmBulkDelete:
     'Are you sure you want to delete {count} selected poster(s)?',
   deleting: 'Deleting... ({current}/{total})',
+  posterInUse: 'Poster is Currently in Use',
+  posterInUseDescription:
+    'This poster is currently being used by the following collections:',
+  deleteAnyway: 'Delete Anyway',
+  postersInUse: 'Some Posters Are in Use',
+  postersInUseDescription:
+    'The following posters are currently in use. Do you want to delete them anyway?',
+  deleteUnusedOnly: 'Delete Unused Only',
+  deleteAllAnyway: 'Delete All Anyway',
 });
 
 interface SavedPoster {
@@ -43,6 +53,7 @@ interface SavedPoster {
   thumbnailFilename?: string;
   createdAt: string;
   updatedAt: string;
+  updatedAtMs?: number | null; // Numeric timestamp for cache-busting
   isEditable?: boolean;
 }
 
@@ -71,6 +82,29 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
   const [deletionProgress, setDeletionProgress] = useState<{
     current: number;
     total: number;
+  } | null>(null);
+  const [deleteUsageModal, setDeleteUsageModal] = useState<{
+    posterId: number | string;
+    posterName: string;
+    usedBy: {
+      type: 'collection' | 'preExisting';
+      id: string;
+      name: string;
+      libraryName: string;
+    }[];
+  } | null>(null);
+  const [bulkDeleteUsageModal, setBulkDeleteUsageModal] = useState<{
+    postersInUse: {
+      id: number | string;
+      name: string;
+      usedBy: {
+        type: 'collection' | 'preExisting';
+        id: string;
+        name: string;
+        libraryName: string;
+      }[];
+    }[];
+    unusedPosterIds: (number | string)[];
   } | null>(null);
 
   const showCheckboxes = selectedPosters.size > 0;
@@ -119,23 +153,30 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (posterId: number | string) => {
+  const handleDelete = async (posterId: number | string, force = false) => {
     try {
-      const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
+      const url = force
+        ? `/api/v1/posters/saved/${posterId}?force=true`
+        : `/api/v1/posters/saved/${posterId}`;
+
+      const response = await fetch(url, {
         method: 'DELETE',
       });
 
-      if (response.ok) {
+      if (response.ok || response.status === 204) {
         onPosterUpdate();
         setDeleteConfirmId(null);
+        setDeleteUsageModal(null);
       } else if (response.status === 409) {
         // Poster is in use by collections
         const errorData = await response.json();
-        const collectionNames =
-          errorData.collections?.join(', ') || 'unknown collections';
-        alert(
-          `Cannot delete poster: it's currently used by ${collectionNames}`
-        );
+        const poster = savedPosters.find((p) => p.id === posterId);
+
+        setDeleteUsageModal({
+          posterId,
+          posterName: poster?.name || posterId.toString(),
+          usedBy: errorData.usedBy || [],
+        });
         setDeleteConfirmId(null);
       } else {
         throw new Error('Failed to delete poster');
@@ -143,6 +184,13 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     } catch (error) {
       // Error logged silently for debugging
       setDeleteConfirmId(null);
+      setDeleteUsageModal(null);
+    }
+  };
+
+  const handleConfirmForceDelete = async () => {
+    if (deleteUsageModal) {
+      await handleDelete(deleteUsageModal.posterId, true);
     }
   };
 
@@ -174,14 +222,21 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     }
 
     const postersToDelete = Array.from(selectedPosters);
-    const errors: string[] = [];
 
-    setDeletionProgress({ current: 0, total: postersToDelete.length });
+    // Check which posters are in use
+    const postersInUse: {
+      id: number | string;
+      name: string;
+      usedBy: {
+        type: 'collection' | 'preExisting';
+        id: string;
+        name: string;
+        libraryName: string;
+      }[];
+    }[] = [];
+    const unusedPosterIds: (number | string)[] = [];
 
-    for (let i = 0; i < postersToDelete.length; i++) {
-      const posterId = postersToDelete[i];
-      setDeletionProgress({ current: i + 1, total: postersToDelete.length });
-
+    for (const posterId of postersToDelete) {
       try {
         const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
           method: 'DELETE',
@@ -190,31 +245,67 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
         if (response.status === 409) {
           const errorData = await response.json();
           const poster = savedPosters.find((p) => p.id === posterId);
-          errors.push(
-            `${poster?.name || posterId}: ${
-              errorData.collections?.join(', ') || 'in use'
-            }`
-          );
-        } else if (!response.ok) {
-          throw new Error('Failed to delete');
+          postersInUse.push({
+            id: posterId,
+            name: poster?.name || posterId.toString(),
+            usedBy: errorData.usedBy || [],
+          });
+        } else if (response.ok || response.status === 204) {
+          // Successfully deleted unused poster
+          unusedPosterIds.push(posterId);
         }
       } catch (error) {
-        const poster = savedPosters.find((p) => p.id === posterId);
-        errors.push(`${poster?.name || posterId}: deletion failed`);
+        // Error checking - treat as unused and try to delete later
+        unusedPosterIds.push(posterId);
       }
     }
 
-    if (errors.length > 0) {
-      alert(
-        `Some posters could not be deleted:\n\n${errors.join(
-          '\n'
-        )}\n\nThese posters are currently in use by collections.`
-      );
+    if (postersInUse.length > 0) {
+      // Show modal with options
+      setBulkDeleteUsageModal({
+        postersInUse,
+        unusedPosterIds,
+      });
+      setBulkDeleteConfirm(false);
+    } else {
+      // All deleted successfully
+      onPosterUpdate();
+      setSelectedPosters(new Set());
+      setBulkDeleteConfirm(false);
+    }
+  };
+
+  const handleBulkDeleteUnusedOnly = async () => {
+    if (!bulkDeleteUsageModal) return;
+
+    // The unused ones were already deleted during the check
+    onPosterUpdate();
+    setSelectedPosters(new Set());
+    setBulkDeleteUsageModal(null);
+  };
+
+  const handleBulkDeleteAllAnyway = async () => {
+    if (!bulkDeleteUsageModal) return;
+
+    const { postersInUse } = bulkDeleteUsageModal;
+    setDeletionProgress({ current: 0, total: postersInUse.length });
+
+    for (let i = 0; i < postersInUse.length; i++) {
+      const poster = postersInUse[i];
+      setDeletionProgress({ current: i + 1, total: postersInUse.length });
+
+      try {
+        await fetch(`/api/v1/posters/saved/${poster.id}?force=true`, {
+          method: 'DELETE',
+        });
+      } catch (error) {
+        // Silent error - continue with next
+      }
     }
 
     onPosterUpdate();
     setSelectedPosters(new Set());
-    setBulkDeleteConfirm(false);
+    setBulkDeleteUsageModal(null);
     setDeletionProgress(null);
   };
 
@@ -329,13 +420,17 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
             <div className="relative aspect-[2/3] bg-stone-700">
               {poster.thumbnailFilename ? (
                 <img
-                  src={`/api/v1/posters/thumbnails/${poster.thumbnailFilename}`}
+                  src={`/api/v1/posters/thumbnails/${
+                    poster.thumbnailFilename
+                  }?v=${poster.updatedAtMs || Date.now()}`}
                   alt={poster.name}
                   className="h-full w-full object-cover"
                 />
               ) : poster.filename ? (
                 <img
-                  src={`/api/v1/posters/files/${poster.filename}`}
+                  src={`/api/v1/posters/files/${poster.filename}?v=${
+                    poster.updatedAtMs || Date.now()
+                  }`}
                   alt={poster.name}
                   className="h-full w-full object-cover"
                 />
@@ -470,6 +565,89 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
         initialDescription={selectedPoster?.description}
         onSave={handleSave}
       />
+
+      {/* Single Poster Usage Modal */}
+      {deleteUsageModal && (
+        <Modal
+          title={intl.formatMessage(messages.posterInUse)}
+          onCancel={() => setDeleteUsageModal(null)}
+          onOk={handleConfirmForceDelete}
+          cancelText={intl.formatMessage(messages.cancel)}
+          okText={intl.formatMessage(messages.deleteAnyway)}
+          okButtonType="danger"
+        >
+          <div className="text-sm">
+            <p className="mb-4">
+              {intl.formatMessage(messages.posterInUseDescription)}
+            </p>
+            <ul className="space-y-2">
+              {deleteUsageModal.usedBy.map((usage) => (
+                <li
+                  key={usage.id}
+                  className="rounded-md bg-gray-800 p-3 text-gray-200"
+                >
+                  <div className="font-semibold">{usage.name}</div>
+                  <div className="text-xs text-gray-400">
+                    {usage.libraryName}
+                    {usage.type === 'preExisting' && ' (Pre-existing)'}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Delete Usage Modal */}
+      {bulkDeleteUsageModal && (
+        <Modal
+          title={intl.formatMessage(messages.postersInUse)}
+          onCancel={() => setBulkDeleteUsageModal(null)}
+          onOk={handleBulkDeleteAllAnyway}
+          onSecondary={handleBulkDeleteUnusedOnly}
+          cancelText={intl.formatMessage(messages.cancel)}
+          okText={intl.formatMessage(messages.deleteAllAnyway)}
+          secondaryText={intl.formatMessage(messages.deleteUnusedOnly)}
+          okButtonType="danger"
+          secondaryButtonType="warning"
+          loading={deletionProgress !== null}
+        >
+          <div className="text-sm">
+            <p className="mb-4">
+              {intl.formatMessage(messages.postersInUseDescription)}
+            </p>
+            {bulkDeleteUsageModal.unusedPosterIds.length > 0 && (
+              <p className="mb-4 text-green-400">
+                {bulkDeleteUsageModal.unusedPosterIds.length} unused poster(s)
+                have already been deleted.
+              </p>
+            )}
+            <div className="max-h-96 space-y-3 overflow-y-auto">
+              {bulkDeleteUsageModal.postersInUse.map((poster) => (
+                <div
+                  key={poster.id}
+                  className="rounded-md border border-gray-700 bg-gray-800 p-3"
+                >
+                  <div className="mb-2 font-semibold text-white">
+                    {poster.name}
+                  </div>
+                  <ul className="space-y-1">
+                    {poster.usedBy.map((usage) => (
+                      <li
+                        key={usage.id}
+                        className="rounded bg-gray-900 px-2 py-1 text-xs text-gray-300"
+                      >
+                        {usage.name} ({usage.libraryName}
+                        {usage.type === 'preExisting' && ' - Pre-existing'})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 };

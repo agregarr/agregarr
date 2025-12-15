@@ -685,14 +685,11 @@ export class HubSyncService {
             );
 
             if (posterFilename) {
-              // Get poster path and apply to Plex collection
-              const { getPosterPath } = await import(
-                '@server/lib/posterStorage'
-              );
-              const posterPath = getPosterPath(posterFilename);
+              // posterFilename is now a full path to temp file
+              const posterTempPath = posterFilename;
               await plexClient.updateCollectionPoster(
                 preExistingConfig.collectionRatingKey,
-                posterPath
+                posterTempPath
               );
 
               // Record metadata tracking for this poster
@@ -744,12 +741,35 @@ export class HubSyncService {
                 );
               }
 
+              // Clean up temp poster file after successful upload
+              try {
+                const fs = await import('fs');
+                const pathUtil = await import('path');
+                if (fs.existsSync(posterTempPath)) {
+                  await fs.promises.unlink(posterTempPath);
+                  logger.debug(
+                    `Deleted temp poster file after upload: ${pathUtil.basename(
+                      posterTempPath
+                    )}`,
+                    {
+                      label: 'Hub Sync Service',
+                      collectionId: preExistingConfig.id,
+                    }
+                  );
+                }
+              } catch (cleanupError) {
+                logger.warn(`Failed to delete temp poster file`, {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  error: extractErrorMessage(cleanupError),
+                });
+              }
+
               logger.info(
                 `Successfully generated and applied poster for pre-existing collection: ${collectionName}`,
                 {
                   label: 'Hub Sync Service',
                   collectionId: preExistingConfig.id,
-                  posterFilename,
                   plexPosterUrl,
                 }
               );

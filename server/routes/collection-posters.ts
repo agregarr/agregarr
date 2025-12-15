@@ -251,17 +251,30 @@ collectionPostersRoutes.post(
  */
 collectionPostersRoutes.get('/posters', isAuthenticated(), async (req, res) => {
   try {
-    const { getAllPosterFiles, getPosterUrl } = await import(
+    const { getAllPosterFiles, getPosterUrl, getPosterPath } = await import(
       '@server/lib/posterStorage'
     );
+    const fs = await import('fs');
 
     const posterFiles = await getAllPosterFiles();
 
-    // Map files to include URLs and metadata
-    const posters = posterFiles.map((filename) => ({
-      filename,
-      url: getPosterUrl(filename),
-    }));
+    // Map files to include URLs and metadata with mtime for cache-busting
+    const posters = posterFiles.map((filename) => {
+      let updatedAt: number | null = null;
+      try {
+        const filePath = getPosterPath(filename);
+        const stats = fs.statSync(filePath);
+        updatedAt = stats.mtimeMs; // Modification time in milliseconds
+      } catch (error) {
+        // If we can't get stats, use null (frontend will use current time as fallback)
+      }
+
+      return {
+        filename,
+        url: getPosterUrl(filename),
+        updatedAt, // Include file modification time for cache-busting
+      };
+    });
 
     return res.status(200).json({ posters });
   } catch (error) {
@@ -321,8 +334,42 @@ collectionPostersRoutes.get('/poster/:filename', async (req, res) => {
 });
 
 /**
+ * Check which collections are using a specific poster
+ * GET /api/v1/collections/poster/:filename/usage
+ */
+collectionPostersRoutes.get('/poster/:filename/usage', async (req, res) => {
+  if (!req.user) {
+    return res.status(403).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const { filename } = req.params;
+    const { getPosterUsage, posterExists } = await import(
+      '@server/lib/posterStorage'
+    );
+
+    if (!posterExists(filename)) {
+      return res.status(404).json({ error: 'Poster not found' });
+    }
+
+    const usedBy = await getPosterUsage(filename);
+
+    return res.status(200).json({
+      filename,
+      inUse: usedBy.length > 0,
+      usedBy,
+    });
+  } catch (error) {
+    logger.error('Error checking poster usage:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * Delete a poster image
  * DELETE /api/v1/collections/poster/:filename
+ * Query params:
+ * - force: boolean - if true, delete even if poster is in use by collections
  */
 collectionPostersRoutes.delete('/poster/:filename', async (req, res) => {
   if (!req.user) {
@@ -332,13 +379,24 @@ collectionPostersRoutes.delete('/poster/:filename', async (req, res) => {
 
   try {
     const { filename } = req.params;
-    const { deletePosterFile, posterExists } = await import(
+    const force = String(req.query.force) === 'true';
+    const { deletePosterFile, posterExists, getPosterUsage } = await import(
       '@server/lib/posterStorage'
     );
 
     // Security validation is now handled by posterExists and deletePosterFile
     if (!posterExists(filename)) {
       return res.status(404).json({ error: 'Poster not found' });
+    }
+
+    // Check if poster is in use
+    const usedBy = await getPosterUsage(filename);
+    if (usedBy.length > 0 && !force) {
+      return res.status(409).json({
+        error: 'Poster is currently in use',
+        inUse: true,
+        usedBy,
+      });
     }
 
     await deletePosterFile(filename);

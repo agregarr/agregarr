@@ -387,7 +387,7 @@ const PosterUploadSection = ({
                     {libraryPoster ? (
                       <div className="relative">
                         <img
-                          src={`/api/v1/collections/poster/${libraryPoster}`}
+                          src={`/api/v1/collections/poster/${libraryPoster}?v=${Date.now()}`}
                           alt={`Poster for ${library.name}`}
                           className="h-24 w-16 rounded border object-cover shadow-sm"
                         />

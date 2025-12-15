@@ -39,7 +39,7 @@ import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
 import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
-import { generatePoster, getPosterPath } from '@server/lib/posterStorage';
+import { generatePoster } from '@server/lib/posterStorage';
 import type {
   CollectionConfig,
   MultiSourceCollectionConfig,
@@ -2331,14 +2331,41 @@ export class MultiSourceOrchestrator {
       );
 
       if (posterFilename) {
-        // Get the full poster path
-        const posterPath = getPosterPath(posterFilename);
+        // posterFilename is now a full path to temp file
+        const posterTempPath = posterFilename;
 
         // Apply the poster to the collection
         await plexClient.updateCollectionPoster(
           collectionRatingKey,
-          posterPath
+          posterTempPath
         );
+
+        // Clean up temp poster file after successful upload
+        try {
+          const fs = await import('fs');
+          const pathUtil = await import('path');
+          if (fs.existsSync(posterTempPath)) {
+            await fs.promises.unlink(posterTempPath);
+            logger.debug(
+              `Deleted temp poster file after upload: ${pathUtil.basename(
+                posterTempPath
+              )}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+              }
+            );
+          }
+        } catch (cleanupError) {
+          logger.warn(`Failed to delete temp poster file`, {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          });
+        }
 
         logger.info(
           `Generated and applied poster for multi-source collection: ${config.name}`,
@@ -2346,7 +2373,6 @@ export class MultiSourceOrchestrator {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
             collectionRatingKey,
-            posterFilename,
             collectionType,
             combineMode: config.combineMode,
             usedDynamicLogo: !!dynamicPlatformLogo,
