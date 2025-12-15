@@ -51,6 +51,7 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
   'plex-randomize-home-order': 'Randomize Home Order',
   'overlay-application': 'Poster Overlay Application',
   'overlay-quick-sync': 'Overlay Quick Sync',
+  'watchlist-sync': 'Plex Watchlist Sync',
   editJobSchedule: 'Modify Job',
   jobScheduleEditSaved: 'Job edited successfully!',
   jobScheduleEditFailed: 'Something went wrong while saving the job.',
