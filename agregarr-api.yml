@@ -3647,6 +3647,109 @@ components:
         label:
           type: string
           example: A Label
+    WatchlistSyncSettings:
+      type: object
+      properties:
+        enableOwner:
+          type: boolean
+          example: false
+          description: Enable watchlist sync for the server owner/admin
+        enableUsers:
+          type: boolean
+          example: false
+          description: Enable watchlist sync for all Plex users on the server
+        radarr:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: false
+              description: Enable movie watchlist sync to Radarr
+            serverId:
+              type: number
+              example: 1
+              nullable: true
+              description: Selected Radarr server ID
+            profileId:
+              type: number
+              example: 1
+              nullable: true
+              description: Quality profile override
+            rootFolder:
+              type: string
+              example: /movies/
+              nullable: true
+              description: Root folder override
+            tags:
+              type: array
+              items:
+                type: number
+              example: [1, 2]
+              nullable: true
+              description: Tags to apply to watchlist items
+            monitor:
+              type: boolean
+              example: true
+              nullable: true
+              description: Monitor by default override
+            searchOnAdd:
+              type: boolean
+              example: true
+              nullable: true
+              description: Search on add override
+        sonarr:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: false
+              description: Enable TV show watchlist sync to Sonarr
+            serverId:
+              type: number
+              example: 1
+              nullable: true
+              description: Selected Sonarr server ID
+            profileId:
+              type: number
+              example: 1
+              nullable: true
+              description: Quality profile override
+            rootFolder:
+              type: string
+              example: /tv/
+              nullable: true
+              description: Root folder override
+            tags:
+              type: array
+              items:
+                type: number
+              example: [1, 2]
+              nullable: true
+              description: Tags to apply to watchlist items
+            monitor:
+              type: boolean
+              example: true
+              nullable: true
+              description: Monitor by default override
+            searchOnAdd:
+              type: boolean
+              example: true
+              nullable: true
+              description: Search on add override
+            seasonFolder:
+              type: boolean
+              example: true
+              nullable: true
+              description: Season folder override
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last successful sync
+        lastSyncError:
+          type: string
+          nullable: true
+          description: Last sync error message if any
     PublicSettings:
       type: object
       properties:
@@ -9140,6 +9243,42 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServarrTag'
+    post:
+      summary: Create a new Radarr tag
+      description: Creates a new tag in the Radarr instance and returns the created tag with its ID.
+      tags:
+        - settings-services
+      parameters:
+        - in: path
+          name: radarrId
+          required: true
+          schema:
+            type: integer
+          description: Radarr instance ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - label
+              properties:
+                label:
+                  type: string
+                  description: Tag label/name
+                  example: agregarr-watchlist
+      responses:
+        '201':
+          description: Tag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServarrTag'
+        '404':
+          description: Radarr instance not found
+        '500':
+          description: Failed to create tag
   /settings/sonarr:
     get:
       summary: Get Sonarr settings
@@ -9331,6 +9470,73 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServarrTag'
+    post:
+      summary: Create a new Sonarr tag
+      description: Creates a new tag in the Sonarr instance and returns the created tag with its ID.
+      tags:
+        - settings-services
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - label
+              properties:
+                label:
+                  type: string
+                  description: Tag label/name
+                  example: agregarr-watchlist
+      responses:
+        '201':
+          description: Tag created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServarrTag'
+        '404':
+          description: Sonarr instance not found
+        '500':
+          description: Failed to create tag
+  /settings/watchlistsync:
+    get:
+      summary: Get watchlist sync settings
+      description: Returns the current Plex watchlist sync settings including enable flags and Radarr/Sonarr configurations.
+      tags:
+        - settings-services
+      responses:
+        '200':
+          description: Watchlist sync settings returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistSyncSettings'
+    post:
+      summary: Update watchlist sync settings
+      description: Updates the Plex watchlist sync settings including enable flags and Radarr/Sonarr configurations.
+      tags:
+        - settings-services
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WatchlistSyncSettings'
+      responses:
+        '200':
+          description: Watchlist sync settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchlistSyncSettings'
   /settings/public:
     get:
       summary: Get public settings

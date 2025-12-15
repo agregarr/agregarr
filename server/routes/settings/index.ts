@@ -19,7 +19,11 @@ import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 // ImageProxy removed - not needed for collections-only app
 // Plex scanner import removed - not needed for collections-only app
-import type { JobId, MainSettings } from '@server/lib/settings';
+import type {
+  JobId,
+  MainSettings,
+  WatchlistSyncSettings,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
@@ -1218,6 +1222,22 @@ settingsRoutes.post('/reset', async (_req, res, next) => {
       }`,
     });
   }
+});
+
+// Watchlist Sync Settings
+settingsRoutes.get('/watchlistsync', (req, res) => {
+  const settings = getSettings();
+  return res.status(200).json(settings.watchlistSync);
+});
+
+settingsRoutes.post('/watchlistsync', (req, res) => {
+  const settings = getSettings();
+  const watchlistSync = req.body as WatchlistSyncSettings;
+
+  settings.watchlistSync = watchlistSync;
+  settings.save();
+
+  return res.status(200).json(settings.watchlistSync);
 });
 
 export default settingsRoutes;

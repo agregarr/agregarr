@@ -178,6 +178,37 @@ sonarrRoutes.get<{ id: string }>('/:id/tags', async (req, res, next) => {
   return res.status(200).json(tags);
 });
 
+sonarrRoutes.post<{ id: string }, unknown, { label: string }>(
+  '/:id/tags',
+  async (req, res, next) => {
+    const settings = getSettings();
+
+    const sonarrSettings = settings.sonarr.find(
+      (s) => s.id === Number(req.params.id)
+    );
+
+    if (!sonarrSettings) {
+      return next({ status: '404', message: 'Settings instance not found' });
+    }
+
+    const sonarr = new SonarrAPI({
+      apiKey: sonarrSettings.apiKey,
+      url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+    });
+
+    try {
+      const newTag = await sonarr.createTag({ label: req.body.label });
+      return res.status(201).json(newTag);
+    } catch (e) {
+      logger.error('Failed to create Sonarr tag', {
+        label: 'Sonarr',
+        message: e.message,
+      });
+      return next({ status: 500, message: 'Failed to create tag' });
+    }
+  }
+);
+
 sonarrRoutes.delete<{ id: string }>('/:id', (req, res) => {
   const settings = getSettings();
 

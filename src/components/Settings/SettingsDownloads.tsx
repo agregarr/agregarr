@@ -8,6 +8,7 @@ import PageTitle from '@app/components/Common/PageTitle';
 import OverseerrModal from '@app/components/Settings/OverseerrModal';
 import RadarrModal from '@app/components/Settings/RadarrModal';
 import SonarrModal from '@app/components/Settings/SonarrModal';
+import WatchlistSyncSettings from '@app/components/Settings/WatchlistSyncSettings';
 import globalMessages from '@app/i18n/globalMessages';
 import { Transition } from '@headlessui/react';
 import { ArrowDownOnSquareIcon, FolderIcon } from '@heroicons/react/24/outline';
@@ -782,6 +783,9 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
           )}
         </Formik>
       </div>
+
+      {/* Plex Watchlist Sync Settings */}
+      <WatchlistSyncSettings />
     </>
   );
 };

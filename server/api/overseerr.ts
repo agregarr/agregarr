@@ -82,6 +82,13 @@ export interface OverseerrMedia {
   seasonCount?: number;
 }
 
+export interface OverseerrWatchlistItem {
+  ratingKey: string;
+  title: string;
+  mediaType: 'movie' | 'tv';
+  tmdbId: number;
+}
+
 export interface CreateUserRequest {
   username: string;
   email: string;
@@ -669,6 +676,34 @@ class OverseerrAPI {
         }
       );
       return [];
+    }
+  }
+
+  /**
+   * Get a user's Plex watchlist
+   */
+  async getUserWatchlist(userId: number): Promise<{
+    results: OverseerrWatchlistItem[];
+    total: number;
+  }> {
+    try {
+      const response = await this.axios.get(`/user/${userId}/watchlist`);
+      return {
+        results: response.data.results || [],
+        total: response.data.totalResults || 0,
+      };
+    } catch (error) {
+      logger.error(
+        `Failed to get user watchlist from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+          userId,
+        }
+      );
+      return {
+        results: [],
+        total: 0,
+      };
     }
   }
 }

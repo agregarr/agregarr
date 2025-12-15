@@ -476,6 +476,32 @@ export interface SonarrSettings extends DVRSettings {
   enableSeasonFolders: boolean;
 }
 
+export interface WatchlistSyncSettings {
+  enableOwner: boolean; // Enable sync for admin/owner
+  enableUsers: boolean; // Enable sync for all Plex users
+  radarr?: {
+    enabled: boolean; // Enable movie sync
+    serverId?: number; // Selected Radarr server ID
+    profileId?: number; // Quality profile override
+    rootFolder?: string; // Root folder override
+    tags?: number[]; // Tags override
+    monitor?: boolean; // Monitor by default override
+    searchOnAdd?: boolean; // Search on add override
+  };
+  sonarr?: {
+    enabled: boolean; // Enable TV show sync
+    serverId?: number; // Selected Sonarr server ID
+    profileId?: number; // Quality profile override
+    rootFolder?: string; // Root folder override
+    tags?: number[]; // Tags override
+    monitor?: boolean; // Monitor by default override
+    searchOnAdd?: boolean; // Search on add override
+    seasonFolder?: boolean; // Season folder override
+  };
+  lastSyncAt?: Date; // Last successful sync timestamp
+  lastSyncError?: string; // Last sync error message
+}
+
 // Quota interface removed - request system not needed in Agregarr
 
 export interface MainSettings {
@@ -541,7 +567,8 @@ export type JobId =
   | 'plex-collections-quick-sync'
   | 'plex-randomize-home-order'
   | 'overlay-application'
-  | 'overlay-quick-sync';
+  | 'overlay-quick-sync'
+  | 'watchlist-sync';
 
 export interface GlobalExclusions {
   movies: number[]; // TMDB IDs for excluded movies
@@ -562,6 +589,7 @@ interface AllSettings {
   sonarr: SonarrSettings[];
   public: PublicSettings;
   jobs: Record<JobId, JobSettings>;
+  watchlistSync: WatchlistSyncSettings;
   globalExclusions?: GlobalExclusions; // Global item exclusions for collections
   completedMigrations?: string[]; // Track completed migrations
   overlays?: OverlaySettings; // Overlay system settings
@@ -630,6 +658,19 @@ class Settings {
         },
         'overlay-quick-sync': {
           schedule: '0 */30 * * * *', // Every 30 minutes (user customizable)
+        },
+        'watchlist-sync': {
+          schedule: '0 0 */6 * * *', // Every 6 hours
+        },
+      },
+      watchlistSync: {
+        enableOwner: false,
+        enableUsers: false,
+        radarr: {
+          enabled: false,
+        },
+        sonarr: {
+          enabled: false,
         },
       },
       globalExclusions: {
@@ -867,6 +908,14 @@ class Settings {
 
   set sonarr(data: SonarrSettings[]) {
     this.data.sonarr = data;
+  }
+
+  get watchlistSync(): WatchlistSyncSettings {
+    return this.data.watchlistSync;
+  }
+
+  set watchlistSync(data: WatchlistSyncSettings) {
+    this.data.watchlistSync = data;
   }
 
   get public(): PublicSettings {

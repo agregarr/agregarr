@@ -181,6 +181,37 @@ radarrRoutes.get<{ id: string }>('/:id/tags', async (req, res, next) => {
   return res.status(200).json(tags);
 });
 
+radarrRoutes.post<{ id: string }, unknown, { label: string }>(
+  '/:id/tags',
+  async (req, res, next) => {
+    const settings = getSettings();
+
+    const radarrSettings = settings.radarr.find(
+      (r) => r.id === Number(req.params.id)
+    );
+
+    if (!radarrSettings) {
+      return next({ status: '404', message: 'Settings instance not found' });
+    }
+
+    const radarr = new RadarrAPI({
+      apiKey: radarrSettings.apiKey,
+      url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+    });
+
+    try {
+      const newTag = await radarr.createTag({ label: req.body.label });
+      return res.status(201).json(newTag);
+    } catch (e) {
+      logger.error('Failed to create Radarr tag', {
+        label: 'Radarr',
+        message: e.message,
+      });
+      return next({ status: 500, message: 'Failed to create tag' });
+    }
+  }
+);
+
 radarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
   const settings = getSettings();
 
