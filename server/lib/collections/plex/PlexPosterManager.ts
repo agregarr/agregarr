@@ -2,6 +2,12 @@ import type PlexAPI from '@server/api/plexapi';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
+interface PlexPosterMetadata {
+  selected?: string | number | boolean;
+  thumb?: string;
+  key?: string;
+}
+
 /**
  * PlexPosterManager - Handles Plex poster management operations
  * Manages poster upload, selection, locking, and URL retrieval for Plex items
@@ -207,26 +213,45 @@ class PlexPosterManager {
    */
   public async getCurrentPosterUrl(ratingKey: string): Promise<string | null> {
     try {
+      // Get all available posters to find the selected one
       const response = await this.plexApi['plexClient'].query(
-        `/library/metadata/${ratingKey}`
+        `/library/metadata/${ratingKey}/posters`
       );
 
-      const item = response?.MediaContainer?.Metadata?.[0];
-      if (!item?.thumb) {
+      const posters = (response?.MediaContainer?.Metadata ||
+        []) as PlexPosterMetadata[];
+
+      // Find the currently selected poster
+      const selectedPoster = posters.find(
+        (poster) =>
+          poster.selected === '1' ||
+          poster.selected === 1 ||
+          poster.selected === true
+      );
+
+      if (!selectedPoster?.thumb && !selectedPoster?.key) {
         return null;
       }
 
-      // Convert relative thumb path to full URL
+      // Use thumb or key field for the poster path
+      const posterPath = selectedPoster.thumb || selectedPoster.key;
+      if (!posterPath) {
+        return null;
+      }
+
+      // Convert relative path to full URL
       const settings = getSettings();
       const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
         settings.plex.ip
       }:${settings.plex.port}`;
 
       // Handle both relative paths and full URLs
-      if (item.thumb.startsWith('http')) {
-        return item.thumb;
+      if (posterPath.startsWith('http')) {
+        return posterPath;
       } else {
-        return `${baseUrl}${item.thumb}?X-Plex-Token=${this.plexApi['plexToken']}`;
+        // Append auth token with correct separator
+        const separator = posterPath.includes('?') ? '&' : '?';
+        return `${baseUrl}${posterPath}${separator}X-Plex-Token=${this.plexApi['plexToken']}`;
       }
     } catch (error) {
       logger.error(`Error getting current poster for ${ratingKey}`, {

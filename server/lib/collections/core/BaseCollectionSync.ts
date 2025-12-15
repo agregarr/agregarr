@@ -1889,6 +1889,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
                   {
                     configId: options.config?.id,
                     libraryKey: options.libraryKey,
+                    posterLocalPath: posterFilename, // Track the local file path
                   }
                 );
               }
@@ -3299,7 +3300,8 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       }
 
       // Generate the poster using the processed collection name
-      const posterFilename = await generatePoster(
+      // Returns full path to temp file in system temp directory
+      const posterTempPath = await generatePoster(
         {
           collectionName,
           collectionType: options?.collectionTypeOverride || config.type,
@@ -3313,16 +3315,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         collectionIdentifier
       );
 
-      // Upload the generated poster to Plex
-      const posterPath = path.join(
-        process.cwd(),
-        'config',
-        'posters',
-        posterFilename
-      );
-
       // Apply poster to collection (smart or regular)
-      await plexClient.updateCollectionPoster(collectionRatingKey, posterPath);
+      await plexClient.updateCollectionPoster(
+        collectionRatingKey,
+        posterTempPath
+      );
 
       // Get the full Plex poster URL from the collection to complete the workflow
       const plexPosterUrl = await plexClient.getCurrentPosterUrl(
@@ -3349,12 +3346,39 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
         }
       }
 
+      // Clean up temp poster file after successful upload
+      try {
+        const fs = await import('fs');
+        if (fs.existsSync(posterTempPath)) {
+          await fs.promises.unlink(posterTempPath);
+          logger.debug(
+            `Deleted temp poster file after upload: ${path.basename(
+              posterTempPath
+            )}`,
+            {
+              label: `${this.source} Collections`,
+              collectionName,
+            }
+          );
+        }
+      } catch (cleanupError) {
+        logger.warn(
+          `Failed to delete temp poster file: ${path.basename(posterTempPath)}`,
+          {
+            label: `${this.source} Collections`,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          }
+        );
+      }
+
       logger.info(
         `Successfully generated and applied poster for collection: ${collectionName}`,
         {
           label: `${this.source} Collections`,
           configId: config.id,
-          posterFilename,
           collectionRatingKey,
           plexPosterUrl,
         }

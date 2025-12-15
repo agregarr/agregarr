@@ -89,7 +89,11 @@ class MetadataTrackingService {
     collectionRatingKey: string,
     inputHash: string,
     uploadUrl: string,
-    options?: { configId?: string; libraryKey?: string }
+    options?: {
+      configId?: string;
+      libraryKey?: string;
+      posterLocalPath?: string;
+    }
   ): Promise<void> {
     const repo = getRepository(CollectionMetadata);
 
@@ -108,6 +112,9 @@ class MetadataTrackingService {
     metadata.lastPosterInputHash = inputHash;
     metadata.lastPosterUploadUrl = uploadUrl;
     metadata.lastPosterAppliedAt = new Date();
+    if (options?.posterLocalPath !== undefined) {
+      metadata.posterLocalPath = options.posterLocalPath;
+    }
 
     await repo.save(metadata);
 
@@ -116,6 +123,48 @@ class MetadataTrackingService {
       collectionRatingKey,
       inputHash: inputHash.substring(0, 8),
       uploadUrl,
+      posterLocalPath: options?.posterLocalPath,
+    });
+  }
+
+  async getPosterLocalPath(
+    collectionRatingKey: string
+  ): Promise<string | null> {
+    const repo = getRepository(CollectionMetadata);
+    const metadata = await repo.findOne({
+      where: { plexCollectionRatingKey: collectionRatingKey },
+    });
+
+    return metadata?.posterLocalPath || null;
+  }
+
+  async updatePosterLocalPath(
+    collectionRatingKey: string,
+    posterLocalPath: string | null,
+    options?: { configId?: string; libraryKey?: string }
+  ): Promise<void> {
+    const repo = getRepository(CollectionMetadata);
+
+    let metadata = await repo.findOne({
+      where: { plexCollectionRatingKey: collectionRatingKey },
+    });
+
+    if (!metadata) {
+      metadata = new CollectionMetadata({
+        plexCollectionRatingKey: collectionRatingKey,
+        collectionConfigId: options?.configId,
+        libraryKey: options?.libraryKey,
+      });
+    }
+
+    metadata.posterLocalPath = posterLocalPath || undefined;
+
+    await repo.save(metadata);
+
+    logger.debug('Updated poster local path', {
+      label: 'MetadataTracking',
+      collectionRatingKey,
+      posterLocalPath,
     });
   }
 

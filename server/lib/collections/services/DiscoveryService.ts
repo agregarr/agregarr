@@ -1366,35 +1366,43 @@ export class DiscoveryService {
 
         if (!library) continue;
 
-        // Discover and store poster for this collection
-        const posterResult = await this.discoverCollectionPoster(
-          plexClient,
-          collection,
-          libraryId,
-          library.title
-        );
-
-        // Track detailed poster discovery statistics
-        if (posterResult.success) {
-          posterDiscoveryStats.successful++;
-        } else {
-          posterDiscoveryStats.failed++;
-        }
-
-        // Check if this is an Agregarr collection or pre-existing
+        // Check if this is an Agregarr collection BEFORE downloading poster
         const matchingCollectionConfig = collectionConfigs.find(
           (config) =>
             config.collectionRatingKey === collection.ratingKey &&
             config.libraryId === libraryId
         );
 
-        if (matchingCollectionConfig) {
-          // This is an Agregarr-created collection - skip it (already managed)
+        const isAgregarrManaged =
+          matchingCollectionConfig ||
+          this.isAgregarrManagedCollection(collection);
+
+        // Only discover and store posters for non-Agregarr collections
+        // Agregarr-managed collections already have their posters handled
+        if (!isAgregarrManaged) {
+          const posterResult = await this.discoverCollectionPoster(
+            plexClient,
+            collection,
+            libraryId,
+            library.title
+          );
+
+          // Track detailed poster discovery statistics
+          if (posterResult.success) {
+            posterDiscoveryStats.successful++;
+          } else {
+            posterDiscoveryStats.failed++;
+          }
+        } else if (matchingCollectionConfig) {
+          // This is an Agregarr-created collection - skip poster discovery
           posterDiscoveryStats.agregarrSkipped++;
-        } else if (this.isAgregarrManagedCollection(collection)) {
-          // This is any Agregarr-managed collection - skip it (should not be imported as pre-existing)
-          posterDiscoveryStats.managedSkipped++;
         } else {
+          // This is any other Agregarr-managed collection - skip poster discovery
+          posterDiscoveryStats.managedSkipped++;
+        }
+
+        // Process pre-existing collections (non-Agregarr only)
+        if (!isAgregarrManaged) {
           // Check if this is an existing pre-existing collection that needs title update
           const settings = getSettings();
           const existingPreExisting =
@@ -1455,6 +1463,47 @@ export class DiscoveryService {
               isPromotedToHub: boolean;
             }
           ).isPromotedToHub = false;
+
+          // Link discovered poster to this config (if we downloaded one)
+          // Check if we have a poster stored for this collection
+          try {
+            const { getRepository } = await import('@server/datasource');
+            const { CollectionMetadata } = await import(
+              '@server/entity/CollectionMetadata'
+            );
+            const { posterExists } = await import('@server/lib/posterStorage');
+            const repo = getRepository(CollectionMetadata);
+            const metadata = await repo.findOne({
+              where: { plexCollectionRatingKey: collection.ratingKey },
+            });
+
+            // Only link if we have a poster path AND the file actually exists
+            if (
+              metadata?.posterLocalPath &&
+              posterExists(metadata.posterLocalPath)
+            ) {
+              // Set the discovered poster as customPoster for this config
+              (
+                collectionConfig as PreExistingCollectionConfig & {
+                  customPoster?: string;
+                }
+              ).customPoster = metadata.posterLocalPath;
+
+              logger.info(
+                `Linked discovered poster to new pre-existing collection: ${collection.title}`,
+                {
+                  label: 'Poster Discovery',
+                  posterFilename: metadata.posterLocalPath,
+                  collectionRatingKey: collection.ratingKey,
+                }
+              );
+            }
+          } catch (error) {
+            logger.warn('Failed to link discovered poster to config', {
+              label: 'Poster Discovery',
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
 
           // Check for duplicates before adding to discovery results
           const preExistingKey = `${collectionConfig.libraryId}:${collectionConfig.collectionRatingKey}`;
@@ -1941,6 +1990,7 @@ export class DiscoveryService {
   /**
    * Discover and store poster for a collection
    * Downloads the current poster from Plex and stores it for reuse
+   * Uses smart URL comparison - only downloads if Plex poster URL has changed
    * @returns object with success status and failure reason
    */
   private async discoverCollectionPoster(
@@ -1959,25 +2009,105 @@ export class DiscoveryService {
         return { success: false, reason: 'no-poster' };
       }
 
-      // Download and save the poster
-      const { downloadAndSavePoster } = await import(
+      // Import metadata tracking service and poster storage utilities
+      const metadataService = await import(
+        '@server/lib/metadata/MetadataTrackingService'
+      );
+      const { downloadAndSavePoster, deletePosterFile } = await import(
         '@server/lib/posterStorage'
       );
+      const { getRepository } = await import('@server/datasource');
+      const { CollectionMetadata } = await import(
+        '@server/entity/CollectionMetadata'
+      );
+
+      // Check if we already have tracking for this collection
+      const repo = getRepository(CollectionMetadata);
+      const metadata = await repo.findOne({
+        where: { plexCollectionRatingKey: collection.ratingKey },
+      });
+
+      // If we have a record and the URL matches, skip download
+      if (metadata?.lastPosterUploadUrl === posterUrl) {
+        logger.debug('Poster URL unchanged, skipping download', {
+          label: 'Poster Discovery',
+          collectionTitle: collection.title,
+          ratingKey: collection.ratingKey,
+        });
+        // Poster already exists, link it to configs if needed
+        if (metadata.posterLocalPath) {
+          await this.linkPosterToConfigs(
+            collection,
+            libraryId,
+            metadata.posterLocalPath
+          );
+        }
+        return { success: true };
+      }
+
+      // URL is different or no record exists - delete old file if it exists
+      const oldPosterFilename = metadata?.posterLocalPath;
+      if (oldPosterFilename) {
+        logger.info('Poster URL changed, deleting old file', {
+          label: 'Poster Discovery',
+          collectionTitle: collection.title,
+          oldPath: oldPosterFilename,
+        });
+        await deletePosterFile(oldPosterFilename);
+      }
+
+      // Download and save the new poster
       const filename = await downloadAndSavePoster(
         posterUrl,
         `${collection.title} (${libraryName})`
       );
 
       if (filename) {
+        // Update metadata to record the new poster URL and local path
+        await metadataService.default.updatePosterLocalPath(
+          collection.ratingKey,
+          filename,
+          {
+            libraryKey: libraryId,
+          }
+        );
+
+        // Also update lastPosterUploadUrl to track the Plex URL
+        if (!metadata) {
+          const newMetadata = new CollectionMetadata({
+            plexCollectionRatingKey: collection.ratingKey,
+            libraryKey: libraryId,
+            lastPosterUploadUrl: posterUrl,
+            posterLocalPath: filename,
+          });
+          await repo.save(newMetadata);
+        } else {
+          metadata.lastPosterUploadUrl = posterUrl;
+          metadata.posterLocalPath = filename;
+          await repo.save(metadata);
+        }
+
+        logger.info('Downloaded and stored new poster', {
+          label: 'Poster Discovery',
+          collectionTitle: collection.title,
+          filename,
+        });
+
         // Link this poster to collection configs that match this collection
-        await this.linkPosterToConfigs(collection, libraryId, filename);
+        // Pass the old filename so it can be replaced in configs
+        await this.linkPosterToConfigs(
+          collection,
+          libraryId,
+          filename,
+          oldPosterFilename
+        );
         return { success: true };
       } else {
-        // Since downloadAndSavePoster returns null, we can't determine specific reason here
-        // The detailed error logging happens inside posterStorage.ts
+        // Download failed
         return { success: false, reason: 'download-failed' };
       }
     } catch (error) {
+      logger.error('Error in discoverCollectionPoster:', error);
       return { success: false, reason: 'error' };
     }
   }
@@ -1985,12 +2115,14 @@ export class DiscoveryService {
   /**
    * Link discovered poster to matching collection configs
    * Sets the discovered poster as the customPoster for Agregarr collections and pre-existing collections
-   * that don't already have a poster configured. Default hubs are excluded as they can't have custom posters.
+   * that don't already have a poster configured. If oldPosterFilename is provided, it will update
+   * configs that reference the old poster with the new one.
    */
   private async linkPosterToConfigs(
     collection: PlexCollection,
     libraryId: string,
-    posterFilename: string
+    posterFilename: string,
+    oldPosterFilename?: string
   ): Promise<void> {
     try {
       const settings = getSettings();
@@ -2038,24 +2170,28 @@ export class DiscoveryService {
           }
         }
 
-        if (
-          configMatches &&
-          !config.customPoster // Only set if no poster is already configured
-        ) {
-          // Type-safe modification of collection config
-          const mutableConfig = config as CollectionConfig & {
-            customPoster?: string;
-          };
-          mutableConfig.customPoster = posterFilename;
-          updated = true;
-          logger.info(
-            `Linked discovered poster to Agregarr collection config: ${config.name}`,
-            {
-              label: 'Poster Discovery',
-              configId: config.id,
-              posterFilename,
-            }
-          );
+        if (configMatches) {
+          const shouldUpdate =
+            !config.customPoster || // No poster set
+            (oldPosterFilename && config.customPoster === oldPosterFilename); // Has the old poster that we just replaced
+
+          if (shouldUpdate) {
+            // Type-safe modification of collection config
+            const mutableConfig = config as CollectionConfig & {
+              customPoster?: string;
+            };
+            mutableConfig.customPoster = posterFilename;
+            updated = true;
+            logger.info(
+              `Linked discovered poster to Agregarr collection config: ${config.name}`,
+              {
+                label: 'Poster Discovery',
+                configId: config.id,
+                posterFilename,
+                replaced: oldPosterFilename || null,
+              }
+            );
+          }
         }
       }
 
@@ -2108,24 +2244,28 @@ export class DiscoveryService {
           }
         }
 
-        if (
-          configMatches &&
-          !config.customPoster // Only set if no poster is already configured
-        ) {
-          // Type-safe modification of pre-existing config
-          const mutableConfig = config as PreExistingCollectionConfig & {
-            customPoster?: string;
-          };
-          mutableConfig.customPoster = posterFilename;
-          updated = true;
-          logger.info(
-            `Linked discovered poster to pre-existing collection config: ${config.name}`,
-            {
-              label: 'Poster Discovery',
-              configId: config.id,
-              posterFilename,
-            }
-          );
+        if (configMatches) {
+          const shouldUpdate =
+            !config.customPoster || // No poster set
+            (oldPosterFilename && config.customPoster === oldPosterFilename); // Has the old poster that we just replaced
+
+          if (shouldUpdate) {
+            // Type-safe modification of pre-existing config
+            const mutableConfig = config as PreExistingCollectionConfig & {
+              customPoster?: string;
+            };
+            mutableConfig.customPoster = posterFilename;
+            updated = true;
+            logger.info(
+              `Linked discovered poster to pre-existing collection config: ${config.name}`,
+              {
+                label: 'Poster Discovery',
+                configId: config.id,
+                posterFilename,
+                replaced: oldPosterFilename || null,
+              }
+            );
+          }
         }
       }
 

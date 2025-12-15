@@ -120,7 +120,7 @@ app
       const { initializePosterStorage } = await import(
         '@server/lib/posterStorage'
       );
-      initializePosterStorage();
+      await initializePosterStorage();
       logger.info('Poster storage initialized successfully');
     } catch (error) {
       logger.error('Failed to initialize poster storage:', error);
@@ -355,12 +355,7 @@ app
     server.post('/upload-poster', async (req, res) => {
       try {
         const multer = (await import('multer')).default;
-        const { savePosterFile, initializePosterStorage } = await import(
-          '@server/lib/posterStorage'
-        );
-
-        // Initialize storage
-        initializePosterStorage();
+        const { savePosterFile } = await import('@server/lib/posterStorage');
 
         // Simple multer config
         const upload = multer({

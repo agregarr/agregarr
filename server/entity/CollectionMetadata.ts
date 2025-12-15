@@ -38,6 +38,9 @@ export class CollectionMetadata {
   @Column({ type: 'datetime', nullable: true })
   public lastPosterAppliedAt?: Date;
 
+  @Column({ type: 'varchar', nullable: true })
+  public posterLocalPath?: string; // Local file path in config/posters/ for Discovery downloads
+
   // === WALLPAPER METADATA ===
   @Column({ type: 'varchar', nullable: true })
   public lastWallpaperFilename?: string;
