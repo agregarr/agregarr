@@ -707,6 +707,17 @@ export class DiscoveryService {
       missingPreExisting: missingPreExisting.length,
     });
 
+    // Automatically cleanup missing pre-existing collections
+    // Pre-existing collections are external (created by other apps), so automatic cleanup provides better UX
+    // User-created collections and hubs still require manual cleanup since they were intentionally created
+    if (missingPreExisting.length > 0) {
+      await this.autoCleanupMissingPreExisting(
+        plexClient,
+        missingPreExisting,
+        settings
+      );
+    }
+
     return {
       collectionsValidated: collectionConfigs.length,
       hubsValidated: existingHubConfigs.length,
@@ -2141,6 +2152,95 @@ export class DiscoveryService {
         }
       );
     }
+  }
+
+  /**
+   * Automatically cleanup missing pre-existing collections
+   * Pre-existing collections are external (created by other apps), so automatic cleanup provides better UX
+   * This prevents popup spam when other apps like Maintainerr add/remove temporary collections
+   */
+  private async autoCleanupMissingPreExisting(
+    plexClient: PlexAPI,
+    missingPreExistingIds: string[],
+    settings: ReturnType<typeof getSettings>
+  ): Promise<void> {
+    const missingConfigs =
+      settings.plex.preExistingCollectionConfigs?.filter((config) =>
+        missingPreExistingIds.includes(config.id)
+      ) || [];
+
+    if (missingConfigs.length === 0) return;
+
+    let hubDeleteCount = 0;
+
+    logger.info(
+      `Automatically cleaning up ${missingConfigs.length} missing pre-existing collection(s)`,
+      {
+        label: 'Discovery Service - Auto Cleanup',
+        count: missingConfigs.length,
+        configs: missingConfigs.map((c) => ({
+          id: c.id,
+          name: c.name,
+          libraryId: c.libraryId,
+          ratingKey: c.collectionRatingKey,
+        })),
+      }
+    );
+
+    // Delete missing pre-existing collections from Plex hubs
+    for (const config of missingConfigs) {
+      if (config.collectionRatingKey && config.libraryId) {
+        try {
+          // Generate the hub identifier for pre-existing collections
+          const hubIdentifier = `custom.collection.${config.libraryId}.${config.collectionRatingKey}`;
+
+          await plexClient.deleteHubItem(config.libraryId, hubIdentifier);
+          hubDeleteCount++;
+
+          logger.debug(
+            `Deleted missing pre-existing collection from Plex hub: ${config.name}`,
+            {
+              label: 'Discovery Service - Auto Cleanup',
+              configId: config.id,
+              hubIdentifier,
+              libraryId: config.libraryId,
+              ratingKey: config.collectionRatingKey,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to delete pre-existing collection from Plex hub: ${config.name}`,
+            {
+              label: 'Discovery Service - Auto Cleanup',
+              configId: config.id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+    }
+
+    // Remove configs from settings
+    settings.plex.preExistingCollectionConfigs =
+      settings.plex.preExistingCollectionConfigs?.filter(
+        (config) => !missingPreExistingIds.includes(config.id)
+      ) || [];
+
+    // Save settings
+    settings.save();
+
+    logger.info(
+      `Auto cleanup completed: ${
+        missingConfigs.length
+      } pre-existing collection config(s) removed${
+        hubDeleteCount > 0 ? `, ${hubDeleteCount} deleted from Plex hubs` : ''
+      }`,
+      {
+        label: 'Discovery Service - Auto Cleanup',
+        configsRemoved: missingConfigs.length,
+        hubsDeleted: hubDeleteCount,
+      }
+    );
   }
 
   /**

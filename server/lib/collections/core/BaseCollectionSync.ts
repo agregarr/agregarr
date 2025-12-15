@@ -18,6 +18,7 @@ import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import path from 'path';
 import {
+  applyCollectionExclusions,
   createCollectionLabel,
   createSyncError,
   getCollectionMediaType,
@@ -3048,114 +3049,6 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
   }
 
   /**
-   * Apply collection mutual exclusion - remove items that exist in excluded collections
-   */
-  private async applyCollectionExclusions(
-    items: CollectionItem[],
-    config: CollectionConfig,
-    plexClient: PlexAPI
-  ): Promise<CollectionItem[]> {
-    // Skip if no exclusions configured
-    if (
-      !config.excludeFromCollections ||
-      config.excludeFromCollections.length === 0
-    ) {
-      return items;
-    }
-
-    try {
-      // Get all items from excluded collections
-      const excludedRatingKeys = new Set<string>();
-
-      for (const excludedCollectionId of config.excludeFromCollections) {
-        // Find the collection configuration to get its rating key
-        const settings = getSettings();
-        const excludedConfig = settings.plex.collectionConfigs?.find(
-          (c) => c.id === excludedCollectionId
-        );
-
-        if (!excludedConfig || !excludedConfig.collectionRatingKey) {
-          logger.debug(
-            `Excluded collection ${excludedCollectionId} not found or has no rating key`,
-            {
-              label: `${this.source} Collections`,
-              configName: config.name,
-              excludedCollectionId,
-            }
-          );
-          continue;
-        }
-
-        // Fetch items from the excluded collection
-        try {
-          const collectionItemRatingKeys = await plexClient.getCollectionItems(
-            excludedConfig.collectionRatingKey
-          );
-
-          // Add all rating keys from this collection to the exclusion set
-          for (const ratingKey of collectionItemRatingKeys) {
-            excludedRatingKeys.add(ratingKey);
-          }
-
-          logger.debug(
-            `Loaded ${collectionItemRatingKeys.length} items from excluded collection "${excludedConfig.name}"`,
-            {
-              label: `${this.source} Collections`,
-              configName: config.name,
-              excludedCollection: excludedConfig.name,
-              itemCount: collectionItemRatingKeys.length,
-            }
-          );
-        } catch (error) {
-          logger.warn(
-            `Failed to fetch items from excluded collection ${excludedConfig.name}: ${error}`,
-            {
-              label: `${this.source} Collections`,
-              configName: config.name,
-              excludedCollection: excludedConfig.name,
-              error: error instanceof Error ? error.message : String(error),
-            }
-          );
-        }
-      }
-
-      // Filter out items that exist in any excluded collection
-      const beforeCount = items.length;
-      const filteredItems = items.filter(
-        (item) => !excludedRatingKeys.has(item.ratingKey)
-      );
-      const excludedCount = beforeCount - filteredItems.length;
-
-      if (excludedCount > 0) {
-        logger.info(
-          `Excluded ${excludedCount} items from collection "${config.name}" based on mutual exclusion rules`,
-          {
-            label: `${this.source} Collections`,
-            configName: config.name,
-            beforeCount,
-            afterCount: filteredItems.length,
-            excludedCount,
-            excludedCollectionIds: config.excludeFromCollections,
-          }
-        );
-      }
-
-      return filteredItems;
-    } catch (error) {
-      logger.error(
-        `Error applying collection exclusions for ${config.name}: ${error}`,
-        {
-          label: `${this.source} Collections`,
-          configName: config.name,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-      // Return original items on error - don't fail the entire sync
-      return items;
-    }
-  }
-
-  /**
    * Process single media type collections (movie OR tv)
    */
   private async processSingleMediaType(
@@ -3188,10 +3081,11 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
     }
 
     // Apply collection mutual exclusion if configured
-    filteredItems = await this.applyCollectionExclusions(
+    filteredItems = await applyCollectionExclusions(
       filteredItems,
       config,
-      plexClient
+      plexClient,
+      this.source
     );
 
     // Check again if we have items after exclusions

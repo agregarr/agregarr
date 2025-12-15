@@ -1,11 +1,47 @@
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
+import { OverlayTemplate } from '@server/entity/OverlayTemplate';
 import { overlayLibraryService } from '@server/lib/overlays/OverlayLibraryService';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 
 const router = Router();
+
+/**
+ * Helper function to filter out orphaned overlay references
+ * Removes references to templates that no longer exist or are inactive
+ */
+async function cleanOrphanedOverlayReferences(
+  config: OverlayLibraryConfig
+): Promise<OverlayLibraryConfig> {
+  const templateRepository = getRepository(OverlayTemplate);
+
+  // Get all active template IDs
+  const activeTemplates = await templateRepository.find({
+    where: { isActive: true },
+    select: ['id'],
+  });
+  const activeTemplateIds = new Set(activeTemplates.map((t) => t.id));
+
+  // Filter out references to non-existent or inactive templates
+  const originalLength = config.enabledOverlays.length;
+  config.enabledOverlays = config.enabledOverlays.filter((overlay) =>
+    activeTemplateIds.has(overlay.templateId)
+  );
+
+  // If we removed any orphaned references, save the cleaned config
+  if (config.enabledOverlays.length < originalLength) {
+    const configRepository = getRepository(OverlayLibraryConfig);
+    await configRepository.save(config);
+    logger.debug('Cleaned orphaned overlay references', {
+      libraryId: config.libraryId,
+      removedCount: originalLength - config.enabledOverlays.length,
+    });
+  }
+
+  return config;
+}
 
 // Apply authentication to all routes
 router.use(isAuthenticated());
@@ -19,8 +55,13 @@ router.get('/', async (req, res, next) => {
       order: { libraryName: 'ASC' },
     });
 
+    // Clean orphaned references for each config
+    const cleanedConfigs = await Promise.all(
+      configs.map((config) => cleanOrphanedOverlayReferences(config))
+    );
+
     return res.status(200).json({
-      configs,
+      configs: cleanedConfigs,
     });
   } catch (error) {
     logger.error('Failed to fetch overlay library configs:', error);
@@ -49,7 +90,10 @@ router.get('/:libraryId', async (req, res, next) => {
       });
     }
 
-    return res.status(200).json(config);
+    // Clean orphaned references before returning
+    const cleanedConfig = await cleanOrphanedOverlayReferences(config);
+
+    return res.status(200).json(cleanedConfig);
   } catch (error) {
     logger.error('Failed to fetch overlay library config:', error);
     return next({
