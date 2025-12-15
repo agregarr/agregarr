@@ -684,6 +684,12 @@ const MultiSourceConfigSection = ({
             description: 'Most popular based on ratings and votes',
           },
           {
+            value: 'recommendations',
+            label: 'Recommendations',
+            description:
+              'Personalized Trakt recommendations (uses your library media type)',
+          },
+          {
             value: 'played',
             label: 'Most Played',
             description: 'Most played content (supports time periods)',

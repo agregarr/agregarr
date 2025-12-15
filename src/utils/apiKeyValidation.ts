@@ -48,12 +48,22 @@ export function validateApiKeysForCollectionType(
 
   switch (collectionType) {
     case 'trakt':
-      requirements.push({
-        service: 'Trakt',
-        required: true,
-        configured: hasTraktBasic,
-        settingsPath: '/settings/sources',
-      });
+      // Recommendations subtype requires OAuth (access token), not just client ID
+      if (subtype === 'recommendations') {
+        requirements.push({
+          service: 'Trakt (OAuth required for Recommendations)',
+          required: true,
+          configured: !!settings.trakt?.accessToken,
+          settingsPath: '/settings/sources',
+        });
+      } else {
+        requirements.push({
+          service: 'Trakt',
+          required: true,
+          configured: hasTraktBasic,
+          settingsPath: '/settings/sources',
+        });
+      }
       break;
 
     case 'mdblist':
