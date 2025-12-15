@@ -422,6 +422,113 @@ class PlexSmartCollectionManager {
   }
 
   /**
+   * Update an existing filtered hub smart collection's URI
+   * This updates the filter parameters including maxItems limit
+   * @param smartCollectionRatingKey - The rating key of the smart collection to update
+   * @param libraryKey - Library section key (e.g., "1" for movies)
+   * @param mediaType - 'movie' or 'tv'
+   * @param subtype - Hub subtype ('recently_added' or 'recently_released')
+   * @param maxItems - Maximum number of items to include in the smart collection
+   * @returns Promise<void>
+   */
+  public async updateFilteredHubUri(
+    smartCollectionRatingKey: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    subtype: 'recently_added' | 'recently_released',
+    maxItems?: number
+  ): Promise<void> {
+    try {
+      logger.debug(
+        `Updating filtered hub smart collection URI for collection ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          smartCollectionRatingKey,
+          libraryKey,
+          mediaType,
+          subtype,
+          maxItems,
+        }
+      );
+
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build filter URI based on media type and subtype (same logic as createFilteredHub)
+      let filterUri: string;
+
+      if (subtype === 'recently_added') {
+        // Recently Added: Sort by Date Added (addedAt), exclude placeholders
+        if (mediaType === 'tv') {
+          // TV Shows: Filter out "Trailer (Placeholder)" episode titles
+          const sortParam = 'addedAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          // Movies: Filter out "trailer-placeholder" label
+          const sortParam = 'addedAt:desc';
+          const labelFilter = 'trailer-placeholder';
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
+            labelFilter
+          )}`;
+        }
+      } else if (subtype === 'recently_released') {
+        // Recently Released: Sort by Release Date (originallyAvailableAt), exclude placeholders
+        if (mediaType === 'tv') {
+          // TV Shows (Episodes): Sort by air date, filter out "Trailer (Placeholder)"
+          const sortParam = 'originallyAvailableAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          // Movies: Sort by release date, filter out "trailer-placeholder" label
+          const sortParam = 'originallyAvailableAt:desc';
+          const labelFilter = 'trailer-placeholder';
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
+            labelFilter
+          )}`;
+        }
+      } else {
+        throw new Error(`Unsupported filtered hub subtype: ${subtype}`);
+      }
+
+      // Add limit parameter if specified
+      if (maxItems && maxItems > 0) {
+        filterUri += `&limit=${maxItems}`;
+      }
+
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
+
+      // Update the smart collection URI using PUT request
+      const updateUrl = `/library/collections/${smartCollectionRatingKey}/items?uri=${encodeURIComponent(
+        uri
+      )}`;
+      await this.plexApi['safePutQuery'](updateUrl);
+
+      logger.debug(
+        `Successfully updated filtered hub smart collection URI for collection ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          smartCollectionRatingKey,
+          subtype,
+          maxItems,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error updating filtered hub smart collection URI for collection ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          smartCollectionRatingKey,
+          error:
+            error instanceof Error ? error.message : 'Unknown error occurred',
+        }
+      );
+      throw error;
+    }
+  }
+
+  /**
    * @deprecated Use createFilteredHub instead
    * Legacy method for backwards compatibility
    */

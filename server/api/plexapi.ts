@@ -2274,6 +2274,25 @@ class PlexAPI {
   }
 
   /**
+   * Update an existing filtered hub smart collection's URI
+   */
+  public async updateFilteredHubUri(
+    smartCollectionRatingKey: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    subtype: 'recently_added' | 'recently_released',
+    maxItems?: number
+  ): Promise<void> {
+    return this.smartCollectionManager.updateFilteredHubUri(
+      smartCollectionRatingKey,
+      libraryKey,
+      mediaType,
+      subtype,
+      maxItems
+    );
+  }
+
+  /**
    * Delete a smart collection
    */
   public async deleteSmartCollection(

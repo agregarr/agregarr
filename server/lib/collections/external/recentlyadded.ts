@@ -224,6 +224,28 @@ export class FilteredHubCollectionSync extends BaseCollectionSync {
 
       collectionRatingKey = existingCollection.ratingKey;
 
+      // Update the smart collection URI with current config values (especially maxItems)
+      const PlexSmartCollectionManager = (
+        await import('@server/lib/collections/plex/PlexSmartCollectionManager')
+      ).default;
+      const smartCollectionManager = new PlexSmartCollectionManager(plexClient);
+
+      await smartCollectionManager.updateFilteredHubUri(
+        collectionRatingKey,
+        config.libraryId,
+        mediaType,
+        subtype,
+        config.maxItems
+      );
+
+      logger.info('Updated filtered hub smart collection URI', {
+        label: 'Filtered Hub Collections',
+        collectionName,
+        subtype,
+        ratingKey: collectionRatingKey,
+        maxItems: config.maxItems,
+      });
+
       // Mark as processed
       if (processedCollectionKeys) {
         processedCollectionKeys.add(existingCollection.ratingKey);
