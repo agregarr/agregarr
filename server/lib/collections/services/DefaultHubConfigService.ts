@@ -16,36 +16,7 @@ export class DefaultHubConfigService {
    */
   public getConfigs(): PlexHubConfig[] {
     const settings = getSettings();
-    const hubConfigs = settings.plex.hubConfigs || [];
-
-    // Check if any hubs are missing linkIds (legacy hubs from before automatic linking was implemented)
-    const hasHubsWithoutLinkIds = hubConfigs.some(
-      (hub) => hub.linkId === undefined && hubConfigs.length > 1
-    );
-
-    // If we have multiple hubs and some are missing linkIds, apply automatic linking and save
-    if (hasHubsWithoutLinkIds) {
-      logger.info(
-        'Detected hubs without linkIds - applying automatic linking to repair legacy hubs',
-        {
-          label: 'Default Hub Config Service',
-          totalHubs: hubConfigs.length,
-        }
-      );
-
-      const linkedConfigs = this.applyAutomaticLinking(hubConfigs);
-      settings.plex.hubConfigs = linkedConfigs;
-      settings.save();
-
-      logger.info('Automatic linking applied to legacy hubs', {
-        label: 'Default Hub Config Service',
-        linkedGroups: this.countLinkedGroups(linkedConfigs),
-      });
-
-      return linkedConfigs;
-    }
-
-    return hubConfigs;
+    return settings.plex.hubConfigs || [];
   }
 
   /**
