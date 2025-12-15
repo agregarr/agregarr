@@ -256,6 +256,11 @@ class OverlayLibraryService {
       let errorCount = 0;
 
       for (const item of allItems) {
+        // CRITICAL: Skip episodes and seasons - overlays only apply to movies and shows
+        if (item.type === 'episode' || item.type === 'season') {
+          continue;
+        }
+
         // Check for cancellation
         if (checkCancelled && checkCancelled()) {
           logger.info(
@@ -417,6 +422,14 @@ class OverlayLibraryService {
           const itemMetadata = await plexApi.getMetadata(ratingKey);
 
           if (itemMetadata) {
+            // CRITICAL: Skip episodes and seasons - overlays only apply to movies and shows
+            if (
+              itemMetadata.type === 'episode' ||
+              itemMetadata.type === 'season'
+            ) {
+              continue;
+            }
+
             // Convert to PlexLibraryItem format (cast to satisfy type requirements)
             const item = {
               ratingKey: itemMetadata.ratingKey,
@@ -430,6 +443,8 @@ class OverlayLibraryService {
               index: itemMetadata.index,
               addedAt: itemMetadata.addedAt || 0,
               updatedAt: itemMetadata.updatedAt || 0,
+              editionTitle: (itemMetadata as { editionTitle?: string })
+                .editionTitle,
             } as PlexLibraryItem;
 
             await this.applyOverlaysToItem(
@@ -584,6 +599,7 @@ class OverlayLibraryService {
           let daysAgo: number | undefined;
           let daysUntilNextEpisode: number | undefined;
           let daysUntilNextSeason: number | undefined;
+          let daysAgoNextSeason: number | undefined;
 
           if (releaseDateInfo.releaseDate) {
             const daysSince = calculateDaysSince(releaseDateInfo.releaseDate);
@@ -609,6 +625,8 @@ class OverlayLibraryService {
             );
             if (daysSince < 0) {
               daysUntilNextSeason = -daysSince;
+            } else {
+              daysAgoNextSeason = daysSince;
             }
           }
 
@@ -620,6 +638,7 @@ class OverlayLibraryService {
             daysUntilNextEpisode,
             nextSeasonAirDate: releaseDateInfo.nextSeasonAirDate,
             daysUntilNextSeason,
+            daysAgoNextSeason,
             seasonNumber: releaseDateInfo.seasonNumber,
           };
         }
@@ -656,11 +675,11 @@ class OverlayLibraryService {
 
       const context: OverlayRenderContext = {
         ...baseContext,
-        ...releaseDateContext,
-        ...monitoringContext,
-        ...contextOverrides,
         isPlaceholder: actualIsPlaceholder,
         downloaded,
+        ...contextOverrides,
+        ...releaseDateContext,
+        ...monitoringContext,
       };
 
       // Filter templates by conditions to get only templates that will actually be applied

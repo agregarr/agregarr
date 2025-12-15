@@ -209,6 +209,7 @@ export interface OverlayRenderContext {
   daysUntilNextEpisode?: number; // Calculated days until ANY next episode
   nextSeasonAirDate?: string; // Raw date for SEASON PREMIERES only (episode 1)
   daysUntilNextSeason?: number; // Calculated days until next SEASON PREMIERE only
+  daysAgoNextSeason?: number; // Days since next season premiered (only if nextSeasonAirDate is in the past)
 
   // Episode information
   seasonNumber?: number;
@@ -322,6 +323,11 @@ export const AVAILABLE_VARIABLES = {
       label: 'Days Until Next Season (TV)',
       example: '45',
     },
+    {
+      field: 'daysAgoNextSeason',
+      label: 'Days Since Next Season Premiered (TV)',
+      example: '7',
+    },
     { field: 'seasonNumber', label: 'Season Number', example: '5' },
     { field: 'episodeNumber', label: 'Episode Number', example: '16' },
     {
@@ -431,6 +437,11 @@ export const CONDITION_FIELD_CATEGORIES = {
       field: 'daysUntilNextSeason',
       label: 'Days Until Next Season (TV)',
       example: '45',
+    },
+    {
+      field: 'daysAgoNextSeason',
+      label: 'Days Since Next Season Premiered (TV)',
+      example: '7',
     },
     { field: 'seasonNumber', label: 'Season Number', example: '5' },
     { field: 'episodeNumber', label: 'Episode Number', example: '16' },
@@ -560,6 +571,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     daysUntilNextEpisode: 7, // Days until next episode
     nextSeasonAirDate: '2025-02-05', // Next SEASON premiere (episode 1 only)
     daysUntilNextSeason: 45, // Days until next season
+    daysAgoNextSeason: undefined, // Not set when season hasn't aired yet
     daysAgo: 0,
     isMonitored: true,
     inSonarr: true,

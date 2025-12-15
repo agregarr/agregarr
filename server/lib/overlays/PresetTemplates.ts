@@ -328,10 +328,15 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
+          // MOVIES: Released (daysAgo >= 0), not downloaded, monitored, in Radarr
           rules: [
-            // Released items only (daysAgo >= 0 means already released)
-            // Note: daysUntilRelease and daysAgo are mutually exclusive
-            { field: 'daysAgo', operator: 'gte', value: 0 },
+            { field: 'mediaType', operator: 'neq', value: 'show' },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
             {
               ruleOperator: 'and',
               field: 'downloaded',
@@ -344,15 +349,39 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: true,
             },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
           ],
         },
         {
-          // AND (in Radarr OR in Sonarr)
-          sectionOperator: 'and',
+          // OR TV SHOWS: Monitored season has aired (daysAgoNextSeason >= 0), not downloaded, monitored, in Sonarr
+          sectionOperator: 'or',
           rules: [
-            { field: 'inRadarr', operator: 'eq', value: true },
+            { field: 'mediaType', operator: 'eq', value: 'show' },
             {
-              ruleOperator: 'or',
+              ruleOperator: 'and',
+              field: 'daysAgoNextSeason',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
               field: 'inSonarr',
               operator: 'eq',
               value: true,
