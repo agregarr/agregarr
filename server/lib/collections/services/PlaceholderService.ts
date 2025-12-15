@@ -18,7 +18,6 @@ import type {
   MissingItem,
   PlaceholderSourceData,
 } from '@server/lib/collections/core/types';
-import type { OverlayItemInput } from '@server/lib/overlays/OverlayLibraryService';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -1164,65 +1163,7 @@ async function createPlaceholders(
     ...orphanedPlaceholders,
   ];
 
-  if (allPlaceholders.length > 0) {
-    const { overlayLibraryService } = await import(
-      '@server/lib/overlays/OverlayLibraryService'
-    );
-
-    // Build overlay items with Coming Soon context overrides
-    const overlayItems: OverlayItemInput[] = [];
-
-    for (const { sourceItem } of allPlaceholders) {
-      const plexItem = discoveredItemsMap.get(sourceItem.tmdbId);
-      if (!plexItem) continue;
-
-      // Calculate days until release
-      const releaseDate = sourceItem.releaseDate || sourceItem.airDate;
-      const daysUntilRelease = releaseDate
-        ? Math.ceil(
-            (new Date(releaseDate).getTime() - Date.now()) /
-              (1000 * 60 * 60 * 24)
-          )
-        : undefined;
-
-      overlayItems.push({
-        ratingKey: plexItem.ratingKey,
-        contextOverrides: {
-          // Coming Soon specific fields
-          releaseDate,
-          daysUntilRelease,
-          seasonNumber: sourceItem.seasonNumber,
-          episodeNumber: sourceItem.episodeNumber,
-          isMonitored: sourceItem.monitored,
-          downloaded: sourceItem.hasFile,
-          itemType: 'placeholder',
-          mediaType: sourceItem.mediaType === 'movie' ? 'movie' : 'show',
-        },
-      });
-    }
-
-    if (overlayItems.length > 0) {
-      logger.info('Applying overlays to placeholders', {
-        label: 'PlaceholderService',
-        total: overlayItems.length,
-        newlyCreated: matchedPlaceholders.length,
-        orphanedAdopted: orphanedPlaceholders.length,
-      });
-
-      await overlayLibraryService.applyOverlaysToCollectionItems(
-        overlayItems,
-        config.libraryId
-      );
-    }
-  } else {
-    logger.warn('No placeholders to apply overlays to', {
-      label: 'PlaceholderService',
-      createdCount: createdPlaceholders.length,
-      orphanedCount: orphanedPlaceholders.length,
-    });
-  }
-
-  // Step 5: Set metadata markers and save to database for cleanup tracking
+  // Step 4: Set metadata markers and save to database for cleanup tracking
   const repository = getRepository(ComingSoonItem);
 
   for (const { sourceItem, placeholderPath } of allPlaceholders) {
