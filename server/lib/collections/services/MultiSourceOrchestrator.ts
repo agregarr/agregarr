@@ -2670,7 +2670,7 @@ export class MultiSourceOrchestrator {
               .replace(/&mdash;/g, '—')
               .replace(/&hellip;/g, '…')
               .replace(/&quot;/g, '"')
-              .replace(/&#39;/g, "'")
+              .replace(/&#0?39;/g, "'")
               .replace(/&#x27;/g, "'")
               .replace(/&amp;/g, '&')
               .replace(/&lt;/g, '<')
@@ -2703,7 +2703,8 @@ export class MultiSourceOrchestrator {
               .replace(/&mdash;/g, '—')
               .replace(/&hellip;/g, '…')
               .replace(/&quot;/g, '"')
-              .replace(/&#39;/g, "'")
+              .replace(/&#0?39;/g, "'")
+              .replace(/&#x27;/g, "'")
               .replace(/&amp;/g, '&')
               .replace(/&lt;/g, '<')
               .replace(/&gt;/g, '>');
