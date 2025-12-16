@@ -2,6 +2,7 @@ import ImdbRatingsAPI from '@server/api/imdbRatings';
 import RottenTomatoes from '@server/api/rottentomatoes';
 import TheMovieDb from '@server/api/themoviedb';
 import { getRepository } from '@server/datasource';
+import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import type {
   OverlayTileElementProps,
   OverlayVariableElementProps,
@@ -596,9 +597,28 @@ router.delete('/:id', async (req, res, next) => {
     template.isActive = false;
     await templateRepository.save(template);
 
+    // Clean up orphaned references in library configs
+    const libraryConfigRepository = getRepository(OverlayLibraryConfig);
+    const allLibraryConfigs = await libraryConfigRepository.find();
+
+    let cleanedConfigsCount = 0;
+    for (const config of allLibraryConfigs) {
+      const originalLength = config.enabledOverlays.length;
+      config.enabledOverlays = config.enabledOverlays.filter(
+        (overlay) => overlay.templateId !== templateId
+      );
+
+      // Only save if we actually removed something
+      if (config.enabledOverlays.length < originalLength) {
+        await libraryConfigRepository.save(config);
+        cleanedConfigsCount++;
+      }
+    }
+
     logger.info('Deleted overlay template', {
       templateId: template.id,
       name: template.name,
+      cleanedLibraryConfigs: cleanedConfigsCount,
       userId: req.user?.id,
     });
 
@@ -657,32 +677,88 @@ router.get('/:id/preview', async (req, res, next) => {
     const tmdbId = match ? parseInt(match[2]) : 0;
 
     // Fetch real TMDB metadata and ratings using shared helper
-    const { title, year, studio, imdbRating, rtCriticsScore, rtAudienceScore } =
-      await fetchPreviewPosterMetadata(mediaType, tmdbId);
+    const tmdbData = await fetchPreviewPosterMetadata(mediaType, tmdbId);
 
-    // Build render context with real TMDB data + placeholder status data
+    // Build render context with real TMDB data + comprehensive placeholder data
+    // Use fallback values to ensure all fields are always populated for previews
     const sampleContext = {
-      // Real TMDB data
-      title,
-      year,
-      imdbRating,
-      rtCriticsScore,
-      rtAudienceScore,
-      studio,
+      // Real TMDB data with fallbacks
+      title: tmdbData.title || 'Sample Movie',
+      year: tmdbData.year || 2024,
+      imdbRating: tmdbData.imdbRating || 8.5,
+      rtCriticsScore: tmdbData.rtCriticsScore || 92,
+      rtAudienceScore: tmdbData.rtAudienceScore || 88,
+      studio: tmdbData.studio || 'Warner Bros.',
       mediaType: mediaType === 'movie' ? ('movie' as const) : ('show' as const),
-      // Placeholder technical data
-      resolution: '4k',
-      audioFormat: 'Dolby Atmos',
-      // Placeholder status data
-      daysUntilRelease: 14,
-      daysAgo: 3, // For "RELEASED X DAYS AGO" templates
+
+      // Ratings (additional)
+      imdbTop250Rank: 42,
+      isImdbTop250: true,
+      metacriticScore: 85,
+
+      // TMDB Metadata
+      director: 'Christopher Nolan',
+      network: 'HBO', // Always populate for previews
+      genre: 'Action',
+      runtime: 148,
+      tmdbStatus: 'RETURNING', // Always populate for previews
+
+      // Plex Media Info
+      resolution: '4K',
+      width: 3840,
+      height: 2160,
+      aspectRatio: 2.39,
+
+      // Video specs
+      videoCodec: 'hevc',
+      videoProfile: 'main 10',
+      videoFrameRate: '23.976',
+      bitDepth: 10,
+      hdr: true,
+      dolbyVision: true,
+
+      // Audio specs
+      audioCodec: 'truehd',
+      audioChannels: 8,
+      audioChannelLayout: 'atmos',
+      audioFormat: 'English (Dolby TrueHD Atmos 7.1)',
+
+      // File info
+      container: 'mkv',
+      bitrate: 25000,
+      fileSize: 45000000000, // 45 GB
+      filePath: '/media/movies/Sample Movie (2024)/Sample Movie (2024).mkv',
+
+      // Playback stats
+      viewCount: 3,
+      lastPlayed: new Date('2024-12-01'),
+      dateAdded: new Date('2024-11-15'),
+
+      // Status fields
       releaseDate: '2024-12-25',
-      seasonNumber: 2, // For TV "SEASON N" templates
-      episodeNumber: 1,
+      daysUntilRelease: 14,
+      daysAgo: 0, // Set to 0 for "Days Since Release = 0" conditions
+      nextEpisodeAirDate: '2025-01-15', // Always populate for previews
+      daysUntilNextEpisode: 32, // Always populate for previews
+      nextSeasonAirDate: '2025-03-01', // Always populate for previews
+      daysUntilNextSeason: 77, // Always populate for previews
+
+      // Episode information
+      seasonNumber: 2, // Always populate for previews
+      episodeNumber: 5, // Always populate for previews
+      episodeLabel: 'EPISODE 5', // Always populate for previews
+
+      // Monitoring status
       isMonitored: true,
-      downloaded: true, // Show "New Release" type overlays
+      inRadarr: true, // Always populate for previews
+      inSonarr: true, // Always populate for previews
+      hasFile: true,
+      downloaded: true,
+      isTrending: true,
+      isWatched: false,
+
+      // Item metadata
       isPlaceholder: false,
-      tmdbStatus: 'RETURNING',
     };
 
     // Render the overlay on the poster
@@ -797,8 +873,7 @@ router.post('/combined-preview', async (req, res, next) => {
     const tmdbId = match ? parseInt(match[2]) : 0;
 
     // Fetch real TMDB metadata and ratings using shared helper
-    const { title, year, studio, imdbRating, rtCriticsScore, rtAudienceScore } =
-      await fetchPreviewPosterMetadata(mediaType, tmdbId);
+    const tmdbData = await fetchPreviewPosterMetadata(mediaType, tmdbId);
 
     // Check again after API calls
     if (!isLatestRequest()) {
@@ -812,24 +887,85 @@ router.post('/combined-preview', async (req, res, next) => {
       return res.status(200).json({ message: 'Request superseded' });
     }
 
-    // Build render context
+    // Build render context with comprehensive placeholder data
+    // Use fallback values to ensure all fields are always populated for previews
     const sampleContext = {
-      title,
-      year,
-      imdbRating,
-      rtCriticsScore,
-      rtAudienceScore,
-      studio,
+      // Real TMDB data with fallbacks
+      title: tmdbData.title || 'Sample Movie',
+      year: tmdbData.year || 2024,
+      imdbRating: tmdbData.imdbRating || 8.5,
+      rtCriticsScore: tmdbData.rtCriticsScore || 92,
+      rtAudienceScore: tmdbData.rtAudienceScore || 88,
+      studio: tmdbData.studio || 'Warner Bros.',
       mediaType: mediaType === 'movie' ? ('movie' as const) : ('show' as const),
-      resolution: '4k',
-      audioFormat: 'Dolby Atmos',
-      daysUntilRelease: 14,
-      daysAgo: 3, // For "RELEASED X DAYS AGO" templates
+
+      // Ratings (additional)
+      imdbTop250Rank: 42,
+      isImdbTop250: true,
+      metacriticScore: 85,
+
+      // TMDB Metadata
+      director: 'Christopher Nolan',
+      network: 'HBO', // Always populate for previews
+      genre: 'Action',
+      runtime: 148,
+      tmdbStatus: 'RETURNING', // Always populate for previews
+
+      // Plex Media Info
+      resolution: '4K',
+      width: 3840,
+      height: 2160,
+      aspectRatio: 2.39,
+
+      // Video specs
+      videoCodec: 'hevc',
+      videoProfile: 'main 10',
+      videoFrameRate: '23.976',
+      bitDepth: 10,
+      hdr: true,
+      dolbyVision: true,
+
+      // Audio specs
+      audioCodec: 'truehd',
+      audioChannels: 8,
+      audioChannelLayout: 'atmos',
+      audioFormat: 'English (Dolby TrueHD Atmos 7.1)',
+
+      // File info
+      container: 'mkv',
+      bitrate: 25000,
+      fileSize: 45000000000, // 45 GB
+      filePath: '/media/movies/Sample Movie (2024)/Sample Movie (2024).mkv',
+
+      // Playback stats
+      viewCount: 3,
+      lastPlayed: new Date('2024-12-01'),
+      dateAdded: new Date('2024-11-15'),
+
+      // Status fields
       releaseDate: '2024-12-25',
-      seasonNumber: 2, // For TV "SEASON N" templates
-      episodeNumber: 1,
+      daysUntilRelease: 14,
+      daysAgo: 0, // Set to 0 for "Days Since Release = 0" conditions
+      nextEpisodeAirDate: '2025-01-15', // Always populate for previews
+      daysUntilNextEpisode: 32, // Always populate for previews
+      nextSeasonAirDate: '2025-03-01', // Always populate for previews
+      daysUntilNextSeason: 77, // Always populate for previews
+
+      // Episode information
+      seasonNumber: 2, // Always populate for previews
+      episodeNumber: 5, // Always populate for previews
+      episodeLabel: 'EPISODE 5', // Always populate for previews
+
+      // Monitoring status
       isMonitored: true,
-      downloaded: true, // Show "New Release" type overlays
+      inRadarr: true, // Always populate for previews
+      inSonarr: true, // Always populate for previews
+      hasFile: true,
+      downloaded: true,
+      isTrending: true,
+      isWatched: false,
+
+      // Item metadata
       isPlaceholder: false,
     };
 
