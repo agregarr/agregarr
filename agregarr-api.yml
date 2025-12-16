@@ -2194,6 +2194,7 @@ components:
               'trakt',
               'tmdb',
               'imdb',
+              'awards',
               'mdblist',
               'letterboxd',
               'tautulli',
