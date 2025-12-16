@@ -667,9 +667,8 @@ export async function fetchTmdbComingSoonMovies(
     const maxDaysAway = config.comingSoonDays || 360;
 
     // Calculate date range for upcoming releases
-    const { getToday, getFutureDateFromToday } = await import(
-      '@server/utils/dateHelpers'
-    );
+    const { getToday, getFutureDateFromToday, extractReleaseDates } =
+      await import('@server/utils/dateHelpers');
     const today = getToday();
     const todayStr = today.toISOString().split('T')[0];
     const maxDate = getFutureDateFromToday(maxDaysAway);
@@ -710,44 +709,16 @@ export async function fetchTmdbComingSoonMovies(
             movieId: movie.id,
           });
 
-          // Extract digital/physical/theatrical release dates
-          let earliestReleaseDate: Date | null = null;
-          let digitalRelease: string | undefined;
-          let physicalRelease: string | undefined;
-          let inCinemas: string | undefined;
+          // Extract digital/physical/theatrical release dates using shared helper
+          // This checks ALL countries, not just US, to catch anniversary re-releases
+          const extracted = movieDetails.release_dates?.results
+            ? extractReleaseDates(movieDetails.release_dates.results)
+            : {};
 
-          if (movieDetails.release_dates?.results) {
-            const usRelease = movieDetails.release_dates.results.find(
-              (r) => r.iso_3166_1 === 'US'
-            );
-            if (usRelease?.release_dates) {
-              for (const rd of usRelease.release_dates) {
-                if (rd.type === 4 && rd.release_date) {
-                  digitalRelease = rd.release_date;
-                  const releaseDate = new Date(rd.release_date);
-                  if (
-                    !earliestReleaseDate ||
-                    releaseDate < earliestReleaseDate
-                  ) {
-                    earliestReleaseDate = releaseDate;
-                  }
-                }
-                if (rd.type === 5 && rd.release_date) {
-                  physicalRelease = rd.release_date;
-                  const releaseDate = new Date(rd.release_date);
-                  if (
-                    !earliestReleaseDate ||
-                    releaseDate < earliestReleaseDate
-                  ) {
-                    earliestReleaseDate = releaseDate;
-                  }
-                }
-                if (rd.type === 3 && rd.release_date) {
-                  inCinemas = rd.release_date;
-                }
-              }
-            }
-          }
+          const digitalRelease = extracted.digitalRelease;
+          const physicalRelease = extracted.physicalRelease;
+          const inCinemas = extracted.inCinemas;
+          let earliestReleaseDate = extracted.earliestReleaseDate || null;
 
           // Determine release date using priority: Digital > Physical > Theatrical (+3 months)
           let releaseDate: string | undefined;
