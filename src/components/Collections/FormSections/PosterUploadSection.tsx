@@ -167,7 +167,13 @@ const PosterUploadSection = ({
     if (!values.autoPosterTemplate && defaultTemplate) {
       setFieldValue('autoPosterTemplate', defaultTemplate.id);
     }
-  }, [templates, values.autoPosterTemplate, defaultTemplate, setFieldValue, isPreExisting]);
+  }, [
+    templates,
+    values.autoPosterTemplate,
+    defaultTemplate,
+    setFieldValue,
+    isPreExisting,
+  ]);
 
   const handleRemovePoster = (libraryId: string) => {
     const updatedPosters = { ...currentPosters };

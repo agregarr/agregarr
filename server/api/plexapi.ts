@@ -1252,11 +1252,11 @@ class PlexAPI {
   /**
    * Update collection mode (visibility of individual items)
    * @param collectionRatingKey - Collection rating key
-   * @param mode - Collection mode: 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
+   * @param mode - Collection mode: -1 = inherit library default, 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
    */
   public async updateCollectionMode(
     collectionRatingKey: string,
-    mode: 0 | 1 | 2 | 3
+    mode: -1 | 0 | 1 | 2 | 3
   ): Promise<void> {
     try {
       // Plex uses /prefs endpoint with collectionMode query parameter
@@ -2303,6 +2303,44 @@ class PlexAPI {
     );
   }
 
+  /**
+   * Create a smart collection filtered by director name
+   */
+  public async createDirectorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    directorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    return this.smartCollectionManager.createDirectorCollection(
+      title,
+      libraryKey,
+      mediaType,
+      directorName,
+      limit
+    );
+  }
+
+  /**
+   * Create a smart collection filtered by actor name
+   */
+  public async createActorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    actorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    return this.smartCollectionManager.createActorCollection(
+      title,
+      libraryKey,
+      mediaType,
+      actorName,
+      limit
+    );
+  }
+
   // POSTER MANAGEMENT METHODS - Delegated to PlexPosterManager
 
   /**
@@ -2436,6 +2474,7 @@ class PlexAPI {
 
   /**
    * Get top directors from a library section with their item counts
+   * Excludes placeholder items using the same query filters as smart collections
    */
   public async getLibraryDirectors(
     libraryId: string,
@@ -2448,6 +2487,22 @@ class PlexAPI {
         limit,
       });
 
+      // Fetch library metadata to determine media type
+      const libraries = await this.getLibraries();
+      const library = libraries.find((lib) => lib.key === libraryId);
+      const mediaType = library?.type === 'show' ? 'tv' : 'movie';
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build query with placeholder exclusions (same as smart collections)
+      let queryUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&label!=${labelFilter}`;
+      }
+
       const response = await this.plexClient.query<{
         MediaContainer: {
           totalSize: number;
@@ -2456,7 +2511,7 @@ class PlexAPI {
           }[];
         };
       }>({
-        uri: `/library/sections/${libraryId}/all`,
+        uri: queryUri,
         extraHeaders: {
           'X-Plex-Container-Size': '0', // Get all items
         },
@@ -2510,6 +2565,7 @@ class PlexAPI {
 
   /**
    * Get top actors from a library section with their item counts
+   * Excludes placeholder items using the same query filters as smart collections
    */
   public async getLibraryActors(
     libraryId: string,
@@ -2522,6 +2578,22 @@ class PlexAPI {
         limit,
       });
 
+      // Fetch library metadata to determine media type
+      const libraries = await this.getLibraries();
+      const library = libraries.find((lib) => lib.key === libraryId);
+      const mediaType = library?.type === 'show' ? 'tv' : 'movie';
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build query with placeholder exclusions (same as smart collections)
+      let queryUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&label!=${labelFilter}`;
+      }
+
       const response = await this.plexClient.query<{
         MediaContainer: {
           totalSize: number;
@@ -2530,7 +2602,7 @@ class PlexAPI {
           }[];
         };
       }>({
-        uri: `/library/sections/${libraryId}/all`,
+        uri: queryUri,
         extraHeaders: {
           'X-Plex-Container-Size': '0', // Get all items
         },

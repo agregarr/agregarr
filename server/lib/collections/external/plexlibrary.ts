@@ -48,7 +48,7 @@ type TmdbSearchResult = {
 
 type PersonCollectionSubtype = 'directors' | 'actors';
 
-const DEFAULT_SEPARATOR_POSTER = 'generated_seperator.jpg';
+const DEFAULT_SEPARATOR_POSTER = 'generated_separator.jpg';
 
 export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
   constructor() {
@@ -129,12 +129,12 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
     try {
       const templateRepository = getRepository(PosterTemplate);
       const template = await templateRepository.findOne({
-        where: { name: 'Seperator', isActive: true },
+        where: { name: 'Separator', isActive: true },
       });
 
       return template?.id ?? null;
     } catch (error) {
-      logger.warn('Failed to resolve Seperator poster template', {
+      logger.warn('Failed to resolve Separator poster template', {
         label: 'Plex Library Collections',
         error: error instanceof Error ? error.message : String(error),
       });
@@ -414,36 +414,6 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
     }
   }
 
-  private wrapPersonName(name: string, maxLineLength = 16): string[] {
-    const words = name.trim().split(/\s+/);
-    const lines: string[] = [];
-    let currentLine = '';
-
-    for (const word of words) {
-      const candidate = currentLine ? `${currentLine} ${word}` : word;
-      if (candidate.length <= maxLineLength) {
-        currentLine = candidate;
-      } else if (currentLine) {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        // Single very long word - keep as is
-        lines.push(candidate);
-        currentLine = '';
-      }
-    }
-
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-
-    if (lines.length > 2) {
-      return [lines[0], lines.slice(1).join(' ')];
-    }
-
-    return lines;
-  }
-
   private async applyPersonMetadata(
     plexClient: PlexAPI,
     collectionRatingKey: string,
@@ -569,11 +539,16 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         config,
       });
 
-      // Set separator to use library default (collectionMode = 0)
+      // Set separator to inherit library default (collectionMode = -1)
+      // This allows the separator to respect library-level visibility settings
       try {
-        await plexClient.updateCollectionMode(separatorRatingKey, 0);
+        await plexClient.updateCollectionMode(separatorRatingKey, -1);
+        logger.debug('Successfully set separator collection mode to -1 (inherit library default)', {
+          label: 'Plex Library Collections',
+          separatorRatingKey,
+        });
       } catch (modeError) {
-        logger.debug('Failed to set separator collection mode', {
+        logger.warn('Failed to set separator collection mode', {
           label: 'Plex Library Collections',
           error:
             modeError instanceof Error ? modeError.message : String(modeError),
@@ -595,7 +570,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         });
       }
 
-      // Generate poster via pipeline using the Seperator template; fall back to static poster on failure
+      // Generate poster via pipeline using the Separator template; fall back to static poster on failure
       const separatorTemplateId = await this.resolveSeparatorTemplateId();
 
       if (separatorTemplateId) {
@@ -804,16 +779,12 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
     }
 
     const personTypeLabel = this.getPersonTypeLabel(subtype);
-    const depth = 50; // Top N per person type (actors/directors)
-    const limit = 30; // Max items per person
-    const minimumItems = config.personMinimumItems ?? 5; // Minimum threshold
+    const minimumItems = config.personMinimumItems ?? 5;
 
     logger.info(`Processing ${subtype} collection`, {
       label: 'Plex Library Collections',
       configName: config.name,
       libraryId: config.libraryId,
-      depth,
-      limit,
       minimumItems,
     });
 
@@ -846,15 +817,12 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         qualifyingPeople.map((person) => person.name.toLowerCase())
       );
 
-      // Limit to depth
-      const topPeople = qualifyingPeople.slice(0, depth);
-
       logger.info(
-        `Creating collections for ${topPeople.length} ${personTypeLabel}s (${qualifyingPeople.length} qualified, ${people.length} total)`,
+        `Creating collections for ${qualifyingPeople.length} ${personTypeLabel}s (${people.length} total)`,
         {
           label: 'Plex Library Collections',
           configName: config.name,
-          topPeople: topPeople.map(
+          people: qualifyingPeople.map(
             (person) => `${person.name} (${person.count} items)`
           ),
         }
@@ -864,7 +832,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
       let updated = 0;
       let deleted = 0;
 
-      for (const person of topPeople) {
+      for (const person of qualifyingPeople) {
         try {
           const collectionName = person.name;
           const personInfo =
@@ -891,23 +859,17 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
           } else {
             collectionRatingKey =
               subtype === 'actors'
-                ? await plexClient[
-                    'smartCollectionManager'
-                  ].createActorCollection(
+                ? await plexClient.createActorCollection(
                     collectionName,
                     config.libraryId,
                     mediaType,
-                    person.name,
-                    limit
+                    person.name
                   )
-                : await plexClient[
-                    'smartCollectionManager'
-                  ].createDirectorCollection(
+                : await plexClient.createDirectorCollection(
                     collectionName,
                     config.libraryId,
                     mediaType,
-                    person.name,
-                    limit
+                    person.name
                   );
 
             if (collectionRatingKey) {
@@ -955,8 +917,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
                   person.name,
                   mediaType,
                   config,
-                  plexClient,
-                  limit
+                  plexClient
                 )
               : [];
 
@@ -1050,13 +1011,27 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         }
       }
 
+      // If no person collections exist and separator was enabled, clean it up
+      if (qualifyingPeople.length === 0 && config.useSeparator) {
+        logger.info(
+          `No qualifying ${personTypeLabel}s found, cleaning up separator collection`,
+          {
+            label: 'Plex Library Collections',
+            configName: config.name,
+          }
+        );
+        // Re-fetch collections to include the separator we just created
+        const updatedCollections = await plexClient.getAllCollections();
+        await this.cleanupSeparatorCollection(config, plexClient, updatedCollections);
+      }
+
       logger.info(`${subtype} collection sync completed`, {
         label: 'Plex Library Collections',
         configName: config.name,
         created,
         updated,
         deleted,
-        total: topPeople.length,
+        total: qualifyingPeople.length,
       });
 
       return {

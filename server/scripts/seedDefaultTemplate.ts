@@ -188,7 +188,7 @@ async function seedDefaultTemplate() {
       },
       elements: [
         {
-          id: 'seperator-text',
+          id: 'separator-text',
           layerOrder: 10,
           type: 'text',
           x: 80,
@@ -278,7 +278,7 @@ async function seedDefaultTemplate() {
     }
 
     // Seed separator template for grouping collections
-    const separatorTemplateName = 'Seperator';
+    const separatorTemplateName = 'Separator';
     const existingSeparatorTemplate = await templateRepository.findOne({
       where: { name: separatorTemplateName },
     });

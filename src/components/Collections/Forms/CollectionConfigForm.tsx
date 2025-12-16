@@ -1307,7 +1307,7 @@ const CollectionFormConfigForm = ({
           },
         }}
         validationSchema={CollectionFormConfigSchema}
-        enableReinitialize={true}
+        enableReinitialize={false}
         validateOnChange={true}
         validateOnBlur={true}
         onSubmit={async (values, { setFieldError }) => {
@@ -1439,6 +1439,32 @@ const CollectionFormConfigForm = ({
               ? optionalString(values.separatorTitle) || defaultSeparatorTitle
               : undefined;
 
+          // Validate required template variables for multi-collection patterns
+          if (isPersonCollection) {
+            const requiredVar =
+              values.subtype === 'actors' ? '{actor}' : '{director}';
+            if (!values.template?.includes(requiredVar)) {
+              setFieldError(
+                'template',
+                `Template must include ${requiredVar} for ${
+                  values.subtype === 'actors' ? 'actor' : 'director'
+                } collections`
+              );
+              return; // Prevent save
+            }
+          } else if (
+            values.type === 'tmdb' &&
+            values.subtype === 'auto_franchise'
+          ) {
+            if (!values.template?.includes('{franchise}')) {
+              setFieldError(
+                'template',
+                'Template must include {franchise} for auto franchise collections'
+              );
+              return; // Prevent save
+            }
+          }
+
           const configToSave: CollectionFormConfig = {
             ...values,
             // For multi-source collections, ensure type is set correctly
@@ -1446,22 +1472,20 @@ const CollectionFormConfigForm = ({
             subtype: finalSubtype,
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
-            // Force deterministic name/template for auto person collections
+            // Force deterministic names for multi-collection patterns (for UI consistency)
             name: isPersonCollection
               ? values.subtype === 'actors'
                 ? 'Auto Actor Collections'
                 : 'Auto Director Collections'
+              : values.type === 'tmdb' && values.subtype === 'auto_franchise'
+              ? 'Auto Franchise Collections'
               : generateCollectionName(values as CollectionFormConfig),
-            template: isPersonCollection
-              ? values.subtype === 'actors'
-                ? '{actor}'
-                : '{director}'
-              : values.template,
+            // Template is user-customizable, but validated below
+            template: values.template,
             useSeparator: isPersonCollection
               ? Boolean(values.useSeparator)
               : undefined,
             separatorTitle,
-            // Send template as-is - let backend handle custom template selection per library
             customMovieTemplate:
               values.template === 'custom'
                 ? (values as CollectionFormConfig).customMovieTemplate
@@ -1949,6 +1973,15 @@ const CollectionFormConfigForm = ({
                                   Hard Collection&quot;). Only franchises with
                                   2+ movies in your library will be created.
                                 </p>
+                                <p className="mt-2 text-sm text-orange-400">
+                                  <strong>Note:</strong> Your title template
+                                  must include{' '}
+                                  <code className="rounded bg-gray-700 px-1">
+                                    {'{franchise}'}
+                                  </code>{' '}
+                                  (e.g., &quot;{'{franchise}'}&quot; or
+                                  &quot;Movies from the {'{franchise}'}&quot;).
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -1981,11 +2014,29 @@ const CollectionFormConfigForm = ({
                                   collection for each (up to your limits). These
                                   collections stay synced via Plex smart filters
                                   and exclude trailer placeholders. Managed here
-                                  as a single “Auto{' '}
+                                  as a single &quot;Auto{' '}
                                   {values.subtype === 'actors'
                                     ? 'Actor'
                                     : 'Director'}{' '}
-                                  Collections” config.
+                                  Collections&quot; config.
+                                </p>
+                                <p className="mt-2 text-sm text-orange-400">
+                                  <strong>Note:</strong> Your title template
+                                  must include{' '}
+                                  <code className="rounded bg-gray-700 px-1">
+                                    {values.subtype === 'actors'
+                                      ? '{actor}'
+                                      : '{director}'}
+                                  </code>{' '}
+                                  (e.g., &quot;
+                                  {values.subtype === 'actors'
+                                    ? '{actor}'
+                                    : '{director}'}
+                                  &quot; or &quot;Movies by{' '}
+                                  {values.subtype === 'actors'
+                                    ? '{actor}'
+                                    : '{director}'}
+                                  &quot;).
                                 </p>
                               </div>
                             </div>

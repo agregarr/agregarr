@@ -13,7 +13,6 @@ import type {
 } from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
-import { useEffect } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -82,19 +81,6 @@ const CollectionTypeSection = ({
   const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
     '/api/v1/settings/sonarr'
   );
-
-  // Ensure person minimum items defaults to 5 when empty
-  useEffect(() => {
-    const isPersonConfig =
-      values.type === 'plex' && values.subtype === 'actors';
-    const isDirectorConfig =
-      values.type === 'plex' && values.subtype === 'directors';
-    const hasValue = values.personMinimumItems !== undefined;
-
-    if ((isPersonConfig || isDirectorConfig) && !hasValue) {
-      setFieldValue('personMinimumItems', 5);
-    }
-  }, [values.type, values.subtype, values.personMinimumItems, setFieldValue]);
 
   // Validate API keys for the current collection type
   const apiKeyValidation = validateApiKeysForCollectionType(
@@ -589,7 +575,7 @@ const CollectionTypeSection = ({
                     htmlFor="useSeparator"
                     className="text-sm font-medium text-gray-300"
                   >
-                    Use Seperator
+                    Use Separator
                   </label>
                   <p className="text-xs text-gray-400">
                     Create a simple separator collection to group your auto{' '}
