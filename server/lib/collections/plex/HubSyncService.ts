@@ -789,6 +789,287 @@ export class HubSyncService {
           }
         }
 
+        // Sync custom wallpaper if enabled
+        const customWallpaper = preExistingConfig.customWallpaper;
+        const enableCustomWallpaper =
+          preExistingConfig.enableCustomWallpaper ?? false;
+        if (
+          enableCustomWallpaper &&
+          customWallpaper &&
+          preExistingConfig.collectionRatingKey
+        ) {
+          let wallpaperFilename: string | undefined;
+
+          if (typeof customWallpaper === 'string') {
+            // Legacy single wallpaper
+            wallpaperFilename = customWallpaper;
+          } else {
+            // Per-library wallpaper mapping - get wallpaper for current library
+            wallpaperFilename = customWallpaper[preExistingConfig.libraryId];
+          }
+
+          if (wallpaperFilename) {
+            try {
+              // Get full path to wallpaper file
+              const { getWallpaperPath } = await import(
+                '@server/lib/wallpaperStorage'
+              );
+              const wallpaperPath = getWallpaperPath(wallpaperFilename);
+
+              // Check if wallpaper needs reapplication using metadata tracking
+              const metadataService = (
+                await import('@server/lib/metadata/MetadataTrackingService')
+              ).default;
+
+              let shouldUploadWallpaper = true;
+
+              try {
+                const currentArtUrl = await plexClient.getCurrentArtUrl(
+                  preExistingConfig.collectionRatingKey
+                );
+
+                const shouldReapply =
+                  await metadataService.shouldReapplyWallpaper(
+                    preExistingConfig.collectionRatingKey,
+                    wallpaperFilename,
+                    currentArtUrl
+                  );
+
+                if (!shouldReapply) {
+                  logger.info('Wallpaper unchanged, skipping reupload', {
+                    label: 'Hub Sync Service',
+                    collectionName: preExistingConfig.name,
+                    wallpaperFilename,
+                  });
+                  shouldUploadWallpaper = false;
+                }
+              } catch (metaError) {
+                logger.warn('Metadata check failed, proceeding with upload', {
+                  label: 'Hub Sync Service - MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                });
+                // Fall through to upload
+              }
+
+              if (shouldUploadWallpaper) {
+                await plexClient.uploadArtFromFile(
+                  preExistingConfig.collectionRatingKey,
+                  wallpaperPath
+                );
+                await plexClient.lockArt(preExistingConfig.collectionRatingKey);
+
+                // Get new Plex art URL after upload and record metadata
+                try {
+                  const newArtUrl = await plexClient.getCurrentArtUrl(
+                    preExistingConfig.collectionRatingKey
+                  );
+
+                  if (newArtUrl) {
+                    await metadataService.recordWallpaperApplication(
+                      preExistingConfig.collectionRatingKey,
+                      wallpaperFilename,
+                      newArtUrl,
+                      {
+                        configId: preExistingConfig.id,
+                        libraryKey: preExistingConfig.libraryId,
+                      }
+                    );
+                  }
+                } catch (metaError) {
+                  logger.error(
+                    'Failed to record wallpaper metadata, upload succeeded',
+                    {
+                      label: 'Hub Sync Service - MetadataTracking',
+                      error:
+                        metaError instanceof Error
+                          ? metaError.message
+                          : String(metaError),
+                    }
+                  );
+                }
+              }
+
+              logger.debug(
+                `Successfully uploaded wallpaper for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  wallpaperFilename,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to upload wallpaper for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  wallpaperFilename,
+                  error: extractErrorMessage(error),
+                }
+              );
+              // Don't fail the entire sync if wallpaper upload fails
+            }
+          }
+        }
+
+        // Sync custom summary if enabled
+        const customSummary = preExistingConfig.customSummary;
+        const enableCustomSummary =
+          preExistingConfig.enableCustomSummary ?? false;
+        if (
+          enableCustomSummary &&
+          customSummary &&
+          preExistingConfig.collectionRatingKey
+        ) {
+          try {
+            await plexClient.updateSummary(
+              preExistingConfig.collectionRatingKey,
+              customSummary
+            );
+            logger.debug(
+              `Successfully updated summary for pre-existing collection ${preExistingConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionRatingKey: preExistingConfig.collectionRatingKey,
+              }
+            );
+          } catch (error) {
+            logger.warn(
+              `Failed to update summary for pre-existing collection ${preExistingConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionRatingKey: preExistingConfig.collectionRatingKey,
+                error: extractErrorMessage(error),
+              }
+            );
+            // Don't fail the entire sync if summary update fails
+          }
+        }
+
+        // Sync custom theme if enabled
+        const customTheme = preExistingConfig.customTheme;
+        const enableCustomTheme = preExistingConfig.enableCustomTheme ?? false;
+        if (
+          enableCustomTheme &&
+          customTheme &&
+          preExistingConfig.collectionRatingKey
+        ) {
+          let themeFilename: string | undefined;
+
+          if (typeof customTheme === 'string') {
+            // Legacy single theme
+            themeFilename = customTheme;
+          } else {
+            // Per-library theme mapping - get theme for current library
+            themeFilename = customTheme[preExistingConfig.libraryId];
+          }
+
+          if (themeFilename) {
+            try {
+              // Get full path to theme file
+              const { getThemePath } = await import('@server/lib/themeStorage');
+              const themePath = getThemePath(themeFilename);
+
+              // Check if theme needs reapplication using metadata tracking
+              const metadataService = (
+                await import('@server/lib/metadata/MetadataTrackingService')
+              ).default;
+
+              let shouldUploadTheme = true;
+
+              try {
+                const currentThemeUrl = await plexClient.getCurrentThemeUrl(
+                  preExistingConfig.collectionRatingKey
+                );
+
+                const shouldReapply = await metadataService.shouldReapplyTheme(
+                  preExistingConfig.collectionRatingKey,
+                  themeFilename,
+                  currentThemeUrl
+                );
+
+                if (!shouldReapply) {
+                  logger.info('Theme unchanged, skipping reupload', {
+                    label: 'Hub Sync Service',
+                    collectionName: preExistingConfig.name,
+                    themeFilename,
+                  });
+                  shouldUploadTheme = false;
+                }
+              } catch (metaError) {
+                logger.warn('Metadata check failed, proceeding with upload', {
+                  label: 'Hub Sync Service - MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                });
+                // Fall through to upload
+              }
+
+              if (shouldUploadTheme) {
+                await plexClient.uploadThemeFromFile(
+                  preExistingConfig.collectionRatingKey,
+                  themePath
+                );
+
+                // Get new Plex theme URL after upload and record metadata
+                try {
+                  const newThemeUrl = await plexClient.getCurrentThemeUrl(
+                    preExistingConfig.collectionRatingKey
+                  );
+
+                  if (newThemeUrl) {
+                    await metadataService.recordThemeApplication(
+                      preExistingConfig.collectionRatingKey,
+                      themeFilename,
+                      newThemeUrl,
+                      {
+                        configId: preExistingConfig.id,
+                        libraryKey: preExistingConfig.libraryId,
+                      }
+                    );
+                  }
+                } catch (metaError) {
+                  logger.error(
+                    'Failed to record theme metadata, upload succeeded',
+                    {
+                      label: 'Hub Sync Service - MetadataTracking',
+                      error:
+                        metaError instanceof Error
+                          ? metaError.message
+                          : String(metaError),
+                    }
+                  );
+                }
+              }
+
+              logger.debug(
+                `Successfully uploaded theme for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  themeFilename,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to upload theme for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  themeFilename,
+                  error: extractErrorMessage(error),
+                }
+              );
+              // Don't fail the entire sync if theme upload fails
+            }
+          }
+        }
+
         // Mark pre-existing collection as successfully synced
         const settings = getSettings();
         settings.markCollectionSynced(preExistingConfig.id, 'preExisting');

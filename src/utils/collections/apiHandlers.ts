@@ -36,14 +36,29 @@ export const saveIndividualConfigs = async (
         isLinked: preExistingConfig.isLinked,
         linkId: preExistingConfig.linkId,
         isUnlinked: preExistingConfig.isUnlinked,
+        ...(preExistingConfig.titleSort && {
+          titleSort: preExistingConfig.titleSort,
+        }),
         ...(preExistingConfig.randomizeHomeOrder !== undefined && {
           randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
+        }),
+        ...(preExistingConfig.everLibraryPromoted !== undefined && {
+          everLibraryPromoted: preExistingConfig.everLibraryPromoted,
+        }),
+        ...(preExistingConfig.isPromotedToHub !== undefined && {
+          isPromotedToHub: preExistingConfig.isPromotedToHub,
         }),
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
         ...(preExistingConfig.customPoster && {
           customPoster: preExistingConfig.customPoster,
+        }),
+        ...(preExistingConfig.autoPoster !== undefined && {
+          autoPoster: preExistingConfig.autoPoster,
+        }),
+        ...(preExistingConfig.autoPosterTemplate !== undefined && {
+          autoPosterTemplate: preExistingConfig.autoPosterTemplate,
         }),
         ...(preExistingConfig.customWallpaper && {
           customWallpaper: preExistingConfig.customWallpaper,
@@ -87,6 +102,12 @@ export const saveIndividualConfigs = async (
         isUnlinked: hubConfig.isUnlinked,
         ...(hubConfig.randomizeHomeOrder !== undefined && {
           randomizeHomeOrder: hubConfig.randomizeHomeOrder,
+        }),
+        ...(hubConfig.everLibraryPromoted !== undefined && {
+          everLibraryPromoted: hubConfig.everLibraryPromoted,
+        }),
+        ...(hubConfig.isPromotedToHub !== undefined && {
+          isPromotedToHub: hubConfig.isPromotedToHub,
         }),
         ...(hubConfig.timeRestriction && {
           timeRestriction: hubConfig.timeRestriction,

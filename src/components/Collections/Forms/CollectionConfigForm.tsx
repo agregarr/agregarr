@@ -2819,6 +2819,135 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
                           )}
+
+                          {/* Wallpapers and Theme - Only for pre-existing collections, NOT for default Plex hubs */}
+                          {isPreExisting && (
+                            <div className="form-row">
+                              <label className="text-label">
+                                {intl.formatMessage(
+                                  messages.wallpapersAndTheme
+                                )}
+                              </label>
+                              <div className="form-input-area">
+                                {/* Enable Wallpaper Checkbox */}
+                                <div>
+                                  <div className="mb-4 flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="enableCustomWallpaper"
+                                      name="enableCustomWallpaper"
+                                      className="form-checkbox"
+                                    />
+                                    <label
+                                      htmlFor="enableCustomWallpaper"
+                                      className="ml-2 text-sm text-gray-300"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.enableCustomWallpaper
+                                      )}
+                                    </label>
+                                  </div>
+                                  {values.enableCustomWallpaper &&
+                                    values.libraryId && (
+                                      <div className="mb-4">
+                                        <WallpaperUploadSection
+                                          values={
+                                            typedValues as CollectionFormConfig
+                                          }
+                                          setFieldValue={setFieldValue}
+                                          addToast={addToast}
+                                          fieldId="customWallpaper"
+                                          libraries={libraries}
+                                          selectedLibraryIds={
+                                            values.libraryId
+                                              ? [values.libraryId]
+                                              : []
+                                          }
+                                        />
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Enable Theme Checkbox */}
+                                <div>
+                                  <div className="mb-4 flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="enableCustomTheme"
+                                      name="enableCustomTheme"
+                                      className="form-checkbox"
+                                    />
+                                    <label
+                                      htmlFor="enableCustomTheme"
+                                      className="ml-2 text-sm text-gray-300"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.enableCustomTheme
+                                      )}
+                                    </label>
+                                  </div>
+                                  {values.enableCustomTheme &&
+                                    values.libraryId && (
+                                      <div className="mb-4">
+                                        <ThemeUploadSection
+                                          values={
+                                            typedValues as CollectionFormConfig
+                                          }
+                                          setFieldValue={setFieldValue}
+                                          addToast={addToast}
+                                          fieldId="customTheme"
+                                          libraries={libraries}
+                                          selectedLibraryIds={
+                                            values.libraryId
+                                              ? [values.libraryId]
+                                              : []
+                                          }
+                                        />
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Enable Summary Checkbox */}
+                                <div>
+                                  <div className="mb-4 flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="enableCustomSummary"
+                                      name="enableCustomSummary"
+                                      className="form-checkbox"
+                                    />
+                                    <label
+                                      htmlFor="enableCustomSummary"
+                                      className="ml-2 text-sm text-gray-300"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.enableCustomSummary
+                                      )}
+                                    </label>
+                                  </div>
+                                  {values.enableCustomSummary && (
+                                    <div>
+                                      <Field
+                                        as="textarea"
+                                        id="customSummary"
+                                        name="customSummary"
+                                        rows={4}
+                                        className="w-full resize-none rounded-md border border-stone-600 bg-stone-800 px-3 py-2 text-sm text-white placeholder-stone-400 focus:border-orange-500 focus:outline-none"
+                                        placeholder={intl.formatMessage(
+                                          messages.customSummaryPlaceholder
+                                        )}
+                                      />
+                                      <div className="label-tip mt-1">
+                                        {intl.formatMessage(
+                                          messages.customSummaryHelp
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
 

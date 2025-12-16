@@ -369,6 +369,13 @@ export interface PreExistingCollectionConfig {
   customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   autoPoster?: boolean; // Auto-generate poster during sync (same as CollectionConfig)
   autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Wallpaper, summary, and theme support
+  customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  customSummary?: string; // Custom summary/description text for the collection
+  customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  enableCustomTheme?: boolean; // Enable custom theme sync to Plex
 }
 
 export interface PlexSettings {

@@ -627,11 +627,47 @@ const AllCollectionsView: React.FC = () => {
         ...(preExistingConfig.isUnlinked !== undefined && {
           isUnlinked: preExistingConfig.isUnlinked,
         }),
+        ...(preExistingConfig.titleSort && {
+          titleSort: preExistingConfig.titleSort,
+        }),
+        ...(preExistingConfig.randomizeHomeOrder !== undefined && {
+          randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
+        }),
+        ...(preExistingConfig.everLibraryPromoted !== undefined && {
+          everLibraryPromoted: preExistingConfig.everLibraryPromoted,
+        }),
+        ...(preExistingConfig.isPromotedToHub !== undefined && {
+          isPromotedToHub: preExistingConfig.isPromotedToHub,
+        }),
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
         ...(preExistingConfig.customPoster && {
           customPoster: preExistingConfig.customPoster,
+        }),
+        ...(preExistingConfig.autoPoster !== undefined && {
+          autoPoster: preExistingConfig.autoPoster,
+        }),
+        ...(preExistingConfig.autoPosterTemplate !== undefined && {
+          autoPosterTemplate: preExistingConfig.autoPosterTemplate,
+        }),
+        ...(preExistingConfig.customWallpaper && {
+          customWallpaper: preExistingConfig.customWallpaper,
+        }),
+        ...(preExistingConfig.customSummary && {
+          customSummary: preExistingConfig.customSummary,
+        }),
+        ...(preExistingConfig.customTheme && {
+          customTheme: preExistingConfig.customTheme,
+        }),
+        ...(preExistingConfig.enableCustomWallpaper !== undefined && {
+          enableCustomWallpaper: preExistingConfig.enableCustomWallpaper,
+        }),
+        ...(preExistingConfig.enableCustomSummary !== undefined && {
+          enableCustomSummary: preExistingConfig.enableCustomSummary,
+        }),
+        ...(preExistingConfig.enableCustomTheme !== undefined && {
+          enableCustomTheme: preExistingConfig.enableCustomTheme,
         }),
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
