@@ -543,10 +543,13 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
       // This allows the separator to respect library-level visibility settings
       try {
         await plexClient.updateCollectionMode(separatorRatingKey, -1);
-        logger.debug('Successfully set separator collection mode to -1 (inherit library default)', {
-          label: 'Plex Library Collections',
-          separatorRatingKey,
-        });
+        logger.debug(
+          'Successfully set separator collection mode to -1 (inherit library default)',
+          {
+            label: 'Plex Library Collections',
+            separatorRatingKey,
+          }
+        );
       } catch (modeError) {
         logger.warn('Failed to set separator collection mode', {
           label: 'Plex Library Collections',
@@ -1022,7 +1025,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         );
         // Re-fetch collections to include the separator we just created
         const updatedCollections = await plexClient.getAllCollections();
-        await this.cleanupSeparatorCollection(config, plexClient, updatedCollections);
+        await this.cleanupSeparatorCollection(
+          config,
+          plexClient,
+          updatedCollections
+        );
       }
 
       logger.info(`${subtype} collection sync completed`, {
