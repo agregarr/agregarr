@@ -234,7 +234,7 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
               .replace(/&mdash;/g, '—') // Replace em-dash
               .replace(/&hellip;/g, '…') // Replace ellipsis
               .replace(/&quot;/g, '"') // Replace quotes
-              .replace(/&#39;/g, "'") // Replace apostrophe
+              .replace(/&#0?39;/g, "'") // Replace apostrophe (with or without leading zero)
               .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
               .replace(/&amp;/g, '&') // Replace ampersand (do this last)
               .replace(/&lt;/g, '<')
@@ -401,7 +401,8 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
                 .replace(/&mdash;/g, '—') // Replace em-dash
                 .replace(/&hellip;/g, '…') // Replace ellipsis
                 .replace(/&quot;/g, '"') // Replace quotes
-                .replace(/&#39;/g, "'") // Replace apostrophe
+                .replace(/&#0?39;/g, "'") // Replace apostrophe (with or without leading zero)
+                .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
                 .replace(/&amp;/g, '&') // Replace ampersand (do this last)
                 .replace(/&lt;/g, '<')
                 .replace(/&gt;/g, '>');

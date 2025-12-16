@@ -1122,6 +1122,118 @@ export function filterItemsByPosition<T extends { originalPosition: number }>(
 }
 
 /**
+ * Apply collection mutual exclusion - remove items that exist in excluded collections
+ * This is a utility function used by both BaseCollectionSync and MultiSourceOrchestrator
+ */
+export async function applyCollectionExclusions(
+  items: CollectionItem[],
+  config:
+    | CollectionConfig
+    | { name: string; excludeFromCollections?: string[] },
+  plexClient: PlexAPI,
+  source: CollectionSource
+): Promise<CollectionItem[]> {
+  // Skip if no exclusions configured
+  if (
+    !config.excludeFromCollections ||
+    config.excludeFromCollections.length === 0
+  ) {
+    return items;
+  }
+
+  try {
+    // Get all items from excluded collections
+    const excludedRatingKeys = new Set<string>();
+
+    for (const excludedCollectionId of config.excludeFromCollections) {
+      // Find the collection configuration to get its rating key
+      const settings = getSettings();
+      const excludedConfig = settings.plex.collectionConfigs?.find(
+        (c) => c.id === excludedCollectionId
+      );
+
+      if (!excludedConfig || !excludedConfig.collectionRatingKey) {
+        logger.debug(
+          `Excluded collection ${excludedCollectionId} not found or has no rating key`,
+          {
+            label: `${source} Collections`,
+            configName: config.name,
+            excludedCollectionId,
+          }
+        );
+        continue;
+      }
+
+      // Fetch items from the excluded collection
+      try {
+        const collectionItemRatingKeys = await plexClient.getCollectionItems(
+          excludedConfig.collectionRatingKey
+        );
+
+        // Add all rating keys from this collection to the exclusion set
+        for (const ratingKey of collectionItemRatingKeys) {
+          excludedRatingKeys.add(ratingKey);
+        }
+
+        logger.debug(
+          `Loaded ${collectionItemRatingKeys.length} items from excluded collection "${excludedConfig.name}"`,
+          {
+            label: `${source} Collections`,
+            configName: config.name,
+            excludedCollection: excludedConfig.name,
+            itemCount: collectionItemRatingKeys.length,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to fetch items from excluded collection ${excludedConfig.name}: ${error}`,
+          {
+            label: `${source} Collections`,
+            configName: config.name,
+            excludedCollection: excludedConfig.name,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+    }
+
+    // Filter out items that exist in any excluded collection
+    const beforeCount = items.length;
+    const filteredItems = items.filter(
+      (item) => !excludedRatingKeys.has(item.ratingKey)
+    );
+    const excludedCount = beforeCount - filteredItems.length;
+
+    if (excludedCount > 0) {
+      logger.info(
+        `Excluded ${excludedCount} items from collection "${config.name}" based on mutual exclusion rules`,
+        {
+          label: `${source} Collections`,
+          configName: config.name,
+          beforeCount,
+          afterCount: filteredItems.length,
+          excludedCount,
+          excludedCollectionIds: config.excludeFromCollections,
+        }
+      );
+    }
+
+    return filteredItems;
+  } catch (error) {
+    logger.error(
+      `Error applying collection exclusions for ${config.name}: ${error}`,
+      {
+        label: `${source} Collections`,
+        configName: config.name,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    );
+    // Return original items on error - don't fail the entire sync
+    return items;
+  }
+}
+
+/**
  * Process missing items using the appropriate download service based on collection config
  * Routes to either Overseerr request workflow or direct *arr download workflow
  */
