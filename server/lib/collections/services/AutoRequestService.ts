@@ -66,6 +66,7 @@ export class AutoRequestService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'

@@ -53,6 +53,7 @@ export type ServiceType =
   | 'trakt'
   | 'tmdb'
   | 'imdb'
+  | 'awards'
   | 'mdblist'
   | 'letterboxd'
   | 'networks'
@@ -75,6 +76,7 @@ export function generateServiceUserConfig(
     trakt: { name: 'Trakt' },
     tmdb: { name: 'TMDB' },
     imdb: { name: 'IMDb' },
+    awards: { name: 'Awards' },
     mdblist: { name: 'MDBList' },
     letterboxd: { name: 'Letterboxd' },
     networks: { name: 'Networks' },

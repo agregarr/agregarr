@@ -369,6 +369,7 @@ export const FormStateHelpers = {
       values.type === 'trakt' ||
       values.type === 'tmdb' ||
       values.type === 'imdb' ||
+      values.type === 'awards' ||
       values.type === 'letterboxd' ||
       values.type === 'multi-source'
     ) {

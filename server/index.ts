@@ -36,6 +36,15 @@ const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
+// Log unhandled rejections early to aid debugging startup failures
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection during startup', {
+    label: 'Server',
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+
 app
   .prepare()
   .then(async () => {
@@ -1335,6 +1344,11 @@ app
     }
   })
   .catch((err) => {
-    logger.error(err.stack);
+    logger.error('Failed to start server', {
+      label: 'Server',
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      rawError: err,
+    });
     process.exit(1);
   });

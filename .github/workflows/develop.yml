@@ -63,7 +63,6 @@ jobs:
           tags: |
             agregarr/agregarr:develop
 
-
   discord:
     name: Send Discord Notification
     needs: build_and_push
@@ -86,12 +85,12 @@ jobs:
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK_DEVELOP }}
-          title: "✅ Agregarr Develop Build"
+          title: '✅ Agregarr Develop Build'
           description: |
             **Repository:** ${{ github.repository }}
             **Branch:** ${{ github.ref_name }}
             **Commit:** [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
           color: 0x00ff00
-          username: "Agregarr Bot"
-          url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          username: 'Agregarr Bot'
+          url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           nofail: true

@@ -29,6 +29,7 @@ export class DirectDownloadService {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
+    | 'awards'
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
@@ -45,6 +46,7 @@ export class DirectDownloadService {
     trakt: 'Trakt',
     tmdb: 'Tmdb',
     imdb: 'Imdb',
+    awards: 'Awards',
     letterboxd: 'Letterboxd',
     anilist: 'Anilist',
     myanimelist: 'MyAnimeList',
@@ -97,6 +99,7 @@ export class DirectDownloadService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'
@@ -214,6 +217,7 @@ export class DirectDownloadService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'
@@ -394,6 +398,7 @@ export class DirectDownloadService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'
@@ -487,6 +492,7 @@ export class DirectDownloadService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'
@@ -579,6 +585,7 @@ export class DirectDownloadService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'
@@ -683,6 +690,7 @@ export class DirectDownloadService {
       | 'trakt'
       | 'tmdb'
       | 'imdb'
+      | 'awards'
       | 'letterboxd'
       | 'anilist'
       | 'myanimelist'

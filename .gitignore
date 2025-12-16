@@ -91,3 +91,4 @@ config/cache
 # Claude
 .claude
 CLAUDE.md
+agents.md

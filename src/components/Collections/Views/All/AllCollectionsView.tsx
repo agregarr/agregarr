@@ -946,6 +946,10 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'awards':
+                                return subtype
+                                  .replace(/_/g, ' ')
+                                  .replace(/\b\w/g, (l) => l.toUpperCase());
                               case 'mdblist':
                                 switch (subtype) {
                                   case 'custom':
@@ -1083,6 +1087,8 @@ const AllCollectionsView: React.FC = () => {
                               ? 'TMDB'
                               : config.type === 'imdb'
                               ? 'IMDb'
+                              : config.type === 'awards'
+                              ? 'Awards'
                               : config.type === 'mdblist'
                               ? 'MDBList'
                               : config.type === 'letterboxd'

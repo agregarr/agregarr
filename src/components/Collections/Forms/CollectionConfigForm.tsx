@@ -1925,6 +1925,9 @@ const CollectionFormConfigForm = ({
                             ) {
                               return 'movie';
                             }
+                            if (values.type === 'awards') {
+                              return 'movie';
+                            }
                             if (values.type === 'letterboxd') {
                               return 'movie';
                             }

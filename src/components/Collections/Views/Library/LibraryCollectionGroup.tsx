@@ -562,6 +562,10 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'awards':
+                        return subtype
+                          .replace(/_/g, ' ')
+                          .replace(/\b\w/g, (l) => l.toUpperCase());
                       case 'mdblist':
                         switch (subtype) {
                           case 'custom':
@@ -693,6 +697,8 @@ const SortableItem = ({
                       ? 'TMDB'
                       : collection.type === 'imdb'
                       ? 'IMDb'
+                      : collection.type === 'awards'
+                      ? 'Awards'
                       : collection.type === 'mdblist'
                       ? 'MDBList'
                       : collection.type === 'letterboxd'

@@ -1132,6 +1132,7 @@ export async function processMissingItemsWithMode(
     | 'trakt'
     | 'tmdb'
     | 'imdb'
+    | 'awards'
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'

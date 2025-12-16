@@ -2413,6 +2413,7 @@ export abstract class BaseCollectionSync implements CollectionSyncInterface {
       originals: 'originals-list',
       anilist: 'anilist-list',
       myanimelist: 'myanimelist-list',
+      awards: 'imdb-list',
       // Note: multi-source doesn't have its own cache, it uses individual source caches
     };
 

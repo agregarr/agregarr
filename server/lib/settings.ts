@@ -51,6 +51,7 @@ export interface CollectionConfig {
     | 'trakt'
     | 'tmdb'
     | 'imdb'
+    | 'awards'
     | 'letterboxd'
     | 'mdblist'
     | 'networks'

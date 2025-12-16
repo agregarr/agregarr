@@ -1206,6 +1206,20 @@ export const getTemplatePresets = (
     }
   }
 
+  if (values.type === 'awards') {
+    const subtypeLabel = values.subtype
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (l) => l.toUpperCase());
+
+    return [
+      {
+        label: subtypeLabel,
+        value: subtypeLabel,
+      },
+      { label: 'Custom', value: 'custom' },
+    ];
+  }
+
   // Letterboxd collection presets
   if (values.type === 'letterboxd') {
     switch (values.subtype) {

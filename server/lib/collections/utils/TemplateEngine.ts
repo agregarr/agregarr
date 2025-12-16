@@ -13,6 +13,7 @@ export interface TemplateContext {
   statType?: string;
   servername?: string;
   subtype?: string;
+  source?: string;
   domain?: string;
   nickname?: string;
   username?: string;
@@ -420,6 +421,21 @@ export class TemplateEngine {
   }
 
   /**
+   * Create context for Awards collections
+   */
+  public createAwardsContext(
+    mediaType: 'movie' | 'tv',
+    subtype: string
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      mediaType,
+      subtype: this.getAwardsSubtypeLabel(subtype),
+      source: 'awards',
+    };
+  }
+
+  /**
    * Create context for Overseerr collections
    */
   public createOverseerrContext(
@@ -814,6 +830,13 @@ export class TemplateEngine {
   private getOriginalsSubtypeLabel(platform: string): string {
     // Reuse Networks labeling since they use the same platforms
     return this.getNetworksSubtypeLabel(platform);
+  }
+
+  /**
+   * Get human-readable label for Awards subtype
+   */
+  private getAwardsSubtypeLabel(subtype: string): string {
+    return subtype.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   /**

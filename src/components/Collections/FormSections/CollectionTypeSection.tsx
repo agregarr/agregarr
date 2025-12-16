@@ -108,6 +108,7 @@ const CollectionTypeSection = ({
     { value: 'letterboxd', label: 'Letterboxd Lists' },
     { value: 'tmdb', label: 'TMDB Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
+    { value: 'awards', label: 'Awards' },
     { value: 'mdblist', label: 'MDBList Lists' },
     { value: 'networks', label: 'Networks Top 10' },
     { value: 'originals', label: 'Networks Originals' },
@@ -246,6 +247,15 @@ const CollectionTypeSection = ({
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured IMDb lists',
+          },
+        ];
+      case 'awards':
+        return [
+          {
+            value: 'academy_awards_best_picture_winners',
+            label: 'Academy Awards Best Picture Winners',
+            description:
+              'Winners of the Academy Award for Best Motion Picture of the Year',
           },
         ];
       case 'letterboxd':
@@ -412,6 +422,9 @@ const CollectionTypeSection = ({
             if (newType === 'letterboxd') {
               setFieldValue('mediaType', 'movie');
             }
+            if (newType === 'awards') {
+              setFieldValue('mediaType', 'movie');
+            }
           }}
         >
           <option value="">{intl.formatMessage(messages.selectSource)}</option>
@@ -447,6 +460,9 @@ const CollectionTypeSection = ({
                 setFieldValue('mediaType', 'movie');
               }
               if (values.type === 'imdb' && newSubtype === 'boxoffice') {
+                setFieldValue('mediaType', 'movie');
+              }
+              if (values.type === 'awards') {
                 setFieldValue('mediaType', 'movie');
               }
 
