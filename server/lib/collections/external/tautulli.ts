@@ -34,7 +34,7 @@ interface TautulliCollectionItem extends CollectionItem {
  * the standardized pipeline while maintaining identical functionality
  * to the original TautulliCollectionSync class.
  */
-export class TautulliCollectionSync extends BaseCollectionSync {
+export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
   private tautulliClient: TautulliAPI | null = null;
 
   constructor() {

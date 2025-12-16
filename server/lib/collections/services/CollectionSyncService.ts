@@ -3,7 +3,10 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
-import type { SyncResult } from '@server/lib/collections/core/types';
+import type {
+  CollectionSource,
+  SyncResult,
+} from '@server/lib/collections/core/types';
 import type {
   MultiSourceCollectionConfig,
   MultiSourceCombineMode,
@@ -499,7 +502,9 @@ export class CollectionSyncService {
    * Create the appropriate sync service for a given collection type
    * Simple factory method without over-engineering
    */
-  public async createSyncService(type: string): Promise<BaseCollectionSync> {
+  public async createSyncService(
+    type: string
+  ): Promise<BaseCollectionSync<CollectionSource>> {
     switch (type) {
       case 'trakt': {
         const { TraktCollectionSync } = await import('../external/trakt');

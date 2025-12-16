@@ -40,7 +40,7 @@ interface OriginalsCollectionItem extends CollectionItem {
  * Uses MDBList to fetch pre-curated lists of streaming platform originals.
  * Much faster and more reliable than web scraping.
  */
-export class OriginalsCollectionSync extends BaseCollectionSync {
+export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
   private mdblistClients: Map<string, MDBListAPI> = new Map();
 
   // Map provider subtypes to Kometa's MDBList URLs
@@ -480,6 +480,7 @@ export class OriginalsCollectionSync extends BaseCollectionSync {
             title: lookup.title,
             year: lookup.year,
             originalPosition: lookup.originalPosition,
+            source: this.source,
           });
         }
       }

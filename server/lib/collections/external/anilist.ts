@@ -46,7 +46,7 @@ interface PlexLibraryItem {
   Guid?: PlexGuid[]; // Capital G to match actual Plex API response
 }
 
-export class AnilistCollectionSync extends BaseCollectionSync {
+export class AnilistCollectionSync extends BaseCollectionSync<'anilist'> {
   constructor() {
     super('anilist');
   }
@@ -1307,6 +1307,7 @@ export class AnilistCollectionSync extends BaseCollectionSync {
           mediaType: itemMediaType,
           title: displayTitle,
           originalPosition: i + 1,
+          source: this.source,
         });
       }
     }

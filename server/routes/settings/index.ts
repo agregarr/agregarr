@@ -1202,6 +1202,93 @@ settingsRoutes.post('/reset', async (_req, res, next) => {
     const collectionsSync = await import('@server/lib/collectionsSync');
     await collectionsSync.default.cleanupCollections();
 
+    // Clean up ALL placeholder records and files
+    try {
+      const { getRepository } = await import('@server/datasource');
+      const { PlaceholderItem } = await import(
+        '@server/entity/PlaceholderItem'
+      );
+      const path = await import('path');
+      const settings = getSettings();
+
+      const repository = getRepository(PlaceholderItem);
+      const allPlaceholders = await repository.find();
+
+      if (allPlaceholders.length > 0) {
+        logger.info(
+          `Cleaning up ${allPlaceholders.length} placeholder records during reset`,
+          {
+            label: 'Settings Reset',
+            recordCount: allPlaceholders.length,
+          }
+        );
+
+        let filesRemoved = 0;
+        const filesToDelete = new Set<string>(); // Track unique file paths
+
+        // Collect unique file paths to delete
+        for (const record of allPlaceholders) {
+          if (record.placeholderPath) {
+            const libraryPath =
+              record.mediaType === 'movie'
+                ? settings.main.placeholderMovieRootFolder
+                : settings.main.placeholderTVRootFolder;
+
+            if (libraryPath) {
+              const fullPath = path.join(libraryPath, record.placeholderPath);
+              filesToDelete.add(fullPath);
+            }
+          }
+        }
+
+        // Delete all unique placeholder files
+        if (filesToDelete.size > 0) {
+          const { removePlaceholder } = await import(
+            '@server/lib/comingsoon/placeholderManager'
+          );
+
+          for (const fullPath of filesToDelete) {
+            try {
+              // Determine media type from path
+              const mediaType = fullPath.includes(
+                settings.main.placeholderMovieRootFolder || 'movies'
+              )
+                ? 'movie'
+                : 'tv';
+              await removePlaceholder(fullPath, mediaType);
+              filesRemoved++;
+            } catch (error) {
+              // File might already be gone - that's ok
+              if (error instanceof Error && !error.message.includes('ENOENT')) {
+                logger.warn('Failed to remove placeholder file during reset', {
+                  label: 'Settings Reset',
+                  path: fullPath,
+                  error: error.message,
+                });
+              } else {
+                filesRemoved++; // File doesn't exist - consider it removed
+              }
+            }
+          }
+        }
+
+        // Delete all database records
+        await repository.remove(allPlaceholders);
+
+        logger.info('Placeholder cleanup completed during reset', {
+          label: 'Settings Reset',
+          recordsRemoved: allPlaceholders.length,
+          filesRemoved,
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to cleanup placeholder records during reset', {
+        label: 'Settings Reset',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue with reset even if placeholder cleanup fails
+    }
+
     logger.info('Manual reset completed successfully', {
       label: 'Settings Reset',
     });

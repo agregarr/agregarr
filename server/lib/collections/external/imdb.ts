@@ -29,7 +29,7 @@ import logger from '@server/logger';
  * Supports IMDb Top 250, Popular lists, and custom user lists.
  * Uses web scraping since IMDb doesn't have a public API for lists.
  */
-export class ImdbCollectionSync extends BaseCollectionSync {
+export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
   private tmdbClient: TmdbAPI;
   private dynamicRandomTitle: string | null = null;
 
@@ -858,6 +858,7 @@ export class ImdbCollectionSync extends BaseCollectionSync {
             title: lookup.title,
             year: lookup.year,
             originalPosition: lookup.originalPosition,
+            source: this.source,
           });
         } else {
           logger.debug(`Skipping episode ${lookup.title} from missing items`, {

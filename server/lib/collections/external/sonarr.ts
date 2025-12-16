@@ -32,7 +32,7 @@ interface SonarrTagCollectionItem extends CollectionItem {
  * Creates collections from Sonarr tags - fetches all TV shows that have a specific tag
  * in Sonarr and creates a Plex collection from them.
  */
-export class SonarrTagCollectionSync extends BaseCollectionSync {
+export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
   private sonarrClients: Map<number, SonarrAPI> = new Map();
 
   constructor() {
@@ -457,6 +457,7 @@ export class SonarrTagCollectionSync extends BaseCollectionSync {
               title: lookup.title,
               year: lookup.year,
               originalPosition: lookup.originalPosition,
+              source: this.source,
             });
           }
         }

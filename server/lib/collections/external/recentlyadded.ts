@@ -34,7 +34,7 @@ import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
-export class FilteredHubCollectionSync extends BaseCollectionSync {
+export class FilteredHubCollectionSync extends BaseCollectionSync<'filtered_hub'> {
   constructor() {
     super('filtered_hub');
   }

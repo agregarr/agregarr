@@ -40,7 +40,7 @@ interface TraktCollectionItem extends CollectionItem {
  * Handles multiple Trakt API types (trending, popular, watched, custom lists)
  * with auto-request functionality and comprehensive error handling.
  */
-export class TraktCollectionSync extends BaseCollectionSync {
+export class TraktCollectionSync extends BaseCollectionSync<'trakt'> {
   private traktClients: Map<string, TraktAPI> = new Map();
   private dynamicRandomTitle: string | null = null;
 
@@ -711,6 +711,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             title: lookup.title,
             year: lookup.year,
             originalPosition: lookup.originalPosition,
+            source: this.source,
           });
         } else {
           logger.debug(

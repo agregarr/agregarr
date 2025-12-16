@@ -28,7 +28,7 @@ import logger from '@server/logger';
 /**
  * TMDB Collection Sync - Simple implementation for trending/popular/top-rated content
  */
-export class TmdbCollectionSync extends BaseCollectionSync {
+export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
   private tmdbClient: TmdbAPI;
   private dynamicRandomTitle: string | null = null;
 
@@ -609,6 +609,7 @@ export class TmdbCollectionSync extends BaseCollectionSync {
           title: lookup.title,
           year: lookup.year,
           originalPosition: lookup.originalPosition,
+          source: this.source,
         });
       }
     }

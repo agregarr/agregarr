@@ -1,3 +1,4 @@
+import type { ItemProducingSource } from '@server/lib/collections/core/types';
 import {
   Column,
   CreateDateColumn,
@@ -34,19 +35,7 @@ export class PlaceholderItem {
   public year?: number;
 
   @Column({ type: 'varchar' })
-  public source:
-    | 'anilist'
-    | 'comingsoon'
-    | 'imdb'
-    | 'letterboxd'
-    | 'mdblist'
-    | 'myanimelist'
-    | 'networks'
-    | 'originals'
-    | 'radarr'
-    | 'sonarr'
-    | 'tmdb'
-    | 'trakt';
+  public source: ItemProducingSource;
 
   @Column({ type: 'varchar' })
   public placeholderPath: string; // Full filesystem path to placeholder file

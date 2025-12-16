@@ -49,7 +49,7 @@ import {
  * - 'trakt_anticipated' subtype: Most anticipated upcoming content from Trakt
  * - 'tmdb_anticipated' subtype: Upcoming releases from TMDB Discover (movies: digital/physical, TV: new & returning shows)
  */
-export class ComingSoonCollectionSync extends BaseCollectionSync {
+export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
   constructor() {
     super('comingsoon');
   }

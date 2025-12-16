@@ -5,6 +5,7 @@ import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionU
 import type {
   CollectionItem,
   FilteringStats,
+  ItemProducingSource,
   MissingItem,
   NetworksSourceData,
 } from '@server/lib/collections/core/types';
@@ -1699,6 +1700,7 @@ collectionsPreviewRoutes.post(
           mediaType: 'movie' as const,
           title: 'Unknown',
           originalPosition: 1,
+          source: (sourceType || 'imdb') as ItemProducingSource,
         };
 
         const radarrDownloadConfigRecord: Record<string, unknown> = {
@@ -1750,6 +1752,7 @@ collectionsPreviewRoutes.post(
           mediaType: 'tv' as const,
           title: 'Unknown',
           originalPosition: 1,
+          source: (sourceType || 'imdb') as ItemProducingSource,
         };
 
         const sonarrDownloadConfigRecord: Record<string, unknown> = {

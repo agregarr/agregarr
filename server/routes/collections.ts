@@ -1020,6 +1020,146 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
     settings.plex.collectionConfigs = remainingConfigs;
     settings.save();
 
+    // Clean up placeholder records for deleted collections
+    try {
+      const { getRepository } = await import('@server/datasource');
+      const { PlaceholderItem } = await import(
+        '@server/entity/PlaceholderItem'
+      );
+      const { Not } = await import('typeorm');
+      const path = await import('path');
+
+      const repository = getRepository(PlaceholderItem);
+      let totalPlaceholdersRemoved = 0;
+      let totalFilesRemoved = 0;
+
+      for (const deletedConfig of configsToDelete) {
+        const orphanedRecords = await repository.find({
+          where: { configId: deletedConfig.id },
+        });
+
+        if (orphanedRecords.length === 0) {
+          continue;
+        }
+
+        logger.info(
+          `Cleaning up ${orphanedRecords.length} placeholder records for deleted collection`,
+          {
+            label: 'Collections API',
+            configId: deletedConfig.id,
+            configName: deletedConfig.name,
+            recordCount: orphanedRecords.length,
+          }
+        );
+
+        for (const record of orphanedRecords) {
+          try {
+            let fileDeleted = false;
+
+            // Check if we should delete the placeholder file
+            if (record.placeholderPath) {
+              // Check if any OTHER collection still needs this file
+              const otherCollectionRecords = await repository.find({
+                where: {
+                  placeholderPath: record.placeholderPath,
+                  configId: Not(deletedConfig.id),
+                },
+              });
+
+              if (otherCollectionRecords.length === 0) {
+                // No other collections use this file - safe to delete
+                const libraryPath =
+                  record.mediaType === 'movie'
+                    ? settings.main.placeholderMovieRootFolder
+                    : settings.main.placeholderTVRootFolder;
+
+                if (libraryPath) {
+                  const fullPath = path.join(
+                    libraryPath,
+                    record.placeholderPath
+                  );
+
+                  try {
+                    const { removePlaceholder } = await import(
+                      '@server/lib/comingsoon/placeholderManager'
+                    );
+                    await removePlaceholder(fullPath, record.mediaType);
+                    fileDeleted = true;
+                    totalFilesRemoved++;
+                  } catch (error) {
+                    // File might already be gone - that's ok
+                    if (
+                      error instanceof Error &&
+                      !error.message.includes('ENOENT')
+                    ) {
+                      logger.warn('Failed to remove placeholder file', {
+                        label: 'Collections API',
+                        title: record.title,
+                        path: fullPath,
+                        error: error.message,
+                      });
+                    } else {
+                      fileDeleted = true; // File doesn't exist - consider it removed
+                    }
+                  }
+                } else {
+                  logger.warn(
+                    'Placeholder library path not configured - cannot remove file',
+                    {
+                      label: 'Collections API',
+                      title: record.title,
+                      mediaType: record.mediaType,
+                    }
+                  );
+                }
+              } else {
+                logger.debug(
+                  'Placeholder file shared with other collections - keeping file',
+                  {
+                    label: 'Collections API',
+                    title: record.title,
+                    otherCollections: otherCollectionRecords.length,
+                  }
+                );
+              }
+            }
+
+            // Always delete the database record (even if file deletion failed)
+            await repository.remove(record);
+            totalPlaceholdersRemoved++;
+
+            logger.debug('Removed placeholder record', {
+              label: 'Collections API',
+              title: record.title,
+              configId: deletedConfig.id,
+              fileDeleted,
+            });
+          } catch (error) {
+            logger.error('Failed to cleanup placeholder record', {
+              label: 'Collections API',
+              title: record.title,
+              configId: deletedConfig.id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
+
+      if (totalPlaceholdersRemoved > 0) {
+        logger.info('Placeholder cleanup completed', {
+          label: 'Collections API',
+          recordsRemoved: totalPlaceholdersRemoved,
+          filesRemoved: totalFilesRemoved,
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to cleanup placeholder records', {
+        label: 'Collections API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue with collection deletion even if placeholder cleanup fails
+    }
+
     // If this was the last collection config, trigger cleanup to remove all agregarr collections
     if (remainingConfigs.length === 0) {
       logger.info(

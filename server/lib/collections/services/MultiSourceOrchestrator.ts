@@ -2,6 +2,7 @@ import type PlexAPI from '@server/api/plexapi';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
+  CollectionSource,
   CollectionSyncOptions,
   MissingItem,
   PlexCollection,
@@ -95,7 +96,10 @@ interface MetadataUpdateOptions {
  * This approach reuses all existing sync logic while keeping multi-source as a separate concern.
  */
 export class MultiSourceOrchestrator {
-  private syncServices = new Map<string, BaseCollectionSync>();
+  private syncServices = new Map<
+    string,
+    BaseCollectionSync<CollectionSource>
+  >();
   private dynamicCycleTitle: string | null = null;
 
   constructor() {
@@ -783,7 +787,9 @@ export class MultiSourceOrchestrator {
   /**
    * Get or create sync service for the specified source type
    */
-  private getSyncService(sourceType: string): BaseCollectionSync {
+  private getSyncService(
+    sourceType: string
+  ): BaseCollectionSync<CollectionSource> {
     if (!this.syncServices.has(sourceType)) {
       switch (sourceType) {
         case 'trakt':

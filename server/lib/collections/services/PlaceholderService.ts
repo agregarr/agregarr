@@ -22,6 +22,7 @@ import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import path from 'path';
+import { Not } from 'typeorm';
 
 // Cleanup imports
 import RadarrAPI from '@server/api/servarr/radarr';
@@ -63,7 +64,7 @@ function missingItemsToPlaceholderSourceData(
       inCinemas: item.inCinemas,
       airDate: item.airDate,
       mediaType: item.mediaType,
-      source: item.source || 'tmdb',
+      source: item.source,
       monitored: item.monitored ?? false,
       isEstimatedDate: item.isEstimatedDate,
       seasonNumber: item.seasonNumber,
@@ -730,6 +731,7 @@ async function createPlaceholders(
     plexItem: { ratingKey: string; title: string };
     placeholderPath: string;
   }[] = [];
+  let deletedOrphanCount = 0;
 
   // Get existing database records to check for orphans
   const placeholderRepository = getRepository(ComingSoonItem);
@@ -792,31 +794,89 @@ async function createPlaceholders(
       // Check if this placeholder is in our source data
       const sourceItem = sourceMap.get(tmdbId);
       if (!sourceItem) {
-        // Orphaned placeholder not in our source - still adopt it so cleanup can remove it later
-        // We need to get basic metadata from TMDB to create the record
-        logger.warn(
-          'Found orphaned placeholder not in source - adopting for cleanup',
-          {
+        // Orphaned placeholder not in our source - DELETE IMMEDIATELY
+        logger.warn('Found orphaned placeholder - deleting immediately', {
+          label: 'PlaceholderService',
+          title: item.title,
+          tmdbId,
+          ratingKey: item.ratingKey,
+        });
+
+        // Get placeholder file path for deletion
+        let placeholderPath = '';
+        try {
+          if (itemExtended.type === 'movie') {
+            // Get movie file path
+            const fullMetadata = await plexClient.getMetadata(item.ratingKey);
+            if (fullMetadata.Media?.[0]?.Part?.[0]?.file) {
+              placeholderPath = fullMetadata.Media[0].Part[0].file;
+            }
+          } else {
+            // Get TV show file path from Season 00 Episode 01
+            const fullMetadata = await plexClient.getMetadata(item.ratingKey);
+            const seasons = fullMetadata.Children?.Metadata;
+            const season00 = seasons?.find(
+              (s: { index?: number }) => s.index === 0
+            );
+
+            if (season00 && 'ratingKey' in season00) {
+              const seasonMetadata = await plexClient.getMetadata(
+                String(season00.ratingKey)
+              );
+              const firstEpisode = seasonMetadata.Children?.Metadata?.[0];
+
+              if (firstEpisode && 'ratingKey' in firstEpisode) {
+                const episodeMetadata = await plexClient.getMetadata(
+                  String(firstEpisode.ratingKey)
+                );
+                if (episodeMetadata.Media?.[0]?.Part?.[0]?.file) {
+                  placeholderPath = episodeMetadata.Media[0].Part[0].file;
+                }
+              }
+            }
+          }
+
+          // Delete placeholder file
+          if (placeholderPath) {
+            const { removePlaceholder } = await import(
+              '@server/lib/comingsoon/placeholderManager'
+            );
+            const settings = getSettings();
+            const libraryPath =
+              itemExtended.type === 'movie'
+                ? settings.main.placeholderMovieRootFolder
+                : settings.main.placeholderTVRootFolder;
+
+            if (libraryPath) {
+              // Extract relative path from full Plex path
+              const relativePath = placeholderPath.replace(
+                libraryPath + '/',
+                ''
+              );
+              const fullPath = path.join(libraryPath, relativePath);
+
+              await removePlaceholder(
+                fullPath,
+                itemExtended.type === 'movie' ? 'movie' : 'tv'
+              );
+              deletedOrphanCount++;
+              logger.info('Deleted orphaned placeholder file', {
+                label: 'PlaceholderService',
+                title: item.title,
+                path: relativePath,
+              });
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to delete orphaned placeholder', {
             label: 'PlaceholderService',
             title: item.title,
             tmdbId,
-            ratingKey: item.ratingKey,
-          }
-        );
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
 
-        // Create minimal source data for orphaned items
-        const orphanedSourceItem: ComingSoonSourceData = {
-          tmdbId,
-          title: item.title,
-          mediaType: itemExtended.type === 'movie' ? 'movie' : 'tv',
-          year: (item as { year?: number }).year,
-          source: 'tmdb', // Use tmdb as default source for orphaned items
-          monitored: false,
-          hasFile: false,
-        };
-
-        // Add to sourceMap so it gets processed
-        sourceMap.set(tmdbId, orphanedSourceItem);
+        continue; // Skip to next item - orphan has been deleted
       }
     } else {
       // Has database record - check if it's in our source
@@ -1060,6 +1120,13 @@ async function createPlaceholders(
         }
       }
     }
+  }
+
+  if (deletedOrphanCount > 0) {
+    logger.info('Deleted orphaned placeholders', {
+      label: 'PlaceholderService',
+      count: deletedOrphanCount,
+    });
   }
 
   if (orphanedPlaceholders.length > 0) {
@@ -1689,28 +1756,51 @@ export async function cleanupPlaceholdersForConfig(
           // Construct full path from relative path
           const fullPath = path.join(libraryPath, placeholder.placeholderPath);
 
-          try {
-            await removePlaceholder(fullPath, placeholder.mediaType);
+          // Check if any OTHER collection still needs this file
+          const otherCollectionRecords = await repository.find({
+            where: {
+              placeholderPath: placeholder.placeholderPath,
+              configId: Not(config.id),
+            },
+          });
+
+          if (otherCollectionRecords.length > 0) {
+            // Other collections still use this file - don't delete it
             fileRemovalSucceeded = true;
-            logger.info('Removed placeholder file for real item', {
-              label: 'PlaceholderService',
-              title: placeholder.title,
-            });
-          } catch (error) {
-            if (error instanceof Error && error.message.includes('ENOENT')) {
-              // File doesn't exist - that's fine, consider it removed
+            logger.info(
+              'Placeholder file shared with other collections - keeping file',
+              {
+                label: 'PlaceholderService',
+                title: placeholder.title,
+                otherCollections: otherCollectionRecords.length,
+              }
+            );
+          } else {
+            // No other collections use this file - safe to delete
+            try {
+              await removePlaceholder(fullPath, placeholder.mediaType);
               fileRemovalSucceeded = true;
-            } else {
-              logger.error(
-                'Failed to remove placeholder file - keeping database record',
-                {
-                  label: 'PlaceholderService',
-                  title: placeholder.title,
-                  path: fullPath,
-                  error: error instanceof Error ? error.message : String(error),
-                }
-              );
-              continue; // Keep database record if removal failed
+              logger.info('Removed placeholder file for real item', {
+                label: 'PlaceholderService',
+                title: placeholder.title,
+              });
+            } catch (error) {
+              if (error instanceof Error && error.message.includes('ENOENT')) {
+                // File doesn't exist - that's fine, consider it removed
+                fileRemovalSucceeded = true;
+              } else {
+                logger.error(
+                  'Failed to remove placeholder file - keeping database record',
+                  {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    path: fullPath,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+                continue; // Keep database record if removal failed
+              }
             }
           }
         } else {
@@ -1845,28 +1935,52 @@ export async function cleanupPlaceholdersForConfig(
                 placeholder.placeholderPath
               );
 
-              try {
-                await removePlaceholder(fullPath, placeholder.mediaType);
+              // Check if any OTHER collection still needs this file
+              const otherCollectionRecords = await repository.find({
+                where: {
+                  placeholderPath: placeholder.placeholderPath,
+                  configId: Not(config.id),
+                },
+              });
+
+              if (otherCollectionRecords.length > 0) {
+                // Other collections still use this file - don't delete it
                 fileRemovalSucceeded = true;
-              } catch (error) {
-                if (
-                  error instanceof Error &&
-                  error.message.includes('ENOENT')
-                ) {
-                  // File doesn't exist - that's fine, consider it removed
+                logger.info(
+                  'Orphaned placeholder file shared with other collections - keeping file',
+                  {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    otherCollections: otherCollectionRecords.length,
+                  }
+                );
+              } else {
+                // No other collections use this file - safe to delete
+                try {
+                  await removePlaceholder(fullPath, placeholder.mediaType);
                   fileRemovalSucceeded = true;
-                } else {
-                  logger.error(
-                    'Failed to remove orphaned placeholder file - keeping database record',
-                    {
-                      label: 'PlaceholderService',
-                      title: placeholder.title,
-                      path: fullPath,
-                      error:
-                        error instanceof Error ? error.message : String(error),
-                    }
-                  );
-                  continue; // Keep database record if removal failed
+                } catch (error) {
+                  if (
+                    error instanceof Error &&
+                    error.message.includes('ENOENT')
+                  ) {
+                    // File doesn't exist - that's fine, consider it removed
+                    fileRemovalSucceeded = true;
+                  } else {
+                    logger.error(
+                      'Failed to remove orphaned placeholder file - keeping database record',
+                      {
+                        label: 'PlaceholderService',
+                        title: placeholder.title,
+                        path: fullPath,
+                        error:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                      }
+                    );
+                    continue; // Keep database record if removal failed
+                  }
                 }
               }
             } else {
@@ -1969,26 +2083,48 @@ export async function cleanupPlaceholdersForConfig(
                 placeholder.placeholderPath
               );
 
-              try {
-                await removePlaceholder(fullPath, placeholder.mediaType);
+              // Check if any OTHER collection still needs this file
+              const otherCollectionRecords = await repository.find({
+                where: {
+                  placeholderPath: placeholder.placeholderPath,
+                  configId: Not(config.id),
+                },
+              });
+
+              if (otherCollectionRecords.length > 0) {
+                // Other collections still use this file - don't delete it
                 fileRemovalSucceeded = true;
-                logger.info('Removed placeholder file', {
-                  label: 'PlaceholderService',
-                  title: placeholder.title,
-                  path: fullPath,
-                });
-              } catch (error) {
-                logger.error(
-                  'Failed to remove placeholder file - keeping database record',
+                logger.info(
+                  'Placeholder file past window shared with other collections - keeping file',
                   {
                     label: 'PlaceholderService',
                     title: placeholder.title,
-                    path: fullPath,
-                    error:
-                      error instanceof Error ? error.message : String(error),
+                    otherCollections: otherCollectionRecords.length,
                   }
                 );
-                continue;
+              } else {
+                // No other collections use this file - safe to delete
+                try {
+                  await removePlaceholder(fullPath, placeholder.mediaType);
+                  fileRemovalSucceeded = true;
+                  logger.info('Removed placeholder file', {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    path: fullPath,
+                  });
+                } catch (error) {
+                  logger.error(
+                    'Failed to remove placeholder file - keeping database record',
+                    {
+                      label: 'PlaceholderService',
+                      title: placeholder.title,
+                      path: fullPath,
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    }
+                  );
+                  continue;
+                }
               }
             } else {
               fileRemovalSucceeded = true; // No file to remove
@@ -2057,25 +2193,48 @@ export async function cleanupPlaceholdersForConfig(
               placeholder.placeholderPath
             );
 
-            try {
-              await removePlaceholder(fullPath, placeholder.mediaType);
+            // Check if any OTHER collection still needs this file
+            const otherCollectionRecords = await repository.find({
+              where: {
+                placeholderPath: placeholder.placeholderPath,
+                configId: Not(config.id),
+              },
+            });
+
+            if (otherCollectionRecords.length > 0) {
+              // Other collections still use this file - don't delete it
               fileRemovalSucceeded = true;
-              logger.info('Removed placeholder file', {
-                label: 'PlaceholderService',
-                title: placeholder.title,
-                path: fullPath,
-              });
-            } catch (error) {
-              logger.error(
-                'Failed to remove placeholder file - keeping database record',
+              logger.info(
+                'Stale placeholder file shared with other collections - keeping file',
                 {
                   label: 'PlaceholderService',
                   title: placeholder.title,
-                  path: fullPath,
-                  error: error instanceof Error ? error.message : String(error),
+                  otherCollections: otherCollectionRecords.length,
                 }
               );
-              continue;
+            } else {
+              // No other collections use this file - safe to delete
+              try {
+                await removePlaceholder(fullPath, placeholder.mediaType);
+                fileRemovalSucceeded = true;
+                logger.info('Removed placeholder file', {
+                  label: 'PlaceholderService',
+                  title: placeholder.title,
+                  path: fullPath,
+                });
+              } catch (error) {
+                logger.error(
+                  'Failed to remove placeholder file - keeping database record',
+                  {
+                    label: 'PlaceholderService',
+                    title: placeholder.title,
+                    path: fullPath,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+                continue;
+              }
             }
           } else {
             fileRemovalSucceeded = true; // No file to remove

@@ -160,6 +160,25 @@ export type CollectionSource =
   | 'multi-source';
 
 /**
+ * Source types that can produce missing items for placeholders/auto-download
+ * (excludes meta-sources like overseerr, tautulli, comingsoon, filtered_hub, multi-source)
+ */
+export type ItemProducingSource =
+  | 'radarr'
+  | 'sonarr'
+  | 'trakt'
+  | 'tmdb'
+  | 'imdb'
+  | 'letterboxd'
+  | 'mdblist'
+  | 'anilist'
+  | 'myanimelist'
+  | 'networks'
+  | 'originals'
+  | 'radarrtag'
+  | 'sonarrtag';
+
+/**
  * Configuration for creating/updating collections in Plex
  */
 export interface CollectionCreateConfig {
@@ -260,15 +279,8 @@ export interface MissingItem {
   episodeNumber?: number;
   /** Whether item is monitored in Radarr/Sonarr */
   monitored?: boolean;
-  /** Source of the missing item data */
-  source?:
-    | 'radarr'
-    | 'sonarr'
-    | 'trakt'
-    | 'tmdb'
-    | 'imdb'
-    | 'letterboxd'
-    | 'mdblist';
+  /** Source of the missing item data - REQUIRED for proper tracking */
+  source: ItemProducingSource;
 }
 
 /**
@@ -654,14 +666,7 @@ export interface PlaceholderSourceData {
   inCinemas?: string; // Theatrical release date (Priority 3, optional)
 
   mediaType: 'movie' | 'tv';
-  source:
-    | 'radarr'
-    | 'sonarr'
-    | 'trakt'
-    | 'tmdb'
-    | 'imdb'
-    | 'letterboxd'
-    | 'mdblist';
+  source: ItemProducingSource;
   monitored: boolean; // True if item is in Radarr/Sonarr
   posterUrl?: string; // Poster URL from source
   airDate?: string; // Episode air date (S01E01 for new shows, next season premiere for returning shows)

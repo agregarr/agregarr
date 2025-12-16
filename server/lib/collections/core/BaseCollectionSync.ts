@@ -98,13 +98,17 @@ interface CollectionUpdateResult {
  *
  * Provides common functionality and enforces a consistent pipeline across
  * all collection sync sources (Overseerr, Tautulli, Trakt).
+ *
+ * @template TSource - The specific collection source type (e.g., 'trakt', 'imdb')
  */
-export abstract class BaseCollectionSync implements CollectionSyncInterface {
+export abstract class BaseCollectionSync<TSource extends CollectionSource>
+  implements CollectionSyncInterface
+{
   protected templateEngine: TemplateEngine;
   protected serviceUserManager: ServiceUserManager;
-  protected source: CollectionSource;
+  protected source: TSource;
 
-  constructor(source: CollectionSource) {
+  constructor(source: TSource) {
     this.templateEngine = templateEngine;
     this.serviceUserManager = serviceUserManager;
     this.source = source;

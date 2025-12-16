@@ -30,7 +30,7 @@ interface RadarrTagCollectionItem extends CollectionItem {
  * Creates collections from Radarr tags - fetches all movies that have a specific tag
  * in Radarr and creates a Plex collection from them.
  */
-export class RadarrTagCollectionSync extends BaseCollectionSync {
+export class RadarrTagCollectionSync extends BaseCollectionSync<'radarrtag'> {
   private radarrClients: Map<number, RadarrAPI> = new Map();
 
   constructor() {
@@ -408,6 +408,7 @@ export class RadarrTagCollectionSync extends BaseCollectionSync {
             title: lookup.title,
             year: lookup.year,
             originalPosition: lookup.originalPosition,
+            source: this.source,
           });
         }
       }

@@ -47,7 +47,7 @@ interface NetworksCollectionItem extends CollectionItem {
  * Supports Netflix, HBO, Disney+, Amazon Prime, and other streaming platforms.
  * Uses web scraping via FlixPatrol since most platforms don't provide public APIs.
  */
-export class NetworksCollectionSync extends BaseCollectionSync {
+export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
   private flixpatrolClient: FlixPatrolAPI;
   private tmdbClient: TmdbAPI;
 
@@ -413,6 +413,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
             mediaType: item.type, // Keep original type as fallback
             title: item.title,
             originalPosition: index + 1,
+            source: this.source,
             metadata: {
               rank: item.rank,
               platform: item.platform,
@@ -432,6 +433,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
           mediaType: item.type,
           title: item.title,
           originalPosition: index + 1,
+          source: this.source,
           metadata: {
             rank: item.rank,
             platform: item.platform,
@@ -497,6 +499,7 @@ export class NetworksCollectionSync extends BaseCollectionSync {
             title: lookup.title,
             year: lookup.year,
             originalPosition: lookup.originalPosition,
+            source: this.source,
             metadata: {
               rank: lookup.rank,
               platform: lookup.platform,

@@ -48,7 +48,7 @@ interface UserCollectionsMap {
  * - 'global': Single collection with all requests
  * - 'server_owner': Collection for server owner's requests only
  */
-export class OverseerrCollectionSync extends BaseCollectionSync {
+export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
   constructor() {
     super('overseerr');
   }

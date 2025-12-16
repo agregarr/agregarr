@@ -37,7 +37,7 @@ interface MDBListCollectionItem extends CollectionItem {
  * Handles MDBList API types (user lists, top lists, custom lists)
  * with auto-request functionality and comprehensive error handling.
  */
-export class MDBListCollectionSync extends BaseCollectionSync {
+export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
   private mdblistClients: Map<string, MDBListAPI> = new Map();
 
   constructor() {
@@ -385,6 +385,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
           title: lookup.title,
           year: lookup.year,
           originalPosition: lookup.originalPosition,
+          source: this.source,
         });
       }
     }

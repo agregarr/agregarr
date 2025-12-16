@@ -32,7 +32,7 @@ interface LetterboxdListItem {
  *
  * Supports custom Letterboxd lists via web scraping since Letterboxd doesn't have a public API.
  */
-export class LetterboxdCollectionSync extends BaseCollectionSync {
+export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
   private tmdbClient: TmdbAPI;
   private lastFetchedHtml = '';
   private dynamicRandomTitle: string | null = null;
@@ -434,6 +434,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
           title: lookup.title,
           year: lookup.year,
           originalPosition: lookup.originalPosition,
+          source: this.source,
         });
       }
     }
