@@ -737,11 +737,11 @@ router.get('/:id/preview', async (req, res, next) => {
       // Status fields
       releaseDate: '2024-12-25',
       daysUntilRelease: 14,
-      daysAgo: 0, // Set to 0 for "Days Since Release = 0" conditions
+      daysAgo: 3, // Set to 3 for "Released N Days Ago" preview
       nextEpisodeAirDate: '2025-01-15', // Always populate for previews
       daysUntilNextEpisode: 32, // Always populate for previews
       nextSeasonAirDate: '2025-03-01', // Always populate for previews
-      daysUntilNextSeason: 77, // Always populate for previews
+      daysUntilNextSeason: 23, // Always populate for previews
 
       // Episode information
       seasonNumber: 2, // Always populate for previews
@@ -945,11 +945,11 @@ router.post('/combined-preview', async (req, res, next) => {
       // Status fields
       releaseDate: '2024-12-25',
       daysUntilRelease: 14,
-      daysAgo: 0, // Set to 0 for "Days Since Release = 0" conditions
+      daysAgo: 3, // Set to 3 for "Released N Days Ago" preview
       nextEpisodeAirDate: '2025-01-15', // Always populate for previews
       daysUntilNextEpisode: 32, // Always populate for previews
       nextSeasonAirDate: '2025-03-01', // Always populate for previews
-      daysUntilNextSeason: 77, // Always populate for previews
+      daysUntilNextSeason: 23, // Always populate for previews
 
       // Episode information
       seasonNumber: 2, // Always populate for previews

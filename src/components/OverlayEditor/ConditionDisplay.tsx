@@ -45,10 +45,10 @@ export const ConditionDisplay: React.FC<ConditionDisplayProps> = ({
     <div className="space-y-2">
       {condition.sections.map((section, sectionIndex) => (
         <div key={sectionIndex}>
-          {/* Section operator (AND/OR between sections) */}
+          {/* Section operator (AND/OR between sections) - BLUE to differentiate from rule operators */}
           {sectionIndex > 0 && (
             <div className="my-1 text-center">
-              <span className="rounded bg-stone-700 px-2 py-0.5 text-xs font-semibold text-stone-300">
+              <span className="rounded bg-blue-900/50 px-2 py-0.5 text-xs font-semibold text-blue-300">
                 {section.sectionOperator?.toUpperCase() || 'OR'}
               </span>
             </div>
@@ -59,7 +59,7 @@ export const ConditionDisplay: React.FC<ConditionDisplayProps> = ({
             <div className="flex flex-wrap items-center gap-1">
               {section.rules.map((rule, ruleIndex) => (
                 <div key={ruleIndex} className="flex items-center gap-1">
-                  {/* Rule operator (AND/OR between rules) */}
+                  {/* Rule operator (AND/OR between rules) - ORANGE */}
                   {ruleIndex > 0 && (
                     <span className="rounded bg-orange-900/50 px-1.5 py-0.5 text-xs font-semibold text-orange-300">
                       {rule.ruleOperator?.toUpperCase() || 'AND'}

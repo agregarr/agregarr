@@ -97,13 +97,41 @@ const formatCondition = (
 };
 
 // Component to render condition with styled AND/OR operators
+// Section operators (between parentheses) = BLUE, Rule operators (within parentheses) = ORANGE
 const ConditionDisplay: React.FC<{ condition: string }> = ({ condition }) => {
-  const parts = condition.split(/(\sAND\s|\sOR\s)/g);
+  // Split by sections (groups in parentheses) and section operators
+  const sectionRegex = /(\([^)]+\))|(\s(?:AND|OR)\s)/g;
+  const parts: string[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = sectionRegex.exec(condition)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(condition.substring(lastIndex, match.index));
+    }
+    parts.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < condition.length) {
+    parts.push(condition.substring(lastIndex));
+  }
 
   return (
     <span>
       {parts.map((part, index) => {
-        if (part === ' AND ' || part === ' OR ') {
+        // Section operators (between sections) - BLUE
+        if (part.match(/^\s(?:AND|OR)\s$/)) {
+          const isAfterSection = index > 0 && parts[index - 1]?.endsWith(')');
+          if (isAfterSection) {
+            return (
+              <span key={index} className="font-semibold text-blue-500">
+                {part}
+              </span>
+            );
+          }
+        }
+        // Rule operators (within sections) - ORANGE
+        if (part.match(/^\s(?:AND|OR)\s$/)) {
           return (
             <span key={index} className="font-semibold text-orange-500">
               {part}

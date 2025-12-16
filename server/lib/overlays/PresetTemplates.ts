@@ -1766,11 +1766,11 @@ export const PRESET_TEMPLATES: {
     },
   },
 
-  // Today (Monitored) - Bottom banner only
+  // Just Released (Monitored) - Bottom banner for downloaded items released today
   {
-    name: 'Releasing Today (Monitored)',
+    name: 'Just Released (Monitored)',
     description:
-      'Bottom banner for monitored releases released today in Radarr/Sonarr (downloaded)',
+      'Bottom banner for monitored releases downloaded today in Radarr/Sonarr',
     type: 'status',
     applicationCondition: {
       sections: [
@@ -1842,7 +1842,7 @@ export const PRESET_TEMPLATES: {
       height: 1500,
       elements: [
         {
-          id: 'today-banner-bg',
+          id: 'just-released-banner-bg',
           layerOrder: 0,
           type: 'tile',
           x: 0,
@@ -1856,7 +1856,118 @@ export const PRESET_TEMPLATES: {
           },
         },
         {
-          id: 'today-text',
+          id: 'just-released-text',
+          layerOrder: 1,
+          type: 'text',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            text: 'JUST RELEASED',
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // Releasing Today (Monitored) - Bottom banner for not-yet-downloaded items releasing today
+  {
+    name: 'Releasing Today (Monitored)',
+    description:
+      'Bottom banner for monitored releases releasing today in Radarr/Sonarr (awaiting download)',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          // Movies: today, NOT downloaded, monitored, not a show, in Radarr
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'mediaType',
+              operator: 'neq',
+              value: 'show',
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+        {
+          // OR TV S01: today, NOT downloaded, monitored, season <= 1, in Sonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'daysAgo', operator: 'eq', value: 0 },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'seasonNumber',
+              operator: 'lte',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'releasing-today-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'releasing-today-text',
           layerOrder: 1,
           type: 'text',
           x: 0,
@@ -2006,6 +2117,230 @@ export const PRESET_TEMPLATES: {
   // DOWNLOADED CONTENT (recently released with file)
   // ========================================
 
+  // Released Yesterday (Monitored) - Bottom banner
+  {
+    name: 'Released Yesterday (Monitored)',
+    description:
+      'Bottom banner for downloaded monitored content released yesterday in Radarr/Sonarr',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          // Movies: downloaded, yesterday, monitored, in Radarr
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'eq',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+        {
+          // OR TV: downloaded, yesterday, monitored, in Sonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'eq',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'yesterday-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#DC2626',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'yesterday-text',
+          layerOrder: 1,
+          type: 'text',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            text: 'RELEASED YESTERDAY',
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // Released Yesterday (Unmonitored) - Bottom banner
+  {
+    name: 'Released Yesterday (Unmonitored)',
+    description:
+      'Bottom banner for downloaded content released yesterday not monitored or not in *arr',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          // Movies: (downloaded AND yesterday) AND NOT inRadarr
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'eq',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inRadarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (downloaded AND yesterday) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'eq',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR TV: (downloaded AND yesterday) AND NOT inSonarr
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'eq',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+        {
+          // OR (downloaded AND yesterday) AND NOT monitored
+          sectionOperator: 'or',
+          rules: [
+            { field: 'downloaded', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'eq',
+              value: 1,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'yesterday-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#EA580C',
+            fillOpacity: 75,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'yesterday-text',
+          layerOrder: 1,
+          type: 'text',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            text: 'RELEASED YESTERDAY',
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
   // New Release (downloaded) - Single bottom banner
   {
     name: 'Released Days Ago (Monitored)',
@@ -2015,14 +2350,14 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: downloaded, 0-7 days ago, monitored, in Radarr
+          // Movies: downloaded, 2-7 days ago, monitored, in Radarr
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysAgo',
-              operator: 'gte',
-              value: 0,
+              operator: 'gt',
+              value: 1,
             },
             {
               ruleOperator: 'and',
@@ -2045,15 +2380,15 @@ export const PRESET_TEMPLATES: {
           ],
         },
         {
-          // OR TV: downloaded, 0-7 days ago, monitored, in Sonarr
+          // OR TV: downloaded, 2-7 days ago, monitored, in Sonarr
           sectionOperator: 'or',
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysAgo',
-              operator: 'gte',
-              value: 0,
+              operator: 'gt',
+              value: 1,
             },
             {
               ruleOperator: 'and',
@@ -2130,14 +2465,14 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: (downloaded AND 0-7 days ago) AND NOT inRadarr
+          // Movies: (downloaded AND 2-7 days ago) AND NOT inRadarr
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysAgo',
-              operator: 'gte',
-              value: 0,
+              operator: 'gt',
+              value: 1,
             },
             {
               ruleOperator: 'and',
@@ -2154,15 +2489,15 @@ export const PRESET_TEMPLATES: {
           ],
         },
         {
-          // OR (downloaded AND 0-7 days ago) AND NOT monitored
+          // OR (downloaded AND 2-7 days ago) AND NOT monitored
           sectionOperator: 'or',
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysAgo',
-              operator: 'gte',
-              value: 0,
+              operator: 'gt',
+              value: 1,
             },
             {
               ruleOperator: 'and',
@@ -2179,15 +2514,15 @@ export const PRESET_TEMPLATES: {
           ],
         },
         {
-          // OR TV: (downloaded AND 0-7 days ago) AND NOT inSonarr
+          // OR TV: (downloaded AND 2-7 days ago) AND NOT inSonarr
           sectionOperator: 'or',
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysAgo',
-              operator: 'gte',
-              value: 0,
+              operator: 'gt',
+              value: 1,
             },
             {
               ruleOperator: 'and',
@@ -2204,15 +2539,15 @@ export const PRESET_TEMPLATES: {
           ],
         },
         {
-          // OR (downloaded AND 0-7 days ago) AND NOT monitored
+          // OR (downloaded AND 2-7 days ago) AND NOT monitored
           sectionOperator: 'or',
           rules: [
             { field: 'downloaded', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysAgo',
-              operator: 'gte',
-              value: 0,
+              operator: 'gt',
+              value: 1,
             },
             {
               ruleOperator: 'and',

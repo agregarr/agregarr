@@ -21,6 +21,8 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowPathIcon,
   Bars3Icon,
+  ChevronDownIcon,
+  ChevronRightIcon,
   EyeIcon,
   EyeSlashIcon,
 } from '@heroicons/react/24/outline';
@@ -92,6 +94,54 @@ const formatCondition = (
   }
 
   return result;
+};
+
+// Component to render condition with styled AND/OR operators
+// Rule operators (within parentheses) = ORANGE (all same), Section operators (between parentheses) = BLUE (different)
+const ConditionDisplay: React.FC<{ condition: string }> = ({ condition }) => {
+  // Split by sections (groups in parentheses) and section operators
+  const sectionRegex = /(\([^)]+\))|(\s(?:AND|OR)\s)/g;
+  const parts: string[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = sectionRegex.exec(condition)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(condition.substring(lastIndex, match.index));
+    }
+    parts.push(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < condition.length) {
+    parts.push(condition.substring(lastIndex));
+  }
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        // Section operators (between sections) - ORANGE
+        if (part.match(/^\s(?:AND|OR)\s$/)) {
+          const isAfterSection = index > 0 && parts[index - 1]?.endsWith(')');
+          if (isAfterSection) {
+            return (
+              <span key={index} className="font-semibold text-orange-500">
+                {part}
+              </span>
+            );
+          }
+        }
+        // Rule operators (within sections) - BLUE (all same color)
+        if (part.match(/^\s(?:AND|OR)\s$/)) {
+          return (
+            <span key={index} className="font-semibold text-blue-500">
+              {part}
+            </span>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </>
+  );
 };
 
 const messages = defineMessages({
@@ -174,6 +224,7 @@ const SortableTemplateItem: React.FC<SortableTemplateItemProps> = ({
   onTogglePreview,
 }) => {
   const intl = useIntl();
+  const [isExpanded, setIsExpanded] = useState(false);
   const {
     attributes,
     listeners,
@@ -194,7 +245,7 @@ const SortableTemplateItem: React.FC<SortableTemplateItemProps> = ({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center space-x-3 rounded-md p-3 transition-colors ${
+      className={`flex items-center space-x-2 rounded-md p-2 transition-colors ${
         enabled ? 'bg-orange-500 bg-opacity-20' : 'hover:bg-stone-700'
       } ${forced ? 'opacity-75' : ''} ${isDragging ? 'z-50 opacity-50' : ''}`}
     >
@@ -220,18 +271,36 @@ const SortableTemplateItem: React.FC<SortableTemplateItemProps> = ({
 
       {/* Template Info */}
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-white">{template.name}</div>
-        {template.description && (
-          <div className="text-xs text-stone-400">{template.description}</div>
-        )}
-        {/* More prominent condition display */}
-        {conditionText ? (
-          <div className="mt-1 inline-block rounded bg-stone-800 px-2 py-0.5 text-xs font-medium text-blue-400">
-            {conditionText}
-          </div>
-        ) : (
-          <div className="mt-1 inline-block rounded bg-stone-800 px-2 py-0.5 text-xs font-medium text-stone-500">
-            {intl.formatMessage(messages.alwaysApply)}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-shrink-0"
+          >
+            {isExpanded ? (
+              <ChevronDownIcon className="h-3 w-3 text-stone-400" />
+            ) : (
+              <ChevronRightIcon className="h-3 w-3 text-stone-400" />
+            )}
+          </button>
+          <div className="text-sm font-medium text-white">{template.name}</div>
+        </div>
+        {/* Expandable details */}
+        {isExpanded && (
+          <div className="ml-4 space-y-0.5">
+            {template.description && (
+              <div className="text-xs text-stone-400">
+                {template.description}
+              </div>
+            )}
+            {conditionText ? (
+              <div className="inline-block rounded bg-stone-800 px-2 py-0.5 text-xs font-medium text-blue-400">
+                <ConditionDisplay condition={conditionText} />
+              </div>
+            ) : (
+              <div className="inline-block rounded bg-stone-800 px-2 py-0.5 text-xs font-medium text-stone-500">
+                {intl.formatMessage(messages.alwaysApply)}
+              </div>
+            )}
           </div>
         )}
       </div>
