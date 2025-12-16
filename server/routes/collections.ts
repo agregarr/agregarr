@@ -60,9 +60,6 @@ class RateLimiter {
 
 export const rateLimiter = new RateLimiter();
 
-const normalizeCollectionType = (type?: string): string | undefined =>
-  type === 'plex_library' ? 'plex' : type;
-
 /**
  * Validate and sanitize external URLs for security
  */
@@ -242,7 +239,6 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
   try {
     const { id } = req.params;
     const settings = getSettings();
-    req.body.type = normalizeCollectionType(req.body.type);
 
     // Find the existing collection config
     const configs = settings.plex.collectionConfigs || [];
@@ -1286,7 +1282,6 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
 collectionsRoutes.post('/create', isAuthenticated(), async (req, res) => {
   try {
     const settings = getSettings();
-    req.body.type = normalizeCollectionType(req.body.type);
     const { IdGenerator } = await import('@server/utils/idGenerator');
 
     // Cache warming removed - caused double requests and rate limiting issues

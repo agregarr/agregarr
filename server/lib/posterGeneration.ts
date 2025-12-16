@@ -154,8 +154,6 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   crunchyroll: 'crunchyroll.svg',
   'discovery-plus': 'discovery-plus.svg',
   hulu: 'hulu.svg',
-  // Legacy Plex Library alias
-  plex_library: 'plex.svg',
 };
 
 /**

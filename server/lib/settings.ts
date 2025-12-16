@@ -839,52 +839,6 @@ class Settings {
     this.save();
   }
 
-  /**
-   * Rename legacy plex_library type slug to plex
-   */
-  public migratePlexLibraryTypeRename(): void {
-    const migrationId = 'plex-library-type-rename-v1';
-
-    if (!this.data.completedMigrations) {
-      this.data.completedMigrations = [];
-    }
-
-    if (this.data.completedMigrations.includes(migrationId)) {
-      return;
-    }
-
-    if (!this.data.plex.collectionConfigs) {
-      this.data.completedMigrations.push(migrationId);
-      this.save();
-      return;
-    }
-
-    let migratedCount = 0;
-
-    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
-      (config) => {
-        const rawType = (config as { type?: string }).type;
-        if (rawType === 'plex_library') {
-          migratedCount++;
-          return { ...config, type: 'plex' as CollectionConfig['type'] };
-        }
-        return config;
-      }
-    );
-
-    if (migratedCount > 0) {
-      logger.info(
-        `Renamed ${migratedCount} plex_library collection config(s) to plex`,
-        {
-          label: 'Settings Migration',
-        }
-      );
-    }
-
-    this.data.completedMigrations.push(migrationId);
-    this.save();
-  }
-
   get main(): MainSettings {
     if (!this.data.main.apiKey) {
       this.data.main.apiKey = this.generateApiKey();
@@ -1474,109 +1428,41 @@ class Settings {
 
     this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
       (config) => {
-        let updatedConfig = { ...config };
-        let changed = false;
-
-        // Ensure plex person configs carry required defaults
-        if (
-          updatedConfig.type === 'plex' &&
-          (updatedConfig.subtype === 'directors' ||
-            updatedConfig.subtype === 'actors')
-        ) {
-          const isActors = updatedConfig.subtype === 'actors';
-          const personMinimum = updatedConfig.personMinimumItems;
-
-          if (personMinimum === undefined) {
-            updatedConfig.personMinimumItems = 5;
-            changed = true;
-          } else {
-            // Keep person minimum as source of truth
-            const normalizedMinimum = personMinimum;
-            if (updatedConfig.personMinimumItems !== normalizedMinimum) {
-              updatedConfig.personMinimumItems = normalizedMinimum;
-              changed = true;
-            }
-          }
-
-          // Standardize template/name so placeholder text doesn't leak through
-          const placeholder = isActors ? '{actor}' : '{director}';
-          if (
-            !updatedConfig.template ||
-            updatedConfig.template === 'Collection'
-          ) {
-            updatedConfig.template = placeholder;
-            changed = true;
-          }
-          if (
-            updatedConfig.name === placeholder ||
-            !updatedConfig.name ||
-            updatedConfig.name === 'Collection'
-          ) {
-            updatedConfig.name = isActors
-              ? 'Auto Actor Collections'
-              : 'Auto Director Collections';
-            changed = true;
-          }
-          if (updatedConfig.useSeparator) {
-            const defaultSeparatorTitle = isActors
-              ? 'Actor Collections'
-              : 'Director Collections';
-            const sanitizedTitle = updatedConfig.separatorTitle?.trim();
-            if (!sanitizedTitle) {
-              updatedConfig.separatorTitle = defaultSeparatorTitle;
-              changed = true;
-            } else if (sanitizedTitle !== updatedConfig.separatorTitle) {
-              updatedConfig.separatorTitle = sanitizedTitle;
-              changed = true;
-            }
-          } else if (updatedConfig.separatorTitle) {
-            // Cleanup stale separator titles when feature is off
-            updatedConfig.separatorTitle = undefined;
-            changed = true;
-          }
-        }
-
         const isVisibleOnHome =
-          updatedConfig.visibilityConfig?.usersHome ||
-          updatedConfig.visibilityConfig?.serverOwnerHome ||
-          updatedConfig.visibilityConfig?.libraryRecommended;
+          config.visibilityConfig?.usersHome ||
+          config.visibilityConfig?.serverOwnerHome ||
+          config.visibilityConfig?.libraryRecommended;
 
         // Check if normalization is needed
         const needsNormalization =
           (!isVisibleOnHome &&
-            updatedConfig.sortOrderHome &&
-            updatedConfig.sortOrderHome > 0) ||
-          (updatedConfig.isLibraryPromoted === true &&
-            (!updatedConfig.sortOrderLibrary ||
-              updatedConfig.sortOrderLibrary === 0)) ||
-          (updatedConfig.isLibraryPromoted === false &&
-            updatedConfig.sortOrderLibrary &&
-            updatedConfig.sortOrderLibrary > 0) ||
-          updatedConfig.everLibraryPromoted === undefined;
+            config.sortOrderHome &&
+            config.sortOrderHome > 0) ||
+          (config.isLibraryPromoted === true &&
+            (!config.sortOrderLibrary || config.sortOrderLibrary === 0)) ||
+          (config.isLibraryPromoted === false &&
+            config.sortOrderLibrary &&
+            config.sortOrderLibrary > 0) ||
+          config.everLibraryPromoted === undefined;
 
         if (needsNormalization) {
-          updatedConfig = {
-            ...updatedConfig,
+          fixedCount++;
+          return {
+            ...config,
             // Visibility rule: Only visible collections get positioning
             sortOrderHome: isVisibleOnHome ? config.sortOrderHome : 0,
             // Consistency rule: Library positioning matches promotion status
-            sortOrderLibrary: updatedConfig.isLibraryPromoted
-              ? updatedConfig.sortOrderLibrary
+            sortOrderLibrary: config.isLibraryPromoted
+              ? config.sortOrderLibrary
               : 0,
             // Historical rule: Track promotion history
             everLibraryPromoted:
-              updatedConfig.isLibraryPromoted ||
-              (updatedConfig.everLibraryPromoted ?? false),
+              config.isLibraryPromoted || (config.everLibraryPromoted ?? false),
             // No isPromotedToHub changes (calculated dynamically)
           };
-          changed = true;
         }
 
-        if (changed) {
-          fixedCount++;
-        }
-
-        return updatedConfig;
+        return config;
       }
     );
 
@@ -1813,35 +1699,6 @@ class Settings {
 
     this.data.completedMigrations.push(migrationId);
     this.save();
-  }
-
-  /**
-   * Ensure plex/directors configs have required defaults and naming
-   */
-  public migratePlexLibraryDirectorsDefaults(): void {
-    const migrationId = 'plex-library-directors-defaults-v1';
-
-    if (!this.data.completedMigrations) {
-      this.data.completedMigrations = [];
-    }
-
-    if (this.data.completedMigrations.includes(migrationId)) {
-      return;
-    }
-
-    const fixed = this.normalizeCollectionConfigs();
-
-    this.data.completedMigrations.push(migrationId);
-
-    if (fixed > 0) {
-      logger.info(
-        `Applied director defaults to ${fixed} plex/directors config(s)`,
-        { label: 'Settings Migration' }
-      );
-      this.save();
-    } else {
-      this.save();
-    }
   }
 
   /**
