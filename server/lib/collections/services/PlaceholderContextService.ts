@@ -116,7 +116,7 @@ export class PlaceholderContextService {
 
   /**
    * Check if a Plex item is a placeholder based on metadata inspection
-   * Movies: Check editionTitle for "Placeholder" or "Coming Soon"
+   * Movies: Check editionTitle for "Trailer", "Placeholder", or "Coming Soon"
    * TV: Check if only Season 00 exists (trailer season)
    */
   /**
@@ -138,6 +138,7 @@ export class PlaceholderContextService {
       // Check edition title for placeholder markers
       const editionTitle = plexMetadata.editionTitle?.toLowerCase() || '';
       if (
+        editionTitle.includes('trailer') ||
         editionTitle.includes('placeholder') ||
         editionTitle.includes('coming soon')
       ) {
@@ -149,7 +150,9 @@ export class PlaceholderContextService {
       for (const guid of guids) {
         if (
           guid.id &&
-          (guid.id.includes('placeholder') || guid.id.includes('coming-soon'))
+          (guid.id.includes('trailer') ||
+            guid.id.includes('placeholder') ||
+            guid.id.includes('coming-soon'))
         ) {
           return true;
         }
@@ -159,6 +162,7 @@ export class PlaceholderContextService {
       if (plexMetadata.guid) {
         const guidLower = plexMetadata.guid.toLowerCase();
         if (
+          guidLower.includes('trailer') ||
           guidLower.includes('placeholder') ||
           guidLower.includes('coming-soon')
         ) {
@@ -237,6 +241,7 @@ export class PlaceholderContextService {
       // Movies: Check edition title
       const editionTitle = plexMetadata.editionTitle?.toLowerCase() || '';
       if (
+        editionTitle.includes('trailer') ||
         editionTitle.includes('placeholder') ||
         editionTitle.includes('coming soon')
       ) {
@@ -248,7 +253,9 @@ export class PlaceholderContextService {
       for (const guid of guids) {
         if (
           guid.id &&
-          (guid.id.includes('placeholder') || guid.id.includes('coming-soon'))
+          (guid.id.includes('trailer') ||
+            guid.id.includes('placeholder') ||
+            guid.id.includes('coming-soon'))
         ) {
           return true;
         }
@@ -257,6 +264,7 @@ export class PlaceholderContextService {
       if (plexMetadata.guid) {
         const guidLower = plexMetadata.guid.toLowerCase();
         if (
+          guidLower.includes('trailer') ||
           guidLower.includes('placeholder') ||
           guidLower.includes('coming-soon')
         ) {

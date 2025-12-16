@@ -27,8 +27,8 @@ async function createMoviePlaceholder(
   const folderName = `${sanitizedTitle}${yearStr}`;
   const movieFolder = path.join(libraryPath, folderName);
 
-  // Filename format: MovieName (Year) {tmdb-12345} {edition-Placeholder}.mp4
-  const filename = `${folderName} {tmdb-${tmdbId}} {edition-Placeholder}.mp4`;
+  // Filename format: MovieName (Year) {tmdb-12345} {edition-Trailer}.mp4
+  const filename = `${folderName} {tmdb-${tmdbId}} {edition-Trailer}.mp4`;
   const destinationPath = path.join(movieFolder, filename);
 
   logger.debug('Creating movie placeholder', {
@@ -175,6 +175,7 @@ export async function removePlaceholder(
   try {
     // Safety check: Verify path contains placeholder marker (supports both old and new format)
     if (
+      !placeholderPath.includes('{edition-Trailer}') &&
       !placeholderPath.includes('{edition-Placeholder}') &&
       !placeholderPath.includes('{edition-Coming Soon}') &&
       !placeholderPath.includes('S00E00.Trailer.mp4')

@@ -475,7 +475,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         if (
           editionTitle &&
           typeof editionTitle === 'string' &&
-          (editionTitle.includes('Placeholder') ||
+          (editionTitle.includes('Trailer') ||
+            editionTitle.includes('Placeholder') ||
             editionTitle.includes('Coming Soon'))
         ) {
           return true;
@@ -489,7 +490,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
             const filePath = parts[0].file;
             if (
               filePath &&
-              (filePath.includes('{edition-Placeholder}') ||
+              (filePath.includes('{edition-Trailer}') ||
+                filePath.includes('{edition-Placeholder}') ||
                 filePath.includes('{edition-Coming Soon}'))
             ) {
               return true;
