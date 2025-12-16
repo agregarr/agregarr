@@ -9,7 +9,7 @@ Agregarr keeps your Plex Home and Recommended fresh by frequently updating it wi
 - **Coming Soon**: Create Coming Soon Collections based off monitored content in Radarr/Sonarr, or anticipated releases from Trakt, complete with trailers and poster overlays.
 - **Overseerr Requests**: Generate Collections either for each users requests (only visible to that user), or for All Requests
 - **Tautulli Statistics**: Generate Collections based on the Most Popular content on your server
-- **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independetly
+- **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independently
 - **Keeps Plex Updated**: Collections will be be updated on every sync (default 12 hours, custom scheduling available). Custom sync options available per-collection.
 - **Randomise Home Order**: Keep your home screen dynamic by rotating the order in which collections appear (separate scheduling available)
 - **Template System**: Easily set collection names with flexible templating and title importing from lists.
@@ -31,20 +31,29 @@ services:
     image: agregarr/agregarr:latest
     container_name: agregarr
     volumes:
-      - /path/to/config:/app/config ### Change /path/to/config to your actual config path
+      - /path/to/config:/app/config # Change /path/to/config to your actual config path
       # Linux/Mac: - /mnt/serverdata/configs/agregarr:/app/config
       # Windows:   - C:\serverdata\configs\agregarr:/app/config
 
-      # Develop branch only (optional): For Coming Soon/Placeholder feature
-      # Linux/Mac: - /path/to/placeholder/movies:/data/movies
-      #            - /path/to/placeholder/tv:/data/tv
-      # Windows:   - E:\media\placeholders\movies:/data/movies
-      #            - E:\media\placeholders\tv:/data/tv
+      # Optional: For Coming Soon/Placeholder feature
+      - /path/to/placeholder/movies:/data/movies
+      - /path/to/placeholder/tv:/data/tv
+      # Linux/Mac:
+      # - /mnt/media/movie-placeholders:/data/movies
+      # - /mnt/media/tv-placeholders:/data/tv
+      # Windows:
+      # - E:\media\movie-placeholders:/data/movies
+      # - E:\media\tv-placeholders:/data/tv
+
       # And then select your root folders in Settings -> Downloads
+    environment:
+      - TZ=Pacific/Auckland # Set to your local timezone for accurate poster overlay release dates/countdowns - see 'TZ Identifier' column here https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
     ports:
       - 7171:7171
     restart: unless-stopped
 ```
+
+Further instructions for basic setup available [**here**](https://agregarr.org/docs/installation) and Placeholder media volumes [**here**](https://agregarr.org/docs/placeholder-volumes)
 
 The application will be available at `http://localhost:7171`
 
