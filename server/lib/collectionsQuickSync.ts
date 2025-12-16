@@ -1,8 +1,10 @@
 import PlexAPI, { type PlexLibraryItem } from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { CollectionMissingItems } from '@server/entity/CollectionMissingItems';
+import { ComingSoonItem } from '@server/entity/ComingSoonItem';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import path from 'path';
 
 /**
  * Match between a recently added Plex item and a stored missing item
@@ -108,6 +110,8 @@ class CollectionsQuickSync {
     let itemsMatched = 0;
     let collectionsUpdated = 0;
     let itemsAdded = 0;
+    let placeholdersDeleted = 0;
+    const librariesNeedingScan = new Set<string>();
 
     try {
       logger.info('Starting Collections Quick Sync', {
@@ -182,6 +186,20 @@ class CollectionsQuickSync {
             itemCount: recentItems.length,
           });
 
+          // Clean up placeholders for recently added real items
+          this.setStage(
+            `Checking placeholders for library: ${library.name}...`
+          );
+          const cleanupResult = await this.cleanupPlaceholdersForRecentItems(
+            recentItems,
+            library.key
+          );
+
+          placeholdersDeleted += cleanupResult.deletedCount;
+          for (const libId of cleanupResult.affectedLibraries) {
+            librariesNeedingScan.add(libId);
+          }
+
           // Process these items (match and add to collections)
           const result = await this.processRecentItems(
             recentItems,
@@ -202,6 +220,29 @@ class CollectionsQuickSync {
         }
       }
 
+      // Trigger Plex scans for libraries where placeholders were deleted
+      if (librariesNeedingScan.size > 0) {
+        this.setStage('Triggering Plex scans for placeholder cleanup...');
+        for (const libraryId of librariesNeedingScan) {
+          try {
+            await plexClient.scanLibrary(libraryId);
+            logger.info('Triggered Plex scan after placeholder deletion', {
+              label: 'Collections Quick Sync',
+              libraryId,
+            });
+          } catch (error) {
+            logger.warn(
+              'Failed to trigger Plex scan after placeholder deletion',
+              {
+                label: 'Collections Quick Sync',
+                libraryId,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
+      }
+
       // Cleanup old missing items (>30 days)
       this.setStage('Cleaning up old missing items...');
       const cleanedCount = await this.cleanupOldMissingItems();
@@ -217,6 +258,7 @@ class CollectionsQuickSync {
         itemsMatched,
         collectionsUpdated,
         itemsAdded,
+        placeholdersDeleted,
         oldItemsCleaned: cleanedCount,
       });
 
@@ -232,6 +274,217 @@ class CollectionsQuickSync {
       this.cancelled = false;
       this.currentStage = '';
     }
+  }
+
+  /**
+   * Check recently added Plex items against placeholders and delete placeholders for real items
+   * This prevents placeholder accumulation when real content is added
+   */
+  private async cleanupPlaceholdersForRecentItems(
+    recentItems: PlexLibraryItem[],
+    libraryId: string
+  ): Promise<{ deletedCount: number; affectedLibraries: Set<string> }> {
+    const placeholderRepository = getRepository(ComingSoonItem);
+    const { placeholderContextService } = await import(
+      '@server/lib/collections/services/PlaceholderContextService'
+    );
+    const { removePlaceholder } = await import(
+      '@server/lib/comingsoon/placeholderManager'
+    );
+
+    let deletedCount = 0;
+    const affectedLibraries = new Set<string>();
+
+    // Get all placeholders for this library
+    const settings = getSettings();
+    const collectionsForLibrary = settings.plex.collectionConfigs?.filter(
+      (c) => c.libraryId === libraryId && c.createPlaceholdersForMissing
+    );
+
+    if (!collectionsForLibrary || collectionsForLibrary.length === 0) {
+      return { deletedCount: 0, affectedLibraries };
+    }
+
+    const configIds = collectionsForLibrary.map((c) => c.id);
+    const placeholders = await placeholderRepository
+      .createQueryBuilder('placeholder')
+      .where('placeholder.configId IN (:...configIds)', { configIds })
+      .getMany();
+
+    if (placeholders.length === 0) {
+      return { deletedCount: 0, affectedLibraries };
+    }
+
+    logger.info('Checking recently added items against placeholders', {
+      label: 'Collections Quick Sync',
+      recentItemsCount: recentItems.length,
+      placeholdersCount: placeholders.length,
+    });
+
+    // Create lookup map of placeholders by TMDB ID
+    const placeholdersByTmdbId = new Map<number, ComingSoonItem[]>();
+    for (const placeholder of placeholders) {
+      if (!placeholdersByTmdbId.has(placeholder.tmdbId)) {
+        placeholdersByTmdbId.set(placeholder.tmdbId, []);
+      }
+      placeholdersByTmdbId.get(placeholder.tmdbId)?.push(placeholder);
+    }
+
+    // Check each recent item
+    for (const recentItem of recentItems) {
+      const tmdbId = this.extractTmdbId(recentItem);
+      if (!tmdbId) continue;
+
+      const matchedPlaceholders = placeholdersByTmdbId.get(tmdbId);
+      if (!matchedPlaceholders || matchedPlaceholders.length === 0) continue;
+
+      // Cast to extended type to access optional properties used by placeholder detection
+      const itemExtended = recentItem as PlexLibraryItem & {
+        childCount?: number;
+        Children?: { Metadata?: unknown[] };
+        seasonCount?: number;
+        leafCount?: number;
+      };
+
+      // Verify this is real content and not still a placeholder
+      const isStillPlaceholder = placeholderContextService.isPlaceholderItem({
+        type: itemExtended.type,
+        guid: itemExtended.guid,
+        editionTitle: itemExtended.editionTitle,
+        Guid: itemExtended.Guid,
+        childCount: itemExtended.childCount,
+        Children: itemExtended.Children,
+        seasonCount: itemExtended.seasonCount,
+        leafCount: itemExtended.leafCount,
+      });
+
+      if (isStillPlaceholder) {
+        logger.debug(
+          'Skipping placeholder cleanup - Plex item is still a placeholder',
+          {
+            label: 'Collections Quick Sync',
+            title: recentItem.title,
+            tmdbId,
+          }
+        );
+        continue;
+      }
+
+      // Real content detected - delete placeholder for ALL collections
+      logger.info(
+        'Real content detected - deleting placeholder(s) for all collections',
+        {
+          label: 'Collections Quick Sync',
+          title: recentItem.title,
+          tmdbId,
+          placeholderCount: matchedPlaceholders.length,
+        }
+      );
+
+      // Get ALL placeholder records for this TMDB ID across all collections
+      const allPlaceholderRecords = await placeholderRepository.find({
+        where: { tmdbId },
+      });
+
+      if (allPlaceholderRecords.length === 0) {
+        continue;
+      }
+
+      // Get the placeholder file path (should be same for all records)
+      const placeholderPath = allPlaceholderRecords[0].placeholderPath;
+      const mediaType = allPlaceholderRecords[0].mediaType;
+
+      // Delete the placeholder file once
+      let fileDeleted = false;
+      if (placeholderPath) {
+        const libraryPath =
+          mediaType === 'movie'
+            ? settings.main.placeholderMovieRootFolder
+            : settings.main.placeholderTVRootFolder;
+
+        if (!libraryPath) {
+          logger.warn('Library path not configured - skipping file deletion', {
+            label: 'Collections Quick Sync',
+            title: recentItem.title,
+            mediaType,
+          });
+          continue;
+        }
+
+        // Construct full path
+        const fullPath = path.join(libraryPath, placeholderPath);
+
+        try {
+          await removePlaceholder(fullPath, mediaType);
+          fileDeleted = true;
+          affectedLibraries.add(libraryId);
+          logger.info('Deleted placeholder file (real content exists)', {
+            label: 'Collections Quick Sync',
+            title: recentItem.title,
+            path: placeholderPath,
+            affectedCollections: allPlaceholderRecords.length,
+          });
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('ENOENT')) {
+            // File doesn't exist - that's fine, proceed with database cleanup
+            fileDeleted = true;
+            logger.debug('Placeholder file already deleted', {
+              label: 'Collections Quick Sync',
+              title: recentItem.title,
+              path: fullPath,
+            });
+          } else {
+            logger.error(
+              'Failed to delete placeholder file - keeping all database records',
+              {
+                label: 'Collections Quick Sync',
+                title: recentItem.title,
+                path: fullPath,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+            continue; // Keep ALL database records if file deletion failed
+          }
+        }
+      } else {
+        fileDeleted = true; // No file to delete
+      }
+
+      // Delete ALL database records for this placeholder across ALL collections
+      if (fileDeleted) {
+        try {
+          await placeholderRepository.remove(allPlaceholderRecords);
+          deletedCount += allPlaceholderRecords.length;
+          logger.info(
+            'Deleted placeholder records for all collections (real content exists)',
+            {
+              label: 'Collections Quick Sync',
+              title: recentItem.title,
+              tmdbId,
+              recordsDeleted: allPlaceholderRecords.length,
+              collections: allPlaceholderRecords.map((r) => r.configId),
+            }
+          );
+        } catch (error) {
+          logger.error('Failed to delete placeholder database records', {
+            label: 'Collections Quick Sync',
+            title: recentItem.title,
+            tmdbId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+
+    if (deletedCount > 0) {
+      logger.info('Placeholder cleanup completed', {
+        label: 'Collections Quick Sync',
+        deletedCount,
+        affectedLibraries: Array.from(affectedLibraries),
+      });
+    }
+
+    return { deletedCount, affectedLibraries };
   }
 
   /**
