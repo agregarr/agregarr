@@ -14,7 +14,6 @@ import {
 } from '@server/lib/posterFileManager';
 import {
   generateTemplatePreview,
-  isPersonDefaultTemplate,
   sanitizeTemplateData,
   validateTemplateData,
 } from '@server/lib/posterTemplates';
@@ -44,14 +43,11 @@ router.get('/templates', async (req, res, next) => {
     });
 
     const templatesResponse = templates.map((template: PosterTemplate) => {
-      const isPersonDefault = isPersonDefaultTemplate(template.name);
-
       return {
         id: template.id,
         name: template.name,
         description: template.description,
-        isDefault: template.isDefault && !isPersonDefault,
-        isPersonDefault,
+        isDefault: template.isDefault,
         templateData: template.getTemplateData(),
         createdAt: template.createdAt,
         updatedAt: template.updatedAt,
@@ -121,9 +117,7 @@ router.post('/templates', async (req, res, next) => {
       id: savedTemplate.id,
       name: savedTemplate.name,
       description: savedTemplate.description,
-      isDefault:
-        savedTemplate.isDefault && !isPersonDefaultTemplate(savedTemplate.name),
-      isPersonDefault: isPersonDefaultTemplate(savedTemplate.name),
+      isDefault: savedTemplate.isDefault,
       templateData: savedTemplate.getTemplateData(),
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
@@ -191,9 +185,7 @@ router.put('/templates/:id', async (req, res, next) => {
       id: savedTemplate.id,
       name: savedTemplate.name,
       description: savedTemplate.description,
-      isDefault:
-        savedTemplate.isDefault && !isPersonDefaultTemplate(savedTemplate.name),
-      isPersonDefault: isPersonDefaultTemplate(savedTemplate.name),
+      isDefault: savedTemplate.isDefault,
       templateData: savedTemplate.getTemplateData(),
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
@@ -226,13 +218,6 @@ router.delete('/templates/:id', async (req, res, next) => {
     if (!template) {
       return res.status(404).json({
         error: 'Template not found',
-      });
-    }
-
-    if (isPersonDefaultTemplate(template.name)) {
-      return res.status(400).json({
-        error:
-          'Person default templates cannot be set as the generic default poster template',
       });
     }
 
@@ -305,9 +290,7 @@ router.post('/templates/:id/set-default', async (req, res, next) => {
       template: {
         id: template.id,
         name: template.name,
-        isDefault:
-          template.isDefault && !isPersonDefaultTemplate(template.name),
-        isPersonDefault: isPersonDefaultTemplate(template.name),
+        isDefault: template.isDefault,
       },
     });
   } catch (error) {

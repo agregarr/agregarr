@@ -47,7 +47,6 @@ interface PosterTemplate {
   description?: string;
   templateData: PosterEditorData;
   isDefault: boolean;
-  isPersonDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }

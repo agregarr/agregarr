@@ -17,7 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import { loadIconFile } from './iconManager';
-import { applyTemplate, isPersonDefaultTemplate } from './posterTemplates';
+import { applyTemplate } from './posterTemplates';
 import { sourceColorsService } from './services/SourceColorsService';
 
 // Import Canvas with fallback handling
@@ -1864,35 +1864,10 @@ export async function generatePosterBuffer(
       ) {
         const templateRepository = getRepository(PosterTemplate);
 
-        const defaultTemplates = await templateRepository.find({
+        const defaultTemplate = await templateRepository.findOne({
           where: { isDefault: true, isActive: true },
           order: { updatedAt: 'DESC' },
         });
-
-        let defaultTemplate = defaultTemplates.find(
-          (template) => !isPersonDefaultTemplate(template.name)
-        );
-
-        if (!defaultTemplate) {
-          const personDefault = defaultTemplates.find((template) =>
-            isPersonDefaultTemplate(template.name)
-          );
-
-          if (personDefault) {
-            logger.warn(
-              'Person-focused template flagged as generic default; ignoring',
-              {
-                templateId: personDefault.id,
-                templateName: personDefault.name,
-              }
-            );
-          }
-
-          defaultTemplate =
-            (await templateRepository.findOne({
-              where: { name: 'Default Agregarr Template', isActive: true },
-            })) ?? undefined;
-        }
 
         if (!defaultTemplate) {
           logger.warn(

@@ -569,9 +569,9 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         config,
       });
 
-      // Set separator to inherit library default (collectionMode = -1); avoids hard-coding visibility
+      // Set separator to use library default (collectionMode = 0)
       try {
-        await plexClient.updateCollectionMode(separatorRatingKey, -1);
+        await plexClient.updateCollectionMode(separatorRatingKey, 0);
       } catch (modeError) {
         logger.debug('Failed to set separator collection mode', {
           label: 'Plex Library Collections',

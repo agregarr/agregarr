@@ -1252,11 +1252,11 @@ class PlexAPI {
   /**
    * Update collection mode (visibility of individual items)
    * @param collectionRatingKey - Collection rating key
-   * @param mode - Collection mode: -1 = inherit library default, 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
+   * @param mode - Collection mode: 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
    */
   public async updateCollectionMode(
     collectionRatingKey: string,
-    mode: -1 | 0 | 1 | 2 | 3
+    mode: 0 | 1 | 2 | 3
   ): Promise<void> {
     try {
       // Plex uses /prefs endpoint with collectionMode query parameter

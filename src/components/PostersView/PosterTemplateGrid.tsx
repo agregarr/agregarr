@@ -39,7 +39,6 @@ interface PosterTemplate {
   description?: string;
   templateData: PosterEditorData;
   isDefault: boolean;
-  isPersonDefault: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -291,11 +290,6 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
                     </p>
                   )}
                   <div className="mt-2 flex items-center space-x-2">
-                    {template.isPersonDefault && (
-                      <Badge badgeType="success" className="text-xs">
-                        {intl.formatMessage(messages.personDefault)}
-                      </Badge>
-                    )}
                     {template.isDefault && (
                       <Badge badgeType="success" className="text-xs">
                         {intl.formatMessage(messages.default)}
