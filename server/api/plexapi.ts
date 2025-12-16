@@ -1252,11 +1252,11 @@ class PlexAPI {
   /**
    * Update collection mode (visibility of individual items)
    * @param collectionRatingKey - Collection rating key
-   * @param mode - Collection mode: 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
+   * @param mode - Collection mode: -1 = inherit library default, 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
    */
   public async updateCollectionMode(
     collectionRatingKey: string,
-    mode: 0 | 1 | 2 | 3
+    mode: -1 | 0 | 1 | 2 | 3
   ): Promise<void> {
     try {
       // Plex uses /prefs endpoint with collectionMode query parameter
@@ -2303,6 +2303,44 @@ class PlexAPI {
     );
   }
 
+  /**
+   * Create a smart collection filtered by director name
+   */
+  public async createDirectorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    directorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    return this.smartCollectionManager.createDirectorCollection(
+      title,
+      libraryKey,
+      mediaType,
+      directorName,
+      limit
+    );
+  }
+
+  /**
+   * Create a smart collection filtered by actor name
+   */
+  public async createActorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    actorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    return this.smartCollectionManager.createActorCollection(
+      title,
+      libraryKey,
+      mediaType,
+      actorName,
+      limit
+    );
+  }
+
   // POSTER MANAGEMENT METHODS - Delegated to PlexPosterManager
 
   /**
@@ -2432,6 +2470,288 @@ class PlexAPI {
     summary: string
   ): Promise<void> {
     return this.posterManager.updateSummary(ratingKey, summary);
+  }
+
+  /**
+   * Get top directors from a library section with their item counts
+   * Excludes placeholder items using the same query filters as smart collections
+   */
+  public async getLibraryDirectors(
+    libraryId: string,
+    limit?: number
+  ): Promise<{ name: string; count: number }[]> {
+    try {
+      logger.debug(`Fetching directors from library ${libraryId}`, {
+        label: 'Plex API',
+        libraryId,
+        limit,
+      });
+
+      // Fetch library metadata to determine media type
+      const libraries = await this.getLibraries();
+      const library = libraries.find((lib) => lib.key === libraryId);
+      const mediaType = library?.type === 'show' ? 'tv' : 'movie';
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build query with placeholder exclusions (same as smart collections)
+      let queryUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&label!=${labelFilter}`;
+      }
+
+      const response = await this.plexClient.query<{
+        MediaContainer: {
+          totalSize: number;
+          Metadata?: {
+            Director?: { tag: string }[];
+          }[];
+        };
+      }>({
+        uri: queryUri,
+        extraHeaders: {
+          'X-Plex-Container-Size': '0', // Get all items
+        },
+      });
+
+      const items = response.MediaContainer.Metadata || [];
+      const directorCounts = new Map<string, number>();
+
+      for (const item of items) {
+        if (item.Director && Array.isArray(item.Director)) {
+          for (const director of item.Director) {
+            if (director.tag) {
+              const currentCount = directorCounts.get(director.tag) || 0;
+              directorCounts.set(director.tag, currentCount + 1);
+            }
+          }
+        }
+      }
+
+      let directors = Array.from(directorCounts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
+      if (limit && limit > 0) {
+        directors = directors.slice(0, limit);
+      }
+
+      logger.info(
+        `Found ${directorCounts.size} unique directors in library ${libraryId}`,
+        {
+          label: 'Plex API',
+          libraryId,
+          totalDirectors: directorCounts.size,
+          returned: directors.length,
+          topDirectors: directors
+            .slice(0, 5)
+            .map((d) => `${d.name} (${d.count})`),
+        }
+      );
+
+      return directors;
+    } catch (error) {
+      logger.error(`Failed to fetch directors from library ${libraryId}`, {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get top actors from a library section with their item counts
+   * Excludes placeholder items using the same query filters as smart collections
+   */
+  public async getLibraryActors(
+    libraryId: string,
+    limit?: number
+  ): Promise<{ name: string; count: number }[]> {
+    try {
+      logger.debug(`Fetching actors from library ${libraryId}`, {
+        label: 'Plex API',
+        libraryId,
+        limit,
+      });
+
+      // Fetch library metadata to determine media type
+      const libraries = await this.getLibraries();
+      const library = libraries.find((lib) => lib.key === libraryId);
+      const mediaType = library?.type === 'show' ? 'tv' : 'movie';
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build query with placeholder exclusions (same as smart collections)
+      let queryUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        queryUri = `/library/sections/${libraryId}/all?type=${type}&label!=${labelFilter}`;
+      }
+
+      const response = await this.plexClient.query<{
+        MediaContainer: {
+          totalSize: number;
+          Metadata?: {
+            Role?: { tag: string }[];
+          }[];
+        };
+      }>({
+        uri: queryUri,
+        extraHeaders: {
+          'X-Plex-Container-Size': '0', // Get all items
+        },
+      });
+
+      const items = response.MediaContainer.Metadata || [];
+      const actorCounts = new Map<string, number>();
+
+      for (const item of items) {
+        const roles = (item as { Role?: { tag?: string }[] }).Role;
+        if (roles && Array.isArray(roles)) {
+          // Only consider the first few actors per item to avoid noisy long casts
+          for (const role of roles.slice(0, 5)) {
+            if (role.tag) {
+              const currentCount = actorCounts.get(role.tag) || 0;
+              actorCounts.set(role.tag, currentCount + 1);
+            }
+          }
+        }
+      }
+
+      let actors = Array.from(actorCounts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+
+      if (limit && limit > 0) {
+        actors = actors.slice(0, limit);
+      }
+
+      logger.info(
+        `Found ${actorCounts.size} unique actors in library ${libraryId}`,
+        {
+          label: 'Plex API',
+          libraryId,
+          totalActors: actorCounts.size,
+          returned: actors.length,
+          topActors: actors.slice(0, 5).map((d) => `${d.name} (${d.count})`),
+        }
+      );
+
+      return actors;
+    } catch (error) {
+      logger.error(`Failed to fetch actors from library ${libraryId}`, {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get library items for a specific director (movies or TV)
+   */
+  public async getItemsByDirector(
+    libraryId: string,
+    directorName: string,
+    mediaType: 'movie' | 'tv',
+    limit?: number
+  ): Promise<PlexLibraryItem[]> {
+    const type = mediaType === 'movie' ? 1 : 2;
+    const directorFilter = encodeURIComponent(directorName);
+    const filterParams =
+      mediaType === 'tv'
+        ? `episode.title!=${encodeURIComponent('Trailer (Placeholder)')}`
+        : `label!=${encodeURIComponent('trailer-placeholder')}`;
+
+    let uri = `/library/sections/${libraryId}/all?type=${type}&director=${directorFilter}&${filterParams}&includeGuids=1`;
+    if (limit && limit > 0) {
+      uri += `&limit=${limit}`;
+    }
+
+    try {
+      const response = await this.plexClient.query<{
+        MediaContainer: { Metadata?: PlexLibraryItem[] };
+      }>({
+        uri,
+        extraHeaders: limit
+          ? {
+              'X-Plex-Container-Size': `${limit}`,
+            }
+          : undefined,
+      });
+
+      return response.MediaContainer.Metadata || [];
+    } catch (error) {
+      logger.error(
+        `Failed to fetch items for director "${directorName}" in library ${libraryId}`,
+        {
+          label: 'Plex API',
+          directorName,
+          libraryId,
+          mediaType,
+          limit,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get library items for a specific actor (movies or TV)
+   */
+  public async getItemsByActor(
+    libraryId: string,
+    actorName: string,
+    mediaType: 'movie' | 'tv',
+    limit?: number
+  ): Promise<PlexLibraryItem[]> {
+    const type = mediaType === 'movie' ? 1 : 2;
+    const actorFilter = encodeURIComponent(actorName);
+    const filterParams =
+      mediaType === 'tv'
+        ? `episode.title!=${encodeURIComponent('Trailer (Placeholder)')}`
+        : `label!=${encodeURIComponent('trailer-placeholder')}`;
+
+    let uri = `/library/sections/${libraryId}/all?type=${type}&actor=${actorFilter}&${filterParams}&includeGuids=1`;
+    if (limit && limit > 0) {
+      uri += `&limit=${limit}`;
+    }
+
+    try {
+      const response = await this.plexClient.query<{
+        MediaContainer: { Metadata?: PlexLibraryItem[] };
+      }>({
+        uri,
+        extraHeaders: limit
+          ? {
+              'X-Plex-Container-Size': `${limit}`,
+            }
+          : undefined,
+      });
+
+      return response.MediaContainer.Metadata || [];
+    } catch (error) {
+      logger.error(
+        `Failed to fetch items for actor "${actorName}" in library ${libraryId}`,
+        {
+          label: 'Plex API',
+          actorName,
+          libraryId,
+          mediaType,
+          limit,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      throw error;
+    }
   }
 }
 

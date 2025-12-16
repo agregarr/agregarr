@@ -3139,6 +3139,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     options?: {
       collectionTypeOverride?: string; // For networks/originals to pass platform name
       dynamicLogo?: string; // For networks to pass extracted sprite logo
+      personImageUrl?: string; // For person collections to pass TMDB profile image
     }
   ): Promise<void> {
     try {
@@ -3314,6 +3315,9 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
           items: posterItems,
           autoPosterTemplate: config.autoPosterTemplate,
           ...(options?.dynamicLogo && { dynamicLogo: options.dynamicLogo }),
+          ...(options?.personImageUrl && {
+            personImageUrl: options.personImageUrl,
+          }),
         },
         `Auto-generated: ${collectionName}`,
         collectionIdentifier

@@ -296,6 +296,40 @@ const CollectionFormConfigForm = ({
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema.notRequired(),
     }),
+    personMinimumItems: Yup.number()
+      .transform((value, originalValue) => {
+        if (
+          originalValue === null ||
+          originalValue === undefined ||
+          originalValue === ''
+        ) {
+          return undefined;
+        }
+        return Number.isNaN(value) ? undefined : value;
+      })
+      .when(['type', 'subtype'], {
+        is: (type?: string, subtype?: string) =>
+          type === 'plex' && (subtype === 'actors' || subtype === 'directors'),
+        then: (schema) =>
+          schema
+            .required('Minimum items is required')
+            .min(2, 'Minimum items must be at least 2'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
+    useSeparator: Yup.boolean(),
+    separatorTitle: Yup.string()
+      .transform((value) => value?.trim())
+      .when(['type', 'subtype', 'useSeparator'], {
+        is: (type?: string, subtype?: string, useSeparator?: boolean) =>
+          useSeparator === true &&
+          type === 'plex' &&
+          (subtype === 'actors' || subtype === 'directors'),
+        then: (schema) =>
+          schema
+            .required('Separator title is required')
+            .min(2, 'Separator title must be at least 2 characters'),
+        otherwise: (schema) => schema.notRequired(),
+      }),
 
     // Handle both libraryIds (collections) and libraryId (hubs/pre-existing)
     libraryIds: Yup.array()
@@ -1022,7 +1056,20 @@ const CollectionFormConfigForm = ({
               timePeriod: undefined,
             };
           })(),
-          template: (config as CollectionFormConfig).template || '',
+          template:
+            (config as CollectionFormConfig).template ||
+            (() => {
+              if (
+                (config as CollectionFormConfig).type === 'plex' &&
+                ((config as CollectionFormConfig).subtype === 'directors' ||
+                  (config as CollectionFormConfig).subtype === 'actors')
+              ) {
+                return (config as CollectionFormConfig).subtype === 'actors'
+                  ? '{actor}'
+                  : '{director}';
+              }
+              return '';
+            })(),
           libraryId: config.libraryId || undefined,
           libraryIds:
             (config as CollectionFormConfigForEditing).libraryIds ||
@@ -1038,6 +1085,23 @@ const CollectionFormConfigForm = ({
           createPlaceholdersForMissing:
             (config as CollectionFormConfig).createPlaceholdersForMissing ??
             (config as CollectionFormConfig).type === 'comingsoon', // Force true for Coming Soon
+          personMinimumItems:
+            (config as CollectionFormConfig).personMinimumItems ??
+            ((config as CollectionFormConfig).type === 'plex' &&
+            ((config as CollectionFormConfig).subtype === 'actors' ||
+              (config as CollectionFormConfig).subtype === 'directors')
+              ? 5
+              : undefined),
+          useSeparator: (config as CollectionFormConfig).useSeparator ?? false,
+          separatorTitle:
+            (config as CollectionFormConfig).separatorTitle ||
+            ((config as CollectionFormConfig).type === 'plex' &&
+            ((config as CollectionFormConfig).subtype === 'actors' ||
+              (config as CollectionFormConfig).subtype === 'directors')
+              ? (config as CollectionFormConfig).subtype === 'actors'
+                ? 'Actor Collections'
+                : 'Director Collections'
+              : ''),
           placeholderReleasedDays:
             (config as CollectionFormConfig).placeholderReleasedDays ||
             (config as CollectionFormConfig).comingSoonReleasedDays ||
@@ -1363,6 +1427,43 @@ const CollectionFormConfigForm = ({
           const overseerrSonarrTags = values.enableGrabMissingItems
             ? values.overseerrSonarrTags
             : undefined;
+          const isPersonCollection =
+            values.type === 'plex' &&
+            (values.subtype === 'directors' || values.subtype === 'actors');
+          const defaultSeparatorTitle =
+            values.subtype === 'actors'
+              ? 'Actor Collections'
+              : 'Director Collections';
+          const separatorTitle =
+            isPersonCollection && values.useSeparator
+              ? optionalString(values.separatorTitle) || defaultSeparatorTitle
+              : undefined;
+
+          // Validate required template variables for multi-collection patterns
+          if (isPersonCollection) {
+            const requiredVar =
+              values.subtype === 'actors' ? '{actor}' : '{director}';
+            if (!values.template?.includes(requiredVar)) {
+              setFieldError(
+                'template',
+                `Template must include ${requiredVar} for ${
+                  values.subtype === 'actors' ? 'actor' : 'director'
+                } collections`
+              );
+              return; // Prevent save
+            }
+          } else if (
+            values.type === 'tmdb' &&
+            values.subtype === 'auto_franchise'
+          ) {
+            if (!values.template?.includes('{franchise}')) {
+              setFieldError(
+                'template',
+                'Template must include {franchise} for auto franchise collections'
+              );
+              return; // Prevent save
+            }
+          }
 
           const configToSave: CollectionFormConfig = {
             ...values,
@@ -1371,9 +1472,20 @@ const CollectionFormConfigForm = ({
             subtype: finalSubtype,
             libraryId: values.libraryId as string,
             libraryName: values.libraryName as string,
-            name: generateCollectionName(values as CollectionFormConfig),
-            // Send template as-is - let backend handle custom template selection per library
+            // Force deterministic names for multi-collection patterns (for UI consistency)
+            name: isPersonCollection
+              ? values.subtype === 'actors'
+                ? 'Auto Actor Collections'
+                : 'Auto Director Collections'
+              : values.type === 'tmdb' && values.subtype === 'auto_franchise'
+              ? 'Auto Franchise Collections'
+              : generateCollectionName(values as CollectionFormConfig),
+            // Template is user-customizable, but validated below
             template: values.template,
+            useSeparator: isPersonCollection
+              ? Boolean(values.useSeparator)
+              : undefined,
+            separatorTitle,
             customMovieTemplate:
               values.template === 'custom'
                 ? (values as CollectionFormConfig).customMovieTemplate
@@ -1452,6 +1564,12 @@ const CollectionFormConfigForm = ({
                 ? parseFloat(values.minimumRottenTomatoesRating.toString())
                 : 0
               : undefined,
+            // Unified person minimum items mapped to person collections
+            personMinimumItems: isPersonCollection
+              ? optionalNumber(values.personMinimumItems) ??
+                (config as CollectionFormConfig).personMinimumItems ??
+                5
+              : undefined,
             excludedGenres:
               values.enableGrabMissingItems && values.excludedGenres
                 ? values.excludedGenres
@@ -1511,9 +1629,14 @@ const CollectionFormConfigForm = ({
             enableCustomTheme: values.enableCustomTheme,
             // Ensure customSyncSchedule is explicitly included
             customSyncSchedule: values.customSyncSchedule,
+            // People collections should not carry exclusion rules
+            excludeFromCollections: isPersonCollection
+              ? undefined
+              : values.excludeFromCollections,
             // Remove UI-only fields from the final config
             enableGrabMissingItems: undefined,
           };
+
           onSave(configToSave);
         }}
       >
@@ -1568,7 +1691,7 @@ const CollectionFormConfigForm = ({
                 secondaryTooltip={linkingTooltip}
                 secondaryButtonType={isLinked ? 'warning' : 'primary'}
                 // Add preview button for collections (not hubs or pre-existing)
-                // Disable for multi-collection patterns (overseerr users, tmdb franchise)
+                // Disable for multi-collection patterns (overseerr users, tmdb franchise, plex auto-directors/actors)
                 onTertiary={
                   isCollection &&
                   values.type &&
@@ -1580,6 +1703,11 @@ const CollectionFormConfigForm = ({
                   !(
                     values.type === 'tmdb' &&
                     values.subtype === 'auto_franchise'
+                  ) &&
+                  !(
+                    values.type === 'plex' &&
+                    (values.subtype === 'directors' ||
+                      values.subtype === 'actors')
                   )
                     ? () => setShowPreview(true)
                     : undefined
@@ -1595,6 +1723,11 @@ const CollectionFormConfigForm = ({
                   !(
                     values.type === 'tmdb' &&
                     values.subtype === 'auto_franchise'
+                  ) &&
+                  !(
+                    values.type === 'plex' &&
+                    (values.subtype === 'directors' ||
+                      values.subtype === 'actors')
                   )
                     ? intl.formatMessage(messages.previewCollection)
                     : undefined
@@ -1840,6 +1973,71 @@ const CollectionFormConfigForm = ({
                                   Hard Collection&quot;). Only franchises with
                                   2+ movies in your library will be created.
                                 </p>
+                                <p className="mt-2 text-sm text-orange-400">
+                                  <strong>Note:</strong> Your title template
+                                  must include{' '}
+                                  <code className="rounded bg-gray-700 px-1">
+                                    {'{franchise}'}
+                                  </code>{' '}
+                                  (e.g., &quot;{'{franchise}'}&quot; or
+                                  &quot;Movies from the {'{franchise}'}&quot;).
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      {/* Simple explanation for Plex Library Auto Person Collections */}
+                      {isCollection &&
+                        values.type === 'plex' &&
+                        (values.subtype === 'directors' ||
+                          values.subtype === 'actors') && (
+                          <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
+                            <div className="flex">
+                              <svg
+                                className="mt-0.5 mr-3 h-5 w-5 flex-shrink-0 text-gray-400"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <div>
+                                <p className="text-sm text-gray-400">
+                                  Automatically finds top{' '}
+                                  {values.subtype === 'actors'
+                                    ? 'actors'
+                                    : 'directors'}{' '}
+                                  in this Plex library and creates a smart
+                                  collection for each (up to your limits). These
+                                  collections stay synced via Plex smart filters
+                                  and exclude trailer placeholders. Managed here
+                                  as a single &quot;Auto{' '}
+                                  {values.subtype === 'actors'
+                                    ? 'Actor'
+                                    : 'Director'}{' '}
+                                  Collections&quot; config.
+                                </p>
+                                <p className="mt-2 text-sm text-orange-400">
+                                  <strong>Note:</strong> Your title template
+                                  must include{' '}
+                                  <code className="rounded bg-gray-700 px-1">
+                                    {values.subtype === 'actors'
+                                      ? '{actor}'
+                                      : '{director}'}
+                                  </code>{' '}
+                                  (e.g., &quot;
+                                  {values.subtype === 'actors'
+                                    ? '{actor}'
+                                    : '{director}'}
+                                  &quot; or &quot;Movies by{' '}
+                                  {values.subtype === 'actors'
+                                    ? '{actor}'
+                                    : '{director}'}
+                                  &quot;).
+                                </p>
                               </div>
                             </div>
                           </div>
@@ -2079,7 +2277,10 @@ const CollectionFormConfigForm = ({
                                     (values.type === 'overseerr' &&
                                       values.subtype === 'users') ||
                                     (values.type === 'tmdb' &&
-                                      values.subtype === 'auto_franchise')
+                                      values.subtype === 'auto_franchise') ||
+                                    (values.type === 'plex' &&
+                                      (values.subtype === 'directors' ||
+                                        values.subtype === 'actors'))
                                   }
                                   restrictToServerOwnerOnly={
                                     values.type === 'overseerr' &&
@@ -2149,8 +2350,11 @@ const CollectionFormConfigForm = ({
                             {/* Hide for: recently_added (already smart), and tmdb auto_franchise (multi-collection) */}
                             {values.type !== 'filtered_hub' &&
                               !(
-                                values.type === 'tmdb' &&
-                                values.subtype === 'auto_franchise'
+                                (values.type === 'tmdb' &&
+                                  values.subtype === 'auto_franchise') ||
+                                (values.type === 'plex' &&
+                                  (values.subtype === 'directors' ||
+                                    values.subtype === 'actors'))
                               ) && (
                                 <div className="form-row">
                                   <label className="text-label">
@@ -2435,7 +2639,7 @@ const CollectionFormConfigForm = ({
                             )}
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}
-                            {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
+                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex directors/actors */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
@@ -2443,6 +2647,11 @@ const CollectionFormConfigForm = ({
                               !(
                                 typedValues.type === 'tmdb' &&
                                 typedValues.subtype === 'auto_franchise'
+                              ) &&
+                              !(
+                                typedValues.type === 'plex' &&
+                                (typedValues.subtype === 'directors' ||
+                                  typedValues.subtype === 'actors')
                               ) && (
                                 <div className="form-row">
                                   <label
@@ -2682,7 +2891,7 @@ const CollectionFormConfigForm = ({
                               })()}
 
                             {/* Auto-Request Settings - only show for external sources */}
-                            {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
+                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex directors/actors */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
@@ -2690,6 +2899,11 @@ const CollectionFormConfigForm = ({
                               !(
                                 typedValues.type === 'tmdb' &&
                                 typedValues.subtype === 'auto_franchise'
+                              ) &&
+                              !(
+                                typedValues.type === 'plex' &&
+                                (typedValues.subtype === 'directors' ||
+                                  typedValues.subtype === 'actors')
                               ) && (
                                 <div className="form-row">
                                   <label className="text-label">
@@ -3105,6 +3319,18 @@ const CollectionFormConfigForm = ({
       (values.subtype === 'users' || values.subtype === 'server_owner')
     ) {
       return values.name || 'User Collection';
+    }
+
+    if (
+      values.type === 'plex' &&
+      (values.subtype === 'directors' || values.subtype === 'actors')
+    ) {
+      return (
+        values.name ||
+        (values.subtype === 'actors'
+          ? 'Auto Actor Collections'
+          : 'Auto Director Collections')
+      );
     }
 
     // Handle custom templates - show appropriate preview

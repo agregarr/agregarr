@@ -154,6 +154,7 @@ export interface CollectionFormConfig {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -334,6 +335,11 @@ export interface CollectionFormConfig {
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Unified person minimum items for plex/actors|directors
+  readonly personMinimumItems?: number;
+  // Plex Library separator settings for multi-collections (actors/directors)
+  readonly useSeparator?: boolean; // Whether to create a separator collection for auto person collections
+  readonly separatorTitle?: string; // Custom title for the separator collection
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
@@ -401,6 +407,7 @@ export interface CollectionConfigCreateRequest {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -497,6 +504,11 @@ export interface CollectionConfigCreateRequest {
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
   readonly sortOrder?: CollectionSortOrder;
+  // Unified person minimum items for plex actors/directors
+  readonly personMinimumItems?: number;
+  // Plex Library separator settings for auto person multi-collections
+  readonly useSeparator?: boolean;
+  readonly separatorTitle?: string;
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
@@ -618,11 +630,14 @@ export const toCollectionCreateRequest = (
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
     sortOrder: config.sortOrder,
+    personMinimumItems: config.personMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
     autoPosterTemplate: config.autoPosterTemplate,
+    useSeparator: config.useSeparator,
+    separatorTitle: config.separatorTitle,
     useTmdbFranchisePoster: config.useTmdbFranchisePoster,
     hideIndividualItems: config.hideIndividualItems,
     // Wallpaper, summary, and theme settings
@@ -772,6 +787,7 @@ export type CollectionSourceType =
   | 'originals'
   | 'anilist'
   | 'myanimelist'
+  | 'plex'
   | 'multi-source'
   | 'radarrtag'
   | 'sonarrtag'

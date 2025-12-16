@@ -4,16 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Group, Image, Rect } from 'react-konva';
 import type {
   LayeredElement,
+  PreviewCollectionConfig,
   SVGElementProps as SVGProps,
 } from './PosterEditorModal';
 
 interface SVGElementComponentProps {
   element: LayeredElement;
-  previewCollectionConfig?: {
-    name: string;
-    type?: string;
-    mediaType?: 'movie' | 'tv';
-  };
+  previewCollectionConfig?: PreviewCollectionConfig;
   isSelected: boolean;
   onSelect: (node: Konva.Node) => void;
   onDragMove: (node: Konva.Node) => void;

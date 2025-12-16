@@ -57,6 +57,7 @@ export interface CollectionConfig {
     | 'originals'
     | 'myanimelist'
     | 'anilist'
+    | 'plex'
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
@@ -176,6 +177,11 @@ export interface CollectionConfig {
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Unified person minimum items (applies to both actors and directors)
+  readonly personMinimumItems?: number;
+  // Plex Library separator settings for auto person collections
+  readonly useSeparator?: boolean; // Create a separator collection for actors/directors multi-collections
+  readonly separatorTitle?: string; // Custom title for the separator collection
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
