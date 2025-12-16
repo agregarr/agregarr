@@ -37,7 +37,7 @@ interface MDBListCollectionItem extends CollectionItem {
  * Handles MDBList API types (user lists, top lists, custom lists)
  * with auto-request functionality and comprehensive error handling.
  */
-export class MDBListCollectionSync extends BaseCollectionSync {
+export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
   private mdblistClients: Map<string, MDBListAPI> = new Map();
 
   constructor() {
@@ -94,14 +94,44 @@ export class MDBListCollectionSync extends BaseCollectionSync {
 
       // Apply filtering safety net (validation, deduplication, maxItems safety check)
       const { items, missingItems, mappingStats, filteringStats } =
-        this.applyFilteringToMappedItems(mappedResult, config);
+        await this.applyFilteringToMappedItems(mappedResult, config);
 
-      // Handle auto-requests for missing items
-      if (missingItems && missingItems.length > 0) {
-        await this.handleAutoRequests(missingItems, config);
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
       }
 
-      if (items.length === 0) {
+      // Process missing items - creates placeholders and/or sends to auto-requests
+      let finalItems = items;
+      if (missingItems && missingItems.length > 0) {
+        const placeholderItems = await this.processMissingItems(
+          missingItems,
+          config,
+          plexClient,
+          () => this.handleAutoRequests(missingItems, config)
+        );
+        if (placeholderItems.length > 0) {
+          finalItems = [...items, ...placeholderItems];
+        }
+      }
+
+      if (finalItems.length === 0) {
         logger.warn('No items to create collection from', {
           label: 'MDBList Collections',
           configName: config.name,
@@ -116,7 +146,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
 
       // Use the new media type processing strategy
       return await this.processWithMediaTypeStrategy(
-        items,
+        finalItems,
         config,
         plexClient,
         allCollections,
@@ -221,11 +251,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
       const targetItems: (MDBListMovie | MDBListShow)[] =
         mediaType === 'movie' ? customListData.movies : customListData.shows;
 
-      // Apply ordering modifications
-      const processedItems: (MDBListMovie | MDBListShow)[] =
-        this.applyOrderingOptions([...targetItems], config);
-
-      mdblistData.push(...processedItems.map((item) => ({ item, mediaType })));
+      mdblistData.push(...targetItems.map((item) => ({ item, mediaType })));
 
       return mdblistData;
     } catch (error) {
@@ -359,6 +385,7 @@ export class MDBListCollectionSync extends BaseCollectionSync {
           title: lookup.title,
           year: lookup.year,
           originalPosition: lookup.originalPosition,
+          source: this.source,
         });
       }
     }
@@ -424,42 +451,6 @@ export class MDBListCollectionSync extends BaseCollectionSync {
   }
 
   // Private helper methods
-
-  /**
-   * Apply ordering options (reverse, randomize) to data array
-   */
-  private applyOrderingOptions<T>(data: T[], config: CollectionConfig): T[] {
-    let processedData = [...data];
-
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
-
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      for (let i = processedData.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [processedData[i], processedData[j]] = [
-          processedData[j],
-          processedData[i],
-        ];
-      }
-
-      logger.debug(`Applied randomization to ${processedData.length} items`, {
-        label: 'MDBList Collections',
-        collection: config.name,
-      });
-    } else if (shouldReverse) {
-      processedData = processedData.reverse();
-
-      logger.debug(`Applied reverse order to ${processedData.length} items`, {
-        label: 'MDBList Collections',
-        collection: config.name,
-      });
-    }
-
-    return processedData;
-  }
 
   private getMDBListClient(apiKey: string): MDBListAPI {
     if (!this.mdblistClients.has(apiKey)) {

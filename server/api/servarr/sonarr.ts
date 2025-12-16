@@ -29,6 +29,22 @@ interface EpisodeResult {
   id: number;
 }
 
+export interface EpisodeFile {
+  id: number;
+  seriesId: number;
+  seasonNumber: number;
+  relativePath: string;
+  path: string;
+  size: number;
+  dateAdded: string; // ISO date string
+  quality: {
+    quality: {
+      id: number;
+      name: string;
+    };
+  };
+}
+
 export interface SonarrSeries {
   title: string;
   sortTitle: string;
@@ -112,6 +128,15 @@ export interface SonarrExclusion {
   title: string;
 }
 
+export interface SonarrPagedResponse<T> {
+  page: number;
+  pageSize: number;
+  sortKey: string | null;
+  sortDirection: 'default' | 'ascending' | 'descending';
+  totalRecords: number;
+  records: T[];
+}
+
 class SonarrAPI extends ServarrBase<{
   seriesId: number;
   episodeId: number;
@@ -184,6 +209,47 @@ class SonarrAPI extends ServarrBase<{
         tvdbId: id,
       });
       throw new Error('Series not found');
+    }
+  }
+
+  /**
+   * Get episodes for a series
+   */
+  public async getEpisodesBySeries(seriesId: number): Promise<EpisodeResult[]> {
+    try {
+      const response = await this.axios.get<EpisodeResult[]>('/episode', {
+        params: {
+          seriesId,
+        },
+      });
+
+      return response.data;
+    } catch (e) {
+      logger.error('Error retrieving episodes for series', {
+        label: 'Sonarr API',
+        errorMessage: e.message,
+        seriesId,
+      });
+      throw new Error(`Failed to retrieve episodes: ${e.message}`);
+    }
+  }
+
+  /**
+   * Get episode file details by ID
+   */
+  public async getEpisodeFile(episodeFileId: number): Promise<EpisodeFile> {
+    try {
+      const response = await this.axios.get<EpisodeFile>(
+        `/episodefile/${episodeFileId}`
+      );
+      return response.data;
+    } catch (e) {
+      logger.error('Error retrieving episode file', {
+        label: 'Sonarr API',
+        errorMessage: e.message,
+        episodeFileId,
+      });
+      throw new Error(`Failed to retrieve episode file: ${e.message}`);
     }
   }
 
@@ -331,10 +397,28 @@ class SonarrAPI extends ServarrBase<{
 
   public getExclusions = async (): Promise<SonarrExclusion[]> => {
     try {
-      const response = await this.axios.get<SonarrExclusion[]>(
-        '/importlistexclusion'
-      );
-      return response.data;
+      // Fetch all pages with a reasonable page size
+      const allExclusions: SonarrExclusion[] = [];
+      let currentPage = 1;
+      let totalRecords = 0;
+
+      do {
+        const response = await this.axios.get<
+          SonarrPagedResponse<SonarrExclusion>
+        >('/importlistexclusion/paged', {
+          params: {
+            page: currentPage,
+            pageSize: 100,
+            sortDirection: 'default',
+          },
+        });
+
+        allExclusions.push(...response.data.records);
+        totalRecords = response.data.totalRecords;
+        currentPage++;
+      } while (allExclusions.length < totalRecords);
+
+      return allExclusions;
     } catch (e) {
       logger.error('Error retrieving exclusions from Sonarr', {
         label: 'Sonarr API',

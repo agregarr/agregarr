@@ -1,4 +1,5 @@
 import type PlexAPI from '@server/api/plexapi';
+import type { TmdbFranchiseSourceData } from '@server/lib/collections/core/types';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -25,6 +26,10 @@ export interface TemplateContext {
   currentYear?: string; // Current year
   currentDay?: string; // Current day name
   isWeekend?: boolean; // Whether current day is weekend
+  // Franchise-specific placeholders
+  franchiseName?: string; // TMDB collection/franchise name
+  franchiseId?: number; // TMDB collection ID
+  movieCount?: number; // Number of movies in franchise
 }
 
 /**
@@ -146,6 +151,11 @@ export class TemplateEngine {
         /{isWeekend}/g,
         context.isWeekend ? 'Weekend' : 'Weekday'
       );
+    }
+
+    // Franchise-specific placeholders
+    if (context.franchiseName !== undefined) {
+      processed = processed.replace(/{franchiseName}/g, context.franchiseName);
     }
 
     // Debug logging to see the final result
@@ -333,6 +343,21 @@ export class TemplateEngine {
       ...this.getDefaultContext(),
       mediaType,
       subtype: this.getTmdbSubtypeLabel(subtype),
+    };
+  }
+
+  /**
+   * Create context for TMDB franchise collections
+   */
+  public createFranchiseContext(
+    franchiseData: TmdbFranchiseSourceData
+  ): TemplateContext {
+    return {
+      ...this.getDefaultContext(),
+      franchiseName: franchiseData.franchiseName,
+      franchiseId: franchiseData.franchiseId,
+      movieCount: franchiseData.movies.length,
+      mediaType: 'movie' as const,
     };
   }
 
@@ -605,6 +630,8 @@ export class TemplateEngine {
         return 'Most Collected';
       case 'boxoffice':
         return 'Box Office';
+      case 'recommendations':
+        return 'Recommendations';
       case 'custom':
         return 'Custom List';
 

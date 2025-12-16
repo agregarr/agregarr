@@ -3,7 +3,36 @@ import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { AxiosError } from 'axios';
 import { randomUUID } from 'crypto';
+
+/**
+ * Extract error details from axios errors or regular errors for logging
+ */
+function getErrorDetails(error: unknown): {
+  status?: number;
+  data?: unknown;
+  message: string;
+  stack?: string;
+} {
+  if (error instanceof AxiosError) {
+    return {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+  return {
+    message: String(error),
+  };
+}
 
 /**
  * Configuration for creating service users
@@ -287,9 +316,11 @@ export class ServiceUserManager {
             );
 
             // Clear stale external user ID and re-ensure external user
+            // Set to undefined in memory only - will be saved by ensureExternalUser if successful
             serviceUser.externalOverseerrId = undefined;
-            await this.userRepository.save(serviceUser);
             await this.ensureExternalUser(serviceUser, config);
+            // ensureExternalUser will set the new ID and save if successful
+            // If it fails, user still has undefined but that's handled by ensureExternalUser on next run
           }
         }
 
@@ -445,11 +476,17 @@ export class ServiceUserManager {
           permissions: overseerrPermissions,
         });
       } catch (error) {
+        const errorDetails = getErrorDetails(error);
         logger.error(
           `Failed to create external Overseerr user: ${config.username}`,
           {
             label: 'Service User Manager',
-            error: error instanceof Error ? error.message : String(error),
+            username: config.username,
+            email: config.email,
+            displayName: config.displayName,
+            errorStatus: errorDetails.status,
+            errorData: errorDetails.data,
+            errorMessage: errorDetails.message,
           }
         );
         throw new Error(`Failed to create external Overseerr user: ${error}`);
@@ -522,11 +559,17 @@ export class ServiceUserManager {
             }
           );
         } catch (error) {
+          const errorDetails = getErrorDetails(error);
           logger.error(
-            `Failed to create external user for existing service user: ${config.username}`,
+            `Failed to create external Overseerr user: ${config.username}`,
             {
               label: 'Service User Manager',
-              error: error instanceof Error ? error.message : String(error),
+              username: config.username,
+              email: config.email,
+              displayName: config.displayName,
+              errorStatus: errorDetails.status,
+              errorData: errorDetails.data,
+              errorMessage: errorDetails.message,
             }
           );
           return;
@@ -569,13 +612,8 @@ export class ServiceUserManager {
           {
             label: 'Service User Manager',
             externalUserId: user.externalOverseerrId,
-            error: error instanceof Error ? error.message : String(error),
           }
         );
-
-        // Clear stale external user ID and recreate
-        user.externalOverseerrId = undefined;
-        await this.userRepository.save(user);
 
         // Try to find existing user by email first, or create new one
         let externalUser = await this.findExistingUserByEmail(config.email);
@@ -583,15 +621,34 @@ export class ServiceUserManager {
         if (!externalUser) {
           // External user doesn't exist, create it
           const password = this.generateSecurePassword();
-          externalUser = await overseerrAPI.createUser({
-            username: config.username,
-            email: config.email,
-            password: password,
-            displayName: config.displayName,
-          });
+
+          try {
+            externalUser = await overseerrAPI.createUser({
+              username: config.username,
+              email: config.email,
+              password: password,
+              displayName: config.displayName,
+            });
+          } catch (createError) {
+            const createErrorDetails = getErrorDetails(createError);
+            logger.error(
+              `Failed to recreate external Overseerr user during recovery: ${config.username}`,
+              {
+                label: 'Service User Manager',
+                username: config.username,
+                email: config.email,
+                displayName: config.displayName,
+                errorStatus: createErrorDetails.status,
+                errorData: createErrorDetails.data,
+                errorMessage: createErrorDetails.message,
+              }
+            );
+            throw createError; // Re-throw to prevent saving undefined
+          }
         }
 
-        // Update internal user with external ID
+        // Only clear and save the undefined value AFTER successfully getting a new external user
+        // This prevents storing undefined permanently if the above operations fail
         user.externalOverseerrId = externalUser.id;
         await this.userRepository.save(user);
 
@@ -626,6 +683,7 @@ export class ServiceUserManager {
     } catch (error) {
       logger.warn(`Failed to search for existing user by email: ${email}`, {
         label: 'Service User Manager',
+        email,
         error: error instanceof Error ? error.message : String(error),
       });
       return null;

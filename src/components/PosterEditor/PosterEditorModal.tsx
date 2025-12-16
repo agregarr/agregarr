@@ -1,15 +1,17 @@
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/solid';
+import { Squares2X2Icon } from '@heroicons/react/24/outline';
+import {
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/solid';
 import type React from 'react';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import { LayerPanel } from './LayerPanel';
-import {
-  PosterEditorCanvas,
-  type PosterEditorCanvasRef,
-} from './PosterEditorCanvas';
+import { PosterCanvas, type PosterCanvasRef } from './PosterCanvas';
 
 const messages = defineMessages({
   createPosterTitle: 'Create Poster',
@@ -28,6 +30,9 @@ const messages = defineMessages({
   selectCollection: 'Select a collection...',
   sampleCollectionHelp:
     'Choose a collection to see how your template will look with real data. This is for preview only - templates save as reusable designs.',
+  undo: 'Undo',
+  redo: 'Redo',
+  snapToGuides: 'Snap to Guides',
 });
 
 export type EditorMode =
@@ -47,6 +52,7 @@ export interface LayeredElement {
   y: number;
   width: number;
   height: number;
+  rotation?: number; // Rotation in degrees (0-360)
 
   // Type-specific properties (discriminated union)
   properties:
@@ -135,8 +141,8 @@ export interface PosterEditorModalProps {
 }
 
 const DEFAULT_POSTER_DATA: PosterEditorData = {
-  width: 500,
-  height: 750,
+  width: 1000,
+  height: 1500,
   background: {
     type: 'radial',
     color: '#fb923c',
@@ -175,7 +181,12 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
     string | undefined
   >();
   // Unified layering system is now the only system
-  const canvasRef = useRef<PosterEditorCanvasRef | null>(null);
+  const canvasRef = useRef<PosterCanvasRef | null>(null);
+
+  // History state for undo/redo (limit to 50 states)
+  const [history, setHistory] = useState<PosterEditorData[]>([initialData]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const maxHistorySize = 50;
 
   // Internal preview collection state (for template/poster creation from PostersView)
   const [internalPreviewConfig, setInternalPreviewConfig] = useState<
@@ -193,10 +204,89 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   const setPreviewCollectionConfig =
     externalSetPreviewConfig || setInternalPreviewConfig;
 
+  // Undo/Redo functions
+  const canUndo = historyIndex > 0;
+  const canRedo = historyIndex < history.length - 1;
+
+  const undo = useCallback(() => {
+    if (canUndo) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setPosterData(history[newIndex]);
+      setSelectedElementId(undefined); // Clear selection on undo
+    }
+  }, [canUndo, historyIndex, history]);
+
+  const redo = useCallback(() => {
+    if (canRedo) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setPosterData(history[newIndex]);
+      setSelectedElementId(undefined); // Clear selection on redo
+    }
+  }, [canRedo, historyIndex, history]);
+
+  // Helper to add state to history
+  const addToHistory = useCallback(
+    (newData: PosterEditorData) => {
+      // Remove any future history if we're not at the end
+      const newHistory = history.slice(0, historyIndex + 1);
+
+      // Add new state
+      newHistory.push(newData);
+
+      // Limit history size
+      if (newHistory.length > maxHistorySize) {
+        newHistory.shift();
+      } else {
+        setHistoryIndex(newHistory.length - 1);
+      }
+
+      setHistory(newHistory);
+      setPosterData(newData);
+    },
+    [history, historyIndex, maxHistorySize]
+  );
+
   // Stable onChange callback to prevent re-renders
-  const handlePosterDataChange = useCallback((data: PosterEditorData) => {
-    setPosterData(data);
-  }, []);
+  const handlePosterDataChange = useCallback(
+    (data: PosterEditorData) => {
+      addToHistory(data);
+    },
+    [addToHistory]
+  );
+
+  // Reset history when modal opens with new initial data
+  useEffect(() => {
+    if (isOpen) {
+      setHistory([initialData]);
+      setHistoryIndex(0);
+      setPosterData(initialData);
+    }
+  }, [isOpen, initialData]);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if Ctrl (or Cmd on Mac) is pressed
+      const isModifier = e.ctrlKey || e.metaKey;
+
+      if (isModifier && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (isModifier && e.key === 'z' && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (isModifier && e.key === 'y') {
+        // Alternative redo shortcut
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   // Fetch actual collection configs for preview
   const { data: collectionsData } = useSWR<{
@@ -447,7 +537,8 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
 
                   {/* Center - Canvas */}
                   <div className="col-span-6 flex items-center justify-center overflow-hidden rounded-lg bg-stone-800">
-                    <PosterEditorCanvas
+                    {/* Canvas Area */}
+                    <PosterCanvas
                       ref={canvasRef}
                       posterData={posterData}
                       onChange={handlePosterDataChange}
@@ -456,21 +547,60 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                       currentlyEditingSource={currentlyEditingSource}
                       snapToGuides={snapToGuides}
                       selectedElementId={selectedElementId}
+                      onElementSelect={setSelectedElementId}
                       sourceColorsData={sourceColorsData}
                       aspectRatioLocked={aspectRatioLocked}
                     />
+
+                    {/* Vertical Toolbar */}
+                    <div className="flex flex-col items-center space-y-1 border-l border-stone-700 px-2 py-3">
+                      {/* Undo */}
+                      <button
+                        type="button"
+                        onClick={undo}
+                        disabled={!canUndo}
+                        className="rounded p-1.5 text-stone-400 hover:bg-stone-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                        title="Undo (Ctrl+Z)"
+                      >
+                        <ArrowUturnLeftIcon className="h-4 w-4" />
+                      </button>
+                      {/* Redo */}
+                      <button
+                        type="button"
+                        onClick={redo}
+                        disabled={!canRedo}
+                        className="rounded p-1.5 text-stone-400 hover:bg-stone-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                        title="Redo (Ctrl+Shift+Z)"
+                      >
+                        <ArrowUturnRightIcon className="h-4 w-4" />
+                      </button>
+
+                      <div className="my-1 h-px w-4 bg-stone-600" />
+
+                      {/* Snap to guides */}
+                      <button
+                        type="button"
+                        onClick={() => setSnapToGuides(!snapToGuides)}
+                        className={`rounded p-1.5 ${
+                          snapToGuides
+                            ? 'bg-orange-600 text-white'
+                            : 'text-stone-400 hover:bg-stone-700 hover:text-white'
+                        }`}
+                        title={snapToGuides ? 'Snap: ON' : 'Snap: OFF'}
+                      >
+                        <Squares2X2Icon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Right sidebar - Tools */}
                   <div className="col-span-3 overflow-y-auto">
                     <LayerPanel
                       posterData={posterData}
-                      onChange={setPosterData}
+                      onChange={addToHistory}
                       selectedElementId={selectedElementId}
                       onElementSelect={setSelectedElementId}
                       mode={mode}
-                      snapToGuides={snapToGuides}
-                      onSnapToGuidesChange={setSnapToGuides}
                       onCurrentlyEditingSourceChange={setCurrentlyEditingSource}
                       addToast={addToast}
                       aspectRatioLocked={aspectRatioLocked}

@@ -49,6 +49,8 @@ const messages = defineMessages({
   animelanguageprofile: 'Anime Language Profile',
   animerootfolder: 'Anime Root Folder',
   seasonfolders: 'Season Folders',
+  monitorByDefault: 'Monitor by Default',
+  searchOnAdd: 'Search on Add',
   server4k: '4K Server',
   selectQualityProfile: 'Select quality profile',
   selectRootFolder: 'Select root folder',
@@ -255,6 +257,9 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
           tagRequestsMode:
             sonarr?.tagRequestsMode ??
             (sonarr?.tagRequests ? 'per-service' : 'off'),
+          enableSeasonFolders: sonarr?.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
+          monitorByDefault: sonarr?.monitorByDefault ?? true, // Default to true (monitor items when added)
+          searchOnAdd: sonarr?.searchOnAdd ?? true, // Default to true (search immediately when added)
         }}
         validationSchema={SonarrSettingsSchema}
         onSubmit={async (values) => {
@@ -282,6 +287,9 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               // preventSearch: !values.enableSearch, // Removed field
               tagRequests: values.tagRequestsMode !== 'off',
               tagRequestsMode: values.tagRequestsMode,
+              enableSeasonFolders: values.enableSeasonFolders,
+              monitorByDefault: values.monitorByDefault,
+              searchOnAdd: values.searchOnAdd,
             };
             if (!sonarr) {
               await axios.post('/api/v1/settings/sonarr', submission);
@@ -509,6 +517,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                       >
                         <option value="standard">Standard</option>
                         <option value="daily">Daily</option>
+                        <option value="anime">Anime</option>
                       </Field>
                     </div>
                   </div>
@@ -651,6 +660,45 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                       noOptionsMessage={() =>
                         intl.formatMessage(messages.notagoptions)
                       }
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label
+                    htmlFor="enableSeasonFolders"
+                    className="checkbox-label"
+                  >
+                    {intl.formatMessage(messages.seasonfolders)}
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="enableSeasonFolders"
+                      name="enableSeasonFolders"
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="monitorByDefault" className="checkbox-label">
+                    {intl.formatMessage(messages.monitorByDefault)}
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="monitorByDefault"
+                      name="monitorByDefault"
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="searchOnAdd" className="checkbox-label">
+                    {intl.formatMessage(messages.searchOnAdd)}
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="searchOnAdd"
+                      name="searchOnAdd"
                     />
                   </div>
                 </div>

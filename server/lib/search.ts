@@ -10,6 +10,7 @@ import type {
   TmdbTvDetails,
   TmdbTvResult,
 } from '@server/api/themoviedb/interfaces';
+import { getTmdbLanguage } from '@server/lib/settings';
 import {
   mapMovieDetailsToResult,
   mapPersonDetailsToResult,
@@ -45,7 +46,7 @@ export const findSearchProvider = (
 searchProviders.push({
   pattern: new RegExp(/(?<=tmdb:)\d+/),
   search: async ({ id, language }) => {
-    const tmdb = new TheMovieDb();
+    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
     const moviePromise = tmdb.getMovie({ movieId: parseInt(id), language });
     const tvShowPromise = tmdb.getTvShow({ tvId: parseInt(id), language });
@@ -94,7 +95,7 @@ searchProviders.push({
 searchProviders.push({
   pattern: new RegExp(/(?<=imdb:)(tt|nm)\d+/),
   search: async ({ id, language }) => {
-    const tmdb = new TheMovieDb();
+    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
     const responses = await tmdb.getByExternalId({
       externalId: id,
@@ -132,7 +133,7 @@ searchProviders.push({
 searchProviders.push({
   pattern: new RegExp(/(?<=tvdb:)\d+/),
   search: async ({ id, language }) => {
-    const tmdb = new TheMovieDb();
+    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
     const responses = await tmdb.getByExternalId({
       externalId: parseInt(id),
@@ -170,7 +171,7 @@ searchProviders.push({
 searchProviders.push({
   pattern: new RegExp(/(?<=year:)\d{4}/),
   search: async ({ id: year, query }) => {
-    const tmdb = new TheMovieDb();
+    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
     const moviesPromise = tmdb.searchMovies({
       query: query?.replace(new RegExp(/year:\d{4}/), '') ?? '',

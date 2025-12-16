@@ -32,15 +32,6 @@ export interface ImdbList {
 }
 
 /**
- * IMDb Rating interface (from Radarr proxy)
- */
-export interface ImdbRating {
-  title: string;
-  url: string;
-  criticsScore: number;
-}
-
-/**
  * IMDb Top Lists enum for predefined lists
  */
 export enum ImdbTopList {
@@ -53,25 +44,44 @@ export enum ImdbTopList {
 }
 
 /**
+ * IMDb Top 250 ranking result
+ */
+export interface ImdbTop250Result {
+  isTop250: boolean;
+  rank?: number; // 1-250 if in top 250
+}
+
+/**
  * IMDb API client for fetching lists and popular content
  *
  * Note: IMDb doesn't have a public API for lists, so this uses web scraping
  * for public IMDb lists. This is a best-effort implementation.
  */
 class ImdbAPI extends ExternalAPI {
+  // Cache for Top 250 lists (refreshed periodically)
+  private top250MoviesCache: Map<string, number> = new Map();
+  private top250TvCache: Map<string, number> = new Map();
+  private top250LastRefresh: { movies?: number; tv?: number } = {};
+  private readonly TOP250_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
   constructor() {
-    super('https://www.imdb.com', {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        Connection: 'keep-alive',
-      },
-      nodeCache: cacheManager.getCache('imdb').data,
-    });
+    super(
+      'https://www.imdb.com',
+      {},
+      {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Content-Type': 'text/html; charset=utf-8',
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Accept-Encoding': 'gzip, deflate',
+          Connection: 'keep-alive',
+        },
+        nodeCache: cacheManager.getCache('imdb').data,
+      }
+    );
   }
 
   /**
@@ -361,55 +371,96 @@ class ImdbAPI extends ExternalAPI {
   }
 
   /**
-   * Get movie ratings from Radarr IMDB proxy API
-   *
-   * This uses the Radarr-hosted public IMDB proxy that aggregates ratings data.
-   * This is a best-effort API as IMDB's official API requires paid access.
-   *
-   * @param imdbId - IMDB ID (e.g., "tt1234567")
-   * @returns Rating data including title, URL, and critics score, or null if not found
+   * Refresh Top 250 cache for a specific type
    */
-  public async getMovieRatings(imdbId: string): Promise<ImdbRating | null> {
+  private async refreshTop250Cache(type: 'movie' | 'tv'): Promise<void> {
     try {
-      const response = await this.axios.get<
-        {
-          ImdbId: string;
-          Title: string;
-          MovieRatings: {
-            Imdb: {
-              Count: number;
-              Value: number;
-              Type: string;
-            };
-          };
-        }[]
-      >(`https://api.radarr.video/v1/movie/imdb/${imdbId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
+      const listType =
+        type === 'movie' ? ImdbTopList.TOP_250_MOVIES : ImdbTopList.TOP_250_TV;
+
+      logger.info(`Refreshing IMDb Top 250 ${type} cache`, {
+        label: 'IMDb API',
       });
 
-      if (!response.data?.length || response.data[0].ImdbId !== imdbId) {
-        return null;
+      const items = await this.getTopList(listType, 250);
+
+      // Build cache map: imdbId -> rank (1-based)
+      const cache =
+        type === 'movie' ? this.top250MoviesCache : this.top250TvCache;
+      cache.clear();
+
+      items.forEach((item, index) => {
+        cache.set(item.imdbId, index + 1); // Rank is 1-based
+      });
+
+      this.top250LastRefresh[type === 'movie' ? 'movies' : 'tv'] = Date.now();
+
+      logger.info(`IMDb Top 250 ${type} cache refreshed`, {
+        label: 'IMDb API',
+        itemCount: cache.size,
+      });
+    } catch (error) {
+      logger.error(`Failed to refresh IMDb Top 250 ${type} cache`, {
+        label: 'IMDb API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Don't throw - fall back to empty cache
+    }
+  }
+
+  /**
+   * Check if Top 250 cache needs refresh
+   */
+  private needsRefresh(type: 'movie' | 'tv'): boolean {
+    const lastRefresh =
+      this.top250LastRefresh[type === 'movie' ? 'movies' : 'tv'];
+    if (!lastRefresh) return true;
+    return Date.now() - lastRefresh > this.TOP250_CACHE_TTL;
+  }
+
+  /**
+   * Check if an IMDb ID is in the Top 250 and get its ranking
+   *
+   * @param imdbId - IMDb ID (e.g., "tt0111161")
+   * @param type - Media type ('movie' or 'tv')
+   * @returns Top 250 result with isTop250 flag and optional rank
+   */
+  public async checkTop250(
+    imdbId: string,
+    type: 'movie' | 'tv'
+  ): Promise<ImdbTop250Result> {
+    try {
+      // Refresh cache if needed
+      if (this.needsRefresh(type)) {
+        await this.refreshTop250Cache(type);
+      }
+
+      const cache =
+        type === 'movie' ? this.top250MoviesCache : this.top250TvCache;
+      const rank = cache.get(imdbId);
+
+      if (rank !== undefined) {
+        return {
+          isTop250: true,
+          rank,
+        };
       }
 
       return {
-        title: response.data[0].Title,
-        url: `https://www.imdb.com/title/${response.data[0].ImdbId}`,
-        criticsScore: response.data[0].MovieRatings.Imdb.Value,
+        isTop250: false,
       };
     } catch (error) {
-      logger.error(`Failed to fetch IMDB ratings for ${imdbId}:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
+      logger.error(`Failed to check IMDb Top 250 for ${imdbId}`, {
+        label: 'IMDb API',
         imdbId,
-        stack: error instanceof Error ? error.stack : undefined,
+        type,
+        error: error instanceof Error ? error.message : String(error),
       });
-      throw new Error(
-        `Failed to retrieve movie ratings: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
-      );
+
+      // Return false on error (don't fail overlay rendering)
+      return {
+        isTop250: false,
+      };
     }
   }
 }

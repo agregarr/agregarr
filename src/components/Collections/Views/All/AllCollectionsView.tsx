@@ -1,6 +1,7 @@
 import HomeStarIcon from '@app/assets/icons/homeWithStar.svg';
 import LibraryBookmarkIcon from '@app/assets/icons/libraryRecommended.svg';
 import ThreeHomesIcon from '@app/assets/icons/threeHomes.svg';
+import BulkEditModal from '@app/components/Collections/BulkEditModal';
 import CollectionConfigForm from '@app/components/Collections/Forms/CollectionConfigForm';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
@@ -11,6 +12,10 @@ import { useCollectionEdit } from '@app/hooks/collections/useCollectionEdit';
 import type { CollectionFormConfig, Library } from '@app/types/collections';
 import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
+  linkCollectionConfig,
+  unlinkCollectionConfig,
+} from '@app/utils/collections/linkingHandlers';
+import {
   ArrowPathIcon,
   CheckIcon,
   ExclamationTriangleIcon,
@@ -18,6 +23,7 @@ import {
   LinkIcon,
   LinkSlashIcon,
   PencilIcon,
+  PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
@@ -27,8 +33,9 @@ import type {
 } from '@server/lib/settings';
 import axios from 'axios';
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
 const messages = defineMessages({
@@ -45,6 +52,7 @@ const messages = defineMessages({
   allLibraries: 'All Libraries',
   nameAZ: 'Name (A-Z)',
   nameZA: 'Name (Z-A)',
+  bulkEdit: 'Bulk Edit',
 });
 
 // Interfaces for clean collection data display - no conversion needed
@@ -65,6 +73,7 @@ interface DisplayCollection {
 
 const AllCollectionsView: React.FC = () => {
   const intl = useIntl();
+  const { addToast } = useToasts();
 
   // Use the shared collection edit hook for collections only
   const {
@@ -84,15 +93,20 @@ const AllCollectionsView: React.FC = () => {
   const [editingPreExistingConfig, setEditingPreExistingConfig] =
     useState<PreExistingCollectionConfig | null>(null);
 
+  // Bulk edit modal state
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+
   // Sorting state
   const [sortType, setSortType] = useState<string>('name-asc');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterLibrary, setFilterLibrary] = useState<string>('all');
 
   // Fetch data from separate APIs for consistency with CollectionSettings
-  const { data: collectionData, error: collectionError } = useSWR(
-    '/api/v1/collections'
-  );
+  const {
+    data: collectionData,
+    error: collectionError,
+    mutate: revalidateCollections,
+  } = useSWR('/api/v1/collections');
   const { data: libraries = [], error: librariesError } = useSWR(
     '/api/v1/settings/plex/libraries'
   );
@@ -106,6 +120,37 @@ const AllCollectionsView: React.FC = () => {
     error: preExistingError,
     mutate: revalidatePreExisting,
   } = useSWR('/api/v1/preexisting');
+
+  // Local state for linking operations
+  const [localCollectionConfigs, setLocalCollectionConfigs] = useState<
+    CollectionFormConfig[]
+  >([]);
+  const [localHubConfigs, setLocalHubConfigs] = useState<PlexHubConfig[]>([]);
+
+  // Update local state when data changes
+  useEffect(() => {
+    if (collectionData?.collectionConfigs) {
+      setLocalCollectionConfigs(collectionData.collectionConfigs);
+    }
+    if (hubConfigs) {
+      setLocalHubConfigs(hubConfigs);
+    }
+  }, [collectionData, hubConfigs]);
+
+  // Revalidate all data sources
+  const revalidateAll = () => {
+    revalidateCollections();
+    revalidateDefaultHubs();
+    revalidatePreExisting();
+  };
+
+  // Wrapper for saveCollectionConfig to match linking handler signature
+  const saveCollectionConfigs = async (configs: CollectionFormConfig[]) => {
+    // Save each config individually
+    for (const config of configs) {
+      await saveCollectionConfig(config);
+    }
+  };
 
   const isLoading =
     !collectionData || !libraries || !hubConfigs || !preExistingConfigs;
@@ -582,11 +627,47 @@ const AllCollectionsView: React.FC = () => {
         ...(preExistingConfig.isUnlinked !== undefined && {
           isUnlinked: preExistingConfig.isUnlinked,
         }),
+        ...(preExistingConfig.titleSort && {
+          titleSort: preExistingConfig.titleSort,
+        }),
+        ...(preExistingConfig.randomizeHomeOrder !== undefined && {
+          randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
+        }),
+        ...(preExistingConfig.everLibraryPromoted !== undefined && {
+          everLibraryPromoted: preExistingConfig.everLibraryPromoted,
+        }),
+        ...(preExistingConfig.isPromotedToHub !== undefined && {
+          isPromotedToHub: preExistingConfig.isPromotedToHub,
+        }),
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
         ...(preExistingConfig.customPoster && {
           customPoster: preExistingConfig.customPoster,
+        }),
+        ...(preExistingConfig.autoPoster !== undefined && {
+          autoPoster: preExistingConfig.autoPoster,
+        }),
+        ...(preExistingConfig.autoPosterTemplate !== undefined && {
+          autoPosterTemplate: preExistingConfig.autoPosterTemplate,
+        }),
+        ...(preExistingConfig.customWallpaper && {
+          customWallpaper: preExistingConfig.customWallpaper,
+        }),
+        ...(preExistingConfig.customSummary && {
+          customSummary: preExistingConfig.customSummary,
+        }),
+        ...(preExistingConfig.customTheme && {
+          customTheme: preExistingConfig.customTheme,
+        }),
+        ...(preExistingConfig.enableCustomWallpaper !== undefined && {
+          enableCustomWallpaper: preExistingConfig.enableCustomWallpaper,
+        }),
+        ...(preExistingConfig.enableCustomSummary !== undefined && {
+          enableCustomSummary: preExistingConfig.enableCustomSummary,
+        }),
+        ...(preExistingConfig.enableCustomTheme !== undefined && {
+          enableCustomTheme: preExistingConfig.enableCustomTheme,
         }),
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
@@ -620,14 +701,28 @@ const AllCollectionsView: React.FC = () => {
           {intl.formatMessage(messages.allCollectionsDescription)}
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
-          <p className="text-sm text-gray-400">
-            {intl.formatMessage(messages.totalCollections, {
-              count: filteredAndSortedCollections.length,
-            })}
-            {allCollections.length !== filteredAndSortedCollections.length && (
-              <span className="text-gray-500"> of {allCollections.length}</span>
-            )}
-          </p>
+          <div className="flex items-center gap-4">
+            <Button
+              buttonType="primary"
+              buttonSize="sm"
+              onClick={() => setShowBulkEditModal(true)}
+            >
+              <PencilSquareIcon className="mr-1 h-4 w-4" />
+              {intl.formatMessage(messages.bulkEdit)}
+            </Button>
+            <p className="text-sm text-gray-400">
+              {intl.formatMessage(messages.totalCollections, {
+                count: filteredAndSortedCollections.length,
+              })}
+              {allCollections.length !==
+                filteredAndSortedCollections.length && (
+                <span className="text-gray-500">
+                  {' '}
+                  of {allCollections.length}
+                </span>
+              )}
+            </p>
+          </div>
 
           {/* Sorting and Filtering Controls */}
           <div className="flex flex-wrap items-center gap-3">
@@ -745,6 +840,12 @@ const AllCollectionsView: React.FC = () => {
                       <h5 className="text-base font-medium text-white">
                         {collection.name === 'DYNAMIC_RANDOM_TITLE' ? (
                           <em>Title will be updated on Collection Sync</em>
+                        ) : isCollection &&
+                          (collection.originalConfig as CollectionFormConfig)
+                            .type === 'tmdb' &&
+                          (collection.originalConfig as CollectionFormConfig)
+                            .subtype === 'auto_franchise' ? (
+                          'Auto Franchise Collections'
                         ) : (
                           collection.name || 'Unnamed Collection'
                         )}
@@ -836,6 +937,16 @@ const AllCollectionsView: React.FC = () => {
                                     return 'Collected Monthly';
                                   case 'collected_all':
                                     return 'Most Collected All Time';
+                                  case 'favorited_daily':
+                                    return 'Favorited Daily';
+                                  case 'favorited_weekly':
+                                    return 'Favorited Weekly';
+                                  case 'favorited_monthly':
+                                    return 'Favorited Monthly';
+                                  case 'favorited_all':
+                                    return 'Most Favorited All Time';
+                                  case 'recommendations':
+                                    return 'Recommendations';
                                   default:
                                     return subtype
                                       .replace(/_/g, ' ')
@@ -851,6 +962,8 @@ const AllCollectionsView: React.FC = () => {
                                     return 'Popular';
                                   case 'top_rated':
                                     return 'Top Rated';
+                                  case 'auto_franchise':
+                                    return 'Auto Franchise Collections';
                                   case 'custom':
                                     return 'Custom Collection';
                                   default:
@@ -937,6 +1050,28 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'comingsoon':
+                                switch (subtype) {
+                                  case 'monitored':
+                                    return 'Monitored';
+                                  case 'trakt_anticipated':
+                                    return 'Trakt Anticipated';
+                                  case 'tmdb_anticipated':
+                                    return 'TMDB Anticipated';
+                                  case 'recently_added':
+                                    return 'Recently Added';
+                                  default:
+                                    return subtype;
+                                }
+                              case 'filtered_hub':
+                                switch (subtype) {
+                                  case 'recently_added':
+                                    return 'Recently Added';
+                                  case 'recently_released':
+                                    return 'Recently Released';
+                                  default:
+                                    return subtype;
+                                }
                               case 'networks':
                                 // Format platform names like "netflix_top_10" -> "Netflix"
                                 // and "neon-tv" -> "Neon TV"
@@ -1006,6 +1141,10 @@ const AllCollectionsView: React.FC = () => {
                               ? 'Originals'
                               : config.type === 'multi-source'
                               ? 'Multi-Source'
+                              : config.type === 'comingsoon'
+                              ? 'Coming Soon'
+                              : config.type === 'filtered_hub'
+                              ? 'Filtered Hub'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(
@@ -1201,6 +1340,32 @@ const AllCollectionsView: React.FC = () => {
           onSave={saveCollectionConfig}
           onCancel={closeCollectionModal}
           libraries={libraries}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          allCollectionConfigs={collectionData?.collectionConfigs || []}
+          allHubConfigs={hubConfigs || []}
         />
       )}
 
@@ -1211,6 +1376,32 @@ const AllCollectionsView: React.FC = () => {
           onSave={saveHubConfig}
           onCancel={closeHubModal}
           libraries={libraries}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          allCollectionConfigs={collectionData?.collectionConfigs || []}
+          allHubConfigs={hubConfigs || []}
         />
       )}
 
@@ -1221,6 +1412,43 @@ const AllCollectionsView: React.FC = () => {
           onSave={savePreExistingConfig}
           onCancel={closePreExistingModal}
           libraries={libraries}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs:
+                collectionData?.collectionConfigs || localCollectionConfigs,
+              localHubConfigs: hubConfigs || localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          allCollectionConfigs={collectionData?.collectionConfigs || []}
+          allHubConfigs={hubConfigs || []}
+        />
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <BulkEditModal
+          collections={collectionData?.collectionConfigs || []}
+          hubs={hubConfigs || []}
+          preExisting={preExistingConfigs || []}
+          onClose={() => setShowBulkEditModal(false)}
+          onSave={revalidateAll}
         />
       )}
     </>

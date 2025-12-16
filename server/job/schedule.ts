@@ -1,8 +1,12 @@
 // Availability sync import removed - not needed for collections-only app
+import collectionsQuickSync from '@server/lib/collectionsQuickSync';
 import collectionsSync from '@server/lib/collectionsSync';
 // ImageProxy removed - not needed for collections-only app
+import overlayApplication from '@server/lib/overlayApplication';
+import overlaysQuickSync from '@server/lib/overlaysQuickSync';
 import randomizeHomeOrder from '@server/lib/randomizeHomeOrder';
 import refreshToken from '@server/lib/refreshToken';
+import watchlistSync from '@server/lib/watchlistSync';
 // Scanner imports removed - not needed for collections-only app
 import type { JobId } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
@@ -68,6 +72,25 @@ export const startJobs = (): void => {
   });
 
   scheduledJobs.push({
+    id: 'plex-collections-quick-sync',
+    name: 'Collections Quick Sync',
+    type: 'process',
+    interval: 'minutes',
+    cronSchedule: jobs['plex-collections-quick-sync'].schedule,
+    job: schedule.scheduleJob(
+      jobs['plex-collections-quick-sync'].schedule,
+      () => {
+        logger.info('Starting scheduled job: Collections Quick Sync', {
+          label: 'Jobs',
+        });
+        collectionsQuickSync.run();
+      }
+    ),
+    running: () => collectionsQuickSync.status.running,
+    cancelFn: () => collectionsQuickSync.cancel(),
+  });
+
+  scheduledJobs.push({
     id: 'plex-randomize-home-order',
     name: 'Plex Randomize Home Order',
     type: 'process',
@@ -87,6 +110,38 @@ export const startJobs = (): void => {
   });
 
   scheduledJobs.push({
+    id: 'overlay-application',
+    name: 'Overlay Application',
+    type: 'process',
+    interval: 'hours',
+    cronSchedule: jobs['overlay-application'].schedule,
+    job: schedule.scheduleJob(jobs['overlay-application'].schedule, () => {
+      logger.info('Starting scheduled job: Overlay Application', {
+        label: 'Jobs',
+      });
+      overlayApplication.run();
+    }),
+    running: () => overlayApplication.status.running,
+    cancelFn: () => overlayApplication.cancel(),
+  });
+
+  scheduledJobs.push({
+    id: 'overlay-quick-sync',
+    name: 'Overlay Quick Sync',
+    type: 'process',
+    interval: 'minutes',
+    cronSchedule: jobs['overlay-quick-sync'].schedule,
+    job: schedule.scheduleJob(jobs['overlay-quick-sync'].schedule, () => {
+      logger.info('Starting scheduled job: Overlay Quick Sync', {
+        label: 'Jobs',
+      });
+      overlaysQuickSync.run();
+    }),
+    running: () => overlaysQuickSync.status.running,
+    cancelFn: () => overlaysQuickSync.cancel(),
+  });
+
+  scheduledJobs.push({
     id: 'plex-refresh-token',
     name: 'Plex Refresh Token',
     type: 'process',
@@ -98,6 +153,33 @@ export const startJobs = (): void => {
       });
       refreshToken.run();
     }),
+  });
+
+  scheduledJobs.push({
+    id: 'watchlist-sync',
+    name: 'Plex Watchlist Sync',
+    type: 'process',
+    interval: 'hours',
+    cronSchedule: jobs['watchlist-sync'].schedule,
+    job: schedule.scheduleJob(jobs['watchlist-sync'].schedule, () => {
+      // Check if watchlist sync is enabled
+      const settings = getSettings();
+      const syncSettings = settings.watchlistSync;
+
+      if (!syncSettings.enableOwner && !syncSettings.enableUsers) {
+        logger.debug('Skipping scheduled Watchlist Sync: Not enabled', {
+          label: 'Jobs',
+        });
+        return;
+      }
+
+      logger.info('Starting scheduled job: Plex Watchlist Sync', {
+        label: 'Jobs',
+      });
+      watchlistSync.run();
+    }),
+    running: () => watchlistSync.status.running,
+    cancelFn: () => watchlistSync.cancel(),
   });
 
   logger.info('Scheduled jobs loaded', { label: 'Jobs' });

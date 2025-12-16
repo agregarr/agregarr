@@ -95,61 +95,141 @@ class FlixPatrolAPI extends ExternalAPI {
     requestedMediaType?: 'movie' | 'tv' | 'both'
   ): Promise<FlixPatrolPlatformData> {
     try {
-      // Construct URL based on region
-      let url: string;
-      if (region === 'global') {
-        url = '/top10';
-      } else {
-        // Use current date for streaming overview
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        url = `/top10/streaming/${region}/${today}/`;
-      }
+      // Parse platform to extract base platform and requested section filter
+      // Format: "netflix-kids_top_10" -> platform: "netflix", filter: "kids"
+      //         "netflix_top_10" -> platform: "netflix", filter: undefined (all content)
+      const platformMatch = platform.match(/^([^-]+)(?:-(.+?))?_top_10$/);
+      let basePlatform = platform;
+      let contentFilter: 'kids' | undefined;
 
-      // This ensures movie/tv/both requests are cached separately
-      if (requestedMediaType) {
-        url += `#${requestedMediaType}`;
-      }
-
-      logger.debug(
-        `Fetching FlixPatrol streaming overview for platform: ${platform}`,
-        {
-          label: 'FlixPatrol API',
-          platform,
-          region,
-          url,
+      if (platformMatch) {
+        basePlatform = platformMatch[1];
+        if (platformMatch[2] === 'kids') {
+          contentFilter = 'kids';
         }
-      );
+      }
 
-      // Bypass ExternalAPI and use direct axios request to avoid bot detection
-      const response = await this.axios.get(url, {
-        headers: {
-          // Completely override all headers to look like a real browser
-          'User-Agent':
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
-          'Sec-Ch-Ua':
-            '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-          'Sec-Ch-Ua-Mobile': '?0',
-          'Sec-Ch-Ua-Platform': '"macOS"',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          'Upgrade-Insecure-Requests': '1',
-        },
-        timeout: 30000,
+      logger.debug(`Parsed platform request`, {
+        label: 'FlixPatrol API',
+        original: platform,
+        basePlatform,
+        contentFilter,
       });
 
-      return await this.parseStreamingOverviewHtml(
-        response.data,
-        platform,
-        region,
-        requestedMediaType
-      );
+      // Try today's date first, then yesterday if needed
+      const dates = this.getDatesToTry(region);
+
+      for (const dateInfo of dates) {
+        try {
+          // Construct URL based on region
+          let url: string;
+          if (region === 'global') {
+            url = '/top10';
+          } else {
+            url = `/top10/streaming/${region}/${dateInfo.date}/`;
+          }
+
+          // This ensures movie/tv/both requests are cached separately
+          if (requestedMediaType) {
+            url += `#${requestedMediaType}`;
+          }
+
+          logger.debug(
+            `Fetching FlixPatrol streaming overview for platform: ${platform}`,
+            {
+              label: 'FlixPatrol API',
+              platform,
+              region,
+              url,
+              attemptedDate: dateInfo.date,
+              isRetry: dateInfo.isYesterday,
+            }
+          );
+
+          // Bypass ExternalAPI and use direct axios request to avoid bot detection
+          const response = await this.axios.get(url, {
+            headers: {
+              // Completely override all headers to look like a real browser
+              'User-Agent':
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              Accept:
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Cache-Control': 'no-cache',
+              Pragma: 'no-cache',
+              'Sec-Ch-Ua':
+                '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+              'Sec-Ch-Ua-Mobile': '?0',
+              'Sec-Ch-Ua-Platform': '"macOS"',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'none',
+              'Sec-Fetch-User': '?1',
+              'Upgrade-Insecure-Requests': '1',
+            },
+            timeout: 30000,
+          });
+
+          const result = await this.parseStreamingOverviewHtml(
+            response.data,
+            basePlatform,
+            region,
+            requestedMediaType,
+            contentFilter
+          );
+
+          // Check if we got any data
+          const hasData = result.movies.length > 0 || result.tvShows.length > 0;
+
+          if (!hasData && dateInfo.isYesterday === false) {
+            // Today's data is empty, try yesterday
+            logger.warn(
+              `No data found for today (${dateInfo.date}), trying yesterday`,
+              {
+                label: 'FlixPatrol API',
+                platform,
+                region,
+              }
+            );
+            continue;
+          }
+
+          if (dateInfo.isYesterday) {
+            logger.info(
+              `Successfully fetched data using yesterday's date (${dateInfo.date})`,
+              {
+                label: 'FlixPatrol API',
+                platform,
+                region,
+                movies: result.movies.length,
+                tvShows: result.tvShows.length,
+              }
+            );
+          }
+
+          return result;
+        } catch (error) {
+          // If this is today's attempt and we have yesterday to try, continue to next date
+          if (dateInfo.isYesterday === false && dates.length > 1) {
+            logger.warn(
+              `Failed to fetch data for today (${dateInfo.date}), trying yesterday`,
+              {
+                label: 'FlixPatrol API',
+                platform,
+                region,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            );
+            continue;
+          }
+
+          // If this is yesterday's attempt or we only had one date, throw the error
+          throw error;
+        }
+      }
+
+      // If we get here, all attempts failed
+      throw new Error('Failed to fetch data for both today and yesterday');
     } catch (error) {
       logger.error(
         `Failed to fetch FlixPatrol streaming overview for ${platform}:`,
@@ -166,6 +246,33 @@ class FlixPatrolAPI extends ExternalAPI {
         }`
       );
     }
+  }
+
+  /**
+   * Get dates to try (today and yesterday) for FlixPatrol data fetching
+   */
+  private getDatesToTry(
+    region: string
+  ): { date: string; isYesterday: boolean }[] {
+    // For global region, we don't use dates in the URL
+    if (region === 'global') {
+      return [{ date: '', isYesterday: false }];
+    }
+
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    return [
+      {
+        date: today.toISOString().split('T')[0], // YYYY-MM-DD format
+        isYesterday: false,
+      },
+      {
+        date: yesterday.toISOString().split('T')[0], // YYYY-MM-DD format
+        isYesterday: true,
+      },
+    ];
   }
 
   /**
@@ -345,7 +452,8 @@ class FlixPatrolAPI extends ExternalAPI {
     html: string,
     platform: string,
     region: string,
-    requestedMediaType?: 'movie' | 'tv' | 'both'
+    requestedMediaType?: 'movie' | 'tv' | 'both',
+    contentFilter?: 'kids'
   ): Promise<FlixPatrolPlatformData> {
     const dom = new JSDOM(html);
     const document = dom.window.document;
@@ -510,14 +618,23 @@ class FlixPatrolAPI extends ExternalAPI {
       // Pattern 1: H3 subsection headers
       if (currentElement.tagName === 'H3') {
         const h3Text = currentElement.textContent?.toLowerCase() || '';
+        const isKidsSection = h3Text.includes('kids');
 
-        // Filter out "Kids" content sections
-        if (h3Text.includes('kids')) {
-          logger.debug(`Skipping Kids content section: "${h3Text}"`, {
+        // Apply content filter if specified
+        if (contentFilter === 'kids' && !isKidsSection) {
+          // User wants kids only, skip non-kids sections
+          logger.debug(`Skipping non-kids section "${h3Text}"`, {
             label: 'FlixPatrol API',
             platform,
-            section: h3Text,
-            reason: 'kids_content_filter',
+            contentFilter,
+          });
+          currentElement = currentElement.nextElementSibling;
+          continue;
+        } else if (contentFilter === undefined && isKidsSection) {
+          // User wants regular content only (no filter), skip kids sections
+          logger.debug(`Skipping kids section "${h3Text}"`, {
+            label: 'FlixPatrol API',
+            platform,
           });
           currentElement = currentElement.nextElementSibling;
           continue;
@@ -577,6 +694,33 @@ class FlixPatrolAPI extends ExternalAPI {
             if (items.length > 0) {
               const sectionType = sections[tableIndex] || 'unknown';
               const sectionLower = sectionType.toLowerCase();
+              const isKidsSection = sectionLower.includes('kids');
+
+              // Apply content filter if specified
+              if (contentFilter === 'kids' && !isKidsSection) {
+                // User wants kids only, skip non-kids sections
+                logger.debug(
+                  `Skipping non-kids DIV table section "${sectionType}"`,
+                  {
+                    label: 'FlixPatrol API',
+                    platform,
+                    contentFilter,
+                    tableIndex: tableIndex + 1,
+                  }
+                );
+                return; // Skip this table
+              } else if (contentFilter === undefined && isKidsSection) {
+                // User wants regular content only (no filter), skip kids sections
+                logger.debug(
+                  `Skipping kids DIV table section "${sectionType}"`,
+                  {
+                    label: 'FlixPatrol API',
+                    platform,
+                    tableIndex: tableIndex + 1,
+                  }
+                );
+                return; // Skip this table
+              }
 
               // Handle specific sections immediately
               if (
@@ -977,14 +1121,19 @@ class FlixPatrolAPI extends ExternalAPI {
           sectionType = 'tv shows';
         } else {
           // Check for these keywords anywhere in the section
+          // Preserve "kids" prefix if present
           if (sectionText.includes('movies') || sectionText.includes('films')) {
-            sectionType = 'movies';
+            sectionType = sectionText.includes('kids')
+              ? 'kids movies'
+              : 'movies';
           } else if (
             sectionText.includes('tv shows') ||
             sectionText.includes('shows') ||
             sectionText.includes('series')
           ) {
-            sectionType = 'tv shows';
+            sectionType = sectionText.includes('kids')
+              ? 'kids tv shows'
+              : 'tv shows';
           } else if (
             sectionText.includes('overall') ||
             sectionText.includes('combined')
@@ -1411,25 +1560,125 @@ class FlixPatrolAPI extends ExternalAPI {
               .replace(/&/g, 'and') // & to 'and'
               .replace(/[^a-z0-9-]/g, ''); // remove other special chars
 
-            const platformValue = `${platformCode}_top_10`;
-            const platformLabel = `${platformName} Top 10`;
+            // Check for H3 subsections under this H2
+            // H3 elements can be direct siblings OR inside a DIV sibling
+            const subsections: string[] = [];
+            let nextElement = heading.nextElementSibling;
 
-            // Avoid duplicates
-            if (!platforms.find((p) => p.value === platformValue)) {
-              platforms.push({
-                value: platformValue,
-                label: platformLabel,
-              });
-
-              logger.debug(
-                `Found platform section: "${headingText}" -> ${platformValue}`,
-                {
-                  label: 'FlixPatrol API',
-                  country,
-                  platformName,
-                  platformCode,
+            while (nextElement && nextElement.tagName !== 'H2') {
+              if (nextElement.tagName === 'H3') {
+                const h3Text = nextElement.textContent?.trim() || '';
+                if (h3Text.toLowerCase().startsWith('top 10')) {
+                  subsections.push(h3Text);
                 }
+              } else if (nextElement.tagName === 'DIV') {
+                // Check for H3 elements inside this DIV
+                const h3InDiv = nextElement.querySelectorAll('h3');
+                h3InDiv.forEach((h3) => {
+                  const h3Text = h3.textContent?.trim() || '';
+                  if (h3Text.toLowerCase().startsWith('top 10')) {
+                    subsections.push(h3Text);
+                  }
+                });
+              }
+              nextElement = nextElement.nextElementSibling;
+            }
+
+            // If there are subsections, check if we should group them or create separate options
+            if (subsections.length > 0) {
+              // Check if there are kids sections
+              const hasKidsContent = subsections.some((s) =>
+                s.toLowerCase().includes('kids')
               );
+              const hasRegularContent = subsections.some(
+                (s) => !s.toLowerCase().includes('kids')
+              );
+
+              // If there are kids sections, create two options: regular and kids
+              if (hasKidsContent) {
+                // Option 1: Regular content (Movies + TV Shows combined)
+                if (hasRegularContent) {
+                  const platformValue = `${platformCode}_top_10`;
+                  const platformLabel = `${platformName} Top 10`;
+
+                  if (!platforms.find((p) => p.value === platformValue)) {
+                    platforms.push({
+                      value: platformValue,
+                      label: platformLabel,
+                    });
+
+                    logger.debug(
+                      `Found platform with subsections (combined regular): "${platformName}" -> ${platformValue}`,
+                      {
+                        label: 'FlixPatrol API',
+                        country,
+                        platformName,
+                      }
+                    );
+                  }
+                }
+
+                // Option 2: Kids content (Kids Movies + Kids TV Shows combined)
+                const platformValue = `${platformCode}-kids_top_10`;
+                const platformLabel = `${platformName} Top 10 Kids`;
+
+                if (!platforms.find((p) => p.value === platformValue)) {
+                  platforms.push({
+                    value: platformValue,
+                    label: platformLabel,
+                  });
+
+                  logger.debug(
+                    `Found platform with kids subsections: "${platformName}" -> ${platformValue}`,
+                    {
+                      label: 'FlixPatrol API',
+                      country,
+                      platformName,
+                    }
+                  );
+                }
+              } else {
+                // No kids content, just create single option (Movies + TV combined)
+                const platformValue = `${platformCode}_top_10`;
+                const platformLabel = `${platformName} Top 10`;
+
+                if (!platforms.find((p) => p.value === platformValue)) {
+                  platforms.push({
+                    value: platformValue,
+                    label: platformLabel,
+                  });
+
+                  logger.debug(
+                    `Found platform with subsections (no kids): "${platformName}" -> ${platformValue}`,
+                    {
+                      label: 'FlixPatrol API',
+                      country,
+                      platformName,
+                    }
+                  );
+                }
+              }
+            } else {
+              // No subsections, use the platform overall
+              const platformValue = `${platformCode}_top_10`;
+              const platformLabel = `${platformName} Top 10`;
+
+              if (!platforms.find((p) => p.value === platformValue)) {
+                platforms.push({
+                  value: platformValue,
+                  label: platformLabel,
+                });
+
+                logger.debug(
+                  `Found platform section: "${headingText}" -> ${platformValue}`,
+                  {
+                    label: 'FlixPatrol API',
+                    country,
+                    platformName,
+                    platformCode,
+                  }
+                );
+              }
             }
           }
         }

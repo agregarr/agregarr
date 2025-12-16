@@ -73,6 +73,8 @@ const messages = defineMessages({
   announced: 'Announced',
   inCinemas: 'In Cinemas',
   released: 'Released',
+  monitorByDefault: 'Monitor by Default',
+  searchOnAdd: 'Search on Add',
 });
 
 interface TestResponse {
@@ -247,6 +249,8 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
           tagRequestsMode:
             radarr?.tagRequestsMode ??
             (radarr?.tagRequests ? 'granular' : 'off'),
+          monitorByDefault: radarr?.monitorByDefault ?? true, // Default to true (monitor items when added)
+          searchOnAdd: radarr?.searchOnAdd ?? true, // Default to true (search immediately when added)
         }}
         validationSchema={RadarrSettingsSchema}
         onSubmit={async (values) => {
@@ -274,6 +278,8 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               // preventSearch: !values.enableSearch, // Removed field
               tagRequests: values.tagRequestsMode !== 'off',
               tagRequestsMode: values.tagRequestsMode,
+              monitorByDefault: values.monitorByDefault,
+              searchOnAdd: values.searchOnAdd,
             };
             if (!radarr) {
               await axios.post('/api/v1/settings/radarr', submission);
@@ -650,6 +656,30 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
                       noOptionsMessage={() =>
                         intl.formatMessage(messages.notagoptions)
                       }
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="monitorByDefault" className="checkbox-label">
+                    {intl.formatMessage(messages.monitorByDefault)}
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="monitorByDefault"
+                      name="monitorByDefault"
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="searchOnAdd" className="checkbox-label">
+                    {intl.formatMessage(messages.searchOnAdd)}
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="searchOnAdd"
+                      name="searchOnAdd"
                     />
                   </div>
                 </div>

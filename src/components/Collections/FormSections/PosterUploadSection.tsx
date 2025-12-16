@@ -13,7 +13,7 @@ const messages = defineMessages({
   addPosters: 'Add Posters',
   uploading: 'Uploading poster...',
   remove: 'Remove',
-  posterSize: '500x750px',
+  posterSize: '1000x1500px',
   posterUploadHelp:
     'Upload a custom poster image for this collection (JPEG, PNG, or WebP, max 10MB). Poster will be applied to Plex during the next collection sync.',
   posterUploadHelpMulti:
@@ -25,12 +25,21 @@ const messages = defineMessages({
   posterUploadErrorType: 'Only JPEG, PNG, and WebP files are allowed',
   posterUploadErrorGeneric: 'Upload failed',
   posterUploadErrorNetwork: 'Network error occurred',
-  autoPoster: 'Auto-generate posters',
+  autoPoster: 'Auto-generate Collection posters',
   autoPosterHelp:
     'Automatically generate posters using the collection name during sync. Uncheck to manually upload custom posters instead.',
+  applyOverlaysDuringSync: 'Apply item overlays during sync',
+  applyOverlaysDuringSyncHelp:
+    'Apply overlays to collection items immediately after sync completes. Otherwise, overlays will be applied during the regular overlays sync job.',
   selectTemplate: 'Select Template',
   defaultTemplate: 'Default Template',
   templateHelp: 'Choose a template for auto-generated posters.',
+  useTmdbFranchisePoster: 'Use TMDB Franchise Poster',
+  useTmdbFranchisePosterHelp:
+    'Use the official TMDB franchise poster instead of auto-generating. This setting overrules the above auto-poster option if a collection poster is available from TMDB.',
+  hideIndividualItems: 'Hide Individual Items in Collection',
+  hideIndividualItemsHelp:
+    'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
 });
 
 interface Library {
@@ -119,8 +128,14 @@ const PosterUploadSection = ({
     selectedLibraryIds.includes(lib.key)
   );
 
-  // Auto-poster is available for all collections, enabled by default
-  const isAutoPosterEnabled = values.autoPoster ?? true; // Default to true if not set
+  // Auto-poster is available for all collections
+  // Default to true for Agregarr-created collections, false for pre-existing collections
+  // Check both collectionType and configType (for consistency with CollectionConfigForm)
+  const isPreExisting =
+    values.collectionType === 'pre_existing' ||
+    ('configType' in values && values.configType === 'preExisting');
+  const isAutoPosterEnabled =
+    values.autoPoster ?? (isPreExisting ? false : true);
 
   // Get current selected template - if none selected, use the default template
   const defaultTemplate = templates?.find((t) => t.isDefault);
@@ -300,6 +315,59 @@ const PosterUploadSection = ({
         </div>
       )}
 
+      {/* TMDB Franchise Poster Toggle - only for TMDB auto_franchise collections */}
+      {isAgregarrCollection &&
+        values.type === 'tmdb' &&
+        values.subtype === 'auto_franchise' && (
+          <>
+            <div className="mb-6">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useTmdbFranchisePoster"
+                  checked={values.useTmdbFranchisePoster ?? false}
+                  onChange={(e) =>
+                    setFieldValue('useTmdbFranchisePoster', e.target.checked)
+                  }
+                  className="form-checkbox"
+                />
+                <label
+                  htmlFor="useTmdbFranchisePoster"
+                  className="ml-2 text-sm text-gray-300"
+                >
+                  {intl.formatMessage(messages.useTmdbFranchisePoster)}
+                </label>
+              </div>
+              <div className="label-tip">
+                {intl.formatMessage(messages.useTmdbFranchisePosterHelp)}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="hideIndividualItems"
+                  checked={values.hideIndividualItems ?? false}
+                  onChange={(e) =>
+                    setFieldValue('hideIndividualItems', e.target.checked)
+                  }
+                  className="form-checkbox"
+                />
+                <label
+                  htmlFor="hideIndividualItems"
+                  className="ml-2 text-sm text-gray-300"
+                >
+                  {intl.formatMessage(messages.hideIndividualItems)}
+                </label>
+              </div>
+              <div className="label-tip">
+                {intl.formatMessage(messages.hideIndividualItemsHelp)}
+              </div>
+            </div>
+          </>
+        )}
+
       {/* Manual poster uploads - show when auto-poster is disabled OR when not an Agregarr collection */}
       {(!isAgregarrCollection || !isAutoPosterEnabled) && (
         <>
@@ -319,7 +387,7 @@ const PosterUploadSection = ({
                     {libraryPoster ? (
                       <div className="relative">
                         <img
-                          src={`/api/v1/collections/poster/${libraryPoster}`}
+                          src={`/api/v1/collections/poster/${libraryPoster}?v=${Date.now()}`}
                           alt={`Poster for ${library.name}`}
                           className="h-24 w-16 rounded border object-cover shadow-sm"
                         />
@@ -388,6 +456,41 @@ const PosterUploadSection = ({
           </div>
         </>
       )}
+
+      {/* Apply overlays during sync - disabled and forced on for Coming Soon */}
+      <div className="mb-6">
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            id="applyOverlaysDuringSync"
+            checked={
+              values.type === 'comingsoon'
+                ? true
+                : values.applyOverlaysDuringSync ?? false
+            }
+            onChange={(e) =>
+              setFieldValue('applyOverlaysDuringSync', e.target.checked)
+            }
+            disabled={values.type === 'comingsoon'}
+            className={`form-checkbox ${
+              values.type === 'comingsoon'
+                ? 'cursor-not-allowed opacity-50'
+                : ''
+            }`}
+          />
+          <label
+            htmlFor="applyOverlaysDuringSync"
+            className={`ml-2 text-sm ${
+              values.type === 'comingsoon' ? 'text-gray-500' : 'text-gray-300'
+            }`}
+          >
+            {intl.formatMessage(messages.applyOverlaysDuringSync)}
+          </label>
+        </div>
+        <div className="label-tip">
+          {intl.formatMessage(messages.applyOverlaysDuringSyncHelp)}
+        </div>
+      </div>
     </>
   );
 };

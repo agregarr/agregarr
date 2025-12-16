@@ -2,6 +2,7 @@ import type PlexAPI from '@server/api/plexapi';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
+  CollectionSource,
   CollectionSyncOptions,
   MissingItem,
   PlexCollection,
@@ -10,6 +11,7 @@ import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 // getCollectionMediaType removed - using items[0]?.type instead
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  applyCollectionExclusions,
   createCollectionLabel,
   createSyncError,
   getCollectionSyncCounter,
@@ -23,6 +25,7 @@ import {
   validateCollectionItems,
 } from '@server/lib/collections/core/CollectionUtilities';
 import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
+import { ComingSoonCollectionSync } from '@server/lib/collections/external/comingsoon';
 import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
 import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
 import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
@@ -30,14 +33,14 @@ import { MyAnimeListCollectionSync } from '@server/lib/collections/external/myan
 import { NetworksCollectionSync } from '@server/lib/collections/external/networks';
 import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
-import RadarrTagCollectionSync from '@server/lib/collections/external/radarrtag';
-import SonarrTagCollectionSync from '@server/lib/collections/external/sonarrtag';
+import RadarrTagCollectionSync from '@server/lib/collections/external/radarr';
+import SonarrTagCollectionSync from '@server/lib/collections/external/sonarr';
 import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
 import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
 import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
-import { generatePoster, getPosterPath } from '@server/lib/posterStorage';
+import { generatePoster } from '@server/lib/posterStorage';
 import type {
   CollectionConfig,
   MultiSourceCollectionConfig,
@@ -45,6 +48,10 @@ import type {
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 // Interfaces for better type safety
 interface CollectionVisibilityConfig {
@@ -66,7 +73,6 @@ interface CollectionUpdateOptions {
   processedCollectionKeys?: Set<string>;
   libraryKey: string;
   config: MultiSourceCollectionConfig;
-  originalConfig?: CollectionConfig;
 }
 
 interface MetadataUpdateOptions {
@@ -90,7 +96,10 @@ interface MetadataUpdateOptions {
  * This approach reuses all existing sync logic while keeping multi-source as a separate concern.
  */
 export class MultiSourceOrchestrator {
-  private syncServices = new Map<string, BaseCollectionSync>();
+  private syncServices = new Map<
+    string,
+    BaseCollectionSync<CollectionSource>
+  >();
   private dynamicCycleTitle: string | null = null;
 
   constructor() {
@@ -106,8 +115,7 @@ export class MultiSourceOrchestrator {
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
     libraryCache?: LibraryItemsCache,
-    options?: CollectionSyncOptions,
-    originalConfig?: CollectionConfig // Original config for smart collection operations
+    options?: CollectionSyncOptions
   ): Promise<{ created: number; updated: number }> {
     let configForSync: MultiSourceCollectionConfig = config;
     let collectionNameForSync = config.name;
@@ -331,11 +339,19 @@ export class MultiSourceOrchestrator {
         );
       }
 
+      // Apply collection mutual exclusion if configured
+      const itemsAfterExclusion = await applyCollectionExclusions(
+        validItems,
+        configForSync,
+        plexClient,
+        'multi-source'
+      );
+
       // Apply maxItems limit if specified
       const finalItems =
         config.maxItems && config.maxItems > 0
-          ? validItems.slice(0, config.maxItems)
-          : validItems;
+          ? itemsAfterExclusion.slice(0, config.maxItems)
+          : itemsAfterExclusion;
 
       if (finalItems.length === 0) {
         logger.warn(
@@ -368,14 +384,79 @@ export class MultiSourceOrchestrator {
         }
       );
 
+      // Clean up placeholders for multi-source collection
+      // This handles: released items (real content arrived), orphaned items (no longer in any source), stale items (7+ days old)
+      if (config.createPlaceholdersForMissing) {
+        try {
+          // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
+          const allSourceTmdbIds = new Set<number>();
+
+          // Add tmdbIds from items that exist in Plex
+          for (const item of combinedItems) {
+            if (item.tmdbId !== undefined) {
+              allSourceTmdbIds.add(item.tmdbId);
+            }
+          }
+
+          // Add tmdbIds from missing items across all sources
+          for (const missingGroup of missingItemGroups) {
+            for (const missingItem of missingGroup) {
+              allSourceTmdbIds.add(missingItem.tmdbId);
+            }
+          }
+
+          logger.info(
+            `Running placeholder cleanup for multi-source collection: ${collectionNameForSync}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              sourceTmdbIdCount: allSourceTmdbIds.size,
+            }
+          );
+
+          // Import cleanup function
+          const { cleanupPlaceholdersForConfig } = await import(
+            '@server/lib/collections/services/PlaceholderService'
+          );
+
+          // Run cleanup with parent config and combined source IDs
+          await cleanupPlaceholdersForConfig(
+            configForSync as unknown as CollectionConfig,
+            plexClient,
+            libraryCache,
+            allSourceTmdbIds
+          );
+
+          logger.debug(
+            'Placeholder cleanup completed for multi-source collection',
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+            }
+          );
+        } catch (cleanupError) {
+          logger.error(
+            `Failed to cleanup placeholders for multi-source collection: ${collectionNameForSync}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              configId: config.id,
+              error:
+                cleanupError instanceof Error
+                  ? cleanupError.message
+                  : String(cleanupError),
+            }
+          );
+          // Don't throw - cleanup failure shouldn't break collection sync
+        }
+      }
+
       // Create/update collection directly in Plex
       const result = await this.createOrUpdatePlexCollection(
         finalItems,
         configForSync,
         plexClient,
         allCollections,
-        processedCollectionKeys,
-        originalConfig
+        processedCollectionKeys
       );
 
       // Process missing items if enabled
@@ -512,10 +593,66 @@ export class MultiSourceOrchestrator {
         plexClient,
         libraryCache
       );
-      const { items, missingItems } = syncService.applyFilteringToMappedItems(
-        mappedResult,
-        tempConfig
-      );
+
+      const { items, missingItems } =
+        await syncService.applyFilteringToMappedItems(mappedResult, tempConfig);
+
+      // Note: Overlays for Coming Soon items are applied by the overlay sync job
+      // The collection sync only handles collection membership and placeholder creation
+
+      // Handle placeholder creation for missing items using unified flow
+      // This respects the createPlaceholdersForMissing checkbox on the parent config
+      if (
+        parentConfig.createPlaceholdersForMissing &&
+        missingItems &&
+        missingItems.length > 0
+      ) {
+        logger.info(
+          `Creating placeholders for ${missingItems.length} missing items from ${source.type}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            sourceId: source.id,
+            sourceType: source.type,
+            missingCount: missingItems.length,
+          }
+        );
+
+        try {
+          // Use PlaceholderService for unified placeholder creation
+          // This works for any source type, not just Coming Soon
+          const { processPlaceholdersForMissingItems } = await import(
+            '@server/lib/collections/services/PlaceholderService'
+          );
+
+          const newPlaceholderItems = await processPlaceholdersForMissingItems(
+            missingItems,
+            tempConfig,
+            plexClient
+          );
+
+          // Add the newly created placeholders to the items array
+          items.push(...newPlaceholderItems);
+
+          logger.info('Placeholder creation completed', {
+            label: 'Multi-Source Orchestrator',
+            sourceId: source.id,
+            sourceType: source.type,
+            createdCount: newPlaceholderItems.length,
+            totalItemsNow: items.length,
+          });
+        } catch (error) {
+          logger.error('Failed to create placeholders in multi-source', {
+            label: 'Multi-Source Orchestrator',
+            sourceId: source.id,
+            sourceType: source.type,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      // Note: We no longer add "released" items for Coming Soon
+      // When real content is detected, placeholder is deleted immediately
+      // Real items appear naturally if still in the source list
 
       logger.debug(
         `Successfully fetched ${items.length} items from ${source.type}`,
@@ -602,7 +739,7 @@ export class MultiSourceOrchestrator {
         }),
       ...(source.type === 'tmdb' &&
         source.customUrl && {
-          tmdbCustomListUrl: source.customUrl,
+          tmdbCustomCollectionUrl: source.customUrl,
         }),
       ...(source.type === 'imdb' &&
         source.customUrl && {
@@ -650,7 +787,9 @@ export class MultiSourceOrchestrator {
   /**
    * Get or create sync service for the specified source type
    */
-  private getSyncService(sourceType: string): BaseCollectionSync {
+  private getSyncService(
+    sourceType: string
+  ): BaseCollectionSync<CollectionSource> {
     if (!this.syncServices.has(sourceType)) {
       switch (sourceType) {
         case 'trakt':
@@ -692,6 +831,9 @@ export class MultiSourceOrchestrator {
         case 'sonarrtag':
           this.syncServices.set(sourceType, new SonarrTagCollectionSync());
           break;
+        case 'comingsoon':
+          this.syncServices.set(sourceType, new ComingSoonCollectionSync());
+          break;
         default:
           throw new Error(`Unknown source type: ${sourceType}`);
       }
@@ -705,12 +847,63 @@ export class MultiSourceOrchestrator {
 
   /**
    * Combine items from multiple sources according to the specified mode
+   * Special cases:
+   * - If ALL sources are Coming Soon: default to release date sorting, but allow cycle_lists and randomised
+   * - If SOME sources are Coming Soon: sort those sources by release date, then combine using normal mode
    */
   private combineItems(
     itemGroups: CollectionItem[][],
     combineMode: 'interleaved' | 'list_order' | 'randomised' | 'cycle_lists',
     parentConfig: MultiSourceCollectionConfig
   ): CollectionItem[] {
+    const sources = parentConfig.sources || [];
+
+    // Check if ALL sources are Coming Soon
+    const allSourcesComingSoon =
+      sources.length > 0 &&
+      sources.every((source) => source.type === 'comingsoon');
+
+    if (allSourcesComingSoon) {
+      // All sources are Coming Soon
+      // Allow cycle_lists and randomised modes, otherwise sort by release date
+      // Note: 360-day filtering already applied by Coming Soon source's applyCommonFiltering
+      if (combineMode === 'cycle_lists') {
+        // Sort each Coming Soon source by release date, then cycle between them
+        const sortedItemGroups = itemGroups.map((group) =>
+          this.sortComingSoonByReleaseDate(group)
+        );
+        return this.cycleListsItems(sortedItemGroups, parentConfig.id);
+      } else if (combineMode === 'randomised') {
+        // Flatten, remove duplicates, then shuffle (already filtered by source)
+        const allItems = itemGroups.flat();
+        const uniqueItems = this.removeDuplicates(allItems);
+        return this.shuffleArray([...uniqueItems]);
+      } else {
+        // Default: flatten and sort by release date (for interleaved, list_order, or any other mode)
+        const allItems = itemGroups.flat();
+        const uniqueItems = this.removeDuplicates(allItems);
+        return this.sortComingSoonByReleaseDate(uniqueItems);
+      }
+    }
+
+    // Check if SOME sources are Coming Soon
+    const someSourcesComingSoon = sources.some(
+      (source) => source.type === 'comingsoon'
+    );
+
+    if (someSourcesComingSoon) {
+      // Sort Coming Soon source groups by release date before combining
+      const sortedItemGroups = itemGroups.map((group, index) => {
+        const source = sources[index];
+        if (source?.type === 'comingsoon') {
+          return this.sortComingSoonByReleaseDate(group);
+        }
+        return group;
+      });
+      itemGroups = sortedItemGroups;
+    }
+
+    // Normal multi-source combine modes (with Coming Soon sources pre-sorted if applicable)
     switch (combineMode) {
       case 'interleaved':
         // Take 1st item from each source, then 2nd from each, etc.
@@ -970,6 +1163,61 @@ export class MultiSourceOrchestrator {
   }
 
   /**
+   * Sort Coming Soon items by release date (closest first)
+   * Items without dates are placed at the end
+   *
+   * Note: This uses releaseDateSortValue from the item's metadata which is
+   * set by the Coming Soon collection sync based on the same priority logic
+   * as banner display (Digital > Physical > Theatrical > Generic)
+   *
+   * Note: 360-day filtering is already applied by the Coming Soon source's applyCommonFiltering
+   */
+  private sortComingSoonByReleaseDate(
+    items: CollectionItem[]
+  ): CollectionItem[] {
+    logger.debug('Sorting Coming Soon items by release date', {
+      label: 'Multi-Source Orchestrator',
+      itemCount: items.length,
+      sampleItems: items.slice(0, 3).map((item) => ({
+        title: item.title,
+        tmdbId: item.tmdbId,
+        releaseDateSortValue: (
+          item as CollectionItem & { releaseDateSortValue?: string }
+        ).releaseDateSortValue,
+      })),
+    });
+
+    const sorted = [...items].sort((a, b) => {
+      // Try to get release date from item metadata
+      // Coming Soon items should have releaseDateSortValue set during sync
+      const dateA = (a as CollectionItem & { releaseDateSortValue?: string })
+        .releaseDateSortValue;
+      const dateB = (b as CollectionItem & { releaseDateSortValue?: string })
+        .releaseDateSortValue;
+
+      // Items without dates go to the end
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+
+      // Sort by closest date first
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
+    });
+
+    logger.debug('Coming Soon items sorted by release date', {
+      label: 'Multi-Source Orchestrator',
+      sortedSample: sorted.slice(0, 3).map((item) => ({
+        title: item.title,
+        releaseDate: (
+          item as CollectionItem & { releaseDateSortValue?: string }
+        ).releaseDateSortValue,
+      })),
+    });
+
+    return sorted;
+  }
+
+  /**
    * Create or update collection using standard utilities (same pattern as BaseCollectionSync)
    */
   private async createOrUpdatePlexCollection(
@@ -977,8 +1225,7 @@ export class MultiSourceOrchestrator {
     config: MultiSourceCollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>,
-    originalConfig?: CollectionConfig
+    processedCollectionKeys?: Set<string>
   ): Promise<{ created: number; updated: number }> {
     const mediaType = getMediaTypeFromLibrary(config.libraryId);
     const customLabel = createCollectionLabel(
@@ -1009,7 +1256,6 @@ export class MultiSourceOrchestrator {
         processedCollectionKeys,
         libraryKey: config.libraryId,
         config,
-        originalConfig,
       }
     );
   }
@@ -1045,6 +1291,16 @@ export class MultiSourceOrchestrator {
       title: item.title,
     }));
 
+    logger.debug(`PlexItems order before sending to Plex`, {
+      label: 'Multi-Source Orchestrator',
+      collectionName,
+      itemCount: plexItems.length,
+      first5Items: plexItems.slice(0, 5).map((item) => ({
+        ratingKey: item.ratingKey,
+        title: item.title,
+      })),
+    });
+
     if (plexItems.length === 0) {
       return { created: 0, updated: 0 };
     }
@@ -1057,197 +1313,460 @@ export class MultiSourceOrchestrator {
       allCollections
     );
 
-    let collectionRatingKey: string;
+    // BRANCH: Create EITHER smart collection OR regular collection
+    const shouldCreateSmartCollection =
+      options.config.showUnwatchedOnly ?? false;
+
+    let collectionRatingKey: string | undefined;
     let created = 0;
     let updated = 0;
 
-    if (existingCollection) {
-      // UPDATE PATH
-      // Check if we need to recreate the collection due to type mismatch
-      const currentContainsEpisodes = validItems.some(
-        (item) => item.episodeInfo
-      );
+    if (shouldCreateSmartCollection) {
+      // PATH A: Create label-based smart collection
+      const labelName = `agregarr-unwatched-${options.config.id}`;
+      const itemRatingKeys = plexItems.map((item) => item.ratingKey);
 
-      // Check the existing collection type by attempting to get its details
-      // We'll detect mismatch by checking if update would fail
-      const needsRecreation = await this.shouldRecreateCollection(
-        plexClient,
-        existingCollection.ratingKey,
-        currentContainsEpisodes,
-        mediaType
-      );
-
-      if (needsRecreation) {
-        logger.info(
-          `Collection type mismatch detected - recreating multi-source collection: ${collectionName}`,
-          {
-            label: 'Multi-Source Orchestrator',
-            configId: options.config.id,
-            oldCollectionRatingKey: existingCollection.ratingKey,
-            currentContainsEpisodes,
-            mediaType,
-          }
-        );
-
-        // Delete existing collection
-        await plexClient.deleteCollection(existingCollection.ratingKey);
-
-        // Create new collection with correct type
-        const newCollectionRatingKey = await plexClient.createEmptyCollection(
+      logger.info(
+        `Creating label-based smart collection for multi-source with ${itemRatingKeys.length} labeled items`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId: options.config.id,
           collectionName,
-          options.libraryKey,
-          mediaType,
-          currentContainsEpisodes
-        );
-
-        if (!newCollectionRatingKey) {
-          throw new Error(`Failed to recreate collection ${collectionName}`);
+          labelName,
+          itemCount: itemRatingKeys.length,
         }
-
-        collectionRatingKey = newCollectionRatingKey;
-        await plexClient.updateCollectionContents(
-          collectionRatingKey,
-          plexItems
-        );
-        created = 1; // Mark as created since we recreated it
-      } else {
-        logger.info(
-          `Updating existing multi-source collection: ${collectionName}`,
-          {
-            label: 'Multi-Source Orchestrator',
-            configId: options.config.id,
-            collectionRatingKey: existingCollection.ratingKey,
-            itemCount: plexItems.length,
-          }
-        );
-
-        collectionRatingKey = existingCollection.ratingKey;
-        await plexClient.updateCollectionContents(
-          collectionRatingKey,
-          plexItems
-        );
-        updated = 1;
-      }
-    } else {
-      // CREATE PATH
-      // Check if any items are episodes to determine collection type (same logic as BaseCollectionSync)
-      const containsEpisodes = validItems.some((item) => item.episodeInfo);
-
-      logger.info(`Creating new multi-source collection: ${collectionName}`, {
-        label: 'Multi-Source Orchestrator',
-        configId: options.config.id,
-        libraryId: options.libraryKey,
-        itemCount: plexItems.length,
-        mediaType,
-        containsEpisodes,
-      });
-
-      const newCollectionRatingKey = await plexClient.createEmptyCollection(
-        collectionName,
-        options.libraryKey,
-        mediaType,
-        containsEpisodes
       );
 
-      if (!newCollectionRatingKey) {
-        throw new Error(`Failed to create collection ${collectionName}`);
+      // Label all items (new and existing)
+      for (const itemKey of itemRatingKeys) {
+        await plexClient.addLabelToItem(itemKey, labelName);
       }
 
-      collectionRatingKey = newCollectionRatingKey;
-      await plexClient.addItemsToCollection(collectionRatingKey, plexItems);
-      created = 1;
-    }
-
-    // UNIFIED PIPELINE: Apply consistent metadata and settings
-
-    // 1. Set collection to custom sort order
-    await plexClient.updateCollectionContentSort(collectionRatingKey, 'custom');
-
-    // 2. Arrange items in source order
-    if (plexItems.length > 1) {
+      // CLEANUP: Remove labels from items that are no longer in the collection
       try {
-        await plexClient.arrangeCollectionItemsInOrder(
-          collectionRatingKey,
-          plexItems
+        const currentlyLabeledItems = await plexClient.getItemsWithLabel(
+          options.libraryKey,
+          labelName
         );
+
+        const itemsToUnlabel = currentlyLabeledItems.filter(
+          (labeledItemKey) => !itemRatingKeys.includes(labeledItemKey)
+        );
+
+        if (itemsToUnlabel.length > 0) {
+          logger.info(
+            `Removing label from ${itemsToUnlabel.length} items no longer in multi-source collection`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionName,
+              labelName,
+              itemsToUnlabel: itemsToUnlabel.length,
+            }
+          );
+          for (const itemKey of itemsToUnlabel) {
+            await plexClient.removeLabelFromItem(itemKey, labelName);
+          }
+        }
       } catch (error) {
         logger.warn(
-          `Failed to arrange items in multi-source collection ${collectionName}`,
+          `Failed to cleanup labels from removed items in multi-source collection`,
           {
             label: 'Multi-Source Orchestrator',
+            collectionName,
             error: error instanceof Error ? error.message : String(error),
           }
         );
       }
+
+      // MIGRATION: Check for old dual-collection system (base + smart collection)
+      if (options.config.smartCollectionRatingKey) {
+        logger.info(
+          `Detected old dual-collection system for multi-source - migrating to label-based system`,
+          {
+            label: 'Multi-Source Migration',
+            collectionName,
+            oldSmartCollectionRatingKey:
+              options.config.smartCollectionRatingKey,
+            oldBaseCollectionRatingKey: options.config.collectionRatingKey,
+          }
+        );
+
+        const oldSmartCollection = await plexClient.getCollectionMetadataSafe(
+          options.config.smartCollectionRatingKey
+        );
+
+        if (oldSmartCollection) {
+          // Delete old dash-prefixed base collection if it exists
+          if (options.config.collectionRatingKey) {
+            try {
+              const oldBaseCollection =
+                await plexClient.getCollectionMetadataSafe(
+                  options.config.collectionRatingKey
+                );
+              if (
+                oldBaseCollection &&
+                oldBaseCollection.title.startsWith('-')
+              ) {
+                logger.info(
+                  `Deleting old dash-prefixed base collection: ${oldBaseCollection.title}`,
+                  {
+                    label: 'Multi-Source Migration',
+                    baseCollectionRatingKey: options.config.collectionRatingKey,
+                  }
+                );
+                await plexClient.deleteCollection(
+                  options.config.collectionRatingKey
+                );
+              }
+            } catch (error) {
+              logger.warn(
+                `Failed to delete old base collection, continuing migration`,
+                {
+                  label: 'Multi-Source Migration',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
+          }
+
+          // Update the old smart collection to use new label-based filters
+          collectionRatingKey = options.config.smartCollectionRatingKey;
+          await plexClient.updateLabelBasedSmartCollectionUri(
+            collectionRatingKey,
+            options.libraryKey,
+            labelName,
+            mediaType,
+            options.config.smartCollectionSort?.value,
+            options.config.maxItems
+          );
+
+          // Migrate config
+          if (collectionRatingKey) {
+            this.updateMultiSourceConfigWithRatingKey(
+              options.config,
+              collectionRatingKey
+            );
+          }
+          this.clearMultiSourceSmartCollectionRatingKey(options.config);
+
+          logger.info(
+            `Successfully migrated multi-source dual-collection to label-based system`,
+            {
+              label: 'Multi-Source Migration',
+              collectionName,
+              migratedRatingKey: collectionRatingKey,
+            }
+          );
+
+          updated = 1;
+        } else {
+          logger.warn(
+            `Old smart collection not found for multi-source, will create new label-based collection`,
+            {
+              label: 'Multi-Source Migration',
+              oldSmartCollectionRatingKey:
+                options.config.smartCollectionRatingKey,
+            }
+          );
+          this.clearMultiSourceSmartCollectionRatingKey(options.config);
+          collectionRatingKey = undefined;
+        }
+      }
+
+      // Check if smart collection already exists (skip if we just migrated)
+      if (!collectionRatingKey && existingCollection) {
+        // Check if it's actually a smart collection
+        const collectionMeta = await plexClient.getCollectionMetadata(
+          existingCollection.ratingKey
+        );
+        const isSmart =
+          collectionMeta &&
+          (collectionMeta as { smart?: string }).smart === '1';
+
+        if (isSmart) {
+          // Update existing smart collection
+          collectionRatingKey = existingCollection.ratingKey;
+          await plexClient.updateLabelBasedSmartCollectionUri(
+            collectionRatingKey,
+            options.libraryKey,
+            labelName,
+            mediaType,
+            options.config.smartCollectionSort?.value,
+            options.config.maxItems
+          );
+          updated = 1;
+        } else {
+          // MIGRATION: Old system had a regular collection, delete it
+          logger.info(
+            `Migrating multi-source from old system - deleting regular collection`,
+            {
+              label: 'Multi-Source Migration',
+              collectionName,
+              oldCollectionRatingKey: existingCollection.ratingKey,
+            }
+          );
+          await plexClient.deleteCollection(existingCollection.ratingKey);
+          collectionRatingKey = undefined; // Force creation below
+        }
+      }
+
+      if (!collectionRatingKey) {
+        // Create new smart collection
+        const customLabel = `agregarr-multisource-${options.config.id}`;
+        const newSmartCollectionRatingKey =
+          await plexClient.createLabelBasedSmartCollection(
+            collectionName,
+            options.libraryKey,
+            labelName,
+            mediaType,
+            options.config.smartCollectionSort?.value,
+            customLabel,
+            options.config.maxItems
+          );
+
+        if (!newSmartCollectionRatingKey) {
+          throw new Error(
+            `Failed to create smart collection ${collectionName}`
+          );
+        }
+
+        collectionRatingKey = newSmartCollectionRatingKey;
+        created = 1;
+      }
+    } else {
+      // PATH B: Create regular collection
+
+      // MIGRATION: If existing collection is a smart collection, delete it
+      if (existingCollection) {
+        const collectionMeta = await plexClient.getCollectionMetadata(
+          existingCollection.ratingKey
+        );
+        const isSmart =
+          collectionMeta &&
+          (collectionMeta as { smart?: string }).smart === '1';
+
+        if (isSmart) {
+          logger.info(
+            `User disabled showUnwatchedOnly - migrating multi-source from smart to regular collection`,
+            {
+              label: 'Multi-Source Migration',
+              collectionName,
+              collectionRatingKey: existingCollection.ratingKey,
+            }
+          );
+
+          // Clean up: remove labels from items and delete smart collection
+          const labelName = `agregarr-unwatched-${options.config.id}`;
+          const labeledItems = await plexClient.getItemsWithLabel(
+            options.libraryKey,
+            labelName
+          );
+          if (labeledItems.length > 0) {
+            for (const itemKey of labeledItems) {
+              await plexClient.removeLabelFromItem(itemKey, labelName);
+            }
+          }
+          await plexClient.deleteCollection(existingCollection.ratingKey);
+
+          // Force creation of regular collection below
+          collectionRatingKey = undefined;
+        } else {
+          // UPDATE PATH: Collection exists (and is regular collection)
+          // Check if we need to recreate the collection due to type mismatch
+          const currentContainsEpisodes = validItems.some(
+            (item) => item.episodeInfo
+          );
+
+          // Check the existing collection type by attempting to get its details
+          // We'll detect mismatch by checking if update would fail
+          const needsRecreation = await this.shouldRecreateCollection(
+            plexClient,
+            existingCollection.ratingKey,
+            currentContainsEpisodes,
+            mediaType
+          );
+
+          if (needsRecreation) {
+            logger.info(
+              `Collection type mismatch detected - recreating multi-source collection: ${collectionName}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: options.config.id,
+                oldCollectionRatingKey: existingCollection.ratingKey,
+                currentContainsEpisodes,
+                mediaType,
+              }
+            );
+
+            // Delete existing collection
+            await plexClient.deleteCollection(existingCollection.ratingKey);
+
+            // Create new collection with correct type
+            const newCollectionRatingKey =
+              await plexClient.createEmptyCollection(
+                collectionName,
+                options.libraryKey,
+                mediaType,
+                currentContainsEpisodes
+              );
+
+            if (!newCollectionRatingKey) {
+              throw new Error(
+                `Failed to recreate collection ${collectionName}`
+              );
+            }
+
+            collectionRatingKey = newCollectionRatingKey;
+            await plexClient.updateCollectionContents(
+              collectionRatingKey,
+              plexItems
+            );
+            created = 1;
+          } else {
+            logger.info(
+              `Updating existing multi-source collection: ${collectionName}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: options.config.id,
+                collectionRatingKey: existingCollection.ratingKey,
+                itemCount: plexItems.length,
+              }
+            );
+
+            collectionRatingKey = existingCollection.ratingKey;
+            await plexClient.updateCollectionContents(
+              collectionRatingKey,
+              plexItems
+            );
+            updated = 1;
+          }
+        }
+      }
+
+      if (!collectionRatingKey) {
+        // CREATE PATH
+        const containsEpisodes = validItems.some((item) => item.episodeInfo);
+
+        logger.info(`Creating new multi-source collection: ${collectionName}`, {
+          label: 'Multi-Source Orchestrator',
+          configId: options.config.id,
+          libraryId: options.libraryKey,
+          itemCount: plexItems.length,
+          mediaType,
+          containsEpisodes,
+        });
+
+        const newCollectionRatingKey = await plexClient.createEmptyCollection(
+          collectionName,
+          options.libraryKey,
+          mediaType,
+          containsEpisodes
+        );
+
+        if (!newCollectionRatingKey) {
+          throw new Error(`Failed to create collection ${collectionName}`);
+        }
+
+        collectionRatingKey = newCollectionRatingKey;
+        await plexClient.addItemsToCollection(collectionRatingKey, plexItems);
+        created = 1;
+      }
+
+      // For regular collections: Set custom sort and arrange items
+      await plexClient.updateCollectionContentSort(
+        collectionRatingKey,
+        'custom'
+      );
+
+      if (plexItems.length > 1) {
+        try {
+          await plexClient.arrangeCollectionItemsInOrder(
+            collectionRatingKey,
+            plexItems
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to arrange items in multi-source collection ${collectionName}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
     }
 
-    // 3. Apply metadata (labels, visibility, etc.)
+    // Ensure we have a collection rating key
+    if (!collectionRatingKey) {
+      throw new Error(`Failed to create or find collection ${collectionName}`);
+    }
+
+    // Apply metadata to the collection
     await this.updateCollectionMetadataStandardized(
       plexClient,
       collectionRatingKey,
       options,
-      items // Pass items for poster generation
+      items
     );
 
-    // 4. Track processed collection
+    // Track processed collection
     if (options.processedCollectionKeys) {
       options.processedCollectionKeys.add(collectionRatingKey);
     }
 
-    // 5. Update config with rating key
+    // Update config with rating key
     updateConfigWithRatingKey(
       options.config.id,
       collectionRatingKey,
       options.libraryKey
     );
 
-    // 6. Handle smart collection creation/cleanup if feature is enabled
-    // CRITICAL: This must happen AFTER the base collection is labeled and has rating key
-    if (collectionRatingKey && options.originalConfig) {
-      if (options.originalConfig.showUnwatchedOnly) {
-        // Create or update smart collection using the base collection we just labeled
-        // Use TraktCollectionSync as a concrete implementation to access smart collection methods
-        const smartCollectionHandler = new TraktCollectionSync();
-        await smartCollectionHandler.handleSmartCollectionCreation(
-          plexClient,
-          collectionRatingKey, // Base collection is guaranteed to exist and be labeled at this point
-          options.collectionName,
-          options.mediaType,
-          options.libraryKey,
-          options.originalConfig // Use original config which has smart collection properties
+    // Apply overlays if enabled for this collection
+    if (options.config.applyOverlaysDuringSync && collectionRatingKey) {
+      try {
+        logger.info(
+          'Applying overlays to multi-source collection items after sync',
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionName,
+            configId: options.config.id,
+            collectionRatingKey,
+          }
         );
-      } else if (options.originalConfig.smartCollectionRatingKey) {
-        // User disabled the feature but smart collection exists - clean it up
-        const smartCollectionHandler = new TraktCollectionSync();
-        await smartCollectionHandler.handleSmartCollectionCleanup(
-          plexClient,
-          options.originalConfig
+
+        const { overlayLibraryService } = await import(
+          '@server/lib/overlays/OverlayLibraryService'
         );
+
+        // Get item rating keys from this specific collection
+        const itemRatingKeys = await plexClient.getCollectionItems(
+          collectionRatingKey
+        );
+
+        if (itemRatingKeys && itemRatingKeys.length > 0) {
+          logger.info('Applying overlays to collection items', {
+            label: 'Multi-Source Orchestrator',
+            collectionName,
+            itemCount: itemRatingKeys.length,
+          });
+
+          // Apply overlays only to collection items
+          await overlayLibraryService.applyOverlaysToCollectionItems(
+            itemRatingKeys,
+            options.libraryKey
+          );
+        }
+      } catch (overlayError) {
+        logger.error('Failed to apply overlays after multi-source sync', {
+          label: 'Multi-Source Orchestrator',
+          collectionName,
+          error:
+            overlayError instanceof Error
+              ? overlayError.message
+              : String(overlayError),
+        });
+        // Don't fail the sync if overlay application fails
       }
-    }
-
-    // 7. Apply metadata to the target collection (smart collection if enabled, base otherwise)
-    // CRITICAL: If smart collection is enabled, apply additional metadata to smart collection
-    // Re-determine target after smart collection creation to use updated rating key
-    const targetCollectionRatingKey =
-      options.originalConfig?.showUnwatchedOnly &&
-      options.originalConfig?.smartCollectionRatingKey
-        ? options.originalConfig.smartCollectionRatingKey
-        : collectionRatingKey;
-
-    // Only apply metadata to smart collection if it's different from base
-    if (targetCollectionRatingKey !== collectionRatingKey) {
-      await this.updateCollectionMetadataStandardized(
-        plexClient,
-        targetCollectionRatingKey,
-        options,
-        items
-      );
-    }
-
-    // 8. Track processed collection (track the collection users actually see)
-    if (options.processedCollectionKeys) {
-      options.processedCollectionKeys.add(targetCollectionRatingKey);
     }
 
     return { created, updated };
@@ -1304,6 +1823,271 @@ export class MultiSourceOrchestrator {
         plexClient,
         items // Pass actual items for poster generation
       );
+    }
+
+    // 5. Update wallpaper/art if enabled and provided
+    const customWallpaper = options.config?.customWallpaper;
+    const enableCustomWallpaper =
+      options.config?.enableCustomWallpaper ?? false;
+    if (enableCustomWallpaper && customWallpaper) {
+      let wallpaperFilename: string | undefined;
+
+      if (typeof customWallpaper === 'string') {
+        // Legacy single wallpaper
+        wallpaperFilename = customWallpaper;
+      } else {
+        // Per-library wallpaper mapping - get wallpaper for current library
+        wallpaperFilename = customWallpaper[options.config.libraryId];
+      }
+
+      if (wallpaperFilename) {
+        try {
+          // Get full path to wallpaper file
+          const { getWallpaperPath } = await import(
+            '@server/lib/wallpaperStorage'
+          );
+          const wallpaperPath = getWallpaperPath(wallpaperFilename);
+
+          // Check if wallpaper needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadWallpaper = true;
+
+          try {
+            const currentArtUrl = await plexClient.getCurrentArtUrl(
+              collectionRatingKey
+            );
+
+            const shouldReapply = await metadataService.shouldReapplyWallpaper(
+              collectionRatingKey,
+              wallpaperFilename,
+              currentArtUrl
+            );
+
+            if (!shouldReapply) {
+              logger.info('Wallpaper unchanged, skipping reupload', {
+                label: 'Multi-Source Orchestrator',
+                collectionName: options.config.name,
+                wallpaperFilename,
+              });
+              shouldUploadWallpaper = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadWallpaper) {
+            await plexClient.uploadArtFromFile(
+              collectionRatingKey,
+              wallpaperPath
+            );
+            await plexClient.lockArt(collectionRatingKey);
+
+            // Get new Plex art URL after upload and record metadata
+            try {
+              const newArtUrl = await plexClient.getCurrentArtUrl(
+                collectionRatingKey
+              );
+
+              if (newArtUrl) {
+                await metadataService.recordWallpaperApplication(
+                  collectionRatingKey,
+                  wallpaperFilename,
+                  newArtUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.config.libraryId,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record wallpaper metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
+
+          logger.debug(
+            `Successfully uploaded wallpaper for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              wallpaperFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload wallpaper for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              wallpaperFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if wallpaper upload fails
+        }
+      }
+    }
+
+    // 6. Update summary if enabled and provided
+    const customSummary = options.config?.customSummary;
+    const enableCustomSummary = options.config?.enableCustomSummary ?? false;
+    if (enableCustomSummary && customSummary) {
+      try {
+        await plexClient.updateSummary(collectionRatingKey, customSummary);
+        logger.debug(
+          `Successfully updated summary for multi-source collection ${options.config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionRatingKey,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to update summary for multi-source collection ${options.config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            collectionRatingKey,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+        // Don't fail the entire collection sync if summary update fails
+      }
+    }
+
+    // 7. Update theme if enabled and provided
+    const customTheme = options.config?.customTheme;
+    const enableCustomTheme = options.config?.enableCustomTheme ?? false;
+    if (enableCustomTheme && customTheme) {
+      let themeFilename: string | undefined;
+
+      if (typeof customTheme === 'string') {
+        // Legacy single theme
+        themeFilename = customTheme;
+      } else {
+        // Per-library theme mapping - get theme for current library
+        themeFilename = customTheme[options.config.libraryId];
+      }
+
+      if (themeFilename) {
+        try {
+          // Get full path to theme file
+          const { getThemePath } = await import('@server/lib/themeStorage');
+          const themePath = getThemePath(themeFilename);
+
+          // Check if theme needs reapplication using metadata tracking
+          const metadataService = (
+            await import('@server/lib/metadata/MetadataTrackingService')
+          ).default;
+
+          let shouldUploadTheme = true;
+
+          try {
+            const currentThemeUrl = await plexClient.getCurrentThemeUrl(
+              collectionRatingKey
+            );
+
+            const shouldReapply = await metadataService.shouldReapplyTheme(
+              collectionRatingKey,
+              themeFilename,
+              currentThemeUrl
+            );
+
+            if (!shouldReapply) {
+              logger.info('Theme unchanged, skipping reupload', {
+                label: 'Multi-Source Orchestrator',
+                collectionName: options.config.name,
+                themeFilename,
+              });
+              shouldUploadTheme = false;
+            }
+          } catch (metaError) {
+            logger.warn('Metadata check failed, proceeding with upload', {
+              label: 'MetadataTracking',
+              error:
+                metaError instanceof Error
+                  ? metaError.message
+                  : String(metaError),
+            });
+            // Fall through to upload
+          }
+
+          if (shouldUploadTheme) {
+            await plexClient.uploadThemeFromFile(
+              collectionRatingKey,
+              themePath
+            );
+            await plexClient.lockTheme(collectionRatingKey);
+
+            // Get new Plex theme URL after upload and record metadata
+            try {
+              const newThemeUrl = await plexClient.getCurrentThemeUrl(
+                collectionRatingKey
+              );
+
+              if (newThemeUrl) {
+                await metadataService.recordThemeApplication(
+                  collectionRatingKey,
+                  themeFilename,
+                  newThemeUrl,
+                  {
+                    configId: options.config?.id,
+                    libraryKey: options.config.libraryId,
+                  }
+                );
+              }
+            } catch (metaError) {
+              logger.error(
+                'Failed to record theme metadata, upload succeeded',
+                {
+                  label: 'MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                }
+              );
+            }
+          }
+
+          logger.debug(
+            `Successfully uploaded theme for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              themeFilename,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to upload theme for multi-source collection ${options.config.name}`,
+            {
+              label: 'Multi-Source Orchestrator',
+              collectionRatingKey,
+              themeFilename,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+          // Don't fail the entire collection sync if theme upload fails
+        }
+      }
     }
 
     logger.debug(`Applied standardized metadata to multi-source collection`, {
@@ -1553,14 +2337,41 @@ export class MultiSourceOrchestrator {
       );
 
       if (posterFilename) {
-        // Get the full poster path
-        const posterPath = getPosterPath(posterFilename);
+        // posterFilename is now a full path to temp file
+        const posterTempPath = posterFilename;
 
         // Apply the poster to the collection
         await plexClient.updateCollectionPoster(
           collectionRatingKey,
-          posterPath
+          posterTempPath
         );
+
+        // Clean up temp poster file after successful upload
+        try {
+          const fs = await import('fs');
+          const pathUtil = await import('path');
+          if (fs.existsSync(posterTempPath)) {
+            await fs.promises.unlink(posterTempPath);
+            logger.debug(
+              `Deleted temp poster file after upload: ${pathUtil.basename(
+                posterTempPath
+              )}`,
+              {
+                label: 'Multi-Source Orchestrator',
+                configId: config.id,
+              }
+            );
+          }
+        } catch (cleanupError) {
+          logger.warn(`Failed to delete temp poster file`, {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          });
+        }
 
         logger.info(
           `Generated and applied poster for multi-source collection: ${config.name}`,
@@ -1568,7 +2379,6 @@ export class MultiSourceOrchestrator {
             label: 'Multi-Source Orchestrator',
             configId: config.id,
             collectionRatingKey,
-            posterFilename,
             collectionType,
             combineMode: config.combineMode,
             usedDynamicLogo: !!dynamicPlatformLogo,
@@ -1644,6 +2454,32 @@ export class MultiSourceOrchestrator {
 
       // Remove the collection from Plex
       await plexClient.deleteCollection(existingCollection.ratingKey);
+
+      // Also remove from hub management to prevent stale hub entries
+      const hubIdentifier = `custom.collection.${config.libraryId}.${existingCollection.ratingKey}`;
+
+      try {
+        await plexClient.deleteHubItem(config.libraryId, hubIdentifier);
+        logger.debug(
+          `Removed multi-source collection from hub management: ${config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            hubIdentifier,
+          }
+        );
+      } catch (error) {
+        // Log as warning - hub item may already be deleted or never existed
+        logger.warn(
+          `Could not remove from hub management (may already be deleted): ${config.name}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            hubIdentifier,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
 
       // Track as processed to prevent cleanup service from trying to delete it again
       if (processedCollectionKeys) {
@@ -1793,14 +2629,25 @@ export class MultiSourceOrchestrator {
           const TraktAPI = (await import('@server/api/trakt')).default;
           const settings = getSettings();
 
-          if (!settings.trakt.apiKey) {
-            logger.warn('Trakt API key not configured for title fetch', {
+          const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+          const redirectUri = buildTraktRedirectUri(settings);
+
+          if (!clientId) {
+            logger.warn('Trakt client ID not configured for title fetch', {
               label: 'Multi-Source Orchestrator',
             });
             return null;
           }
 
-          const traktClient = new TraktAPI(settings.trakt.apiKey);
+          const traktClient = new TraktAPI({
+            clientId,
+            accessToken: settings.trakt.accessToken,
+            clientSecret: settings.trakt.clientSecret,
+            refreshToken: settings.trakt.refreshToken,
+            tokenExpiresAt: settings.trakt.tokenExpiresAt,
+            redirectUri,
+            onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+          });
           const listMetadata = await traktClient.getListMetadata(
             source.customUrl
           );
@@ -1855,7 +2702,7 @@ export class MultiSourceOrchestrator {
               .replace(/&mdash;/g, '—')
               .replace(/&hellip;/g, '…')
               .replace(/&quot;/g, '"')
-              .replace(/&#39;/g, "'")
+              .replace(/&#0?39;/g, "'")
               .replace(/&#x27;/g, "'")
               .replace(/&amp;/g, '&')
               .replace(/&lt;/g, '<')
@@ -1888,7 +2735,8 @@ export class MultiSourceOrchestrator {
               .replace(/&mdash;/g, '—')
               .replace(/&hellip;/g, '…')
               .replace(/&quot;/g, '"')
-              .replace(/&#39;/g, "'")
+              .replace(/&#0?39;/g, "'")
+              .replace(/&#x27;/g, "'")
               .replace(/&amp;/g, '&')
               .replace(/&lt;/g, '<')
               .replace(/&gt;/g, '>');
@@ -2047,6 +2895,7 @@ export class MultiSourceOrchestrator {
         collected: 'Most Collected',
         favorited: 'Most Favorited',
         boxoffice: 'Box Office',
+        recommendations: 'Recommendations',
       },
       tmdb: {
         trending_day: 'Trending Today',
@@ -2111,6 +2960,10 @@ export class MultiSourceOrchestrator {
       },
       sonarrtag: {
         tag: 'Sonarr Tag Collection',
+      },
+      comingsoon: {
+        monitored: 'Coming Soon',
+        trakt_anticipated: 'Coming Soon',
       },
     };
 
@@ -2181,6 +3034,67 @@ export class MultiSourceOrchestrator {
         {
           label: 'Multi-Source Orchestrator',
           configId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
+  }
+
+  /**
+   * Update multi-source config with rating key
+   */
+  private updateMultiSourceConfigWithRatingKey(
+    config: MultiSourceCollectionConfig,
+    collectionRatingKey: string
+  ): void {
+    if (collectionRatingKey && config.id) {
+      const libraryId = Array.isArray(config.libraryId)
+        ? config.libraryId[0]
+        : config.libraryId;
+      updateConfigWithRatingKey(config.id, collectionRatingKey, libraryId);
+    }
+  }
+
+  /**
+   * Clear the legacy smartCollectionRatingKey field from multi-source config
+   */
+  private clearMultiSourceSmartCollectionRatingKey(
+    config: MultiSourceCollectionConfig
+  ): void {
+    try {
+      const settings = getSettings();
+      const collectionConfigs = settings.plex.collectionConfigs || [];
+      const configIndex = collectionConfigs.findIndex(
+        (c: { id: string }) => c.id === config.id
+      );
+
+      if (configIndex !== -1) {
+        const updatedConfig = {
+          ...collectionConfigs[configIndex],
+        };
+
+        // Remove the legacy field
+        delete (updatedConfig as { smartCollectionRatingKey?: string })
+          .smartCollectionRatingKey;
+
+        collectionConfigs[configIndex] = updatedConfig;
+        settings.plex.collectionConfigs = collectionConfigs;
+        settings.save();
+
+        logger.debug(
+          `Cleared legacy smartCollectionRatingKey from multi-source config ${config.id}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+          }
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Failed to clear smartCollectionRatingKey from multi-source config ${config.id}`,
+        {
+          label: 'Multi-Source Orchestrator',
+          configId: config.id,
           error: error instanceof Error ? error.message : String(error),
         }
       );

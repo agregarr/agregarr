@@ -1,8 +1,10 @@
 import type { PlexHubManagementResponse } from '@server/interfaces/api/plexInterfaces';
+import PlexHubManager from '@server/lib/collections/plex/PlexHubManager';
+import PlexPosterManager from '@server/lib/collections/plex/PlexPosterManager';
+import PlexSmartCollectionManager from '@server/lib/collections/plex/PlexSmartCollectionManager';
 import type { Library, PlexSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
-import axios from 'axios';
 import NodePlexAPI from 'plex-api';
 
 // Extended interface for type-safe Plex API HTTP methods
@@ -22,6 +24,12 @@ export interface PlexLibraryItem {
   grandparentGuid?: string;
   addedAt: number;
   updatedAt: number;
+  lastViewedAt?: number;
+  viewCount?: number;
+  year?: number;
+  index?: number;
+  parentIndex?: number;
+  editionTitle?: string;
   Guid?: {
     id: string;
   }[];
@@ -68,7 +76,43 @@ export interface PlexMetadata {
   viewedLeafCount: number;
   addedAt: number;
   updatedAt: number;
+  lastViewedAt?: number;
+  viewCount?: number;
   Media: Media[];
+}
+
+interface PlexStream {
+  id: number;
+  streamType: number; // 1=video, 2=audio, 3=subtitle
+  codec: string;
+
+  // Video stream fields
+  DOVIPresent?: boolean;
+  height?: number;
+  width?: number;
+  colorPrimaries?: string;
+  colorSpace?: string;
+  colorTrc?: string;
+  bitDepth?: number;
+  chromaSubsampling?: string;
+
+  // Audio stream fields
+  channels?: number;
+  audioChannelLayout?: string;
+  displayTitle?: string;
+  language?: string;
+  languageCode?: string;
+
+  // Subtitle stream fields
+  format?: string;
+  forced?: boolean;
+}
+
+interface PlexPart {
+  id: number;
+  file: string;
+  size: number;
+  Stream?: PlexStream[];
 }
 
 interface Media {
@@ -85,6 +129,7 @@ interface Media {
   container: string;
   videoFrameRate: string;
   videoProfile: string;
+  Part?: PlexPart[];
 }
 
 interface PlexMetadataResponse {
@@ -133,6 +178,9 @@ interface PlexCollectionResponse {
 class PlexAPI {
   private plexClient: NodePlexAPI;
   private plexToken?: string;
+  private hubManager: PlexHubManager;
+  private smartCollectionManager: PlexSmartCollectionManager;
+  private posterManager: PlexPosterManager;
 
   private getExtendedClient(): ExtendedPlexAPI {
     return this.plexClient as ExtendedPlexAPI;
@@ -210,6 +258,15 @@ class PlexAPI {
         platform: 'Agregarr',
       },
     });
+
+    // Initialize hub manager
+    this.hubManager = new PlexHubManager(this);
+
+    // Initialize smart collection manager
+    this.smartCollectionManager = new PlexSmartCollectionManager(this);
+
+    // Initialize poster manager
+    this.posterManager = new PlexPosterManager(this);
   }
 
   public async getStatus() {
@@ -238,43 +295,6 @@ class PlexAPI {
         {
           label: 'Plex API',
           error: error instanceof Error ? error.message : String(error),
-        }
-      );
-      return false;
-    }
-  }
-
-  public async checkPlexPass(): Promise<boolean> {
-    try {
-      const response = await this.plexClient.query('/myplex/account');
-      const account = response.MyPlex;
-
-      logger.info('Parsed account data.', {
-        label: 'Plex API',
-        subscriptionActive: account?.subscriptionActive,
-        subscriptionState: account?.subscriptionState,
-      });
-
-      const hasPlexPass =
-        account?.subscriptionActive === true ||
-        account?.subscriptionState === 'Active';
-
-      logger.info(
-        `Plex Pass check result: ${hasPlexPass ? 'Active' : 'Inactive'}`,
-        {
-          label: 'Plex API',
-          subscriptionActive: account?.subscriptionActive,
-          subscriptionState: account?.subscriptionState,
-        }
-      );
-
-      return hasPlexPass;
-    } catch (error) {
-      logger.warn(
-        'Could not check Plex Pass status. Assuming false for safety.',
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : 'Unknown error',
         }
       );
       return false;
@@ -513,7 +533,7 @@ class PlexAPI {
   ): Promise<PlexLibraryItem[]> {
     const response = await this.plexClient.query<PlexLibraryResponse>({
       uri: `/library/sections/${id}/all?type=${
-        mediaType === 'show' ? '4' : '1'
+        mediaType === 'show' ? '2' : '1'
       }&sort=addedAt%3Adesc&addedAt>>=${Math.floor(options.addedAt / 1000)}`,
       extraHeaders: {
         'X-Plex-Container-Start': `0`,
@@ -973,6 +993,33 @@ class PlexAPI {
     }
   }
 
+  /**
+   * Get full metadata for items in a collection, including Guid array for TMDB IDs
+   * This is specifically for collections (smart or regular) - NOT for regular metadata items
+   */
+  public async getCollectionItemsWithMetadata(
+    collectionRatingKey: string
+  ): Promise<PlexMetadata[]> {
+    try {
+      const response = await this.plexClient.query({
+        uri: `/library/collections/${collectionRatingKey}/children?includeGuids=1`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
+      return response.MediaContainer?.Metadata || [];
+    } catch (error) {
+      logger.error(
+        `Error getting metadata from collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          error,
+        }
+      );
+      return [];
+    }
+  }
+
   public async removeItemsFromCollection(
     collectionRatingKey: string
   ): Promise<void> {
@@ -1199,6 +1246,241 @@ class PlexAPI {
           error,
         }
       );
+    }
+  }
+
+  /**
+   * Update collection mode (visibility of individual items)
+   * @param collectionRatingKey - Collection rating key
+   * @param mode - Collection mode: 0 = library default, 1 = hide items show collection, 2 = show collection and items, 3 = hide collection show items
+   */
+  public async updateCollectionMode(
+    collectionRatingKey: string,
+    mode: 0 | 1 | 2 | 3
+  ): Promise<void> {
+    try {
+      // Plex uses /prefs endpoint with collectionMode query parameter
+      const prefsUrl = `/library/metadata/${collectionRatingKey}/prefs?collectionMode=${mode}`;
+
+      await this.safePutQuery(prefsUrl);
+
+      logger.debug(
+        `Updated collection mode to ${mode} for collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          mode,
+          collectionRatingKey,
+        }
+      );
+    } catch (error) {
+      logger.error(
+        `Error updating collection mode for collection ${collectionRatingKey}`,
+        {
+          label: 'Plex API',
+          error,
+        }
+      );
+    }
+  }
+
+  /**
+   * Update the title of an individual item (movie, show, episode)
+   */
+  public async updateItemTitle(
+    ratingKey: string,
+    title: string
+  ): Promise<void> {
+    try {
+      const params = {
+        'title.value': title,
+        'title.locked': '1', // Lock to prevent Plex from overwriting
+      };
+
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+
+      await this.safePutQuery(editUrl);
+
+      logger.debug('Updated item title', {
+        label: 'Plex API',
+        ratingKey,
+        title,
+      });
+    } catch (error) {
+      logger.error(`Error updating title for item ${ratingKey}`, {
+        label: 'Plex API',
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Add a label to an individual item (movie, show, episode)
+   */
+  public async addLabelToItem(ratingKey: string, label: string): Promise<void> {
+    try {
+      // Get current item metadata to preserve existing labels
+      const metadata = await this.getMetadata(ratingKey);
+
+      // Get existing labels
+      const existingLabels: string[] = [];
+      if (metadata && 'Label' in metadata) {
+        const labels = metadata.Label as { tag: string }[] | undefined;
+        if (labels && Array.isArray(labels)) {
+          existingLabels.push(...labels.map((l) => l.tag));
+        }
+      }
+
+      // Check if label already exists
+      if (existingLabels.includes(label)) {
+        logger.debug('Label already exists on item', {
+          label: 'Plex API',
+          ratingKey,
+          labelTag: label,
+        });
+        return;
+      }
+
+      // Build params with all labels (existing + new)
+      const allLabels = [...existingLabels, label];
+      const params: Record<string, string> = {};
+      allLabels.forEach((labelTag, index) => {
+        params[`label[${index}].tag.tag`] = labelTag;
+      });
+
+      const queryString = Object.entries(params)
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&');
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+
+      await this.safePutQuery(editUrl);
+
+      logger.debug('Added label to item', {
+        label: 'Plex API',
+        ratingKey,
+        labelTag: label,
+      });
+    } catch (error) {
+      logger.error(`Error adding label to item ${ratingKey}`, {
+        label: 'Plex API',
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Remove a label from an individual item (movie, show, episode)
+   */
+  public async removeLabelFromItem(
+    ratingKey: string,
+    label: string
+  ): Promise<void> {
+    try {
+      // Get current item metadata to check existing labels
+      const metadata = await this.getMetadata(ratingKey);
+
+      // Get existing labels
+      const existingLabels: string[] = [];
+      if (metadata && 'Label' in metadata) {
+        const labels = metadata.Label as { tag: string }[] | undefined;
+        if (labels && Array.isArray(labels)) {
+          existingLabels.push(...labels.map((l) => l.tag));
+        }
+      }
+
+      // Check if label exists (case-insensitive)
+      const labelIndex = existingLabels.findIndex(
+        (existingLabel) => existingLabel.toLowerCase() === label.toLowerCase()
+      );
+
+      if (labelIndex === -1) {
+        logger.debug('Label does not exist on item, nothing to remove', {
+          label: 'Plex API',
+          ratingKey,
+          labelTag: label,
+        });
+        return;
+      }
+
+      // Remove the label from the array
+      const updatedLabels = existingLabels.filter(
+        (_, index) => index !== labelIndex
+      );
+
+      // Build params with remaining labels
+      const params: Record<string, string> = {};
+      updatedLabels.forEach((labelTag, index) => {
+        params[`label[${index}].tag.tag`] = labelTag;
+      });
+
+      // If no labels remain, we still need to send the request to clear all labels
+      const queryString =
+        updatedLabels.length > 0
+          ? Object.entries(params)
+              .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+              .join('&')
+          : 'label[0].tag.tag-=';
+
+      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
+
+      await this.safePutQuery(editUrl);
+
+      logger.debug('Removed label from item', {
+        label: 'Plex API',
+        ratingKey,
+        labelTag: label,
+        remainingLabels: updatedLabels,
+      });
+    } catch (error) {
+      logger.error(`Error removing label from item ${ratingKey}`, {
+        label: 'Plex API',
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get all items in a library that have a specific label
+   * @param libraryKey - Library section key
+   * @param labelName - Label to search for
+   * @returns Array of rating keys for items with the label
+   */
+  public async getItemsWithLabel(
+    libraryKey: string,
+    labelName: string
+  ): Promise<string[]> {
+    try {
+      const response = await this.plexClient.query<{
+        MediaContainer?: { Metadata?: { ratingKey: string }[] };
+      }>({
+        uri: `/library/sections/${libraryKey}/all?label=${encodeURIComponent(
+          labelName
+        )}`,
+        extraHeaders: {
+          'X-Plex-Container-Size': `0`,
+        },
+      });
+
+      const items = response.MediaContainer?.Metadata || [];
+      return items.map((item) => item.ratingKey);
+    } catch (error) {
+      logger.error(
+        `Error getting items with label "${labelName}" in library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          libraryKey,
+          labelName,
+          error,
+        }
+      );
+      return [];
     }
   }
 
@@ -1437,256 +1719,6 @@ class PlexAPI {
         }
       );
     }
-  }
-
-  // POSTER MANAGEMENT METHODS - Based on python-plexapi implementation
-
-  /**
-   * Get all available posters for a Plex item
-   * @param ratingKey The rating key of the item (collection, movie, show, etc.)
-   * @returns Array of available poster objects
-   */
-  public async getAvailablePosters(ratingKey: string): Promise<unknown[]> {
-    try {
-      const response = await this.plexClient.query(
-        `/library/metadata/${ratingKey}/posters`
-      );
-
-      return response.MediaContainer?.Metadata || [];
-    } catch (error) {
-      logger.error(`Error getting available posters for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-      });
-      return [];
-    }
-  }
-
-  /**
-   * Upload a poster from a URL
-   * @param ratingKey The rating key of the item
-   * @param url The URL of the image to upload
-   */
-  public async uploadPosterFromUrl(
-    ratingKey: string,
-    url: string
-  ): Promise<void> {
-    try {
-      const key = `/library/metadata/${ratingKey}/posters?url=${encodeURIComponent(
-        url
-      )}`;
-      await this.safePostQuery(key);
-
-      logger.info(`Successfully uploaded poster from URL for ${ratingKey}`, {
-        label: 'Plex API',
-        ratingKey,
-        url,
-      });
-    } catch (error) {
-      logger.error(`Error uploading poster from URL for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-        url,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Upload a poster from a local file path
-   * @param ratingKey The rating key of the item
-   * @param filepath The local file path to upload
-   */
-  public async uploadPosterFromFile(
-    ratingKey: string,
-    filepath: string
-  ): Promise<void> {
-    try {
-      const fs = await import('fs');
-
-      // Read the file data
-      const fileData = await fs.promises.readFile(filepath);
-      const key = `/library/metadata/${ratingKey}/posters`;
-
-      // Make POST request with file data
-      const client = this.getExtendedClient();
-      if (typeof client.postQuery !== 'function') {
-        throw new Error(
-          'POST operations are not supported by this Plex API version'
-        );
-      }
-
-      // Use axios directly for file upload since plex-api may not handle binary data properly
-      const axios = await import('axios');
-      const settings = getSettings();
-      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
-        settings.plex.ip
-      }:${settings.plex.port}`;
-
-      await axios.default.post(`${baseUrl}${key}`, fileData, {
-        headers: {
-          'X-Plex-Token': this.plexToken,
-          'Content-Type': 'application/octet-stream',
-        },
-        timeout: 30000,
-      });
-
-      logger.info(`Successfully uploaded poster from file for ${ratingKey}`, {
-        label: 'Plex API',
-        ratingKey,
-        filepath,
-      });
-    } catch (error) {
-      logger.error(`Error uploading poster from file for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-        filepath,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Select an existing poster for an item
-   * @param ratingKey The rating key of the item
-   * @param posterRatingKey The rating key of the poster to select
-   */
-  public async selectPoster(
-    ratingKey: string,
-    posterRatingKey: string
-  ): Promise<void> {
-    try {
-      const key = `/library/metadata/${ratingKey}/posters?url=${encodeURIComponent(
-        posterRatingKey
-      )}`;
-      await this.safePutQuery(key);
-
-      logger.info(`Successfully selected poster for ${ratingKey}`, {
-        label: 'Plex API',
-        ratingKey,
-        posterRatingKey,
-      });
-    } catch (error) {
-      logger.error(`Error selecting poster for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-        posterRatingKey,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Lock the poster for an item (prevents auto-updates)
-   * @param ratingKey The rating key of the item
-   */
-  public async lockPoster(ratingKey: string): Promise<void> {
-    try {
-      const params = { 'thumb.locked': '1' };
-      const queryString = Object.entries(params)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&');
-
-      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
-      await this.safePutQuery(editUrl);
-
-      logger.info(`Successfully locked poster for ${ratingKey}`, {
-        label: 'Plex API',
-        ratingKey,
-      });
-    } catch (error) {
-      logger.error(`Error locking poster for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Unlock the poster for an item (allows auto-updates)
-   * @param ratingKey The rating key of the item
-   */
-  public async unlockPoster(ratingKey: string): Promise<void> {
-    try {
-      const params = { 'thumb.locked': '0' };
-      const queryString = Object.entries(params)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&');
-
-      const editUrl = `/library/metadata/${ratingKey}?${queryString}`;
-      await this.safePutQuery(editUrl);
-
-      logger.info(`Successfully unlocked poster for ${ratingKey}`, {
-        label: 'Plex API',
-        ratingKey,
-      });
-    } catch (error) {
-      logger.error(`Error unlocking poster for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * Get current poster URL for a Plex item
-   * @param ratingKey The rating key of the item
-   * @returns The current poster URL or null if none
-   */
-  public async getCurrentPosterUrl(ratingKey: string): Promise<string | null> {
-    try {
-      const response = await this.plexClient.query(
-        `/library/metadata/${ratingKey}`
-      );
-
-      const item = response?.MediaContainer?.Metadata?.[0];
-      if (!item?.thumb) {
-        return null;
-      }
-
-      // Convert relative thumb path to full URL
-      const settings = getSettings();
-      const baseUrl = `${settings.plex.useSsl ? 'https' : 'http'}://${
-        settings.plex.ip
-      }:${settings.plex.port}`;
-
-      // Handle both relative paths and full URLs
-      if (item.thumb.startsWith('http')) {
-        return item.thumb;
-      } else {
-        return `${baseUrl}${item.thumb}?X-Plex-Token=${this.plexToken}`;
-      }
-    } catch (error) {
-      logger.error(`Error getting current poster for ${ratingKey}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        ratingKey,
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Combined method for uploading and setting a poster (backwards compatibility)
-   * @param collectionRatingKey The rating key of the collection
-   * @param posterPath The local file path to upload
-   */
-  public async updateCollectionPoster(
-    collectionRatingKey: string,
-    posterPath: string
-  ): Promise<void> {
-    await this.uploadPosterFromFile(collectionRatingKey, posterPath);
-
-    // Lock the poster to prevent Plex from overriding it
-    await this.lockPoster(collectionRatingKey);
   }
 
   /**
@@ -1932,9 +1964,9 @@ class PlexAPI {
       );
     }
 
-    const itemLibraries = [
-      ...new Set(itemTypes.map((item) => item.librarySectionID)),
-    ];
+    const itemLibraries = Array.from(
+      new Set(itemTypes.map((item) => item.librarySectionID))
+    );
     const libraryMismatch =
       itemLibraries.length > 0 &&
       collectionLibrary !== 'unknown' &&
@@ -2033,26 +2065,56 @@ class PlexAPI {
     }
   }
 
-  // HUB MANAGEMENT METHODS
+  /**
+   * Trigger a Plex library scan/refresh
+   * @param libraryId - The library section ID to scan
+   */
+  public async scanLibrary(libraryId: string): Promise<void> {
+    try {
+      logger.debug('Triggering Plex library scan', {
+        label: 'Plex API',
+        libraryId,
+      });
+
+      await this.plexClient.query(`/library/sections/${libraryId}/refresh`);
+
+      logger.info('Plex library scan triggered', {
+        label: 'Plex API',
+        libraryId,
+      });
+    } catch (error) {
+      logger.error('Failed to trigger Plex library scan', {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  // PLEX.TV METHODS - Delegated to PlexTvAPI
+
+  /**
+   * Get Plex user display name for a given Plex user ID
+   * Delegates to PlexTvAPI
+   */
+  public async getPlexUserTitle(userPlexId: string): Promise<string | null> {
+    if (!this.plexToken) {
+      return null;
+    }
+    const PlexTvAPI = (await import('./plextv')).default;
+    const plexTvApi = new PlexTvAPI(this.plexToken);
+    return plexTvApi.getPlexUserTitle(userPlexId);
+  }
+
+  // HUB MANAGEMENT METHODS - Delegated to PlexHubManager
 
   /**
    * Get all hubs for a specific library section
    * Returns both built-in hubs (Recently Added, etc.) and custom collections
    */
   public async getLibraryHubs(sectionId: string): Promise<unknown> {
-    try {
-      const response = await this.plexClient.query(
-        `/hubs/sections/${sectionId}`
-      );
-      return response;
-    } catch (error) {
-      logger.error(`Error fetching hubs for library section ${sectionId}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        sectionId,
-      });
-      throw error;
-    }
+    return this.hubManager.getLibraryHubs(sectionId);
   }
 
   /**
@@ -2062,115 +2124,32 @@ class PlexAPI {
   public async getHubManagement(
     sectionId: string
   ): Promise<PlexHubManagementResponse> {
-    logger.debug('Fetching hub management interface', {
-      label: 'Plex API',
-      sectionId,
-    });
-    const startTime = Date.now();
-
-    try {
-      const response = await this.plexClient.query(
-        `/hubs/sections/${sectionId}/manage`
-      );
-
-      const hubCount =
-        (response as PlexHubManagementResponse)?.MediaContainer?.Hub?.length ||
-        0;
-      logger.debug('Hub management interface fetched successfully', {
-        label: 'Plex API',
-        sectionId,
-        hubCount,
-        responseTime: Date.now() - startTime,
-      });
-
-      return response as PlexHubManagementResponse;
-    } catch (error) {
-      logger.error(
-        `Error fetching hub management for library section ${sectionId}`,
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
-          sectionId,
-          responseTime: Date.now() - startTime,
-        }
-      );
-      throw error;
-    }
+    return this.hubManager.getHubManagement(sectionId);
   }
 
   /**
    * Move a hub to a new position in the library home screen
-   * @param sectionId Library section ID
-   * @param hubId Hub identifier (e.g., 'movie.recentlyadded', collection rating key)
-   * @param afterHubId Hub to move this hub after (null for first position)
    */
   public async moveHub(
     sectionId: string,
     hubId: string,
     afterHubId?: string
   ): Promise<void> {
-    try {
-      const url = afterHubId
-        ? `/hubs/sections/${sectionId}/manage/${hubId}/move?after=${afterHubId}`
-        : `/hubs/sections/${sectionId}/manage/${hubId}/move`;
-
-      await this.safePutQuery(url);
-    } catch (error) {
-      logger.error(
-        `Error moving hub ${hubId} in library section ${sectionId}`,
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
-          sectionId,
-          hubId,
-          afterHubId,
-        }
-      );
-      throw error;
-    }
+    return this.hubManager.moveHub(sectionId, hubId, afterHubId);
   }
 
-  /**
-   * Update hub visibility settings
-   * @param sectionId Library section ID
-   * @param hubId Hub identifier
-   * @param visibility Hub visibility configuration
-   */
   /**
    * Get current collection visibility settings
    */
   public async getCollectionVisibility(
     collectionRatingKey: string
   ): Promise<unknown> {
-    try {
-      const response = await this.plexClient.query(
-        `/library/collections/${collectionRatingKey}`
-      );
-
-      // Extract visibility info from collection metadata
-      const collection = response.MediaContainer?.Metadata?.[0];
-      if (!collection) {
-        return {};
-      }
-
-      // Return basic visibility structure - this is simplified since getting exact
-      // visibility settings from Plex is complex and not critical for update logic
-      return {
-        isVisible: collection.visible !== false,
-        // Add more visibility fields if needed
-      };
-    } catch (error) {
-      logger.warn(
-        `Failed to get collection visibility for ${collectionRatingKey}`,
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-      return {};
-    }
+    return this.hubManager.getCollectionVisibility(collectionRatingKey);
   }
 
+  /**
+   * Update hub visibility settings
+   */
   public async updateHubVisibility(
     sectionId: string,
     hubId: string,
@@ -2180,90 +2159,18 @@ class PlexAPI {
       promotedToSharedHome?: boolean;
     }
   ): Promise<void> {
-    try {
-      const params = new URLSearchParams();
-
-      if (visibility.promotedToRecommended !== undefined) {
-        params.append(
-          'promotedToRecommended',
-          visibility.promotedToRecommended ? '1' : '0'
-        );
-      }
-      if (visibility.promotedToOwnHome !== undefined) {
-        params.append(
-          'promotedToOwnHome',
-          visibility.promotedToOwnHome ? '1' : '0'
-        );
-      }
-      if (visibility.promotedToSharedHome !== undefined) {
-        params.append(
-          'promotedToSharedHome',
-          visibility.promotedToSharedHome ? '1' : '0'
-        );
-      }
-
-      const url = `/hubs/sections/${sectionId}/manage/${hubId}?${params.toString()}`;
-      await this.safePutQuery(url);
-
-      // Hub visibility updated successfully - reduced logging
-    } catch (error) {
-      logger.error(
-        `Error updating hub visibility for ${hubId} in library section ${sectionId}`,
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
-          sectionId,
-          hubId,
-          visibility,
-        }
-      );
-      throw error;
-    }
+    return this.hubManager.updateHubVisibility(sectionId, hubId, visibility);
   }
 
   /**
    * Get all available hubs across all library sections
-   * Useful for getting a complete overview of the Plex home screen
    */
   public async getAllLibraryHubs(): Promise<{ [sectionId: string]: unknown }> {
-    try {
-      const libraries = await this.getLibraries();
-      const allHubs: { [sectionId: string]: unknown } = {};
-
-      for (const library of libraries) {
-        try {
-          allHubs[library.key] = await this.getLibraryHubs(library.key);
-        } catch (error) {
-          logger.warn(
-            `Failed to fetch hubs for library ${library.title} (${library.key})`,
-            {
-              label: 'Plex API',
-              error: error instanceof Error ? error.message : String(error),
-              libraryKey: library.key,
-              libraryTitle: library.title,
-            }
-          );
-          // Continue with other libraries even if one fails
-        }
-      }
-
-      return allHubs;
-    } catch (error) {
-      logger.error('Error fetching all library hubs', {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
+    return this.hubManager.getAllLibraryHubs();
   }
 
   /**
    * Reorder multiple hubs in a library section
-   * @param sectionId Library section ID
-   * @param hubOrder Array of hub IDs in desired order
-   * @param positionedItemsCount Optional count of positioned items
-   * @param libraryType Type of library (movie or show) for anchor positioning
-   * @param syncCounter Optional sync counter for alternating positioning methods (prevents precision convergence)
    */
   public async reorderHubs(
     sectionId: string,
@@ -2272,799 +2179,259 @@ class PlexAPI {
     libraryType?: 'movie' | 'show',
     syncCounter?: number
   ): Promise<void> {
-    // Declare outside try block for error logging
-    let completeDesiredOrder = desiredOrder;
-
-    try {
-      if (desiredOrder.length <= 1) {
-        return;
-      }
-
-      // Get current hub order from Plex
-      const hubManagement = await this.getHubManagement(sectionId);
-      const currentHubs = hubManagement.MediaContainer.Hub;
-      const currentOrder = currentHubs.map(
-        (h: { identifier: string }) => h.identifier
-      );
-
-      // Create complete desired order: our managed items first, then all unmanaged items at bottom
-      const managedItemsSet = new Set(desiredOrder);
-      const unmanagedItems = currentOrder.filter(
-        (id) => !managedItemsSet.has(id)
-      );
-      completeDesiredOrder = [...desiredOrder, ...unmanagedItems];
-
-      // Only proceed if orders are actually different
-      if (
-        JSON.stringify(currentOrder) === JSON.stringify(completeDesiredOrder)
-      ) {
-        return;
-      }
-
-      logger.debug(
-        `Complete ordering includes ${completeDesiredOrder.length} items (${desiredOrder.length} managed, ${unmanagedItems.length} unmanaged)`,
-        {
-          label: 'Plex API',
-          sectionId,
-          managedItems: desiredOrder.length,
-          unmanagedItems: unmanagedItems.length,
-          completeOrder: completeDesiredOrder,
-        }
-      );
-
-      // Smart selective reordering: only move items that are in wrong positions
-      logger.debug(
-        `Using selective reordering approach for sync ${
-          syncCounter || 'manual'
-        }`,
-        {
-          label: 'Plex API',
-          sectionId,
-          method: 'selective',
-          syncCounter: syncCounter || 'manual',
-          currentOrder: currentOrder.slice(0, 5), // First 5 items for debugging
-          desiredOrder: completeDesiredOrder.slice(0, 5),
-        }
-      );
-
-      let moveCount = 0;
-
-      // Check if first item needs to be moved (use anchor positioning)
-      if (currentOrder[0] !== completeDesiredOrder[0]) {
-        // Determine anchor for positioning first item
-        let requiredAnchor: string | null = null;
-        if (libraryType === 'show') {
-          requiredAnchor = 'tv.ondeck';
-        } else if (libraryType === 'movie') {
-          requiredAnchor = 'movie.inprogress';
-        }
-
-        if (requiredAnchor) {
-          try {
-            logger.debug(
-              `Moving first item ${completeDesiredOrder[0]} after anchor ${requiredAnchor}`,
-              {
-                label: 'Plex API',
-                sectionId,
-                hubId: completeDesiredOrder[0],
-                afterHubId: requiredAnchor,
-              }
-            );
-            await this.moveHub(
-              sectionId,
-              completeDesiredOrder[0],
-              requiredAnchor
-            );
-            moveCount++;
-          } catch (error) {
-            logger.error(
-              `Failed to move first item ${completeDesiredOrder[0]} after anchor`,
-              {
-                label: 'Plex API',
-                sectionId,
-                hubId: completeDesiredOrder[0],
-                afterHubId: requiredAnchor,
-                error: error instanceof Error ? error.message : String(error),
-              }
-            );
-          }
-        }
-      }
-
-      // Check subsequent items - move after their immediate predecessor if wrong
-      let repromoCount = 0;
-      for (let i = 1; i < completeDesiredOrder.length; i++) {
-        const currentItem = completeDesiredOrder[i];
-        const expectedPredecessor = completeDesiredOrder[i - 1];
-
-        // Find current position of this item
-        const currentPosition = currentOrder.indexOf(currentItem);
-        const expectedPredecessorCurrentPosition =
-          currentOrder.indexOf(expectedPredecessor);
-
-        // Item needs to move if it's not immediately after its expected predecessor
-        const needsMove =
-          currentPosition !== expectedPredecessorCurrentPosition + 1;
-
-        if (needsMove) {
-          try {
-            logger.debug(
-              `Moving item ${currentItem} after predecessor ${expectedPredecessor}`,
-              {
-                label: 'Plex API',
-                sectionId,
-                hubId: currentItem,
-                afterHubId: expectedPredecessor,
-                currentPosition,
-                expectedPosition: i,
-              }
-            );
-            await this.moveHub(sectionId, currentItem, expectedPredecessor);
-            moveCount++;
-
-            // CONVERGENCE SOLUTION: Verify the move worked by fetching actual order
-            const verificationHubManagement = await this.getHubManagement(
-              sectionId
-            );
-            const actualOrder =
-              verificationHubManagement.MediaContainer.Hub.map(
-                (h: { identifier: string }) => h.identifier
-              );
-
-            // Check if item landed immediately after predecessor
-            const actualPredecessorIndex =
-              actualOrder.indexOf(expectedPredecessor);
-            const actualCurrentIndex = actualOrder.indexOf(currentItem);
-            const placementSuccess =
-              actualPredecessorIndex !== -1 &&
-              actualCurrentIndex === actualPredecessorIndex + 1;
-
-            if (!placementSuccess) {
-              // Placement failed - likely due to float precision convergence
-              logger.warn(
-                `Placement verification failed for ${currentItem} - attempting unpromote/re-promote recovery`,
-                {
-                  label: 'Plex API',
-                  sectionId,
-                  hubId: currentItem,
-                  expectedAfter: expectedPredecessor,
-                  actualPredecessorIndex,
-                  actualCurrentIndex,
-                  convergenceDetected: true,
-                }
-              );
-
-              // Extract rating key from identifier for unpromote/re-promote
-              const ratingKey =
-                this.extractRatingKeyFromIdentifier(currentItem);
-
-              if (ratingKey) {
-                // Unpromote the collection (delete from hub management)
-                await this.deleteHubItem(sectionId, currentItem);
-                repromoCount++;
-
-                logger.debug(
-                  `Unpromoted collection ${currentItem}, re-promoting with fresh spacing`,
-                  {
-                    label: 'Plex API',
-                    sectionId,
-                    hubId: currentItem,
-                    ratingKey,
-                  }
-                );
-
-                // Re-promote it (gets fresh 1000-unit spacing at the end)
-                await this.promoteCollectionToHub(ratingKey, sectionId);
-
-                // Update tracking: item is now at the end
-                actualOrder.splice(actualCurrentIndex, 1);
-                actualOrder.push(currentItem);
-                currentOrder.length = 0;
-                currentOrder.push(...actualOrder);
-
-                logger.info(
-                  `Successfully recovered from convergence via unpromote/re-promote for ${currentItem}`,
-                  {
-                    label: 'Plex API',
-                    sectionId,
-                    hubId: currentItem,
-                    ratingKey,
-                    repromoCount,
-                  }
-                );
-              } else {
-                // Can't unpromote built-in hubs or items without rating keys
-                logger.warn(
-                  `Cannot unpromote/re-promote ${currentItem} - no rating key available`,
-                  {
-                    label: 'Plex API',
-                    sectionId,
-                    hubId: currentItem,
-                    note: 'Built-in hubs or invalid identifiers cannot be re-promoted',
-                  }
-                );
-                // Update tracking with actual order anyway
-                currentOrder.length = 0;
-                currentOrder.push(...actualOrder);
-              }
-            } else {
-              // Move succeeded - update our tracking of current order
-              const itemToMove = currentOrder.splice(currentPosition, 1)[0];
-              const predecessorNewPosition =
-                currentOrder.indexOf(expectedPredecessor);
-              currentOrder.splice(predecessorNewPosition + 1, 0, itemToMove);
-            }
-          } catch (error) {
-            logger.error(
-              `Failed to move item ${currentItem} after predecessor ${expectedPredecessor}`,
-              {
-                label: 'Plex API',
-                sectionId,
-                hubId: currentItem,
-                afterHubId: expectedPredecessor,
-                error: error instanceof Error ? error.message : String(error),
-              }
-            );
-          }
-        }
-      }
-
-      logger.info(
-        `Selective reordering completed: ${moveCount} items moved${
-          repromoCount > 0
-            ? `, ${repromoCount} items re-promoted for convergence recovery`
-            : ''
-        }`,
-        {
-          label: 'Plex API',
-          sectionId,
-          moveCount,
-          repromoCount,
-          totalItems: completeDesiredOrder.length,
-          efficiency: `${moveCount}/${completeDesiredOrder.length} moves`,
-        }
-      );
-
-      // Verify order after moves - detect precision convergence
-      if (moveCount > 0) {
-        const verificationHubManagement = await this.getHubManagement(
-          sectionId
-        );
-        const actualOrder = verificationHubManagement.MediaContainer.Hub.map(
-          (h: { identifier: string }) => h.identifier
-        );
-
-        const orderMatches =
-          JSON.stringify(actualOrder) === JSON.stringify(completeDesiredOrder);
-
-        if (!orderMatches) {
-          logger.error(
-            `Order verification failed after ${moveCount} moves and ${repromoCount} re-promotions - falling back to reset`,
-            {
-              label: 'Plex API',
-              sectionId,
-              moveCount,
-              repromoCount,
-              expectedOrder: completeDesiredOrder,
-              actualOrder,
-              convergenceDetected: true,
-              note: 'Unpromote/re-promote recovery was attempted but final order still incorrect',
-            }
-          );
-
-          // Throw a specific error that can be caught and handled with reset
-          const convergenceError = new Error(
-            `Precision convergence detected in library ${sectionId} - unpromote/re-promote recovery failed`
-          ) as Error & {
-            isPrecisionConvergence: boolean;
-            sectionId: string;
-            moveCount: number;
-            repromoCount: number;
-          };
-          convergenceError.isPrecisionConvergence = true;
-          convergenceError.sectionId = sectionId;
-          convergenceError.moveCount = moveCount;
-          convergenceError.repromoCount = repromoCount;
-          throw convergenceError;
-        } else {
-          logger.info(
-            `Order verification successful - all ${completeDesiredOrder.length} items in correct positions`,
-            {
-              label: 'Plex API',
-              sectionId,
-              verification: 'passed',
-              moveCount,
-            }
-          );
-        }
-      }
-    } catch (error) {
-      logger.error(`Error reordering hubs in library section ${sectionId}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-        sectionId,
-        desiredOrder: completeDesiredOrder,
-      });
-      throw error;
-    }
+    return this.hubManager.reorderHubs(
+      sectionId,
+      desiredOrder,
+      positionedItemsCount,
+      libraryType,
+      syncCounter
+    );
   }
 
   /**
    * Reset all hub management for a library section
-   * This clears all hub positioning and forces Plex to use clean 1000-interval spacing
-   * @param sectionId Library section ID
    */
   public async resetLibraryHubManagement(sectionId: string): Promise<void> {
-    try {
-      const url = `/hubs/sections/${sectionId}/manage`;
-
-      logger.warn(
-        `Resetting hub management for library section ${sectionId} due to precision convergence`,
-        {
-          label: 'Plex API',
-          sectionId,
-          action: 'nuclear_reset',
-        }
-      );
-
-      await this.safeDeleteQuery(url);
-
-      logger.info(
-        `Successfully reset hub management for library section ${sectionId}`,
-        {
-          label: 'Plex API',
-          sectionId,
-          result: 'clean_spacing_restored',
-        }
-      );
-    } catch (error) {
-      logger.error(
-        `Error resetting hub management for library section ${sectionId}`,
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
-          sectionId,
-        }
-      );
-      throw error;
-    }
+    return this.hubManager.resetLibraryHubManagement(sectionId);
   }
 
   /**
    * Delete a hub item from a library section
-   * @param sectionId Library section ID
-   * @param hubId Hub identifier to delete
    */
   public async deleteHubItem(sectionId: string, hubId: string): Promise<void> {
-    try {
-      const url = `/hubs/sections/${sectionId}/manage/${hubId}`;
-
-      await this.safeDeleteQuery(url);
-    } catch (error) {
-      logger.error(
-        `Error deleting hub item ${hubId} from library section ${sectionId}`,
-        {
-          label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
-          sectionId,
-          hubId,
-        }
-      );
-      throw error;
-    }
+    return this.hubManager.deleteHubItem(sectionId, hubId);
   }
 
   /**
-   * Extract rating key from a hub identifier for unpromote/re-promote operations
-   * @param identifier Hub identifier (e.g., "custom.collection.1.35954")
-   * @returns Rating key if identifier is a custom collection, null otherwise
-   */
-  private extractRatingKeyFromIdentifier(identifier: string): string | null {
-    // Check if this is a custom collection identifier
-    if (!identifier.startsWith('custom.collection.')) {
-      return null;
-    }
-
-    // Extract rating key from "custom.collection.{libraryId}.{ratingKey}"
-    const parts = identifier.split('.');
-    if (parts.length >= 4) {
-      return parts[3];
-    }
-
-    return null;
-  }
-
-  /**
-   * Get Plex user display name (plexTitle) for a given Plex user ID
-   * Uses the Plex users API to get user details with actual display names
-   */
-  public async getPlexUserTitle(userPlexId: string): Promise<string | null> {
-    try {
-      if (!this.plexToken) {
-        return null;
-      }
-
-      // Use Plex Users API which contains the actual display names (title field)
-      const response = await axios.get('https://plex.tv/api/users', {
-        headers: {
-          'X-Plex-Token': this.plexToken,
-        },
-        timeout: 10000,
-      });
-
-      // Parse XML response manually (since we're dealing with external Plex.tv API)
-      const xmlString = response.data as string;
-
-      // Simple XML parsing to find our user
-      const userMatch = xmlString.match(
-        new RegExp(`<User[^>]*id="${userPlexId}"[^>]*>`, 'i')
-      );
-      if (userMatch) {
-        const userElement = userMatch[0];
-
-        // Extract title attribute (display name)
-        const titleMatch = userElement.match(/title="([^"]*)"/);
-        const usernameMatch = userElement.match(/username="([^"]*)"/);
-
-        // Decode HTML entities (e.g., &amp; -> &)
-        const decodeHtmlEntities = (text: string) =>
-          text
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'");
-
-        const title = titleMatch ? decodeHtmlEntities(titleMatch[1]) : null;
-        const username = usernameMatch
-          ? decodeHtmlEntities(usernameMatch[1])
-          : null;
-
-        logger.debug(
-          `Found Plex user ${userPlexId}: title="${title}", username="${username}"`,
-          {
-            label: 'PlexAPI',
-            userId: userPlexId,
-          }
-        );
-
-        // Return title (display name) if available, otherwise fall back to username
-        return title || username || null;
-      }
-
-      logger.debug(`Plex user ${userPlexId} not found in users API`, {
-        label: 'PlexAPI',
-        userId: userPlexId,
-      });
-      return null;
-    } catch (error) {
-      logger.warn(`Failed to get Plex user title for user ${userPlexId}`, {
-        label: 'Plex API',
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Promote a collection to hub management (makes it available for visibility/ordering management)
-   * @param collectionRatingKey The rating key of the collection to promote
-   * @param libraryId The library ID where the collection exists
+   * Promote a collection to hub management
    */
   public async promoteCollectionToHub(
     collectionRatingKey: string,
     libraryId: string
   ): Promise<void> {
-    try {
-      const hubInitUrl = `/hubs/sections/${libraryId}/manage?metadataItemId=${collectionRatingKey}`;
-      await this.safePostQuery(hubInitUrl);
-
-      logger.debug(
-        `Successfully promoted collection to hub management: ${collectionRatingKey}`,
-        {
-          label: 'Plex API',
-          collectionRatingKey,
-          libraryId,
-        }
-      );
-    } catch (error) {
-      logger.error(
-        `Error promoting collection ${collectionRatingKey} to hub management in library ${libraryId}`,
-        {
-          label: 'Plex API',
-          collectionRatingKey,
-          libraryId,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-      throw error;
-    }
+    return this.hubManager.promoteCollectionToHub(
+      collectionRatingKey,
+      libraryId
+    );
   }
 
-  // SMART COLLECTION METHODS
+  // SMART COLLECTION METHODS - Delegated to PlexSmartCollectionManager
+
   /**
-   * Create a smart collection for unwatched items based on a regular collection
-   * @param title - Title for the smart collection
-   * @param libraryKey - Library section key (e.g., "1" for movies)
-   * @param baseCollectionRatingKey - Rating key of the base collection to filter
-   * @param mediaType - 'movie' or 'tv'
-   * @returns The rating key of the created smart collection or null if failed
+   * Create a label-based smart collection for unwatched items
+   * New approach: labels items directly, no base collection needed
    */
-  public async createSmartCollection(
+  public async createLabelBasedSmartCollection(
     title: string,
     libraryKey: string,
-    baseCollectionRatingKey: string,
+    labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
-    sortOption?: string
+    sortOption?: string,
+    agregarrLabel?: string,
+    maxItems?: number
   ): Promise<string | null> {
-    try {
-      logger.debug(
-        `Creating smart collection "${title}" for library ${libraryKey}`,
-        {
-          label: 'Plex API',
-          title,
-          libraryKey,
-          baseCollectionRatingKey,
-          mediaType,
-        }
-      );
-
-      // Step 1: Get the collection's index field which is used for smart collection filters
-      const collectionMetadata = await this.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (!collectionMetadata) {
-        logger.error(
-          `Could not get metadata for base collection ${baseCollectionRatingKey}`,
-          {
-            label: 'Plex API',
-            baseCollectionRatingKey,
-          }
-        );
-        return null;
-      }
-
-      // Use the index field for the collection filter, not the ratingKey
-      const indexField = (
-        collectionMetadata as PlexCollectionMetadata & {
-          index?: string | number;
-        }
-      ).index;
-      const collectionFilterId = indexField
-        ? String(indexField)
-        : baseCollectionRatingKey;
-
-      logger.debug(
-        `Using collection filter ID ${collectionFilterId} for smart collection (base collection rating key: ${baseCollectionRatingKey})`,
-        {
-          label: 'Plex API',
-          baseCollectionRatingKey,
-          collectionFilterId,
-        }
-      );
-
-      // Step 2: Create the smart collection with uri parameter (like Plex Web UI does)
-      const type = mediaType === 'movie' ? 1 : 2;
-      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first) if no sort option provided
-
-      // TV shows use different filter parameters than movies
-      let filterUri: string;
-      if (mediaType === 'tv') {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&show.collection=${collectionFilterId}`;
-      } else {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&collection=${collectionFilterId}`;
-      }
-      const uri = `server://${
-        getSettings().plex.machineId
-      }/com.plexapp.plugins.library${filterUri}`;
-
-      const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
-        title
-      )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
-
-      const createResponse = await this.safePostQuery(createUrl);
-
-      if (
-        !createResponse ||
-        typeof createResponse !== 'object' ||
-        !('MediaContainer' in createResponse)
-      ) {
-        logger.error('Invalid response when creating smart collection', {
-          label: 'Plex API',
-          response: createResponse,
-        });
-        return null;
-      }
-
-      const mediaContainer = createResponse.MediaContainer as {
-        Metadata?: { ratingKey: string }[];
-      };
-
-      if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
-        logger.error('No metadata returned when creating smart collection', {
-          label: 'Plex API',
-          response: createResponse,
-        });
-        return null;
-      }
-
-      const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
-
-      // Step 3: Set the collection to be filtered by user
-      await this.setCollectionUserFilter(smartCollectionRatingKey);
-
-      // Step 4: Add the same Agregarr label as the base collection so it's not discovered as pre-existing
-      const baseCollectionMetadata = await this.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (baseCollectionMetadata?.labels) {
-        const agregarrLabel = baseCollectionMetadata.labels.find(
-          (label) =>
-            typeof label === 'string' &&
-            label.toLowerCase().startsWith('agregarr')
-        );
-        if (agregarrLabel) {
-          await this.addLabelToCollection(
-            smartCollectionRatingKey,
-            agregarrLabel
-          );
-        }
-      }
-
-      logger.info(
-        `Successfully created smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
-        {
-          label: 'Plex API',
-          title,
-          smartCollectionRatingKey,
-          baseCollectionRatingKey,
-        }
-      );
-
-      return smartCollectionRatingKey;
-    } catch (error) {
-      logger.error(`Error creating smart collection "${title}"`, {
-        label: 'Plex API',
-        title,
-        libraryKey,
-        baseCollectionRatingKey,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
+    return this.smartCollectionManager.createLabelBasedSmartCollection(
+      title,
+      libraryKey,
+      labelName,
+      mediaType,
+      sortOption,
+      agregarrLabel,
+      maxItems
+    );
   }
 
   /**
    * Set collection filtering to be based on the current user viewing the content
-   * @param collectionRatingKey - The rating key of the collection to configure
    */
   public async setCollectionUserFilter(
     collectionRatingKey: string
   ): Promise<void> {
-    try {
-      await this.safePutQuery(
-        `/library/metadata/${collectionRatingKey}/prefs?collectionFilterBasedOnUser=1`
-      );
-
-      logger.debug(
-        `Set user-based filtering for collection ${collectionRatingKey}`,
-        {
-          label: 'Plex API',
-          collectionRatingKey,
-        }
-      );
-    } catch (error) {
-      logger.error(
-        `Error setting user filter for collection ${collectionRatingKey}`,
-        {
-          label: 'Plex API',
-          collectionRatingKey,
-          error: error instanceof Error ? error.message : String(error),
-        }
-      );
-      throw error;
-    }
+    return this.smartCollectionManager.setCollectionUserFilter(
+      collectionRatingKey
+    );
   }
 
   /**
-   * Update a smart collection's URI (including sort parameters)
-   * @param smartCollectionRatingKey - The rating key of the smart collection to update
-   * @param libraryKey - Library section key (e.g., "1" for movies)
-   * @param baseCollectionRatingKey - Rating key of the base collection to filter
-   * @param mediaType - 'movie' or 'tv'
-   * @param sortOption - Sort parameter (e.g., 'year:desc', 'titleSort')
-   * @returns Promise<void>
+   * Update a label-based smart collection's URI (including sort parameters)
    */
-  public async updateSmartCollectionUri(
+  public async updateLabelBasedSmartCollectionUri(
     smartCollectionRatingKey: string,
     libraryKey: string,
-    baseCollectionRatingKey: string,
+    labelName: string,
     mediaType: 'movie' | 'tv' = 'movie',
-    sortOption?: string
+    sortOption?: string,
+    maxItems?: number
   ): Promise<void> {
-    try {
-      logger.debug(
-        `Updating smart collection URI for collection ${smartCollectionRatingKey}`,
-        {
-          label: 'Plex API',
-          smartCollectionRatingKey,
-          libraryKey,
-          baseCollectionRatingKey,
-          mediaType,
-          sortOption,
-        }
-      );
-
-      // Get the collection's index field which is used for smart collection filters
-      const collectionMetadata = await this.getCollectionMetadata(
-        baseCollectionRatingKey
-      );
-      if (!collectionMetadata) {
-        throw new Error(
-          `Could not get metadata for base collection ${baseCollectionRatingKey}`
-        );
-      }
-
-      // Use the index field for the collection filter, not the ratingKey
-      const indexField = (
-        collectionMetadata as PlexCollectionMetadata & {
-          index?: string | number;
-        }
-      ).index;
-      const collectionFilterId = indexField
-        ? String(indexField)
-        : baseCollectionRatingKey;
-
-      // Build the filter URI with the specified sort option
-      const type = mediaType === 'movie' ? 1 : 2;
-      const sortParam = sortOption || 'originallyAvailableAt:desc'; // Default to release date (newest first) if no sort option provided
-
-      // TV shows use different filter parameters than movies
-      let filterUri: string;
-      if (mediaType === 'tv') {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&show.unwatchedLeaves=1&and=1&show.collection=${collectionFilterId}`;
-      } else {
-        filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&unwatched=1&and=1&collection=${collectionFilterId}`;
-      }
-      const uri = `server://${
-        getSettings().plex.machineId
-      }/com.plexapp.plugins.library${filterUri}`;
-
-      // Update the smart collection URI using PUT request
-      const updateUrl = `/library/collections/${smartCollectionRatingKey}/items?uri=${encodeURIComponent(
-        uri
-      )}`;
-      await this.safePutQuery(updateUrl);
-
-      logger.debug(
-        `Successfully updated smart collection URI for collection ${smartCollectionRatingKey}`,
-        {
-          label: 'Plex API',
-          smartCollectionRatingKey,
-          sortParam,
-        }
-      );
-    } catch (error) {
-      logger.error(
-        `Error updating smart collection URI for collection ${smartCollectionRatingKey}`,
-        {
-          label: 'Plex API',
-          smartCollectionRatingKey,
-          error: error.message,
-        }
-      );
-      throw error;
-    }
+    return this.smartCollectionManager.updateLabelBasedSmartCollectionUri(
+      smartCollectionRatingKey,
+      libraryKey,
+      labelName,
+      mediaType,
+      sortOption,
+      maxItems
+    );
   }
 
   /**
-   * Delete a smart collection (same as regular collection deletion)
-   * @param smartCollectionRatingKey - The rating key of the smart collection to delete
+   * Update an existing filtered hub smart collection's URI
+   */
+  public async updateFilteredHubUri(
+    smartCollectionRatingKey: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    subtype: 'recently_added' | 'recently_released',
+    maxItems?: number
+  ): Promise<void> {
+    return this.smartCollectionManager.updateFilteredHubUri(
+      smartCollectionRatingKey,
+      libraryKey,
+      mediaType,
+      subtype,
+      maxItems
+    );
+  }
+
+  /**
+   * Delete a smart collection
    */
   public async deleteSmartCollection(
     smartCollectionRatingKey: string
   ): Promise<void> {
-    return this.deleteCollection(smartCollectionRatingKey);
+    return this.smartCollectionManager.deleteSmartCollection(
+      smartCollectionRatingKey
+    );
+  }
+
+  // POSTER MANAGEMENT METHODS - Delegated to PlexPosterManager
+
+  /**
+   * Get all available posters for a Plex item
+   */
+  public async getAvailablePosters(ratingKey: string): Promise<unknown[]> {
+    return this.posterManager.getAvailablePosters(ratingKey);
+  }
+
+  /**
+   * Upload a poster from a URL
+   */
+  public async uploadPosterFromUrl(
+    ratingKey: string,
+    url: string
+  ): Promise<void> {
+    return this.posterManager.uploadPosterFromUrl(ratingKey, url);
+  }
+
+  /**
+   * Upload a poster from a local file path
+   */
+  public async uploadPosterFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    return this.posterManager.uploadPosterFromFile(ratingKey, filepath);
+  }
+
+  /**
+   * Select an existing poster for an item
+   */
+  public async selectPoster(
+    ratingKey: string,
+    posterRatingKey: string
+  ): Promise<void> {
+    return this.posterManager.selectPoster(ratingKey, posterRatingKey);
+  }
+
+  /**
+   * Lock the poster for an item (prevents auto-updates)
+   */
+  public async lockPoster(ratingKey: string): Promise<void> {
+    return this.posterManager.lockPoster(ratingKey);
+  }
+
+  /**
+   * Unlock the poster for an item (allows auto-updates)
+   */
+  public async unlockPoster(ratingKey: string): Promise<void> {
+    return this.posterManager.unlockPoster(ratingKey);
+  }
+
+  /**
+   * Get current poster URL for a Plex item
+   */
+  public async getCurrentPosterUrl(ratingKey: string): Promise<string | null> {
+    return this.posterManager.getCurrentPosterUrl(ratingKey);
+  }
+
+  /**
+   * Get current art/wallpaper URL for a Plex item
+   */
+  public async getCurrentArtUrl(ratingKey: string): Promise<string | null> {
+    return this.posterManager.getCurrentArtUrl(ratingKey);
+  }
+
+  /**
+   * Get current theme URL for a Plex item
+   */
+  public async getCurrentThemeUrl(ratingKey: string): Promise<string | null> {
+    return this.posterManager.getCurrentThemeUrl(ratingKey);
+  }
+
+  /**
+   * Combined method for uploading and setting a poster (backwards compatibility)
+   */
+  public async updateCollectionPoster(
+    collectionRatingKey: string,
+    posterPath: string
+  ): Promise<void> {
+    return this.posterManager.updateCollectionPoster(
+      collectionRatingKey,
+      posterPath
+    );
+  }
+
+  /**
+   * Upload wallpaper/art from a local file path
+   */
+  public async uploadArtFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    return this.posterManager.uploadArtFromFile(ratingKey, filepath);
+  }
+
+  /**
+   * Lock the art for an item (prevents auto-updates)
+   */
+  public async lockArt(ratingKey: string): Promise<void> {
+    return this.posterManager.lockArt(ratingKey);
+  }
+
+  /**
+   * Upload theme music from a local file path
+   */
+  public async uploadThemeFromFile(
+    ratingKey: string,
+    filepath: string
+  ): Promise<void> {
+    return this.posterManager.uploadThemeFromFile(ratingKey, filepath);
+  }
+
+  /**
+   * Lock the theme for an item (prevents auto-updates)
+   */
+  public async lockTheme(ratingKey: string): Promise<void> {
+    return this.posterManager.lockTheme(ratingKey);
+  }
+
+  /**
+   * Update collection summary/description
+   */
+  public async updateSummary(
+    ratingKey: string,
+    summary: string
+  ): Promise<void> {
+    return this.posterManager.updateSummary(ratingKey, summary);
   }
 }
 

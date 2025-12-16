@@ -1,4 +1,5 @@
 import Button from '@app/components/Common/Button';
+import ConfirmButton from '@app/components/Common/ConfirmButton';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import SensitiveInput from '@app/components/Common/SensitiveInput';
@@ -15,10 +16,32 @@ import { ArrowPathIcon } from '@heroicons/react/24/solid';
 import type { MainSettings } from '@server/lib/settings';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
+import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR, { mutate } from 'swr';
 import * as Yup from 'yup';
+
+// Curated list of common TMDB languages
+const TMDB_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'es', name: 'Spanish (Español)' },
+  { code: 'fr', name: 'French (Français)' },
+  { code: 'de', name: 'German (Deutsch)' },
+  { code: 'it', name: 'Italian (Italiano)' },
+  { code: 'pt-BR', name: 'Portuguese - Brazil (Português)' },
+  { code: 'ja', name: 'Japanese (日本語)' },
+  { code: 'ko', name: 'Korean (한국어)' },
+  { code: 'zh-CN', name: 'Chinese Simplified (简体中文)' },
+  { code: 'zh-TW', name: 'Chinese Traditional (繁體中文)' },
+  { code: 'ru', name: 'Russian (Русский)' },
+  { code: 'nl', name: 'Dutch (Nederlands)' },
+  { code: 'pl', name: 'Polish (Polski)' },
+  { code: 'sv', name: 'Swedish (Svenska)' },
+  { code: 'no', name: 'Norwegian (Norsk)' },
+  { code: 'da', name: 'Danish (Dansk)' },
+  { code: 'fi', name: 'Finnish (Suomi)' },
+];
 
 const messages = defineMessages({
   general: 'General',
@@ -45,6 +68,18 @@ const messages = defineMessages({
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
   partialRequestsEnabled: 'Allow Partial Series Requests',
   locale: 'Display Language',
+  tmdbLanguage: 'TMDB Language',
+  tmdbLanguageTip: 'Language for TMDB posters',
+  resetAgregarr: 'Reset',
+  resetAgregarrDescription:
+    'Remove all Agregarr collections from Plex and clear all user labels.',
+  resetButton: 'Reset Collections',
+  resetButtonConfirm: 'Are you sure?',
+  resetWarning:
+    'This action will delete all collections created by Agregarr from your Plex server and clear all Agregarr user labels.',
+  resetting: 'Resetting...',
+  toastResetSuccess: 'All Agregarr collections have been removed successfully!',
+  toastResetFailure: 'Something went wrong while resetting collections.',
 });
 
 const SettingsMain = () => {
@@ -52,6 +87,7 @@ const SettingsMain = () => {
   const { user: currentUser, hasPermission: userHasPermission } = useUser();
   const intl = useIntl();
   const { setLocale } = useLocale();
+  const [isResetting, setIsResetting] = useState(false);
   const {
     data,
     error,
@@ -91,6 +127,25 @@ const SettingsMain = () => {
     }
   };
 
+  const handleReset = async () => {
+    setIsResetting(true);
+    try {
+      await axios.post('/api/v1/settings/reset');
+
+      addToast(intl.formatMessage(messages.toastResetSuccess), {
+        autoDismiss: true,
+        appearance: 'success',
+      });
+    } catch (e) {
+      addToast(intl.formatMessage(messages.toastResetFailure), {
+        autoDismiss: true,
+        appearance: 'error',
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   if (!data && !error) {
     return <LoadingSpinner />;
   }
@@ -118,6 +173,7 @@ const SettingsMain = () => {
             applicationUrl: data?.applicationUrl,
             csrfProtection: data?.csrfProtection,
             locale: data?.locale ?? 'en',
+            tmdbLanguage: data?.tmdbLanguage ?? 'en',
             trustProxy: data?.trustProxy,
           }}
           enableReinitialize
@@ -129,6 +185,7 @@ const SettingsMain = () => {
                 applicationUrl: values.applicationUrl,
                 csrfProtection: values.csrfProtection,
                 locale: values.locale,
+                tmdbLanguage: values.tmdbLanguage,
                 trustProxy: values.trustProxy,
               });
               mutate('/api/v1/settings/public');
@@ -237,6 +294,25 @@ const SettingsMain = () => {
                   </div>
                 </div>
                 <div className="form-row">
+                  <label htmlFor="tmdbLanguage" className="text-label">
+                    {intl.formatMessage(messages.tmdbLanguage)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.tmdbLanguageTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field as="select" id="tmdbLanguage" name="tmdbLanguage">
+                        {TMDB_LANGUAGES.map((lang) => (
+                          <option key={lang.code} value={lang.code}>
+                            {lang.name}
+                          </option>
+                        ))}
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+                <div className="form-row">
                   <label htmlFor="trustProxy" className="checkbox-label">
                     <span className="mr-2">
                       {intl.formatMessage(messages.trustProxy)}
@@ -310,6 +386,37 @@ const SettingsMain = () => {
             );
           }}
         </Formik>
+      </div>
+
+      {/* Reset Section */}
+      <div className="mt-8 mb-6">
+        <h3 className="heading">
+          {intl.formatMessage(messages.resetAgregarr)}
+        </h3>
+        <p className="description">
+          {intl.formatMessage(messages.resetAgregarrDescription)}
+        </p>
+      </div>
+      <div className="section">
+        <div className="rounded-md border border-yellow-500 bg-yellow-500 bg-opacity-10 p-4">
+          <p className="text-sm text-yellow-200">
+            {intl.formatMessage(messages.resetWarning)}
+          </p>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <ConfirmButton
+            onClick={handleReset}
+            confirmText={intl.formatMessage(messages.resetButtonConfirm)}
+            buttonType="danger"
+            className="relative"
+          >
+            <span>
+              {isResetting
+                ? intl.formatMessage(messages.resetting)
+                : intl.formatMessage(messages.resetButton)}
+            </span>
+          </ConfirmButton>
+        </div>
       </div>
     </>
   );

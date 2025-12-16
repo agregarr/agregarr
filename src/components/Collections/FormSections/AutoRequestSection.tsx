@@ -1,9 +1,20 @@
-import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
+import type {
+  OverseerrSettings,
+  RadarrSettings,
+  SonarrSettings,
+} from '@server/lib/settings';
+import axios from 'axios';
 import { Field } from 'formik';
+import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import Select from 'react-select';
 import useSWR from 'swr';
-import CountryExclusion from './CountryExclusion';
-import GenreExclusion from './GenreExclusion';
+import FilterWithMode from './FilterWithMode';
+
+interface OptionType {
+  value: number;
+  label: string;
+}
 
 const messages = defineMessages({
   grabMissingItems: 'Grab Missing Items',
@@ -19,10 +30,22 @@ const messages = defineMessages({
   tvSeasonLimitHelp: '0 = no limit',
   seasonsPerShow: 'Seasons per TV show to download/request',
   seasonsPerShowHelp:
-    'Limit each TV show to only the first X seasons (0 = all seasons)',
+    'Limit each TV show to only certain number of seasons, grabbed in certain order (0 = all seasons)',
+  seasonGrabOrder: 'Season grab order',
+  seasonGrabOrderHelp:
+    'Choose which order to grab seasons: First, Latest (including unreleased), or Most Recently aired',
+  seasonGrabOrderFirst: 'First seasons',
+  seasonGrabOrderLatest: 'Latest seasons (including unreleased)',
+  seasonGrabOrderAiring: 'Most recently aired seasons',
   minimumYear: 'Minimum release year',
   minimumYearHelp:
     'Only grab movies/TV shows released on or after this year (0 = no limit)',
+  minimumImdbRating: 'Minimum IMDb rating',
+  minimumImdbRatingHelp:
+    'Only grab movies/TV shows with an IMDb rating >= this value (0 = no limit). Items without ratings will be allowed.',
+  minimumRottenTomatoesRating: 'Minimum Rotten Tomatoes rating',
+  minimumRottenTomatoesRatingHelp:
+    'Only grab movies/TV shows with a Rotten Tomatoes critics score >= this value (0 = no limit). Items without ratings will be allowed.',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -40,19 +63,40 @@ const messages = defineMessages({
   autoApproveMissingTV: 'Auto-approve TV show requests',
   autoApproveHelp:
     'Automatically approve requests instead of requiring manual approval',
+  overseerrServerOptions: 'Overseerr Server Configuration',
+  selectOverseerrRadarrServer: 'Radarr Server (Movies)',
+  selectOverseerrRadarrProfile: 'Radarr Quality Profile (Movies)',
+  selectOverseerrRadarrRootFolder: 'Radarr Root Folder (Movies)',
+  selectOverseerrSonarrServer: 'Sonarr Server (TV Shows)',
+  selectOverseerrSonarrProfile: 'Sonarr Quality Profile (TV Shows)',
+  selectOverseerrSonarrRootFolder: 'Sonarr Root Folder (TV Shows)',
 
   // Direct download server selection
   directDownloadOptions: 'Direct Download Configuration',
   selectRadarrServer: 'Radarr Server (Movies)',
   selectRadarrProfile: 'Radarr Quality Profile (Movies)',
   selectRadarrRootFolder: 'Radarr Root Folder (Movies)',
+  selectRadarrTags: 'Radarr Tags (Movies)',
+  radarrMonitor: 'Monitor Movies',
+  radarrMonitorHelp: 'Monitor movies when added to Radarr',
+  radarrSearchOnAdd: 'Search on Add (Movies)',
+  radarrSearchOnAddHelp: 'Immediately search for movies when added to Radarr',
   selectSonarrServer: 'Sonarr Server (TV Shows)',
   selectSonarrProfile: 'Sonarr Quality Profile (TV Shows)',
   selectSonarrRootFolder: 'Sonarr Root Folder (TV Shows)',
+  selectSonarrTags: 'Sonarr Tags (TV Shows)',
+  sonarrMonitor: 'Monitor TV Shows',
+  sonarrMonitorHelp: 'Monitor TV shows when added to Sonarr',
+  sonarrSearchOnAdd: 'Search on Add (TV Shows)',
+  sonarrSearchOnAddHelp: 'Immediately search for TV shows when added to Sonarr',
   selectServer: 'Select server...',
   selectProfile: 'Select quality profile...',
   selectRootFolder: 'Select root folder...',
+  selectTags: 'Select tags...',
   selectServerFirst: 'Select a server first',
+  noTagOptions: 'No tags.',
+  selectOverseerrRadarrTags: 'Radarr Tags (Movies)',
+  selectOverseerrSonarrTags: 'Sonarr Tags (TV Shows)',
 });
 
 interface AutoRequestSectionProps {
@@ -65,12 +109,41 @@ interface AutoRequestSectionProps {
     searchMissingTV?: boolean;
     excludedGenres?: number[];
     excludedCountries?: string[];
+    excludedLanguages?: string[];
+    filterSettings?: {
+      genres?: {
+        mode: 'exclude' | 'include';
+        values: number[];
+      };
+      countries?: {
+        mode: 'exclude' | 'include';
+        values: string[];
+      };
+      languages?: {
+        mode: 'exclude' | 'include';
+        values: string[];
+      };
+    };
     directDownloadRadarrServerId?: number;
     directDownloadRadarrProfileId?: number;
     directDownloadRadarrRootFolder?: string;
+    directDownloadRadarrTags?: number[];
+    directDownloadRadarrMonitor?: boolean;
+    directDownloadRadarrSearchOnAdd?: boolean;
     directDownloadSonarrServerId?: number;
     directDownloadSonarrProfileId?: number;
     directDownloadSonarrRootFolder?: string;
+    directDownloadSonarrTags?: number[];
+    directDownloadSonarrMonitor?: boolean;
+    directDownloadSonarrSearchOnAdd?: boolean;
+    overseerrRadarrServerId?: number;
+    overseerrRadarrProfileId?: number;
+    overseerrRadarrRootFolder?: string;
+    overseerrRadarrTags?: number[];
+    overseerrSonarrServerId?: number;
+    overseerrSonarrProfileId?: number;
+    overseerrSonarrRootFolder?: string;
+    overseerrSonarrTags?: number[];
     [key: string]: unknown;
   };
   errors: Record<string, string>;
@@ -98,17 +171,104 @@ const AutoRequestSection = ({
     SonarrSettings[]
   >('/api/v1/settings/sonarr');
 
+  // Fetch Overseerr settings
+  const { data: overseerrSettings } = useSWR<OverseerrSettings>(
+    '/api/v1/settings/overseerr'
+  );
+
+  // State for Overseerr server options
+  const [overseerrServerOptions, setOverseerrServerOptions] = useState<{
+    servers: {
+      radarr: {
+        id: number;
+        name: string;
+        hostname: string;
+        port: number;
+        is4k: boolean;
+        isDefault: boolean;
+      }[];
+      sonarr: {
+        id: number;
+        name: string;
+        hostname: string;
+        port: number;
+        is4k: boolean;
+        isDefault: boolean;
+      }[];
+    };
+    radarrServerOptions: Record<
+      number,
+      {
+        profiles: { id: number; name: string }[];
+        rootFolders: { id: number; path: string }[];
+        tags: { id: number; label: string }[];
+      }
+    >;
+    sonarrServerOptions: Record<
+      number,
+      {
+        profiles: { id: number; name: string }[];
+        rootFolders: { id: number; path: string }[];
+        tags: { id: number; label: string }[];
+      }
+    >;
+  }>({
+    servers: { radarr: [], sonarr: [] },
+    radarrServerOptions: {},
+    sonarrServerOptions: {},
+  });
+  const [overseerrLoading, setOverseerrLoading] = useState(false);
+
+  // Fetch Overseerr server options when Overseerr is configured
+  useEffect(() => {
+    const fetchOverseerrServers = async () => {
+      if (!overseerrSettings?.hostname || !overseerrSettings?.apiKey) {
+        return;
+      }
+
+      setOverseerrLoading(true);
+      try {
+        const response = await axios.post('/api/v1/overseerr/test', {
+          hostname: overseerrSettings.hostname,
+          port: overseerrSettings.port || 5055,
+          apiKey: overseerrSettings.apiKey,
+          useSsl: overseerrSettings.useSsl,
+          urlBase: overseerrSettings.urlBase,
+        });
+
+        setOverseerrServerOptions({
+          servers: response.data.servers || { radarr: [], sonarr: [] },
+          radarrServerOptions: response.data.radarrServerOptions || {},
+          sonarrServerOptions: response.data.sonarrServerOptions || {},
+        });
+      } catch (error) {
+        // Silently fail - Overseerr options are optional
+        setOverseerrServerOptions({
+          servers: { radarr: [], sonarr: [] },
+          radarrServerOptions: {},
+          sonarrServerOptions: {},
+        });
+      } finally {
+        setOverseerrLoading(false);
+      }
+    };
+
+    fetchOverseerrServers();
+  }, [overseerrSettings]);
+
   // Get the effective server IDs (only when server data has loaded)
   const effectiveRadarrServerId =
-    values.directDownloadRadarrServerId ||
-    (!radarrLoading && radarrServers?.length === 1
+    values.directDownloadRadarrServerId !== undefined
+      ? values.directDownloadRadarrServerId
+      : !radarrLoading && radarrServers?.length === 1
       ? radarrServers[0].id
-      : !radarrLoading && radarrServers?.find((s) => s.isDefault)?.id);
+      : !radarrLoading && radarrServers?.find((s) => s.isDefault)?.id;
   const effectiveSonarrServerId =
-    values.directDownloadSonarrServerId ||
-    (!sonarrLoading && sonarrServers?.length === 1
+    values.directDownloadSonarrServerId !== undefined
+      ? values.directDownloadSonarrServerId
+      : !sonarrLoading && sonarrServers?.length === 1
       ? sonarrServers[0].id
-      : !sonarrLoading && sonarrServers?.find((s) => s.isDefault)?.id);
+      : !sonarrLoading && sonarrServers?.find((s) => s.isDefault)?.id;
 
   // Fetch profiles for selected servers or default/single server
   const { data: radarrProfiles } = useSWR<{ id: number; name: string }[]>(
@@ -131,6 +291,19 @@ const AutoRequestSection = ({
   const { data: sonarrRootFolders } = useSWR<{ id: number; path: string }[]>(
     effectiveSonarrServerId !== undefined
       ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/rootfolders`
+      : null
+  );
+
+  // Fetch tags for selected servers or default/single server
+  const { data: radarrTags } = useSWR<{ id: number; label: string }[]>(
+    effectiveRadarrServerId !== undefined
+      ? `/api/v1/settings/radarr/${effectiveRadarrServerId}/tags`
+      : null
+  );
+
+  const { data: sonarrTags } = useSWR<{ id: number; label: string }[]>(
+    effectiveSonarrServerId !== undefined
+      ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/tags`
       : null
   );
 
@@ -299,19 +472,172 @@ const AutoRequestSection = ({
             </div>
           </div>
 
-          {/* Genre Exclusion */}
-          <GenreExclusion
-            selectedGenres={values.excludedGenres || []}
-            onSelectionChange={(selectedIds) => {
-              setFieldValue?.('excludedGenres', selectedIds);
+          {/* Minimum IMDb Rating */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumImdbRating)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="decimal"
+                id="minimumImdbRating"
+                name="minimumImdbRating"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumImdbRating && touched.minimumImdbRating && (
+              <div className="error">{errors.minimumImdbRating}</div>
+            )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(messages.minimumImdbRatingHelp)}
+            </div>
+          </div>
+
+          {/* Minimum Rotten Tomatoes Rating */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumRottenTomatoesRating)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="decimal"
+                id="minimumRottenTomatoesRating"
+                name="minimumRottenTomatoesRating"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumRottenTomatoesRating &&
+              touched.minimumRottenTomatoesRating && (
+                <div className="error">
+                  {errors.minimumRottenTomatoesRating}
+                </div>
+              )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(messages.minimumRottenTomatoesRatingHelp)}
+            </div>
+          </div>
+
+          {/* Genre Filter with Include/Exclude Mode */}
+          <FilterWithMode
+            filterType="genres"
+            mode={values.filterSettings?.genres?.mode || 'exclude'}
+            selectedValues={
+              values.filterSettings?.genres?.values ||
+              values.excludedGenres ||
+              []
+            }
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.genres?.values ||
+                values.excludedGenres ||
+                [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                genres: { mode, values: currentValues },
+              });
+              // Clear old format when using new format
+              if (values.excludedGenres) {
+                setFieldValue?.('excludedGenres', undefined);
+              }
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.genres?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                genres: {
+                  mode: currentMode,
+                  values: selectedValues as number[],
+                },
+              });
+              // Clear old format when using new format
+              if (values.excludedGenres) {
+                setFieldValue?.('excludedGenres', undefined);
+              }
             }}
           />
 
-          {/* Country Exclusion */}
-          <CountryExclusion
-            selectedCountries={values.excludedCountries || []}
-            onSelectionChange={(selectedCodes) => {
-              setFieldValue?.('excludedCountries', selectedCodes);
+          {/* Country Filter with Include/Exclude Mode */}
+          <FilterWithMode
+            filterType="countries"
+            mode={values.filterSettings?.countries?.mode || 'exclude'}
+            selectedValues={
+              values.filterSettings?.countries?.values ||
+              values.excludedCountries ||
+              []
+            }
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.countries?.values ||
+                values.excludedCountries ||
+                [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                countries: { mode, values: currentValues },
+              });
+              // Clear old format when using new format
+              if (values.excludedCountries) {
+                setFieldValue?.('excludedCountries', undefined);
+              }
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.countries?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                countries: {
+                  mode: currentMode,
+                  values: selectedValues as string[],
+                },
+              });
+              // Clear old format when using new format
+              if (values.excludedCountries) {
+                setFieldValue?.('excludedCountries', undefined);
+              }
+            }}
+          />
+
+          {/* Language Filter with Include/Exclude Mode */}
+          <FilterWithMode
+            filterType="languages"
+            mode={values.filterSettings?.languages?.mode || 'exclude'}
+            selectedValues={
+              values.filterSettings?.languages?.values ||
+              values.excludedLanguages ||
+              []
+            }
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.languages?.values ||
+                values.excludedLanguages ||
+                [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                languages: { mode, values: currentValues },
+              });
+              // Clear old format when using new format
+              if (values.excludedLanguages) {
+                setFieldValue?.('excludedLanguages', undefined);
+              }
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.languages?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                languages: {
+                  mode: currentMode,
+                  values: selectedValues as string[],
+                },
+              });
+              // Clear old format when using new format
+              if (values.excludedLanguages) {
+                setFieldValue?.('excludedLanguages', undefined);
+              }
             }}
           />
 
@@ -364,6 +690,33 @@ const AutoRequestSection = ({
               </div>
             </div>
           )}
+
+          {/* Season Grab Order - only show when TV processing is enabled and seasonsPerShowLimit > 0 */}
+          {values.searchMissingTV &&
+            values.seasonsPerShowLimit &&
+            Number(values.seasonsPerShowLimit) > 0 && (
+              <div className="mb-6">
+                <div className="mb-2 text-sm font-medium text-gray-200">
+                  {intl.formatMessage(messages.seasonGrabOrder)}
+                </div>
+                <div className="form-input-field">
+                  <Field as="select" name="seasonGrabOrder" className="short">
+                    <option value="first">
+                      {intl.formatMessage(messages.seasonGrabOrderFirst)}
+                    </option>
+                    <option value="latest">
+                      {intl.formatMessage(messages.seasonGrabOrderLatest)}
+                    </option>
+                    <option value="airing">
+                      {intl.formatMessage(messages.seasonGrabOrderAiring)}
+                    </option>
+                  </Field>
+                </div>
+                <div className="label-tip mt-2">
+                  {intl.formatMessage(messages.seasonGrabOrderHelp)}
+                </div>
+              </div>
+            )}
 
           {/* Step 3: Download Method Selection */}
           <div className="mb-6">
@@ -482,6 +835,420 @@ const AutoRequestSection = ({
               <div className="label-tip mt-2">
                 {intl.formatMessage(messages.autoApproveHelp)}
               </div>
+
+              {/* Overseerr Server Configuration */}
+              <div className="mb-6">
+                <div className="mb-3 text-sm font-medium text-gray-200">
+                  {intl.formatMessage(messages.overseerrServerOptions)}
+                </div>
+                <div className="space-y-4">
+                  {/* Radarr Server Configuration - only show if movie processing is enabled */}
+                  {values.searchMissingMovies && shouldShowMovieSettings() && (
+                    <div className="rounded-md border border-gray-700 p-4">
+                      {/* Radarr Server Selection - only show if 2+ servers */}
+                      {overseerrServerOptions.servers.radarr.length > 1 && (
+                        <div>
+                          <div className="mb-2 text-sm font-medium text-gray-300">
+                            {intl.formatMessage(
+                              messages.selectOverseerrRadarrServer
+                            )}
+                          </div>
+                          <div className="form-input-field">
+                            <Field
+                              as="select"
+                              name="overseerrRadarrServerId"
+                              disabled={overseerrLoading}
+                              onChange={(
+                                e: React.ChangeEvent<HTMLSelectElement>
+                              ) => {
+                                const serverId = e.target.value
+                                  ? Number(e.target.value)
+                                  : undefined;
+                                setFieldValue?.(
+                                  'overseerrRadarrServerId',
+                                  serverId
+                                );
+                                // Clear profile and root folder when server changes
+                                setFieldValue?.(
+                                  'overseerrRadarrProfileId',
+                                  undefined
+                                );
+                                setFieldValue?.(
+                                  'overseerrRadarrRootFolder',
+                                  undefined
+                                );
+                              }}
+                            >
+                              <option value="">
+                                {overseerrLoading
+                                  ? 'Loading...'
+                                  : intl.formatMessage(messages.selectServer)}
+                              </option>
+                              {overseerrServerOptions.servers.radarr.map(
+                                (server) => (
+                                  <option key={server.id} value={server.id}>
+                                    {server.name}
+                                    {server.isDefault && ' (Default)'}
+                                  </option>
+                                )
+                              )}
+                            </Field>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Radarr Profile Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrRadarrProfile
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrRadarrProfileId"
+                            disabled={
+                              overseerrLoading ||
+                              values.overseerrRadarrServerId === undefined ||
+                              values.overseerrRadarrServerId === null ||
+                              !overseerrServerOptions.radarrServerOptions[
+                                Number(values.overseerrRadarrServerId)
+                              ]
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrRadarrServerId ===
+                                    undefined ||
+                                  values.overseerrRadarrServerId === null
+                                ? intl.formatMessage(messages.selectServerFirst)
+                                : intl.formatMessage(messages.selectProfile)}
+                            </option>
+                            {overseerrServerOptions.radarrServerOptions[
+                              Number(values.overseerrRadarrServerId)
+                            ]?.profiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+
+                      {/* Radarr Root Folder Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrRadarrRootFolder
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrRadarrRootFolder"
+                            disabled={
+                              overseerrLoading ||
+                              values.overseerrRadarrServerId === undefined ||
+                              values.overseerrRadarrServerId === null ||
+                              !overseerrServerOptions.radarrServerOptions[
+                                Number(values.overseerrRadarrServerId)
+                              ]
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrRadarrServerId ===
+                                    undefined ||
+                                  values.overseerrRadarrServerId === null
+                                ? intl.formatMessage(messages.selectServerFirst)
+                                : intl.formatMessage(messages.selectRootFolder)}
+                            </option>
+                            {overseerrServerOptions.radarrServerOptions[
+                              Number(values.overseerrRadarrServerId)
+                            ]?.rootFolders.map((folder) => (
+                              <option key={folder.id} value={folder.path}>
+                                {folder.path}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+
+                      {/* Radarr Tags Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrRadarrTags
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Select<OptionType, true>
+                            options={
+                              overseerrServerOptions.radarrServerOptions[
+                                Number(values.overseerrRadarrServerId)
+                              ]?.tags.map((tag) => ({
+                                label: tag.label,
+                                value: tag.id,
+                              })) || []
+                            }
+                            isMulti
+                            isDisabled={
+                              overseerrLoading ||
+                              values.overseerrRadarrServerId === undefined ||
+                              values.overseerrRadarrServerId === null ||
+                              !overseerrServerOptions.radarrServerOptions[
+                                Number(values.overseerrRadarrServerId)
+                              ]
+                            }
+                            placeholder={
+                              overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrRadarrServerId ===
+                                    undefined ||
+                                  values.overseerrRadarrServerId === null
+                                ? intl.formatMessage(messages.selectServerFirst)
+                                : intl.formatMessage(messages.selectTags)
+                            }
+                            noOptionsMessage={() =>
+                              intl.formatMessage(messages.noTagOptions)
+                            }
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                            value={
+                              overseerrServerOptions.radarrServerOptions[
+                                Number(values.overseerrRadarrServerId)
+                              ]?.tags
+                                .filter((tag) =>
+                                  values.overseerrRadarrTags?.includes(tag.id)
+                                )
+                                .map((tag) => ({
+                                  label: tag.label,
+                                  value: tag.id,
+                                })) || []
+                            }
+                            onChange={(value) => {
+                              setFieldValue?.(
+                                'overseerrRadarrTags',
+                                value?.map((v) => v.value) || []
+                              );
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sonarr Server Configuration - only show if TV processing is enabled */}
+                  {values.searchMissingTV && shouldShowTvSettings() && (
+                    <div className="rounded-md border border-gray-700 p-4">
+                      {/* Sonarr Server Selection - only show if 2+ servers */}
+                      {overseerrServerOptions.servers.sonarr.length > 1 && (
+                        <div>
+                          <div className="mb-2 text-sm font-medium text-gray-300">
+                            {intl.formatMessage(
+                              messages.selectOverseerrSonarrServer
+                            )}
+                          </div>
+                          <div className="form-input-field">
+                            <Field
+                              as="select"
+                              name="overseerrSonarrServerId"
+                              disabled={overseerrLoading}
+                              onChange={(
+                                e: React.ChangeEvent<HTMLSelectElement>
+                              ) => {
+                                const serverId = e.target.value
+                                  ? Number(e.target.value)
+                                  : undefined;
+                                setFieldValue?.(
+                                  'overseerrSonarrServerId',
+                                  serverId
+                                );
+                                // Clear profile and root folder when server changes
+                                setFieldValue?.(
+                                  'overseerrSonarrProfileId',
+                                  undefined
+                                );
+                                setFieldValue?.(
+                                  'overseerrSonarrRootFolder',
+                                  undefined
+                                );
+                              }}
+                            >
+                              <option value="">
+                                {overseerrLoading
+                                  ? 'Loading...'
+                                  : intl.formatMessage(messages.selectServer)}
+                              </option>
+                              {overseerrServerOptions.servers.sonarr.map(
+                                (server) => (
+                                  <option key={server.id} value={server.id}>
+                                    {server.name}
+                                    {server.isDefault && ' (Default)'}
+                                  </option>
+                                )
+                              )}
+                            </Field>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sonarr Profile Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrSonarrProfile
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrSonarrProfileId"
+                            disabled={
+                              overseerrLoading ||
+                              values.overseerrSonarrServerId === undefined ||
+                              values.overseerrSonarrServerId === null ||
+                              !overseerrServerOptions.sonarrServerOptions[
+                                Number(values.overseerrSonarrServerId)
+                              ]
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrSonarrServerId ===
+                                    undefined ||
+                                  values.overseerrSonarrServerId === null
+                                ? intl.formatMessage(messages.selectServerFirst)
+                                : intl.formatMessage(messages.selectProfile)}
+                            </option>
+                            {overseerrServerOptions.sonarrServerOptions[
+                              Number(values.overseerrSonarrServerId)
+                            ]?.profiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+
+                      {/* Sonarr Root Folder Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrSonarrRootFolder
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Field
+                            as="select"
+                            name="overseerrSonarrRootFolder"
+                            disabled={
+                              overseerrLoading ||
+                              values.overseerrSonarrServerId === undefined ||
+                              values.overseerrSonarrServerId === null ||
+                              !overseerrServerOptions.sonarrServerOptions[
+                                Number(values.overseerrSonarrServerId)
+                              ]
+                            }
+                          >
+                            <option value="">
+                              {overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrSonarrServerId ===
+                                    undefined ||
+                                  values.overseerrSonarrServerId === null
+                                ? intl.formatMessage(messages.selectServerFirst)
+                                : intl.formatMessage(messages.selectRootFolder)}
+                            </option>
+                            {overseerrServerOptions.sonarrServerOptions[
+                              Number(values.overseerrSonarrServerId)
+                            ]?.rootFolders.map((folder) => (
+                              <option key={folder.id} value={folder.path}>
+                                {folder.path}
+                              </option>
+                            ))}
+                          </Field>
+                        </div>
+                      </div>
+
+                      {/* Sonarr Tags Selection */}
+                      <div>
+                        <div className="mb-2 text-sm font-medium text-gray-300">
+                          {intl.formatMessage(
+                            messages.selectOverseerrSonarrTags
+                          )}
+                        </div>
+                        <div className="form-input-field">
+                          <Select<OptionType, true>
+                            options={
+                              overseerrServerOptions.sonarrServerOptions[
+                                Number(values.overseerrSonarrServerId)
+                              ]?.tags.map((tag) => ({
+                                label: tag.label,
+                                value: tag.id,
+                              })) || []
+                            }
+                            isMulti
+                            isDisabled={
+                              overseerrLoading ||
+                              values.overseerrSonarrServerId === undefined ||
+                              values.overseerrSonarrServerId === null ||
+                              !overseerrServerOptions.sonarrServerOptions[
+                                Number(values.overseerrSonarrServerId)
+                              ]
+                            }
+                            placeholder={
+                              overseerrLoading
+                                ? 'Loading...'
+                                : values.overseerrSonarrServerId ===
+                                    undefined ||
+                                  values.overseerrSonarrServerId === null
+                                ? intl.formatMessage(messages.selectServerFirst)
+                                : intl.formatMessage(messages.selectTags)
+                            }
+                            noOptionsMessage={() =>
+                              intl.formatMessage(messages.noTagOptions)
+                            }
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                            value={
+                              overseerrServerOptions.sonarrServerOptions[
+                                Number(values.overseerrSonarrServerId)
+                              ]?.tags
+                                .filter((tag) =>
+                                  values.overseerrSonarrTags?.includes(tag.id)
+                                )
+                                .map((tag) => ({
+                                  label: tag.label,
+                                  value: tag.id,
+                                })) || []
+                            }
+                            onChange={(value) => {
+                              setFieldValue?.(
+                                'overseerrSonarrTags',
+                                value?.map((v) => v.value) || []
+                              );
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show message if no processing options are enabled */}
+                  {!values.searchMissingMovies && !values.searchMissingTV && (
+                    <div className="text-sm text-gray-400">
+                      Enable movie or TV processing above to configure server
+                      options.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -590,6 +1357,93 @@ const AutoRequestSection = ({
                         </Field>
                       </div>
                     </div>
+
+                    {/* Radarr Tags Selection */}
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-gray-300">
+                        {intl.formatMessage(messages.selectRadarrTags)}
+                      </div>
+                      <div className="form-input-field">
+                        <Select<OptionType, true>
+                          options={
+                            radarrTags?.map((tag) => ({
+                              label: tag.label,
+                              value: tag.id,
+                            })) || []
+                          }
+                          isMulti
+                          isDisabled={radarrLoading || !radarrTags}
+                          placeholder={
+                            radarrLoading
+                              ? 'Loading...'
+                              : effectiveRadarrServerId !== undefined
+                              ? intl.formatMessage(messages.selectTags)
+                              : intl.formatMessage(messages.selectServerFirst)
+                          }
+                          noOptionsMessage={() =>
+                            intl.formatMessage(messages.noTagOptions)
+                          }
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          value={
+                            radarrTags
+                              ?.filter((tag) =>
+                                values.directDownloadRadarrTags?.includes(
+                                  tag.id
+                                )
+                              )
+                              .map((tag) => ({
+                                label: tag.label,
+                                value: tag.id,
+                              })) || []
+                          }
+                          onChange={(value) => {
+                            setFieldValue?.(
+                              'directDownloadRadarrTags',
+                              value?.map((v) => v.value) || []
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Radarr Monitor checkbox */}
+                    <div className="flex items-center">
+                      <Field
+                        type="checkbox"
+                        id="directDownloadRadarrMonitor"
+                        name="directDownloadRadarrMonitor"
+                        className="rounded"
+                      />
+                      <label
+                        htmlFor="directDownloadRadarrMonitor"
+                        className="ml-2 text-sm font-medium text-gray-300"
+                      >
+                        {intl.formatMessage(messages.radarrMonitor)}
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.radarrMonitorHelp)}
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Radarr Search on Add checkbox */}
+                    <div className="flex items-center">
+                      <Field
+                        type="checkbox"
+                        id="directDownloadRadarrSearchOnAdd"
+                        name="directDownloadRadarrSearchOnAdd"
+                        className="rounded"
+                      />
+                      <label
+                        htmlFor="directDownloadRadarrSearchOnAdd"
+                        className="ml-2 text-sm font-medium text-gray-300"
+                      >
+                        {intl.formatMessage(messages.radarrSearchOnAdd)}
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.radarrSearchOnAddHelp)}
+                        </span>
+                      </label>
+                    </div>
                   </div>
                 )}
 
@@ -690,6 +1544,93 @@ const AutoRequestSection = ({
                           ))}
                         </Field>
                       </div>
+                    </div>
+
+                    {/* Sonarr Tags Selection */}
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-gray-300">
+                        {intl.formatMessage(messages.selectSonarrTags)}
+                      </div>
+                      <div className="form-input-field">
+                        <Select<OptionType, true>
+                          options={
+                            sonarrTags?.map((tag) => ({
+                              label: tag.label,
+                              value: tag.id,
+                            })) || []
+                          }
+                          isMulti
+                          isDisabled={sonarrLoading || !sonarrTags}
+                          placeholder={
+                            sonarrLoading
+                              ? 'Loading...'
+                              : effectiveSonarrServerId !== undefined
+                              ? intl.formatMessage(messages.selectTags)
+                              : intl.formatMessage(messages.selectServerFirst)
+                          }
+                          noOptionsMessage={() =>
+                            intl.formatMessage(messages.noTagOptions)
+                          }
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          value={
+                            sonarrTags
+                              ?.filter((tag) =>
+                                values.directDownloadSonarrTags?.includes(
+                                  tag.id
+                                )
+                              )
+                              .map((tag) => ({
+                                label: tag.label,
+                                value: tag.id,
+                              })) || []
+                          }
+                          onChange={(value) => {
+                            setFieldValue?.(
+                              'directDownloadSonarrTags',
+                              value?.map((v) => v.value) || []
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sonarr Monitor checkbox */}
+                    <div className="flex items-center">
+                      <Field
+                        type="checkbox"
+                        id="directDownloadSonarrMonitor"
+                        name="directDownloadSonarrMonitor"
+                        className="rounded"
+                      />
+                      <label
+                        htmlFor="directDownloadSonarrMonitor"
+                        className="ml-2 text-sm font-medium text-gray-300"
+                      >
+                        {intl.formatMessage(messages.sonarrMonitor)}
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.sonarrMonitorHelp)}
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Sonarr Search on Add checkbox */}
+                    <div className="flex items-center">
+                      <Field
+                        type="checkbox"
+                        id="directDownloadSonarrSearchOnAdd"
+                        name="directDownloadSonarrSearchOnAdd"
+                        className="rounded"
+                      />
+                      <label
+                        htmlFor="directDownloadSonarrSearchOnAdd"
+                        className="ml-2 text-sm font-medium text-gray-300"
+                      >
+                        {intl.formatMessage(messages.sonarrSearchOnAdd)}
+                        <span className="label-tip">
+                          {intl.formatMessage(messages.sonarrSearchOnAddHelp)}
+                        </span>
+                      </label>
                     </div>
                   </div>
                 )}

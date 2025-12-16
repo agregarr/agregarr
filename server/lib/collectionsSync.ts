@@ -179,6 +179,22 @@ class CollectionsSync {
       }
     }
 
+    // Wait for Collections Quick Sync to complete if running
+    const collectionsQuickSync = (
+      await import('@server/lib/collectionsQuickSync')
+    ).default;
+    if (collectionsQuickSync.status.running) {
+      logger.info(
+        'Collections Quick Sync is currently running, waiting for completion...',
+        {
+          label: 'Collections Sync',
+        }
+      );
+      while (collectionsQuickSync.status.running) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
     // Wait for any running individual collection syncs to complete
     const { IndividualCollectionScheduler } = await import(
       '@server/lib/collections/services/IndividualCollectionScheduler'

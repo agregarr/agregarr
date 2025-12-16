@@ -16,9 +16,7 @@ export class DefaultHubConfigService {
    */
   public getConfigs(): PlexHubConfig[] {
     const settings = getSettings();
-    const hubConfigs = settings.plex.hubConfigs || [];
-
-    return hubConfigs;
+    return settings.plex.hubConfigs || [];
   }
 
   /**
@@ -28,6 +26,7 @@ export class DefaultHubConfigService {
     const settings = getSettings();
 
     // Preserve existing isActive status when updating hub configs
+    // Also repairs any broken names from the linking bug (names are refreshed from Plex discovery data)
     const existingHubConfigs = settings.plex.hubConfigs || [];
     const mergedHubConfigs = newConfigs.map(
       (newConfig: DiscoveredHubConfig) => {
@@ -36,12 +35,30 @@ export class DefaultHubConfigService {
             existing.hubIdentifier === newConfig.hubIdentifier &&
             existing.libraryId === newConfig.libraryId
         );
+
+        // Check if name is being corrected (for logging)
+        const nameChanged =
+          existingConfig && existingConfig.name !== newConfig.name;
+        if (nameChanged) {
+          logger.info(
+            `Correcting hub name from "${existingConfig.name}" to "${newConfig.name}"`,
+            {
+              label: 'Default Hub Config Service',
+              hubIdentifier: newConfig.hubIdentifier,
+              libraryId: newConfig.libraryId,
+              oldName: existingConfig.name,
+              newName: newConfig.name,
+            }
+          );
+        }
+
         return {
           ...newConfig,
           // Preserve existing ID or generate new one
           id: existingConfig?.id || IdGenerator.generateId(),
           // Preserve existing isActive status, or default to true for new configs
           isActive: existingConfig?.isActive ?? true,
+          // Note: name comes from newConfig (discovery data), which fixes any broken names from the linking bug
         };
       }
     );
@@ -144,8 +161,17 @@ export class DefaultHubConfigService {
         // For linked collections, preserve library-specific fields
         libraryId: configToUpdate.libraryId, // Don't change the library assignment
         libraryName: configToUpdate.libraryName, // Don't change the library name
+        name: configToUpdate.name, // Don't change the hub display name (library-specific)
         hubIdentifier: configToUpdate.hubIdentifier, // Don't change the hub identifier
         mediaType: configToUpdate.mediaType, // Don't change the media type
+        sortOrderHome: configToUpdate.sortOrderHome, // Library-specific ordering
+        sortOrderLibrary: configToUpdate.sortOrderLibrary, // Library-specific ordering
+        isLibraryPromoted: configToUpdate.isLibraryPromoted, // Library-specific promotion status
+        everLibraryPromoted: configToUpdate.everLibraryPromoted, // Library-specific promotion history
+        isPromotedToHub: configToUpdate.isPromotedToHub, // Library-specific promotability
+        missing: configToUpdate.missing, // Library-specific existence status
+        lastSyncedAt: configToUpdate.lastSyncedAt, // Library-specific sync timestamp
+        needsSync: configToUpdate.needsSync, // Library-specific sync status
         // Note: isLinked, linkId, isUnlinked come from settings spread above
       };
 
@@ -177,6 +203,7 @@ export class DefaultHubConfigService {
     const existingHubConfigs = settings.plex.hubConfigs || [];
 
     // Add isActive field and default time restrictions server-side
+    // Also repairs any broken names from the linking bug (names are refreshed from Plex discovery data)
     const hubConfigsWithActiveStatus = newConfigs.map(
       (config: DiscoveredHubConfig) => {
         // Try to find existing hub by natural key to preserve ID
@@ -186,6 +213,22 @@ export class DefaultHubConfigService {
             existing.libraryId === config.libraryId
         );
 
+        // Check if name is being corrected (for logging)
+        const nameChanged =
+          existingConfig && existingConfig.name !== config.name;
+        if (nameChanged) {
+          logger.info(
+            `Correcting hub name from "${existingConfig.name}" to "${config.name}"`,
+            {
+              label: 'Default Hub Config Service',
+              hubIdentifier: config.hubIdentifier,
+              libraryId: config.libraryId,
+              oldName: existingConfig.name,
+              newName: config.name,
+            }
+          );
+        }
+
         return {
           ...config,
           // Preserve existing ID or generate new one
@@ -194,6 +237,7 @@ export class DefaultHubConfigService {
           timeRestriction: config.timeRestriction || {
             alwaysActive: true, // Default to always active
           },
+          // Note: name comes from config (discovery data), which fixes any broken names from the linking bug
         };
       }
     );
@@ -264,11 +308,13 @@ export class DefaultHubConfigService {
           );
 
           // Link all hubs in this group
+          // BUT: respect isUnlinked flag - don't re-link deliberately unlinked hubs
           hubs.forEach((hub: PlexHubConfig) => {
             resultConfigs.push({
               ...hub,
-              isLinked: true,
+              isLinked: hub.isUnlinked ? false : true, // Don't re-link if deliberately unlinked
               linkId,
+              // Keep isUnlinked as-is - it remains true if user deliberately unlinked
             });
           });
         } else {

@@ -2,9 +2,12 @@ import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import {
   ChartBarIcon,
+  CogIcon,
+  ExclamationCircleIcon,
   RectangleStackIcon as CollectionIcon,
 } from '@heroicons/react/24/outline';
 import { ClockIcon, PlayIcon } from '@heroicons/react/24/solid';
+import Link from 'next/link';
 import type React from 'react';
 import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
@@ -16,7 +19,10 @@ const messages = defineMessages({
   mostPlayed: 'Most Played',
   mostWatched: 'Most Watched (Duration)',
   noData: 'No collection data available',
-  tautulliRequired: 'Tautulli configuration required for collection statistics',
+  tautulliRequired: 'Tautulli Setup Required',
+  tautulliDescription:
+    'Configure Tautulli in your settings to view detailed statistics about your collections, including play counts, watch time, and viewer activity.',
+  configureTautulli: 'Configure Tautulli',
   plays: 'plays',
   hours: 'hours',
   items: 'items',
@@ -82,6 +88,42 @@ const CollectionStatsGrid: React.FC = () => {
   };
 
   if (error) {
+    // Check if it's a Tautulli configuration error
+    const isTautulliError =
+      error.message.includes('Tautulli not configured') ||
+      error.message.includes('Tautulli settings');
+
+    if (isTautulliError) {
+      return (
+        <div className="rounded-lg bg-stone-800 shadow-sm">
+          <div className="border-b border-gray-700 px-6 py-4">
+            <h3 className="flex items-center text-lg font-medium text-white">
+              <ChartBarIcon className="mr-2 h-5 w-5 text-orange-400" />
+              {intl.formatMessage(messages.collectionStatistics)}
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="flex flex-col items-center py-8 text-center">
+              <ExclamationCircleIcon className="mb-4 h-12 w-12 text-orange-400" />
+              <h4 className="mb-2 text-lg font-semibold text-white">
+                {intl.formatMessage(messages.tautulliRequired)}
+              </h4>
+              <p className="mb-6 max-w-md text-gray-400">
+                {intl.formatMessage(messages.tautulliDescription)}
+              </p>
+              <Link href="/settings/sources" passHref>
+                <Button as="a" buttonType="primary">
+                  <CogIcon className="mr-2 h-5 w-5" />
+                  {intl.formatMessage(messages.configureTautulli)}
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // For other errors, show generic error message
     return (
       <div className="rounded-lg bg-stone-800 shadow-sm">
         <div className="border-b border-gray-700 px-6 py-4">
@@ -94,11 +136,7 @@ const CollectionStatsGrid: React.FC = () => {
           <p className="mb-2 text-red-400">
             Failed to load collection statistics
           </p>
-          <p className="text-sm text-gray-400">
-            {error.message.includes('Tautulli not configured')
-              ? intl.formatMessage(messages.tautulliRequired)
-              : error.message}
-          </p>
+          <p className="text-sm text-gray-400">{error.message}</p>
         </div>
       </div>
     );

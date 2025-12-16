@@ -23,6 +23,10 @@ export interface CollectionItem {
   year?: number;
   /** Optional TMDB ID for external identification */
   tmdbId?: number;
+  /** Optional IMDb ID for external identification and rating lookups */
+  imdbId?: string;
+  /** Optional IMDb rating (0-10 scale) for sorting */
+  imdbRating?: number;
   /** Optional poster URL from source (e.g., AniList coverImage) */
   posterUrl?: string;
   /** Optional additional metadata */
@@ -150,6 +154,28 @@ export type CollectionSource =
   | 'anilist'
   | 'myanimelist'
   | 'radarrtag'
+  | 'sonarrtag'
+  | 'comingsoon'
+  | 'filtered_hub'
+  | 'multi-source';
+
+/**
+ * Source types that can produce missing items for placeholders/auto-download
+ * (excludes meta-sources like overseerr, tautulli, comingsoon, filtered_hub, multi-source)
+ */
+export type ItemProducingSource =
+  | 'radarr'
+  | 'sonarr'
+  | 'trakt'
+  | 'tmdb'
+  | 'imdb'
+  | 'letterboxd'
+  | 'mdblist'
+  | 'anilist'
+  | 'myanimelist'
+  | 'networks'
+  | 'originals'
+  | 'radarrtag'
   | 'sonarrtag';
 
 /**
@@ -212,10 +238,12 @@ export interface AutoRequestConfig {
   maxSeasonsToRequest: number;
   /** Limit each TV show to only the first X seasons */
   seasonsPerShowLimit?: number;
+  /** Order to grab seasons: first, latest, or airing */
+  seasonGrabOrder?: 'first' | 'latest' | 'airing';
 }
 
 /**
- * Item missing from Plex that could be auto-requested
+ * Item missing from Plex that could be auto-requested or turned into a placeholder
  */
 export interface MissingItem {
   /** TMDB ID */
@@ -232,6 +260,27 @@ export interface MissingItem {
   originalPosition: number;
   /** Optional additional metadata */
   metadata?: Record<string, unknown>;
+  // Placeholder-related fields (for createPlaceholdersForMissing feature)
+  /** Generic/fallback release date (ISO string) */
+  releaseDate?: string;
+  /** Digital/streaming release date (ISO string) - Priority 1 for movies */
+  digitalRelease?: string;
+  /** Blu-ray/DVD release date (ISO string) - Priority 2 for movies */
+  physicalRelease?: string;
+  /** Theatrical release date (ISO string) - Priority 3 for movies */
+  inCinemas?: string;
+  /** Episode air date for TV shows (ISO string) */
+  airDate?: string;
+  /** True if releaseDate is an estimate (e.g., theatrical + 3 months) */
+  isEstimatedDate?: boolean;
+  /** Season number for TV shows */
+  seasonNumber?: number;
+  /** Episode number for TV shows */
+  episodeNumber?: number;
+  /** Whether item is monitored in Radarr/Sonarr */
+  monitored?: boolean;
+  /** Source of the missing item data - REQUIRED for proper tracking */
+  source: ItemProducingSource;
 }
 
 /**
@@ -339,6 +388,13 @@ export interface TmdbTemplateContext extends TemplateContext {
   statType?: 'popular' | 'top_rated' | 'trending' | 'now_playing' | 'upcoming';
 }
 
+export interface TmdbFranchiseTemplateContext extends TemplateContext {
+  franchiseName: string;
+  franchiseId: number;
+  movieCount: number;
+  mediaType: 'movie';
+}
+
 export interface ImdbTemplateContext extends TemplateContext {
   /** IMDB-specific stat type */
   statType?: 'top_250' | 'popular' | 'most_popular' | 'custom';
@@ -377,6 +433,18 @@ export interface SonarrTagTemplateContext extends TemplateContext {
   tagLabel?: string;
 }
 
+export interface ComingSoonTemplateContext extends TemplateContext {
+  /** Collection source type */
+  source?: 'comingsoon';
+  /** Coming Soon specific stat type */
+  statType?: 'monitored' | 'trakt_anticipated' | 'tmdb_anticipated';
+}
+
+export interface RecentlyAddedTemplateContext extends TemplateContext {
+  /** Collection source type */
+  source?: 'recently_added';
+}
+
 /**
  * Union type for all possible template contexts
  */
@@ -386,12 +454,15 @@ export type SourceTemplateContext =
   | TautulliTemplateContext
   | OverseerrTemplateContext
   | TmdbTemplateContext
+  | TmdbFranchiseTemplateContext
   | ImdbTemplateContext
   | LetterboxdTemplateContext
   | NetworksTemplateContext
   | OriginalsTemplateContext
   | RadarrTagTemplateContext
-  | SonarrTagTemplateContext;
+  | SonarrTagTemplateContext
+  | ComingSoonTemplateContext
+  | RecentlyAddedTemplateContext;
 
 /**
  * Source data interfaces for fetchSourceData return types
@@ -493,6 +564,18 @@ export interface TmdbSourceData {
   vote_average?: number;
 }
 
+export interface TmdbFranchiseSourceData {
+  franchiseId: number;
+  franchiseName: string;
+  franchisePosterPath?: string;
+  franchiseBackdropPath?: string;
+  movies: {
+    tmdbId: number;
+    title: string;
+    releaseDate?: string;
+  }[];
+}
+
 export interface ImdbSourceData {
   imdbId: string;
   title: string;
@@ -567,6 +650,51 @@ export interface SonarrTagSourceData {
 }
 
 /**
+ * Placeholder source data (for createPlaceholdersForMissing feature)
+ * Used by any collection type that supports placeholder creation
+ */
+export interface PlaceholderSourceData {
+  tmdbId: number;
+  tvdbId?: number; // For TV shows
+  title: string;
+  year?: number;
+
+  // Movie release dates (from Radarr)
+  releaseDate?: string; // ISO date string - generic/fallback release date
+  digitalRelease?: string; // Digital/streaming release date (Priority 1)
+  physicalRelease?: string; // Blu-ray/DVD release date (Priority 2)
+  inCinemas?: string; // Theatrical release date (Priority 3, optional)
+
+  mediaType: 'movie' | 'tv';
+  source: ItemProducingSource;
+  monitored: boolean; // True if item is in Radarr/Sonarr
+  posterUrl?: string; // Poster URL from source
+  airDate?: string; // Episode air date (S01E01 for new shows, next season premiere for returning shows)
+  releaseType?: 'digital' | 'physical' | 'cinema'; // Movie release type (determined after priority logic)
+  hasFile?: boolean; // Whether episode has file (for NEW detection)
+  downloadedDate?: string; // When file was downloaded (for NEW detection)
+  isReturning?: boolean; // True if this is a returning show (has previous episodes)
+  seasonNumber?: number; // Season number of the upcoming episode
+  episodeNumber?: number; // Episode number of the upcoming episode
+  releaseDateSortValue?: string; // ISO date string for sorting (set during fetchSourceData)
+  isEstimatedDate?: boolean; // True if releaseDate is an estimate (theatrical + 3 months)
+}
+
+/**
+ * @deprecated Use PlaceholderSourceData instead
+ */
+export type ComingSoonSourceData = PlaceholderSourceData;
+
+/**
+ * Recently Added source data (smart collection that excludes placeholders)
+ */
+export interface RecentlyAddedSourceData {
+  // Recently Added doesn't fetch external data - it creates a smart Plex collection
+  // This interface is here for type consistency
+  placeholder?: never;
+}
+
+/**
  * Union type for all possible source data
  */
 export type CollectionSourceData =
@@ -581,7 +709,9 @@ export type CollectionSourceData =
   | AniListSourceData
   | MyAnimeListSourceData
   | RadarrTagSourceData
-  | SonarrTagSourceData;
+  | SonarrTagSourceData
+  | PlaceholderSourceData
+  | RecentlyAddedSourceData;
 
 /**
  * Error types that can occur during collection sync

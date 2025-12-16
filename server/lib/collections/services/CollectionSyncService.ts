@@ -3,7 +3,10 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
-import type { SyncResult } from '@server/lib/collections/core/types';
+import type {
+  CollectionSource,
+  SyncResult,
+} from '@server/lib/collections/core/types';
 import type {
   MultiSourceCollectionConfig,
   MultiSourceCombineMode,
@@ -295,6 +298,13 @@ export class CollectionSyncService {
               customPoster: config.customPoster,
               autoPoster: config.autoPoster,
               autoPosterTemplate: config.autoPosterTemplate,
+              // Wallpaper, summary, and theme settings
+              customWallpaper: config.customWallpaper,
+              customSummary: config.customSummary,
+              customTheme: config.customTheme,
+              enableCustomWallpaper: config.enableCustomWallpaper,
+              enableCustomSummary: config.enableCustomSummary,
+              enableCustomTheme: config.enableCustomTheme,
               // Missing items / auto-download settings
               downloadMode: config.downloadMode,
               searchMissingMovies: config.searchMissingMovies,
@@ -307,6 +317,8 @@ export class CollectionSyncService {
               minimumYear: config.minimumYear,
               excludedGenres: config.excludedGenres,
               excludedCountries: config.excludedCountries,
+              excludedLanguages: config.excludedLanguages,
+              filterSettings: config.filterSettings,
               directDownloadRadarrServerId: config.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:
                 config.directDownloadRadarrProfileId,
@@ -317,6 +329,9 @@ export class CollectionSyncService {
                 config.directDownloadSonarrProfileId,
               directDownloadSonarrRootFolder:
                 config.directDownloadSonarrRootFolder,
+              // Smart collection settings (unwatched filter feature)
+              showUnwatchedOnly: config.showUnwatchedOnly,
+              smartCollectionSort: config.smartCollectionSort,
             };
 
             result = await orchestrator.processMultiSourceCollection(
@@ -325,8 +340,7 @@ export class CollectionSyncService {
               allCollections,
               processedCollectionKeys,
               libraryCache,
-              undefined, // options
-              config // Pass original config for smart collection operations
+              undefined // options
             );
           } else {
             // Use normal single-source sync
@@ -488,7 +502,9 @@ export class CollectionSyncService {
    * Create the appropriate sync service for a given collection type
    * Simple factory method without over-engineering
    */
-  public async createSyncService(type: string): Promise<BaseCollectionSync> {
+  public async createSyncService(
+    type: string
+  ): Promise<BaseCollectionSync<CollectionSource>> {
     switch (type) {
       case 'trakt': {
         const { TraktCollectionSync } = await import('../external/trakt');
@@ -543,16 +559,24 @@ export class CollectionSyncService {
         return new OverseerrCollectionSync();
       }
       case 'radarrtag': {
-        const { RadarrTagCollectionSync } = await import(
-          '../external/radarrtag'
-        );
+        const { RadarrTagCollectionSync } = await import('../external/radarr');
         return new RadarrTagCollectionSync();
       }
       case 'sonarrtag': {
-        const { SonarrTagCollectionSync } = await import(
-          '../external/sonarrtag'
-        );
+        const { SonarrTagCollectionSync } = await import('../external/sonarr');
         return new SonarrTagCollectionSync();
+      }
+      case 'comingsoon': {
+        const { ComingSoonCollectionSync } = await import(
+          '../external/comingsoon'
+        );
+        return new ComingSoonCollectionSync();
+      }
+      case 'filtered_hub': {
+        const { FilteredHubCollectionSync } = await import(
+          '../external/recentlyadded'
+        );
+        return new FilteredHubCollectionSync();
       }
       case 'multi-source':
         throw new Error(

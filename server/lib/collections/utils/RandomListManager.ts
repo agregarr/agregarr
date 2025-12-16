@@ -1,6 +1,10 @@
 import type { TraktListResponse } from '@server/api/trakt';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import logger from '@server/logger';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 import fs from 'fs';
 import path from 'path';
 
@@ -237,11 +241,21 @@ https://letterboxd.com/cinema/list/criterion-collection/
           const { getSettings } = await import('@server/lib/settings');
           const settings = getSettings();
 
-          if (!settings.trakt.apiKey) {
+          const traktClientId =
+            settings.trakt.clientId || settings.trakt.apiKey;
+          if (!traktClientId) {
             return 'Trakt List';
           }
 
-          const traktClient = new TraktAPI(settings.trakt.apiKey);
+          const traktClient = new TraktAPI({
+            clientId: traktClientId,
+            accessToken: settings.trakt.accessToken,
+            clientSecret: settings.trakt.clientSecret,
+            refreshToken: settings.trakt.refreshToken,
+            tokenExpiresAt: settings.trakt.tokenExpiresAt,
+            redirectUri: buildTraktRedirectUri(settings),
+            onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+          });
 
           // Parse the URL to extract username and list slug
           const userListMatch = url.match(
@@ -313,7 +327,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
               .replace(/&mdash;/g, '—') // Replace em-dash
               .replace(/&hellip;/g, '…') // Replace ellipsis
               .replace(/&quot;/g, '"') // Replace quotes
-              .replace(/&#39;/g, "'") // Replace apostrophe
+              .replace(/&#0?39;/g, "'") // Replace apostrophe (with or without leading zero)
               .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
               .replace(/&amp;/g, '&') // Replace ampersand (do this last)
               .replace(/&lt;/g, '<')
@@ -350,7 +364,8 @@ https://letterboxd.com/cinema/list/criterion-collection/
               .replace(/&mdash;/g, '—') // Replace em-dash
               .replace(/&hellip;/g, '…') // Replace ellipsis
               .replace(/&quot;/g, '"') // Replace quotes
-              .replace(/&#39;/g, "'") // Replace apostrophe
+              .replace(/&#0?39;/g, "'") // Replace apostrophe (with or without leading zero)
+              .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
               .replace(/&amp;/g, '&') // Replace ampersand (do this last)
               .replace(/&lt;/g, '<')
               .replace(/&gt;/g, '>');
@@ -623,7 +638,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
     try {
       const { getSettings } = await import('@server/lib/settings');
       const settings = getSettings();
-      const apiKey = settings.trakt.apiKey;
+      const apiKey = settings.trakt.clientId || settings.trakt.apiKey;
 
       if (!apiKey) {
         logger.warn('Trakt API key not configured, skipping list discovery', {
@@ -633,7 +648,15 @@ https://letterboxd.com/cinema/list/criterion-collection/
       }
 
       const { default: TraktAPI } = await import('@server/api/trakt');
-      const traktClient = new TraktAPI(apiKey);
+      const traktClient = new TraktAPI({
+        clientId: apiKey,
+        accessToken: settings.trakt.accessToken,
+        clientSecret: settings.trakt.clientSecret,
+        refreshToken: settings.trakt.refreshToken,
+        tokenExpiresAt: settings.trakt.tokenExpiresAt,
+        redirectUri: buildTraktRedirectUri(settings),
+        onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+      });
 
       const discoveredUrls: string[] = [];
 
@@ -1338,14 +1361,22 @@ https://letterboxd.com/cinema/list/criterion-collection/
       // Import TraktAPI to check the list
       const { getSettings } = await import('@server/lib/settings');
       const settings = getSettings();
-      const apiKey = settings.trakt.apiKey;
+      const apiKey = settings.trakt.clientId || settings.trakt.apiKey;
 
       if (!apiKey) {
         return false; // Can't validate without API key
       }
 
       const { default: TraktAPI } = await import('@server/api/trakt');
-      const traktClient = new TraktAPI(apiKey);
+      const traktClient = new TraktAPI({
+        clientId: apiKey,
+        accessToken: settings.trakt.accessToken,
+        clientSecret: settings.trakt.clientSecret,
+        refreshToken: settings.trakt.refreshToken,
+        tokenExpiresAt: settings.trakt.tokenExpiresAt,
+        redirectUri: buildTraktRedirectUri(settings),
+        onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+      });
 
       // Extract list slug from URL (e.g., https://trakt.tv/users/username/lists/listname)
       const match = url.match(/\/users\/([^/]+)\/lists\/([^/?]+)/);

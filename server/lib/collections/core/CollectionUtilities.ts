@@ -371,6 +371,32 @@ export function findCollectionByConfigId(
     }
   }
 
+  // Special handling for TMDB franchise collections
+  if (configType === 'tmdb' && configSubtype === 'auto_franchise') {
+    // Franchise collections are dynamically generated and don't store rating keys in configs
+    // They should be considered as "found" if any franchise collection for this config exists
+    const hasFranchiseCollections = allCollections.some((collection) => {
+      if (!collection.labels) return false;
+      return collection.labels.some((label) => {
+        const labelText = typeof label === 'string' ? label : label.tag;
+        // Match pattern: AgregarrAutoFranchise-{configId}-{franchiseId}
+        return labelText.match(
+          new RegExp(`^AgregarrAutoFranchise-${configId}-\\d+$`, 'i')
+        );
+      });
+    });
+
+    if (hasFranchiseCollections) {
+      logger.debug(`TMDB franchise collections found for config: ${configId}`, {
+        label: 'Collection Matching',
+        configId,
+        configType,
+        configSubtype,
+      });
+      return true;
+    }
+  }
+
   // First, try to match by rating key (fastest)
   if (ratingKey && allCollections.some((c) => c.ratingKey === ratingKey)) {
     return true;
@@ -464,6 +490,8 @@ export async function syncConfigsWithPlexCollections(
     collectionRatingKey?: string;
     libraryId: string;
     source: string;
+    type?: string;
+    subtype?: string;
   }[],
   allCollections: {
     ratingKey: string;
@@ -523,9 +551,12 @@ export async function syncConfigsWithPlexCollections(
 
           if (hasMatchingLabel) {
             // CRITICAL: Skip smart collections - they should not update the base collectionRatingKey
-            // Smart collections have smart="1" attribute in Plex API
+            // EXCEPT for recently_added type - that IS a smart collection
             const isSmartCollection = collection.smart === '1';
-            if (isSmartCollection) {
+            const isRecentlyAddedSmartCollection =
+              config.type === 'recently_added';
+
+            if (isSmartCollection && !isRecentlyAddedSmartCollection) {
               logger.debug(
                 `Config sync skipping smart collection match for ${config.name}`,
                 {
@@ -577,9 +608,12 @@ export async function syncConfigsWithPlexCollections(
         });
 
         // CRITICAL: Filter out smart collections before processing name matches
+        // EXCEPT for recently_added type - that IS a smart collection
+        const isRecentlyAddedSmartCollection = config.type === 'recently_added';
+
         const baseCollections = matchingCollections.filter((collection) => {
           const isSmartCollection = collection.smart === '1';
-          if (isSmartCollection) {
+          if (isSmartCollection && !isRecentlyAddedSmartCollection) {
             logger.debug(
               `Config sync filtering out smart collection from name matches for ${config.name}`,
               {
@@ -1088,6 +1122,118 @@ export function filterItemsByPosition<T extends { originalPosition: number }>(
 }
 
 /**
+ * Apply collection mutual exclusion - remove items that exist in excluded collections
+ * This is a utility function used by both BaseCollectionSync and MultiSourceOrchestrator
+ */
+export async function applyCollectionExclusions(
+  items: CollectionItem[],
+  config:
+    | CollectionConfig
+    | { name: string; excludeFromCollections?: string[] },
+  plexClient: PlexAPI,
+  source: CollectionSource
+): Promise<CollectionItem[]> {
+  // Skip if no exclusions configured
+  if (
+    !config.excludeFromCollections ||
+    config.excludeFromCollections.length === 0
+  ) {
+    return items;
+  }
+
+  try {
+    // Get all items from excluded collections
+    const excludedRatingKeys = new Set<string>();
+
+    for (const excludedCollectionId of config.excludeFromCollections) {
+      // Find the collection configuration to get its rating key
+      const settings = getSettings();
+      const excludedConfig = settings.plex.collectionConfigs?.find(
+        (c) => c.id === excludedCollectionId
+      );
+
+      if (!excludedConfig || !excludedConfig.collectionRatingKey) {
+        logger.debug(
+          `Excluded collection ${excludedCollectionId} not found or has no rating key`,
+          {
+            label: `${source} Collections`,
+            configName: config.name,
+            excludedCollectionId,
+          }
+        );
+        continue;
+      }
+
+      // Fetch items from the excluded collection
+      try {
+        const collectionItemRatingKeys = await plexClient.getCollectionItems(
+          excludedConfig.collectionRatingKey
+        );
+
+        // Add all rating keys from this collection to the exclusion set
+        for (const ratingKey of collectionItemRatingKeys) {
+          excludedRatingKeys.add(ratingKey);
+        }
+
+        logger.debug(
+          `Loaded ${collectionItemRatingKeys.length} items from excluded collection "${excludedConfig.name}"`,
+          {
+            label: `${source} Collections`,
+            configName: config.name,
+            excludedCollection: excludedConfig.name,
+            itemCount: collectionItemRatingKeys.length,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          `Failed to fetch items from excluded collection ${excludedConfig.name}: ${error}`,
+          {
+            label: `${source} Collections`,
+            configName: config.name,
+            excludedCollection: excludedConfig.name,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
+    }
+
+    // Filter out items that exist in any excluded collection
+    const beforeCount = items.length;
+    const filteredItems = items.filter(
+      (item) => !excludedRatingKeys.has(item.ratingKey)
+    );
+    const excludedCount = beforeCount - filteredItems.length;
+
+    if (excludedCount > 0) {
+      logger.info(
+        `Excluded ${excludedCount} items from collection "${config.name}" based on mutual exclusion rules`,
+        {
+          label: `${source} Collections`,
+          configName: config.name,
+          beforeCount,
+          afterCount: filteredItems.length,
+          excludedCount,
+          excludedCollectionIds: config.excludeFromCollections,
+        }
+      );
+    }
+
+    return filteredItems;
+  } catch (error) {
+    logger.error(
+      `Error applying collection exclusions for ${config.name}: ${error}`,
+      {
+        label: `${source} Collections`,
+        configName: config.name,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    );
+    // Return original items on error - don't fail the entire sync
+    return items;
+  }
+}
+
+/**
  * Process missing items using the appropriate download service based on collection config
  * Routes to either Overseerr request workflow or direct *arr download workflow
  */
@@ -1230,6 +1376,14 @@ export function validateDownloadModeConfig(config: CollectionConfig): {
     errors.push(
       'Seasons per show limit must be 0 or greater (0 = all seasons)'
     );
+  }
+
+  // Validate seasonGrabOrder
+  if (
+    config.seasonGrabOrder &&
+    !['first', 'latest', 'airing'].includes(config.seasonGrabOrder)
+  ) {
+    errors.push(`Invalid season grab order mode: ${config.seasonGrabOrder}`);
   }
 
   // Mode-specific validations
@@ -1797,6 +1951,144 @@ export async function findPlexItemsByTmdbIds(
       label: 'Plex Search',
       error: error instanceof Error ? error.message : 'Unknown error',
       totalLookups: tmdbLookups.length,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Search Plex library items by title (fallback for unmatched items)
+ * Used when TMDB/TVDB guid matching fails
+ *
+ * @param plexClient - Plex API client
+ * @param title - Title to search for
+ * @param year - Optional release year for better matching
+ * @param libraryId - Library to search in
+ * @param mediaType - Media type (movie or tv)
+ * @param libraryCache - Optional pre-fetched library items cache
+ * @returns Array of matching items with rating keys and guid info
+ */
+export async function findPlexItemsByTitle(
+  plexClient: PlexAPI,
+  title: string,
+  year: number | undefined,
+  libraryId: string,
+  mediaType: 'movie' | 'tv',
+  libraryCache?: LibraryItemsCache
+): Promise<
+  {
+    ratingKey: string;
+    title: string;
+    year?: number;
+    hasTmdbGuid: boolean;
+    hasAnyGuid: boolean;
+  }[]
+> {
+  const results: {
+    ratingKey: string;
+    title: string;
+    year?: number;
+    hasTmdbGuid: boolean;
+    hasAnyGuid: boolean;
+  }[] = [];
+
+  try {
+    // Get library items from cache or fetch fresh
+    let items: {
+      ratingKey: string;
+      title: string;
+      year?: number;
+      Guid?: { id: string }[];
+    }[];
+
+    if (libraryCache && libraryCache[libraryId]) {
+      items = libraryCache[libraryId];
+      logger.debug(
+        `Using cached data for title search in library ${libraryId}`,
+        {
+          label: 'Plex Title Search',
+          libraryId,
+          itemCount: items.length,
+        }
+      );
+    } else {
+      items = await getAllLibraryItems(plexClient, libraryId);
+      logger.debug(
+        `Fetched fresh data for title search in library ${libraryId}`,
+        {
+          label: 'Plex Title Search',
+          libraryId,
+          itemCount: items.length,
+        }
+      );
+    }
+
+    // Normalize search title for comparison
+    const normalizedSearchTitle = title.toLowerCase().trim();
+
+    // Search items by title
+    for (const item of items) {
+      const normalizedItemTitle = item.title.toLowerCase().trim();
+
+      // Exact or close match
+      if (
+        normalizedItemTitle === normalizedSearchTitle ||
+        normalizedItemTitle.includes(normalizedSearchTitle) ||
+        normalizedSearchTitle.includes(normalizedItemTitle)
+      ) {
+        // If year is provided, check for year match to reduce false positives
+        if (year !== undefined && item.year !== undefined) {
+          // Allow +/- 1 year tolerance for release date discrepancies
+          if (Math.abs(item.year - year) > 1) {
+            continue;
+          }
+        }
+
+        // Check if item has TMDB guid
+        const hasTmdbGuid =
+          item.Guid?.some((guid) => guid.id.startsWith('tmdb://')) || false;
+
+        // Check if item has any guid (matched vs unmatched)
+        const hasAnyGuid = (item.Guid?.length || 0) > 0;
+
+        results.push({
+          ratingKey: item.ratingKey,
+          title: item.title,
+          year: item.year,
+          hasTmdbGuid,
+          hasAnyGuid,
+        });
+      }
+    }
+
+    logger.info(
+      `Title search completed: found ${results.length} matches for "${title}"${
+        year ? ` (${year})` : ''
+      }`,
+      {
+        label: 'Plex Title Search',
+        searchTitle: title,
+        searchYear: year,
+        libraryId,
+        mediaType,
+        matchCount: results.length,
+        matches: results.map((r) => ({
+          title: r.title,
+          year: r.year,
+          hasTmdbGuid: r.hasTmdbGuid,
+          hasAnyGuid: r.hasAnyGuid,
+        })),
+      }
+    );
+  } catch (error) {
+    logger.error('Failed to search Plex by title', {
+      label: 'Plex Title Search',
+      searchTitle: title,
+      searchYear: year,
+      libraryId,
+      mediaType,
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 

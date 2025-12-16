@@ -1,9 +1,13 @@
 import type { CollectionFormConfig } from '@app/types/collections';
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
+  MainSettings,
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  RadarrSettings,
+  SonarrSettings,
   TautulliSettings,
   TraktSettings,
 } from '@server/lib/settings';
@@ -12,6 +16,7 @@ import type React from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
+import Alert from '@app/components/Common/Alert';
 import ApiKeyWarning from './ApiKeyWarning';
 
 interface TemplatePreset {
@@ -54,6 +59,7 @@ const CollectionTypeSection = ({
   const intl = useIntl();
 
   // Fetch API settings for validation
+  const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -69,17 +75,31 @@ const CollectionTypeSection = ({
   const { data: myanimelistSettings } = useSWR<MyAnimeListSettings>(
     '/api/v1/settings/myanimelist'
   );
+  const { data: radarrSettings } = useSWR<RadarrSettings[]>(
+    '/api/v1/settings/radarr'
+  );
+  const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
+    '/api/v1/settings/sonarr'
+  );
 
   if (!isVisible) return null;
 
   // Validate API keys for the current collection type
-  const apiKeyValidation = validateApiKeysForCollectionType(values.type || '', {
-    trakt: traktSettings,
-    mdblist: mdblistSettings,
-    tautulli: tautulliSettings,
-    overseerr: overseerrSettings,
-    myanimelist: myanimelistSettings,
-  });
+  const apiKeyValidation = validateApiKeysForCollectionType(
+    values.type || '',
+    {
+      main: mainSettings,
+      trakt: traktSettings,
+      mdblist: mdblistSettings,
+      tautulli: tautulliSettings,
+      overseerr: overseerrSettings,
+      myanimelist: myanimelistSettings,
+      radarr: radarrSettings,
+      sonarr: sonarrSettings,
+    },
+    values.subtype,
+    values.createPlaceholdersForMissing
+  );
 
   const collectionTypes = [
     { value: 'overseerr', label: 'Overseerr Requests' },
@@ -95,6 +115,8 @@ const CollectionTypeSection = ({
     { value: 'myanimelist', label: 'MyAnimeList' },
     { value: 'radarrtag', label: 'Radarr Tag' },
     { value: 'sonarrtag', label: 'Sonarr Tag' },
+    { value: 'comingsoon', label: 'Coming Soon' },
+    { value: 'filtered_hub', label: 'Filtered Plex Hub' },
     { value: 'multi-source', label: 'Multiple Sources' },
   ];
 
@@ -131,6 +153,12 @@ const CollectionTypeSection = ({
             value: 'popular',
             label: 'Popular',
             description: 'Most popular based on ratings and votes',
+          },
+          {
+            value: 'recommendations',
+            label: 'Recommendations',
+            description:
+              'Personalized Trakt recommendations (uses your library media type)',
           },
           {
             value: 'played',
@@ -183,6 +211,12 @@ const CollectionTypeSection = ({
           { value: 'trending_week', label: 'Trending This Week' },
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
+          {
+            value: 'auto_franchise',
+            label: 'Auto Franchise Collections',
+            description:
+              'Automatically create collections for all movie franchises in your library',
+          },
           { value: 'custom', label: 'Custom Collection/List' },
           {
             value: 'random',
@@ -218,6 +252,11 @@ const CollectionTypeSection = ({
         return [
           { value: 'custom', label: 'Custom List' },
           {
+            value: 'watchlist',
+            label: 'Watchlist',
+            description: "Import a user's watchlist by URL",
+          },
+          {
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured Letterboxd lists',
@@ -229,6 +268,25 @@ const CollectionTypeSection = ({
         return []; // Will be populated dynamically with provider options
       case 'multi-source':
         return []; // Multi-source collections don't use subtypes - they configure sources directly
+      case 'comingsoon':
+        return [
+          {
+            value: 'monitored',
+            label: 'Monitored in Radarr/Sonarr',
+            description: 'Items monitored but not yet released',
+          },
+          {
+            value: 'trakt_anticipated',
+            label: 'Trakt Anticipated',
+            description: 'Most anticipated upcoming releases',
+          },
+          {
+            value: 'tmdb_anticipated',
+            label: 'TMDB Coming Soon',
+            description:
+              'Upcoming releases from TMDB (movies: digital/physical, TV: new & returning shows)',
+          },
+        ];
       case 'anilist': // Add AniList subtypes
         return [
           {
@@ -298,6 +356,20 @@ const CollectionTypeSection = ({
       case 'radarrtag':
       case 'sonarrtag':
         return []; // These use custom tag selectors instead of subtypes
+      case 'filtered_hub':
+        return [
+          {
+            value: 'recently_added',
+            label: 'Recently Added',
+            description: 'Replaces Recently Added hub (sorted by date added)',
+          },
+          {
+            value: 'recently_released',
+            label: 'Recently Released',
+            description:
+              'Replaces Recently Released hub (sorted by release date)',
+          },
+        ];
       default:
         return [];
     }
@@ -429,6 +501,28 @@ const CollectionTypeSection = ({
               ) : null;
             })()}
         </div>
+      )}
+
+      {/* Coming Soon Volume Info - appears when type='comingsoon' is selected */}
+      {values.type === 'comingsoon' && (
+        <Alert
+          title={
+            <>
+              Coming Soon requires media volume mounts for placeholder creation
+              -{' '}
+              <a
+                href="https://agregarr.org/docs/coming-soon-volumes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400"
+              >
+                See setup guide
+                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+              </a>
+            </>
+          }
+          type="info"
+        />
       )}
 
       {/* Tautulli Configuration - appears when type='tautulli' and subtype is selected */}

@@ -1,10 +1,13 @@
 import Badge from '@app/components/Common/Badge';
+import Button from '@app/components/Common/Button';
+import Modal from '@app/components/Common/Modal';
 import type {
   EditorMode,
   PosterEditorData,
 } from '@app/components/PosterEditor';
 import { PosterEditorModal } from '@app/components/PosterEditor';
 import {
+  CheckIcon,
   DocumentDuplicateIcon,
   PencilIcon,
   PhotoIcon,
@@ -24,6 +27,21 @@ const messages = defineMessages({
   createFirstPoster: 'Create your first poster to get started',
   createPoster: 'Create Poster',
   lastUpdated: 'Last updated',
+  selectAll: 'Select All',
+  deselectAll: 'Deselect All',
+  deleteSelected: 'Delete Selected ({count})',
+  confirmBulkDelete:
+    'Are you sure you want to delete {count} selected poster(s)?',
+  deleting: 'Deleting... ({current}/{total})',
+  posterInUse: 'Poster is Currently in Use',
+  posterInUseDescription:
+    'This poster is currently being used by the following collections:',
+  deleteAnyway: 'Delete Anyway',
+  postersInUse: 'Some Posters Are in Use',
+  postersInUseDescription:
+    'The following posters are currently in use. Do you want to delete them anyway?',
+  deleteUnusedOnly: 'Delete Unused Only',
+  deleteAllAnyway: 'Delete All Anyway',
 });
 
 interface SavedPoster {
@@ -35,6 +53,7 @@ interface SavedPoster {
   thumbnailFilename?: string;
   createdAt: string;
   updatedAt: string;
+  updatedAtMs?: number | null; // Numeric timestamp for cache-busting
   isEditable?: boolean;
 }
 
@@ -56,12 +75,47 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
   const [deleteConfirmId, setDeleteConfirmId] = useState<
     number | string | null
   >(null);
+  const [selectedPosters, setSelectedPosters] = useState<Set<number | string>>(
+    new Set()
+  );
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [deletionProgress, setDeletionProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+  const [deleteUsageModal, setDeleteUsageModal] = useState<{
+    posterId: number | string;
+    posterName: string;
+    usedBy: {
+      type: 'collection' | 'preExisting';
+      id: string;
+      name: string;
+      libraryName: string;
+    }[];
+  } | null>(null);
+  const [bulkDeleteUsageModal, setBulkDeleteUsageModal] = useState<{
+    postersInUse: {
+      id: number | string;
+      name: string;
+      usedBy: {
+        type: 'collection' | 'preExisting';
+        id: string;
+        name: string;
+        libraryName: string;
+      }[];
+    }[];
+    unusedPosterIds: (number | string)[];
+  } | null>(null);
+
+  const showCheckboxes = selectedPosters.size > 0;
+  const isDeleting = deletionProgress !== null;
 
   // Reset delete confirmation when clicking outside or pressing escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setDeleteConfirmId(null);
+        setBulkDeleteConfirm(false);
       }
     };
 
@@ -71,9 +125,12 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
       if (!target.closest('[data-delete-button]')) {
         setDeleteConfirmId(null);
       }
+      if (!target.closest('[data-bulk-delete-button]')) {
+        setBulkDeleteConfirm(false);
+      }
     };
 
-    if (deleteConfirmId !== null) {
+    if (deleteConfirmId !== null || bulkDeleteConfirm) {
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('click', handleClickOutside);
     }
@@ -82,7 +139,7 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('click', handleClickOutside);
     };
-  }, [deleteConfirmId]);
+  }, [deleteConfirmId, bulkDeleteConfirm]);
 
   const handleEdit = (poster: SavedPoster) => {
     setSelectedPoster(poster);
@@ -96,23 +153,30 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (posterId: number | string) => {
+  const handleDelete = async (posterId: number | string, force = false) => {
     try {
-      const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
+      const url = force
+        ? `/api/v1/posters/saved/${posterId}?force=true`
+        : `/api/v1/posters/saved/${posterId}`;
+
+      const response = await fetch(url, {
         method: 'DELETE',
       });
 
-      if (response.ok) {
+      if (response.ok || response.status === 204) {
         onPosterUpdate();
         setDeleteConfirmId(null);
+        setDeleteUsageModal(null);
       } else if (response.status === 409) {
         // Poster is in use by collections
         const errorData = await response.json();
-        const collectionNames =
-          errorData.collections?.join(', ') || 'unknown collections';
-        alert(
-          `Cannot delete poster: it's currently used by ${collectionNames}`
-        );
+        const poster = savedPosters.find((p) => p.id === posterId);
+
+        setDeleteUsageModal({
+          posterId,
+          posterName: poster?.name || posterId.toString(),
+          usedBy: errorData.usedBy || [],
+        });
         setDeleteConfirmId(null);
       } else {
         throw new Error('Failed to delete poster');
@@ -120,7 +184,129 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
     } catch (error) {
       // Error logged silently for debugging
       setDeleteConfirmId(null);
+      setDeleteUsageModal(null);
     }
+  };
+
+  const handleConfirmForceDelete = async () => {
+    if (deleteUsageModal) {
+      await handleDelete(deleteUsageModal.posterId, true);
+    }
+  };
+
+  const handleToggleSelect = (posterId: number | string) => {
+    setSelectedPosters((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(posterId)) {
+        newSet.delete(posterId);
+      } else {
+        newSet.add(posterId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedPosters(new Set(savedPosters.map((p) => p.id)));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedPosters(new Set());
+    setBulkDeleteConfirm(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!bulkDeleteConfirm) {
+      setBulkDeleteConfirm(true);
+      return;
+    }
+
+    const postersToDelete = Array.from(selectedPosters);
+
+    // Check which posters are in use
+    const postersInUse: {
+      id: number | string;
+      name: string;
+      usedBy: {
+        type: 'collection' | 'preExisting';
+        id: string;
+        name: string;
+        libraryName: string;
+      }[];
+    }[] = [];
+    const unusedPosterIds: (number | string)[] = [];
+
+    for (const posterId of postersToDelete) {
+      try {
+        const response = await fetch(`/api/v1/posters/saved/${posterId}`, {
+          method: 'DELETE',
+        });
+
+        if (response.status === 409) {
+          const errorData = await response.json();
+          const poster = savedPosters.find((p) => p.id === posterId);
+          postersInUse.push({
+            id: posterId,
+            name: poster?.name || posterId.toString(),
+            usedBy: errorData.usedBy || [],
+          });
+        } else if (response.ok || response.status === 204) {
+          // Successfully deleted unused poster
+          unusedPosterIds.push(posterId);
+        }
+      } catch (error) {
+        // Error checking - treat as unused and try to delete later
+        unusedPosterIds.push(posterId);
+      }
+    }
+
+    if (postersInUse.length > 0) {
+      // Show modal with options
+      setBulkDeleteUsageModal({
+        postersInUse,
+        unusedPosterIds,
+      });
+      setBulkDeleteConfirm(false);
+    } else {
+      // All deleted successfully
+      onPosterUpdate();
+      setSelectedPosters(new Set());
+      setBulkDeleteConfirm(false);
+    }
+  };
+
+  const handleBulkDeleteUnusedOnly = async () => {
+    if (!bulkDeleteUsageModal) return;
+
+    // The unused ones were already deleted during the check
+    onPosterUpdate();
+    setSelectedPosters(new Set());
+    setBulkDeleteUsageModal(null);
+  };
+
+  const handleBulkDeleteAllAnyway = async () => {
+    if (!bulkDeleteUsageModal) return;
+
+    const { postersInUse } = bulkDeleteUsageModal;
+    setDeletionProgress({ current: 0, total: postersInUse.length });
+
+    for (let i = 0; i < postersInUse.length; i++) {
+      const poster = postersInUse[i];
+      setDeletionProgress({ current: i + 1, total: postersInUse.length });
+
+      try {
+        await fetch(`/api/v1/posters/saved/${poster.id}?force=true`, {
+          method: 'DELETE',
+        });
+      } catch (error) {
+        // Silent error - continue with next
+      }
+    }
+
+    onPosterUpdate();
+    setSelectedPosters(new Set());
+    setBulkDeleteUsageModal(null);
+    setDeletionProgress(null);
   };
 
   const handleSave = async (data: {
@@ -188,6 +374,42 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
 
   return (
     <>
+      {/* Bulk Action Toolbar */}
+      {showCheckboxes && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg bg-stone-800 p-3">
+          <Button buttonType="ghost" onClick={handleSelectAll}>
+            {intl.formatMessage(messages.selectAll)}
+          </Button>
+          <Button buttonType="ghost" onClick={handleDeselectAll}>
+            {intl.formatMessage(messages.deselectAll)}
+          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm text-stone-400">
+              {selectedPosters.size} selected
+            </span>
+            <Button
+              buttonType="danger"
+              data-bulk-delete-button
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting && deletionProgress
+                ? intl.formatMessage(messages.deleting, {
+                    current: deletionProgress.current,
+                    total: deletionProgress.total,
+                  })
+                : bulkDeleteConfirm
+                ? intl.formatMessage(messages.confirmBulkDelete, {
+                    count: selectedPosters.size,
+                  })
+                : intl.formatMessage(messages.deleteSelected, {
+                    count: selectedPosters.size,
+                  })}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         {savedPosters.map((poster) => (
           <div
@@ -198,13 +420,17 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
             <div className="relative aspect-[2/3] bg-stone-700">
               {poster.thumbnailFilename ? (
                 <img
-                  src={`/api/v1/posters/thumbnails/${poster.thumbnailFilename}`}
+                  src={`/api/v1/posters/thumbnails/${
+                    poster.thumbnailFilename
+                  }?v=${poster.updatedAtMs || Date.now()}`}
                   alt={poster.name}
                   className="h-full w-full object-cover"
                 />
               ) : poster.filename ? (
                 <img
-                  src={`/api/v1/posters/files/${poster.filename}`}
+                  src={`/api/v1/posters/files/${poster.filename}?v=${
+                    poster.updatedAtMs || Date.now()
+                  }`}
                   alt={poster.name}
                   className="h-full w-full object-cover"
                 />
@@ -232,6 +458,31 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
                   <PhotoIcon className="h-6 w-6 text-stone-400" />
                 </div>
               )}
+
+              {/* Checkbox - show on hover or when any checkbox is selected */}
+              <div
+                className={`absolute top-2 left-2 z-10 transition-opacity duration-200 ${
+                  showCheckboxes
+                    ? 'opacity-100'
+                    : 'opacity-0 group-hover:opacity-100'
+                }`}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleSelect(poster.id);
+                  }}
+                  className={`flex h-5 w-5 items-center justify-center rounded border-2 transition-all ${
+                    selectedPosters.has(poster.id)
+                      ? 'border-orange-500 bg-orange-500'
+                      : 'border-white bg-black bg-opacity-50 hover:border-orange-400'
+                  }`}
+                >
+                  {selectedPosters.has(poster.id) && (
+                    <CheckIcon className="h-3 w-3 text-white" />
+                  )}
+                </button>
+              </div>
 
               {/* Overlay with actions - only show on hover */}
               <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 opacity-0 transition-all duration-200 group-hover:bg-opacity-40 group-hover:opacity-100">
@@ -280,7 +531,7 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
               </div>
 
               {/* Status badges - show on image */}
-              <div className="absolute top-1 left-1">
+              <div className="absolute top-1 right-1">
                 {!poster.isEditable && (
                   <Badge badgeType="warning" className="text-xs">
                     File
@@ -314,6 +565,89 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
         initialDescription={selectedPoster?.description}
         onSave={handleSave}
       />
+
+      {/* Single Poster Usage Modal */}
+      {deleteUsageModal && (
+        <Modal
+          title={intl.formatMessage(messages.posterInUse)}
+          onCancel={() => setDeleteUsageModal(null)}
+          onOk={handleConfirmForceDelete}
+          cancelText={intl.formatMessage(messages.cancel)}
+          okText={intl.formatMessage(messages.deleteAnyway)}
+          okButtonType="danger"
+        >
+          <div className="text-sm">
+            <p className="mb-4">
+              {intl.formatMessage(messages.posterInUseDescription)}
+            </p>
+            <ul className="space-y-2">
+              {deleteUsageModal.usedBy.map((usage) => (
+                <li
+                  key={usage.id}
+                  className="rounded-md bg-gray-800 p-3 text-gray-200"
+                >
+                  <div className="font-semibold">{usage.name}</div>
+                  <div className="text-xs text-gray-400">
+                    {usage.libraryName}
+                    {usage.type === 'preExisting' && ' (Pre-existing)'}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Modal>
+      )}
+
+      {/* Bulk Delete Usage Modal */}
+      {bulkDeleteUsageModal && (
+        <Modal
+          title={intl.formatMessage(messages.postersInUse)}
+          onCancel={() => setBulkDeleteUsageModal(null)}
+          onOk={handleBulkDeleteAllAnyway}
+          onSecondary={handleBulkDeleteUnusedOnly}
+          cancelText={intl.formatMessage(messages.cancel)}
+          okText={intl.formatMessage(messages.deleteAllAnyway)}
+          secondaryText={intl.formatMessage(messages.deleteUnusedOnly)}
+          okButtonType="danger"
+          secondaryButtonType="warning"
+          loading={deletionProgress !== null}
+        >
+          <div className="text-sm">
+            <p className="mb-4">
+              {intl.formatMessage(messages.postersInUseDescription)}
+            </p>
+            {bulkDeleteUsageModal.unusedPosterIds.length > 0 && (
+              <p className="mb-4 text-green-400">
+                {bulkDeleteUsageModal.unusedPosterIds.length} unused poster(s)
+                have already been deleted.
+              </p>
+            )}
+            <div className="max-h-96 space-y-3 overflow-y-auto">
+              {bulkDeleteUsageModal.postersInUse.map((poster) => (
+                <div
+                  key={poster.id}
+                  className="rounded-md border border-gray-700 bg-gray-800 p-3"
+                >
+                  <div className="mb-2 font-semibold text-white">
+                    {poster.name}
+                  </div>
+                  <ul className="space-y-1">
+                    {poster.usedBy.map((usage) => (
+                      <li
+                        key={usage.id}
+                        className="rounded bg-gray-900 px-2 py-1 text-xs text-gray-300"
+                      >
+                        {usage.name} ({usage.libraryName}
+                        {usage.type === 'preExisting' && ' - Pre-existing'})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   );
 };

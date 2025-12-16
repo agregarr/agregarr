@@ -6,6 +6,7 @@ import type {
 } from '@app/types/collections';
 import { validateApiKeysForCollectionType } from '@app/utils/apiKeyValidation';
 import type {
+  MainSettings,
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
@@ -37,6 +38,7 @@ const messages = defineMessages({
   timePeriod: 'Time Period',
   customDays: 'Number of Days',
   minimumPlays: 'Minimum Play Count',
+  comingSoonDays: 'Days to Look Ahead',
   combineMode: 'Combine Mode',
   addSource: 'Add Source',
   removeSource: 'Remove',
@@ -378,6 +380,7 @@ const MultiSourceConfigSection = ({
   );
 
   // Fetch API settings for validation
+  const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -392,6 +395,12 @@ const MultiSourceConfigSection = ({
   );
   const { data: myanimelistSettings } = useSWR<MyAnimeListSettings>(
     '/api/v1/settings/myanimelist'
+  );
+  const { data: radarrSettings } = useSWR<RadarrSettings[]>(
+    '/api/v1/settings/radarr'
+  );
+  const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
+    '/api/v1/settings/sonarr'
   );
 
   // State for tracking validation status of each source (must be before early return)
@@ -556,6 +565,67 @@ const MultiSourceConfigSection = ({
     }
   }, [mixedContentInfo.hasMixedContent, values.combineMode, setFieldValue]);
 
+  const combineModeOptions = React.useMemo(() => {
+    // Check if ALL sources are Coming Soon
+    const allSourcesComingSoon =
+      sources.length > 0 &&
+      sources.every((source) => source.type === 'comingsoon');
+
+    // For Coming Soon-only collections, show Release Date (default), Cycle Lists, and Randomised
+    if (allSourcesComingSoon) {
+      return [
+        {
+          value: 'interleaved' as MultiSourceCombineMode, // Default mode - backend sorts by release date
+          label: 'Release Date',
+          description:
+            'Sort all items by release date (closest first). Default mode for Coming Soon collections.',
+          disabled: false,
+        },
+        {
+          value: 'cycle_lists' as MultiSourceCombineMode,
+          label: 'Cycle Lists',
+          description:
+            'Only one Coming Soon source active at a time, rotates each sync. Each source is sorted by release date.',
+          disabled: false,
+        },
+        {
+          value: 'randomised' as MultiSourceCombineMode,
+          label: 'Randomised',
+          description: 'Shuffle all items randomly on every sync',
+          disabled: false,
+        },
+      ];
+    }
+
+    // Normal combine mode options (Coming Soon sources will be sorted by date before combining)
+    return [
+      {
+        value: 'interleaved' as MultiSourceCombineMode,
+        label: 'Interleaved',
+        description: 'Take 1st item from each source, then 2nd from each, etc.',
+        disabled: mixedContentInfo.hasMixedContent,
+      },
+      {
+        value: 'list_order' as MultiSourceCombineMode,
+        label: 'List Order',
+        description: 'All items from source 1, then all from source 2, etc.',
+        disabled: mixedContentInfo.hasMixedContent,
+      },
+      {
+        value: 'randomised' as MultiSourceCombineMode,
+        label: 'Randomised',
+        description: 'Shuffle all items randomly on every sync',
+        disabled: mixedContentInfo.hasMixedContent,
+      },
+      {
+        value: 'cycle_lists' as MultiSourceCombineMode,
+        label: 'Cycle Lists',
+        description: 'Only one source active at a time, rotates each sync',
+        disabled: false, // Always available
+      },
+    ];
+  }, [sources, mixedContentInfo.hasMixedContent]);
+
   if (!isVisible) return null;
 
   const addSource = () => {
@@ -612,6 +682,12 @@ const MultiSourceConfigSection = ({
             value: 'popular',
             label: 'Popular',
             description: 'Most popular based on ratings and votes',
+          },
+          {
+            value: 'recommendations',
+            label: 'Recommendations',
+            description:
+              'Personalized Trakt recommendations (uses your library media type)',
           },
           {
             value: 'played',
@@ -699,6 +775,11 @@ const MultiSourceConfigSection = ({
         return [
           { value: 'custom', label: 'Custom List' },
           {
+            value: 'watchlist',
+            label: 'Watchlist',
+            description: "Import a user's watchlist by URL",
+          },
+          {
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured Letterboxd lists',
@@ -778,42 +859,29 @@ const MultiSourceConfigSection = ({
         return [];
       case 'sonarrtag':
         return [];
+      case 'comingsoon':
+        return [
+          {
+            value: 'monitored',
+            label: 'Monitored in Radarr/Sonarr',
+            description: 'Items monitored but not yet released',
+          },
+          {
+            value: 'trakt_anticipated',
+            label: 'Trakt Anticipated',
+            description: 'Most anticipated upcoming releases',
+          },
+          {
+            value: 'tmdb_anticipated',
+            label: 'TMDB Coming Soon',
+            description:
+              'Upcoming releases from TMDB (movies: digital/physical, TV: new & returning shows)',
+          },
+        ];
       default:
         return [];
     }
   };
-
-  const getCombineModeOptions = (): {
-    value: MultiSourceCombineMode;
-    label: string;
-    description: string;
-    disabled?: boolean;
-  }[] => [
-    {
-      value: 'interleaved',
-      label: 'Interleaved',
-      description: 'Take 1st item from each source, then 2nd from each, etc.',
-      disabled: mixedContentInfo.hasMixedContent,
-    },
-    {
-      value: 'list_order',
-      label: 'List Order',
-      description: 'All items from source 1, then all from source 2, etc.',
-      disabled: mixedContentInfo.hasMixedContent,
-    },
-    {
-      value: 'randomised',
-      label: 'Randomised',
-      description: 'Shuffle all items randomly on every sync',
-      disabled: mixedContentInfo.hasMixedContent,
-    },
-    {
-      value: 'cycle_lists',
-      label: 'Cycle Lists',
-      description: 'Only one source active at a time, rotates each sync',
-      disabled: false, // Always available
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -910,21 +978,28 @@ const MultiSourceConfigSection = ({
                 <option value="sonarrtag">Sonarr Tags</option>
                 <option value="anilist">AniList</option>
                 <option value="myanimelist">MyAnimeList</option>
+                <option value="comingsoon">Coming Soon</option>
               </Field>
 
               {/* API Key Warning for this source */}
               {values.sources?.[index]?.type &&
                 (() => {
                   const sourceType = values.sources[index].type;
+                  const sourceSubtype = values.sources[index].subtype;
                   const apiKeyValidation = validateApiKeysForCollectionType(
                     sourceType,
                     {
+                      main: mainSettings,
                       trakt: traktSettings,
                       mdblist: mdblistSettings,
                       tautulli: tautulliSettings,
                       overseerr: overseerrSettings,
                       myanimelist: myanimelistSettings,
-                    }
+                      radarr: radarrSettings,
+                      sonarr: sonarrSettings,
+                    },
+                    sourceSubtype,
+                    values.createPlaceholdersForMissing
                   );
                   return <ApiKeyWarning validation={apiKeyValidation} />;
                 })()}
@@ -1321,7 +1396,7 @@ const MultiSourceConfigSection = ({
         )}
 
         <div className="space-y-3">
-          {getCombineModeOptions().map((option) => (
+          {combineModeOptions.map((option) => (
             <label
               key={option.value}
               className={`flex items-start space-x-3 ${

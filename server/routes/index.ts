@@ -5,7 +5,7 @@ import type {
   TmdbMovieResult,
   TmdbTvResult,
 } from '@server/api/themoviedb/interfaces';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import { checkUser, isAuthenticated } from '@server/middleware/auth';
 import { mapProductionCompany } from '@server/models/Movie';
@@ -23,21 +23,26 @@ import dashboardRoutes from './dashboard';
 import defaultHubsRoutes from './defaulthubs';
 import discoveryRoutes from './discovery';
 import exclusionsRoutes from './exclusions';
+import filesystemRoutes from './filesystem';
 import fontsRoutes from './fonts';
 import hubsRoutes from './hubs';
 import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import myanimelistRoutes from './myanimelist';
+import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
+import overlaySettingsRoutes from './overlaySettings';
+import overlayTemplatesRoutes from './overlayTemplates';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
 import sourceColorsRoutes from './sourceColors';
+import traktOAuthRoutes from './trakt-oauth';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
 export const createTmdbWithRegionLanguage = (): TheMovieDb => {
-  return new TheMovieDb();
+  return new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 };
 // Movie, search, and TV routes removed - discovery functionality not needed
 import overseerrRoutes from './overseerr';
@@ -134,8 +139,11 @@ router.get('/settings/public', async (req, res) => {
   return res.status(200).json(settings.fullPublicSettings);
 });
 // Pushover notification route removed - notification system not needed
+// Public Trakt OAuth endpoints (no auth required for OAuth callback flow)
+router.use('/trakt', traktOAuthRoutes);
 router.use('/settings', isAuthenticated(), settingsRoutes);
 router.use('/dashboard', isAuthenticated(), dashboardRoutes);
+router.use('/filesystem', isAuthenticated(), filesystemRoutes);
 router.use('/overseerr', isAuthenticated(), overseerrRoutes);
 // Search, movie, and TV routes removed - discovery functionality not needed in Agregarr
 router.use('/media', isAuthenticated(), mediaRoutes);
@@ -146,6 +154,13 @@ router.use('/discovery', isAuthenticated(), discoveryRoutes);
 router.use('/exclusions', isAuthenticated(), exclusionsRoutes);
 router.use('/fonts', isAuthenticated(), fontsRoutes);
 router.use('/hubs', isAuthenticated(), hubsRoutes);
+router.use('/overlay-templates', isAuthenticated(), overlayTemplatesRoutes);
+router.use(
+  '/overlay-library-configs',
+  isAuthenticated(),
+  overlayLibraryConfigsRoutes
+);
+router.use('/overlay-settings', isAuthenticated(), overlaySettingsRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/ratings', isAuthenticated(), ratingsRoutes);
@@ -157,7 +172,7 @@ router.use('/anilist', anilistRoutes);
 router.use('/myanimelist', myanimelistRoutes);
 
 router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const movie = await tmdb.getMovie({ movieId: Number(req.params.id) });
@@ -177,7 +192,7 @@ router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
 });
 
 router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const tv = await tmdb.getTvShow({ tvId: Number(req.params.id) });
@@ -197,7 +212,7 @@ router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
 });
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const studio = await tmdb.getStudio(Number(req.params.id));
@@ -217,7 +232,7 @@ router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
 });
 
 router.get<{ id: string }>('/network/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const network = await tmdb.getNetwork(Number(req.params.id));
@@ -237,7 +252,7 @@ router.get<{ id: string }>('/network/:id', async (req, res, next) => {
 });
 
 router.get('/genres/movie', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const genres = await tmdb.getMovieGenres({
@@ -258,7 +273,7 @@ router.get('/genres/movie', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const genres = await tmdb.getTvGenres({
@@ -279,7 +294,7 @@ router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/genres/combined', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb();
+  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
 
   try {
     const [movieGenres, tvGenres] = await Promise.all([
@@ -373,6 +388,76 @@ router.get('/countries/combined', isAuthenticated(), async (req, res, next) => {
     return next({
       status: 500,
       message: 'Unable to retrieve countries.',
+    });
+  }
+});
+
+router.get('/languages/combined', isAuthenticated(), async (req, res, next) => {
+  try {
+    // Return a curated list of languages users commonly want to filter
+    // Focuses on major languages with significant film/TV production
+    const commonLanguages = [
+      // Major global languages
+      'en', // English
+      'es', // Spanish
+      'fr', // French
+      'de', // German
+      'it', // Italian
+      'pt', // Portuguese
+      'ru', // Russian
+      'ar', // Arabic
+      // East Asian
+      'ja', // Japanese
+      'ko', // Korean
+      'zh', // Chinese (Mandarin)
+      'yue', // Cantonese
+      // South Asian
+      'hi', // Hindi
+      'ta', // Tamil
+      'te', // Telugu
+      'bn', // Bengali
+      // Southeast Asian
+      'th', // Thai
+      'id', // Indonesian
+      'vi', // Vietnamese
+      'tl', // Tagalog
+      // European
+      'pl', // Polish
+      'nl', // Dutch
+      'sv', // Swedish
+      'no', // Norwegian
+      'da', // Danish
+      'fi', // Finnish
+      'cs', // Czech
+      'hu', // Hungarian
+      'tr', // Turkish
+      'el', // Greek
+      'he', // Hebrew
+      // Other
+      'fa', // Persian
+    ];
+
+    // Convert ISO codes to readable names using Intl.DisplayNames
+    const languageNames = new Intl.DisplayNames([req.locale ?? 'en'], {
+      type: 'language',
+    });
+
+    const combined = commonLanguages
+      .map((code) => ({
+        code,
+        name: languageNames.of(code) ?? code,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.status(200).json(combined);
+  } catch (e) {
+    logger.debug('Failed to retrieve combined languages', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve languages.',
     });
   }
 });

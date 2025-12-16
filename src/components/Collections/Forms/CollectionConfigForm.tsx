@@ -9,21 +9,23 @@ import type {
   MultiSourceCombineMode,
   MultiSourceType,
   PlexHubConfig,
-  TemplatePreset,
 } from '@app/types/collections';
 import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
 import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
 
 // Form values use CollectionFormConfig with proper initialization
+import { getTemplatePresets } from '@app/components/Collections/Forms/titlePresets';
 import ArrTagConfigSection from '@app/components/Collections/FormSections/ArrTagConfigSection';
 import AutoRequestSection from '@app/components/Collections/FormSections/AutoRequestSection';
+import CollectionExclusionSection from '@app/components/Collections/FormSections/CollectionExclusionSection';
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
@@ -32,9 +34,11 @@ import NetworksConfigSection from '@app/components/Collections/FormSections/Netw
 import OriginalsConfigSection from '@app/components/Collections/FormSections/OriginalsConfigSection';
 import PosterUploadSection from '@app/components/Collections/FormSections/PosterUploadSection';
 import TemplateSection from '@app/components/Collections/FormSections/TemplateSection';
+import ThemeUploadSection from '@app/components/Collections/FormSections/ThemeUploadSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
 import VisibilitySection from '@app/components/Collections/FormSections/VisibilitySection';
+import WallpaperUploadSection from '@app/components/Collections/FormSections/WallpaperUploadSection';
 import PreviewCollectionModal from '@app/components/Collections/PreviewCollectionModal';
 
 const messages = defineMessages({
@@ -48,6 +52,21 @@ const messages = defineMessages({
   maxItems: 'Max Items',
   minimumPlays: 'Minimum Play Count',
   customPoster: 'Posters',
+  wallpapersAndTheme: 'Wallpapers and Theme',
+  enableCustomWallpaper: 'Custom Wallpaper',
+  enableCustomSummary: 'Custom Summary',
+  enableCustomTheme: 'Custom Theme Music',
+  customSummaryPlaceholder: 'Enter a custom description for this collection...',
+  customSummaryHelp:
+    'Custom description text for the collection. Will be synced to Plex.',
+  overlayConfigWarningTitle: 'No Overlay Templates Configured',
+  overlayConfigWarningMessage:
+    'You have enabled placeholder creation and overlay application, but no overlay templates are configured for {libraryNames}. Placeholders will be created without status overlays showing monitored status, release dates, etc.',
+  configureOverlays: 'Configure Overlays',
+  placeholderRootFoldersRequired: 'Placeholder Root Folders Required',
+  placeholderRootFoldersMessage:
+    'You have enabled placeholder creation, but no placeholder root folders are configured. Please configure at least one folder to enable this feature.',
+  configureDownloads: 'Configure Downloads',
   autoRequestSettings: 'Auto-Request Settings',
   timeRestrictions: 'Time Restrictions',
   createCollection: 'Create Collection',
@@ -76,6 +95,28 @@ const CollectionFormConfigForm = ({
 
   // Get current user data which includes Plex Pass status
   const { data: currentUser } = useSWR('/api/v1/auth/me');
+
+  // Fetch overlay library configs to check if overlays are configured
+  const { data: overlayConfigsResponse } = useSWR<{
+    configs: {
+      id: number;
+      libraryId: string;
+      libraryName: string;
+      mediaType: 'movie' | 'show';
+      enabledOverlays: {
+        templateId: number;
+        enabled: boolean;
+        layerOrder: number;
+      }[];
+    }[];
+  }>('/api/v1/overlay-library-configs');
+  const overlayConfigs = overlayConfigsResponse?.configs || [];
+
+  // Fetch settings to check if placeholder root folders are configured
+  const { data: settingsData } = useSWR<{
+    placeholderMovieRootFolder?: string;
+    placeholderTVRootFolder?: string;
+  }>('/api/v1/settings/main');
 
   // State for storing fetched titles and detected media types
   const [fetchedTitles, setFetchedTitles] = useState<{
@@ -120,6 +161,117 @@ const CollectionFormConfigForm = ({
   // State for preview modal
   const [showPreview, setShowPreview] = useState(false);
 
+  // Generate tooltip showing which other items will be affected - MUST be before early returns
+  const linkingTooltip = useMemo(() => {
+    if (!config) return undefined;
+
+    const isHub =
+      config.collectionType === 'default_plex_hub' ||
+      (config as CollectionFormConfig).configType === 'hub';
+    const isPreExisting =
+      config.collectionType === 'pre_existing' ||
+      (config as CollectionFormConfig).configType === 'preExisting';
+    const isCollection = !isHub && !isPreExisting;
+    const isLinked = Boolean(config.isLinked && !config.isUnlinked);
+
+    if (isLinked) {
+      // Unlink button - show what will be unlinked
+      if (isHub && allHubConfigs) {
+        const hubConfig = config as PlexHubConfig;
+        const linkedHubs = allHubConfigs.filter(
+          (h: PlexHubConfig) =>
+            h.linkId === config.linkId && h.isLinked && h.id !== config.id
+        );
+        if (linkedHubs.length > 0) {
+          const currentHubText = `${hubConfig.name} (${hubConfig.libraryName})`;
+          const otherHubsText = linkedHubs
+            .map((h) => `${h.name} (${h.libraryName})`)
+            .join('\n');
+          return `Will unlink ${
+            linkedHubs.length + 1
+          } hubs:\n${currentHubText}\n${otherHubsText}`;
+        }
+      } else if (isCollection && allCollectionConfigs) {
+        const collectionConfig = config as CollectionFormConfig;
+        const linkedCollections = allCollectionConfigs.filter(
+          (c: CollectionFormConfig) =>
+            c.type === collectionConfig.type &&
+            c.subtype === collectionConfig.subtype &&
+            c.linkId === collectionConfig.linkId &&
+            c.isLinked &&
+            c.id !== collectionConfig.id
+        );
+        if (linkedCollections.length > 0) {
+          const currentLibName =
+            libraries?.find((lib) => lib.key === collectionConfig.libraryId)
+              ?.name || 'Unknown';
+          const currentText = `${config.name} (${currentLibName})`;
+          const otherTexts = linkedCollections
+            .map((c) => {
+              const libName =
+                libraries?.find((lib) => lib.key === c.libraryId)?.name ||
+                'Unknown';
+              return `${c.name} (${libName})`;
+            })
+            .join('\n');
+          return `Will unlink ${
+            linkedCollections.length + 1
+          } collections:\n${currentText}\n${otherTexts}`;
+        }
+      }
+    } else if (config.linkId) {
+      // Check if can link
+      if (isHub && allHubConfigs) {
+        const hubConfig = config as PlexHubConfig;
+        const eligibleHubs = allHubConfigs.filter(
+          (h: PlexHubConfig) =>
+            h.linkId !== undefined &&
+            h.linkId === config.linkId &&
+            h.id !== config.id &&
+            !h.isLinked
+        );
+        if (eligibleHubs.length > 0) {
+          const currentHubText = `${hubConfig.name} (${hubConfig.libraryName})`;
+          const otherHubsText = eligibleHubs
+            .map((h) => `${h.name} (${h.libraryName})`)
+            .join('\n');
+          return `Will link ${
+            eligibleHubs.length + 1
+          } hubs:\n${currentHubText}\n${otherHubsText}`;
+        }
+      } else if (isCollection && allCollectionConfigs) {
+        const collectionConfig = config as CollectionFormConfig;
+        const eligibleCollections = allCollectionConfigs.filter(
+          (c: CollectionFormConfig) =>
+            c.type === collectionConfig.type &&
+            c.subtype === collectionConfig.subtype &&
+            c.linkId !== undefined &&
+            c.linkId === collectionConfig.linkId &&
+            !c.isLinked &&
+            c.id !== collectionConfig.id
+        );
+        if (eligibleCollections.length > 0) {
+          const currentLibName =
+            libraries?.find((lib) => lib.key === collectionConfig.libraryId)
+              ?.name || 'Unknown';
+          const currentText = `${config.name} (${currentLibName})`;
+          const otherTexts = eligibleCollections
+            .map((c) => {
+              const libName =
+                libraries?.find((lib) => lib.key === c.libraryId)?.name ||
+                'Unknown';
+              return `${c.name} (${libName})`;
+            })
+            .join('\n');
+          return `Will link ${
+            eligibleCollections.length + 1
+          } collections:\n${currentText}\n${otherTexts}`;
+        }
+      }
+    }
+    return undefined;
+  }, [config, allHubConfigs, allCollectionConfigs, libraries]);
+
   // Validation schema for collections, hubs, and pre-existing configs
   const CollectionFormConfigSchema = Yup.object().shape({
     // Only validate type/subtype for full collections, not hubs/pre-existing
@@ -139,7 +291,8 @@ const CollectionFormConfigForm = ({
         !!type &&
         type !== 'multi-source' &&
         type !== 'radarrtag' &&
-        type !== 'sonarrtag', // Only required if not a hub, pre-existing, multi-source, or tag-based
+        type !== 'sonarrtag' &&
+        type !== 'filtered_hub', // Only required if not a hub, pre-existing, multi-source, tag-based, or recently_added
       then: (schema) => schema.required('Collection sub-type is required'),
       otherwise: (schema) => schema.notRequired(),
     }),
@@ -268,6 +421,24 @@ const CollectionFormConfigForm = ({
       otherwise: (schema) => schema,
     }),
 
+    comingSoonDays: Yup.number().when('type', {
+      is: 'comingsoon',
+      then: (schema) =>
+        schema
+          .min(1, 'Must be at least 1 day')
+          .max(730, 'Cannot exceed 730 days'),
+      otherwise: (schema) => schema,
+    }),
+
+    comingSoonReleasedDays: Yup.number().when('type', {
+      is: 'comingsoon',
+      then: (schema) =>
+        schema
+          .min(1, 'Must be at least 1 day')
+          .max(30, 'Cannot exceed 30 days'),
+      otherwise: (schema) => schema,
+    }),
+
     traktCustomListUrl: Yup.string().when(['type', 'subtype'], {
       is: (type: string, subtype: string) =>
         type === 'trakt' && subtype === 'custom',
@@ -286,10 +457,10 @@ const CollectionFormConfigForm = ({
         type === 'tmdb' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('TMDB collection/list URL is required')
+          .required('TMDB collection/list/network/company URL is required')
           .matches(
-            /themoviedb\.org\/(collection|list)\/\d+/,
-            'Please enter a valid TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
+            /themoviedb\.org\/(collection\/\d+|list\/\d+|network\/\d+|company\/\d+(?:-[^/]+)?\/(?:movie|tv))/,
+            'Please enter a valid TMDB URL (collection, list, network, or company page)'
           ),
       otherwise: (schema) => schema,
     }),
@@ -317,7 +488,19 @@ const CollectionFormConfigForm = ({
             /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
             'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
           ),
-      otherwise: (schema) => schema,
+      otherwise: (schema) =>
+        schema.when(['type', 'subtype'], {
+          is: (type: string, subtype: string) =>
+            type === 'letterboxd' && subtype === 'watchlist',
+          then: (schema) =>
+            schema
+              .required('Letterboxd watchlist URL is required')
+              .matches(
+                /letterboxd\.com\/[^/]+\/watchlist\/?/,
+                'Please enter a valid Letterboxd watchlist URL (e.g., https://letterboxd.com/username/watchlist/)'
+              ),
+          otherwise: (schema) => schema,
+        }),
     }),
 
     anilistCustomListUrl: Yup.string().when(['type', 'subtype'], {
@@ -408,9 +591,23 @@ const CollectionFormConfigForm = ({
     directDownloadRadarrServerId: Yup.number().integer().min(0),
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
     directDownloadRadarrRootFolder: Yup.string(),
+    directDownloadRadarrTags: Yup.array().of(Yup.number().integer()),
+    directDownloadRadarrMonitor: Yup.boolean(),
+    directDownloadRadarrSearchOnAdd: Yup.boolean(),
     directDownloadSonarrServerId: Yup.number().integer().min(0),
     directDownloadSonarrProfileId: Yup.number().positive().integer(),
     directDownloadSonarrRootFolder: Yup.string(),
+    directDownloadSonarrTags: Yup.array().of(Yup.number().integer()),
+    directDownloadSonarrMonitor: Yup.boolean(),
+    directDownloadSonarrSearchOnAdd: Yup.boolean(),
+    overseerrRadarrServerId: Yup.number().integer().min(0),
+    overseerrRadarrProfileId: Yup.number().positive().integer(),
+    overseerrRadarrRootFolder: Yup.string(),
+    overseerrRadarrTags: Yup.array().of(Yup.number().integer()),
+    overseerrSonarrServerId: Yup.number().integer().min(0),
+    overseerrSonarrProfileId: Yup.number().positive().integer(),
+    overseerrSonarrRootFolder: Yup.string(),
+    overseerrSonarrTags: Yup.array().of(Yup.number().integer()),
 
     // Multi-source field validation
     isMultiSource: Yup.boolean(),
@@ -459,7 +656,8 @@ const CollectionFormConfigForm = ({
   const isCollection = !isHub && !isPreExisting; // Regular Agregarr collections
 
   // Use unified linking approach - check if actively linked
-  const isLinked = Boolean(config.isLinked);
+  // If isUnlinked is true, treat as NOT linked (available for re-linking)
+  const isLinked = Boolean(config.isLinked && !config.isUnlinked);
 
   // Determine if this config can be linked (for showing link button)
   // Only show link button for existing configs that are unlinked but could be linked
@@ -470,9 +668,14 @@ const CollectionFormConfigForm = ({
       // For hubs: check if there are other unlinked hubs with same linkId
       // Include hubs with isUnlinked flag - those can be relinked!
       if (!allHubConfigs) return false;
+      // Must have valid linkId to be linkable (prevent undefined === undefined)
+      if (config.linkId === undefined) return false;
       const eligibleHubs = allHubConfigs.filter(
         (h: PlexHubConfig) =>
-          h.linkId === config.linkId && h.id !== config.id && !h.isLinked
+          h.linkId !== undefined && // Must have valid linkId
+          h.linkId === config.linkId &&
+          h.id !== config.id &&
+          !h.isLinked
         // Note: We don't exclude isUnlinked hubs - they can be relinked
       );
       return eligibleHubs.length > 0;
@@ -480,10 +683,13 @@ const CollectionFormConfigForm = ({
       // For collections: check if there are other unlinked collections with same type/subtype/linkId
       if (!allCollectionConfigs) return false;
       const collectionConfig = config as CollectionFormConfig;
+      // Must have valid linkId to be linkable (prevent undefined === undefined)
+      if (collectionConfig.linkId === undefined) return false;
       const eligibleCollections = allCollectionConfigs.filter(
         (c: CollectionFormConfig) =>
           c.type === collectionConfig.type &&
           c.subtype === collectionConfig.subtype &&
+          c.linkId !== undefined && // Must have valid linkId
           c.linkId === collectionConfig.linkId &&
           !c.isLinked &&
           c.id !== collectionConfig.id
@@ -763,1506 +969,6 @@ const CollectionFormConfigForm = ({
     }
   };
 
-  // Template presets will be handled within the Formik form
-  // Auto-adjustments will be handled via onChange handlers
-
-  const getTemplatePresets = (
-    values?: CollectionFormConfig,
-    fetchedTitles?: {
-      trakt?: string;
-      tmdb?: string;
-      imdb?: string;
-      letterboxd?: string;
-      mdblist?: string;
-      anilist?: string;
-    },
-    detectedMediaTypes?: {
-      trakt?: 'movie' | 'tv' | 'both';
-      tmdb?: 'movie' | 'tv' | 'both';
-      imdb?: 'movie' | 'tv' | 'both';
-      letterboxd?: 'movie' | 'tv' | 'both';
-      mdblist?: 'movie' | 'tv' | 'both';
-      anilist?: 'movie' | 'tv' | 'both';
-    }
-  ): TemplatePreset[] => {
-    if (!values) {
-      return [{ label: 'Custom', value: 'custom' }];
-    }
-
-    if (values.type === 'multi-source') {
-      if (values.combineMode === 'cycle_lists') {
-        return [
-          {
-            label: 'Dynamic Title from Active Source',
-            value: 'DYNAMIC_CYCLE_TITLE',
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      }
-      return [{ label: 'Custom', value: 'custom' }];
-    }
-
-    if (!values.subtype) {
-      return [{ label: 'Custom', value: 'custom' }];
-    }
-
-    // For Trakt time-based collections, combine subtype and timePeriod when both exist
-    let effectiveSubtype = values.subtype;
-    if (
-      values.type === 'trakt' &&
-      values.timePeriod &&
-      ['played', 'watched', 'collected', 'favorited'].includes(
-        values.subtype || ''
-      )
-    ) {
-      effectiveSubtype = `${values.subtype}_${values.timePeriod}`;
-    }
-
-    // Helper function to generate preset options for custom URLs
-    const getCustomUrlPresets = (
-      title: string,
-      serviceType:
-        | 'trakt'
-        | 'tmdb'
-        | 'imdb'
-        | 'letterboxd'
-        | 'mdblist'
-        | 'anilist'
-    ): TemplatePreset[] => {
-      if (!title) {
-        return [
-          {
-            label: 'Validate URL',
-            value: 'fetch-title',
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      }
-
-      const detectedType = detectedMediaTypes?.[serviceType];
-
-      if (detectedType === 'both') {
-        // For mixed content, offer template with original title first (for cross-library linking)
-        return [
-          {
-            label: title, // Original title without suffix - enables cross-library linking
-            value: title,
-          },
-          {
-            label: `${title} - {mediaType}s`,
-            value: `${title} - {mediaType}s`,
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      } else {
-        // For single media type, just use the original title
-        return [
-          {
-            label: title,
-            value: title,
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      }
-    };
-
-    // Overseerr collection presets
-    if (values.type === 'overseerr') {
-      switch (values.subtype) {
-        case 'users':
-          return [
-            {
-              label: '{domain} requests by {nickname}',
-              value: '{domain} requests by {nickname}',
-            },
-            {
-              label: "{nickname}'s {domain} {mediaType} requests",
-              value: "{nickname}'s {domain} {mediaType} requests",
-            },
-            {
-              label: "{nickname}'s {mediaType} requests",
-              value: "{nickname}'s {mediaType} requests",
-            },
-            {
-              label: '{appTitle} requests by {nickname}',
-              value: '{appTitle} requests by {nickname}',
-            },
-            {
-              label: 'Requested by {username}',
-              value: 'Requested by {username}',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'global':
-          return [
-            {
-              label: '{appTitle} requests by Everyone',
-              value: '{appTitle} requests by Everyone',
-            },
-            {
-              label: '{domain} requests by Everyone - {mediaType}s',
-              value: '{domain} requests by Everyone - {mediaType}s',
-            },
-            {
-              label: '{domain} - All {mediaType} Requests',
-              value: '{domain} - All {mediaType} Requests',
-            },
-            {
-              label: '{appTitle} - All Requests',
-              value: '{appTitle} - All Requests',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'server_owner':
-          return [
-            {
-              label: 'My Requests',
-              value: 'My Requests',
-            },
-            {
-              label: 'My {mediaType} Requests',
-              value: 'My {mediaType} Requests',
-            },
-            {
-              label: "{nickname}'s {domain} {mediaType} requests",
-              value: "{nickname}'s {domain} {mediaType} requests",
-            },
-            {
-              label: '{domain} requests by {nickname} - {mediaType}s',
-              value: '{domain} requests by {nickname} - {mediaType}s',
-            },
-            {
-              label: "{nickname}'s {mediaType} requests",
-              value: "{nickname}'s {mediaType} requests",
-            },
-            {
-              label: '{appTitle} {mediaType} requests by {nickname}',
-              value: '{appTitle} {mediaType} requests by {nickname}',
-            },
-            {
-              label: 'Requested by {username} - {mediaType}s',
-              value: 'Requested by {username} - {mediaType}s',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        default:
-          return [
-            {
-              label: 'Overseerr Collection',
-              value: 'Overseerr Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // Tautulli collection presets
-    if (values.type === 'tautulli') {
-      switch (values.subtype) {
-        case 'most_popular_plays': {
-          const mostPopularPlaysPresets = [
-            {
-              label:
-                'Most Popular on {servername} in the last {customdays} Days',
-              value:
-                'Most Popular on {servername} in the last {customdays} Days',
-            },
-            {
-              label:
-                'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
-              value:
-                'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
-            },
-            {
-              label: 'Top Played {mediaType}s on {servername}',
-              value: 'Top Played {mediaType}s on {servername}',
-            },
-          ];
-
-          // Add "A Year In Review" preset if customDays is 365
-          if (
-            values.customDays &&
-            parseInt(values.customDays.toString(), 10) === 365
-          ) {
-            mostPopularPlaysPresets.unshift(
-              {
-                label:
-                  'A Year In Review - Most Watched on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched on {servername} this Year',
-              },
-              {
-                label:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              }
-            );
-          }
-
-          mostPopularPlaysPresets.push({ label: 'Custom', value: 'custom' });
-          return mostPopularPlaysPresets;
-        }
-        case 'most_popular_duration': {
-          const mostPopularDurationPresets = [
-            {
-              label:
-                'Most Popular on {servername} in the last {customdays} Days',
-              value:
-                'Most Popular on {servername} in the last {customdays} Days',
-            },
-            {
-              label:
-                'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
-              value:
-                'Most Popular {mediaType}s on {servername} in the last {customdays} Days',
-            },
-            {
-              label: 'Top Played {mediaType}s on {servername}',
-              value: 'Top Played {mediaType}s on {servername}',
-            },
-          ];
-
-          // Add "A Year In Review" preset if customDays is 365
-          if (
-            values.customDays &&
-            parseInt(values.customDays.toString(), 10) === 365
-          ) {
-            mostPopularDurationPresets.unshift(
-              {
-                label:
-                  'A Year In Review - Most Watched on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched on {servername} this Year',
-              },
-              {
-                label:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              }
-            );
-          }
-
-          mostPopularDurationPresets.push({ label: 'Custom', value: 'custom' });
-          return mostPopularDurationPresets;
-        }
-        case 'most_watched_plays': {
-          const mostWatchedPlaysPresets = [
-            {
-              label:
-                'Most Watched on {servername} in the last {customdays} Days',
-              value:
-                'Most Watched on {servername} in the last {customdays} Days',
-            },
-            {
-              label:
-                'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
-              value:
-                'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
-            },
-            {
-              label: 'Frequently Watched {mediaType}s on {servername}',
-              value: 'Frequently Watched {mediaType}s on {servername}',
-            },
-          ];
-
-          // Add "A Year In Review" preset if customDays is 365
-          if (
-            values.customDays &&
-            parseInt(values.customDays.toString(), 10) === 365
-          ) {
-            mostWatchedPlaysPresets.unshift(
-              {
-                label:
-                  'A Year In Review - Most Watched on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched on {servername} this Year',
-              },
-              {
-                label:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              }
-            );
-          }
-
-          mostWatchedPlaysPresets.push({ label: 'Custom', value: 'custom' });
-          return mostWatchedPlaysPresets;
-        }
-        case 'most_watched_duration': {
-          const mostWatchedDurationPresets = [
-            {
-              label:
-                'Most Watched on {servername} in the last {customdays} Days',
-              value:
-                'Most Watched on {servername} in the last {customdays} Days',
-            },
-            {
-              label:
-                'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
-              value:
-                'Most Watched {mediaType}s on {servername} in the last {customdays} Days',
-            },
-            {
-              label: 'Frequently Watched {mediaType}s on {servername}',
-              value: 'Frequently Watched {mediaType}s on {servername}',
-            },
-          ];
-
-          // Add "A Year In Review" preset if customDays is 365
-          if (
-            values.customDays &&
-            parseInt(values.customDays.toString(), 10) === 365
-          ) {
-            mostWatchedDurationPresets.unshift(
-              {
-                label:
-                  'A Year In Review - Most Watched on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched on {servername} this Year',
-              },
-              {
-                label:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-                value:
-                  'A Year In Review - Most Watched {mediaType}s on {servername} this Year',
-              }
-            );
-          }
-
-          mostWatchedDurationPresets.push({ label: 'Custom', value: 'custom' });
-          return mostWatchedDurationPresets;
-        }
-        default:
-          return [
-            {
-              label: 'Overseerr Collection',
-              value: 'Overseerr Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // Trakt collection presets
-    if (values.type === 'trakt') {
-      switch (effectiveSubtype) {
-        case 'trending':
-          return [
-            {
-              label: "What's Trending Now",
-              value: "What's Trending Now",
-            },
-            {
-              label: 'Trending {mediaType}s Today',
-              value: 'Trending {mediaType}s Today',
-            },
-            {
-              label: '🔥 Trending {mediaType}s Now',
-              value: '🔥 Trending {mediaType}s Now',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'popular':
-          return [
-            {
-              label: 'Most Popular from Trakt',
-              value: 'Most Popular from Trakt',
-            },
-            {
-              label: 'Popular {mediaType}s from Trakt',
-              value: 'Popular {mediaType}s from Trakt',
-            },
-            {
-              label: '⭐ Popular {mediaType}s',
-              value: '⭐ Popular {mediaType}s',
-            },
-            {
-              label: 'Most Popular {mediaType}s',
-              value: 'Most Popular {mediaType}s',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'boxoffice':
-          return [
-            {
-              label: 'Box Office Top 10',
-              value: 'Box Office Top 10',
-            },
-            {
-              label: '💰 Box Office Winners',
-              value: '💰 Box Office Winners',
-            },
-            {
-              label: 'Top Grossing Movies',
-              value: 'Top Grossing Movies',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        // Handle all time period variants dynamically with period info
-        case 'played_daily':
-          return [
-            {
-              label: 'Most Played Today',
-              value: 'Most Played Today',
-            },
-            {
-              label: 'Most Played {mediaType}s Today',
-              value: 'Most Played {mediaType}s Today',
-            },
-            {
-              label: '▶️ Most Played {mediaType}s - Daily',
-              value: '▶️ Most Played {mediaType}s - Daily',
-            },
-            {
-              label: 'Top Played {mediaType}s Today',
-              value: 'Top Played {mediaType}s Today',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'played_weekly':
-          return [
-            {
-              label: 'Most Played This Week',
-              value: 'Most Played This Week',
-            },
-            {
-              label: 'Most Played {mediaType}s This Week',
-              value: 'Most Played {mediaType}s This Week',
-            },
-            {
-              label: '▶️ Most Played {mediaType}s - Weekly',
-              value: '▶️ Most Played {mediaType}s - Weekly',
-            },
-            {
-              label: 'Top Played {mediaType}s This Week',
-              value: 'Top Played {mediaType}s This Week',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'played_monthly':
-          return [
-            {
-              label: 'Most Played This Month',
-              value: 'Most Played This Month',
-            },
-            {
-              label: 'Most Played {mediaType}s This Month',
-              value: 'Most Played {mediaType}s This Month',
-            },
-            {
-              label: '▶️ Most Played {mediaType}s - Monthly',
-              value: '▶️ Most Played {mediaType}s - Monthly',
-            },
-            {
-              label: 'Top Played {mediaType}s This Month',
-              value: 'Top Played {mediaType}s This Month',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'played_all':
-          return [
-            {
-              label: 'Most Played of All Time',
-              value: 'Most Played of All Time',
-            },
-            {
-              label: 'Most Played {mediaType}s of All Time',
-              value: 'Most Played {mediaType}s of All Time',
-            },
-            {
-              label: '▶️ Most Played {mediaType}s - All Time',
-              value: '▶️ Most Played {mediaType}s - All Time',
-            },
-            {
-              label: 'Top Played {mediaType}s Ever',
-              value: 'Top Played {mediaType}s Ever',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'watched_daily':
-          return [
-            {
-              label: 'Most Watched Today',
-              value: 'Most Watched Today',
-            },
-            {
-              label: 'Most Watched {mediaType}s Today',
-              value: 'Most Watched {mediaType}s Today',
-            },
-            {
-              label: '📺 Most Watched {mediaType}s - Daily',
-              value: '📺 Most Watched {mediaType}s - Daily',
-            },
-            {
-              label: 'Top Watched {mediaType}s Today',
-              value: 'Top Watched {mediaType}s Today',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'watched_weekly':
-          return [
-            {
-              label: 'Most Watched This Week',
-              value: 'Most Watched This Week',
-            },
-            {
-              label: 'Most Watched {mediaType}s This Week',
-              value: 'Most Watched {mediaType}s This Week',
-            },
-            {
-              label: '📺 Most Watched {mediaType}s - Weekly',
-              value: '📺 Most Watched {mediaType}s - Weekly',
-            },
-            {
-              label: 'Top Watched {mediaType}s This Week',
-              value: 'Top Watched {mediaType}s This Week',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'watched_monthly':
-          return [
-            {
-              label: 'Most Watched This Month',
-              value: 'Most Watched This Month',
-            },
-            {
-              label: 'Most Watched {mediaType}s This Month',
-              value: 'Most Watched {mediaType}s This Month',
-            },
-            {
-              label: '📺 Most Watched {mediaType}s - Monthly',
-              value: '📺 Most Watched {mediaType}s - Monthly',
-            },
-            {
-              label: 'Top Watched {mediaType}s This Month',
-              value: 'Top Watched {mediaType}s This Month',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'watched_all':
-          return [
-            {
-              label: 'Most Watched of All Time',
-              value: 'Most Watched of All Time',
-            },
-            {
-              label: 'Most Watched {mediaType}s of All Time',
-              value: 'Most Watched {mediaType}s of All Time',
-            },
-            {
-              label: '📺 Most Watched {mediaType}s - All Time',
-              value: '📺 Most Watched {mediaType}s - All Time',
-            },
-            {
-              label: 'Top Watched {mediaType}s Ever',
-              value: 'Top Watched {mediaType}s Ever',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'collected_daily':
-          return [
-            {
-              label: 'Most Collected Today',
-              value: 'Most Collected Today',
-            },
-            {
-              label: 'Most Collected {mediaType}s Today',
-              value: 'Most Collected {mediaType}s Today',
-            },
-            {
-              label: '📚 Most Collected {mediaType}s - Daily',
-              value: '📚 Most Collected {mediaType}s - Daily',
-            },
-            {
-              label: 'Top Collected {mediaType}s Today',
-              value: 'Top Collected {mediaType}s Today',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'collected_weekly':
-          return [
-            {
-              label: 'Most Collected This Week',
-              value: 'Most Collected This Week',
-            },
-            {
-              label: 'Most Collected {mediaType}s This Week',
-              value: 'Most Collected {mediaType}s This Week',
-            },
-            {
-              label: '📚 Most Collected {mediaType}s - Weekly',
-              value: '📚 Most Collected {mediaType}s - Weekly',
-            },
-            {
-              label: 'Top Collected {mediaType}s This Week',
-              value: 'Top Collected {mediaType}s This Week',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'collected_monthly':
-          return [
-            {
-              label: 'Most Collected This Month',
-              value: 'Most Collected This Month',
-            },
-            {
-              label: 'Most Collected {mediaType}s This Month',
-              value: 'Most Collected {mediaType}s This Month',
-            },
-            {
-              label: '📚 Most Collected {mediaType}s - Monthly',
-              value: '📚 Most Collected {mediaType}s - Monthly',
-            },
-            {
-              label: 'Top Collected {mediaType}s This Month',
-              value: 'Top Collected {mediaType}s This Month',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'collected_all':
-          return [
-            {
-              label: 'Most Collected of All Time',
-              value: 'Most Collected of All Time',
-            },
-            {
-              label: 'Most Collected {mediaType}s of All Time',
-              value: 'Most Collected {mediaType}s of All Time',
-            },
-            {
-              label: '📚 Most Collected {mediaType}s - All Time',
-              value: '📚 Most Collected {mediaType}s - All Time',
-            },
-            {
-              label: 'Top Collected {mediaType}s Ever',
-              value: 'Top Collected {mediaType}s Ever',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'favorited_daily':
-          return [
-            {
-              label: 'Most Favorited Today',
-              value: 'Most Favorited Today',
-            },
-            {
-              label: 'Most Favorited {mediaType}s Today',
-              value: 'Most Favorited {mediaType}s Today',
-            },
-            {
-              label: '⭐ Most Favorited {mediaType}s - Daily',
-              value: '⭐ Most Favorited {mediaType}s - Daily',
-            },
-            {
-              label: 'Top Favorited {mediaType}s Today',
-              value: 'Top Favorited {mediaType}s Today',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'favorited_weekly':
-          return [
-            {
-              label: 'Most Favorited This Week',
-              value: 'Most Favorited This Week',
-            },
-            {
-              label: 'Most Favorited {mediaType}s This Week',
-              value: 'Most Favorited {mediaType}s This Week',
-            },
-            {
-              label: '⭐ Most Favorited {mediaType}s - Weekly',
-              value: '⭐ Most Favorited {mediaType}s - Weekly',
-            },
-            {
-              label: 'Top Favorited {mediaType}s This Week',
-              value: 'Top Favorited {mediaType}s This Week',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'favorited_monthly':
-          return [
-            {
-              label: 'Most Favorited This Month',
-              value: 'Most Favorited This Month',
-            },
-            {
-              label: 'Most Favorited {mediaType}s This Month',
-              value: 'Most Favorited {mediaType}s This Month',
-            },
-            {
-              label: '⭐ Most Favorited {mediaType}s - Monthly',
-              value: '⭐ Most Favorited {mediaType}s - Monthly',
-            },
-            {
-              label: 'Top Favorited {mediaType}s This Month',
-              value: 'Top Favorited {mediaType}s This Month',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'favorited_all':
-          return [
-            {
-              label: 'Most Favorited of All Time',
-              value: 'Most Favorited of All Time',
-            },
-            {
-              label: 'Most Favorited {mediaType}s of All Time',
-              value: 'Most Favorited {mediaType}s of All Time',
-            },
-            {
-              label: '⭐ Most Favorited {mediaType}s - All Time',
-              value: '⭐ Most Favorited {mediaType}s - All Time',
-            },
-            {
-              label: 'Top Favorited {mediaType}s Ever',
-              value: 'Top Favorited {mediaType}s Ever',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'custom':
-          return getCustomUrlPresets(fetchedTitles?.trakt || '', 'trakt');
-        case 'random':
-          return [
-            {
-              label: 'Dynamic Title from Random List',
-              value: 'DYNAMIC_RANDOM_TITLE',
-            },
-            {
-              label: 'Random Trakt Collection',
-              value: 'Random Trakt Collection',
-            },
-            {
-              label: 'Random Trakt {mediaType}s',
-              value: 'Random Trakt {mediaType}s',
-            },
-            {
-              label: 'Curated {mediaType}s from Trakt',
-              value: 'Curated {mediaType}s from Trakt',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        default:
-          return [
-            {
-              label: 'Trakt Collection',
-              value: 'Trakt Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // MDBList collection presets
-    if (values.type === 'mdblist') {
-      switch (values.subtype) {
-        case 'user_lists':
-          return [
-            {
-              label: 'My Personal List',
-              value: 'My Personal List',
-            },
-            {
-              label: 'My {mediaType}s List',
-              value: 'My {mediaType}s List',
-            },
-            {
-              label: "{username}'s {mediaType}s",
-              value: "{username}'s {mediaType}s",
-            },
-            {
-              label: 'Personal {mediaType}s Collection',
-              value: 'Personal {mediaType}s Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'top_lists':
-          return [
-            {
-              label: 'Top Lists Collection',
-              value: 'Top Lists Collection',
-            },
-            {
-              label: 'Top {mediaType}s',
-              value: 'Top {mediaType}s',
-            },
-            {
-              label: '⭐ Popular {mediaType}s Lists',
-              value: '⭐ Popular {mediaType}s Lists',
-            },
-            {
-              label: 'Most Liked {mediaType}s',
-              value: 'Most Liked {mediaType}s',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'custom':
-          return getCustomUrlPresets(fetchedTitles?.mdblist || '', 'mdblist');
-        default:
-          return [{ label: 'Custom', value: 'custom' }];
-      }
-    }
-
-    // TMDB collection presets
-    if (values.type === 'tmdb') {
-      switch (values.subtype) {
-        case 'trending_day':
-          return [
-            {
-              label: 'Trending Today',
-              value: 'Trending Today',
-            },
-            {
-              label: 'Trending {mediaType}s Today',
-              value: 'Trending {mediaType}s Today',
-            },
-            {
-              label: 'Daily Trending {mediaType}s',
-              value: 'Daily Trending {mediaType}s',
-            },
-            {
-              label: 'Hot {mediaType}s Today',
-              value: 'Hot {mediaType}s Today',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'trending_week':
-          return [
-            {
-              label: 'Trending This Week',
-              value: 'Trending This Week',
-            },
-            {
-              label: 'Trending {mediaType}s This Week',
-              value: 'Trending {mediaType}s This Week',
-            },
-            {
-              label: 'Weekly Trending {mediaType}s',
-              value: 'Weekly Trending {mediaType}s',
-            },
-            {
-              label: 'Trending {mediaType}s Last 7 Days',
-              value: 'Trending {mediaType}s Last 7 Days',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'popular':
-          return [
-            {
-              label: 'Most Popular',
-              value: 'Most Popular',
-            },
-            {
-              label: 'Popular {mediaType}s',
-              value: 'Popular {mediaType}s',
-            },
-            {
-              label: 'Most Popular {mediaType}s',
-              value: 'Most Popular {mediaType}s',
-            },
-            {
-              label: 'Popular {mediaType}s Right Now',
-              value: 'Popular {mediaType}s Right Now',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'top_rated':
-          return [
-            {
-              label: 'Top Rated',
-              value: 'Top Rated',
-            },
-            {
-              label: 'Top Rated {mediaType}s',
-              value: 'Top Rated {mediaType}s',
-            },
-            {
-              label: 'Highest Rated {mediaType}s',
-              value: 'Highest Rated {mediaType}s',
-            },
-            {
-              label: 'Best {mediaType}s',
-              value: 'Best {mediaType}s',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'custom':
-          return getCustomUrlPresets(fetchedTitles?.tmdb || '', 'tmdb');
-        case 'random':
-          return [
-            {
-              label: 'Dynamic Title from Random List',
-              value: 'DYNAMIC_RANDOM_TITLE',
-            },
-            {
-              label: 'Random TMDB Collection',
-              value: 'Random TMDB Collection',
-            },
-            {
-              label: 'Random TMDB {mediaType}s',
-              value: 'Random TMDB {mediaType}s',
-            },
-            {
-              label: 'Curated {mediaType}s from TMDB',
-              value: 'Curated {mediaType}s from TMDB',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        default:
-          return [
-            {
-              label: 'TMDB Collection',
-              value: 'TMDB Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // IMDb collection presets
-    if (values.type === 'imdb') {
-      switch (values.subtype) {
-        case 'top_250':
-          return [
-            {
-              label: 'IMDb Top 250',
-              value: 'IMDb Top 250',
-            },
-            {
-              label: 'IMDb Top 250 {mediaType}s',
-              value: 'IMDb Top 250 {mediaType}s',
-            },
-            {
-              label: 'Best {mediaType}s of All Time',
-              value: 'Best {mediaType}s of All Time',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'popular':
-          return [
-            {
-              label: 'Popular from IMDb',
-              value: 'Popular from IMDb',
-            },
-            {
-              label: 'Popular {mediaType}s',
-              value: 'Popular {mediaType}s',
-            },
-            {
-              label: 'IMDb Popular {mediaType}s',
-              value: 'IMDb Popular {mediaType}s',
-            },
-            {
-              label: 'Currently Popular {mediaType}s',
-              value: 'Currently Popular {mediaType}s',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'most_popular':
-          return [
-            {
-              label: 'Most Popular from IMDb',
-              value: 'Most Popular from IMDb',
-            },
-            {
-              label: 'Most Popular {mediaType}s',
-              value: 'Most Popular {mediaType}s',
-            },
-            {
-              label: 'IMDb Most Popular {mediaType}s',
-              value: 'IMDb Most Popular {mediaType}s',
-            },
-            {
-              label: 'Hottest {mediaType}s Right Now',
-              value: 'Hottest {mediaType}s Right Now',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'custom':
-          return getCustomUrlPresets(fetchedTitles?.imdb || '', 'imdb');
-        case 'random':
-          return [
-            {
-              label: 'Dynamic Title from Random List',
-              value: 'DYNAMIC_RANDOM_TITLE',
-            },
-            {
-              label: 'Random IMDb Collection',
-              value: 'Random IMDb Collection',
-            },
-            {
-              label: 'Random IMDb {mediaType}s',
-              value: 'Random IMDb {mediaType}s',
-            },
-            {
-              label: 'Curated {mediaType}s from IMDb',
-              value: 'Curated {mediaType}s from IMDb',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        default:
-          return [
-            {
-              label: 'IMDb Collection',
-              value: 'IMDb Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // Networks collection presets
-    if (values.type === 'networks') {
-      if (values.subtype) {
-        // Get platform name from subtype for display
-        // Handle cases like "netflix_top_10" -> "Netflix"
-        // and "disney-plus" -> "Disney Plus"
-        const platformName = values.subtype
-          .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
-          .split('-') // Split on dashes
-          .map((word) => {
-            // Special case for TV to maintain proper capitalization
-            if (word.toLowerCase() === 'tv') {
-              return 'TV';
-            }
-            return word.charAt(0).toUpperCase() + word.slice(1);
-          })
-          .join(' ');
-
-        return [
-          {
-            label: `Popular on ${platformName}`,
-            value: `Popular on ${platformName}`,
-          },
-          {
-            label: `Top 10 {mediaType}s on ${platformName}`,
-            value: `Top 10 {mediaType}s on ${platformName}`,
-          },
-          {
-            label: `${platformName} Top 10 {mediaType}s`,
-            value: `${platformName} Top 10 {mediaType}s`,
-          },
-          {
-            label: `${platformName} Top {mediaType}s`,
-            value: `${platformName} Top {mediaType}s`,
-          },
-          {
-            label: `Top {mediaType}s on ${platformName}`,
-            value: `Top {mediaType}s on ${platformName}`,
-          },
-          {
-            label: `${platformName} Trending {mediaType}s`,
-            value: `${platformName} Trending {mediaType}s`,
-          },
-          {
-            label: `Best of ${platformName}`,
-            value: `Best of ${platformName}`,
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      } else {
-        // No platform selected yet
-        return [
-          {
-            label: 'Select a Platform First',
-            value: 'select-platform',
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      }
-    }
-
-    // Originals collection presets
-    if (values.type === 'originals') {
-      if (values.subtype) {
-        // Get platform name from subtype for display
-        // Handle cases like "netflix_originals" -> "Netflix"
-        // and "disney_originals" -> "Disney"
-        const platformName = values.subtype
-          .replace('_originals', '') // Remove "_originals" suffix
-          .split('_')[0] // Take first part before underscore
-          .split('-') // Split on dashes
-          .map((word) => {
-            // Special case for TV to maintain proper capitalization
-            if (word.toLowerCase() === 'tv') {
-              return 'TV';
-            }
-            return word.charAt(0).toUpperCase() + word.slice(1);
-          })
-          .join(' ');
-
-        return [
-          {
-            label: `${platformName} Originals`,
-            value: `${platformName} Originals`,
-          },
-          {
-            label: `${platformName} Original {mediaType}s`,
-            value: `${platformName} Original {mediaType}s`,
-          },
-          {
-            label: `Original {mediaType}s on ${platformName}`,
-            value: `Original {mediaType}s on ${platformName}`,
-          },
-          {
-            label: `${platformName} Exclusive {mediaType}s`,
-            value: `${platformName} Exclusive {mediaType}s`,
-          },
-          {
-            label: `Best ${platformName} Originals`,
-            value: `Best ${platformName} Originals`,
-          },
-          {
-            label: `${platformName} Originals Collection`,
-            value: `${platformName} Originals Collection`,
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      } else {
-        // No provider selected yet
-        return [
-          {
-            label: 'Select a Streaming Service First',
-            value: 'select-provider',
-          },
-          { label: 'Custom', value: 'custom' },
-        ];
-      }
-    }
-
-    // Letterboxd collection presets
-    if (values.type === 'letterboxd') {
-      switch (values.subtype) {
-        case 'custom':
-          return getCustomUrlPresets(
-            fetchedTitles?.letterboxd || '',
-            'letterboxd'
-          );
-        case 'random':
-          return [
-            {
-              label: 'Dynamic Title from Random List',
-              value: 'DYNAMIC_RANDOM_TITLE',
-            },
-            {
-              label: 'Random Letterboxd Collection',
-              value: 'Random Letterboxd Collection',
-            },
-            {
-              label: 'Random Letterboxd {mediaType}s',
-              value: 'Random Letterboxd {mediaType}s',
-            },
-            {
-              label: 'Curated {mediaType}s from Letterboxd',
-              value: 'Curated {mediaType}s from Letterboxd',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        default:
-          return [
-            {
-              label: 'Letterboxd Collection',
-              value: 'Letterboxd Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // AniList collection presets
-    if (values.type === 'anilist') {
-      switch (values.subtype) {
-        case 'trending':
-          return [
-            {
-              label: 'Trending Anime',
-              value: 'Trending Anime',
-            },
-            {
-              label: 'Trending Now on AniList',
-              value: 'Trending Now on AniList',
-            },
-            {
-              label: '🔥 Trending Anime',
-              value: '🔥 Trending Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'popular':
-          return [
-            {
-              label: 'Popular Anime',
-              value: 'Popular Anime',
-            },
-            {
-              label: 'Popular on AniList',
-              value: 'Popular on AniList',
-            },
-            {
-              label: 'Popular Anime',
-              value: 'Popular Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'top_rated':
-          return [
-            {
-              label: 'Top Rated Anime',
-              value: 'Top Rated Anime',
-            },
-            {
-              label: 'Highest Rated on AniList',
-              value: 'Highest Rated on AniList',
-            },
-            {
-              label: 'Top Rated Anime',
-              value: 'Top Rated Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'custom':
-          return getCustomUrlPresets(fetchedTitles?.anilist || '', 'anilist');
-        default:
-          return [
-            {
-              label: 'AniList Collection',
-              value: 'AniList Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // MyAnimeList collection presets
-    if (values.type === 'myanimelist') {
-      switch (values.subtype) {
-        case 'all':
-          return [
-            {
-              label: 'Top Anime Series',
-              value: 'Top Anime Series',
-            },
-            {
-              label: 'Top Anime on MyAnimeList',
-              value: 'Top Anime on MyAnimeList',
-            },
-            {
-              label: 'Highest Rated Anime',
-              value: 'Highest Rated Anime',
-            },
-            {
-              label: 'Top Anime',
-              value: 'Top Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'airing':
-          return [
-            {
-              label: 'Top Airing Anime',
-              value: 'Top Airing Anime',
-            },
-            {
-              label: 'Currently Airing - Top Rated',
-              value: 'Currently Airing - Top Rated',
-            },
-            {
-              label: 'Best Airing Shows',
-              value: 'Best Airing Shows',
-            },
-            {
-              label: 'Top Airing Anime',
-              value: 'Top Airing Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'tv':
-          return [
-            {
-              label: 'Top TV Series',
-              value: 'Top TV Series',
-            },
-            {
-              label: 'Top Anime TV Shows',
-              value: 'Top Anime TV Shows',
-            },
-            {
-              label: 'Best TV Anime',
-              value: 'Best TV Anime',
-            },
-            {
-              label: 'Top Anime Series',
-              value: 'Top Anime Series',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'movie':
-          return [
-            {
-              label: 'Top Anime Movies',
-              value: 'Top Anime Movies',
-            },
-            {
-              label: 'Best Anime Films',
-              value: 'Best Anime Films',
-            },
-            {
-              label: 'Highest Rated Anime Movies',
-              value: 'Highest Rated Anime Movies',
-            },
-            {
-              label: 'Top Anime Movies',
-              value: 'Top Anime Movies',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'ova':
-          return [
-            {
-              label: 'Top OVA Series',
-              value: 'Top OVA Series',
-            },
-            {
-              label: 'Best Anime OVAs',
-              value: 'Best Anime OVAs',
-            },
-            {
-              label: 'Highest Rated OVAs',
-              value: 'Highest Rated OVAs',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'special':
-          return [
-            {
-              label: 'Top Anime Specials',
-              value: 'Top Anime Specials',
-            },
-            {
-              label: 'Best Anime Specials',
-              value: 'Best Anime Specials',
-            },
-            {
-              label: 'Highest Rated Specials',
-              value: 'Highest Rated Specials',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'bypopularity':
-          return [
-            {
-              label: 'Most Popular Anime',
-              value: 'Most Popular Anime',
-            },
-            {
-              label: 'Popular on MyAnimeList',
-              value: 'Popular on MyAnimeList',
-            },
-            {
-              label: 'Fan Favorites',
-              value: 'Fan Favorites',
-            },
-            {
-              label: 'Most Popular Anime',
-              value: 'Most Popular Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        case 'favorite':
-          return [
-            {
-              label: 'Most Favorited Anime',
-              value: 'Most Favorited Anime',
-            },
-            {
-              label: 'Top Favorited on MyAnimeList',
-              value: 'Top Favorited on MyAnimeList',
-            },
-            {
-              label: 'Community Favorites',
-              value: 'Community Favorites',
-            },
-            {
-              label: 'Most Favorited Anime',
-              value: 'Most Favorited Anime',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-        default:
-          return [
-            {
-              label: 'MyAnimeList Collection',
-              value: 'MyAnimeList Collection',
-            },
-            { label: 'Custom', value: 'custom' },
-          ];
-      }
-    }
-
-    // Radarr Tag collection presets
-    if (values.type === 'radarrtag') {
-      return [
-        {
-          label: '{tagLabel} Movies',
-          value: '{tagLabel} Movies',
-        },
-        {
-          label: 'Radarr: {tagLabel}',
-          value: 'Radarr: {tagLabel}',
-        },
-        {
-          label: '{tagLabel} Collection',
-          value: '{tagLabel} Collection',
-        },
-        {
-          label: 'Movies Tagged: {tagLabel}',
-          value: 'Movies Tagged: {tagLabel}',
-        },
-        { label: 'Custom', value: 'custom' },
-      ];
-    }
-
-    // Sonarr Tag collection presets
-    if (values.type === 'sonarrtag') {
-      return [
-        {
-          label: '{tagLabel} TV Shows',
-          value: '{tagLabel} TV Shows',
-        },
-        {
-          label: 'Sonarr: {tagLabel}',
-          value: 'Sonarr: {tagLabel}',
-        },
-        {
-          label: '{tagLabel} Collection',
-          value: '{tagLabel} Collection',
-        },
-        {
-          label: 'Shows Tagged: {tagLabel}',
-          value: 'Shows Tagged: {tagLabel}',
-        },
-        { label: 'Custom', value: 'custom' },
-      ];
-    }
-
-    // Fallback for unknown types
-    return [
-      {
-        label: 'Collection',
-        value: 'Collection',
-      },
-      {
-        label: 'Overseerr Collection',
-        value: 'Overseerr Collection',
-      },
-      { label: 'Custom', value: 'custom' },
-    ];
-  };
-
-  // templatePresets will be calculated inside Formik render function
-
   // getVisibilityOptions will be defined inside the Formik render function
 
   // Validation is now handled by Yup schema
@@ -2328,6 +1034,21 @@ const CollectionFormConfigForm = ({
           maxItems: (config as CollectionFormConfig).maxItems || 50,
           minimumPlays: (config as CollectionFormConfig).minimumPlays || 3,
           customDays: (config as CollectionFormConfig).customDays || 30,
+          // Placeholder settings - map old Coming Soon fields for backward compatibility
+          createPlaceholdersForMissing:
+            (config as CollectionFormConfig).createPlaceholdersForMissing ??
+            (config as CollectionFormConfig).type === 'comingsoon', // Force true for Coming Soon
+          placeholderReleasedDays:
+            (config as CollectionFormConfig).placeholderReleasedDays ||
+            (config as CollectionFormConfig).comingSoonReleasedDays ||
+            14,
+          placeholderDaysAhead:
+            (config as CollectionFormConfig).placeholderDaysAhead ||
+            (config as CollectionFormConfig).comingSoonDays ||
+            90,
+          applyOverlaysDuringSync:
+            (config as CollectionFormConfig).applyOverlaysDuringSync ??
+            (config as CollectionFormConfig).type === 'comingsoon', // Default true for Coming Soon
           // Download mode settings
           enableGrabMissingItems:
             ((config as CollectionFormConfig).searchMissingMovies ||
@@ -2350,9 +1071,18 @@ const CollectionFormConfigForm = ({
           maxPositionToProcess:
             (config as CollectionFormConfig).maxPositionToProcess ?? 0,
           minimumYear: (config as CollectionFormConfig).minimumYear || 0,
+          minimumImdbRating:
+            (config as CollectionFormConfig).minimumImdbRating || 0,
+          minimumRottenTomatoesRating:
+            (config as CollectionFormConfig).minimumRottenTomatoesRating || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
+          excludedLanguages:
+            (config as CollectionFormConfig).excludedLanguages || [],
+          filterSettings: (config as CollectionFormConfig).filterSettings,
+          excludeFromCollections:
+            (config as CollectionFormConfig).excludeFromCollections || [],
           // Radarr/Sonarr tag configuration
           radarrInstanceId:
             (config as CollectionFormConfig).radarrInstanceId ?? undefined,
@@ -2372,6 +1102,12 @@ const CollectionFormConfigForm = ({
           directDownloadRadarrRootFolder:
             (config as CollectionFormConfig).directDownloadRadarrRootFolder ??
             undefined,
+          directDownloadRadarrTags:
+            (config as CollectionFormConfig).directDownloadRadarrTags ?? [],
+          directDownloadRadarrMonitor: (config as CollectionFormConfig)
+            .directDownloadRadarrMonitor,
+          directDownloadRadarrSearchOnAdd: (config as CollectionFormConfig)
+            .directDownloadRadarrSearchOnAdd,
           directDownloadSonarrServerId:
             (config as CollectionFormConfig).directDownloadSonarrServerId ??
             undefined,
@@ -2381,18 +1117,65 @@ const CollectionFormConfigForm = ({
           directDownloadSonarrRootFolder:
             (config as CollectionFormConfig).directDownloadSonarrRootFolder ??
             undefined,
+          directDownloadSonarrTags:
+            (config as CollectionFormConfig).directDownloadSonarrTags ?? [],
+          directDownloadSonarrMonitor: (config as CollectionFormConfig)
+            .directDownloadSonarrMonitor,
+          directDownloadSonarrSearchOnAdd: (config as CollectionFormConfig)
+            .directDownloadSonarrSearchOnAdd,
+          overseerrRadarrServerId:
+            (config as CollectionFormConfig).overseerrRadarrServerId ??
+            undefined,
+          overseerrRadarrProfileId:
+            (config as CollectionFormConfig).overseerrRadarrProfileId ??
+            undefined,
+          overseerrRadarrRootFolder:
+            (config as CollectionFormConfig).overseerrRadarrRootFolder ??
+            undefined,
+          overseerrRadarrTags:
+            (config as CollectionFormConfig).overseerrRadarrTags ?? [],
+          overseerrSonarrServerId:
+            (config as CollectionFormConfig).overseerrSonarrServerId ??
+            undefined,
+          overseerrSonarrProfileId:
+            (config as CollectionFormConfig).overseerrSonarrProfileId ??
+            undefined,
+          overseerrSonarrRootFolder:
+            (config as CollectionFormConfig).overseerrSonarrRootFolder ??
+            undefined,
+          overseerrSonarrTags:
+            (config as CollectionFormConfig).overseerrSonarrTags ?? [],
           visibilityConfig: {
             usersHome: config.visibilityConfig?.usersHome ?? false,
-            serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? true,
+            serverOwnerHome: config.visibilityConfig?.serverOwnerHome ?? false,
             libraryRecommended:
               config.visibilityConfig?.libraryRecommended ?? false,
           },
           randomizeHomeOrder:
             (config as CollectionFormConfig).randomizeHomeOrder ?? false,
           customPoster: (config as CollectionFormConfig).customPoster || '',
-          autoPoster: (config as CollectionFormConfig).autoPoster ?? true,
+          customWallpaper:
+            (config as CollectionFormConfig).customWallpaper || '',
+          customSummary: (config as CollectionFormConfig).customSummary || '',
+          customTheme: (config as CollectionFormConfig).customTheme || '',
+          // Enable flags for custom features (default to false)
+          enableCustomWallpaper:
+            (config as CollectionFormConfig).enableCustomWallpaper ?? false,
+          enableCustomSummary:
+            (config as CollectionFormConfig).enableCustomSummary ?? false,
+          enableCustomTheme:
+            (config as CollectionFormConfig).enableCustomTheme ?? false,
+          // Default autoPoster to false for pre-existing collections (they have their own posters),
+          // true for Agregarr-created collections
+          autoPoster:
+            (config as CollectionFormConfig).autoPoster ??
+            (isPreExisting ? false : true),
           autoPosterTemplate:
             (config as CollectionFormConfig).autoPosterTemplate ?? null,
+          useTmdbFranchisePoster:
+            (config as CollectionFormConfig).useTmdbFranchisePoster ?? false,
+          hideIndividualItems:
+            (config as CollectionFormConfig).hideIndividualItems ?? false,
           showUnwatchedOnly:
             (config as CollectionFormConfig).showUnwatchedOnly ?? false,
           smartCollectionSort:
@@ -2526,6 +1309,15 @@ const CollectionFormConfigForm = ({
           const directRadarrRootFolder = values.enableGrabMissingItems
             ? optionalString(values.directDownloadRadarrRootFolder)
             : undefined;
+          const directRadarrTags = values.enableGrabMissingItems
+            ? values.directDownloadRadarrTags
+            : undefined;
+          const directRadarrMonitor = values.enableGrabMissingItems
+            ? values.directDownloadRadarrMonitor
+            : undefined;
+          const directRadarrSearchOnAdd = values.enableGrabMissingItems
+            ? values.directDownloadRadarrSearchOnAdd
+            : undefined;
 
           const directSonarrServerId = values.enableGrabMissingItems
             ? optionalNumber(values.directDownloadSonarrServerId)
@@ -2535,6 +1327,41 @@ const CollectionFormConfigForm = ({
             : undefined;
           const directSonarrRootFolder = values.enableGrabMissingItems
             ? optionalString(values.directDownloadSonarrRootFolder)
+            : undefined;
+          const directSonarrTags = values.enableGrabMissingItems
+            ? values.directDownloadSonarrTags
+            : undefined;
+          const directSonarrMonitor = values.enableGrabMissingItems
+            ? values.directDownloadSonarrMonitor
+            : undefined;
+          const directSonarrSearchOnAdd = values.enableGrabMissingItems
+            ? values.directDownloadSonarrSearchOnAdd
+            : undefined;
+
+          const overseerrRadarrServerId = values.enableGrabMissingItems
+            ? optionalNumber(values.overseerrRadarrServerId)
+            : undefined;
+          const overseerrRadarrProfileId = values.enableGrabMissingItems
+            ? optionalNumber(values.overseerrRadarrProfileId)
+            : undefined;
+          const overseerrRadarrRootFolder = values.enableGrabMissingItems
+            ? optionalString(values.overseerrRadarrRootFolder)
+            : undefined;
+          const overseerrRadarrTags = values.enableGrabMissingItems
+            ? values.overseerrRadarrTags
+            : undefined;
+
+          const overseerrSonarrServerId = values.enableGrabMissingItems
+            ? optionalNumber(values.overseerrSonarrServerId)
+            : undefined;
+          const overseerrSonarrProfileId = values.enableGrabMissingItems
+            ? optionalNumber(values.overseerrSonarrProfileId)
+            : undefined;
+          const overseerrSonarrRootFolder = values.enableGrabMissingItems
+            ? optionalString(values.overseerrSonarrRootFolder)
+            : undefined;
+          const overseerrSonarrTags = values.enableGrabMissingItems
+            ? values.overseerrSonarrTags
             : undefined;
 
           const configToSave: CollectionFormConfig = {
@@ -2559,6 +1386,25 @@ const CollectionFormConfigForm = ({
             customDays: values.customDays
               ? parseInt(values.customDays.toString(), 10)
               : undefined,
+            // Placeholder settings (unified for all collection types including Coming Soon)
+            createPlaceholdersForMissing:
+              values.type === 'comingsoon'
+                ? true
+                : values.createPlaceholdersForMissing ?? false,
+            placeholderReleasedDays: values.createPlaceholdersForMissing
+              ? values.placeholderReleasedDays
+                ? parseInt(values.placeholderReleasedDays.toString(), 10)
+                : 14
+              : undefined,
+            placeholderDaysAhead: values.createPlaceholdersForMissing
+              ? values.placeholderDaysAhead
+                ? parseInt(values.placeholderDaysAhead.toString(), 10)
+                : 90
+              : undefined,
+            applyOverlaysDuringSync:
+              values.type === 'comingsoon'
+                ? true
+                : values.applyOverlaysDuringSync,
             minimumPlays: values.minimumPlays
               ? parseInt(values.minimumPlays.toString(), 10)
               : 3,
@@ -2596,6 +1442,16 @@ const CollectionFormConfigForm = ({
                 ? parseInt(values.minimumYear.toString(), 10)
                 : 0
               : undefined,
+            minimumImdbRating: values.enableGrabMissingItems
+              ? values.minimumImdbRating
+                ? parseFloat(values.minimumImdbRating.toString())
+                : 0
+              : undefined,
+            minimumRottenTomatoesRating: values.enableGrabMissingItems
+              ? values.minimumRottenTomatoesRating
+                ? parseFloat(values.minimumRottenTomatoesRating.toString())
+                : 0
+              : undefined,
             excludedGenres:
               values.enableGrabMissingItems && values.excludedGenres
                 ? values.excludedGenres
@@ -2604,13 +1460,36 @@ const CollectionFormConfigForm = ({
               values.enableGrabMissingItems && values.excludedCountries
                 ? values.excludedCountries
                 : undefined,
+            excludedLanguages:
+              values.enableGrabMissingItems && values.excludedLanguages
+                ? values.excludedLanguages
+                : undefined,
+            filterSettings:
+              values.enableGrabMissingItems && values.filterSettings
+                ? values.filterSettings
+                : undefined,
             // Direct download server selection
             directDownloadRadarrServerId: directRadarrServerId,
             directDownloadRadarrProfileId: directRadarrProfileId,
             directDownloadRadarrRootFolder: directRadarrRootFolder,
+            directDownloadRadarrTags: directRadarrTags,
+            directDownloadRadarrMonitor: directRadarrMonitor,
+            directDownloadRadarrSearchOnAdd: directRadarrSearchOnAdd,
             directDownloadSonarrServerId: directSonarrServerId,
             directDownloadSonarrProfileId: directSonarrProfileId,
             directDownloadSonarrRootFolder: directSonarrRootFolder,
+            directDownloadSonarrTags: directSonarrTags,
+            directDownloadSonarrMonitor: directSonarrMonitor,
+            directDownloadSonarrSearchOnAdd: directSonarrSearchOnAdd,
+            // Overseerr request configuration
+            overseerrRadarrServerId: overseerrRadarrServerId,
+            overseerrRadarrProfileId: overseerrRadarrProfileId,
+            overseerrRadarrRootFolder: overseerrRadarrRootFolder,
+            overseerrRadarrTags: overseerrRadarrTags,
+            overseerrSonarrServerId: overseerrSonarrServerId,
+            overseerrSonarrProfileId: overseerrSonarrProfileId,
+            overseerrSonarrRootFolder: overseerrSonarrRootFolder,
+            overseerrSonarrTags: overseerrSonarrTags,
             // Radarr/Sonarr tag configuration (explicitly preserve these fields)
             radarrInstanceId: values.radarrInstanceId,
             radarrTagId: values.radarrTagId,
@@ -2618,9 +1497,18 @@ const CollectionFormConfigForm = ({
             sonarrTagId: values.sonarrTagId,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
+            useTmdbFranchisePoster: values.useTmdbFranchisePoster,
+            hideIndividualItems: values.hideIndividualItems,
             showUnwatchedOnly: values.showUnwatchedOnly,
             smartCollectionSort: values.smartCollectionSort,
             randomizeHomeOrder: values.randomizeHomeOrder,
+            // Wallpaper, summary, and theme settings
+            customWallpaper: values.customWallpaper,
+            customSummary: values.customSummary,
+            customTheme: values.customTheme,
+            enableCustomWallpaper: values.enableCustomWallpaper,
+            enableCustomSummary: values.enableCustomSummary,
+            enableCustomTheme: values.enableCustomTheme,
             // Ensure customSyncSchedule is explicitly included
             customSyncSchedule: values.customSyncSchedule,
             // Remove UI-only fields from the final config
@@ -2677,15 +1565,22 @@ const CollectionFormConfigForm = ({
                       : 'Link'
                     : undefined
                 }
+                secondaryTooltip={linkingTooltip}
                 secondaryButtonType={isLinked ? 'warning' : 'primary'}
                 // Add preview button for collections (not hubs or pre-existing)
-                // Disable for overseerr individual user requests (type=overseerr, subtype=users)
+                // Disable for multi-collection patterns (overseerr users, tmdb franchise)
                 onTertiary={
                   isCollection &&
                   values.type &&
                   values.libraryIds &&
                   values.libraryIds.length > 0 &&
-                  !(values.type === 'overseerr' && values.subtype === 'users')
+                  !(
+                    values.type === 'overseerr' && values.subtype === 'users'
+                  ) &&
+                  !(
+                    values.type === 'tmdb' &&
+                    values.subtype === 'auto_franchise'
+                  )
                     ? () => setShowPreview(true)
                     : undefined
                 }
@@ -2694,7 +1589,13 @@ const CollectionFormConfigForm = ({
                   values.type &&
                   values.libraryIds &&
                   values.libraryIds.length > 0 &&
-                  !(values.type === 'overseerr' && values.subtype === 'users')
+                  !(
+                    values.type === 'overseerr' && values.subtype === 'users'
+                  ) &&
+                  !(
+                    values.type === 'tmdb' &&
+                    values.subtype === 'auto_franchise'
+                  )
                     ? intl.formatMessage(messages.previewCollection)
                     : undefined
                 }
@@ -2914,6 +1815,36 @@ const CollectionFormConfigForm = ({
                           </div>
                         )}
 
+                      {/* Simple explanation for TMDB Auto Franchise Collections */}
+                      {isCollection &&
+                        values.type === 'tmdb' &&
+                        values.subtype === 'auto_franchise' && (
+                          <div className="rounded-md border border-gray-500/20 bg-transparent p-4">
+                            <div className="flex">
+                              <svg
+                                className="mt-0.5 mr-3 h-5 w-5 flex-shrink-0 text-gray-400"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <div>
+                                <p className="text-sm text-gray-400">
+                                  Automatically discovers and creates a
+                                  collection for each movie franchise in your
+                                  library (e.g., Die Hard 1, 2, 3 → &quot;Die
+                                  Hard Collection&quot;). Only franchises with
+                                  2+ movies in your library will be created.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                       {/* Custom URL Section - show after type/subtype selection, before library selection */}
                       {isCollection && (
                         <CustomUrlSection
@@ -2946,6 +1877,8 @@ const CollectionFormConfigForm = ({
                                 ? hasSelectedRadarrTag
                                 : values.type === 'sonarrtag'
                                 ? hasSelectedSonarrTag
+                                : values.type === 'filtered_hub'
+                                ? true // recently_added doesn't require a subtype
                                 : values.subtype) && // Radarr/Sonarr tag collections require a tag instead of subtype
                               // For Trakt time-period subtypes, also require timePeriod to be selected
                               (values.type !== 'trakt' ||
@@ -3025,6 +1958,8 @@ const CollectionFormConfigForm = ({
                           ? hasSelectedRadarrTag
                           : values.type === 'sonarrtag'
                           ? hasSelectedSonarrTag
+                          : values.type === 'filtered_hub'
+                          ? true // recently_added doesn't require a subtype
                           : values.subtype) &&
                         (values.libraryIds?.length > 0 || values.libraryId) &&
                         (values.type !== 'tautulli' || values.customDays) &&
@@ -3068,6 +2003,7 @@ const CollectionFormConfigForm = ({
                                     isCollection &&
                                       values.type &&
                                       (values.type === 'multi-source' ||
+                                        values.type === 'filtered_hub' ||
                                         (values.type === 'radarrtag'
                                           ? hasSelectedRadarrTag
                                           : values.type === 'sonarrtag'
@@ -3080,72 +2016,55 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Item Order - only for external sources that support ordering */}
-                            {values.type === 'trakt' && (
-                              <div className="form-row">
-                                <label
-                                  htmlFor="itemOrder"
-                                  className="text-label"
-                                >
-                                  Item Order
-                                </label>
-                                <div className="form-input-area">
-                                  <div className="form-input-field">
-                                    <Field
-                                      as="select"
-                                      id="itemOrder"
-                                      name="itemOrder"
-                                      value={(() => {
-                                        if (
+                            {/* Item Order - available for all collection types except multi-source and recently_added */}
+                            {values.type !== 'multi-source' &&
+                              values.type !== 'filtered_hub' && (
+                                <div className="form-row">
+                                  <label
+                                    htmlFor="sortOrder"
+                                    className="text-label"
+                                  >
+                                    Item Order
+                                  </label>
+                                  <div className="form-input-area">
+                                    <div className="form-input-field">
+                                      <Field
+                                        as="select"
+                                        id="sortOrder"
+                                        name="sortOrder"
+                                        value={
                                           (values as CollectionFormConfig)
-                                            .randomizeOrder
-                                        )
-                                          return 'random';
-                                        if (
-                                          (values as CollectionFormConfig)
-                                            .reverseOrder
-                                        )
-                                          return 'reverse';
-                                        return 'default';
-                                      })()}
-                                      onChange={(
-                                        e: React.ChangeEvent<HTMLSelectElement>
-                                      ) => {
-                                        const selectedValue = e.target.value;
-                                        if (selectedValue === 'random') {
-                                          setFieldValue('randomizeOrder', true);
-                                          setFieldValue('reverseOrder', false);
-                                        } else if (
-                                          selectedValue === 'reverse'
-                                        ) {
-                                          setFieldValue(
-                                            'randomizeOrder',
-                                            false
-                                          );
-                                          setFieldValue('reverseOrder', true);
-                                        } else {
-                                          setFieldValue(
-                                            'randomizeOrder',
-                                            false
-                                          );
-                                          setFieldValue('reverseOrder', false);
+                                            .sortOrder || 'default'
                                         }
-                                      }}
-                                    >
-                                      <option value="default">
-                                        Default order (as provided by source)
-                                      </option>
-                                      <option value="reverse">
-                                        Reverse order
-                                      </option>
-                                      <option value="random">
-                                        Random order (shuffled each sync)
-                                      </option>
-                                    </Field>
+                                        onChange={(
+                                          e: React.ChangeEvent<HTMLSelectElement>
+                                        ) => {
+                                          setFieldValue(
+                                            'sortOrder',
+                                            e.target.value
+                                          );
+                                        }}
+                                      >
+                                        <option value="default">
+                                          Default order (as provided by source)
+                                        </option>
+                                        <option value="reverse">
+                                          Reverse order
+                                        </option>
+                                        <option value="random">
+                                          Random order (shuffled each sync)
+                                        </option>
+                                        <option value="imdb_rating_desc">
+                                          IMDb Rating (Highest to Lowest)
+                                        </option>
+                                        <option value="imdb_rating_asc">
+                                          IMDb Rating (Lowest to Highest)
+                                        </option>
+                                      </Field>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
                             {/* Collection Visibility */}
                             <div className="form-row">
@@ -3157,8 +2076,10 @@ const CollectionFormConfigForm = ({
                                   isEnhancedForm={false}
                                   isDefaultPlexHub={isHub}
                                   restrictToLibraryOnly={
-                                    values.type === 'overseerr' &&
-                                    values.subtype === 'users'
+                                    (values.type === 'overseerr' &&
+                                      values.subtype === 'users') ||
+                                    (values.type === 'tmdb' &&
+                                      values.subtype === 'auto_franchise')
                                   }
                                   restrictToServerOwnerOnly={
                                     values.type === 'overseerr' &&
@@ -3218,102 +2139,115 @@ const CollectionFormConfigForm = ({
                                 )}
                                 <div className="label-tip">
                                   Limit the Collection to this many items
+                                  {values.type === 'filtered_hub' &&
+                                    ' (applies to smart collection)'}
                                 </div>
                               </div>
                             </div>
 
                             {/* Smart Collection - Show Unwatched Only */}
-                            <div className="form-row">
-                              <label className="text-label">
-                                {intl.formatMessage(messages.showUnwatchedOnly)}
-                              </label>
-                              <div className="form-input-area">
-                                <div className="flex items-center">
-                                  <Field
-                                    type="checkbox"
-                                    id="showUnwatchedOnly"
-                                    name="showUnwatchedOnly"
-                                    className="form-checkbox"
-                                  />
-                                  <label
-                                    htmlFor="showUnwatchedOnly"
-                                    className="ml-2 text-sm text-gray-300"
-                                  >
+                            {/* Hide for: recently_added (already smart), and tmdb auto_franchise (multi-collection) */}
+                            {values.type !== 'filtered_hub' &&
+                              !(
+                                values.type === 'tmdb' &&
+                                values.subtype === 'auto_franchise'
+                              ) && (
+                                <div className="form-row">
+                                  <label className="text-label">
                                     {intl.formatMessage(
-                                      messages.showUnwatchedOnlyDescription
+                                      messages.showUnwatchedOnly
                                     )}
                                   </label>
-                                </div>
-                                <div className="mt-2 text-xs text-gray-400">
-                                  When enabled, creates a smart collection with
-                                  the unwatched filter to show only unwatched
-                                  items for the user viewing the collection. The
-                                  original collection will be pushed to the
-                                  bottom in the Collections Tab.
-                                </div>
-                                {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
-                                {values.showUnwatchedOnly && (
-                                  <div className="form-row">
-                                    <label
-                                      htmlFor="smartCollectionSort"
-                                      className="text-label"
-                                    >
-                                      {intl.formatMessage(
-                                        messages.smartCollectionSort
-                                      )}
-                                    </label>
-                                    <div className="form-input-area">
-                                      <div className="form-input-field">
-                                        <Field
-                                          as="select"
-                                          id="smartCollectionSort"
-                                          name="smartCollectionSort"
-                                          value={
-                                            values.smartCollectionSort?.value ||
-                                            SMART_COLLECTION_SORT_OPTIONS[5]
-                                              .value // Default to release date (newest first)
-                                          }
-                                          onChange={(
-                                            e: React.ChangeEvent<HTMLSelectElement>
-                                          ) => {
-                                            const selectedOption =
-                                              SMART_COLLECTION_SORT_OPTIONS.find(
-                                                (option) =>
-                                                  option.value ===
-                                                  e.target.value
-                                              );
-                                            if (selectedOption) {
-                                              setFieldValue(
-                                                'smartCollectionSort',
-                                                selectedOption
-                                              );
-                                            }
-                                          }}
-                                        >
-                                          {SMART_COLLECTION_SORT_OPTIONS.map(
-                                            (option) => (
-                                              <option
-                                                key={option.value}
-                                                value={option.value}
-                                              >
-                                                {option.label}
-                                              </option>
-                                            )
-                                          )}
-                                        </Field>
-                                      </div>
-                                      <div className="mt-2 text-xs text-gray-400">
-                                        Choose how items in the smart collection
-                                        should be sorted. Due to Plex
-                                        limiations, the original list order
-                                        cannot be preserved when using smart
-                                        collections.
-                                      </div>
+                                  <div className="form-input-area">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="showUnwatchedOnly"
+                                        name="showUnwatchedOnly"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="showUnwatchedOnly"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.showUnwatchedOnlyDescription
+                                        )}
+                                      </label>
                                     </div>
+                                    <div className="mt-2 text-xs text-gray-400">
+                                      When enabled, creates a smart collection
+                                      with the unwatched filter to show only
+                                      unwatched items for the user viewing the
+                                      collection. The original collection will
+                                      be pushed to the bottom in the Collections
+                                      Tab.
+                                    </div>
+                                    {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
+                                    {values.showUnwatchedOnly && (
+                                      <div className="form-row">
+                                        <label
+                                          htmlFor="smartCollectionSort"
+                                          className="text-label"
+                                        >
+                                          {intl.formatMessage(
+                                            messages.smartCollectionSort
+                                          )}
+                                        </label>
+                                        <div className="form-input-area">
+                                          <div className="form-input-field">
+                                            <Field
+                                              as="select"
+                                              id="smartCollectionSort"
+                                              name="smartCollectionSort"
+                                              value={
+                                                values.smartCollectionSort
+                                                  ?.value ||
+                                                SMART_COLLECTION_SORT_OPTIONS[5]
+                                                  .value // Default to release date (newest first)
+                                              }
+                                              onChange={(
+                                                e: React.ChangeEvent<HTMLSelectElement>
+                                              ) => {
+                                                const selectedOption =
+                                                  SMART_COLLECTION_SORT_OPTIONS.find(
+                                                    (option) =>
+                                                      option.value ===
+                                                      e.target.value
+                                                  );
+                                                if (selectedOption) {
+                                                  setFieldValue(
+                                                    'smartCollectionSort',
+                                                    selectedOption
+                                                  );
+                                                }
+                                              }}
+                                            >
+                                              {SMART_COLLECTION_SORT_OPTIONS.map(
+                                                (option) => (
+                                                  <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                  >
+                                                    {option.label}
+                                                  </option>
+                                                )
+                                              )}
+                                            </Field>
+                                          </div>
+                                          <div className="mt-2 text-xs text-gray-400">
+                                            Choose how items in the smart
+                                            collection should be sorted. Due to
+                                            Plex limiations, the original list
+                                            order cannot be preserved when using
+                                            smart collections.
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            </div>
+                                </div>
+                              )}
 
                             {/* Custom Poster Section */}
                             {isCollection &&
@@ -3344,6 +2278,133 @@ const CollectionFormConfigForm = ({
                                 </div>
                               )}
 
+                            {/* Wallpapers and Theme - only for collections and pre-existing, not hubs */}
+                            {!isHub && (
+                              <div className="form-row">
+                                <label className="text-label">
+                                  {intl.formatMessage(
+                                    messages.wallpapersAndTheme
+                                  )}
+                                </label>
+                                <div className="form-input-area">
+                                  {/* Enable Wallpaper Checkbox */}
+                                  <div className="mb-4">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="enableCustomWallpaper"
+                                        name="enableCustomWallpaper"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="enableCustomWallpaper"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.enableCustomWallpaper
+                                        )}
+                                      </label>
+                                    </div>
+                                    {values.enableCustomWallpaper &&
+                                      (values.libraryIds?.length > 0 ||
+                                        values.libraryId) && (
+                                        <div className="mt-3">
+                                          <WallpaperUploadSection
+                                            values={
+                                              typedValues as CollectionFormConfig
+                                            }
+                                            setFieldValue={setFieldValue}
+                                            addToast={addToast}
+                                            fieldId="customWallpaper"
+                                            libraries={libraries}
+                                            selectedLibraryIds={
+                                              values.libraryIds || []
+                                            }
+                                          />
+                                        </div>
+                                      )}
+                                  </div>
+
+                                  {/* Enable Summary Checkbox */}
+                                  <div className="mb-4">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="enableCustomSummary"
+                                        name="enableCustomSummary"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="enableCustomSummary"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.enableCustomSummary
+                                        )}
+                                      </label>
+                                    </div>
+                                    {values.enableCustomSummary && (
+                                      <div className="mt-3">
+                                        <Field
+                                          as="textarea"
+                                          id="customSummary"
+                                          name="customSummary"
+                                          rows={4}
+                                          className="w-full resize-none rounded-md border border-stone-600 bg-stone-800 px-3 py-2 text-sm text-white placeholder-stone-400 focus:border-orange-500 focus:outline-none"
+                                          placeholder={intl.formatMessage(
+                                            messages.customSummaryPlaceholder
+                                          )}
+                                        />
+                                        <div className="label-tip mt-1">
+                                          {intl.formatMessage(
+                                            messages.customSummaryHelp
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Enable Theme Checkbox */}
+                                  <div className="mb-4">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="enableCustomTheme"
+                                        name="enableCustomTheme"
+                                        className="form-checkbox"
+                                      />
+                                      <label
+                                        htmlFor="enableCustomTheme"
+                                        className="ml-2 text-sm text-gray-300"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.enableCustomTheme
+                                        )}
+                                      </label>
+                                    </div>
+                                    {values.enableCustomTheme &&
+                                      (values.libraryIds?.length > 0 ||
+                                        values.libraryId) && (
+                                        <div className="mt-3">
+                                          <ThemeUploadSection
+                                            values={
+                                              typedValues as CollectionFormConfig
+                                            }
+                                            setFieldValue={setFieldValue}
+                                            addToast={addToast}
+                                            fieldId="customTheme"
+                                            libraries={libraries}
+                                            selectedLibraryIds={
+                                              values.libraryIds || []
+                                            }
+                                          />
+                                        </div>
+                                      )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             <div className="form-row">
                               <label
                                 htmlFor="timeRestrictions"
@@ -3362,10 +2423,274 @@ const CollectionFormConfigForm = ({
                               </div>
                             </div>
 
-                            {/* Auto-Request Settings - only show for external sources */}
+                            {/* Collection Mutual Exclusion - only for Agregarr-created collections */}
+                            {isCollection && (
+                              <CollectionExclusionSection
+                                values={typedValues as CollectionFormConfig}
+                                setFieldValue={setFieldValue}
+                                allCollectionConfigs={
+                                  allCollectionConfigs || []
+                                }
+                              />
+                            )}
+
+                            {/* Placeholder Creation - show for external sources that can have missing items */}
+                            {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
-                              typedValues.type !== 'tautulli' && (
+                              typedValues.type !== 'tautulli' &&
+                              typedValues.type !== 'filtered_hub' &&
+                              !(
+                                typedValues.type === 'tmdb' &&
+                                typedValues.subtype === 'auto_franchise'
+                              ) && (
+                                <div className="form-row">
+                                  <label
+                                    htmlFor="createPlaceholdersForMissing"
+                                    className="text-label"
+                                  >
+                                    Placeholder Creation
+                                  </label>
+                                  <div className="form-input-area">
+                                    <div className="flex items-center">
+                                      <Field
+                                        type="checkbox"
+                                        id="createPlaceholdersForMissing"
+                                        name="createPlaceholdersForMissing"
+                                        className={`form-checkbox ${
+                                          typedValues.type === 'comingsoon'
+                                            ? 'cursor-not-allowed opacity-50'
+                                            : ''
+                                        }`}
+                                        checked={
+                                          typedValues.type === 'comingsoon'
+                                            ? true
+                                            : typedValues.createPlaceholdersForMissing
+                                        }
+                                        disabled={
+                                          typedValues.type === 'comingsoon'
+                                        }
+                                      />
+                                      <span
+                                        className={`ml-2 text-sm ${
+                                          typedValues.type === 'comingsoon'
+                                            ? 'text-gray-500'
+                                            : 'text-gray-300'
+                                        }`}
+                                      >
+                                        Create placeholders for missing items
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-400">
+                                      Creates placeholder files in Plex for
+                                      items not yet available, with countdown
+                                      overlays showing release dates.
+                                    </p>
+
+                                    {/* Warning when placeholder creation enabled but no root folders configured */}
+                                    {typedValues.createPlaceholdersForMissing &&
+                                      !settingsData?.placeholderMovieRootFolder &&
+                                      !settingsData?.placeholderTVRootFolder && (
+                                        <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
+                                          <div className="flex">
+                                            <div className="flex-shrink-0">
+                                              <svg
+                                                className="h-4 w-4 text-yellow-400"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                                aria-hidden="true"
+                                              >
+                                                <path
+                                                  fillRule="evenodd"
+                                                  d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                                                  clipRule="evenodd"
+                                                />
+                                              </svg>
+                                            </div>
+                                            <div className="ml-2 flex-1">
+                                              <p className="text-xs font-medium text-yellow-300">
+                                                {intl.formatMessage(
+                                                  messages.placeholderRootFoldersRequired
+                                                )}
+                                              </p>
+                                              <p className="mt-1 text-xs text-yellow-200">
+                                                {intl.formatMessage(
+                                                  messages.placeholderRootFoldersMessage
+                                                )}
+                                              </p>
+                                              <div className="mt-2">
+                                                <a
+                                                  href="/settings/downloads"
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                                >
+                                                  {intl.formatMessage(
+                                                    messages.configureDownloads
+                                                  )}
+                                                  <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                                </a>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                    {/* Placeholder options - show when enabled */}
+                                    {typedValues.createPlaceholdersForMissing && (
+                                      <div className="mt-4 flex gap-4 rounded-lg bg-stone-800 p-4">
+                                        <div className="flex-1">
+                                          <label
+                                            htmlFor="placeholderDaysAhead"
+                                            className="block text-sm font-medium text-gray-300"
+                                          >
+                                            Days Ahead
+                                          </label>
+                                          <Field
+                                            type="number"
+                                            id="placeholderDaysAhead"
+                                            name="placeholderDaysAhead"
+                                            min="1"
+                                            max="730"
+                                            placeholder="360"
+                                            className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
+                                          />
+                                          <p className="mt-1 text-xs text-gray-400">
+                                            Create placeholders for items
+                                            releasing within this many days
+                                          </p>
+                                        </div>
+                                        <div className="flex-1">
+                                          <label
+                                            htmlFor="placeholderReleasedDays"
+                                            className="block text-sm font-medium text-gray-300"
+                                          >
+                                            Orphaned Item Window
+                                          </label>
+                                          <Field
+                                            type="number"
+                                            id="placeholderReleasedDays"
+                                            name="placeholderReleasedDays"
+                                            min="0"
+                                            max="30"
+                                            placeholder="7"
+                                            className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
+                                          />
+                                          <p className="mt-1 text-xs text-gray-400">
+                                            Days to keep placeholders after they
+                                            fall off the source list (from
+                                            release date if released, otherwise
+                                            from creation date)
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Warning when placeholders + overlays enabled but no overlay configs exist */}
+                            {typedValues.createPlaceholdersForMissing &&
+                              (typedValues.applyOverlaysDuringSync ||
+                                typedValues.type === 'comingsoon') &&
+                              (() => {
+                                // Find libraries without overlay configurations
+                                const selectedLibraryIds =
+                                  typedValues.libraryIds || [];
+                                const librariesWithoutOverlays =
+                                  selectedLibraryIds.filter((libId) => {
+                                    const config = overlayConfigs.find(
+                                      (c) => c.libraryId === libId
+                                    );
+                                    return (
+                                      !config ||
+                                      config.enabledOverlays.filter(
+                                        (o) => o.enabled
+                                      ).length === 0
+                                    );
+                                  });
+
+                                if (librariesWithoutOverlays.length === 0) {
+                                  return null;
+                                }
+
+                                const libraryNames = librariesWithoutOverlays
+                                  .map((libId) => {
+                                    const lib = libraries?.find(
+                                      (l) => l.key === libId
+                                    );
+                                    return lib?.name || 'Unknown';
+                                  })
+                                  .join(', ');
+
+                                return (
+                                  <div className="form-row">
+                                    <div className="form-input-area">
+                                      <div className="rounded-md bg-orange-900 bg-opacity-30 p-4 ring-1 ring-orange-500">
+                                        <div className="flex">
+                                          <div className="flex-shrink-0">
+                                            <svg
+                                              className="h-5 w-5 text-orange-400"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              viewBox="0 0 20 20"
+                                              fill="currentColor"
+                                              aria-hidden="true"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          </div>
+                                          <div className="ml-3 flex-1">
+                                            <h3 className="text-sm font-medium text-orange-300">
+                                              {intl.formatMessage(
+                                                messages.overlayConfigWarningTitle
+                                              )}
+                                            </h3>
+                                            <div className="mt-2 text-sm text-orange-200">
+                                              <p>
+                                                {intl.formatMessage(
+                                                  messages.overlayConfigWarningMessage,
+                                                  {
+                                                    libraryNames,
+                                                  }
+                                                )}
+                                              </p>
+                                            </div>
+                                            <div className="mt-3">
+                                              <a
+                                                href="/posters"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                              >
+                                                {intl.formatMessage(
+                                                  messages.configureOverlays
+                                                )}
+                                                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                              </a>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                            {/* Auto-Request Settings - only show for external sources */}
+                            {/* Hide for: overseerr, tautulli, recently_added, and tmdb auto_franchise */}
+                            {typedValues.type &&
+                              typedValues.type !== 'overseerr' &&
+                              typedValues.type !== 'tautulli' &&
+                              typedValues.type !== 'filtered_hub' &&
+                              !(
+                                typedValues.type === 'tmdb' &&
+                                typedValues.subtype === 'auto_franchise'
+                              ) && (
                                 <div className="form-row">
                                   <label className="text-label">
                                     {intl.formatMessage(
@@ -3489,8 +2814,137 @@ const CollectionFormConfigForm = ({
                                       ? [values.libraryId]
                                       : []
                                   }
-                                  isAgregarrCollection={false}
+                                  isAgregarrCollection={true}
                                 />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Wallpapers and Theme - Only for pre-existing collections, NOT for default Plex hubs */}
+                          {isPreExisting && (
+                            <div className="form-row">
+                              <label className="text-label">
+                                {intl.formatMessage(
+                                  messages.wallpapersAndTheme
+                                )}
+                              </label>
+                              <div className="form-input-area">
+                                {/* Enable Wallpaper Checkbox */}
+                                <div>
+                                  <div className="mb-4 flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="enableCustomWallpaper"
+                                      name="enableCustomWallpaper"
+                                      className="form-checkbox"
+                                    />
+                                    <label
+                                      htmlFor="enableCustomWallpaper"
+                                      className="ml-2 text-sm text-gray-300"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.enableCustomWallpaper
+                                      )}
+                                    </label>
+                                  </div>
+                                  {values.enableCustomWallpaper &&
+                                    values.libraryId && (
+                                      <div className="mb-4">
+                                        <WallpaperUploadSection
+                                          values={
+                                            typedValues as CollectionFormConfig
+                                          }
+                                          setFieldValue={setFieldValue}
+                                          addToast={addToast}
+                                          fieldId="customWallpaper"
+                                          libraries={libraries}
+                                          selectedLibraryIds={
+                                            values.libraryId
+                                              ? [values.libraryId]
+                                              : []
+                                          }
+                                        />
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Enable Theme Checkbox */}
+                                <div>
+                                  <div className="mb-4 flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="enableCustomTheme"
+                                      name="enableCustomTheme"
+                                      className="form-checkbox"
+                                    />
+                                    <label
+                                      htmlFor="enableCustomTheme"
+                                      className="ml-2 text-sm text-gray-300"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.enableCustomTheme
+                                      )}
+                                    </label>
+                                  </div>
+                                  {values.enableCustomTheme &&
+                                    values.libraryId && (
+                                      <div className="mb-4">
+                                        <ThemeUploadSection
+                                          values={
+                                            typedValues as CollectionFormConfig
+                                          }
+                                          setFieldValue={setFieldValue}
+                                          addToast={addToast}
+                                          fieldId="customTheme"
+                                          libraries={libraries}
+                                          selectedLibraryIds={
+                                            values.libraryId
+                                              ? [values.libraryId]
+                                              : []
+                                          }
+                                        />
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Enable Summary Checkbox */}
+                                <div>
+                                  <div className="mb-4 flex items-center">
+                                    <Field
+                                      type="checkbox"
+                                      id="enableCustomSummary"
+                                      name="enableCustomSummary"
+                                      className="form-checkbox"
+                                    />
+                                    <label
+                                      htmlFor="enableCustomSummary"
+                                      className="ml-2 text-sm text-gray-300"
+                                    >
+                                      {intl.formatMessage(
+                                        messages.enableCustomSummary
+                                      )}
+                                    </label>
+                                  </div>
+                                  {values.enableCustomSummary && (
+                                    <div>
+                                      <Field
+                                        as="textarea"
+                                        id="customSummary"
+                                        name="customSummary"
+                                        rows={4}
+                                        className="w-full resize-none rounded-md border border-stone-600 bg-stone-800 px-3 py-2 text-sm text-white placeholder-stone-400 focus:border-orange-500 focus:outline-none"
+                                        placeholder={intl.formatMessage(
+                                          messages.customSummaryPlaceholder
+                                        )}
+                                      />
+                                      <div className="label-tip mt-1">
+                                        {intl.formatMessage(
+                                          messages.customSummaryHelp
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
@@ -3520,7 +2974,7 @@ const CollectionFormConfigForm = ({
                               customTVTemplate: 'Custom TV Template',
                               traktCustomListUrl: 'Trakt List URL',
                               tmdbCustomCollectionUrl:
-                                'TMDB Collection/List URL',
+                                'TMDB Collection/List/Network/Company URL',
                               imdbCustomListUrl: 'IMDb List URL',
                               anilistCustomListUrl: 'AniList List URL',
                               letterboxdCustomListUrl: 'Letterboxd List URL',
@@ -3584,7 +3038,7 @@ const CollectionFormConfigForm = ({
                                 | string
                                 | undefined)
                             : values.type === 'tmdb'
-                            ? (valuesRecord.tmdbCustomListUrl as
+                            ? (valuesRecord.tmdbCustomCollectionUrl as
                                 | string
                                 | undefined)
                             : values.type === 'imdb'

@@ -19,13 +19,23 @@ import type { AvailableCacheIds } from '@server/lib/cache';
 import cacheManager from '@server/lib/cache';
 // ImageProxy removed - not needed for collections-only app
 // Plex scanner import removed - not needed for collections-only app
-import type { JobId, MainSettings } from '@server/lib/settings';
+import type {
+  JobId,
+  MainSettings,
+  WatchlistSyncSettings,
+} from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 // Discover settings routes removed - discovery functionality not needed in Agregarr
 import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
+import parser from 'cron-parser';
+import type { Request } from 'express';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import fs from 'fs';
@@ -48,6 +58,11 @@ const filteredMainSettings = (
 ): Partial<MainSettings> => {
   // Permission system removed - all authenticated users get full settings
   return main;
+};
+
+const getTraktRedirectUri = (req?: Request) => {
+  const settings = getSettings();
+  return buildTraktRedirectUri(settings, req);
 };
 
 settingsRoutes.get('/main', (req, res, next) => {
@@ -260,7 +275,10 @@ settingsRoutes.get('/plex/library', async (req, res) => {
       select: { id: true, plexToken: true },
       where: { id: 1 },
     });
-    const plexapi = new PlexAPI({ plexToken: admin.plexToken });
+    const plexapi = new PlexAPI({
+      plexToken: admin.plexToken,
+      timeout: 30000, // 30 second timeout
+    });
 
     await plexapi.syncLibraries();
   }
@@ -283,6 +301,10 @@ settingsRoutes.get('/plex/libraries', async (req, res) => {
     }
 
     const plexapi = new PlexAPI({ plexToken: admin.plexToken });
+
+    // Sync libraries to settings so they're available for collection operations
+    await plexapi.syncLibraries();
+
     const allLibraries = await plexapi.getLibraries();
     // Filter to only movie and show libraries
     const libraries = allLibraries.filter(
@@ -556,21 +578,50 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
   const startTime = Date.now();
 
   try {
-    const { apiKey } = req.body;
+    const settings = getSettings();
+    const { clientId, clientSecret, accessToken, refreshToken } = {
+      clientId:
+        req.body.clientId || settings.trakt.clientId || settings.trakt.apiKey,
+      clientSecret: req.body.clientSecret || settings.trakt.clientSecret,
+      accessToken: req.body.accessToken || settings.trakt.accessToken,
+      refreshToken: req.body.refreshToken || settings.trakt.refreshToken,
+    };
+    const redirectUri = getTraktRedirectUri(req);
 
-    if (!apiKey) {
+    if (!clientId) {
       return next({
         status: 400,
-        message: 'API key is required',
+        message: 'Client ID is required',
       });
     }
 
+    // Determine mode: Basic (clientId only) or OAuth (full auth)
+    const isOAuthMode = !!(clientSecret && accessToken);
+
     logger.debug('Trakt connection test requested', {
       label: 'Trakt Connection',
-      apiKeyLength: apiKey.length,
+      mode: isOAuthMode ? 'OAuth' : 'Basic',
+      clientIdLength: String(clientId).length,
+      hasAccessToken: !!accessToken,
+      hasClientSecret: !!clientSecret,
     });
 
-    const traktClient = new TraktAPI(apiKey);
+    let traktClient: TraktAPI;
+    if (isOAuthMode) {
+      // OAuth mode: full authentication
+      traktClient = new TraktAPI({
+        clientId,
+        accessToken,
+        clientSecret,
+        refreshToken,
+        tokenExpiresAt: settings.trakt.tokenExpiresAt,
+        redirectUri,
+        onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+      });
+    } else {
+      // Basic mode: clientId only (for public endpoints)
+      traktClient = new TraktAPI(clientId);
+    }
     await traktClient.testConnection();
 
     logger.info('Trakt connection test successful', {
@@ -591,7 +642,8 @@ settingsRoutes.post('/trakt/test', async (req, res, next) => {
       status = e.response.status;
 
       if (status === 401 || status === 403) {
-        message = 'Invalid API key - Authentication failed';
+        message =
+          'Invalid client credentials or access token - Authentication failed';
       } else if (status === 404) {
         message = 'Trakt API endpoint not found';
       } else if (status === 429) {
@@ -926,15 +978,31 @@ settingsRoutes.get(
 
 settingsRoutes.get('/jobs', (_req, res) => {
   return res.status(200).json(
-    scheduledJobs.map((job) => ({
-      id: job.id,
-      name: job.name,
-      type: job.type,
-      interval: job.interval,
-      cronSchedule: job.cronSchedule,
-      nextExecutionTime: job.job.nextInvocation(),
-      running: job.running ? job.running() : false,
-    }))
+    scheduledJobs.map((job) => {
+      const nextExecution = job.job.nextInvocation();
+      let followingExecution: Date | null = null;
+
+      if (nextExecution && job.cronSchedule) {
+        try {
+          const interval = parser.parse(job.cronSchedule);
+          interval.next(); // First next (skip it, we already have nextExecution)
+          followingExecution = interval.next().toDate(); // Second next
+        } catch (error) {
+          // If cron parsing fails, followingExecution stays null
+        }
+      }
+
+      return {
+        id: job.id,
+        name: job.name,
+        type: job.type,
+        interval: job.interval,
+        cronSchedule: job.cronSchedule,
+        nextExecutionTime: nextExecution,
+        followingExecutionTime: followingExecution,
+        running: job.running ? job.running() : false,
+      };
+    })
   );
 });
 
@@ -947,13 +1015,27 @@ settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
 
   scheduledJob.job.invoke();
 
+  const nextExecution = scheduledJob.job.nextInvocation();
+  let followingExecution: Date | null = null;
+
+  if (nextExecution && scheduledJob.cronSchedule) {
+    try {
+      const interval = parser.parse(scheduledJob.cronSchedule);
+      interval.next(); // First next (skip it, we already have nextExecution)
+      followingExecution = interval.next().toDate(); // Second next
+    } catch (error) {
+      // If cron parsing fails, followingExecution stays null
+    }
+  }
+
   return res.status(200).json({
     id: scheduledJob.id,
     name: scheduledJob.name,
     type: scheduledJob.type,
     interval: scheduledJob.interval,
     cronSchedule: scheduledJob.cronSchedule,
-    nextExecutionTime: scheduledJob.job.nextInvocation(),
+    nextExecutionTime: nextExecution,
+    followingExecutionTime: followingExecution,
     running: scheduledJob.running ? scheduledJob.running() : false,
   });
 });
@@ -973,13 +1055,27 @@ settingsRoutes.post<{ jobId: JobId }>(
       scheduledJob.cancelFn();
     }
 
+    const nextExecution = scheduledJob.job.nextInvocation();
+    let followingExecution: Date | null = null;
+
+    if (nextExecution && scheduledJob.cronSchedule) {
+      try {
+        const interval = parser.parse(scheduledJob.cronSchedule);
+        interval.next(); // First next (skip it, we already have nextExecution)
+        followingExecution = interval.next().toDate(); // Second next
+      } catch (error) {
+        // If cron parsing fails, followingExecution stays null
+      }
+    }
+
     return res.status(200).json({
       id: scheduledJob.id,
       name: scheduledJob.name,
       type: scheduledJob.type,
       interval: scheduledJob.interval,
       cronSchedule: scheduledJob.cronSchedule,
-      nextExecutionTime: scheduledJob.job.nextInvocation(),
+      nextExecutionTime: nextExecution,
+      followingExecutionTime: followingExecution,
       running: scheduledJob.running ? scheduledJob.running() : false,
     });
   }
@@ -1005,17 +1101,35 @@ settingsRoutes.post<{ jobId: JobId }>(
 
       scheduledJob.cronSchedule = req.body.schedule;
 
+      const nextExecution = scheduledJob.job.nextInvocation();
+      let followingExecution: Date | null = null;
+
+      if (nextExecution && scheduledJob.cronSchedule) {
+        try {
+          const interval = parser.parse(scheduledJob.cronSchedule);
+          interval.next(); // First next (skip it, we already have nextExecution)
+          followingExecution = interval.next().toDate(); // Second next
+        } catch (error) {
+          // If cron parsing fails, followingExecution stays null
+        }
+      }
+
       return res.status(200).json({
         id: scheduledJob.id,
         name: scheduledJob.name,
         type: scheduledJob.type,
         interval: scheduledJob.interval,
         cronSchedule: scheduledJob.cronSchedule,
-        nextExecutionTime: scheduledJob.job.nextInvocation(),
+        nextExecutionTime: nextExecution,
+        followingExecutionTime: followingExecution,
         running: scheduledJob.running ? scheduledJob.running() : false,
       });
     } else {
-      return next({ status: 400, message: 'Invalid job schedule.' });
+      return next({
+        status: 400,
+        message:
+          'Invalid CRON expression. Must be 6-part format (second minute hour day month weekday). Examples: "0 */15 * * * *" (every 15 min), "0 0 */6 * * *" (every 6 hours)',
+      });
     }
   }
 );
@@ -1074,6 +1188,143 @@ settingsRoutes.get('/about', async (req, res) => {
     tz: process.env.TZ,
     appDataPath: appDataPath(),
   } as SettingsAboutResponse);
+});
+
+settingsRoutes.post('/reset', async (_req, res, next) => {
+  try {
+    logger.info(
+      'Manual reset requested - cleaning up all agregarr collections',
+      {
+        label: 'Settings Reset',
+      }
+    );
+
+    const collectionsSync = await import('@server/lib/collectionsSync');
+    await collectionsSync.default.cleanupCollections();
+
+    // Clean up ALL placeholder records and files
+    try {
+      const { getRepository } = await import('@server/datasource');
+      const { PlaceholderItem } = await import(
+        '@server/entity/PlaceholderItem'
+      );
+      const path = await import('path');
+      const settings = getSettings();
+
+      const repository = getRepository(PlaceholderItem);
+      const allPlaceholders = await repository.find();
+
+      if (allPlaceholders.length > 0) {
+        logger.info(
+          `Cleaning up ${allPlaceholders.length} placeholder records during reset`,
+          {
+            label: 'Settings Reset',
+            recordCount: allPlaceholders.length,
+          }
+        );
+
+        let filesRemoved = 0;
+        const filesToDelete = new Set<string>(); // Track unique file paths
+
+        // Collect unique file paths to delete
+        for (const record of allPlaceholders) {
+          if (record.placeholderPath) {
+            const libraryPath =
+              record.mediaType === 'movie'
+                ? settings.main.placeholderMovieRootFolder
+                : settings.main.placeholderTVRootFolder;
+
+            if (libraryPath) {
+              const fullPath = path.join(libraryPath, record.placeholderPath);
+              filesToDelete.add(fullPath);
+            }
+          }
+        }
+
+        // Delete all unique placeholder files
+        if (filesToDelete.size > 0) {
+          const { removePlaceholder } = await import(
+            '@server/lib/comingsoon/placeholderManager'
+          );
+
+          for (const fullPath of filesToDelete) {
+            try {
+              // Determine media type from path
+              const mediaType = fullPath.includes(
+                settings.main.placeholderMovieRootFolder || 'movies'
+              )
+                ? 'movie'
+                : 'tv';
+              await removePlaceholder(fullPath, mediaType);
+              filesRemoved++;
+            } catch (error) {
+              // File might already be gone - that's ok
+              if (error instanceof Error && !error.message.includes('ENOENT')) {
+                logger.warn('Failed to remove placeholder file during reset', {
+                  label: 'Settings Reset',
+                  path: fullPath,
+                  error: error.message,
+                });
+              } else {
+                filesRemoved++; // File doesn't exist - consider it removed
+              }
+            }
+          }
+        }
+
+        // Delete all database records
+        await repository.remove(allPlaceholders);
+
+        logger.info('Placeholder cleanup completed during reset', {
+          label: 'Settings Reset',
+          recordsRemoved: allPlaceholders.length,
+          filesRemoved,
+        });
+      }
+    } catch (error) {
+      logger.warn('Failed to cleanup placeholder records during reset', {
+        label: 'Settings Reset',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue with reset even if placeholder cleanup fails
+    }
+
+    logger.info('Manual reset completed successfully', {
+      label: 'Settings Reset',
+    });
+
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (error) {
+    logger.error('Manual reset failed', {
+      label: 'Settings Reset',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return next({
+      status: 500,
+      message: `Failed to reset collections: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+    });
+  }
+});
+
+// Watchlist Sync Settings
+settingsRoutes.get('/watchlistsync', (req, res) => {
+  const settings = getSettings();
+  return res.status(200).json(settings.watchlistSync);
+});
+
+settingsRoutes.post('/watchlistsync', (req, res) => {
+  const settings = getSettings();
+  const watchlistSync = req.body as WatchlistSyncSettings;
+
+  settings.watchlistSync = watchlistSync;
+  settings.save();
+
+  return res.status(200).json(settings.watchlistSync);
 });
 
 export default settingsRoutes;

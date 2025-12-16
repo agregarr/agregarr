@@ -1,5 +1,5 @@
-export { PosterEditorCanvas } from './PosterEditorCanvas';
-export type { PosterEditorCanvasRef } from './PosterEditorCanvas';
+export { PosterCanvas } from './PosterCanvas';
+export type { PosterCanvasRef } from './PosterCanvas';
 export { PosterEditorModal } from './PosterEditorModal';
 export type {
   EditorMode,

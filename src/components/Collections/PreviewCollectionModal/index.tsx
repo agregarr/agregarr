@@ -21,6 +21,7 @@ const messages = defineMessages({
   noItems: 'No items found',
   inLibrary: 'In Library',
   missing: 'Missing',
+  placeholder: 'Placeholder',
   downloadViaRadarr: 'Download via Radarr',
   downloadViaSonarr: 'Download via Sonarr',
   downloadViaOverseerr: 'Request via Overseerr',
@@ -48,6 +49,8 @@ interface PreviewItem {
   posterUrl: string;
   backdropPath?: string;
   inLibrary: boolean;
+  isPlaceholder?: boolean;
+  monitored?: boolean;
   overview?: string;
   imdbId?: string;
   tmdbRating?: number;
@@ -55,9 +58,9 @@ interface PreviewItem {
 
 interface ItemRatings {
   imdb?: {
-    title: string;
-    url: string;
-    criticsScore: number;
+    imdbId: string;
+    rating: number | null;
+    votes: number | null;
   } | null;
   rt?: {
     title: string;
@@ -153,6 +156,7 @@ const PreviewCollectionModal = ({
   } | null>(null);
   const iconRef = useRef<HTMLDivElement>(null);
   const tooltipCloseTimer = useRef<NodeJS.Timeout | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const [downloadingItems, setDownloadingItems] = useState<Set<number>>(
     new Set()
   );
@@ -657,8 +661,10 @@ const PreviewCollectionModal = ({
                   >
                     <div
                       className={`relative rounded-lg ${
-                        item.inLibrary
+                        item.inLibrary && !item.isPlaceholder
                           ? 'ring-2 ring-orange-500'
+                          : item.isPlaceholder
+                          ? 'ring-2 ring-yellow-500'
                           : 'ring-2 ring-gray-500'
                       }`}
                       style={{ aspectRatio: '2/3' }}
@@ -682,6 +688,15 @@ const PreviewCollectionModal = ({
                           </div>
                         )}
                       </div>
+
+                      {/* Placeholder Badge - Bottom center */}
+                      {item.isPlaceholder && (
+                        <div className="absolute bottom-0 left-0 right-0 z-30 flex justify-center pb-2">
+                          <span className="rounded-full bg-yellow-600 bg-opacity-90 px-3 py-1 text-xs font-semibold text-white">
+                            {intl.formatMessage(messages.placeholder)}
+                          </span>
+                        </div>
+                      )}
 
                       {/* Exclude Button - Top left, shows on hover */}
                       {hoveredItem === item.tmdbId &&
@@ -825,6 +840,7 @@ const PreviewCollectionModal = ({
                                         : `/api/v1/ratings/tv/${item.tmdbId}`;
 
                                     // Build query string with proper encoding
+                                    // Note: encodeURIComponent is necessary for OpenAPI validation
                                     const queryParams = new URLSearchParams();
                                     if (item.title)
                                       queryParams.append(
@@ -836,10 +852,7 @@ const PreviewCollectionModal = ({
                                         'year',
                                         item.year.toString()
                                       );
-                                    if (
-                                      item.imdbId &&
-                                      item.mediaType === 'movie'
-                                    )
+                                    if (item.imdbId)
                                       queryParams.append('imdbId', item.imdbId);
 
                                     const response = await axios.get(
@@ -881,12 +894,22 @@ const PreviewCollectionModal = ({
                       tooltipPosition &&
                       typeof window !== 'undefined'
                         ? createPortal(
+                            /* eslint-disable-next-line jsx-a11y/no-static-element-interactions */
                             <div
+                              ref={tooltipRef}
                               className="fixed z-[9999] w-80 overflow-y-auto rounded-lg border border-gray-700 bg-gray-900 p-4 shadow-xl"
                               style={{
                                 top: `${tooltipPosition.top}px`,
                                 left: `${tooltipPosition.left}px`,
                                 maxHeight: `${tooltipPosition.maxHeight}px`,
+                              }}
+                              onMouseDown={(e) => {
+                                // Prevent modal backdrop from detecting this as an outside click
+                                e.stopPropagation();
+                              }}
+                              onMouseUp={(e) => {
+                                // Prevent modal backdrop from detecting this as an outside click
+                                e.stopPropagation();
                               }}
                               onMouseEnter={() => {
                                 // Cancel close when hovering tooltip
@@ -925,7 +948,7 @@ const PreviewCollectionModal = ({
                                       </span>
                                     </div>
                                   )}
-                                  {ratingsCache[item.tmdbId]?.imdb && (
+                                  {ratingsCache[item.tmdbId]?.imdb?.rating && (
                                     <div className="flex items-center gap-2.5">
                                       <img
                                         src="/services/imdb.svg"
@@ -935,7 +958,7 @@ const PreviewCollectionModal = ({
                                       <span className="text-base font-medium text-white">
                                         {
                                           ratingsCache[item.tmdbId]?.imdb
-                                            ?.criticsScore
+                                            ?.rating
                                         }
                                         /10
                                       </span>
@@ -984,169 +1007,68 @@ const PreviewCollectionModal = ({
                         : null}
 
                       {/* Download Buttons - Bottom of poster with logos */}
-                      {!item.inLibrary && hoveredItem === item.tmdbId && (
-                        <div className="absolute bottom-2 left-2 right-2 z-10 flex justify-center gap-2">
-                          {item.mediaType === 'movie' && item.tmdbId > 0 && (
-                            <>
-                              <button
-                                onClick={() =>
-                                  handleDownload(
-                                    item.tmdbId,
-                                    item.title,
-                                    'movie',
-                                    'radarr',
-                                    item.backdropPath
-                                  )
-                                }
-                                disabled={downloadingItems.has(item.tmdbId)}
-                                className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
-                                title={intl.formatMessage(
-                                  messages.downloadViaRadarr
-                                )}
-                              >
-                                {downloadingItems.has(item.tmdbId) ? (
-                                  <span className="text-xs text-white">
-                                    ...
-                                  </span>
-                                ) : (
-                                  <>
-                                    <img
-                                      src="/services/radarr.svg"
-                                      alt="Radarr"
-                                      className="h-full w-full"
-                                    />
-                                    {requestedItems.has(
-                                      `${item.tmdbId}-radarr`
-                                    ) && (
-                                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
-                                        <svg
-                                          className="h-6 w-6 text-white"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleDownload(
-                                    item.tmdbId,
-                                    item.title,
-                                    'movie',
-                                    'overseerr',
-                                    item.backdropPath
-                                  )
-                                }
-                                disabled={downloadingItems.has(item.tmdbId)}
-                                className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
-                                title={intl.formatMessage(
-                                  messages.downloadViaOverseerr
-                                )}
-                              >
-                                {downloadingItems.has(item.tmdbId) ? (
-                                  <span className="text-xs text-white">
-                                    ...
-                                  </span>
-                                ) : (
-                                  <>
-                                    <img
-                                      src="/services/overseerr.svg"
-                                      alt="Overseerr"
-                                      className="h-full w-full"
-                                    />
-                                    {requestedItems.has(
-                                      `${item.tmdbId}-overseerr`
-                                    ) && (
-                                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
-                                        <svg
-                                          className="h-6 w-6 text-white"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </button>
-                            </>
-                          )}
-                          {item.mediaType === 'tv' && (
-                            <>
-                              <button
-                                onClick={() =>
-                                  handleDownload(
-                                    item.tmdbId,
-                                    item.title,
-                                    'tv',
-                                    'sonarr',
-                                    item.backdropPath
-                                  )
-                                }
-                                disabled={downloadingItems.has(item.tmdbId)}
-                                className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
-                                title={intl.formatMessage(
-                                  messages.downloadViaSonarr
-                                )}
-                              >
-                                {downloadingItems.has(item.tmdbId) ? (
-                                  <span className="text-xs text-white">
-                                    ...
-                                  </span>
-                                ) : (
-                                  <>
-                                    <img
-                                      src="/services/sonarr.svg"
-                                      alt="Sonarr"
-                                      className="h-full w-full"
-                                    />
-                                    {requestedItems.has(
-                                      `${item.tmdbId}-sonarr`
-                                    ) && (
-                                      <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
-                                        <svg
-                                          className="h-6 w-6 text-white"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={3}
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </button>
-                              {/* Only show Overseerr button if item has TMDB ID */}
-                              {item.tmdbId > 0 && (
+                      {/* Show download buttons if: not in library OR (is a placeholder AND not monitored) */}
+                      {(!item.inLibrary ||
+                        (item.isPlaceholder && !item.monitored)) &&
+                        hoveredItem === item.tmdbId && (
+                          <div className="absolute bottom-2 left-2 right-2 z-10 flex justify-center gap-2">
+                            {item.mediaType === 'movie' && item.tmdbId > 0 && (
+                              <>
                                 <button
                                   onClick={() =>
                                     handleDownload(
                                       item.tmdbId,
                                       item.title,
-                                      'tv',
+                                      'movie',
+                                      'radarr',
+                                      item.backdropPath
+                                    )
+                                  }
+                                  disabled={downloadingItems.has(item.tmdbId)}
+                                  className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
+                                  title={intl.formatMessage(
+                                    messages.downloadViaRadarr
+                                  )}
+                                >
+                                  {downloadingItems.has(item.tmdbId) ? (
+                                    <span className="text-xs text-white">
+                                      ...
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <img
+                                        src="/services/radarr.svg"
+                                        alt="Radarr"
+                                        className="h-full w-full"
+                                      />
+                                      {requestedItems.has(
+                                        `${item.tmdbId}-radarr`
+                                      ) && (
+                                        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
+                                          <svg
+                                            className="h-6 w-6 text-white"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={3}
+                                              d="M5 13l4 4L19 7"
+                                            />
+                                          </svg>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleDownload(
+                                      item.tmdbId,
+                                      item.title,
+                                      'movie',
                                       'overseerr',
                                       item.backdropPath
                                     )
@@ -1190,11 +1112,115 @@ const PreviewCollectionModal = ({
                                     </>
                                   )}
                                 </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
+                              </>
+                            )}
+                            {item.mediaType === 'tv' && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    handleDownload(
+                                      item.tmdbId,
+                                      item.title,
+                                      'tv',
+                                      'sonarr',
+                                      item.backdropPath
+                                    )
+                                  }
+                                  disabled={downloadingItems.has(item.tmdbId)}
+                                  className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
+                                  title={intl.formatMessage(
+                                    messages.downloadViaSonarr
+                                  )}
+                                >
+                                  {downloadingItems.has(item.tmdbId) ? (
+                                    <span className="text-xs text-white">
+                                      ...
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <img
+                                        src="/services/sonarr.svg"
+                                        alt="Sonarr"
+                                        className="h-full w-full"
+                                      />
+                                      {requestedItems.has(
+                                        `${item.tmdbId}-sonarr`
+                                      ) && (
+                                        <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
+                                          <svg
+                                            className="h-6 w-6 text-white"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={3}
+                                              d="M5 13l4 4L19 7"
+                                            />
+                                          </svg>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </button>
+                                {/* Only show Overseerr button if item has TMDB ID */}
+                                {item.tmdbId > 0 && (
+                                  <button
+                                    onClick={() =>
+                                      handleDownload(
+                                        item.tmdbId,
+                                        item.title,
+                                        'tv',
+                                        'overseerr',
+                                        item.backdropPath
+                                      )
+                                    }
+                                    disabled={downloadingItems.has(item.tmdbId)}
+                                    className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-black bg-opacity-70 p-2 transition hover:bg-opacity-90 disabled:opacity-50"
+                                    title={intl.formatMessage(
+                                      messages.downloadViaOverseerr
+                                    )}
+                                  >
+                                    {downloadingItems.has(item.tmdbId) ? (
+                                      <span className="text-xs text-white">
+                                        ...
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <img
+                                          src="/services/overseerr.svg"
+                                          alt="Overseerr"
+                                          className="h-full w-full"
+                                        />
+                                        {requestedItems.has(
+                                          `${item.tmdbId}-overseerr`
+                                        ) && (
+                                          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-green-600 bg-opacity-80">
+                                            <svg
+                                              className="h-6 w-6 text-white"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={3}
+                                                d="M5 13l4 4L19 7"
+                                              />
+                                            </svg>
+                                          </div>
+                                        )}
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
                     </div>
                   </div>
                 ))}

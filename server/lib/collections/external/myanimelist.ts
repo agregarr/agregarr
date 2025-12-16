@@ -39,7 +39,7 @@ interface PlexLibraryItem {
   Guid?: PlexGuid[]; // Capital G to match actual Plex API response
 }
 
-export class MyAnimeListCollectionSync extends BaseCollectionSync {
+export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'> {
   constructor() {
     super('myanimelist');
   }
@@ -101,10 +101,31 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
       );
 
       // Apply filtering safety net
-      const { items, missingItems } = this.applyFilteringToMappedItems(
+      const { items, missingItems } = await this.applyFilteringToMappedItems(
         mapped,
         config
       );
+
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
+      }
 
       // Handle auto-requests for missing items
       if (missingItems && missingItems.length > 0) {
@@ -492,6 +513,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync {
           mediaType: itemMediaType,
           title: displayTitle,
           originalPosition: i + 1,
+          source: this.source,
         });
       }
     }

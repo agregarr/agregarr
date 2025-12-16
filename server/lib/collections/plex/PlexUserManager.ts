@@ -8,34 +8,72 @@ import logger from '@server/logger';
 import xml2js from 'xml2js';
 
 /**
- * Shared server data interface for Plex API responses
+ * V2 API: Sharing settings from /api/v2/sharing_settings or nested in shared server
  */
-export interface SharedServerData {
+export interface V2SharingSettings {
   $: {
-    id: string;
-    username: string;
-    email: string;
-    userID: string;
-    accessToken: string;
-    name: string;
-    acceptedAt: string;
-    invitedAt: string;
     allowSync: string;
     allowCameraUpload: string;
     allowChannels: string;
     allowTuners: string;
     allowSubtitleAdmin: string;
-    owned: string;
-    filterAll?: string;
-    filterMovies?: string;
-    filterMusic?: string;
-    filterPhotos?: string;
-    filterTelevision?: string;
+    filterAll: string;
+    filterMovies: string;
+    filterMusic: string;
+    filterPhotos: string;
+    filterTelevision: string;
   };
 }
 
-// Simple cache for shared server responses
-const sharedServerCache = new Map<string, SharedServerData[]>();
+/**
+ * V2 API: Invited user data from /api/v2/shared_servers/owned/accepted
+ */
+export interface V2InvitedUser {
+  $: {
+    id: string;
+    uuid: string;
+    title: string;
+    username: string;
+    email?: string;
+    friendlyName: string;
+    thumb: string;
+    home: string;
+    status: string;
+    restricted: string;
+    subscription: string;
+  };
+  sharingSettings: V2SharingSettings[];
+}
+
+/**
+ * V2 API: Shared server data from /api/v2/shared_servers/owned/accepted
+ */
+export interface V2SharedServer {
+  $: {
+    id: string;
+    name: string;
+    invitedId: string;
+    invitedEmail: string;
+    acceptedAt: string;
+    deletedAt: string;
+    leftAt: string;
+    machineIdentifier: string;
+    searchEnabled: string;
+    ownerId: string;
+    serverId: string;
+    accepted: string;
+    owned: string;
+    inviteToken: string;
+    lastSeenAt: string;
+    numLibraries: string;
+    allLibraries: string;
+  };
+  invited: V2InvitedUser[];
+  sharingSettings: V2SharingSettings[];
+}
+
+// Simple cache for V2 shared server responses
+const sharedServerCache = new Map<string, V2SharedServer[]>();
 
 /**
  * Merge Agregarr labels into an existing Plex filter string
@@ -121,15 +159,15 @@ function mergeAgregarrLabelsIntoFilter(
 }
 
 /**
- * Get shared servers data with simple caching
- * Fetches user sharing data from Plex.tv API
+ * Get shared servers data from V2 API with simple caching
+ * Fetches ALL shared servers and filters by machineId
  */
 export async function getSharedServers(
   machineId: string,
   plexToken: string,
   forceRefresh = false
-): Promise<SharedServerData[]> {
-  const cacheKey = `${machineId}-${plexToken.substring(0, 8)}`;
+): Promise<V2SharedServer[]> {
+  const cacheKey = `v2-${machineId}-${plexToken.substring(0, 8)}`;
 
   // Return cached data if not forcing refresh
   if (!forceRefresh && sharedServerCache.has(cacheKey)) {
@@ -139,12 +177,15 @@ export async function getSharedServers(
     }
   }
 
-  // Fetch fresh data
-  const shareUrl = `https://plex.tv/api/servers/${machineId}/shared_servers`;
+  const settings = getSettings();
+  const plexClientIdentifier = settings.clientId;
+
+  // Fetch from V2 endpoint - returns ALL servers for this account
+  const shareUrl = `https://clients.plex.tv/api/v2/shared_servers/owned/accepted?X-Plex-Product=Agregarr&X-Plex-Client-Identifier=${plexClientIdentifier}&X-Plex-Token=${plexToken}`;
+
   const response = await fetch(shareUrl, {
     method: 'GET',
     headers: {
-      'X-Plex-Token': plexToken,
       Accept: 'application/xml',
     },
   });
@@ -155,16 +196,28 @@ export async function getSharedServers(
 
   const shareXml = await response.text();
   const parsedXml = await xml2js.parseStringPromise(shareXml);
-  const sharedServers: SharedServerData[] =
-    parsedXml.MediaContainer?.SharedServer || [];
+  const allServers: V2SharedServer[] =
+    parsedXml.sharedServers?.sharedServer || [];
 
-  // Cache the result
-  sharedServerCache.set(cacheKey, sharedServers);
-  return sharedServers;
+  // Filter to only our server's users by machineIdentifier
+  const ourServers = allServers.filter(
+    (server) => server.$.machineIdentifier === machineId
+  );
+
+  logger.debug('Retrieved V2 shared servers', {
+    label: 'Plex User Manager',
+    totalServerInvites: allServers.length,
+    ourServerInvites: ourServers.length,
+    machineId,
+  });
+
+  // Cache the filtered result
+  sharedServerCache.set(cacheKey, ourServers);
+  return ourServers;
 }
 
 /**
- * Get all Plex user IDs from shared servers
+ * Get all Plex user IDs from shared servers (V2 API)
  * Returns array of Plex user IDs for all users with access to the server
  */
 export async function getAllPlexUserIds(): Promise<string[]> {
@@ -185,9 +238,10 @@ export async function getAllPlexUserIds(): Promise<string[]> {
       admin.plexToken
     );
 
-    const userIds = sharedServers.map((server) => server.$.userID);
+    // V2 uses invitedId instead of userID
+    const userIds = sharedServers.map((server) => server.$.invitedId);
 
-    logger.debug(`Found ${userIds.length} Plex users`, {
+    logger.debug(`Found ${userIds.length} Plex users (V2)`, {
       label: 'Plex User Manager',
       userIds,
     });
@@ -203,20 +257,21 @@ export async function getAllPlexUserIds(): Promise<string[]> {
 }
 
 /**
- * Get a specific user's shared server data with simple caching
+ * Get a specific user's shared server data (V2 API)
  */
 export async function getUserSharedServer(
   machineId: string,
   plexToken: string,
   userPlexId: string,
   forceRefresh = false
-): Promise<SharedServerData | undefined> {
+): Promise<V2SharedServer | undefined> {
   const sharedServers = await getSharedServers(
     machineId,
     plexToken,
     forceRefresh
   );
-  return sharedServers.find((server) => server.$.userID === userPlexId);
+  // V2 uses invitedId instead of userID
+  return sharedServers.find((server) => server.$.invitedId === userPlexId);
 }
 
 /**
@@ -241,8 +296,8 @@ export async function updateUserFilterSettings(
       throw new Error('Machine ID not configured');
     }
 
-    // Get user's current filter settings with robust error handling
-    let userServer: SharedServerData | undefined;
+    // Get user data from V2 API (includes user info AND settings!)
+    let userServer: V2SharedServer | undefined;
     try {
       userServer = await getUserSharedServer(
         settings.plex.machineId,
@@ -253,21 +308,37 @@ export async function updateUserFilterSettings(
       logger.error(
         `Failed to get user shared server data for ${targetUserPlexId}`,
         {
-          label: 'Collections Utils',
+          label: 'Plex User Manager',
           error: error instanceof Error ? error.message : 'Unknown error',
         }
       );
       throw new Error(
-        `Cannot update user filter settings: Unable to retrieve current filter settings for user ${targetUserPlexId}. This prevents safe label updates that could overwrite existing restrictions.`
+        `Cannot update user filter settings: Unable to retrieve user data for user ${targetUserPlexId}.`
       );
+    }
+
+    if (!userServer) {
+      throw new Error(`User ${targetUserPlexId} not found in shared servers`);
+    }
+
+    // V2 data structure: settings are in invited[0].sharingSettings[0]
+    const invitedUser = userServer.invited[0];
+    const userSettings = invitedUser.sharingSettings[0];
+
+    if (!invitedUser || !userSettings) {
+      throw new Error(`Invalid V2 data structure for user ${targetUserPlexId}`);
     }
 
     let currentMovieFilter = '';
     let currentTvFilter = '';
 
-    if (userServer) {
-      currentMovieFilter = decodeURIComponent(userServer.$.filterMovies || '');
-      currentTvFilter = decodeURIComponent(userServer.$.filterTelevision || '');
+    if (userSettings) {
+      currentMovieFilter = decodeURIComponent(
+        userSettings.$.filterMovies || ''
+      );
+      currentTvFilter = decodeURIComponent(
+        userSettings.$.filterTelevision || ''
+      );
     }
 
     // Clean existing Agregarr labels from Movies and TV only
@@ -311,30 +382,24 @@ export async function updateUserFilterSettings(
     // Use persistent server client identifier (following Overseerr pattern)
     const plexClientIdentifier = settings.clientId;
 
-    // CRITICAL: Must send ALL fields or they will be reset to defaults
-    if (!userServer) {
-      throw new Error(
-        `Cannot update filters: userServer is undefined for user ${targetUserPlexId}`
-      );
-    }
-
-    // Build v2 API payload with complete settings
+    // Build v2 API payload - matches Plex UI exactly (no allLibraries!)
     const settingsPayload = {
-      allowChannels: userServer.$.allowChannels === '1',
-      allowSync: userServer.$.allowSync === '1',
-      allowCameraUpload: userServer.$.allowCameraUpload === '1',
-      allowSubtitleAdmin: userServer.$.allowSubtitleAdmin === '1',
-      allowTuners: parseInt(userServer.$.allowTuners || '0', 10),
-      filterAll: userServer.$.filterAll || null,
+      allowChannels: userSettings.$.allowChannels === '1',
       filterMovies: finalMovieFilter || '',
-      filterMusic: userServer.$.filterMusic || '',
-      filterPhotos: userServer.$.filterPhotos || '',
+      filterMusic: userSettings.$.filterMusic || '',
+      filterPhotos: userSettings.$.filterPhotos || '',
       filterTelevision: finalTvFilter || '',
+      filterAll: userSettings.$.filterAll || null,
+      allowSync: userSettings.$.allowSync === '1',
+      allowCameraUpload: userSettings.$.allowCameraUpload === '1',
+      allowSubtitleAdmin: userSettings.$.allowSubtitleAdmin === '1',
+      allowTuners: parseInt(userSettings.$.allowTuners || '0', 10), // Number (0, 1, or 2)
     };
 
+    // V2: Use username as invitedEmail (Plex UI does this)
     const payload = {
       settings: settingsPayload,
-      invitedEmail: userServer.$.email || userServer.$.username,
+      invitedEmail: invitedUser.$.username,
     };
 
     logger.debug(
@@ -346,7 +411,7 @@ export async function updateUserFilterSettings(
       }
     );
 
-    // Use v2 API endpoint
+    // Use v2 API endpoint - invitedEmail in payload identifies user (not URL parameter!)
     const url = `https://clients.plex.tv/api/v2/sharing_settings?X-Plex-Product=Agregarr&X-Plex-Client-Identifier=${plexClientIdentifier}&X-Plex-Token=${admin.plexToken}`;
     const headers = {
       Accept: 'application/json',
@@ -383,11 +448,21 @@ export async function updateUserFilterSettings(
       );
 
       if (verificationServer) {
+        const verifySettings =
+          verificationServer.invited[0]?.sharingSettings[0];
+        if (!verifySettings) {
+          logger.warn('Verification data structure invalid', {
+            label: 'Plex User Manager',
+            userPlexId: targetUserPlexId,
+          });
+          return;
+        }
+
         const actualMovieFilter = decodeURIComponent(
-          verificationServer.$.filterMovies || ''
+          verifySettings.$.filterMovies || ''
         );
         const actualTvFilter = decodeURIComponent(
-          verificationServer.$.filterTelevision || ''
+          verifySettings.$.filterTelevision || ''
         );
 
         const movieFiltersMatch = actualMovieFilter === finalMovieFilter;
@@ -745,19 +820,37 @@ export async function clearUserFilters(
       throw new Error('Machine ID not configured');
     }
 
-    // Get user's current filter settings
+    // Get user data from V2 API
     const userServer = await getUserSharedServer(
       settings.plex.machineId,
       admin.plexToken,
       targetUserPlexId
     );
 
+    if (!userServer) {
+      throw new Error(
+        `Cannot clear filters: user ${targetUserPlexId} not found`
+      );
+    }
+
+    // V2 data structure: settings are in invited[0].sharingSettings[0]
+    const invitedUser = userServer.invited[0];
+    const userSettings = invitedUser?.sharingSettings[0];
+
+    if (!invitedUser || !userSettings) {
+      throw new Error(`Invalid V2 data structure for user ${targetUserPlexId}`);
+    }
+
     let currentMovieFilter = '';
     let currentTvFilter = '';
 
-    if (userServer) {
-      currentMovieFilter = decodeURIComponent(userServer.$.filterMovies || '');
-      currentTvFilter = decodeURIComponent(userServer.$.filterTelevision || '');
+    if (userSettings) {
+      currentMovieFilter = decodeURIComponent(
+        userSettings.$.filterMovies || ''
+      );
+      currentTvFilter = decodeURIComponent(
+        userSettings.$.filterTelevision || ''
+      );
     }
 
     // Clean all Agregarr labels, keeping user's custom filters
@@ -767,30 +860,24 @@ export async function clearUserFilters(
     // Use persistent server client identifier (following Overseerr pattern)
     const plexClientIdentifier = settings.clientId;
 
-    // CRITICAL: Must send ALL fields or they will be reset to defaults
-    if (!userServer) {
-      throw new Error(
-        `Cannot clear filters: userServer is undefined for user ${targetUserPlexId}`
-      );
-    }
-
-    // Build v2 API payload with complete settings
+    // Build v2 API payload - matches Plex UI exactly
     const settingsPayload = {
-      allowChannels: userServer.$.allowChannels === '1',
-      allowSync: userServer.$.allowSync === '1',
-      allowCameraUpload: userServer.$.allowCameraUpload === '1',
-      allowSubtitleAdmin: userServer.$.allowSubtitleAdmin === '1',
-      allowTuners: parseInt(userServer.$.allowTuners || '0', 10),
-      filterAll: userServer.$.filterAll || null,
+      allowChannels: userSettings.$.allowChannels === '1',
       filterMovies: cleanedMovieFilter || '',
-      filterMusic: userServer.$.filterMusic || '',
-      filterPhotos: userServer.$.filterPhotos || '',
+      filterMusic: userSettings.$.filterMusic || '',
+      filterPhotos: userSettings.$.filterPhotos || '',
       filterTelevision: cleanedTvFilter || '',
+      filterAll: userSettings.$.filterAll || null,
+      allowSync: userSettings.$.allowSync === '1',
+      allowCameraUpload: userSettings.$.allowCameraUpload === '1',
+      allowSubtitleAdmin: userSettings.$.allowSubtitleAdmin === '1',
+      allowTuners: parseInt(userSettings.$.allowTuners || '0', 10), // Number (0, 1, or 2)
     };
 
+    // V2: Use username as invitedEmail
     const payload = {
       settings: settingsPayload,
-      invitedEmail: userServer.$.email || userServer.$.username,
+      invitedEmail: invitedUser.$.username,
     };
 
     // Log the exact HTTP request data being sent for clear operation
@@ -805,7 +892,7 @@ export async function clearUserFilters(
       }
     );
 
-    // Use v2 API endpoint
+    // Use v2 API endpoint - invitedEmail in payload identifies user (not URL parameter!)
     const url = `https://clients.plex.tv/api/v2/sharing_settings?X-Plex-Product=Agregarr&X-Plex-Client-Identifier=${plexClientIdentifier}&X-Plex-Token=${admin.plexToken}`;
     const headers = {
       Accept: 'application/json',
@@ -839,11 +926,21 @@ export async function clearUserFilters(
       );
 
       if (verificationServer) {
+        const verifySettings =
+          verificationServer.invited[0]?.sharingSettings[0];
+        if (!verifySettings) {
+          logger.warn('Verification data structure invalid', {
+            label: 'Plex User Manager',
+            userPlexId: targetUserPlexId,
+          });
+          return;
+        }
+
         const actualMovieFilter = decodeURIComponent(
-          verificationServer.$.filterMovies || ''
+          verifySettings.$.filterMovies || ''
         );
         const actualTvFilter = decodeURIComponent(
-          verificationServer.$.filterTelevision || ''
+          verifySettings.$.filterTelevision || ''
         );
 
         const movieFiltersMatch = actualMovieFilter === cleanedMovieFilter;

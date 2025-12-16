@@ -8,6 +8,7 @@ import type {
   TmdbExternalIdResponse,
   TmdbGenre,
   TmdbGenresResult,
+  TmdbImagesResponse,
   TmdbKeyword,
   TmdbKeywordSearchResponse,
   TmdbLanguage,
@@ -63,6 +64,9 @@ interface DiscoverMovieOptions {
   language?: string;
   primaryReleaseDateGte?: string;
   primaryReleaseDateLte?: string;
+  releaseDateGte?: string;
+  releaseDateLte?: string;
+  withReleaseType?: string;
   withRuntimeGte?: string;
   withRuntimeLte?: string;
   voteAverageGte?: string;
@@ -83,6 +87,8 @@ interface DiscoverTvOptions {
   language?: string;
   firstAirDateGte?: string;
   firstAirDateLte?: string;
+  airDateGte?: string;
+  airDateLte?: string;
   withRuntimeGte?: string;
   withRuntimeLte?: string;
   voteAverageGte?: string;
@@ -324,6 +330,51 @@ class TheMovieDb extends ExternalAPI {
     }
   };
 
+  public getMovieImages = async ({
+    movieId,
+    language,
+  }: {
+    movieId: number;
+    language?: string;
+  }): Promise<TmdbImagesResponse> => {
+    try {
+      const data = await this.get<TmdbImagesResponse>(
+        `/movie/${movieId}/images`,
+        {
+          params: {
+            language,
+            include_image_language: language ? `${language},null` : undefined,
+          },
+        }
+      );
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch movie images: ${e.message}`);
+    }
+  };
+
+  public getTvShowImages = async ({
+    tvId,
+    language,
+  }: {
+    tvId: number;
+    language?: string;
+  }): Promise<TmdbImagesResponse> => {
+    try {
+      const data = await this.get<TmdbImagesResponse>(`/tv/${tvId}/images`, {
+        params: {
+          language,
+          include_image_language: language ? `${language},null` : undefined,
+        },
+      });
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch TV show images: ${e.message}`);
+    }
+  };
+
   public async getMovieRecommendations({
     movieId,
     page = 1,
@@ -460,6 +511,9 @@ class TheMovieDb extends ExternalAPI {
     language = 'en',
     primaryReleaseDateGte,
     primaryReleaseDateLte,
+    releaseDateGte,
+    releaseDateLte,
+    withReleaseType,
     originalLanguage,
     genre,
     studio,
@@ -507,6 +561,10 @@ class TheMovieDb extends ExternalAPI {
             !primaryReleaseDateLte && primaryReleaseDateGte
               ? defaultFutureDate
               : primaryReleaseDateLte,
+          // Release date filters (used with with_release_type for specific release types)
+          'release_date.gte': releaseDateGte,
+          'release_date.lte': releaseDateLte,
+          with_release_type: withReleaseType,
           with_genres: genre,
           with_companies: studio,
           with_keywords: keywords,
@@ -533,6 +591,8 @@ class TheMovieDb extends ExternalAPI {
     language = 'en',
     firstAirDateGte,
     firstAirDateLte,
+    airDateGte,
+    airDateLte,
     includeEmptyReleaseDate = false,
     originalLanguage,
     genre,
@@ -574,6 +634,8 @@ class TheMovieDb extends ExternalAPI {
             !firstAirDateLte && firstAirDateGte
               ? defaultFutureDate
               : firstAirDateLte,
+          'air_date.gte': airDateGte,
+          'air_date.lte': airDateLte,
           with_original_language:
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage

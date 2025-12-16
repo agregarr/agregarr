@@ -332,6 +332,24 @@ router.get('/saved', async (req, res, next) => {
 
       if (dbPoster) {
         // This file has a database entry (created in editor)
+        // Get file mtime for cache-busting even for db posters
+        let updatedAtMs: number | null = null;
+        if (dbPoster.filename) {
+          try {
+            const filePath = path.join(
+              process.cwd(),
+              'config',
+              'posters',
+              dbPoster.filename
+            );
+            const stats = fs.statSync(filePath);
+            updatedAtMs = stats.mtimeMs;
+          } catch (error) {
+            // Fallback to database timestamp if file stats unavailable
+            updatedAtMs = new Date(dbPoster.updatedAt).getTime();
+          }
+        }
+
         return {
           id: dbPoster.id,
           name: dbPoster.name,
@@ -341,6 +359,7 @@ router.get('/saved', async (req, res, next) => {
           posterData: dbPoster.getPosterData(),
           createdAt: dbPoster.createdAt,
           updatedAt: dbPoster.updatedAt,
+          updatedAtMs, // Numeric timestamp for cache-busting
           isEditable: true, // Can be edited in poster editor
         };
       } else {
@@ -354,11 +373,13 @@ router.get('/saved', async (req, res, next) => {
         );
         let createdAt = new Date().toISOString();
         let updatedAt = new Date().toISOString();
+        let updatedAtMs: number | null = null;
 
         try {
           const stats = fs.statSync(filePath);
           createdAt = stats.birthtime.toISOString();
           updatedAt = stats.mtime.toISOString();
+          updatedAtMs = stats.mtimeMs; // Numeric timestamp for cache-busting
         } catch (error) {
           // Fallback to current time if file stats unavailable
         }
@@ -372,6 +393,7 @@ router.get('/saved', async (req, res, next) => {
           posterData: null,
           createdAt,
           updatedAt,
+          updatedAtMs, // Numeric timestamp for cache-busting
           isEditable: false, // Cannot be edited in poster editor
         };
       }
@@ -611,21 +633,10 @@ router.delete('/saved/:id', async (req, res, next) => {
     if (posterIdParam.startsWith('file-')) {
       // Extract filename from file-based ID
       const filename = posterIdParam.substring(5); // Remove "file-" prefix
-
-      // Check if file-based poster is in use by any collections
-      const usage = await checkPosterUsage(posterIdParam);
-      if (usage.inUse) {
-        return res.status(409).json({
-          error: 'Poster is currently in use',
-          message: `This poster is being used by the following collections: ${usage.collections.join(
-            ', '
-          )}`,
-          collections: usage.collections,
-        });
-      }
+      const force = String(req.query.force) === 'true';
 
       // Check if file exists before deletion
-      const { posterExists, deletePosterFile } = await import(
+      const { posterExists, deletePosterFile, getPosterUsage } = await import(
         '@server/lib/posterStorage'
       );
 
@@ -635,12 +646,23 @@ router.delete('/saved/:id', async (req, res, next) => {
         });
       }
 
+      // Check if file-based poster is in use by any collections
+      const usedBy = await getPosterUsage(filename);
+      if (usedBy.length > 0 && !force) {
+        return res.status(409).json({
+          error: 'Poster is currently in use',
+          inUse: true,
+          usedBy,
+        });
+      }
+
       // Delete the file from storage
       await deletePosterFile(filename);
 
       logger.info('Deleted file-based poster', {
         filename,
         posterIdParam,
+        force,
         userId: req.user?.id,
       });
 
@@ -1151,25 +1173,28 @@ router.get('/templates/:id/export', async (req, res, next) => {
     // Add asset files to the archive
     for (const assetPath of assetPaths) {
       try {
-        // Check if this is a user icon (starts with icon ID) or raster image
-        if (assetPath.includes('-')) {
-          // This looks like an icon ID, try to find the icon
-          const { getIcons } = await import('@server/lib/iconManager');
-          const icons = await getIcons({ type: 'user' });
-          const icon = icons.find((i) => i.id === assetPath);
+        // Check if this is an icon URL path (format: /api/v1/posters/icons/{type}/{filename})
+        const iconUrlMatch = assetPath.match(
+          /\/api\/v1\/posters\/icons\/(\w+)\/(.+)/
+        );
 
-          if (icon && icon.type === 'user') {
+        if (iconUrlMatch) {
+          const [, iconType, filename] = iconUrlMatch;
+
+          // Only bundle user-uploaded icons, skip system icons
+          if (iconType === 'user') {
             const iconFilePath = path.join(
               process.cwd(),
               'config',
               'icons',
-              icon.filename
+              filename
             );
+
             if (fs.existsSync(iconFilePath)) {
               archive.file(iconFilePath, {
-                name: `assets/icons/${icon.filename}`,
+                name: `assets/icons/${filename}`,
               });
-              logger.debug(`Added icon to archive: ${icon.filename}`);
+              logger.debug(`Added user icon to archive: ${filename}`);
             }
           }
         } else {

@@ -1,6 +1,7 @@
 import type PlexAPI from '@server/api/plexapi';
 import { extractErrorMessage } from '@server/lib/collections/core/CollectionUtilities';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
+import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
 import type {
   CollectionConfig,
   PlexHubConfig,
@@ -365,11 +366,8 @@ export class HubSyncService {
       }
 
       // Generate the proper custom collection hub identifier
-      // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
-      const targetRatingKey =
-        collectionConfig.smartCollectionRatingKey ||
-        collectionConfig.collectionRatingKey;
-      const hubIdentifier = `custom.collection.${collectionConfig.libraryId}.${targetRatingKey}`;
+      const collectionRatingKey = collectionConfig.collectionRatingKey;
+      const hubIdentifier = `custom.collection.${collectionConfig.libraryId}.${collectionRatingKey}`;
 
       // Skip malformed hub identifiers
       if (!this.isValidHubIdentifier(hubIdentifier)) {
@@ -556,6 +554,522 @@ export class HubSyncService {
           );
         }
 
+        // Auto-generate poster if enabled (similar to CollectionConfig)
+        // Default to false for pre-existing collections (they usually have their own posters)
+        const shouldGeneratePoster = preExistingConfig.autoPoster ?? false;
+        if (shouldGeneratePoster && preExistingConfig.collectionRatingKey) {
+          try {
+            const { generatePoster } = await import(
+              '@server/lib/posterStorage'
+            );
+
+            // Use the collection name from Plex
+            const collectionName = preExistingConfig.name;
+
+            // Fetch collection items from Plex for content grid
+            let posterItems: CollectionItemWithPoster[] | undefined;
+
+            try {
+              // Get template to determine how many items we need
+              let maxItems = 12; // Default fallback
+
+              if (preExistingConfig.autoPosterTemplate) {
+                const { getRepository } = await import('@server/datasource');
+                const { PosterTemplate } = await import(
+                  '@server/entity/PosterTemplate'
+                );
+                const templateRepository = getRepository(PosterTemplate);
+
+                const template = await templateRepository.findOne({
+                  where: {
+                    id: preExistingConfig.autoPosterTemplate,
+                    isActive: true,
+                  },
+                });
+
+                if (template) {
+                  const templateData = template.getTemplateData();
+
+                  // Calculate grid size from template
+                  if (templateData.elements) {
+                    const contentGridElements = templateData.elements.filter(
+                      (el) => el.type === 'content-grid'
+                    );
+                    if (contentGridElements.length > 0) {
+                      maxItems = contentGridElements.reduce(
+                        (total, element) => {
+                          const props = element.properties as {
+                            columns?: number;
+                            rows?: number;
+                          };
+                          return (
+                            total + (props.columns || 2) * (props.rows || 2)
+                          );
+                        },
+                        0
+                      );
+                    }
+                  }
+                }
+              }
+
+              // Fetch collection items from Plex for content grid
+              // Works for both regular and smart collections - just returns current children
+              const plexItems = await plexClient.getCollectionItemsWithMetadata(
+                preExistingConfig.collectionRatingKey
+              );
+
+              logger.debug(
+                `Fetched ${
+                  plexItems?.length || 0
+                } items from pre-existing collection: ${collectionName}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  itemCount: plexItems?.length || 0,
+                }
+              );
+
+              // Convert Plex metadata to poster format
+              if (plexItems && plexItems.length > 0) {
+                // Helper function to extract TMDB ID from guids
+                const extractTmdbId = (
+                  guids?: { id: string }[]
+                ): number | undefined => {
+                  if (!guids || guids.length === 0) return undefined;
+                  const tmdbGuid = guids.find((g) =>
+                    g.id.startsWith('tmdb://')
+                  );
+                  if (!tmdbGuid) return undefined;
+                  const idMatch = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+                  return idMatch ? parseInt(idMatch[1], 10) : undefined;
+                };
+
+                posterItems = plexItems.slice(0, maxItems).map((item) => ({
+                  title: item.title || 'Unknown',
+                  type: item.type === 'movie' ? 'movie' : 'tv',
+                  tmdbId: extractTmdbId(item.Guid),
+                  year: undefined, // PlexMetadata doesn't include year field
+                  posterUrl: undefined, // Will be fetched by poster generation
+                  metadata: {
+                    libraryKey: preExistingConfig.libraryId,
+                  },
+                }));
+              }
+            } catch (itemsError) {
+              logger.warn(
+                `Failed to fetch collection items for poster generation: ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  error:
+                    itemsError instanceof Error
+                      ? itemsError.message
+                      : String(itemsError),
+                }
+              );
+              // Continue with empty items - will generate template-only poster
+            }
+
+            // Generate poster using the template system
+            const posterFilename = await generatePoster(
+              {
+                collectionName,
+                collectionType: 'pre_existing', // Use pre_existing as the collection type
+                mediaType: preExistingConfig.mediaType,
+                items: posterItems,
+                autoPosterTemplate: preExistingConfig.autoPosterTemplate,
+              },
+              `Auto-generated: ${collectionName}`,
+              preExistingConfig.id
+            );
+
+            if (posterFilename) {
+              // posterFilename is now a full path to temp file
+              const posterTempPath = posterFilename;
+              await plexClient.updateCollectionPoster(
+                preExistingConfig.collectionRatingKey,
+                posterTempPath
+              );
+
+              // Record metadata tracking for this poster
+              const plexPosterUrl = await plexClient.getCurrentPosterUrl(
+                preExistingConfig.collectionRatingKey
+              );
+
+              if (plexPosterUrl) {
+                // Fetch template data for accurate change detection
+                let templateData: unknown = null;
+                if (preExistingConfig.autoPosterTemplate) {
+                  const { getRepository } = await import('typeorm');
+                  const { PosterTemplate } = await import(
+                    '@server/entity/PosterTemplate'
+                  );
+                  const templateRepo = getRepository(PosterTemplate);
+                  const template = await templateRepo.findOne({
+                    where: { id: preExistingConfig.autoPosterTemplate },
+                  });
+                  templateData = template?.templateData;
+                }
+
+                // Calculate input hash based on what determines the poster content
+                const { calculatePosterInputHash } = await import(
+                  '@server/utils/metadataHashing'
+                );
+                const posterInputHash = calculatePosterInputHash({
+                  templateId: preExistingConfig.autoPosterTemplate || null,
+                  templateData, // Include template content for change detection
+                  itemIds: (posterItems || [])
+                    .map((item) => item.tmdbId?.toString() || item.title)
+                    .slice(0, 50),
+                  collectionName,
+                  mediaType: preExistingConfig.mediaType,
+                  collectionType: 'pre_existing',
+                });
+
+                const metadataTrackingService = (
+                  await import('@server/lib/metadata/MetadataTrackingService')
+                ).default;
+                await metadataTrackingService.recordPosterApplication(
+                  preExistingConfig.collectionRatingKey,
+                  posterInputHash,
+                  plexPosterUrl,
+                  {
+                    configId: preExistingConfig.id,
+                    libraryKey: preExistingConfig.libraryId,
+                  }
+                );
+              }
+
+              // Clean up temp poster file after successful upload
+              try {
+                const fs = await import('fs');
+                const pathUtil = await import('path');
+                if (fs.existsSync(posterTempPath)) {
+                  await fs.promises.unlink(posterTempPath);
+                  logger.debug(
+                    `Deleted temp poster file after upload: ${pathUtil.basename(
+                      posterTempPath
+                    )}`,
+                    {
+                      label: 'Hub Sync Service',
+                      collectionId: preExistingConfig.id,
+                    }
+                  );
+                }
+              } catch (cleanupError) {
+                logger.warn(`Failed to delete temp poster file`, {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  error: extractErrorMessage(cleanupError),
+                });
+              }
+
+              logger.info(
+                `Successfully generated and applied poster for pre-existing collection: ${collectionName}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionId: preExistingConfig.id,
+                  plexPosterUrl,
+                }
+              );
+            }
+          } catch (error) {
+            logger.error(
+              `Failed to generate auto-poster for pre-existing collection ${
+                preExistingConfig.name
+              }: ${extractErrorMessage(error)}`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: preExistingConfig.id,
+                error: extractErrorMessage(error),
+              }
+            );
+            // Don't fail the sync if poster generation fails
+          }
+        }
+
+        // Sync custom wallpaper if enabled
+        const customWallpaper = preExistingConfig.customWallpaper;
+        const enableCustomWallpaper =
+          preExistingConfig.enableCustomWallpaper ?? false;
+        if (
+          enableCustomWallpaper &&
+          customWallpaper &&
+          preExistingConfig.collectionRatingKey
+        ) {
+          let wallpaperFilename: string | undefined;
+
+          if (typeof customWallpaper === 'string') {
+            // Legacy single wallpaper
+            wallpaperFilename = customWallpaper;
+          } else {
+            // Per-library wallpaper mapping - get wallpaper for current library
+            wallpaperFilename = customWallpaper[preExistingConfig.libraryId];
+          }
+
+          if (wallpaperFilename) {
+            try {
+              // Get full path to wallpaper file
+              const { getWallpaperPath } = await import(
+                '@server/lib/wallpaperStorage'
+              );
+              const wallpaperPath = getWallpaperPath(wallpaperFilename);
+
+              // Check if wallpaper needs reapplication using metadata tracking
+              const metadataService = (
+                await import('@server/lib/metadata/MetadataTrackingService')
+              ).default;
+
+              let shouldUploadWallpaper = true;
+
+              try {
+                const currentArtUrl = await plexClient.getCurrentArtUrl(
+                  preExistingConfig.collectionRatingKey
+                );
+
+                const shouldReapply =
+                  await metadataService.shouldReapplyWallpaper(
+                    preExistingConfig.collectionRatingKey,
+                    wallpaperFilename,
+                    currentArtUrl
+                  );
+
+                if (!shouldReapply) {
+                  logger.info('Wallpaper unchanged, skipping reupload', {
+                    label: 'Hub Sync Service',
+                    collectionName: preExistingConfig.name,
+                    wallpaperFilename,
+                  });
+                  shouldUploadWallpaper = false;
+                }
+              } catch (metaError) {
+                logger.warn('Metadata check failed, proceeding with upload', {
+                  label: 'Hub Sync Service - MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                });
+                // Fall through to upload
+              }
+
+              if (shouldUploadWallpaper) {
+                await plexClient.uploadArtFromFile(
+                  preExistingConfig.collectionRatingKey,
+                  wallpaperPath
+                );
+                await plexClient.lockArt(preExistingConfig.collectionRatingKey);
+
+                // Get new Plex art URL after upload and record metadata
+                try {
+                  const newArtUrl = await plexClient.getCurrentArtUrl(
+                    preExistingConfig.collectionRatingKey
+                  );
+
+                  if (newArtUrl) {
+                    await metadataService.recordWallpaperApplication(
+                      preExistingConfig.collectionRatingKey,
+                      wallpaperFilename,
+                      newArtUrl,
+                      {
+                        configId: preExistingConfig.id,
+                        libraryKey: preExistingConfig.libraryId,
+                      }
+                    );
+                  }
+                } catch (metaError) {
+                  logger.error(
+                    'Failed to record wallpaper metadata, upload succeeded',
+                    {
+                      label: 'Hub Sync Service - MetadataTracking',
+                      error:
+                        metaError instanceof Error
+                          ? metaError.message
+                          : String(metaError),
+                    }
+                  );
+                }
+              }
+
+              logger.debug(
+                `Successfully uploaded wallpaper for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  wallpaperFilename,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to upload wallpaper for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  wallpaperFilename,
+                  error: extractErrorMessage(error),
+                }
+              );
+              // Don't fail the entire sync if wallpaper upload fails
+            }
+          }
+        }
+
+        // Sync custom summary if enabled
+        const customSummary = preExistingConfig.customSummary;
+        const enableCustomSummary =
+          preExistingConfig.enableCustomSummary ?? false;
+        if (
+          enableCustomSummary &&
+          customSummary &&
+          preExistingConfig.collectionRatingKey
+        ) {
+          try {
+            await plexClient.updateSummary(
+              preExistingConfig.collectionRatingKey,
+              customSummary
+            );
+            logger.debug(
+              `Successfully updated summary for pre-existing collection ${preExistingConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionRatingKey: preExistingConfig.collectionRatingKey,
+              }
+            );
+          } catch (error) {
+            logger.warn(
+              `Failed to update summary for pre-existing collection ${preExistingConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionRatingKey: preExistingConfig.collectionRatingKey,
+                error: extractErrorMessage(error),
+              }
+            );
+            // Don't fail the entire sync if summary update fails
+          }
+        }
+
+        // Sync custom theme if enabled
+        const customTheme = preExistingConfig.customTheme;
+        const enableCustomTheme = preExistingConfig.enableCustomTheme ?? false;
+        if (
+          enableCustomTheme &&
+          customTheme &&
+          preExistingConfig.collectionRatingKey
+        ) {
+          let themeFilename: string | undefined;
+
+          if (typeof customTheme === 'string') {
+            // Legacy single theme
+            themeFilename = customTheme;
+          } else {
+            // Per-library theme mapping - get theme for current library
+            themeFilename = customTheme[preExistingConfig.libraryId];
+          }
+
+          if (themeFilename) {
+            try {
+              // Get full path to theme file
+              const { getThemePath } = await import('@server/lib/themeStorage');
+              const themePath = getThemePath(themeFilename);
+
+              // Check if theme needs reapplication using metadata tracking
+              const metadataService = (
+                await import('@server/lib/metadata/MetadataTrackingService')
+              ).default;
+
+              let shouldUploadTheme = true;
+
+              try {
+                const currentThemeUrl = await plexClient.getCurrentThemeUrl(
+                  preExistingConfig.collectionRatingKey
+                );
+
+                const shouldReapply = await metadataService.shouldReapplyTheme(
+                  preExistingConfig.collectionRatingKey,
+                  themeFilename,
+                  currentThemeUrl
+                );
+
+                if (!shouldReapply) {
+                  logger.info('Theme unchanged, skipping reupload', {
+                    label: 'Hub Sync Service',
+                    collectionName: preExistingConfig.name,
+                    themeFilename,
+                  });
+                  shouldUploadTheme = false;
+                }
+              } catch (metaError) {
+                logger.warn('Metadata check failed, proceeding with upload', {
+                  label: 'Hub Sync Service - MetadataTracking',
+                  error:
+                    metaError instanceof Error
+                      ? metaError.message
+                      : String(metaError),
+                });
+                // Fall through to upload
+              }
+
+              if (shouldUploadTheme) {
+                await plexClient.uploadThemeFromFile(
+                  preExistingConfig.collectionRatingKey,
+                  themePath
+                );
+
+                // Get new Plex theme URL after upload and record metadata
+                try {
+                  const newThemeUrl = await plexClient.getCurrentThemeUrl(
+                    preExistingConfig.collectionRatingKey
+                  );
+
+                  if (newThemeUrl) {
+                    await metadataService.recordThemeApplication(
+                      preExistingConfig.collectionRatingKey,
+                      themeFilename,
+                      newThemeUrl,
+                      {
+                        configId: preExistingConfig.id,
+                        libraryKey: preExistingConfig.libraryId,
+                      }
+                    );
+                  }
+                } catch (metaError) {
+                  logger.error(
+                    'Failed to record theme metadata, upload succeeded',
+                    {
+                      label: 'Hub Sync Service - MetadataTracking',
+                      error:
+                        metaError instanceof Error
+                          ? metaError.message
+                          : String(metaError),
+                    }
+                  );
+                }
+              }
+
+              logger.debug(
+                `Successfully uploaded theme for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  themeFilename,
+                }
+              );
+            } catch (error) {
+              logger.warn(
+                `Failed to upload theme for pre-existing collection ${preExistingConfig.name}`,
+                {
+                  label: 'Hub Sync Service',
+                  collectionRatingKey: preExistingConfig.collectionRatingKey,
+                  themeFilename,
+                  error: extractErrorMessage(error),
+                }
+              );
+              // Don't fail the entire sync if theme upload fails
+            }
+          }
+        }
+
         // Mark pre-existing collection as successfully synced
         const settings = getSettings();
         settings.markCollectionSynced(preExistingConfig.id, 'preExisting');
@@ -645,17 +1159,15 @@ export class HubSyncService {
           }
 
           // For collections, we need the collectionRatingKey to create proper Plex identifiers
-          // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
-          const ratingKeyForLibrary =
-            config.smartCollectionRatingKey || config.collectionRatingKey;
+          const collectionRatingKey = config.collectionRatingKey;
 
           // If we have a rating key for this library, include it in ordering
-          if (ratingKeyForLibrary) {
+          if (collectionRatingKey) {
             libraryOrderingItems.push({
               id: config.id,
               type: 'collection',
               libraryId,
-              collectionRatingKey: ratingKeyForLibrary,
+              collectionRatingKey,
               sortOrder:
                 config.sortOrderHome !== undefined ? config.sortOrderHome : 1,
             });

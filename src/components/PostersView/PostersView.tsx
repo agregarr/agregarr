@@ -17,12 +17,14 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
+import OverlaysView from './OverlaysView';
 import PosterTemplateGrid from './PosterTemplateGrid';
 import SavedPosterGrid from './SavedPosterGrid';
 
 const messages = defineMessages({
-  templates: 'Templates',
+  templates: 'Collection Templates',
   savedPosters: 'Saved Posters',
+  overlays: 'Poster Overlays',
   createTemplate: 'Create Template',
   createPoster: 'Create Poster',
   import: 'Import',
@@ -284,11 +286,15 @@ const PostersView: React.FC = () => {
   const tabs = [
     {
       name: intl.formatMessage(messages.templates),
-      count: templates?.length || 0,
+      count: undefined,
     },
     {
       name: intl.formatMessage(messages.savedPosters),
       count: savedPosters?.length || 0,
+    },
+    {
+      name: intl.formatMessage(messages.overlays),
+      count: undefined, // No count for overlays tab
     },
   ];
 
@@ -316,17 +322,6 @@ const PostersView: React.FC = () => {
                     }`}
                   >
                     {tab.name}
-                    {tab.count > 0 && (
-                      <span
-                        className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-bold leading-none ${
-                          selected
-                            ? 'bg-orange-100 text-orange-800'
-                            : 'bg-stone-700 text-stone-200'
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    )}
                   </button>
                 )}
               </Tab>
@@ -334,14 +329,16 @@ const PostersView: React.FC = () => {
           </Tab.List>
 
           <div className="flex space-x-3">
-            <Button
-              buttonType="primary"
-              onClick={handleCreateTemplate}
-              className="flex items-center space-x-2"
-            >
-              <PlusIcon className="h-4 w-4" />
-              <span>{intl.formatMessage(messages.createTemplate)}</span>
-            </Button>
+            {selectedTab === 0 && (
+              <Button
+                buttonType="primary"
+                onClick={handleCreateTemplate}
+                className="flex items-center space-x-2"
+              >
+                <PlusIcon className="h-4 w-4" />
+                <span>{intl.formatMessage(messages.createTemplate)}</span>
+              </Button>
+            )}
             {selectedTab === 0 && (
               <Menu as="div" className="relative inline-block text-left">
                 <div>
@@ -451,6 +448,10 @@ const PostersView: React.FC = () => {
                 onPosterUpdate={mutateSavedPosters}
               />
             )}
+          </Tab.Panel>
+
+          <Tab.Panel className="focus:outline-none">
+            <OverlaysView />
           </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>

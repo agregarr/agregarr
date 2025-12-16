@@ -12,6 +12,21 @@ export enum CollectionType {
   PRE_EXISTING = 'pre_existing', // Pre-existing Plex collections
 }
 
+/**
+ * Season grab order modes for TV shows
+ */
+export type SeasonGrabOrder = 'first' | 'latest' | 'airing';
+
+/**
+ * Sort order options for collection items
+ */
+export type CollectionSortOrder =
+  | 'default' // As provided by source
+  | 'reverse' // Reverse source order
+  | 'random' // Fisher-Yates shuffle
+  | 'imdb_rating_desc' // Highest to lowest IMDb rating
+  | 'imdb_rating_asc'; // Lowest to highest IMDb rating
+
 export interface Library {
   readonly key: string;
   readonly name: string;
@@ -44,8 +59,10 @@ export interface CollectionConfig {
     | 'anilist'
     | 'multi-source'
     | 'radarrtag'
-    | 'sonarrtag';
-  readonly subtype: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc.
+    | 'sonarrtag'
+    | 'comingsoon'
+    | 'filtered_hub';
+  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc. Optional for types like recently_added
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
   readonly customTVTemplate?: string; // Custom template for TV collections when mediaType is 'both'
@@ -76,7 +93,7 @@ export interface CollectionConfig {
   readonly isPromotedToHub?: boolean; // True if collection exists as a promotable hub in Plex (appears in hub management list)
   readonly collectionRatingKey?: string; // Plex collection rating key (when created)
   readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
-  readonly smartCollectionRatingKey?: string; // Plex smart collection rating key (when smart collection is created)
+  readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
@@ -94,22 +111,54 @@ export interface CollectionConfig {
   readonly autoApproveTV?: boolean; // Auto-approve/download TV shows
   readonly maxSeasonsToRequest?: number; // Max seasons for auto-approval/download (TV shows with more seasons require manual approval or are skipped)
   readonly seasonsPerShowLimit?: number; // Limit each TV show to only the first X seasons (0 = all seasons)
+  readonly seasonGrabOrder?: SeasonGrabOrder; // Order to grab seasons: first, latest, or airing (default: 'first')
   readonly maxPositionToProcess?: number; // Only process items in positions 1-X of the list (0 = no limit)
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
-  readonly excludedGenres?: number[]; // Exclude items with these TMDB genre IDs from missing items search
-  readonly excludedCountries?: string[]; // Exclude items with these ISO 3166-1 country codes from missing items search
+  readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
+  readonly minimumRottenTomatoesRating?: number; // Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)
+  readonly excludedGenres?: number[]; // @deprecated Use filterSettings.genres - Exclude items with these TMDB genre IDs from missing items search
+  readonly excludedCountries?: string[]; // @deprecated Use filterSettings.countries - Exclude items with these ISO 3166-1 country codes from missing items search
+  readonly excludedLanguages?: string[]; // @deprecated Use filterSettings.languages - Exclude items with these ISO 639-1 language codes from missing items search
+  // New unified filter settings with include/exclude modes
+  readonly filterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: number[]; // TMDB genre IDs
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: string[]; // ISO 3166-1 country codes
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: string[]; // ISO 639-1 language codes
+    };
+  };
 
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
   readonly directDownloadRadarrProfileId?: number; // Selected Radarr profile ID for movies
   readonly directDownloadRadarrRootFolder?: string; // Selected Radarr root folder path for movies
+  readonly directDownloadRadarrTags?: number[]; // Selected Radarr tags for movies
+  readonly directDownloadRadarrMonitor?: boolean; // Override Radarr monitor setting for movies
+  readonly directDownloadRadarrSearchOnAdd?: boolean; // Override Radarr search on add setting for movies
   readonly directDownloadSonarrServerId?: number; // Selected Sonarr server ID for TV shows
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
+  readonly directDownloadSonarrTags?: number[]; // Selected Sonarr tags for TV shows
+  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows
+  readonly directDownloadSonarrSearchOnAdd?: boolean; // Override Sonarr search on add setting for TV shows
+  // Overseerr request configuration (for downloadMode: 'overseerr')
+  readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
+  readonly overseerrRadarrProfileId?: number; // Override Radarr profile ID for Overseerr movie requests
+  readonly overseerrRadarrRootFolder?: string; // Override Radarr root folder path for Overseerr movie requests
+  readonly overseerrRadarrTags?: number[]; // Override Radarr tags for Overseerr movie requests
+  readonly overseerrSonarrServerId?: number; // Override Sonarr server ID for Overseerr TV requests
+  readonly overseerrSonarrProfileId?: number; // Override Sonarr profile ID for Overseerr TV requests
+  readonly overseerrSonarrRootFolder?: string; // Override Sonarr root folder path for Overseerr TV requests
+  readonly overseerrSonarrTags?: number[]; // Override Sonarr tags for Overseerr TV requests
   // Trakt custom list fields
   readonly traktCustomListUrl?: string; // Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)
-  // TMDB custom list fields
-  readonly tmdbCustomListUrl?: string; // Custom TMDB list/collection URL (e.g., https://www.themoviedb.org/list/123456)
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)
   // Letterboxd custom list fields
@@ -126,12 +175,31 @@ export interface CollectionConfig {
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
-  readonly reverseOrder?: boolean; // Reverse the order of items from the source
-  readonly randomizeOrder?: boolean; // Randomize the order of items (mutually exclusive with reverseOrder)
+  readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Collection exclusion settings
+  readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
   readonly customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
+  readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
+  // Placeholder settings (for createPlaceholdersForMissing feature)
+  readonly createPlaceholdersForMissing?: boolean; // If true, create placeholder files in Plex for missing items instead of auto-requesting
+  readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
+  readonly placeholderDaysAhead?: number; // Number of days to look ahead for release dates (default: 360)
+  // Legacy Coming Soon fields (for backward compatibility during migration)
+  readonly comingSoonReleasedDays?: number; // @deprecated Use placeholderReleasedDays
+  readonly comingSoonDays?: number; // @deprecated Use placeholderDaysAhead
+  // Overlay sync option
+  readonly applyOverlaysDuringSync?: boolean; // If true, apply overlays to collection items immediately after sync (default: true for Coming Soon, false for others)
   // Time restriction settings
   readonly timeRestriction?: {
     readonly alwaysActive: boolean; // If true, collection is always active (default)
@@ -299,6 +367,15 @@ export interface PreExistingCollectionConfig {
   };
   // Custom poster support
   customPoster?: string | Record<string, string>; // Path to custom poster image file, or per-library poster mapping
+  autoPoster?: boolean; // Auto-generate poster during sync (same as CollectionConfig)
+  autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  // Wallpaper, summary, and theme support
+  customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  customSummary?: string; // Custom summary/description text for the collection
+  customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  enableCustomTheme?: boolean; // Enable custom theme sync to Plex
 }
 
 export interface PlexSettings {
@@ -316,7 +393,13 @@ export interface PlexSettings {
 }
 
 export interface TraktSettings {
+  // Legacy API key support (Client ID was previously stored here)
   apiKey?: string;
+  clientId?: string;
+  clientSecret?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: number;
 }
 
 export interface MDBListSettings {
@@ -343,6 +426,16 @@ export interface OverseerrSettings {
   urlBase?: string;
   apiKey?: string;
   externalUrl?: string;
+  // Movie defaults (Radarr)
+  radarrServerId?: number;
+  radarrProfileId?: number;
+  radarrRootFolder?: string;
+  radarrTags?: number[];
+  // TV defaults (Sonarr)
+  sonarrServerId?: number;
+  sonarrProfileId?: number;
+  sonarrRootFolder?: string;
+  sonarrTags?: number[];
 }
 
 export interface ServiceUserSettings {
@@ -368,6 +461,8 @@ export interface DVRSettings {
   externalUrl?: string;
   syncEnabled: boolean;
   preventSearch: boolean;
+  monitorByDefault?: boolean; // Whether to monitor items when added (defaults to true)
+  searchOnAdd?: boolean; // Whether to immediately search for items when added (defaults to true)
   tagRequests?: boolean;
   tagRequestsMode?: TagRequestsMode;
 }
@@ -388,6 +483,32 @@ export interface SonarrSettings extends DVRSettings {
   enableSeasonFolders: boolean;
 }
 
+export interface WatchlistSyncSettings {
+  enableOwner: boolean; // Enable sync for admin/owner
+  enableUsers: boolean; // Enable sync for all Plex users
+  radarr?: {
+    enabled: boolean; // Enable movie sync
+    serverId?: number; // Selected Radarr server ID
+    profileId?: number; // Quality profile override
+    rootFolder?: string; // Root folder override
+    tags?: number[]; // Tags override
+    monitor?: boolean; // Monitor by default override
+    searchOnAdd?: boolean; // Search on add override
+  };
+  sonarr?: {
+    enabled: boolean; // Enable TV show sync
+    serverId?: number; // Selected Sonarr server ID
+    profileId?: number; // Quality profile override
+    rootFolder?: string; // Root folder override
+    tags?: number[]; // Tags override
+    monitor?: boolean; // Monitor by default override
+    searchOnAdd?: boolean; // Search on add override
+    seasonFolder?: boolean; // Season folder override
+  };
+  lastSyncAt?: Date; // Last successful sync timestamp
+  lastSyncError?: string; // Last sync error message
+}
+
 // Quota interface removed - request system not needed in Agregarr
 
 export interface MainSettings {
@@ -399,11 +520,15 @@ export interface MainSettings {
   newPlexLogin: boolean;
   trustProxy: boolean;
   locale: string;
+  tmdbLanguage?: string; // Language for TMDB API calls (poster metadata, etc.) - defaults to 'en'
   nextConfigId?: number; // Next sequential ID for collection configs (starts at 10000)
   // Global sync status tracking
   lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
   globalSyncError?: string; // Last sync error message if any (master error)
   syncCounter?: number; // Counter for alternating Plex hub ordering methods (prevents precision convergence)
+  // Quick Sync timestamps
+  lastCollectionsQuickSyncAt?: string; // ISO string timestamp of last collections quick sync
+  lastOverlaysQuickSyncAt?: string; // ISO string timestamp of last overlays quick sync
   // External service data for template variables
   adminUsername?: string; // Admin's Plex username
   adminNickname?: string; // Admin's Plex title/display name
@@ -411,6 +536,9 @@ export interface MainSettings {
   externalApplicationTitle?: string; // External Overseerr title
   // Overseerr user label state tracking
   overseerrLabelsApplied?: boolean; // True if Overseerr user filter labels are currently applied to Plex users
+  // Placeholder root folders
+  placeholderMovieRootFolder?: string; // Root folder path for movie placeholders
+  placeholderTVRootFolder?: string; // Root folder path for TV show placeholders
 }
 
 interface PublicSettings {
@@ -435,10 +563,19 @@ interface JobSettings {
   schedule: string;
 }
 
+export interface OverlaySettings {
+  defaultPosterSource: 'tmdb' | 'plex' | 'local';
+  initialSetupComplete: boolean;
+}
+
 export type JobId =
   | 'plex-refresh-token'
   | 'plex-collections-sync'
-  | 'plex-randomize-home-order';
+  | 'plex-collections-quick-sync'
+  | 'plex-randomize-home-order'
+  | 'overlay-application'
+  | 'overlay-quick-sync'
+  | 'watchlist-sync';
 
 export interface GlobalExclusions {
   movies: number[]; // TMDB IDs for excluded movies
@@ -459,8 +596,10 @@ interface AllSettings {
   sonarr: SonarrSettings[];
   public: PublicSettings;
   jobs: Record<JobId, JobSettings>;
+  watchlistSync: WatchlistSyncSettings;
   globalExclusions?: GlobalExclusions; // Global item exclusions for collections
   completedMigrations?: string[]; // Track completed migrations
+  overlays?: OverlaySettings; // Overlay system settings
 }
 
 const SETTINGS_PATH = process.env.CONFIG_DIRECTORY
@@ -482,6 +621,7 @@ class Settings {
         newPlexLogin: true,
         trustProxy: false,
         locale: 'en',
+        tmdbLanguage: 'en',
       },
       plex: {
         name: '',
@@ -514,8 +654,30 @@ class Settings {
         'plex-collections-sync': {
           schedule: '0 0 */12 * * *',
         },
+        'plex-collections-quick-sync': {
+          schedule: '0 */30 * * * *', // Every 30 minutes (user customizable)
+        },
         'plex-randomize-home-order': {
           schedule: '0 0 6 * * *',
+        },
+        'overlay-application': {
+          schedule: '0 0 3 * * *', // Every 24 hours at 3am
+        },
+        'overlay-quick-sync': {
+          schedule: '0 */30 * * * *', // Every 30 minutes (user customizable)
+        },
+        'watchlist-sync': {
+          schedule: '0 0 */6 * * *', // Every 6 hours
+        },
+      },
+      watchlistSync: {
+        enableOwner: false,
+        enableUsers: false,
+        radarr: {
+          enabled: false,
+        },
+        sonarr: {
+          enabled: false,
         },
       },
       globalExclusions: {
@@ -586,6 +748,89 @@ class Settings {
     if (modified) {
       this.save();
     }
+  }
+
+  /**
+   * Migrate legacy reverseOrder/randomizeOrder boolean flags to sortOrder enum
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateSortOrderToEnum(): void {
+    const migrationId = 'sort-order-to-enum';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Skip if already using new format
+        if (config.sortOrder) {
+          return config;
+        }
+
+        // Check if config has legacy fields (using type assertion for detection)
+        const legacyConfig = config as unknown as {
+          reverseOrder?: boolean;
+          randomizeOrder?: boolean;
+        };
+
+        const hasLegacy =
+          legacyConfig.reverseOrder !== undefined ||
+          legacyConfig.randomizeOrder !== undefined;
+
+        if (!hasLegacy) {
+          return config; // No legacy fields to migrate
+        }
+
+        // Determine new sortOrder value from legacy fields
+        let sortOrder: CollectionSortOrder = 'default';
+        if (legacyConfig.randomizeOrder === true) {
+          sortOrder = 'random';
+        } else if (legacyConfig.reverseOrder === true) {
+          sortOrder = 'reverse';
+        }
+
+        migratedCount++;
+        logger.info(`Migrating collection "${config.name}" to sortOrder enum`, {
+          label: 'Settings Migration',
+          configId: config.id,
+        });
+
+        // Return collection with new format, removing old fields
+        return {
+          ...config,
+          sortOrder,
+          reverseOrder: undefined,
+          randomizeOrder: undefined,
+        };
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} collection(s) to sortOrder enum format`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
   }
 
   get main(): MainSettings {
@@ -672,6 +917,14 @@ class Settings {
     this.data.sonarr = data;
   }
 
+  get watchlistSync(): WatchlistSyncSettings {
+    return this.data.watchlistSync;
+  }
+
+  set watchlistSync(data: WatchlistSyncSettings) {
+    this.data.watchlistSync = data;
+  }
+
   get public(): PublicSettings {
     return this.data.public;
   }
@@ -728,6 +981,14 @@ class Settings {
     }
 
     return this.data.clientId;
+  }
+
+  get overlays(): OverlaySettings | undefined {
+    return this.data.overlays;
+  }
+
+  set overlays(data: OverlaySettings | undefined) {
+    this.data.overlays = data;
   }
 
   // VAPID keys methods removed - push notifications not needed in Agregarr
@@ -1203,6 +1464,238 @@ class Settings {
   }
 
   /**
+   * Migrate comingsoon/recently_added configs to standalone recently_added type
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateComingSoonRecentlyAddedToStandalone(): void {
+    const migrationId = 'comingsoon-recently-added-to-standalone';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Check if this is a comingsoon/recently_added config that needs migration
+        if (
+          config.type === 'comingsoon' &&
+          config.subtype === 'recently_added'
+        ) {
+          migratedCount++;
+          logger.info(
+            `Migrating comingsoon/recently_added config "${config.name}" to filtered_hub type with subtype recently_added`,
+            {
+              label: 'Settings Migration',
+              configId: config.id,
+            }
+          );
+
+          return {
+            ...config,
+            type: 'filtered_hub' as const,
+            subtype: 'recently_added', // filtered_hub requires a subtype
+          };
+        }
+
+        return config;
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} comingsoon/recently_added config(s) to filtered_hub type`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
+   * Migrate recently_added type to filtered_hub with subtype recently_added
+   * This is a one-time migration for the filtered hub refactoring
+   */
+  public migrateRecentlyAddedToFilteredHub(): void {
+    const migrationId = 'recently-added-to-filtered-hub';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Check if this is a recently_added config that needs migration
+        // Type assertion needed because 'recently_added' is a legacy type
+        if ((config.type as string) === 'recently_added') {
+          migratedCount++;
+          logger.info(
+            `Migrating recently_added config "${config.name}" to filtered_hub type with subtype recently_added`,
+            {
+              label: 'Settings Migration',
+              configId: config.id,
+            }
+          );
+
+          return {
+            ...config,
+            type: 'filtered_hub' as const,
+            subtype: 'recently_added', // Set subtype to recently_added
+          };
+        }
+
+        return config;
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} recently_added config(s) to filtered_hub type`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
+   * Migrate old filter format (excludedGenres, excludedCountries, excludedLanguages)
+   * to new unified filterSettings format with include/exclude modes
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateToUnifiedFilterSettings(): void {
+    const migrationId = 'unified-filter-settings';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    if (!this.data.plex.collectionConfigs) {
+      this.data.completedMigrations.push(migrationId);
+      this.save();
+      return;
+    }
+
+    let migratedCount = 0;
+
+    this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
+      (config) => {
+        // Skip if already using new format
+        if (config.filterSettings) {
+          return config;
+        }
+
+        // Check if collection has any old-format filters
+        const hasOldFilters =
+          (config.excludedGenres && config.excludedGenres.length > 0) ||
+          (config.excludedCountries && config.excludedCountries.length > 0) ||
+          (config.excludedLanguages && config.excludedLanguages.length > 0);
+
+        if (!hasOldFilters) {
+          return config; // No filters to migrate
+        }
+
+        // Build new filterSettings object
+        const filterSettings: {
+          genres?: { mode: 'exclude' | 'include'; values: number[] };
+          countries?: { mode: 'exclude' | 'include'; values: string[] };
+          languages?: { mode: 'exclude' | 'include'; values: string[] };
+        } = {};
+
+        if (config.excludedGenres && config.excludedGenres.length > 0) {
+          filterSettings.genres = {
+            mode: 'exclude',
+            values: config.excludedGenres,
+          };
+        }
+
+        if (config.excludedCountries && config.excludedCountries.length > 0) {
+          filterSettings.countries = {
+            mode: 'exclude',
+            values: config.excludedCountries,
+          };
+        }
+
+        if (config.excludedLanguages && config.excludedLanguages.length > 0) {
+          filterSettings.languages = {
+            mode: 'exclude',
+            values: config.excludedLanguages,
+          };
+        }
+
+        migratedCount++;
+        logger.info(
+          `Migrating collection "${config.name}" to unified filter settings`,
+          {
+            label: 'Settings Migration',
+            configId: config.id,
+          }
+        );
+
+        // Return collection with new format, removing old fields
+        return {
+          ...config,
+          filterSettings,
+          excludedGenres: undefined,
+          excludedCountries: undefined,
+          excludedLanguages: undefined,
+        };
+      }
+    );
+
+    if (migratedCount > 0) {
+      logger.info(
+        `Migrated ${migratedCount} collection(s) to unified filter settings format`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
    * Normalize pre-existing configs with pre-existing collection business rules
    */
   private normalizePreExistingConfigs(): number {
@@ -1470,7 +1963,8 @@ export type MultiSourceType =
   | 'anilist'
   | 'myanimelist'
   | 'radarrtag'
-  | 'sonarrtag';
+  | 'sonarrtag'
+  | 'comingsoon';
 
 export interface SourceDefinition {
   readonly id: string;
@@ -1523,6 +2017,11 @@ export interface MultiSourceCollectionConfig {
   readonly customPoster?: string | Record<string, string>;
   readonly autoPoster?: boolean;
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
+  readonly applyOverlaysDuringSync?: boolean; // Apply item overlays during sync (for Coming Soon collections)
+  // Placeholder creation settings (shared with CollectionConfig)
+  readonly createPlaceholdersForMissing?: boolean; // Enable placeholder creation for missing items
+  readonly placeholderDaysAhead?: number; // How many days ahead to create placeholders
+  readonly placeholderReleasedDays?: number; // How many days after release to keep placeholders
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
@@ -1533,14 +2032,57 @@ export interface MultiSourceCollectionConfig {
   readonly seasonsPerShowLimit?: number;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
+  readonly minimumImdbRating?: number;
+  readonly minimumRottenTomatoesRating?: number;
   readonly excludedGenres?: number[];
   readonly excludedCountries?: string[];
+  readonly excludedLanguages?: string[];
+  readonly filterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+  };
   readonly directDownloadRadarrServerId?: number;
   readonly directDownloadRadarrProfileId?: number;
   readonly directDownloadRadarrRootFolder?: string;
+  readonly directDownloadRadarrTags?: number[];
+  readonly directDownloadRadarrMonitor?: boolean;
+  readonly directDownloadRadarrSearchOnAdd?: boolean;
   readonly directDownloadSonarrServerId?: number;
   readonly directDownloadSonarrProfileId?: number;
   readonly directDownloadSonarrRootFolder?: string;
+  readonly directDownloadSonarrTags?: number[];
+  readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrSearchOnAdd?: boolean;
+  readonly overseerrRadarrServerId?: number;
+  readonly overseerrRadarrProfileId?: number;
+  readonly overseerrRadarrRootFolder?: string;
+  readonly overseerrRadarrTags?: number[];
+  readonly overseerrSonarrServerId?: number;
+  readonly overseerrSonarrProfileId?: number;
+  readonly overseerrSonarrRootFolder?: string;
+  readonly overseerrSonarrTags?: number[];
+  readonly collectionRatingKey?: string; // Plex collection rating key (regular or smart collection)
+  readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
+  // Smart collection settings (unwatched filter feature)
+  readonly showUnwatchedOnly?: boolean; // If true, create a smart collection that filters to unwatched items only
+  readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
+  // Wallpaper, summary, and theme settings
+  readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
+  readonly customSummary?: string; // Custom summary/description text for the collection
+  readonly customTheme?: string | Record<string, string>; // Path to custom theme music file, or per-library theme mapping
+  readonly enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
+  readonly enableCustomSummary?: boolean; // Enable custom summary sync to Plex
+  readonly enableCustomTheme?: boolean; // Enable custom theme sync to Plex
 }
 
 export const getSettings = (initialSettings?: AllSettings): Settings => {
@@ -1549,6 +2091,15 @@ export const getSettings = (initialSettings?: AllSettings): Settings => {
   }
 
   return settings;
+};
+
+/**
+ * Get the configured TMDB language for API calls
+ * Returns 'en' (English) as default if not configured
+ */
+export const getTmdbLanguage = (): string => {
+  const settings = getSettings();
+  return settings.main.tmdbLanguage || 'en';
 };
 
 export default Settings;

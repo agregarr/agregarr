@@ -1,3 +1,4 @@
+import BulkEditModal from '@app/components/Collections/BulkEditModal';
 import CollectionConfigForm from '@app/components/Collections/Forms/CollectionConfigForm';
 import GlobalSyncStatus from '@app/components/Collections/GlobalSyncStatus';
 import LibraryCollectionGroup from '@app/components/Collections/Views/Library/LibraryCollectionGroup';
@@ -10,7 +11,13 @@ import type {
   Library,
 } from '@app/types/collections';
 import { CollectionType } from '@app/types/collections';
+import { saveIndividualConfigs } from '@app/utils/collections/apiHandlers';
 import { prepareLinkedConfigForEditing } from '@app/utils/collections/collectionUtils';
+import { discoverPlexHubs } from '@app/utils/collections/discoveryHandlers';
+import {
+  linkCollectionConfig,
+  unlinkCollectionConfig,
+} from '@app/utils/collections/linkingHandlers';
 import { Menu, Transition } from '@headlessui/react';
 import {
   ArrowPathIcon,
@@ -20,9 +27,12 @@ import {
   PlusIcon,
 } from '@heroicons/react/24/solid';
 import type {
+  OverseerrSettings,
   PlexHubConfig,
   PlexSettings,
   PreExistingCollectionConfig,
+  RadarrSettings,
+  SonarrSettings,
 } from '@server/lib/settings';
 import axios from 'axios';
 import { useRouter } from 'next/router';
@@ -48,6 +58,17 @@ const CollectionSettings = ({
   const router = useRouter();
   const { mutate: revalidate } = useSWR('/api/v1/settings/plex');
   const { data } = useSWR<PlexSettings>('/api/v1/settings/plex');
+
+  // Fetch settings for defaults
+  const { data: overseerrSettings } = useSWR<OverseerrSettings>(
+    '/api/v1/settings/overseerr'
+  );
+  const { data: radarrSettings } = useSWR<RadarrSettings[]>(
+    '/api/v1/settings/radarr'
+  );
+  const { data: sonarrSettings } = useSWR<SonarrSettings[]>(
+    '/api/v1/settings/sonarr'
+  );
 
   // Load libraries: use prop if provided, otherwise fetch directly from Plex
   const { data: plexLibraries = [], error: librariesError } = useSWR(
@@ -92,6 +113,9 @@ const CollectionSettings = ({
   const [showPreExistingForm, setShowPreExistingForm] = useState(false);
   const [editingPreExistingConfig, setEditingPreExistingConfig] =
     useState<PreExistingCollectionConfig | null>(null);
+
+  // Bulk edit modal state
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
 
   // Tab state for Home, Recommended, Library, and Inactive tab ordering
   // Use filterTab if provided (for dedicated pages), otherwise default to 'home' for the main settings page
@@ -168,249 +192,6 @@ const CollectionSettings = ({
   // Use global first-time setup detection
   const { isFirstTimeSetup } = useFirstTimeSetup();
   const isFirstTimeUser = isFirstTimeSetup;
-
-  // Helper function to save individual configs using individual endpoints
-  const saveIndividualConfigs = async (
-    configsToUpdate: (
-      | CollectionFormConfig
-      | PlexHubConfig
-      | PreExistingCollectionConfig
-    )[]
-  ) => {
-    // Process each config individually using appropriate endpoints
-    // Strip computed fields to avoid OpenAPI validation errors
-    for (const config of configsToUpdate) {
-      if ('collectionRatingKey' in config) {
-        // PreExistingCollectionConfig - exclude computed fields isActive, collectionType
-        const preExistingConfig = config as PreExistingCollectionConfig;
-        const payload: Omit<
-          PreExistingCollectionConfig,
-          'isActive' | 'collectionType' | 'missing'
-        > = {
-          id: preExistingConfig.id,
-          collectionRatingKey: preExistingConfig.collectionRatingKey,
-          name: preExistingConfig.name,
-          libraryId: preExistingConfig.libraryId,
-          libraryName: preExistingConfig.libraryName,
-          mediaType: preExistingConfig.mediaType,
-          sortOrderHome: preExistingConfig.sortOrderHome,
-          sortOrderLibrary: preExistingConfig.sortOrderLibrary,
-          isLibraryPromoted: preExistingConfig.isLibraryPromoted,
-          visibilityConfig: preExistingConfig.visibilityConfig,
-          isLinked: preExistingConfig.isLinked,
-          linkId: preExistingConfig.linkId,
-          isUnlinked: preExistingConfig.isUnlinked,
-          ...(preExistingConfig.randomizeHomeOrder !== undefined && {
-            randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
-          }),
-          ...(preExistingConfig.timeRestriction && {
-            timeRestriction: preExistingConfig.timeRestriction,
-          }),
-          ...(preExistingConfig.customPoster && {
-            customPoster: preExistingConfig.customPoster,
-          }),
-        };
-        await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
-      } else if ('hubIdentifier' in config) {
-        // PlexHubConfig - exclude computed fields isActive, collectionType
-        const hubConfig = config as PlexHubConfig;
-        const payload: Omit<
-          PlexHubConfig,
-          'isActive' | 'collectionType' | 'missing'
-        > = {
-          id: hubConfig.id,
-          hubIdentifier: hubConfig.hubIdentifier,
-          name: hubConfig.name,
-          libraryId: hubConfig.libraryId,
-          libraryName: hubConfig.libraryName,
-          mediaType: hubConfig.mediaType,
-          sortOrderHome: hubConfig.sortOrderHome,
-          sortOrderLibrary: hubConfig.sortOrderLibrary,
-          isLibraryPromoted: hubConfig.isLibraryPromoted,
-          visibilityConfig: hubConfig.visibilityConfig,
-          isLinked: hubConfig.isLinked,
-          linkId: hubConfig.linkId,
-          isUnlinked: hubConfig.isUnlinked,
-          ...(hubConfig.randomizeHomeOrder !== undefined && {
-            randomizeHomeOrder: hubConfig.randomizeHomeOrder,
-          }),
-          ...(hubConfig.timeRestriction && {
-            timeRestriction: hubConfig.timeRestriction,
-          }),
-        };
-        await axios.put(`/api/v1/defaulthubs/${config.id}/settings`, payload);
-      } else {
-        // CollectionFormConfig - exclude computed field isActive
-        const collectionConfig = config as CollectionFormConfig;
-        const payload: Omit<CollectionFormConfig, 'isActive' | 'missing'> = {
-          id: collectionConfig.id,
-          name: collectionConfig.name,
-          ...(collectionConfig.type && { type: collectionConfig.type }),
-          ...(collectionConfig.subtype && {
-            subtype: collectionConfig.subtype,
-          }),
-          ...(collectionConfig.configType && {
-            configType: collectionConfig.configType,
-          }),
-          ...(collectionConfig.template && {
-            template: collectionConfig.template,
-          }),
-          ...(collectionConfig.customMovieTemplate && {
-            customMovieTemplate: collectionConfig.customMovieTemplate,
-          }),
-          ...(collectionConfig.customTVTemplate && {
-            customTVTemplate: collectionConfig.customTVTemplate,
-          }),
-          visibilityConfig: collectionConfig.visibilityConfig,
-          ...(collectionConfig.maxItems !== undefined && {
-            maxItems: collectionConfig.maxItems,
-          }),
-          ...(collectionConfig.mediaType && {
-            mediaType: collectionConfig.mediaType,
-          }),
-          libraryId: collectionConfig.libraryId,
-          libraryName: collectionConfig.libraryName,
-          ...(collectionConfig.libraryIds && {
-            libraryIds: collectionConfig.libraryIds,
-          }),
-          ...(collectionConfig.libraryNames && {
-            libraryNames: collectionConfig.libraryNames,
-          }),
-          ...(collectionConfig.sortOrderHome !== undefined && {
-            sortOrderHome: collectionConfig.sortOrderHome,
-          }),
-          ...(collectionConfig.sortOrderLibrary !== undefined && {
-            sortOrderLibrary: collectionConfig.sortOrderLibrary,
-          }),
-          ...(collectionConfig.collectionRatingKey && {
-            collectionRatingKey: collectionConfig.collectionRatingKey,
-          }),
-          isLinked: collectionConfig.isLinked,
-          linkId: collectionConfig.linkId,
-          ...(collectionConfig.customDays !== undefined && {
-            customDays: collectionConfig.customDays,
-          }),
-          ...(collectionConfig.tautulliStatType && {
-            tautulliStatType: collectionConfig.tautulliStatType,
-          }),
-          ...(collectionConfig.downloadMode && {
-            downloadMode: collectionConfig.downloadMode,
-          }),
-          ...(collectionConfig.directDownloadRadarrServerId !== undefined && {
-            directDownloadRadarrServerId:
-              collectionConfig.directDownloadRadarrServerId,
-          }),
-          ...(collectionConfig.directDownloadRadarrProfileId !== undefined && {
-            directDownloadRadarrProfileId:
-              collectionConfig.directDownloadRadarrProfileId,
-          }),
-          ...(collectionConfig.directDownloadRadarrRootFolder !== undefined && {
-            directDownloadRadarrRootFolder:
-              collectionConfig.directDownloadRadarrRootFolder,
-          }),
-          ...(collectionConfig.directDownloadSonarrServerId !== undefined && {
-            directDownloadSonarrServerId:
-              collectionConfig.directDownloadSonarrServerId,
-          }),
-          ...(collectionConfig.directDownloadSonarrProfileId !== undefined && {
-            directDownloadSonarrProfileId:
-              collectionConfig.directDownloadSonarrProfileId,
-          }),
-          ...(collectionConfig.directDownloadSonarrRootFolder !== undefined && {
-            directDownloadSonarrRootFolder:
-              collectionConfig.directDownloadSonarrRootFolder,
-          }),
-          ...(collectionConfig.isMultiSource !== undefined && {
-            isMultiSource: collectionConfig.isMultiSource,
-          }),
-          ...(collectionConfig.sources !== undefined && {
-            sources: collectionConfig.sources,
-          }),
-          ...(collectionConfig.combineMode !== undefined && {
-            combineMode: collectionConfig.combineMode,
-          }),
-          ...(collectionConfig.searchMissingMovies !== undefined && {
-            searchMissingMovies: collectionConfig.searchMissingMovies,
-          }),
-          ...(collectionConfig.searchMissingTV !== undefined && {
-            searchMissingTV: collectionConfig.searchMissingTV,
-          }),
-          ...(collectionConfig.autoApproveMovies !== undefined && {
-            autoApproveMovies: collectionConfig.autoApproveMovies,
-          }),
-          ...(collectionConfig.autoApproveTV !== undefined && {
-            autoApproveTV: collectionConfig.autoApproveTV,
-          }),
-          ...(collectionConfig.maxSeasonsToRequest !== undefined && {
-            maxSeasonsToRequest: collectionConfig.maxSeasonsToRequest,
-          }),
-          ...(collectionConfig.seasonsPerShowLimit !== undefined && {
-            seasonsPerShowLimit: collectionConfig.seasonsPerShowLimit,
-          }),
-          ...(collectionConfig.maxPositionToProcess !== undefined && {
-            maxPositionToProcess: collectionConfig.maxPositionToProcess,
-          }),
-          ...(collectionConfig.minimumYear !== undefined && {
-            minimumYear: collectionConfig.minimumYear,
-          }),
-          ...(collectionConfig.excludedGenres !== undefined && {
-            excludedGenres: collectionConfig.excludedGenres,
-          }),
-          ...(collectionConfig.excludedCountries !== undefined && {
-            excludedCountries: collectionConfig.excludedCountries,
-          }),
-          ...(collectionConfig.traktCustomListUrl && {
-            traktCustomListUrl: collectionConfig.traktCustomListUrl,
-          }),
-          ...(collectionConfig.tmdbCustomListUrl && {
-            tmdbCustomListUrl: collectionConfig.tmdbCustomListUrl,
-          }),
-          ...(collectionConfig.imdbCustomListUrl && {
-            imdbCustomListUrl: collectionConfig.imdbCustomListUrl,
-          }),
-          ...(collectionConfig.letterboxdCustomListUrl && {
-            letterboxdCustomListUrl: collectionConfig.letterboxdCustomListUrl,
-          }),
-          ...(collectionConfig.reverseOrder !== undefined && {
-            reverseOrder: collectionConfig.reverseOrder,
-          }),
-          ...(collectionConfig.randomizeOrder !== undefined && {
-            randomizeOrder: collectionConfig.randomizeOrder,
-          }),
-          ...(collectionConfig.collectionType && {
-            collectionType: collectionConfig.collectionType,
-          }),
-          isUnlinked: collectionConfig.isUnlinked,
-          ...(collectionConfig.hubIdentifier && {
-            hubIdentifier: collectionConfig.hubIdentifier,
-          }),
-          ...(collectionConfig.customPoster && {
-            customPoster: collectionConfig.customPoster,
-          }),
-          autoPoster: collectionConfig.autoPoster ?? true,
-          ...(collectionConfig.autoPosterTemplate !== undefined && {
-            autoPosterTemplate: collectionConfig.autoPosterTemplate,
-          }),
-          ...(collectionConfig.showUnwatchedOnly !== undefined && {
-            showUnwatchedOnly: collectionConfig.showUnwatchedOnly,
-          }),
-          ...(collectionConfig.smartCollectionSort !== undefined && {
-            smartCollectionSort: collectionConfig.smartCollectionSort,
-          }),
-          ...(collectionConfig.randomizeHomeOrder !== undefined && {
-            randomizeHomeOrder: collectionConfig.randomizeHomeOrder,
-          }),
-          ...(collectionConfig.customSyncSchedule && {
-            customSyncSchedule: collectionConfig.customSyncSchedule,
-          }),
-          ...(collectionConfig.timeRestriction && {
-            timeRestriction: collectionConfig.timeRestriction,
-          }),
-        };
-        await axios.put(`/api/v1/collections/${config.id}/settings`, payload);
-      }
-    }
-  };
 
   // Create a set of unified identifiers from existing collection configs to avoid duplicates
   // Uses the unified format: {libraryId}:{ratingKey}
@@ -518,6 +299,9 @@ const CollectionSettings = ({
           sortOrderHome: config.sortOrderHome,
           sortOrderLibrary: config.sortOrderLibrary,
           customDays: config.customDays,
+          createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+          placeholderDaysAhead: config.placeholderDaysAhead,
+          placeholderReleasedDays: config.placeholderReleasedDays,
           tautulliStatType: config.tautulliStatType,
           searchMissingMovies: config.searchMissingMovies,
           searchMissingTV: config.searchMissingTV,
@@ -525,23 +309,32 @@ const CollectionSettings = ({
           autoApproveTV: config.autoApproveTV,
           maxSeasonsToRequest: config.maxSeasonsToRequest,
           seasonsPerShowLimit: config.seasonsPerShowLimit,
+          seasonGrabOrder: config.seasonGrabOrder || 'first',
           traktCustomListUrl: config.traktCustomListUrl,
-          tmdbCustomListUrl: config.tmdbCustomListUrl,
+          tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
           imdbCustomListUrl: config.imdbCustomListUrl,
           letterboxdCustomListUrl: config.letterboxdCustomListUrl,
           radarrInstanceId: config.radarrInstanceId,
           radarrTagId: config.radarrTagId,
           sonarrInstanceId: config.sonarrInstanceId,
           sonarrTagId: config.sonarrTagId,
-          reverseOrder: config.reverseOrder,
-          randomizeOrder: config.randomizeOrder,
+          sortOrder: config.sortOrder,
           timeRestriction: config.timeRestriction,
           customPoster: config.customPoster,
           autoPoster: config.autoPoster,
           autoPosterTemplate: config.autoPosterTemplate,
+          useTmdbFranchisePoster: config.useTmdbFranchisePoster,
+          hideIndividualItems: config.hideIndividualItems,
+          applyOverlaysDuringSync: config.applyOverlaysDuringSync,
           showUnwatchedOnly: config.showUnwatchedOnly,
           smartCollectionSort: config.smartCollectionSort,
           randomizeHomeOrder: config.randomizeHomeOrder,
+          customWallpaper: config.customWallpaper,
+          customSummary: config.customSummary,
+          customTheme: config.customTheme,
+          enableCustomWallpaper: config.enableCustomWallpaper,
+          enableCustomSummary: config.enableCustomSummary,
+          enableCustomTheme: config.enableCustomTheme,
           customSyncSchedule: config.customSyncSchedule,
           collectionRatingKey: config.collectionRatingKey,
           ...(config.configType && { configType: config.configType }),
@@ -566,6 +359,50 @@ const CollectionSettings = ({
             directDownloadSonarrRootFolder:
               config.directDownloadSonarrRootFolder,
           }),
+          ...(config.directDownloadRadarrTags !== undefined && {
+            directDownloadRadarrTags: config.directDownloadRadarrTags,
+          }),
+          ...(config.directDownloadRadarrMonitor !== undefined && {
+            directDownloadRadarrMonitor: config.directDownloadRadarrMonitor,
+          }),
+          ...(config.directDownloadRadarrSearchOnAdd !== undefined && {
+            directDownloadRadarrSearchOnAdd:
+              config.directDownloadRadarrSearchOnAdd,
+          }),
+          ...(config.directDownloadSonarrTags !== undefined && {
+            directDownloadSonarrTags: config.directDownloadSonarrTags,
+          }),
+          ...(config.directDownloadSonarrMonitor !== undefined && {
+            directDownloadSonarrMonitor: config.directDownloadSonarrMonitor,
+          }),
+          ...(config.directDownloadSonarrSearchOnAdd !== undefined && {
+            directDownloadSonarrSearchOnAdd:
+              config.directDownloadSonarrSearchOnAdd,
+          }),
+          ...(config.overseerrRadarrServerId !== undefined && {
+            overseerrRadarrServerId: config.overseerrRadarrServerId,
+          }),
+          ...(config.overseerrRadarrProfileId !== undefined && {
+            overseerrRadarrProfileId: config.overseerrRadarrProfileId,
+          }),
+          ...(config.overseerrRadarrRootFolder !== undefined && {
+            overseerrRadarrRootFolder: config.overseerrRadarrRootFolder,
+          }),
+          ...(config.overseerrSonarrServerId !== undefined && {
+            overseerrSonarrServerId: config.overseerrSonarrServerId,
+          }),
+          ...(config.overseerrSonarrProfileId !== undefined && {
+            overseerrSonarrProfileId: config.overseerrSonarrProfileId,
+          }),
+          ...(config.overseerrSonarrRootFolder !== undefined && {
+            overseerrSonarrRootFolder: config.overseerrSonarrRootFolder,
+          }),
+          ...(config.overseerrRadarrTags !== undefined && {
+            overseerrRadarrTags: config.overseerrRadarrTags,
+          }),
+          ...(config.overseerrSonarrTags !== undefined && {
+            overseerrSonarrTags: config.overseerrSonarrTags,
+          }),
           isLinked: config.isLinked,
           linkId: config.linkId,
           isUnlinked: config.isUnlinked,
@@ -575,11 +412,26 @@ const CollectionSettings = ({
           ...(config.minimumYear !== undefined && {
             minimumYear: config.minimumYear,
           }),
+          ...(config.minimumImdbRating !== undefined && {
+            minimumImdbRating: config.minimumImdbRating,
+          }),
+          ...(config.minimumRottenTomatoesRating !== undefined && {
+            minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
+          }),
           ...(config.excludedGenres !== undefined && {
             excludedGenres: config.excludedGenres,
           }),
           ...(config.excludedCountries !== undefined && {
             excludedCountries: config.excludedCountries,
+          }),
+          ...(config.excludedLanguages !== undefined && {
+            excludedLanguages: config.excludedLanguages,
+          }),
+          ...(config.filterSettings !== undefined && {
+            filterSettings: config.filterSettings,
+          }),
+          ...(config.excludeFromCollections !== undefined && {
+            excludeFromCollections: config.excludeFromCollections,
           }),
           ...(config.timePeriod && { timePeriod: config.timePeriod }),
           ...(config.libraryIds && { libraryIds: config.libraryIds }),
@@ -619,6 +471,13 @@ const CollectionSettings = ({
   };
 
   const addCollectionConfig = () => {
+    // Get default Radarr instance (first default or first in array)
+    const defaultRadarr =
+      radarrSettings?.find((r) => r.isDefault) || radarrSettings?.[0];
+    // Get default Sonarr instance (first default or first in array)
+    const defaultSonarr =
+      sonarrSettings?.find((s) => s.isDefault) || sonarrSettings?.[0];
+
     const newConfig: CollectionFormConfig = {
       id: '', // Will be assigned on save
       name: '', // Will be generated from template
@@ -646,204 +505,33 @@ const CollectionSettings = ({
       autoApproveTV: false,
       maxSeasonsToRequest: 0, // Default: no limit
       seasonsPerShowLimit: 0, // Default: all seasons
+      seasonGrabOrder: 'first', // Default to first N seasons
+      // Overseerr defaults
+      overseerrRadarrServerId: overseerrSettings?.radarrServerId,
+      overseerrRadarrProfileId: overseerrSettings?.radarrProfileId,
+      overseerrRadarrRootFolder: overseerrSettings?.radarrRootFolder,
+      overseerrRadarrTags: overseerrSettings?.radarrTags || [],
+      overseerrSonarrServerId: overseerrSettings?.sonarrServerId,
+      overseerrSonarrProfileId: overseerrSettings?.sonarrProfileId,
+      overseerrSonarrRootFolder: overseerrSettings?.sonarrRootFolder,
+      overseerrSonarrTags: overseerrSettings?.sonarrTags || [],
+      // Direct download Radarr defaults
+      directDownloadRadarrServerId: defaultRadarr?.id,
+      directDownloadRadarrProfileId: defaultRadarr?.activeProfileId,
+      directDownloadRadarrRootFolder: defaultRadarr?.activeDirectory,
+      directDownloadRadarrTags: defaultRadarr?.tags || [],
+      directDownloadRadarrMonitor: defaultRadarr?.monitorByDefault ?? true,
+      directDownloadRadarrSearchOnAdd: defaultRadarr?.searchOnAdd ?? true,
+      // Direct download Sonarr defaults
+      directDownloadSonarrServerId: defaultSonarr?.id,
+      directDownloadSonarrProfileId: defaultSonarr?.activeProfileId,
+      directDownloadSonarrRootFolder: defaultSonarr?.activeDirectory,
+      directDownloadSonarrTags: defaultSonarr?.tags || [],
+      directDownloadSonarrMonitor: defaultSonarr?.monitorByDefault ?? true,
+      directDownloadSonarrSearchOnAdd: defaultSonarr?.searchOnAdd ?? true,
     };
     setEditingConfig(newConfig);
     setShowConfigForm(true);
-  };
-
-  const discoverPlexHubs = async () => {
-    setDiscoveringHubs(true);
-    try {
-      // First sync libraries to ensure they're up to date
-      const librariesResponse = await axios.get(
-        '/api/v1/settings/plex/library',
-        {
-          params: { sync: true },
-        }
-      );
-
-      // Then discover hubs and collections
-      // Use unified discovery endpoint for cross-type detection and conflict resolution
-      const response = await axios.get('/api/v1/discovery/hubs/scan');
-      const {
-        discoveredHubConfigs,
-        discoveredPreExistingConfigs,
-        validationResults,
-      } = response.data;
-
-      // Apply validation results to mark missing collections
-      if (validationResults) {
-        // Mark missing collections
-        const updatedCollections = localCollectionConfigs.map((config) => ({
-          ...config,
-          missing:
-            validationResults.missingCollections?.includes(config.id) || false,
-        }));
-        setLocalCollectionConfigs(updatedCollections);
-
-        // Mark missing hubs
-        const updatedHubs = localHubConfigs.map((config) => ({
-          ...config,
-          missing: validationResults.missingHubs?.includes(config.id) || false,
-        }));
-        setLocalHubConfigs(updatedHubs);
-
-        // Mark missing pre-existing collections
-        const updatedPreExisting = localPreExistingConfigs.map((config) => ({
-          ...config,
-          missing:
-            validationResults.missingPreExisting?.includes(config.id) || false,
-        }));
-        setLocalPreExistingConfigs(updatedPreExisting);
-
-        // Log validation results
-        const totalMissing =
-          (validationResults.missingCollections?.length || 0) +
-          (validationResults.missingHubs?.length || 0) +
-          (validationResults.missingPreExisting?.length || 0);
-        if (totalMissing > 0) {
-          addToast(
-            `Validation complete: ${totalMissing} missing collection${
-              totalMissing !== 1 ? 's' : ''
-            } detected`,
-            {
-              autoDismiss: true,
-              appearance: 'warning',
-            }
-          );
-        }
-      }
-
-      // Combine both arrays for processing
-      const allDiscoveredConfigs = [
-        ...(discoveredHubConfigs || []),
-        ...(discoveredPreExistingConfigs || []),
-      ];
-
-      if (allDiscoveredConfigs.length === 0) {
-        // No new hubs found, but still need to refresh UI for any updates to existing configs
-        revalidateAll();
-
-        addToast('No Plex hubs found to import.', {
-          autoDismiss: true,
-          appearance: 'info',
-        });
-        return;
-      }
-
-      // Get existing hub configurations from separate APIs
-      const [existingHubsResponse, existingPreExistingResponse] =
-        await Promise.all([
-          axios.get('/api/v1/defaulthubs'),
-          axios.get('/api/v1/preexisting'),
-        ]);
-      const existingHubConfigs = existingHubsResponse.data || [];
-      const existingPreExistingConfigs = existingPreExistingResponse.data || [];
-
-      // Filter out hubs that are already configured using the proper hub ID format
-      const existingHubIds = new Set(
-        existingHubConfigs.map((hub: PlexHubConfig) => hub.id)
-      );
-      const existingPreExistingIds = new Set(
-        existingPreExistingConfigs.map(
-          (hub: PreExistingCollectionConfig) => hub.id
-        )
-      );
-
-      const newHubs = (discoveredHubConfigs || []).filter(
-        (hub: PlexHubConfig) => !existingHubIds.has(hub.id)
-      );
-
-      const newPreExistingCollections = (
-        discoveredPreExistingConfigs || []
-      ).filter(
-        (hub: PreExistingCollectionConfig) =>
-          !existingPreExistingIds.has(hub.id)
-      );
-
-      if (newHubs.length === 0 && newPreExistingCollections.length === 0) {
-        // No new configs to add, but still need to refresh UI for any updates to existing configs
-        revalidateAll();
-
-        addToast('All available Plex hubs are already configured.', {
-          autoDismiss: true,
-          appearance: 'info',
-        });
-        return;
-      }
-
-      // Use discovery APIs for new configurations with proper timing
-      const discoveryPromises = [];
-
-      if (newHubs.length > 0) {
-        discoveryPromises.push(
-          axios.post('/api/v1/defaulthubs/discover', {
-            hubConfigs: newHubs,
-          })
-        );
-      }
-
-      if (newPreExistingCollections.length > 0) {
-        discoveryPromises.push(
-          axios.post('/api/v1/preexisting/discover', {
-            preExistingCollectionConfigs: newPreExistingCollections,
-          })
-        );
-      }
-
-      // Wait for all discovery operations to complete with 10 second timeout
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Discovery timeout')), 10000)
-      );
-
-      try {
-        await Promise.race([Promise.all(discoveryPromises), timeoutPromise]);
-      } catch (error) {
-        if (error instanceof Error && error.message === 'Discovery timeout') {
-          // Discovery timed out, proceed with refresh anyway
-        } else {
-          throw error; // Re-throw other errors
-        }
-      }
-
-      // Wait a bit more to ensure backend processing is complete
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Now revalidate to get the fresh data
-      revalidateAll();
-
-      // Calculate summary for comprehensive results
-      const libraries = librariesResponse.data || [];
-
-      // Show comprehensive results
-      const totalHubs = allDiscoveredConfigs.filter(
-        (c: PlexHubConfig) =>
-          c.collectionType === CollectionType.DEFAULT_PLEX_HUB
-      ).length;
-      const totalCollections = allDiscoveredConfigs.filter(
-        (c: PlexHubConfig) =>
-          c.collectionType !== CollectionType.DEFAULT_PLEX_HUB
-      ).length;
-      const totalNewConfigs = newHubs.length + newPreExistingCollections.length;
-
-      addToast(
-        `Discovery complete! Synced ${libraries.length} libraries and imported ${totalNewConfigs} new configurations (${totalHubs} hubs, ${totalCollections} collections).`,
-        {
-          autoDismiss: true,
-          appearance: 'success',
-        }
-      );
-    } catch (error) {
-      addToast(
-        'Failed to discover Plex hubs. Please check your Plex connection.',
-        {
-          autoDismiss: true,
-          appearance: 'error',
-        }
-      );
-    } finally {
-      setDiscoveringHubs(false);
-    }
   };
 
   const syncCollections = async () => {
@@ -1127,14 +815,47 @@ const CollectionSettings = ({
         isLinked: preExistingConfig.isLinked,
         linkId: preExistingConfig.linkId,
         isUnlinked: preExistingConfig.isUnlinked,
+        ...(preExistingConfig.titleSort && {
+          titleSort: preExistingConfig.titleSort,
+        }),
         ...(preExistingConfig.randomizeHomeOrder !== undefined && {
           randomizeHomeOrder: preExistingConfig.randomizeHomeOrder,
+        }),
+        ...(preExistingConfig.everLibraryPromoted !== undefined && {
+          everLibraryPromoted: preExistingConfig.everLibraryPromoted,
+        }),
+        ...(preExistingConfig.isPromotedToHub !== undefined && {
+          isPromotedToHub: preExistingConfig.isPromotedToHub,
         }),
         ...(preExistingConfig.timeRestriction && {
           timeRestriction: preExistingConfig.timeRestriction,
         }),
         ...(preExistingConfig.customPoster && {
           customPoster: preExistingConfig.customPoster,
+        }),
+        ...(preExistingConfig.autoPoster !== undefined && {
+          autoPoster: preExistingConfig.autoPoster,
+        }),
+        ...(preExistingConfig.autoPosterTemplate !== undefined && {
+          autoPosterTemplate: preExistingConfig.autoPosterTemplate,
+        }),
+        ...(preExistingConfig.customWallpaper && {
+          customWallpaper: preExistingConfig.customWallpaper,
+        }),
+        ...(preExistingConfig.customSummary && {
+          customSummary: preExistingConfig.customSummary,
+        }),
+        ...(preExistingConfig.customTheme && {
+          customTheme: preExistingConfig.customTheme,
+        }),
+        ...(preExistingConfig.enableCustomWallpaper !== undefined && {
+          enableCustomWallpaper: preExistingConfig.enableCustomWallpaper,
+        }),
+        ...(preExistingConfig.enableCustomSummary !== undefined && {
+          enableCustomSummary: preExistingConfig.enableCustomSummary,
+        }),
+        ...(preExistingConfig.enableCustomTheme !== undefined && {
+          enableCustomTheme: preExistingConfig.enableCustomTheme,
         }),
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
@@ -1644,333 +1365,6 @@ const CollectionSettings = ({
     }
   };
 
-  const linkCollectionConfig = async (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => {
-    try {
-      if ((config as CollectionFormConfig).configType === 'hub') {
-        // Handle hub linking - find other hubs with same base identifier that could be linked
-        const currentHub = localHubConfigs.find(
-          (h: PlexHubConfig) => h.id === config.id
-        );
-        if (!currentHub) return;
-
-        const eligibleHubs = localHubConfigs.filter(
-          (h: PlexHubConfig) =>
-            h.linkId === currentHub.linkId && // Same linkId group (established during discovery)
-            h.id !== config.id &&
-            !h.isLinked // Only link hubs that aren't already linked
-          // Note: We don't exclude isUnlinked hubs - those can be relinked!
-        );
-
-        if (eligibleHubs.length === 0) {
-          addToast(
-            'No other unlinked hubs found in the same group to link to.',
-            {
-              autoDismiss: true,
-              appearance: 'info',
-            }
-          );
-          return;
-        }
-
-        // Create a new link group with a unique linkId
-        const existingLinkIds = localHubConfigs
-          .map((h) => h.linkId)
-          .filter((id): id is number => typeof id === 'number');
-        const newLinkId =
-          existingLinkIds.length > 0 ? Math.max(...existingLinkIds) + 1 : 1;
-
-        const updatedHubConfigs = [...localHubConfigs];
-        const hubsToLink = [currentHub, ...eligibleHubs];
-
-        hubsToLink.forEach((hub: PlexHubConfig) => {
-          const hubIndex = updatedHubConfigs.findIndex(
-            (h: PlexHubConfig) => h.id === hub.id
-          );
-          if (hubIndex >= 0) {
-            // Set isLinked: true and assign linkId
-            updatedHubConfigs[hubIndex] = {
-              ...updatedHubConfigs[hubIndex],
-              isLinked: true,
-              linkId: newLinkId,
-              isUnlinked: false, // Clear any unlinked flag (use false instead of undefined so it survives JSON.stringify)
-            };
-          }
-        });
-
-        setLocalHubConfigs(updatedHubConfigs);
-
-        // Save only the hubs that were linked (updated with new linkId)
-        const hubsToSave = updatedHubConfigs.filter((hub) =>
-          hubsToLink.some((linkHub) => linkHub.id === hub.id)
-        );
-        await saveIndividualConfigs(hubsToSave);
-        revalidateAll();
-        addToast(
-          `Successfully linked ${hubsToLink.length} hubs. They will now be configured together.`,
-          {
-            autoDismiss: true,
-            appearance: 'success',
-          }
-        );
-      } else {
-        // Handle collection linking - use clicked config as master template
-        const collectionConfig = config as CollectionFormConfig;
-
-        // Find eligible collections for relinking: unlinked collections with same linkId
-        const eligibleCollections = localCollectionConfigs.filter(
-          (c: CollectionFormConfig) =>
-            c.type === collectionConfig.type &&
-            c.subtype === collectionConfig.subtype &&
-            c.linkId === collectionConfig.linkId && // Same group ID
-            !c.isLinked && // Must be unlinked to be eligible for relinking
-            c.id !== collectionConfig.id // Don't include the master config itself
-        );
-
-        if (eligibleCollections.length === 0) {
-          addToast(
-            'No other unlinked collections found with the same link group to relink.',
-            {
-              autoDismiss: true,
-              appearance: 'info',
-            }
-          );
-          return;
-        }
-
-        // Use clicked config as master - apply its settings to all eligible collections
-        const masterConfig = collectionConfig;
-        const updatedConfigs = [...localCollectionConfigs];
-        const collectionsToLink = [masterConfig, ...eligibleCollections];
-
-        collectionsToLink.forEach((targetConfig: CollectionFormConfig) => {
-          const configIndex = updatedConfigs.findIndex(
-            (c: CollectionFormConfig) => c.id === targetConfig.id
-          );
-          if (configIndex >= 0) {
-            // Override with master config's settings while preserving library-specific properties
-            updatedConfigs[configIndex] = {
-              ...updatedConfigs[configIndex],
-              // Master config shared settings
-              template: masterConfig.template,
-              customMovieTemplate: masterConfig.customMovieTemplate,
-              customTVTemplate: masterConfig.customTVTemplate,
-              visibilityConfig: masterConfig.visibilityConfig,
-              maxItems: masterConfig.maxItems,
-              downloadMode: masterConfig.downloadMode,
-              directDownloadRadarrServerId:
-                masterConfig.directDownloadRadarrServerId,
-              directDownloadRadarrProfileId:
-                masterConfig.directDownloadRadarrProfileId,
-              directDownloadRadarrRootFolder:
-                masterConfig.directDownloadRadarrRootFolder,
-              directDownloadSonarrServerId:
-                masterConfig.directDownloadSonarrServerId,
-              directDownloadSonarrProfileId:
-                masterConfig.directDownloadSonarrProfileId,
-              directDownloadSonarrRootFolder:
-                masterConfig.directDownloadSonarrRootFolder,
-              searchMissingMovies: masterConfig.searchMissingMovies,
-              searchMissingTV: masterConfig.searchMissingTV,
-              autoApproveMovies: masterConfig.autoApproveMovies,
-              autoApproveTV: masterConfig.autoApproveTV,
-              maxSeasonsToRequest: masterConfig.maxSeasonsToRequest,
-              seasonsPerShowLimit: masterConfig.seasonsPerShowLimit,
-              maxPositionToProcess: masterConfig.maxPositionToProcess,
-              minimumYear: masterConfig.minimumYear,
-              excludedGenres: masterConfig.excludedGenres,
-              excludedCountries: masterConfig.excludedCountries,
-              timeRestriction: masterConfig.timeRestriction,
-              traktCustomListUrl: masterConfig.traktCustomListUrl,
-              tmdbCustomListUrl: masterConfig.tmdbCustomListUrl,
-              imdbCustomListUrl: masterConfig.imdbCustomListUrl,
-              letterboxdCustomListUrl: masterConfig.letterboxdCustomListUrl,
-              reverseOrder: masterConfig.reverseOrder,
-              randomizeOrder: masterConfig.randomizeOrder,
-              customPoster: masterConfig.customPoster,
-              showUnwatchedOnly: masterConfig.showUnwatchedOnly,
-              smartCollectionSort: masterConfig.smartCollectionSort,
-              randomizeHomeOrder: masterConfig.randomizeHomeOrder,
-              mediaType: masterConfig.mediaType,
-              customDays: masterConfig.customDays,
-              tautulliStatType: masterConfig.tautulliStatType,
-              isMultiSource: masterConfig.isMultiSource,
-              sources: masterConfig.sources,
-              combineMode: masterConfig.combineMode,
-              // Set link status
-              isLinked: true,
-              isUnlinked: false, // Clear any unlinked flag (use false instead of undefined so it survives JSON.stringify)
-              // Preserve library-specific properties
-              libraryId: updatedConfigs[configIndex].libraryId,
-              libraryName: updatedConfigs[configIndex].libraryName,
-              collectionRatingKey:
-                updatedConfigs[configIndex].collectionRatingKey,
-            };
-          }
-        });
-
-        setLocalCollectionConfigs(updatedConfigs);
-
-        // Only send API calls for the collections that were actually linked/changed
-        const changedCollections = collectionsToLink.map((targetConfig) => {
-          const configIndex = updatedConfigs.findIndex(
-            (c) => c.id === targetConfig.id
-          );
-          return updatedConfigs[configIndex];
-        });
-
-        await saveCollectionConfigs(changedCollections, true);
-        revalidateAll();
-
-        addToast(
-          `Successfully linked ${collectionsToLink.length} collections using selected config as master. They will now share the same settings.`,
-          {
-            autoDismiss: true,
-            appearance: 'success',
-          }
-        );
-      }
-    } catch (error) {
-      addToast('Failed to link configuration.', {
-        autoDismiss: true,
-        appearance: 'error',
-      });
-    }
-  };
-
-  const unlinkCollectionConfig = async (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => {
-    try {
-      if ((config as CollectionFormConfig).configType === 'hub') {
-        // Handle hub unlinking
-        const currentHub = localHubConfigs.find(
-          (h: PlexHubConfig) => h.id === config.id
-        );
-        if (!currentHub || !currentHub.isLinked || !currentHub.linkId) {
-          addToast('This hub is not linked to any other hubs.', {
-            autoDismiss: true,
-            appearance: 'info',
-          });
-          return;
-        }
-
-        // Find all hubs in the same link group
-        const linkedHubs = localHubConfigs.filter(
-          (h: PlexHubConfig) => h.linkId === currentHub.linkId && h.isLinked
-        );
-
-        if (linkedHubs.length <= 1) {
-          addToast('This hub is not linked to any other hubs.', {
-            autoDismiss: true,
-            appearance: 'info',
-          });
-          return;
-        }
-
-        // Confirmation is now handled by the ConfirmButton in the form
-
-        // Create updated hub configs array
-        const updatedHubConfigs = [...localHubConfigs];
-
-        // Unlink all hubs in the group by setting isLinked: false and preserving linkId
-        linkedHubs.forEach((hub: PlexHubConfig) => {
-          const hubIndex = updatedHubConfigs.findIndex(
-            (h: PlexHubConfig) => h.id === hub.id
-          );
-          if (hubIndex >= 0) {
-            // Update the hub to be unlinked (preserve linkId for potential re-linking)
-            updatedHubConfigs[hubIndex] = {
-              ...hub,
-              isLinked: false, // This stops them from being treated as linked
-              isUnlinked: true, // Mark as deliberately unlinked
-            };
-          }
-        });
-
-        // Update local hub configs state
-        setLocalHubConfigs(updatedHubConfigs);
-
-        // Save only the hubs that were unlinked (updated isLinked/isUnlinked)
-        const hubsToSave = updatedHubConfigs.filter((hub) =>
-          linkedHubs.some((linkedHub) => linkedHub.id === hub.id)
-        );
-        await saveIndividualConfigs(hubsToSave);
-        revalidateAll();
-
-        addToast(
-          `Successfully unlinked ${linkedHubs.length} hubs. Each can now be configured individually.`,
-          {
-            autoDismiss: true,
-            appearance: 'success',
-          }
-        );
-      } else {
-        // Handle collection unlinking
-        // Cast to CollectionFormConfig since we're in the collection handling branch
-        const collectionConfig = config as CollectionFormConfig;
-        // Find all linked configs with same type/subtype and group ID
-        const linkedConfigs = localCollectionConfigs.filter(
-          (c: CollectionFormConfig) =>
-            c.type === collectionConfig.type &&
-            c.subtype === collectionConfig.subtype &&
-            c.isLinked &&
-            c.linkId === collectionConfig.linkId
-        );
-
-        if (linkedConfigs.length <= 1) {
-          addToast('This collection is not linked to any other collections.', {
-            autoDismiss: true,
-            appearance: 'info',
-          });
-          return;
-        }
-
-        // Unlink collections - preserve linkId but set isLinked to false (so they can be re-linked later)
-        const updatedConfigs = localCollectionConfigs.map(
-          (c: CollectionFormConfig) => {
-            if (
-              c.type === collectionConfig.type &&
-              c.subtype === collectionConfig.subtype &&
-              c.linkId === collectionConfig.linkId &&
-              c.isLinked
-            ) {
-              return { ...c, isLinked: false }; // Preserve linkId, just deactivate linking
-            }
-            return c;
-          }
-        );
-
-        setLocalCollectionConfigs(updatedConfigs);
-
-        // Only send API calls for the collections that were actually unlinked/changed
-        const changedCollections = updatedConfigs.filter(
-          (c) =>
-            c.type === collectionConfig.type &&
-            c.subtype === collectionConfig.subtype &&
-            c.linkId === collectionConfig.linkId &&
-            !c.isLinked // These are the ones that were just changed to unlinked
-        );
-
-        await saveCollectionConfigs(changedCollections, true);
-
-        addToast(
-          `Successfully unlinked ${linkedConfigs.length} collections. Each can now be configured individually.`,
-          {
-            autoDismiss: true,
-            appearance: 'success',
-          }
-        );
-      }
-    } catch (error) {
-      addToast('Failed to unlink collection/hub.', {
-        autoDismiss: true,
-        appearance: 'error',
-      });
-    }
-  };
-
   // Helper function to apply tab filtering to different config types
   const filterConfigsByTab = <
     T extends {
@@ -2311,7 +1705,19 @@ const CollectionSettings = ({
           <div className="relative">
             <Button
               buttonType="default"
-              onClick={discoverPlexHubs}
+              onClick={() =>
+                discoverPlexHubs({
+                  localCollectionConfigs,
+                  localHubConfigs,
+                  localPreExistingConfigs,
+                  setLocalCollectionConfigs,
+                  setLocalHubConfigs,
+                  setLocalPreExistingConfigs,
+                  setDiscoveringHubs,
+                  revalidateAll,
+                  addToast,
+                })
+              }
               disabled={discoveringHubs}
               className={`flex items-center space-x-2 ${
                 isFirstTimeUser && !discoveringHubs
@@ -2622,6 +2028,7 @@ const CollectionSettings = ({
                   setBadgeClickCount={setBadgeClickCount}
                   checkForUnlockSequence={checkForUnlockSequence}
                   activeTab={activeTab}
+                  onBulkEdit={() => setShowBulkEditModal(true)}
                 />
               );
             })
@@ -2653,6 +2060,7 @@ const CollectionSettings = ({
               setBadgeClickCount={setBadgeClickCount}
               checkForUnlockSequence={checkForUnlockSequence}
               activeTab={activeTab}
+              onBulkEdit={() => setShowBulkEditModal(true)}
             />
           ) : (
             <div className="py-8 text-center">
@@ -2702,8 +2110,28 @@ const CollectionSettings = ({
             setShowConfigForm(false);
             setEditingConfig(null);
           }}
-          onUnlink={unlinkCollectionConfig}
-          onLink={linkCollectionConfig}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs,
+              localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs,
+              localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
           allCollectionConfigs={localCollectionConfigs}
           allHubConfigs={localHubConfigs}
         />
@@ -2716,8 +2144,28 @@ const CollectionSettings = ({
           onSave={saveHubConfig}
           onCancel={closeHubModal}
           libraries={libraries}
-          onUnlink={unlinkCollectionConfig}
-          onLink={linkCollectionConfig}
+          onUnlink={(config) =>
+            unlinkCollectionConfig(config, {
+              localCollectionConfigs,
+              localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
+          onLink={(config) =>
+            linkCollectionConfig(config, {
+              localCollectionConfigs,
+              localHubConfigs,
+              setLocalCollectionConfigs,
+              setLocalHubConfigs,
+              revalidateAll,
+              addToast,
+              saveCollectionConfigs,
+            })
+          }
           allCollectionConfigs={localCollectionConfigs}
           allHubConfigs={localHubConfigs}
         />
@@ -2732,6 +2180,17 @@ const CollectionSettings = ({
           libraries={libraries}
           allCollectionConfigs={localCollectionConfigs}
           allHubConfigs={localHubConfigs}
+        />
+      )}
+
+      {/* Bulk Edit Modal */}
+      {showBulkEditModal && (
+        <BulkEditModal
+          collections={localCollectionConfigs}
+          hubs={localHubConfigs}
+          preExisting={localPreExistingConfigs}
+          onClose={() => setShowBulkEditModal(false)}
+          onSave={revalidateAll}
         />
       )}
     </div>

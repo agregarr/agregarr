@@ -12,6 +12,7 @@ import type {
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import { missingItemFilterService } from './MissingItemFilterService';
 import type { ServiceType } from './ServiceUserManager';
 import { ServiceUserManager } from './ServiceUserManager';
 import { syncCacheService } from './SyncCacheService';
@@ -84,55 +85,14 @@ export class AutoRequestService {
       };
     }
 
-    // Filter items based on config settings
-    const yearFilteredItems: string[] = [];
-    const filteredMissingItems = missingItems.filter((item) => {
-      // Check media type
-      if (item.mediaType === 'movie' && !config.searchMissingMovies)
-        return false;
-      if (item.mediaType === 'tv' && !config.searchMissingTV) return false;
-      if (item.mediaType !== 'movie' && item.mediaType !== 'tv') return false;
+    // Filter items using shared filtering service
+    const filterResult = await missingItemFilterService.filterMissingItems(
+      missingItems,
+      config,
+      'Auto Request Service'
+    );
 
-      // Check minimum year filter
-      if (config.minimumYear && config.minimumYear > 0) {
-        if (!item.year) {
-          logger.debug(
-            `Item "${item.title}" has no year data, allowing through year filter`,
-            {
-              label: 'Auto Request Service',
-              collection: config.name,
-              tmdbId: item.tmdbId,
-            }
-          );
-        } else if (item.year < config.minimumYear) {
-          yearFilteredItems.push(
-            `${item.title} (${item.year}) - below minimum ${config.minimumYear}`
-          );
-          return false;
-        }
-      }
-
-      return true;
-    });
-
-    // Log year filtering summary
-    if (yearFilteredItems.length > 0) {
-      logger.info(
-        `Filtered ${yearFilteredItems.length} items due to minimum year (${config.minimumYear})`,
-        {
-          label: 'Auto Request Service',
-          collection: config.name,
-          minimumYear: config.minimumYear,
-          filteredCount: yearFilteredItems.length,
-          examples: yearFilteredItems.slice(0, 5),
-          ...(yearFilteredItems.length > 5 && {
-            additionalCount: yearFilteredItems.length - 5,
-          }),
-        }
-      );
-    }
-
-    if (filteredMissingItems.length === 0) {
+    if (filterResult.filteredItems.length === 0) {
       return {
         autoApproved: 0,
         manualApproval: 0,
@@ -184,13 +144,11 @@ export class AutoRequestService {
           ? Number(config.maxSeasonsToRequest)
           : 0; // 0 = no limit
 
-      // Track declined items for summary logging
+      // Track declined items and season limits for summary logging
       const previouslyDeclinedItems: string[] = [];
       const tooManySeasons: string[] = [];
-      const excludedGenreItems: string[] = [];
-      const excludedCountryItems: string[] = [];
 
-      for (const item of filteredMissingItems) {
+      for (const item of filterResult.filteredItems) {
         try {
           // Check if request already exists using cached requests
           const existingRequest = this.checkExistingRequestFromCache(
@@ -203,38 +161,12 @@ export class AutoRequestService {
             continue;
           }
 
-          // Check excluded genres
-          if (config.excludedGenres && config.excludedGenres.length > 0) {
-            const hasExcluded = await this.hasExcludedGenres(
-              item.tmdbId,
-              item.mediaType,
-              config.excludedGenres
-            );
-            if (hasExcluded) {
-              excludedGenreItems.push(item.title);
-              skippedRequests++;
-              continue;
-            }
-          }
-
-          // Check excluded countries
-          if (config.excludedCountries && config.excludedCountries.length > 0) {
-            const hasExcluded = await this.hasExcludedCountries(
-              item.tmdbId,
-              item.mediaType,
-              config.excludedCountries
-            );
-            if (hasExcluded) {
-              excludedCountryItems.push(item.title);
-              skippedRequests++;
-              continue;
-            }
-          }
-
           // Check season limit for ALL TV shows first (regardless of auto-approve setting)
           // Only skip if maxSeasons is set (> 0)
           if (item.mediaType === 'tv' && maxSeasons > 0) {
-            const seasonCount = await this.getTvSeasonCount(item.tmdbId);
+            const seasonCount = await missingItemFilterService.getTvSeasonCount(
+              item.tmdbId
+            );
 
             if (seasonCount > maxSeasons) {
               // Track TV shows that exceed the season limit
@@ -283,32 +215,36 @@ export class AutoRequestService {
           // Create the actual request via Overseerr API
           const overseerrAPI = this.getOverseerrAPI();
 
-          // For TV shows, request seasons based on seasonsPerShowLimit
+          // For TV shows, request seasons based on seasonsPerShowLimit and seasonGrabOrder
           let seasons: number[] | 'all' | undefined;
           if (item.mediaType === 'tv') {
             const seasonsLimit = config.seasonsPerShowLimit;
+            const grabOrder = config.seasonGrabOrder || 'first'; // Default to 'first' for backwards compatibility
 
             if (seasonsLimit && seasonsLimit > 0) {
-              // Request only the first X seasons
-              const seasonNumbers = [];
-              for (let i = 1; i <= seasonsLimit; i++) {
-                seasonNumbers.push(i);
-              }
-              seasons = seasonNumbers;
+              // Use the new season selection helper
+              const selectedSeasons =
+                await missingItemFilterService.selectSeasonsToGrab(
+                  item.tmdbId,
+                  seasonsLimit,
+                  grabOrder
+                );
+
+              seasons = selectedSeasons;
 
               logger.debug(
-                `Limiting ${
+                `Selecting seasons for ${
                   item.title
-                } to first ${seasonsLimit} seasons: [${seasonNumbers.join(
-                  ', '
-                )}]`,
+                } using ${grabOrder} mode: [${selectedSeasons.join(', ')}]`,
                 {
                   label: 'Auto Request Service',
                   collection: config.name,
+                  mode: grabOrder,
+                  limit: seasonsLimit,
                 }
               );
             } else {
-              // Use 'all' to request all available seasons (matches old working implementation)
+              // Use 'all' to request all available seasons
               seasons = 'all';
             }
           }
@@ -316,12 +252,34 @@ export class AutoRequestService {
           const userIdToUse =
             serviceUserToUse.externalOverseerrId || serviceUserToUse.id;
 
+          // Determine server/profile/root folder/tags based on media type and config overrides
+          let serverId: number | undefined;
+          let profileId: number | undefined;
+          let rootFolder: string | undefined;
+          let tags: string[] | undefined;
+
+          if (item.mediaType === 'movie') {
+            serverId = config.overseerrRadarrServerId;
+            profileId = config.overseerrRadarrProfileId;
+            rootFolder = config.overseerrRadarrRootFolder;
+            tags = config.overseerrRadarrTags?.map((id) => String(id));
+          } else if (item.mediaType === 'tv') {
+            serverId = config.overseerrSonarrServerId;
+            profileId = config.overseerrSonarrProfileId;
+            rootFolder = config.overseerrSonarrRootFolder;
+            tags = config.overseerrSonarrTags?.map((id) => String(id));
+          }
+
           await overseerrAPI.createRequest({
             mediaId: item.tmdbId,
             mediaType: item.mediaType,
             seasons,
             is4k: false,
             userId: userIdToUse,
+            serverId,
+            profileId,
+            rootFolder,
+            tags,
           });
 
           // Fetch poster from TMDB
@@ -416,35 +374,24 @@ export class AutoRequestService {
         );
       }
 
-      // Log summary of items excluded by genre
-      if (excludedGenreItems.length > 0) {
-        logger.info(`Items skipped due to excluded genres`, {
-          label: `${
-            source.charAt(0).toUpperCase() + source.slice(1)
-          } Collections`,
-          collection: config.name,
-          count: excludedGenreItems.length,
-          titles: excludedGenreItems.slice(0, 10), // Limit to first 10 titles
-          ...(excludedGenreItems.length > 10 && {
-            additionalCount: excludedGenreItems.length - 10,
-          }),
-        });
-      }
+      // Log filtering summary (genres, countries, IMDb ratings)
+      missingItemFilterService.logFilteringSummary(
+        filterResult,
+        config,
+        source
+      );
 
-      // Log summary of items excluded by country
-      if (excludedCountryItems.length > 0) {
-        logger.info(`Items skipped due to excluded countries`, {
-          label: `${
-            source.charAt(0).toUpperCase() + source.slice(1)
-          } Collections`,
-          collection: config.name,
-          count: excludedCountryItems.length,
-          titles: excludedCountryItems.slice(0, 10), // Limit to first 10 titles
-          ...(excludedCountryItems.length > 10 && {
-            additionalCount: excludedCountryItems.length - 10,
-          }),
-        });
-      }
+      // To maintain exact compatibility with original behavior, add filter counts to skipped
+      const totalSkipped =
+        skippedRequests +
+        filterResult.lowRatedItems.length +
+        filterResult.lowRatedRTItems.length +
+        filterResult.excludedGenreItems.length +
+        filterResult.excludedCountryItems.length +
+        filterResult.excludedLanguageItems.length +
+        filterResult.includedGenreItems.length +
+        filterResult.includedCountryItems.length +
+        filterResult.includedLanguageItems.length;
 
       const totalRequests = autoApprovedRequests + manualApprovalRequests;
       if (totalRequests > 0) {
@@ -454,7 +401,7 @@ export class AutoRequestService {
           } collection auto-requests created for ${
             config.name
           }: ${autoApprovedRequests} auto-approved, ${manualApprovalRequests} manual approval${
-            skippedRequests > 0 ? `, ${skippedRequests} skipped` : ''
+            totalSkipped > 0 ? `, ${totalSkipped} skipped` : ''
           }`,
           {
             label: `${
@@ -468,8 +415,8 @@ export class AutoRequestService {
         autoApproved: autoApprovedRequests,
         manualApproval: manualApprovalRequests,
         alreadyRequested: alreadyRequestedCount,
-        skipped: skippedRequests,
-        total: filteredMissingItems.length,
+        skipped: totalSkipped,
+        total: missingItems.length - filterResult.yearFilteredItems.length,
       };
     } catch (error) {
       logger.error(
@@ -555,97 +502,6 @@ export class AutoRequestService {
     );
 
     return !!existingRequest;
-  }
-
-  /**
-   * Get the number of seasons for a TV show
-   */
-  private async getTvSeasonCount(tmdbId: number): Promise<number> {
-    try {
-      const tmdb = new (await import('@server/api/themoviedb')).default();
-      const tvShow = await tmdb.getTvShow({ tvId: tmdbId });
-      // Filter out season 0 (specials) when counting
-      return (
-        tvShow.seasons?.filter((season) => season.season_number > 0).length || 1
-      );
-    } catch (error) {
-      logger.warn(
-        `Failed to get season count for TMDB ID ${tmdbId}, assuming 1 season`,
-        {
-          label: 'Auto Request Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return 1; // Default to 1 season if we can't determine
-    }
-  }
-
-  /**
-   * Check if an item has any excluded genres
-   */
-  private async hasExcludedGenres(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedGenres: number[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        return movie.genres.some((genre) => excludedGenres.includes(genre.id));
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        return tvShow.genres.some((genre) => excludedGenres.includes(genre.id));
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check genres for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Auto Request Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check genres, don't exclude the item
-    }
-  }
-
-  /**
-   * Check if an item has any excluded origin countries
-   */
-  private async hasExcludedCountries(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedCountries: string[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        // Movies use production_countries array
-        if (movie.production_countries) {
-          return movie.production_countries.some((country) =>
-            excludedCountries.includes(country.iso_3166_1)
-          );
-        }
-        return false;
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        // TV shows use origin_country array
-        if (tvShow.origin_country) {
-          return tvShow.origin_country.some((country) =>
-            excludedCountries.includes(country)
-          );
-        }
-        return false;
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check origin countries for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Auto Request Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check countries, don't exclude the item
-    }
   }
 
   /**

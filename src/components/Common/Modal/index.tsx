@@ -20,6 +20,7 @@ interface ModalProps {
   cancelText?: string;
   okText?: string;
   secondaryText?: string;
+  secondaryTooltip?: string;
   tertiaryText?: string;
   okDisabled?: boolean;
   cancelButtonType?: ButtonType;
@@ -56,6 +57,7 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
       secondaryDisabled = false,
       onSecondary,
       secondaryText,
+      secondaryTooltip,
       tertiaryButtonType = 'default',
       tertiaryDisabled = false,
       tertiaryText,
@@ -69,13 +71,37 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
   ) => {
     const intl = useIntl();
     const modalRef = useRef<HTMLDivElement>(null);
+    const mouseDownTargetRef = useRef<EventTarget | null>(null);
     useLockBodyScroll(true, disableScrollLock);
 
-    const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-      // Only close if clicking directly on the backdrop (not on children)
-      if (e.target === e.currentTarget && onCancel && backgroundClickable) {
+    const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+      // Track where the mouse down occurred - store the actual target
+      mouseDownTargetRef.current = e.target;
+    };
+
+    const handleBackdropMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+      // Only close if both mousedown and mouseup occurred on the backdrop itself (not on children)
+      // Check if the modal content contains either the mousedown or mouseup target
+      const modalContent = modalRef.current;
+      const mouseDownTarget = mouseDownTargetRef.current as Node | null;
+      const mouseUpTarget = e.target as Node;
+
+      // Don't close if mousedown or mouseup happened inside the modal content
+      if (
+        modalContent &&
+        (modalContent.contains(mouseDownTarget) ||
+          modalContent.contains(mouseUpTarget))
+      ) {
+        mouseDownTargetRef.current = null;
+        return;
+      }
+
+      // Only close if both events were outside the modal content
+      if (onCancel && backgroundClickable) {
         onCancel();
       }
+
+      mouseDownTargetRef.current = null;
     };
 
     // Don't render portal during SSR
@@ -87,7 +113,8 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
       <div
         className="fixed top-0 bottom-0 left-0 right-0 z-50 flex h-full w-full items-center justify-center bg-stone-800 bg-opacity-70"
         ref={parentRef}
-        onClick={handleBackdropClick}
+        onMouseDown={handleBackdropMouseDown}
+        onMouseUp={handleBackdropMouseUp}
         onKeyDown={(e) => {
           if (e.key === 'Escape' && onCancel && backgroundClickable) {
             onCancel();
@@ -211,6 +238,7 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
                     className="ml-3"
                     disabled={secondaryDisabled}
                     data-testid="modal-secondary-button"
+                    title={secondaryTooltip}
                   >
                     {secondaryText}
                   </Button>

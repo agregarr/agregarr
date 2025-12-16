@@ -32,7 +32,7 @@ interface LetterboxdListItem {
  *
  * Supports custom Letterboxd lists via web scraping since Letterboxd doesn't have a public API.
  */
-export class LetterboxdCollectionSync extends BaseCollectionSync {
+export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
   private tmdbClient: TmdbAPI;
   private lastFetchedHtml = '';
   private dynamicRandomTitle: string | null = null;
@@ -72,13 +72,16 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         );
       }
 
-      if (config.subtype !== 'custom' && config.subtype !== 'random') {
+      if (
+        config.subtype !== 'custom' &&
+        config.subtype !== 'random' &&
+        config.subtype !== 'watchlist'
+      ) {
         throw this.createSyncError(
           CollectionSyncErrorType.CONFIGURATION_ERROR,
-          'Only custom and random Letterboxd lists are supported'
+          'Only custom, watchlist, and random Letterboxd lists are supported'
         );
       }
-
       // Determine which URL to use based on subtype
       let listUrl: string;
       if (config.subtype === 'random') {
@@ -255,10 +258,12 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         // Process batch concurrently
         const batchPromises = batch.map(async (item) => {
           try {
-            // Search for the movie on TMDB using title and year
+            // Search for the movie on TMDB without year filter
+            // This ensures we get all films with matching titles, including those with
+            // festival vs. theatrical release date differences (e.g., Letterboxd shows 2024, TMDb shows 2025)
+            // Our scoring algorithm will handle year matching and popularity to pick the correct one
             const searchResults = await this.tmdbClient.searchMovies({
               query: item.title,
-              year: item.year,
             });
 
             if (searchResults.results && searchResults.results.length > 0) {
@@ -429,6 +434,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
           title: lookup.title,
           year: lookup.year,
           originalPosition: lookup.originalPosition,
+          source: this.source,
         });
       }
     }
@@ -549,10 +555,31 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         config,
         plexClient
       );
-      const { items, missingItems } = this.applyFilteringToMappedItems(
+      const { items, missingItems } = await this.applyFilteringToMappedItems(
         mappedResult,
         config
       );
+
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
+      }
       logger.debug('Source data mapped to items', {
         label: 'Letterboxd Collections Debug',
         configName: config.name,
@@ -560,16 +587,26 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         missingItemsLength: missingItems?.length || 0,
       });
 
+      // Process missing items - creates placeholders and/or sends to auto-requests
+      let finalItems = items;
       if (missingItems && missingItems.length > 0) {
-        logger.debug('Processing auto requests', {
+        logger.debug('Processing missing items', {
           label: 'Letterboxd Collections Debug',
           configName: config.name,
           missingItemsCount: missingItems.length,
         });
-        await this.handleAutoRequests(missingItems, config);
+        const placeholderItems = await this.processMissingItems(
+          missingItems,
+          config,
+          plexClient,
+          () => this.handleAutoRequests(missingItems, config)
+        );
+        if (placeholderItems.length > 0) {
+          finalItems = [...items, ...placeholderItems];
+        }
       }
 
-      if (items.length === 0) {
+      if (finalItems.length === 0) {
         logger.debug('No items found, returning early', {
           label: 'Letterboxd Collections Debug',
           configName: config.name,
@@ -581,7 +618,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         label: 'Letterboxd Collections Debug',
         configName: config.name,
         mediaType: getCollectionMediaType(config),
-        itemsCount: items.length,
+        itemsCount: finalItems.length,
       });
 
       // Letterboxd is movies only, so use movie template generation
@@ -593,7 +630,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       );
 
       const result = await this.createCollection(
-        items,
+        finalItems,
         mediaType,
         collectionName,
         plexClient,
@@ -668,6 +705,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
       const patterns = [
         // Primary pattern - current structure
         /<li[^>]*class="[^"]*posteritem[^"]*"[^>]*>(.*?)<\/li>/gs,
+        // Secondary pattern - grid items (watchlists)
+        /<li[^>]*class="[^"]*griditem[^"]*"[^>]*>(.*?)<\/li>/gs,
         // Fallback pattern - any li containing film data
         /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
       ];
@@ -736,8 +775,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
           .replace(/&mdash;/g, '—') // Replace em-dash
           .replace(/&hellip;/g, '…') // Replace ellipsis
           .replace(/&quot;/g, '"') // Replace quotes
-          .replace(/&#39;/g, "'") // Replace apostrophe
-          .replace(/&#039;/g, "'") // Replace apostrophe variant
+          .replace(/&#0?39;/g, "'") // Replace apostrophe (with or without leading zero)
+          .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
           .replace(/&amp;/g, '&') // Replace ampersand (do this last)
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>');
@@ -785,6 +824,16 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
   }
 
   private extractListNameFromUrl(url: string): string {
+    // Check for watchlist
+    const watchlistMatch = url.match(/letterboxd\.com\/([^/]+)\/watchlist/);
+    if (watchlistMatch) {
+      const username = watchlistMatch[1]
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (l: string) => l.toUpperCase());
+      return `${username}'s Watchlist`;
+    }
+
+    // Check for standard list
     const match = url.match(/letterboxd\.com\/[^/]+\/list\/([^/?]+)/);
     if (match) {
       return match[1]
@@ -824,7 +873,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
         .replace(/&mdash;/g, '—') // Replace em-dash
         .replace(/&hellip;/g, '…') // Replace ellipsis
         .replace(/&quot;/g, '"') // Replace quotes
-        .replace(/&#39;/g, "'") // Replace apostrophe
+        .replace(/&#0?39;/g, "'") // Replace apostrophe (with or without leading zero)
+        .replace(/&#x27;/g, "'") // Replace hex-encoded apostrophe
         .replace(/&amp;/g, '&') // Replace ampersand (do this last)
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>');
@@ -890,13 +940,34 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     let bestMatch = null;
     let bestScore = -1;
 
-    for (const result of results) {
-      const score = this.calculateMatchScore(result, targetTitle, targetYear);
+    // Calculate scores for all candidates
+    const candidateScores = results.map((result) => ({
+      result,
+      score: this.calculateMatchScore(result, targetTitle, targetYear),
+    }));
 
-      if (score > bestScore) {
-        bestScore = score;
-        bestMatch = result;
+    // Sort by score descending and take top 5
+    const topCandidates = candidateScores
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    // Log top 5 candidates for debugging
+    logger.debug(
+      `Top 5 TMDB candidates for "${targetTitle}" (${targetYear}):`,
+      {
+        label: 'Letterboxd Collections',
+        candidates: topCandidates.map((c) => ({
+          title: c.result.title,
+          year: this.extractYearFromDate(c.result.release_date),
+          score: c.score.toFixed(3),
+        })),
       }
+    );
+
+    // Best match is the first one
+    if (topCandidates.length > 0) {
+      bestMatch = topCandidates[0].result;
+      bestScore = topCandidates[0].score;
     }
 
     // Only return a match if it meets a minimum threshold
@@ -936,24 +1007,24 @@ export class LetterboxdCollectionSync extends BaseCollectionSync {
     const tmdbOriginalTitle = result.original_title || '';
     const tmdbYear = this.extractYearFromDate(result.release_date);
 
-    // Title matching (70% of score)
+    // Title matching (60% of score)
     const titleScore = Math.max(
       this.calculateTitleSimilarity(targetTitle, tmdbTitle),
       this.calculateTitleSimilarity(targetTitle, tmdbOriginalTitle)
     );
-    score += titleScore * 0.7;
+    score += titleScore * 0.6;
 
-    // Year matching (25% of score)
-    if (tmdbYear && Math.abs(tmdbYear - targetYear) === 0) {
-      score += 0.25; // Exact year match
-    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 1) {
-      score += 0.15; // Close year match (±1 year)
-    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 2) {
-      score += 0.05; // Somewhat close year match (±2 years)
+    // Year matching (20% of score)
+    // ±1 year treated equally to handle festival vs. theatrical release date differences
+    if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 1) {
+      score += 0.2; // Exact or ±1 year match
+    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) === 2) {
+      score += 0.05; // ±2 year match
     }
 
-    // Popularity boost (5% of score) - normalized by typical TMDB popularity ranges
-    const popularityScore = Math.min(result.popularity / 100, 1) * 0.05;
+    // Popularity boost (20% of score) - normalized by typical TMDB popularity ranges
+    // Increased from 5% to help disambiguate films with same title and close years
+    const popularityScore = Math.min(result.popularity / 100, 1) * 0.2;
     score += popularityScore;
 
     return score;

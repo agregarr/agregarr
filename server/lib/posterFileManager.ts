@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import {
-  calculatePosterHash,
   deletePosterFile,
   getPosterPath,
   posterExists,
@@ -19,7 +18,6 @@ export interface PosterFileResult {
   filename: string;
   thumbnailFilename?: string;
   size: number;
-  hash: string;
 }
 
 /**
@@ -36,9 +34,6 @@ export async function savePosterWithThumbnail(
       'image/jpeg', // Always save as JPEG for consistency
       originalName
     );
-
-    // Calculate hash for tracking
-    const hash = calculatePosterHash(posterBuffer);
 
     // Create thumbnail
     let thumbnailFilename: string | undefined;
@@ -76,14 +71,12 @@ export async function savePosterWithThumbnail(
       filename,
       thumbnailFilename,
       size: posterBuffer.length,
-      hash: hash.substring(0, 8),
     });
 
     return {
       filename,
       thumbnailFilename,
       size: posterBuffer.length,
-      hash,
     };
   } catch (error) {
     logger.error('Failed to save poster with thumbnail:', error);
@@ -192,7 +185,7 @@ export async function processUploadedPoster(
   try {
     // Validate and process the image with Sharp
     const processedBuffer = await sharp(buffer)
-      .resize(500, 750, {
+      .resize(1000, 1500, {
         fit: 'cover',
         position: 'center',
       })

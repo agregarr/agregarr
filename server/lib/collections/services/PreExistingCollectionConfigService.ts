@@ -67,6 +67,9 @@ export class PreExistingCollectionConfigService {
           isUnlinked: newConfig.isUnlinked,
           timeRestriction: newConfig.timeRestriction,
           customPoster: newConfig.customPoster ?? existingConfig?.customPoster,
+          // Preserve poster template settings from existing config
+          autoPoster: existingConfig?.autoPoster,
+          autoPosterTemplate: existingConfig?.autoPosterTemplate,
         };
       }
     );

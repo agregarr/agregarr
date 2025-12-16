@@ -5,12 +5,13 @@ import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionU
 import type {
   CollectionItem,
   FilteringStats,
+  ItemProducingSource,
   MissingItem,
   NetworksSourceData,
 } from '@server/lib/collections/core/types';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import type { CollectionConfig } from '@server/lib/settings';
-import { getSettings } from '@server/lib/settings';
+import { getSettings, getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
@@ -138,13 +139,22 @@ collectionsPreviewRoutes.post('/', isAuthenticated(), async (req, res) => {
     processPreviewAsync(sessionId, req.body).catch((error) => {
       logger.error('Preview processing failed', {
         label: 'Collections Preview API',
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          error instanceof Error
+            ? error.message
+            : JSON.stringify(error) || String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
       });
 
       updatePreviewStatus(sessionId, {
         running: false,
         completed: true,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error:
+          error instanceof Error
+            ? error.message
+            : JSON.stringify(error) || 'Unknown error',
       });
     });
   } catch (error) {
@@ -299,6 +309,9 @@ function getSourceDisplayName(source: {
         ? `MyAnimeList ${subtype.charAt(0).toUpperCase() + subtype.slice(1)}`
         : 'MyAnimeList';
 
+    case 'comingsoon':
+      return 'Coming Soon';
+
     default:
       return type.charAt(0).toUpperCase() + type.slice(1);
   }
@@ -393,7 +406,7 @@ async function processMultiSourcePreview(
         if (source.type === 'trakt')
           sourceConfigRecord.traktCustomListUrl = source.customUrl;
         else if (source.type === 'tmdb')
-          sourceConfigRecord.tmdbCustomListUrl = source.customUrl;
+          sourceConfigRecord.tmdbCustomCollectionUrl = source.customUrl;
         else if (source.type === 'imdb')
           sourceConfigRecord.imdbCustomListUrl = source.customUrl;
         else if (source.type === 'letterboxd')
@@ -451,10 +464,26 @@ async function processMultiSourcePreview(
         };
 
         // Apply filtering
-        const filteredResult = syncService.applyFilteringToMappedItems(
+        const filteredResult = await syncService.applyFilteringToMappedItems(
           mediaFilteredResult,
           sourceConfig
         );
+
+        // For Coming Soon sources, add monitored status to items
+        if (source.type === 'comingsoon' && filteredResult.items.length > 0) {
+          filteredResult.items.forEach((item) => {
+            const sourceItem = (
+              sourceData as { tmdbId: number; monitored?: boolean }[]
+            )?.find((s) => s.tmdbId === item.tmdbId);
+            if (sourceItem?.monitored !== undefined) {
+              // Store monitored status in metadata
+              item.metadata = {
+                ...item.metadata,
+                monitored: sourceItem.monitored,
+              };
+            }
+          });
+        }
 
         if (filteredResult.items.length > 0) {
           allItemGroups.push(filteredResult.items);
@@ -599,6 +628,8 @@ async function processMultiSourcePreview(
     posterUrl: string;
     backdropPath?: string;
     inLibrary: boolean;
+    isPlaceholder?: boolean;
+    monitored?: boolean;
     originalPosition: number;
     overview?: string;
     imdbId?: string;
@@ -606,6 +637,33 @@ async function processMultiSourcePreview(
   };
 
   const allItemsWithPosition: EnrichedItem[] = [];
+
+  // For Coming Soon multi-source collections, check if matched items are placeholders
+  let placeholderRatingKeys: Set<string> | undefined;
+  const hasComingSoonSource = sources.some((s) => s.type === 'comingsoon');
+  if (hasComingSoonSource) {
+    const { getRepository } = await import('@server/datasource');
+    const { ComingSoonItem } = await import('@server/entity/ComingSoonItem');
+    const comingSoonRepository = getRepository(ComingSoonItem);
+    const allPlaceholders = await comingSoonRepository.find({
+      select: { plexRatingKey: true, placeholderPath: true },
+    });
+    // Only consider items with placeholderPath as actual placeholders
+    placeholderRatingKeys = new Set(
+      allPlaceholders
+        .filter((p) => p.placeholderPath)
+        .map((p) => p.plexRatingKey)
+        .filter((key): key is string => !!key)
+    );
+
+    logger.debug(
+      'Loaded placeholder rating keys for Coming Soon multi-source preview',
+      {
+        label: 'Collections Preview API - Multi-Source',
+        placeholderCount: placeholderRatingKeys.size,
+      }
+    );
+  }
 
   const totalItemsToProcess =
     matchedItemsWithPosition.length + limitedMissingItems.length;
@@ -632,12 +690,24 @@ async function processMultiSourcePreview(
     imdbId?: string;
     tmdbRating?: number;
   }> => {
+    const language = getTmdbLanguage();
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         if (itemMediaType === 'movie') {
           const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+          const images = await tmdbClient.getMovieImages({
+            movieId: tmdbId,
+            language,
+          });
+
+          // Find poster in selected language, fallback to main poster from movie details
+          const poster = images.posters.find((p) => p.iso_639_1 === language);
+
           return {
-            posterUrl: movie.poster_path
+            posterUrl: poster
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+              : movie.poster_path
               ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
               : '',
             backdropPath: movie.backdrop_path || undefined,
@@ -651,8 +721,17 @@ async function processMultiSourcePreview(
           };
         } else {
           const show = await tmdbClient.getTvShow({ tvId: tmdbId });
+          const images = await tmdbClient.getTvShowImages({
+            tvId: tmdbId,
+            language,
+          });
+
+          const poster = images.posters.find((p) => p.iso_639_1 === language);
+
           return {
-            posterUrl: show.poster_path
+            posterUrl: poster
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+              : show.poster_path
               ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
               : '',
             backdropPath: show.backdrop_path || undefined,
@@ -719,6 +798,20 @@ async function processMultiSourcePreview(
   // Process matched items
   matchedItemsWithPosition.forEach((item, index) => {
     const tmdbData = matchedTmdbDataResults[index];
+
+    // Check if this is a Coming Soon placeholder
+    let isPlaceholder = false;
+    if (
+      placeholderRatingKeys &&
+      item.ratingKey &&
+      placeholderRatingKeys.has(item.ratingKey)
+    ) {
+      isPlaceholder = true;
+    }
+
+    // Get monitored status from metadata (set during Coming Soon source fetch)
+    const monitored = item.metadata?.monitored as boolean | undefined;
+
     allItemsWithPosition.push({
       ratingKey: item.ratingKey,
       title: tmdbData.title,
@@ -728,6 +821,8 @@ async function processMultiSourcePreview(
       posterUrl: tmdbData.posterUrl,
       backdropPath: tmdbData.backdropPath,
       inLibrary: true,
+      isPlaceholder,
+      monitored,
       originalPosition: item.originalPosition,
       overview: tmdbData.overview,
       imdbId: tmdbData.imdbId,
@@ -853,6 +948,10 @@ async function processPreviewAsync(
       network,
       country,
       provider,
+      radarrTagId,
+      radarrInstanceId,
+      sonarrTagId,
+      sonarrInstanceId,
       forceRefresh,
       isMultiSource,
       sources,
@@ -867,6 +966,8 @@ async function processPreviewAsync(
         type,
         subtype,
         libraryId,
+        customUrl,
+        hasCustomUrl: !!customUrl,
       }
     );
 
@@ -930,7 +1031,7 @@ async function processPreviewAsync(
     if (customUrl) {
       if (type === 'trakt') previewConfigRecord.traktCustomListUrl = customUrl;
       else if (type === 'tmdb')
-        previewConfigRecord.tmdbCustomListUrl = customUrl;
+        previewConfigRecord.tmdbCustomCollectionUrl = customUrl;
       else if (type === 'imdb')
         previewConfigRecord.imdbCustomListUrl = customUrl;
       else if (type === 'letterboxd')
@@ -941,6 +1042,16 @@ async function processPreviewAsync(
         previewConfigRecord.anilistCustomListUrl = customUrl;
       else if (type === 'myanimelist')
         previewConfigRecord.myanilistCustomListUrl = customUrl;
+    }
+
+    if (type === 'radarrtag') {
+      previewConfigRecord.radarrTagId = radarrTagId;
+      previewConfigRecord.radarrInstanceId = radarrInstanceId;
+    }
+
+    if (type === 'sonarrtag') {
+      previewConfigRecord.sonarrTagId = sonarrTagId;
+      previewConfigRecord.sonarrInstanceId = sonarrInstanceId;
     }
 
     if (type === 'tautulli') {
@@ -1088,7 +1199,7 @@ async function processPreviewAsync(
     };
 
     // Apply filtering
-    const filteredResult = syncService.applyFilteringToMappedItems(
+    const filteredResult = await syncService.applyFilteringToMappedItems(
       mediaFilteredResult,
       previewConfig
     );
@@ -1130,6 +1241,8 @@ async function processPreviewAsync(
       posterUrl: string;
       backdropPath?: string;
       inLibrary: boolean;
+      isPlaceholder?: boolean;
+      monitored?: boolean;
       originalPosition: number;
       overview?: string;
       imdbId?: string;
@@ -1153,12 +1266,24 @@ async function processPreviewAsync(
       imdbId?: string;
       tmdbRating?: number;
     }> => {
+      const language = getTmdbLanguage();
+
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           if (itemMediaType === 'movie') {
             const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+            const images = await tmdbClient.getMovieImages({
+              movieId: tmdbId,
+              language,
+            });
+
+            // Find poster in selected language, fallback to main poster from movie details
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
+
             return {
-              posterUrl: movie.poster_path
+              posterUrl: poster
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+                : movie.poster_path
                 ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
                 : '',
               backdropPath: movie.backdrop_path || undefined,
@@ -1172,8 +1297,17 @@ async function processPreviewAsync(
             };
           } else {
             const show = await tmdbClient.getTvShow({ tvId: tmdbId });
+            const images = await tmdbClient.getTvShowImages({
+              tvId: tmdbId,
+              language,
+            });
+
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
+
             return {
-              posterUrl: show.poster_path
+              posterUrl: poster
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
+                : show.poster_path
                 ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
                 : '',
               backdropPath: show.backdrop_path || undefined,
@@ -1257,9 +1391,55 @@ async function processPreviewAsync(
       })
     );
 
+    // For Coming Soon collections, check if matched items are placeholders
+    let placeholderRatingKeys: Set<string> | undefined;
+    if (type === 'comingsoon') {
+      const { getRepository } = await import('@server/datasource');
+      const { ComingSoonItem } = await import('@server/entity/ComingSoonItem');
+      const comingSoonRepository = getRepository(ComingSoonItem);
+      const allPlaceholders = await comingSoonRepository.find({
+        select: { plexRatingKey: true, placeholderPath: true },
+      });
+      // Only consider items with placeholderPath as actual placeholders
+      // Items without placeholderPath are regular items (like returning shows)
+      placeholderRatingKeys = new Set(
+        allPlaceholders
+          .filter((p) => p.placeholderPath) // Has placeholder file
+          .map((p) => p.plexRatingKey)
+          .filter((key): key is string => !!key)
+      );
+
+      logger.debug('Loaded placeholder rating keys for Coming Soon preview', {
+        label: 'Collections Preview API',
+        placeholderCount: placeholderRatingKeys.size,
+      });
+    }
+
     // Process matched items
     matchedItemsWithPosition.forEach((item, index) => {
       const tmdbData = matchedTmdbDataResults[index];
+
+      // For Coming Soon, check if this is a placeholder by ratingKey
+      let isPlaceholder = false;
+      if (
+        type === 'comingsoon' &&
+        placeholderRatingKeys &&
+        item.ratingKey &&
+        placeholderRatingKeys.has(item.ratingKey)
+      ) {
+        isPlaceholder = true;
+      }
+
+      // Get monitored status from source data for Coming Soon
+      let monitored: boolean | undefined;
+      if (type === 'comingsoon' && item.tmdbId) {
+        // Find this item in sourceData to get monitored status
+        const sourceItem = (
+          sourceData as { tmdbId: number; monitored?: boolean }[]
+        )?.find((s) => s.tmdbId === item.tmdbId);
+        monitored = sourceItem?.monitored;
+      }
+
       allItemsWithPosition.push({
         ratingKey: item.ratingKey,
         title: tmdbData.title,
@@ -1268,6 +1448,8 @@ async function processPreviewAsync(
         mediaType: item.type,
         posterUrl: tmdbData.posterUrl,
         inLibrary: true,
+        isPlaceholder,
+        monitored,
         originalPosition: item.originalPosition,
         overview: tmdbData.overview,
         imdbId: tmdbData.imdbId,
@@ -1284,7 +1466,18 @@ async function processPreviewAsync(
     const missingItems = filteredResult.missingItems || [];
     const missingTmdbDataResults = await Promise.all(
       missingItems.map((item) =>
-        fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
+        // Skip TMDB fetch if tmdbId is 0 or missing (item couldn't be matched)
+        item.tmdbId && item.tmdbId > 0
+          ? fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
+          : Promise.resolve({
+              posterUrl: '',
+              backdropPath: undefined,
+              title: item.title,
+              year: undefined,
+              overview: undefined,
+              imdbId: undefined,
+              tmdbRating: undefined,
+            })
       )
     );
 
@@ -1478,6 +1671,9 @@ collectionsPreviewRoutes.post(
           mediaType,
           mediaId: tmdbId,
           ...(mediaType === 'tv' && { seasons: seasons || 'all' }), // TV shows need seasons
+          ...(serverId !== undefined && { serverId }),
+          ...(profileId !== undefined && { profileId }),
+          ...(rootFolder !== undefined && { rootFolder }),
         });
 
         logger.info('Overseerr request created successfully', {
@@ -1504,6 +1700,7 @@ collectionsPreviewRoutes.post(
           mediaType: 'movie' as const,
           title: 'Unknown',
           originalPosition: 1,
+          source: (sourceType || 'imdb') as ItemProducingSource,
         };
 
         const radarrDownloadConfigRecord: Record<string, unknown> = {
@@ -1555,6 +1752,7 @@ collectionsPreviewRoutes.post(
           mediaType: 'tv' as const,
           title: 'Unknown',
           originalPosition: 1,
+          source: (sourceType || 'imdb') as ItemProducingSource,
         };
 
         const sonarrDownloadConfigRecord: Record<string, unknown> = {

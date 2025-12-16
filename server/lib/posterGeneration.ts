@@ -1,4 +1,5 @@
 import TheMovieDb from '@server/api/themoviedb';
+import { getRepository } from '@server/datasource';
 import type {
   ContentGridProps,
   LayeredElement,
@@ -7,11 +8,14 @@ import type {
   SVGElementProps,
   TextElementProps,
 } from '@server/entity/PosterTemplate';
+import { PosterTemplate } from '@server/entity/PosterTemplate';
+import { getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { loadIconFile } from './iconManager';
 import { applyTemplate } from './posterTemplates';
 import { sourceColorsService } from './services/SourceColorsService';
 
@@ -33,12 +37,27 @@ interface CanvasModule {
 }
 
 let canvasModule: CanvasModule | null = null;
-try {
-  canvasModule = require('canvas');
-} catch (error) {
-  logger.debug(
-    'Canvas module not available, text measurement will use estimation fallback'
-  );
+let canvasInitialized = false;
+
+/**
+ * Initialize canvas module with proper Fontconfig setup
+ */
+async function initializeCanvas(): Promise<void> {
+  if (canvasInitialized) return;
+
+  try {
+    const canvas = await import('canvas');
+    // Initialize Fontconfig properly before any font operations
+    if (canvas && typeof canvas === 'object') {
+      canvasModule = canvas as unknown as CanvasModule;
+      canvasInitialized = true;
+    }
+  } catch (error) {
+    logger.debug(
+      'Canvas module not available, text measurement will use estimation fallback'
+    );
+    canvasInitialized = true; // Mark as attempted
+  }
 }
 
 // Cache for base64 converted images to avoid re-processing
@@ -97,11 +116,11 @@ export interface ColorScheme {
   textColor: string;
 }
 
-const POSTER_WIDTH = 500;
-const POSTER_HEIGHT = 750;
+const POSTER_WIDTH = 1000;
+const POSTER_HEIGHT = 1500;
 const LOGO_SIZE = 60;
-const ITEM_POSTER_WIDTH = 150; // Width for individual item posters in the grid
-const ITEM_POSTER_HEIGHT = 225; // Height for individual item posters (1.5 aspect ratio)
+const ITEM_POSTER_WIDTH = 300; // Width for individual item posters in the grid
+const ITEM_POSTER_HEIGHT = 450; // Height for individual item posters (1.5 aspect ratio)
 
 // Path to service logos
 const LOGOS_PATH = path.join(process.cwd(), 'public', 'services');
@@ -119,6 +138,7 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   myanimelist: 'myanimelist.svg',
   plex: 'plex.svg',
   'multi-source': 'os_icon.svg', // Use Agregarr icon for multi-source collections
+  comingsoon: 'os_icon.svg', // Use Agregarr icon for coming soon collections
   radarrtag: 'radarr.svg', // Radarr tag collections use Radarr logo
   sonarrtag: 'sonarr.svg', // Sonarr tag collections use Sonarr logo
   // Streaming Platform Logo Mappings
@@ -166,10 +186,13 @@ async function getColorScheme(
 async function fetchTMDbPosterUrls(
   items: CollectionItemWithPoster[]
 ): Promise<CollectionItemWithPoster[]> {
-  const tmdb = new TheMovieDb();
+  const language = getTmdbLanguage();
+  const tmdb = new TheMovieDb({ originalLanguage: language });
   const itemsWithPosters: CollectionItemWithPoster[] = [];
 
-  logger.debug(`Fetching TMDB posters for ${items.length} items`);
+  logger.debug(
+    `Fetching TMDB posters for ${items.length} items with language: ${language}`
+  );
 
   for (const item of items) {
     // Skip items that already have a poster URL (e.g., from local storage)
@@ -192,70 +215,88 @@ async function fetchTMDbPosterUrls(
     if (item.tmdbId) {
       try {
         if (item.type === 'movie') {
-          const movieDetails = await tmdb.getMovie({ movieId: item.tmdbId });
-          if (movieDetails.poster_path) {
-            posterUrl = `https://image.tmdb.org/t/p/w300${movieDetails.poster_path}`;
-            logger.debug(`Found movie poster for ${item.title}: ${posterUrl}`);
+          // Fetch images from TMDB images endpoint for proper language filtering
+          const images = await tmdb.getMovieImages({
+            movieId: item.tmdbId,
+            language,
+          });
+
+          // Find poster in selected language, fallback to main poster from movie details
+          const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+          if (poster) {
+            posterUrl = `https://image.tmdb.org/t/p/w300${poster.file_path}`;
+            logger.debug(
+              `Found movie poster for ${item.title} (language: ${poster.iso_639_1}): ${posterUrl}`
+            );
           } else {
-            logger.debug(`No poster_path found for movie ${item.title}`);
+            // Fallback to main poster from movie details
+            const movie = await tmdb.getMovie({ movieId: item.tmdbId });
+            if (movie.poster_path) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${movie.poster_path}`;
+              logger.debug(
+                `Using default movie poster for ${item.title}: ${posterUrl}`
+              );
+            } else {
+              logger.debug(`No poster found for movie ${item.title}`);
+            }
           }
         } else if (item.type === 'tv') {
           // Check if this is an episode with season info and show TMDB ID
           if (item.episodeInfo?.season && item.metadata?.showTmdbId) {
-            try {
-              // Try to get season poster first
-              const seasonDetails = await tmdb.getTvSeason({
+            // For episodes/seasons, fall back to the show's poster
+            // (TMDB doesn't have per-season images endpoint)
+            const images = await tmdb.getTvShowImages({
+              tvId: item.metadata.showTmdbId,
+              language,
+            });
+
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+            if (poster) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${poster.file_path}`;
+              logger.debug(
+                `Found show poster for episode ${item.title} (language: ${poster.iso_639_1}): ${posterUrl}`
+              );
+            } else {
+              // Fallback to main poster from TV show details
+              const tvShow = await tmdb.getTvShow({
                 tvId: item.metadata.showTmdbId,
-                seasonNumber: item.episodeInfo.season,
               });
-              if (seasonDetails.poster_path) {
-                posterUrl = `https://image.tmdb.org/t/p/w300${seasonDetails.poster_path}`;
+              if (tvShow.poster_path) {
+                posterUrl = `https://image.tmdb.org/t/p/w300${tvShow.poster_path}`;
                 logger.debug(
-                  `Found season ${item.episodeInfo.season} poster for episode ${item.title}: ${posterUrl}`
+                  `Using default show poster for episode ${item.title}: ${posterUrl}`
                 );
               } else {
-                // Fallback to show poster if season has no poster
-                const tvDetails = await tmdb.getTvShow({
-                  tvId: item.metadata.showTmdbId,
-                });
-                if (tvDetails.poster_path) {
-                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-                  logger.debug(
-                    `Using show poster as fallback for episode ${item.title}: ${posterUrl}`
-                  );
-                }
-              }
-            } catch (error) {
-              logger.warn(
-                `Failed to fetch season poster for episode ${item.title}, trying show poster:`,
-                error
-              );
-              // Fallback to show poster if season fetch fails
-              try {
-                const tvDetails = await tmdb.getTvShow({
-                  tvId: item.metadata.showTmdbId,
-                });
-                if (tvDetails.poster_path) {
-                  posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-                  logger.debug(
-                    `Using show poster as error fallback for episode ${item.title}: ${posterUrl}`
-                  );
-                }
-              } catch (showError) {
-                logger.warn(
-                  `Failed to fetch show poster fallback for episode ${item.title}:`,
-                  showError
-                );
+                logger.debug(`No poster found for episode ${item.title}`);
               }
             }
           } else {
             // This is a regular TV show (not an episode)
-            const tvDetails = await tmdb.getTvShow({ tvId: item.tmdbId });
-            if (tvDetails.poster_path) {
-              posterUrl = `https://image.tmdb.org/t/p/w300${tvDetails.poster_path}`;
-              logger.debug(`Found TV poster for ${item.title}: ${posterUrl}`);
+            const images = await tmdb.getTvShowImages({
+              tvId: item.tmdbId,
+              language,
+            });
+
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+            if (poster) {
+              posterUrl = `https://image.tmdb.org/t/p/w300${poster.file_path}`;
+              logger.debug(
+                `Found TV poster for ${item.title} (language: ${poster.iso_639_1}): ${posterUrl}`
+              );
             } else {
-              logger.debug(`No poster_path found for TV show ${item.title}`);
+              // Fallback to main poster from TV show details
+              const tvShow = await tmdb.getTvShow({ tvId: item.tmdbId });
+              if (tvShow.poster_path) {
+                posterUrl = `https://image.tmdb.org/t/p/w300${tvShow.poster_path}`;
+                logger.debug(
+                  `Using default TV poster for ${item.title}: ${posterUrl}`
+                );
+              } else {
+                logger.debug(`No poster found for TV show ${item.title}`);
+              }
             }
           }
         }
@@ -390,7 +431,15 @@ async function loadServiceLogo(serviceType: string): Promise<string | null> {
   try {
     const logoFilename = SERVICE_LOGO_MAP[serviceType.toLowerCase()];
     if (!logoFilename) {
-      logger.debug(`No logo mapping found for service type: ${serviceType}`);
+      logger.debug(
+        `No logo mapping found for service type: ${serviceType}, using Agregarr logo as fallback`
+      );
+      // Fallback to Agregarr logo for unknown source types
+      const fallbackLogoPath = path.join(LOGOS_PATH, 'os_icon.svg');
+      if (fs.existsSync(fallbackLogoPath)) {
+        const svgContent = await fs.promises.readFile(fallbackLogoPath, 'utf8');
+        return svgContent;
+      }
       return null;
     }
 
@@ -515,6 +564,9 @@ function getTextWidth(
     }
   }
 
+  // Initialize canvas module if needed
+  initializeCanvas();
+
   // Check if canvas module is available
   if (canvasModule && canvasModule.createCanvas) {
     try {
@@ -569,6 +621,9 @@ function getFontMetrics(
   fontFamily = 'Arial',
   fontWeight = 'normal'
 ): { ascent: number; descent: number; height: number } {
+  // Initialize canvas module if needed
+  initializeCanvas();
+
   // Check if canvas module is available
   if (canvasModule && canvasModule.createCanvas) {
     try {
@@ -778,9 +833,7 @@ function createTemplateWrappedText(
       const lineY = textBlockStartY + index * lineHeight;
       return `
         <text x="${textX}" y="${lineY}"
-              font-family="${
-                fontFamily.includes(' ') ? `'${fontFamily}'` : fontFamily
-              }"
+              font-family="'${fontFamily}'"
               font-size="${currentFontSize}"
               font-weight="${fontWeight}"
               font-style="${fontStyle}"
@@ -894,9 +947,10 @@ function createTemplateLogoPlaceholder(
  */
 async function generateTemplateBackground(
   backgroundConfig: {
-    type: 'color' | 'gradient';
+    type: 'color' | 'gradient' | 'radial';
     color?: string;
     secondaryColor?: string;
+    intensity?: number;
     useSourceColors?: boolean;
   },
   colorScheme: ColorScheme
@@ -918,6 +972,27 @@ async function generateTemplateBackground(
         </linearGradient>
       `,
       background: `<rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#templateGradient)"/>`,
+    };
+  } else if (backgroundConfig.type === 'radial') {
+    const primaryColor = backgroundConfig.useSourceColors
+      ? colorScheme.primaryColor
+      : backgroundConfig.color || '#6366f1';
+    const secondaryColor = backgroundConfig.useSourceColors
+      ? colorScheme.secondaryColor
+      : backgroundConfig.secondaryColor || primaryColor;
+
+    // Calculate radius based on intensity (0-100)
+    const intensity = (backgroundConfig.intensity || 50) / 100;
+    const radiusPercent = 30 + intensity * 70; // 30% to 100% based on intensity
+
+    return {
+      defs: `
+        <radialGradient id="templateRadialGradient" cx="50%" cy="50%" r="${radiusPercent}%">
+          <stop offset="0%" style="stop-color:${primaryColor};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:${secondaryColor};stop-opacity:1" />
+        </radialGradient>
+      `,
+      background: `<rect width="${POSTER_WIDTH}" height="${POSTER_HEIGHT}" fill="url(#templateRadialGradient)"/>`,
     };
   } else {
     // Solid color background
@@ -1101,8 +1176,6 @@ async function embedRasterIconInSVG(
   }
 ): Promise<string | null> {
   try {
-    const { loadIconFile } = await import('./iconManager');
-
     const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
     if (!urlMatch) {
       logger.warn(`Icon path does not match expected format: ${iconPath}`);
@@ -1189,8 +1262,6 @@ async function embedSVGIconInSVG(
   }
 ): Promise<string | null> {
   try {
-    const { loadIconFile } = await import('./iconManager');
-
     const urlMatch = iconPath.match(/\/api\/v1\/posters\/icons\/(\w+)\/(.+)/);
     if (!urlMatch) {
       logger.warn(`SVG icon path does not match expected format: ${iconPath}`);
@@ -1436,6 +1507,16 @@ async function generateUnifiedLayeredElements(
       }
 
       if (elementContent) {
+        // Apply rotation if specified
+        if (element.rotation && element.rotation !== 0) {
+          // Calculate rotation center (center of element bounding box)
+          const centerX = element.x + element.width / 2;
+          const centerY = element.y + element.height / 2;
+
+          // Wrap element in a group with rotation transform
+          elementContent = `<g transform="rotate(${element.rotation} ${centerX} ${centerY})">${elementContent}</g>`;
+        }
+
         renderedElements.push(elementContent);
       }
     } catch (error) {
@@ -1697,10 +1778,6 @@ export async function generatePosterBuffer(
         config.autoPosterTemplate === undefined ||
         config.autoPosterTemplate === null
       ) {
-        const { getRepository } = await import('@server/datasource');
-        const { PosterTemplate } = await import(
-          '@server/entity/PosterTemplate'
-        );
         const templateRepository = getRepository(PosterTemplate);
 
         const defaultTemplate = await templateRepository.findOne({

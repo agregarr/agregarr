@@ -1,5 +1,11 @@
 import type { OverseerrMediaRequest } from '@server/api/overseerr';
+import type { TmdbMovieDetails } from '@server/api/themoviedb/interfaces';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
+
+interface CacheEntry<T> {
+  data: T;
+  expires: number;
+}
 
 /**
  * Centralized cache service for sharing data across sync operations
@@ -10,6 +16,8 @@ export class SyncCacheService {
 
   private overseerrRequestsCache: OverseerrMediaRequest[] = [];
   private libraryItemsCache: LibraryItemsCache = {};
+  private tmdbFranchiseCache: Map<number, CacheEntry<TmdbMovieDetails>> =
+    new Map();
   private isInitialized = false;
 
   public static getInstance(): SyncCacheService {
@@ -37,6 +45,7 @@ export class SyncCacheService {
   public clear(): void {
     this.overseerrRequestsCache = [];
     this.libraryItemsCache = {};
+    this.tmdbFranchiseCache.clear();
     this.isInitialized = false;
   }
 
@@ -74,6 +83,55 @@ export class SyncCacheService {
       librariesCount: Object.keys(this.libraryItemsCache).length,
       isInitialized: this.isInitialized,
     };
+  }
+
+  /**
+   * Get TMDB movie details from cache
+   * @param tmdbId TMDB movie ID
+   * @returns Cached movie details if valid, null if not cached or expired
+   */
+  public getTmdbMovieDetails(tmdbId: number): TmdbMovieDetails | null {
+    const cached = this.tmdbFranchiseCache.get(tmdbId);
+    if (cached && cached.expires > Date.now()) {
+      return cached.data;
+    }
+    // Clean up expired entry
+    if (cached) {
+      this.tmdbFranchiseCache.delete(tmdbId);
+    }
+    return null;
+  }
+
+  /**
+   * Cache TMDB movie details with TTL
+   * @param tmdbId TMDB movie ID
+   * @param data Movie details to cache
+   * @param ttlMs Time to live in milliseconds (default: 48 hours)
+   */
+  public setTmdbMovieDetails(
+    tmdbId: number,
+    data: TmdbMovieDetails,
+    ttlMs: number = 48 * 60 * 60 * 1000 // 48 hours default
+  ): void {
+    this.tmdbFranchiseCache.set(tmdbId, {
+      data,
+      expires: Date.now() + ttlMs,
+    });
+  }
+
+  /**
+   * Clear expired TMDB cache entries
+   */
+  public cleanExpiredTmdbCache(): number {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [tmdbId, entry] of this.tmdbFranchiseCache) {
+      if (entry.expires <= now) {
+        this.tmdbFranchiseCache.delete(tmdbId);
+        cleaned++;
+      }
+    }
+    return cleaned;
   }
 }
 

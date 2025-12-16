@@ -47,7 +47,11 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
   unknownJob: 'Unknown Job',
   'plex-refresh-token': 'Plex Refresh Token',
   'plex-collections-sync': 'Plex Collections Sync',
+  'plex-collections-quick-sync': 'Collections Quick Sync',
   'plex-randomize-home-order': 'Randomize Home Order',
+  'overlay-application': 'Poster Overlay Application',
+  'overlay-quick-sync': 'Overlay Quick Sync',
+  'watchlist-sync': 'Plex Watchlist Sync',
   editJobSchedule: 'Modify Job',
   jobScheduleEditSaved: 'Job edited successfully!',
   jobScheduleEditFailed: 'Something went wrong while saving the job.',
@@ -62,7 +66,8 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
   editJobScheduleUsePreset: 'Use Preset Intervals',
   editJobScheduleUseCustom: 'Use Custom CRON Expression',
   editJobScheduleCustomCron: 'CRON Expression',
-  editJobScheduleCustomCronPlaceholder: 'e.g. 0 0 */6 * * * (every 6 hours)',
+  editJobScheduleCustomCronPlaceholder:
+    'e.g. 0 */15 * * * * (every 15 min) or 0 0 */6 * * * (every 6 hours)',
   editJobScheduleCustomCronInvalid: 'Invalid CRON expression',
   imagecache: 'Image Cache',
   imagecacheDescription:
@@ -80,6 +85,7 @@ interface Job {
   interval: 'seconds' | 'minutes' | 'hours' | 'fixed';
   cronSchedule: string;
   nextExecutionTime: string;
+  followingExecutionTime: string | null;
   running: boolean;
 }
 
@@ -107,6 +113,43 @@ type JobModalAction =
     }
   | { type: 'open'; job?: Job };
 
+/**
+ * Parse a CRON expression to extract the interval value for preset schedules
+ * CRON format: second minute hour day month weekday
+ */
+const parseCronToInterval = (
+  cronSchedule: string,
+  interval: 'seconds' | 'minutes' | 'hours' | 'fixed'
+): number | undefined => {
+  const parts = cronSchedule.split(/\s+/);
+  if (parts.length !== 6) {
+    return undefined;
+  }
+
+  try {
+    if (interval === 'seconds') {
+      // Pattern: */{seconds} * ...
+      const secondsPart = parts[0];
+      const match = secondsPart.match(/^\*\/(\d+)$/);
+      return match ? parseInt(match[1], 10) : undefined;
+    } else if (interval === 'minutes') {
+      // Pattern: * */{minutes} ...
+      const minutesPart = parts[1];
+      const match = minutesPart.match(/^\*\/(\d+)$/);
+      return match ? parseInt(match[1], 10) : undefined;
+    } else if (interval === 'hours') {
+      // Pattern: 0 */{hours} ...
+      const hoursPart = parts[2];
+      const match = hoursPart.match(/^\*\/(\d+)$/);
+      return match ? parseInt(match[1], 10) : undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+};
+
 const jobModalReducer = (
   state: JobModalState,
   action: JobModalAction
@@ -118,16 +161,47 @@ const jobModalReducer = (
         isOpen: false,
       };
 
-    case 'open':
+    case 'open': {
+      // Parse the existing CRON schedule to determine current preset values
+      let scheduleHours = 1;
+      let scheduleMinutes = 5;
+      let scheduleSeconds = 30;
+      let useCustomCron = false;
+
+      if (action.job?.cronSchedule) {
+        const parsedValue = parseCronToInterval(
+          action.job.cronSchedule,
+          action.job.interval
+        );
+
+        if (parsedValue !== undefined) {
+          // Successfully parsed preset schedule
+          if (action.job.interval === 'seconds') {
+            scheduleSeconds = parsedValue;
+          } else if (action.job.interval === 'minutes') {
+            scheduleMinutes = parsedValue;
+          } else if (action.job.interval === 'hours') {
+            scheduleHours = parsedValue;
+          }
+          useCustomCron = false;
+        } else {
+          // Could not parse as preset, treat as custom CRON
+          useCustomCron = true;
+        }
+      }
+
       return {
         isOpen: true,
         job: action.job,
-        scheduleHours: 1,
-        scheduleMinutes: 5,
-        scheduleSeconds: 30,
-        useCustomCron: false,
-        customCronExpression: '',
+        scheduleHours,
+        scheduleMinutes,
+        scheduleSeconds,
+        useCustomCron,
+        customCronExpression: useCustomCron
+          ? action.job?.cronSchedule ?? ''
+          : '',
       };
+    }
 
     case 'set':
       return {
@@ -221,7 +295,7 @@ const SettingsJobs = () => {
         const cronParts = cronExpr.split(/\s+/);
         if (cronParts.length !== 6) {
           throw new Error(
-            'CRON expression must have 6 parts: second minute hour day month weekday'
+            'CRON expression must have 6 parts (node-schedule format): second minute hour day month weekday. Examples: "0 */15 * * * *" (every 15 min), "0 0 */6 * * *" (every 6 hours)'
           );
         }
 
@@ -265,7 +339,11 @@ const SettingsJobs = () => {
       dispatch({ type: 'close' });
       revalidate();
     } catch (e) {
-      addToast(intl.formatMessage(messages.jobScheduleEditFailed), {
+      const errorMessage =
+        e.response?.data?.message ||
+        e.message ||
+        intl.formatMessage(messages.jobScheduleEditFailed);
+      addToast(errorMessage, {
         appearance: 'error',
         autoDismiss: true,
       });
@@ -504,17 +582,70 @@ const SettingsJobs = () => {
                   </Badge>
                 </Table.TD>
                 <Table.TD>
-                  <div className="text-sm leading-5 text-white">
-                    <FormattedRelativeTime
-                      value={Math.floor(
-                        (new Date(job.nextExecutionTime).getTime() -
+                  {(() => {
+                    const secondsUntilNext = Math.floor(
+                      (new Date(job.nextExecutionTime).getTime() - Date.now()) /
+                        1000
+                    );
+                    const hoursUntilNext = secondsUntilNext / 3600;
+
+                    // Show hours for up to 48 hours, then switch to days
+                    return (
+                      <div className="text-sm leading-5 text-white">
+                        {hoursUntilNext <= 48 ? (
+                          <FormattedRelativeTime
+                            value={Math.floor(secondsUntilNext / 3600)}
+                            updateIntervalInSeconds={60}
+                            numeric="auto"
+                            unit="hour"
+                          />
+                        ) : (
+                          <FormattedRelativeTime
+                            value={Math.floor(secondsUntilNext / 86400)}
+                            updateIntervalInSeconds={3600}
+                            numeric="auto"
+                            unit="day"
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {job.followingExecutionTime &&
+                    (() => {
+                      const secondsUntil = Math.floor(
+                        (new Date(job.followingExecutionTime).getTime() -
                           Date.now()) /
                           1000
-                      )}
-                      updateIntervalInSeconds={1}
-                      numeric="auto"
-                    />
-                  </div>
+                      );
+                      const hoursUntil = secondsUntil / 3600;
+
+                      // Show hours for up to 48 hours, then switch to days
+                      if (hoursUntil <= 48) {
+                        return (
+                          <div className="text-xs leading-4 text-gray-400">
+                            Following execution{' '}
+                            <FormattedRelativeTime
+                              value={Math.floor(secondsUntil / 3600)}
+                              updateIntervalInSeconds={60}
+                              numeric="auto"
+                              unit="hour"
+                            />
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="text-xs leading-4 text-gray-400">
+                            Following execution{' '}
+                            <FormattedRelativeTime
+                              value={Math.floor(secondsUntil / 86400)}
+                              updateIntervalInSeconds={3600}
+                              numeric="auto"
+                              unit="day"
+                            />
+                          </div>
+                        );
+                      }
+                    })()}
                 </Table.TD>
                 <Table.TD alignText="right">
                   {job.interval !== 'fixed' && (

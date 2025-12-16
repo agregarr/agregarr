@@ -76,12 +76,13 @@ const VisibilitySection = ({
 
   return (
     <div className="space-y-2">
-      {/* Show restriction notice for overseerr users collections */}
+      {/* Show restriction notice for collections restricted to library only */}
       {restrictToLibraryOnly && (
         <div className="mb-3 rounded border border-orange-500/20 bg-orange-500/10 p-3 text-sm text-orange-300">
           Individual user request collections are restricted to Library Tab Only
           visibility due a Plex bug that doesn&apos;t respect label restrictions
-          on the Home/Recommended screens.
+          on the Home/Recommended screens. TMDB Franchise Collections are hidden
+          so that you don&apos;t clog up your home/recommended screens.
         </div>
       )}
 

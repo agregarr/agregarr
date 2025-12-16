@@ -1,3 +1,4 @@
+import Modal from '@app/components/Common/Modal';
 import type { PosterEditorData } from '@app/components/PosterEditor';
 import { PosterEditorModal } from '@app/components/PosterEditor';
 import {
@@ -32,11 +33,17 @@ const messages = defineMessages({
   posterGenerateError: 'Failed to generate poster',
   posterDeleteError: 'Failed to delete poster',
   confirmDelete: 'Are you sure you want to delete this poster?',
+  posterInUse: 'Poster is Currently in Use',
+  posterInUseDescription:
+    'This poster is currently being used by the following collections:',
+  deleteAnyway: 'Delete Anyway',
+  cancel: 'Cancel',
 });
 
 interface Poster {
   filename: string;
   url: string;
+  updatedAt?: number | null; // File modification time for cache-busting
 }
 
 interface PosterSelectionPopoverProps {
@@ -85,6 +92,15 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
   const [downloadingFromUrl, setDownloadingFromUrl] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    filename: string;
+    usedBy: {
+      type: 'collection' | 'preExisting';
+      id: string;
+      name: string;
+      libraryName: string;
+    }[];
+  } | null>(null);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -291,13 +307,42 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
   ) => {
     event.stopPropagation();
 
-    if (!window.confirm(intl.formatMessage(messages.confirmDelete))) {
-      return;
-    }
+    try {
+      // Check if poster is in use
+      const usageResponse = await axios.get(
+        `/api/v1/collections/poster/${filename}/usage`
+      );
 
+      if (usageResponse.data.inUse) {
+        // Show confirmation modal with usage info
+        setDeleteConfirmation({
+          filename,
+          usedBy: usageResponse.data.usedBy,
+        });
+        return;
+      }
+
+      // Poster not in use, show simple confirmation
+      if (!window.confirm(intl.formatMessage(messages.confirmDelete))) {
+        return;
+      }
+
+      // Proceed with deletion
+      await performDelete(filename);
+    } catch (error) {
+      addToast(intl.formatMessage(messages.posterDeleteError), {
+        appearance: 'error',
+      });
+    }
+  };
+
+  const performDelete = async (filename: string, force = false) => {
     try {
       setDeleting(filename);
-      await axios.delete(`/api/v1/collections/poster/${filename}`);
+      const url = force
+        ? `/api/v1/collections/poster/${filename}?force=true`
+        : `/api/v1/collections/poster/${filename}`;
+      await axios.delete(url);
 
       addToast(intl.formatMessage(messages.posterDeleteSuccess), {
         appearance: 'success',
@@ -317,6 +362,13 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
       });
     } finally {
       setDeleting(null);
+      setDeleteConfirmation(null);
+    }
+  };
+
+  const handleConfirmForceDelete = async () => {
+    if (deleteConfirmation) {
+      await performDelete(deleteConfirmation.filename, true);
     }
   };
 
@@ -413,7 +465,9 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
                   >
                     <div className="aspect-[2/3] bg-stone-700">
                       <img
-                        src={poster.url}
+                        src={`${poster.url}?v=${
+                          poster.updatedAt || Date.now()
+                        }`}
                         alt="Poster"
                         className="h-full w-full object-cover"
                         loading="lazy"
@@ -603,6 +657,39 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
           mediaType: collectionConfig?.mediaType || 'movie',
         }}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (
+        <Modal
+          title={intl.formatMessage(messages.posterInUse)}
+          onCancel={() => setDeleteConfirmation(null)}
+          onOk={handleConfirmForceDelete}
+          cancelText={intl.formatMessage(messages.cancel)}
+          okText={intl.formatMessage(messages.deleteAnyway)}
+          okButtonType="danger"
+          loading={deleting !== null}
+        >
+          <div className="text-sm">
+            <p className="mb-4">
+              {intl.formatMessage(messages.posterInUseDescription)}
+            </p>
+            <ul className="space-y-2">
+              {deleteConfirmation.usedBy.map((usage) => (
+                <li
+                  key={usage.id}
+                  className="rounded-md bg-gray-800 p-3 text-gray-200"
+                >
+                  <div className="font-semibold">{usage.name}</div>
+                  <div className="text-xs text-gray-400">
+                    {usage.libraryName}
+                    {usage.type === 'preExisting' && ' (Pre-existing)'}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

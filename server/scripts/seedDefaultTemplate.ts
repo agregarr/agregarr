@@ -28,8 +28,8 @@ async function seedDefaultTemplate() {
 
     // Create the default template data in unified format
     const defaultTemplateData: PosterTemplateData = {
-      width: 500,
-      height: 750,
+      width: 1000,
+      height: 1500,
       background: {
         type: 'gradient',
         color: '#6366f1',
@@ -37,48 +37,48 @@ async function seedDefaultTemplate() {
         useSourceColors: true, // Use global source colors from SourceColors table
       },
       elements: [
-        // Service logo (layer 10)
+        // Service logo (layer 10) - scaled 2x from original 500x750
         {
           id: 'service-logo',
           layerOrder: 10,
           type: 'svg',
-          x: 223,
-          y: 34,
-          width: 62,
-          height: 62,
+          x: 446,
+          y: 68,
+          width: 124,
+          height: 124,
           properties: {
             iconType: 'source-logo',
             grayscale: false,
           } as SVGElementProps,
         },
-        // Content grid (layer 20)
+        // Content grid (layer 20) - scaled 2x from original 500x750
         {
           id: 'items-grid',
           layerOrder: 20,
           type: 'content-grid',
-          x: 91,
-          y: 227,
-          width: 324,
-          height: 478,
+          x: 182,
+          y: 454,
+          width: 648,
+          height: 956,
           properties: {
             columns: 2,
             rows: 2,
-            spacing: 16,
-            cornerRadius: 4,
+            spacing: 32,
+            cornerRadius: 8,
           } as ContentGridProps,
         },
-        // Collection title (layer 40)
+        // Collection title (layer 40) - scaled 2x from original 500x750
         {
           id: 'collection-title',
           layerOrder: 40,
           type: 'text',
-          x: 32,
-          y: 111,
-          width: 440,
-          height: 100,
+          x: 64,
+          y: 222,
+          width: 880,
+          height: 200,
           properties: {
             elementType: 'collection-title',
-            fontSize: 40,
+            fontSize: 80,
             fontFamily: 'Inter',
             fontWeight: 'bold',
             fontStyle: 'normal',

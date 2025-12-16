@@ -59,6 +59,69 @@ export class CollectionCleanupService {
         );
 
         if (deletionResult.shouldDelete) {
+          // CLEANUP: If this is a smart collection, clean up its labels first
+          try {
+            const collectionMeta = await plexClient.getCollectionMetadata(
+              collection.ratingKey
+            );
+            const isSmart =
+              collectionMeta &&
+              (collectionMeta as { smart?: string }).smart === '1';
+
+            if (isSmart && collectionMeta) {
+              const libraryId =
+                collectionMeta.librarySectionID || collectionMeta.libraryKey;
+
+              const unwatchedLabels = Array.isArray(collectionMeta.labels)
+                ? collectionMeta.labels
+                    .map((label: string | { tag: string }) =>
+                      typeof label === 'string' ? label : label.tag
+                    )
+                    .filter((label: string) =>
+                      label.startsWith('agregarr-unwatched-')
+                    )
+                : [];
+
+              for (const labelName of unwatchedLabels) {
+                try {
+                  const labeledItems = await plexClient.getItemsWithLabel(
+                    String(libraryId),
+                    labelName
+                  );
+
+                  if (labeledItems.length > 0) {
+                    for (const itemKey of labeledItems) {
+                      await plexClient.removeLabelFromItem(itemKey, labelName);
+                    }
+                  }
+                } catch (labelError) {
+                  logger.warn(
+                    `Failed to cleanup label ${labelName} during orphaned collection cleanup`,
+                    {
+                      label: 'Collection Cleanup Service',
+                      error:
+                        labelError instanceof Error
+                          ? labelError.message
+                          : String(labelError),
+                    }
+                  );
+                }
+              }
+            }
+          } catch (metadataError) {
+            logger.warn(
+              `Failed to check for smart collection labels, continuing with deletion`,
+              {
+                label: 'Collection Cleanup Service',
+                error:
+                  metadataError instanceof Error
+                    ? metadataError.message
+                    : String(metadataError),
+              }
+            );
+          }
+
+          // Delete the collection
           await plexClient.deleteCollection(collection.ratingKey);
           deleted++;
           logger.info(
@@ -139,6 +202,68 @@ export class CollectionCleanupService {
         if (this.cancelled) break;
 
         try {
+          // CLEANUP: If this is a smart collection, clean up its labels first
+          const collectionMeta = await plexClient.getCollectionMetadata(
+            collection.ratingKey
+          );
+          const isSmart =
+            collectionMeta &&
+            (collectionMeta as { smart?: string }).smart === '1';
+
+          if (isSmart && collectionMeta) {
+            // Extract library ID from the collection
+            const libraryId =
+              collectionMeta.librarySectionID || collectionMeta.libraryKey;
+
+            // Try to find the agregarr-unwatched label for this collection
+            // Pattern: agregarr-unwatched-{configId}
+            const unwatchedLabels = Array.isArray(collectionMeta.labels)
+              ? collectionMeta.labels
+                  .map((label: string | { tag: string }) =>
+                    typeof label === 'string' ? label : label.tag
+                  )
+                  .filter((label: string) =>
+                    label.startsWith('agregarr-unwatched-')
+                  )
+              : [];
+
+            for (const labelName of unwatchedLabels) {
+              try {
+                const labeledItems = await plexClient.getItemsWithLabel(
+                  String(libraryId),
+                  labelName
+                );
+
+                if (labeledItems.length > 0) {
+                  logger.debug(
+                    `Cleaning up smart collection labels: ${labelName} from ${labeledItems.length} items`,
+                    {
+                      label: 'Collection Cleanup Service',
+                      collectionTitle: collection.title,
+                      labelName,
+                      itemCount: labeledItems.length,
+                    }
+                  );
+                  for (const itemKey of labeledItems) {
+                    await plexClient.removeLabelFromItem(itemKey, labelName);
+                  }
+                }
+              } catch (labelError) {
+                logger.warn(
+                  `Failed to cleanup label ${labelName}, continuing with deletion`,
+                  {
+                    label: 'Collection Cleanup Service',
+                    error:
+                      labelError instanceof Error
+                        ? labelError.message
+                        : String(labelError),
+                  }
+                );
+              }
+            }
+          }
+
+          // Delete the collection
           await plexClient.deleteCollection(collection.ratingKey);
           collectionsDeleted++;
           logger.debug(`Deleted collection: ${collection.title}`, {

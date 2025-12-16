@@ -23,6 +23,10 @@ import { RandomListManager } from '@server/lib/collections/utils/RandomListManag
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import {
+  buildTraktRedirectUri,
+  persistTraktTokens,
+} from '@server/utils/traktAuth';
 
 interface TraktCollectionItem extends CollectionItem {
   tmdbId: number;
@@ -36,7 +40,7 @@ interface TraktCollectionItem extends CollectionItem {
  * Handles multiple Trakt API types (trending, popular, watched, custom lists)
  * with auto-request functionality and comprehensive error handling.
  */
-export class TraktCollectionSync extends BaseCollectionSync {
+export class TraktCollectionSync extends BaseCollectionSync<'trakt'> {
   private traktClients: Map<string, TraktAPI> = new Map();
   private dynamicRandomTitle: string | null = null;
 
@@ -49,10 +53,10 @@ export class TraktCollectionSync extends BaseCollectionSync {
    */
   protected async validateConfiguration(): Promise<void> {
     const settings = getSettings();
-    if (!settings.trakt.apiKey) {
+    if (!settings.trakt.clientId && !settings.trakt.apiKey) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'Trakt API key not configured'
+        'Trakt client ID not configured'
       );
     }
   }
@@ -94,14 +98,46 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
       // Apply filtering safety net (validation, deduplication, maxItems safety check)
       const { items, missingItems, mappingStats, filteringStats } =
-        this.applyFilteringToMappedItems(mappedResult, config);
+        await this.applyFilteringToMappedItems(mappedResult, config);
 
-      // Handle auto-requests for missing items
-      if (missingItems && missingItems.length > 0) {
-        await this.handleAutoRequests(missingItems, config);
+      // Clean up placeholders (released items, orphaned items, stale items)
+      if (config.createPlaceholdersForMissing) {
+        const { cleanupPlaceholdersForConfig } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+        // Extract tmdbIds from items and missingItems for orphan detection
+        const sourceTmdbIds = new Set([
+          ...items
+            .map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number'),
+          ...(missingItems
+            ?.map((item) => item.tmdbId)
+            .filter((id): id is number => typeof id === 'number') || []),
+        ]);
+        await cleanupPlaceholdersForConfig(
+          config,
+          plexClient,
+          libraryCache,
+          sourceTmdbIds
+        );
       }
 
-      if (items.length === 0) {
+      // Process missing items - creates placeholders and/or sends to auto-requests
+      let finalItems = items;
+      if (missingItems && missingItems.length > 0) {
+        const placeholderItems = await this.processMissingItems(
+          missingItems,
+          config,
+          plexClient,
+          () => this.handleAutoRequests(missingItems, config)
+        );
+        // Add placeholder items to the collection
+        if (placeholderItems.length > 0) {
+          finalItems = [...items, ...placeholderItems];
+        }
+      }
+
+      if (finalItems.length === 0) {
         logger.warn('No items to create collection from', {
           label: 'Trakt Collections',
           configName: config.name,
@@ -116,7 +152,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
       // Use the new media type processing strategy
       return await this.processWithMediaTypeStrategy(
-        items,
+        finalItems,
         config,
         plexClient,
         allCollections,
@@ -190,14 +226,17 @@ export class TraktCollectionSync extends BaseCollectionSync {
     libraryCache?: LibraryItemsCache
   ): Promise<TraktSourceData[]> {
     const settings = getSettings();
-    const apiKey = settings.trakt.apiKey;
-    if (!apiKey) {
+    const clientId = settings.trakt.clientId || settings.trakt.apiKey;
+    if (!clientId) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        'Trakt API key not configured'
+        'Trakt client ID not configured'
       );
     }
-    const traktClient = this.getTraktClient(apiKey);
+    const traktClient = this.getTraktClient(
+      clientId,
+      settings.trakt.accessToken
+    );
     const statType = this.getStatTypeFromSubtype(config.subtype);
 
     const traktData: TraktSourceData[] = [];
@@ -314,6 +353,27 @@ export class TraktCollectionSync extends BaseCollectionSync {
           break;
         }
 
+        case 'recommendations': {
+          if (!settings.trakt.accessToken) {
+            throw this.createSyncError(
+              CollectionSyncErrorType.CONFIGURATION_ERROR,
+              'Trakt access token is required for recommendations'
+            );
+          }
+
+          const recommendations = await traktClient.getRecommendations(
+            mediaType === 'tv' ? 'shows' : 'movies',
+            {
+              ignoreCollected: false,
+              ignoreWatchlisted: false,
+              limit: 100,
+            }
+          );
+
+          traktData.push(...recommendations);
+          break;
+        }
+
         case 'boxoffice':
           // Box office is movies only
           if (mediaType === 'movie') {
@@ -377,9 +437,6 @@ export class TraktCollectionSync extends BaseCollectionSync {
               (item.movie && targetType === 'movie') ||
               (item.show && targetType === 'show')
           );
-
-          // Apply ordering modifications
-          customListData = this.applyOrderingOptions(customListData, config);
 
           traktData.push(...customListData);
           break;
@@ -455,9 +512,6 @@ export class TraktCollectionSync extends BaseCollectionSync {
               (item.movie && targetType === 'movie') ||
               (item.show && targetType === 'show')
           );
-
-          // Apply ordering modifications
-          randomListData = this.applyOrderingOptions(randomListData, config);
 
           traktData.push(...randomListData);
           break;
@@ -657,6 +711,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
             title: lookup.title,
             year: lookup.year,
             originalPosition: lookup.originalPosition,
+            source: this.source,
           });
         } else {
           logger.debug(
@@ -782,49 +837,28 @@ export class TraktCollectionSync extends BaseCollectionSync {
 
   // Private helper methods
 
-  /**
-   * Apply ordering options (reverse, randomize) to data array
-   */
-  private applyOrderingOptions<T>(data: T[], config: CollectionConfig): T[] {
-    let processedData = [...data];
-
-    const shouldReverse = config.reverseOrder ?? false;
-    const shouldRandomize = config.randomizeOrder ?? false;
-
-    // Mutual exclusion: randomize takes precedence over reverse
-    if (shouldRandomize) {
-      // Fisher-Yates shuffle algorithm for true randomization
-      for (let i = processedData.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [processedData[i], processedData[j]] = [
-          processedData[j],
-          processedData[i],
-        ];
-      }
-
-      logger.debug(`Applied randomization to ${processedData.length} items`, {
-        label: 'Trakt Collections',
-        collection: config.name,
-      });
-    } else if (shouldReverse) {
-      processedData = processedData.reverse();
-
-      logger.debug(`Applied reverse order to ${processedData.length} items`, {
-        label: 'Trakt Collections',
-        collection: config.name,
-      });
+  private getTraktClient(clientId: string, accessToken?: string): TraktAPI {
+    const settings = getSettings();
+    const cacheKey = `${clientId}:${accessToken || ''}:${
+      settings.trakt.refreshToken || ''
+    }`;
+    if (!this.traktClients.has(cacheKey)) {
+      this.traktClients.set(
+        cacheKey,
+        new TraktAPI({
+          clientId,
+          accessToken,
+          clientSecret: settings.trakt.clientSecret,
+          refreshToken: settings.trakt.refreshToken,
+          tokenExpiresAt: settings.trakt.tokenExpiresAt,
+          redirectUri: buildTraktRedirectUri(settings),
+          onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
+        })
+      );
     }
-
-    return processedData;
-  }
-
-  private getTraktClient(apiKey: string): TraktAPI {
-    if (!this.traktClients.has(apiKey)) {
-      this.traktClients.set(apiKey, new TraktAPI(apiKey));
-    }
-    const client = this.traktClients.get(apiKey);
+    const client = this.traktClients.get(cacheKey);
     if (!client) {
-      throw new Error(`Failed to get Trakt client for API key`);
+      throw new Error(`Failed to get Trakt client for client ID`);
     }
     return client;
   }
@@ -855,6 +889,7 @@ export class TraktCollectionSync extends BaseCollectionSync {
       'favorited_monthly',
       'favorited_all',
       'boxoffice',
+      'recommendations',
       'custom',
       'random',
     ];
@@ -908,6 +943,8 @@ export class TraktCollectionSync extends BaseCollectionSync {
         return 'favorited';
       case 'boxoffice':
         return 'boxoffice';
+      case 'recommendations':
+        return 'recommendations';
       case 'custom':
         return 'custom';
       case 'random':

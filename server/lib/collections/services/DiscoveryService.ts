@@ -186,6 +186,8 @@ export class DiscoveryService {
       await this.resetPreExistingPromotionStatus();
 
       // STEP 3: Discover hubs and enhance pre-existing collections with hub data
+      // Use an object to pass repairedHubNamesCount by reference so it can be modified
+      const repairedHubNamesCounter = { count: 0 };
       await this.discoverHubsAndEnhance(
         plexClient,
         libraries,
@@ -197,7 +199,9 @@ export class DiscoveryService {
         existingCollectionKeys,
         existingCollectionIds,
         allCollections,
-        enhancedExistingConfigs
+        enhancedExistingConfigs,
+        existingHubConfigs,
+        repairedHubNamesCounter
       );
 
       // STEP 4: Promote collections that should be visible but aren't in hub management
@@ -286,21 +290,33 @@ export class DiscoveryService {
 
       // STEP 4: Update settings with discovered configs if requested
       if (updateSettings) {
-        // Add discovered hub configs to settings
+        const { defaultHubConfigService } = await import(
+          '@server/lib/collections/services/DefaultHubConfigService'
+        );
+
+        // ALWAYS re-apply automatic linking during discovery to fix broken linkIds
+        // This handles cases where hubs were incorrectly linked together by the old bug
         if (discoveredHubConfigs.length > 0) {
-          const existingHubConfigs = settings.plex.hubConfigs || [];
-          const newHubConfigs = [...existingHubConfigs];
+          // Use appendConfigs which applies automatic linking logic
+          // This also saves the repaired names from existing hubs
+          defaultHubConfigService.appendConfigs(discoveredHubConfigs);
 
-          for (const discoveredHub of discoveredHubConfigs) {
-            // Add isActive: true to make it a complete PlexHubConfig
-            newHubConfigs.push({ ...discoveredHub, isActive: true });
-          }
-
-          settings.plex.hubConfigs = newHubConfigs;
-          logger.debug(
-            `Added ${discoveredHubConfigs.length} new hub configs to settings`,
+          logger.info(
+            `Added ${discoveredHubConfigs.length} new hub configs to settings with automatic linking`,
             {
               label: 'Discovery Service',
+              repairedNamesCount: repairedHubNamesCounter.count,
+            }
+          );
+        } else if (existingHubConfigs.length > 0) {
+          // No new hubs, but re-apply automatic linking to fix broken linkIds and repaired names
+          const relinkedConfigs =
+            defaultHubConfigService.saveConfigs(existingHubConfigs);
+
+          logger.info(
+            `Re-applied automatic linking to ${relinkedConfigs.length} existing hubs (repaired ${repairedHubNamesCounter.count} names)`,
+            {
+              label: 'Discovery Service - Auto-Repair',
             }
           );
         }
@@ -691,6 +707,17 @@ export class DiscoveryService {
       missingPreExisting: missingPreExisting.length,
     });
 
+    // Automatically cleanup missing pre-existing collections
+    // Pre-existing collections are external (created by other apps), so automatic cleanup provides better UX
+    // User-created collections and hubs still require manual cleanup since they were intentionally created
+    if (missingPreExisting.length > 0) {
+      await this.autoCleanupMissingPreExisting(
+        plexClient,
+        missingPreExisting,
+        settings
+      );
+    }
+
     return {
       collectionsValidated: collectionConfigs.length,
       hubsValidated: existingHubConfigs.length,
@@ -715,12 +742,14 @@ export class DiscoveryService {
     existingCollectionKeys: Set<string>,
     existingCollectionIds: Set<string>,
     allCollections: PlexCollection[],
-    enhancedExistingConfigs: PreExistingCollectionConfig[]
+    enhancedExistingConfigs: PreExistingCollectionConfig[],
+    existingHubConfigs: PlexHubConfig[],
+    repairedHubNamesCounter: { count: number }
   ): Promise<void> {
     // Counters for summary logging
     let skippedAgregarrCollections = 0;
     let processedHubs = 0;
-    let processedPreExisting = 0;
+    const processedPreExisting = 0;
 
     for (const library of libraries) {
       logger.debug('Discovering hubs for library', {
@@ -898,6 +927,28 @@ export class DiscoveryService {
             if (!existingHubKeys.has(hubKey)) {
               discoveredHubConfigs.push(hubConfig);
               processedHubs++;
+            } else {
+              // Hub already exists - check if name needs repair (from linking bug)
+              const existingHub = existingHubConfigs.find(
+                (h: PlexHubConfig) =>
+                  h.hubIdentifier === hubConfig.hubIdentifier &&
+                  h.libraryId === hubConfig.libraryId
+              );
+              if (existingHub && existingHub.name !== hubConfig.name) {
+                logger.info(
+                  `Repairing hub name from "${existingHub.name}" to "${hubConfig.name}"`,
+                  {
+                    label: 'Discovery Service - Name Repair',
+                    hubIdentifier: hubConfig.hubIdentifier,
+                    libraryId: hubConfig.libraryId,
+                    oldName: existingHub.name,
+                    newName: hubConfig.name,
+                  }
+                );
+                // Update the existing hub's name directly
+                existingHub.name = hubConfig.name;
+                repairedHubNamesCounter.count++;
+              }
             }
           } else if (parsedHub.ratingKey) {
             // This has a rating key - check if it's an Agregarr collection or pre-existing
@@ -922,13 +973,30 @@ export class DiscoveryService {
                 this.isAgregarrManagedCollection(collectionWithLabels)
               ) {
                 // Skip smart collections - they are managed separately and shouldn't be deleted here
+                // EXCEPT for recently_added type - that IS a smart collection and should be subject to cleanup
                 const isSmartCollection = collectionWithLabels.smart === '1';
+
+                // Check if this is a recently_added smart collection by parsing the label
+                const isRecentlyAddedSmartCollection =
+                  collectionWithLabels.labels?.some((label) => {
+                    const labelText =
+                      typeof label === 'string' ? label : label.tag;
+                    const match = labelText.match(/Agregarr-([^-]+)-(.+)/);
+                    if (match) {
+                      const [, type] = match;
+                      return type === 'recently_added';
+                    }
+                    return false;
+                  });
 
                 // Skip base collections for smart collections (they have dash prefix titles)
                 const isBaseCollectionForSmart =
                   collectionWithLabels.title?.startsWith('-');
 
-                if (isSmartCollection || isBaseCollectionForSmart) {
+                if (
+                  (isSmartCollection && !isRecentlyAddedSmartCollection) ||
+                  isBaseCollectionForSmart
+                ) {
                   // Skip - these are part of the smart collection system
                   continue;
                 }
@@ -1133,31 +1201,37 @@ export class DiscoveryService {
                   );
 
                   if (!alreadyEnhanced) {
-                    // This collection wasn't found in step 1 (maybe only exists as promoted hub) - create proper pre-existing config
-                    const preExistingConfig =
-                      createPreExistingConfigFromDiscovery(
-                        parsedHub.ratingKey,
+                    // This collection is in hub management but NOT in actual Plex collections
+                    // This indicates a stale/orphaned hub entry (e.g., collection was deleted)
+                    // Clean it up instead of creating a pre-existing config for it
+                    try {
+                      logger.info(
+                        `Cleaning up stale hub entry for deleted collection: ${hub.title}`,
                         {
-                          title: hub.title, // Use hub title as fallback
-                          // No titleSort available from hub API
-                          promotedToSharedHome: hub.promotedToSharedHome,
-                          promotedToOwnHome: hub.promotedToOwnHome,
-                          promotedToRecommended: hub.promotedToRecommended,
-                        },
-                        library,
-                        {
-                          library: hubConfig.sortOrderLibrary,
-                          home: hubConfig.sortOrderHome,
+                          label: 'Discovery Service - Cleanup',
+                          libraryId: library.key,
+                          hubIdentifier: hub.identifier,
+                          ratingKey: parsedHub.ratingKey,
                         }
                       );
-                    // Pre-existing collection discovered in hub management - set initial promotion status
-                    (
-                      preExistingConfig as PreExistingCollectionConfig & {
-                        isPromotedToHub: boolean;
-                      }
-                    ).isPromotedToHub = true;
-                    discoveredPreExistingConfigs.push(preExistingConfig);
-                    processedPreExisting++;
+                      await plexClient.deleteHubItem(
+                        library.key,
+                        hub.identifier
+                      );
+                    } catch (error) {
+                      logger.warn(
+                        `Failed to clean up stale hub entry: ${hub.title}`,
+                        {
+                          label: 'Discovery Service - Cleanup',
+                          libraryId: library.key,
+                          hubIdentifier: hub.identifier,
+                          error:
+                            error instanceof Error
+                              ? error.message
+                              : String(error),
+                        }
+                      );
+                    }
                   }
                 }
               }
@@ -1292,35 +1366,43 @@ export class DiscoveryService {
 
         if (!library) continue;
 
-        // Discover and store poster for this collection
-        const posterResult = await this.discoverCollectionPoster(
-          plexClient,
-          collection,
-          libraryId,
-          library.title
-        );
-
-        // Track detailed poster discovery statistics
-        if (posterResult.success) {
-          posterDiscoveryStats.successful++;
-        } else {
-          posterDiscoveryStats.failed++;
-        }
-
-        // Check if this is an Agregarr collection or pre-existing
+        // Check if this is an Agregarr collection BEFORE downloading poster
         const matchingCollectionConfig = collectionConfigs.find(
           (config) =>
             config.collectionRatingKey === collection.ratingKey &&
             config.libraryId === libraryId
         );
 
-        if (matchingCollectionConfig) {
-          // This is an Agregarr-created collection - skip it (already managed)
+        const isAgregarrManaged =
+          matchingCollectionConfig ||
+          this.isAgregarrManagedCollection(collection);
+
+        // Only discover and store posters for non-Agregarr collections
+        // Agregarr-managed collections already have their posters handled
+        if (!isAgregarrManaged) {
+          const posterResult = await this.discoverCollectionPoster(
+            plexClient,
+            collection,
+            libraryId,
+            library.title
+          );
+
+          // Track detailed poster discovery statistics
+          if (posterResult.success) {
+            posterDiscoveryStats.successful++;
+          } else {
+            posterDiscoveryStats.failed++;
+          }
+        } else if (matchingCollectionConfig) {
+          // This is an Agregarr-created collection - skip poster discovery
           posterDiscoveryStats.agregarrSkipped++;
-        } else if (this.isAgregarrManagedCollection(collection)) {
-          // This is any Agregarr-managed collection - skip it (should not be imported as pre-existing)
-          posterDiscoveryStats.managedSkipped++;
         } else {
+          // This is any other Agregarr-managed collection - skip poster discovery
+          posterDiscoveryStats.managedSkipped++;
+        }
+
+        // Process pre-existing collections (non-Agregarr only)
+        if (!isAgregarrManaged) {
           // Check if this is an existing pre-existing collection that needs title update
           const settings = getSettings();
           const existingPreExisting =
@@ -1381,6 +1463,47 @@ export class DiscoveryService {
               isPromotedToHub: boolean;
             }
           ).isPromotedToHub = false;
+
+          // Link discovered poster to this config (if we downloaded one)
+          // Check if we have a poster stored for this collection
+          try {
+            const { getRepository } = await import('@server/datasource');
+            const { CollectionMetadata } = await import(
+              '@server/entity/CollectionMetadata'
+            );
+            const { posterExists } = await import('@server/lib/posterStorage');
+            const repo = getRepository(CollectionMetadata);
+            const metadata = await repo.findOne({
+              where: { plexCollectionRatingKey: collection.ratingKey },
+            });
+
+            // Only link if we have a poster path AND the file actually exists
+            if (
+              metadata?.posterLocalPath &&
+              posterExists(metadata.posterLocalPath)
+            ) {
+              // Set the discovered poster as customPoster for this config
+              (
+                collectionConfig as PreExistingCollectionConfig & {
+                  customPoster?: string;
+                }
+              ).customPoster = metadata.posterLocalPath;
+
+              logger.info(
+                `Linked discovered poster to new pre-existing collection: ${collection.title}`,
+                {
+                  label: 'Poster Discovery',
+                  posterFilename: metadata.posterLocalPath,
+                  collectionRatingKey: collection.ratingKey,
+                }
+              );
+            }
+          } catch (error) {
+            logger.warn('Failed to link discovered poster to config', {
+              label: 'Poster Discovery',
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
 
           // Check for duplicates before adding to discovery results
           const preExistingKey = `${collectionConfig.libraryId}:${collectionConfig.collectionRatingKey}`;
@@ -1732,11 +1855,8 @@ export class DiscoveryService {
         ];
 
         for (const { type, config } of allLibraryCollections) {
-          // Use smart collection rating key if it exists (for collections with showUnwatchedOnly enabled)
-          const targetRatingKey =
-            (config as CollectionConfig).smartCollectionRatingKey ||
-            config.collectionRatingKey;
-          const hubIdentifier = `custom.collection.${library.key}.${targetRatingKey}`;
+          const collectionRatingKey = config.collectionRatingKey;
+          const hubIdentifier = `custom.collection.${library.key}.${collectionRatingKey}`;
 
           // Skip if already in hub management
           if (existingHubIdentifiers.has(hubIdentifier)) {
@@ -1753,19 +1873,16 @@ export class DiscoveryService {
                 label: 'Discovery Service - Promotion',
                 configId: config.id,
                 libraryId: library.key,
-                collectionRatingKey: config.collectionRatingKey,
-                smartCollectionRatingKey: (config as CollectionConfig)
-                  .smartCollectionRatingKey,
-                targetRatingKey,
+                collectionRatingKey,
                 type,
               }
             );
 
             try {
-              // Promote collection to hub management (use target rating key - smart if exists, otherwise base)
-              if (targetRatingKey) {
+              // Promote collection to hub management
+              if (collectionRatingKey) {
                 await plexClient.promoteCollectionToHub(
-                  targetRatingKey,
+                  collectionRatingKey,
                   library.key
                 );
               }
@@ -1873,6 +1990,7 @@ export class DiscoveryService {
   /**
    * Discover and store poster for a collection
    * Downloads the current poster from Plex and stores it for reuse
+   * Uses smart URL comparison - only downloads if Plex poster URL has changed
    * @returns object with success status and failure reason
    */
   private async discoverCollectionPoster(
@@ -1891,25 +2009,105 @@ export class DiscoveryService {
         return { success: false, reason: 'no-poster' };
       }
 
-      // Download and save the poster
-      const { downloadAndSavePoster } = await import(
+      // Import metadata tracking service and poster storage utilities
+      const metadataService = await import(
+        '@server/lib/metadata/MetadataTrackingService'
+      );
+      const { downloadAndSavePoster, deletePosterFile } = await import(
         '@server/lib/posterStorage'
       );
+      const { getRepository } = await import('@server/datasource');
+      const { CollectionMetadata } = await import(
+        '@server/entity/CollectionMetadata'
+      );
+
+      // Check if we already have tracking for this collection
+      const repo = getRepository(CollectionMetadata);
+      const metadata = await repo.findOne({
+        where: { plexCollectionRatingKey: collection.ratingKey },
+      });
+
+      // If we have a record and the URL matches, skip download
+      if (metadata?.lastPosterUploadUrl === posterUrl) {
+        logger.debug('Poster URL unchanged, skipping download', {
+          label: 'Poster Discovery',
+          collectionTitle: collection.title,
+          ratingKey: collection.ratingKey,
+        });
+        // Poster already exists, link it to configs if needed
+        if (metadata.posterLocalPath) {
+          await this.linkPosterToConfigs(
+            collection,
+            libraryId,
+            metadata.posterLocalPath
+          );
+        }
+        return { success: true };
+      }
+
+      // URL is different or no record exists - delete old file if it exists
+      const oldPosterFilename = metadata?.posterLocalPath;
+      if (oldPosterFilename) {
+        logger.info('Poster URL changed, deleting old file', {
+          label: 'Poster Discovery',
+          collectionTitle: collection.title,
+          oldPath: oldPosterFilename,
+        });
+        await deletePosterFile(oldPosterFilename);
+      }
+
+      // Download and save the new poster
       const filename = await downloadAndSavePoster(
         posterUrl,
         `${collection.title} (${libraryName})`
       );
 
       if (filename) {
+        // Update metadata to record the new poster URL and local path
+        await metadataService.default.updatePosterLocalPath(
+          collection.ratingKey,
+          filename,
+          {
+            libraryKey: libraryId,
+          }
+        );
+
+        // Also update lastPosterUploadUrl to track the Plex URL
+        if (!metadata) {
+          const newMetadata = new CollectionMetadata({
+            plexCollectionRatingKey: collection.ratingKey,
+            libraryKey: libraryId,
+            lastPosterUploadUrl: posterUrl,
+            posterLocalPath: filename,
+          });
+          await repo.save(newMetadata);
+        } else {
+          metadata.lastPosterUploadUrl = posterUrl;
+          metadata.posterLocalPath = filename;
+          await repo.save(metadata);
+        }
+
+        logger.info('Downloaded and stored new poster', {
+          label: 'Poster Discovery',
+          collectionTitle: collection.title,
+          filename,
+        });
+
         // Link this poster to collection configs that match this collection
-        await this.linkPosterToConfigs(collection, libraryId, filename);
+        // Pass the old filename so it can be replaced in configs
+        await this.linkPosterToConfigs(
+          collection,
+          libraryId,
+          filename,
+          oldPosterFilename
+        );
         return { success: true };
       } else {
-        // Since downloadAndSavePoster returns null, we can't determine specific reason here
-        // The detailed error logging happens inside posterStorage.ts
+        // Download failed
         return { success: false, reason: 'download-failed' };
       }
     } catch (error) {
+      logger.error('Error in discoverCollectionPoster:', error);
       return { success: false, reason: 'error' };
     }
   }
@@ -1917,12 +2115,14 @@ export class DiscoveryService {
   /**
    * Link discovered poster to matching collection configs
    * Sets the discovered poster as the customPoster for Agregarr collections and pre-existing collections
-   * that don't already have a poster configured. Default hubs are excluded as they can't have custom posters.
+   * that don't already have a poster configured. If oldPosterFilename is provided, it will update
+   * configs that reference the old poster with the new one.
    */
   private async linkPosterToConfigs(
     collection: PlexCollection,
     libraryId: string,
-    posterFilename: string
+    posterFilename: string,
+    oldPosterFilename?: string
   ): Promise<void> {
     try {
       const settings = getSettings();
@@ -1970,24 +2170,28 @@ export class DiscoveryService {
           }
         }
 
-        if (
-          configMatches &&
-          !config.customPoster // Only set if no poster is already configured
-        ) {
-          // Type-safe modification of collection config
-          const mutableConfig = config as CollectionConfig & {
-            customPoster?: string;
-          };
-          mutableConfig.customPoster = posterFilename;
-          updated = true;
-          logger.info(
-            `Linked discovered poster to Agregarr collection config: ${config.name}`,
-            {
-              label: 'Poster Discovery',
-              configId: config.id,
-              posterFilename,
-            }
-          );
+        if (configMatches) {
+          const shouldUpdate =
+            !config.customPoster || // No poster set
+            (oldPosterFilename && config.customPoster === oldPosterFilename); // Has the old poster that we just replaced
+
+          if (shouldUpdate) {
+            // Type-safe modification of collection config
+            const mutableConfig = config as CollectionConfig & {
+              customPoster?: string;
+            };
+            mutableConfig.customPoster = posterFilename;
+            updated = true;
+            logger.info(
+              `Linked discovered poster to Agregarr collection config: ${config.name}`,
+              {
+                label: 'Poster Discovery',
+                configId: config.id,
+                posterFilename,
+                replaced: oldPosterFilename || null,
+              }
+            );
+          }
         }
       }
 
@@ -2040,24 +2244,28 @@ export class DiscoveryService {
           }
         }
 
-        if (
-          configMatches &&
-          !config.customPoster // Only set if no poster is already configured
-        ) {
-          // Type-safe modification of pre-existing config
-          const mutableConfig = config as PreExistingCollectionConfig & {
-            customPoster?: string;
-          };
-          mutableConfig.customPoster = posterFilename;
-          updated = true;
-          logger.info(
-            `Linked discovered poster to pre-existing collection config: ${config.name}`,
-            {
-              label: 'Poster Discovery',
-              configId: config.id,
-              posterFilename,
-            }
-          );
+        if (configMatches) {
+          const shouldUpdate =
+            !config.customPoster || // No poster set
+            (oldPosterFilename && config.customPoster === oldPosterFilename); // Has the old poster that we just replaced
+
+          if (shouldUpdate) {
+            // Type-safe modification of pre-existing config
+            const mutableConfig = config as PreExistingCollectionConfig & {
+              customPoster?: string;
+            };
+            mutableConfig.customPoster = posterFilename;
+            updated = true;
+            logger.info(
+              `Linked discovered poster to pre-existing collection config: ${config.name}`,
+              {
+                label: 'Poster Discovery',
+                configId: config.id,
+                posterFilename,
+                replaced: oldPosterFilename || null,
+              }
+            );
+          }
         }
       }
 
@@ -2084,6 +2292,95 @@ export class DiscoveryService {
         }
       );
     }
+  }
+
+  /**
+   * Automatically cleanup missing pre-existing collections
+   * Pre-existing collections are external (created by other apps), so automatic cleanup provides better UX
+   * This prevents popup spam when other apps like Maintainerr add/remove temporary collections
+   */
+  private async autoCleanupMissingPreExisting(
+    plexClient: PlexAPI,
+    missingPreExistingIds: string[],
+    settings: ReturnType<typeof getSettings>
+  ): Promise<void> {
+    const missingConfigs =
+      settings.plex.preExistingCollectionConfigs?.filter((config) =>
+        missingPreExistingIds.includes(config.id)
+      ) || [];
+
+    if (missingConfigs.length === 0) return;
+
+    let hubDeleteCount = 0;
+
+    logger.info(
+      `Automatically cleaning up ${missingConfigs.length} missing pre-existing collection(s)`,
+      {
+        label: 'Discovery Service - Auto Cleanup',
+        count: missingConfigs.length,
+        configs: missingConfigs.map((c) => ({
+          id: c.id,
+          name: c.name,
+          libraryId: c.libraryId,
+          ratingKey: c.collectionRatingKey,
+        })),
+      }
+    );
+
+    // Delete missing pre-existing collections from Plex hubs
+    for (const config of missingConfigs) {
+      if (config.collectionRatingKey && config.libraryId) {
+        try {
+          // Generate the hub identifier for pre-existing collections
+          const hubIdentifier = `custom.collection.${config.libraryId}.${config.collectionRatingKey}`;
+
+          await plexClient.deleteHubItem(config.libraryId, hubIdentifier);
+          hubDeleteCount++;
+
+          logger.debug(
+            `Deleted missing pre-existing collection from Plex hub: ${config.name}`,
+            {
+              label: 'Discovery Service - Auto Cleanup',
+              configId: config.id,
+              hubIdentifier,
+              libraryId: config.libraryId,
+              ratingKey: config.collectionRatingKey,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to delete pre-existing collection from Plex hub: ${config.name}`,
+            {
+              label: 'Discovery Service - Auto Cleanup',
+              configId: config.id,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+    }
+
+    // Remove configs from settings
+    settings.plex.preExistingCollectionConfigs =
+      settings.plex.preExistingCollectionConfigs?.filter(
+        (config) => !missingPreExistingIds.includes(config.id)
+      ) || [];
+
+    // Save settings
+    settings.save();
+
+    logger.info(
+      `Auto cleanup completed: ${
+        missingConfigs.length
+      } pre-existing collection config(s) removed${
+        hubDeleteCount > 0 ? `, ${hubDeleteCount} deleted from Plex hubs` : ''
+      }`,
+      {
+        label: 'Discovery Service - Auto Cleanup',
+        configsRemoved: missingConfigs.length,
+        hubsDeleted: hubDeleteCount,
+      }
+    );
   }
 
   /**

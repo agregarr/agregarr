@@ -13,7 +13,8 @@ const baseCollectionSchema = {
       !type ||
       type === 'multi-source' ||
       type === 'radarrtag' ||
-      type === 'sonarrtag',
+      type === 'sonarrtag' ||
+      type === 'recently_added',
     then: (schema) => schema.notRequired(),
     otherwise: (schema) => schema.required('Collection sub-type is required'),
   }),
@@ -95,10 +96,10 @@ const customUrlValidations = {
       type === 'tmdb' && subtype === 'custom',
     then: (schema) =>
       schema
-        .required('TMDB collection/list URL is required')
+        .required('TMDB collection/list/network/company URL is required')
         .matches(
-          /themoviedb\.org\/(collection|list)\/\d+/,
-          'Please enter a valid TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/12345 or https://www.themoviedb.org/list/310)'
+          /themoviedb\.org\/(collection\/\d+|list\/\d+|network\/\d+|company\/\d+(?:-[^/]+)?\/(?:movie|tv))/,
+          'Please enter a valid TMDB URL (collection, list, network, or company page)'
         ),
     otherwise: (schema) => schema,
   }),
@@ -126,7 +127,19 @@ const customUrlValidations = {
           /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
           'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
         ),
-    otherwise: (schema) => schema,
+    otherwise: (schema) =>
+      schema.when(['type', 'subtype'], {
+        is: (type: string, subtype: string) =>
+          type === 'letterboxd' && subtype === 'watchlist',
+        then: (schema) =>
+          schema
+            .required('Letterboxd watchlist URL is required')
+            .matches(
+              /letterboxd\.com\/[^/]+\/watchlist\/?/,
+              'Please enter a valid Letterboxd watchlist URL (e.g., https://letterboxd.com/username/watchlist/)'
+            ),
+        otherwise: (schema) => schema,
+      }),
   }),
 
   anilistCustomListUrl: Yup.string().when(['type', 'subtype'], {
@@ -186,6 +199,16 @@ const autoRequestValidations = {
     otherwise: (schema) => schema,
   }),
 
+  seasonGrabOrder: Yup.string().when('searchMissingTV', {
+    is: true,
+    then: (schema) =>
+      schema.oneOf(
+        ['first', 'latest', 'airing'],
+        'Invalid season grab order mode'
+      ),
+    otherwise: (schema) => schema,
+  }),
+
   maxPositionToProcess: Yup.number()
     .min(0, 'Position limit must be 0 or greater')
     .max(9999, 'Position limit cannot exceed 9999')
@@ -198,6 +221,56 @@ const autoRequestValidations = {
       'Minimum year cannot be more than 10 years in the future'
     )
     .integer('Minimum year must be a whole number'),
+
+  minimumImdbRating: Yup.number()
+    .min(0, 'Minimum IMDb rating must be 0 or greater (0 = no limit)')
+    .max(10, 'IMDb ratings cannot exceed 10')
+    .test(
+      'decimal-places',
+      'IMDb rating can have at most 1 decimal place',
+      (value) => {
+        if (value === undefined || value === null) return true;
+        return /^\d+(\.\d{1})?$/.test(value.toString());
+      }
+    ),
+
+  minimumRottenTomatoesRating: Yup.number()
+    .min(
+      0,
+      'Minimum Rotten Tomatoes rating must be 0 or greater (0 = no limit)'
+    )
+    .max(100, 'Rotten Tomatoes ratings cannot exceed 100')
+    .test(
+      'decimal-places',
+      'Rotten Tomatoes rating can have at most 1 decimal place',
+      (value) => {
+        if (value === undefined || value === null) return true;
+        return /^\d+(\.\d{1})?$/.test(value.toString());
+      }
+    ),
+};
+
+// Placeholder creation validation
+const placeholderValidations = {
+  createPlaceholdersForMissing: Yup.boolean(),
+
+  placeholderDaysAhead: Yup.number().when('createPlaceholdersForMissing', {
+    is: true,
+    then: (schema) =>
+      schema
+        .min(1, 'Days ahead must be at least 1')
+        .max(730, 'Days ahead cannot exceed 730 (2 years)'),
+    otherwise: (schema) => schema,
+  }),
+
+  placeholderReleasedDays: Yup.number().when('createPlaceholdersForMissing', {
+    is: true,
+    then: (schema) =>
+      schema
+        .min(0, 'Post-release window must be 0 or greater')
+        .max(90, 'Post-release window cannot exceed 90 days'),
+    otherwise: (schema) => schema,
+  }),
 };
 
 // Time restriction validation
@@ -238,6 +311,7 @@ export const CollectionConfigSchema = Yup.object().shape({
   ...baseCollectionSchema,
   ...tautulliValidation,
   ...customUrlValidations,
+  ...placeholderValidations,
   ...autoRequestValidations,
   ...timeRestrictionValidations,
 });

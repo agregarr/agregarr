@@ -2,6 +2,7 @@ import type { PlexDevice } from '@server/interfaces/api/plexInterfaces';
 import cacheManager from '@server/lib/cache';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import axios from 'axios';
 import { randomUUID } from 'node:crypto';
 import xml2js from 'xml2js';
 import ExternalAPI from './externalapi';
@@ -394,6 +395,115 @@ class PlexTvAPI extends ExternalAPI {
         label: 'Plex Refresh Token',
         errorMessage: e.message,
       });
+    }
+  }
+
+  /**
+   * Get Plex user display name (plexTitle) for a given Plex user ID
+   * Uses the Plex users API to get user details with actual display names
+   */
+  public async getPlexUserTitle(userPlexId: string): Promise<string | null> {
+    try {
+      if (!this.authToken) {
+        return null;
+      }
+
+      // Use Plex Users API which contains the actual display names (title field)
+      const response = await axios.get('https://plex.tv/api/users', {
+        headers: {
+          'X-Plex-Token': this.authToken,
+        },
+        timeout: 10000,
+      });
+
+      // Parse XML response manually (since we're dealing with external Plex.tv API)
+      const xmlString = response.data as string;
+
+      // Simple XML parsing to find our user
+      const userMatch = xmlString.match(
+        new RegExp(`<User[^>]*id="${userPlexId}"[^>]*>`, 'i')
+      );
+      if (userMatch) {
+        const userElement = userMatch[0];
+
+        // Extract title attribute (display name)
+        const titleMatch = userElement.match(/title="([^"]*)"/);
+        const usernameMatch = userElement.match(/username="([^"]*)"/);
+
+        // Decode HTML entities (e.g., &amp; -> &)
+        const decodeHtmlEntities = (text: string) =>
+          text
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#0?39;/g, "'")
+            .replace(/&#x27;/g, "'");
+
+        const title = titleMatch ? decodeHtmlEntities(titleMatch[1]) : null;
+        const username = usernameMatch
+          ? decodeHtmlEntities(usernameMatch[1])
+          : null;
+
+        logger.debug(
+          `Found Plex user ${userPlexId}: title="${title}", username="${username}"`,
+          {
+            label: 'PlexAPI',
+            userId: userPlexId,
+          }
+        );
+
+        // Return title (display name) if available, otherwise fall back to username
+        return title || username || null;
+      }
+
+      logger.debug(`Plex user ${userPlexId} not found in users API`, {
+        label: 'PlexAPI',
+        userId: userPlexId,
+      });
+      return null;
+    } catch (error) {
+      logger.warn(`Failed to get Plex user title for user ${userPlexId}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  public async checkPlexPass(): Promise<boolean> {
+    try {
+      const user = await this.getUser();
+
+      logger.info('Parsed account data.', {
+        label: 'Plex.tv API',
+        subscriptionActive: user.subscription.active,
+        subscriptionStatus: user.subscription.status,
+      });
+
+      const hasPlexPass =
+        user.subscription.active === true ||
+        user.subscription.status === 'Active';
+
+      logger.info(
+        `Plex Pass check result: ${hasPlexPass ? 'Active' : 'Inactive'}`,
+        {
+          label: 'Plex.tv API',
+          subscriptionActive: user.subscription.active,
+          subscriptionStatus: user.subscription.status,
+        }
+      );
+
+      return hasPlexPass;
+    } catch (error) {
+      logger.warn(
+        'Could not check Plex Pass status. Assuming false for safety.',
+        {
+          label: 'Plex.tv API',
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      );
+      return false;
     }
   }
 }
