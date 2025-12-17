@@ -1074,6 +1074,15 @@ const AllCollectionsView: React.FC = () => {
                                   default:
                                     return subtype;
                                 }
+                              case 'plex':
+                                switch (subtype) {
+                                  case 'directors':
+                                    return 'Directors Auto Collections';
+                                  case 'actors':
+                                    return 'Actors Auto Collections';
+                                  default:
+                                    return subtype;
+                                }
                               case 'filtered_hub':
                                 switch (subtype) {
                                   case 'recently_added':
@@ -1156,6 +1165,8 @@ const AllCollectionsView: React.FC = () => {
                               ? 'Coming Soon'
                               : config.type === 'filtered_hub'
                               ? 'Filtered Hub'
+                              : config.type === 'plex'
+                              ? 'Plex Library'
                               : config.type || '';
 
                           const subtypeLabel = getSubtypeLabel(

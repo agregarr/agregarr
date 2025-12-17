@@ -1456,10 +1456,10 @@ const CollectionFormConfigForm = ({
             values.type === 'tmdb' &&
             values.subtype === 'auto_franchise'
           ) {
-            if (!values.template?.includes('{franchise}')) {
+            if (!values.template?.includes('{franchiseName}')) {
               setFieldError(
                 'template',
-                'Template must include {franchise} for auto franchise collections'
+                'Template must include {franchiseName} for auto franchise collections'
               );
               return; // Prevent save
             }
@@ -1977,10 +1977,11 @@ const CollectionFormConfigForm = ({
                                   <strong>Note:</strong> Your title template
                                   must include{' '}
                                   <code className="rounded bg-gray-700 px-1">
-                                    {'{franchise}'}
+                                    {'{franchiseName}'}
                                   </code>{' '}
-                                  (e.g., &quot;{'{franchise}'}&quot; or
-                                  &quot;Movies from the {'{franchise}'}&quot;).
+                                  (e.g., &quot;{'{franchiseName}'}&quot; or
+                                  &quot;Movies from the {'{franchiseName}'}
+                                  &quot;).
                                 </p>
                               </div>
                             </div>

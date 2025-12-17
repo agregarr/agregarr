@@ -658,6 +658,15 @@ const SortableItem = ({
                           default:
                             return subtype;
                         }
+                      case 'plex':
+                        switch (subtype) {
+                          case 'directors':
+                            return 'Directors Auto Collections';
+                          case 'actors':
+                            return 'Actors Auto Collections';
+                          default:
+                            return subtype;
+                        }
                       case 'filtered_hub':
                         switch (subtype) {
                           case 'recently_added':
@@ -696,14 +705,6 @@ const SortableItem = ({
                             return word.charAt(0).toUpperCase() + word.slice(1);
                           })
                           .join(' ');
-                      case 'plex':
-                        if (subtype === 'directors') {
-                          return 'Auto Director Collections';
-                        }
-                        if (subtype === 'actors') {
-                          return 'Auto Actor Collections';
-                        }
-                        return subtype;
                       default:
                         return subtype;
                     }
