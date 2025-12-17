@@ -377,6 +377,80 @@ class CollectionsSync {
         );
       }
 
+      // Clean up orphaned placeholder records and files
+      this.setStage('Cleaning up orphaned placeholders...');
+      let filesWereRemoved = false;
+      try {
+        const PlaceholderService = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+
+        // Step 1: Remove orphaned DB records (where collection no longer exists)
+        await PlaceholderService.cleanupOrphanedPlaceholderRecords();
+
+        // Step 2: Remove orphaned files (where no DB records reference them)
+        const filesRemoved =
+          await PlaceholderService.cleanupOrphanedPlaceholderFiles();
+        filesWereRemoved = filesRemoved > 0;
+
+        logger.info('Orphaned placeholder cleanup completed', {
+          label: 'Collections Sync',
+        });
+      } catch (error) {
+        logger.warn('Orphaned placeholder cleanup failed - continuing', {
+          label: 'Collections Sync',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // Trigger Plex scan if we deleted placeholder files
+      if (filesWereRemoved) {
+        this.setStage('Scanning Plex libraries for removed placeholders...');
+        try {
+          const settings = getSettings();
+          const libraries = await plexClient.getLibraries();
+
+          // Scan movie libraries if configured
+          if (settings.main.placeholderMovieRootFolder) {
+            const movieLibraries = libraries.filter(
+              (lib) => lib.type === 'movie'
+            );
+            for (const movieLib of movieLibraries) {
+              await plexClient.scanLibrary(movieLib.key);
+              logger.info(
+                'Triggered scan for movie library after placeholder cleanup',
+                {
+                  label: 'Collections Sync',
+                  libraryKey: movieLib.key,
+                  libraryTitle: movieLib.title,
+                }
+              );
+            }
+          }
+
+          // Scan TV libraries if configured
+          if (settings.main.placeholderTVRootFolder) {
+            const tvLibraries = libraries.filter((lib) => lib.type === 'show');
+            for (const tvLib of tvLibraries) {
+              await plexClient.scanLibrary(tvLib.key);
+              logger.info(
+                'Triggered scan for TV library after placeholder cleanup',
+                {
+                  label: 'Collections Sync',
+                  libraryKey: tvLib.key,
+                  libraryTitle: tvLib.title,
+                }
+              );
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to trigger Plex scan after placeholder cleanup', {
+            label: 'Collections Sync',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
       const duration = Date.now() - startTime;
 
       // Run discovery to refresh missing warnings

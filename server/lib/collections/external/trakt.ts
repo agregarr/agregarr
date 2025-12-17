@@ -100,41 +100,22 @@ export class TraktCollectionSync extends BaseCollectionSync<'trakt'> {
       const { items, missingItems, mappingStats, filteringStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
-      // Clean up placeholders (released items, orphaned items, stale items)
-      if (config.createPlaceholdersForMissing) {
-        const { cleanupPlaceholdersForConfig } = await import(
-          '@server/lib/collections/services/PlaceholderService'
-        );
-        // Extract tmdbIds from items and missingItems for orphan detection
-        const sourceTmdbIds = new Set([
-          ...items
-            .map((item) => item.tmdbId)
-            .filter((id): id is number => typeof id === 'number'),
-          ...(missingItems
-            ?.map((item) => item.tmdbId)
-            .filter((id): id is number => typeof id === 'number') || []),
-        ]);
-        await cleanupPlaceholdersForConfig(
-          config,
-          plexClient,
-          libraryCache,
-          sourceTmdbIds
-        );
-      }
+      // Handle placeholder cleanup and process missing items
+      const placeholderItems = await this.handlePlaceholdersAndMissingItems(
+        items,
+        missingItems,
+        config,
+        plexClient,
+        libraryCache,
+        missingItems && missingItems.length > 0
+          ? () => this.handleAutoRequests(missingItems, config)
+          : undefined
+      );
 
-      // Process missing items - creates placeholders and/or sends to auto-requests
+      // Add placeholder items to the collection
       let finalItems = items;
-      if (missingItems && missingItems.length > 0) {
-        const placeholderItems = await this.processMissingItems(
-          missingItems,
-          config,
-          plexClient,
-          () => this.handleAutoRequests(missingItems, config)
-        );
-        // Add placeholder items to the collection
-        if (placeholderItems.length > 0) {
-          finalItems = [...items, ...placeholderItems];
-        }
+      if (placeholderItems.length > 0) {
+        finalItems = [...items, ...placeholderItems];
       }
 
       if (finalItems.length === 0) {

@@ -21,8 +21,9 @@ import type {
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import fs from 'fs/promises';
 import path from 'path';
-import { Not } from 'typeorm';
+import { Like, Not } from 'typeorm';
 
 // Cleanup imports
 import RadarrAPI from '@server/api/servarr/radarr';
@@ -767,6 +768,46 @@ async function createPlaceholders(
 
     if (!isPlaceholder) {
       continue;
+    }
+
+    // For TV placeholders, ensure episode title is correct
+    if (itemExtended.type === 'show' && itemExtended.Children?.Metadata) {
+      try {
+        const seasons = itemExtended.Children.Metadata as {
+          index?: number;
+          ratingKey?: string;
+        }[];
+        const season00 = seasons.find((season) => season.index === 0);
+
+        if (season00?.ratingKey) {
+          const episodesData = await plexClient.getChildrenMetadata(
+            season00.ratingKey
+          );
+          if (episodesData && episodesData.length > 0) {
+            const episode = episodesData[0];
+            // Check if title is already correct
+            if (episode.title !== 'Trailer (Placeholder)') {
+              await plexClient.updateItemTitle(
+                episode.ratingKey,
+                'Trailer (Placeholder)'
+              );
+              logger.info('Fixed placeholder episode title', {
+                label: 'PlaceholderService',
+                title: item.title,
+                episodeRatingKey: episode.ratingKey,
+                oldTitle: episode.title,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to check/fix placeholder episode title', {
+          label: 'PlaceholderService',
+          title: item.title,
+          ratingKey: item.ratingKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     // Extract TMDB ID from Plex item
@@ -2314,9 +2355,329 @@ export async function cleanupPlaceholdersForConfig(
   }
 }
 
+/**
+ * Handle placeholder operations based on createPlaceholdersForMissing setting
+ * - If enabled: runs cleanup (released items, orphaned items, stale items)
+ * - If disabled: deletes all placeholder records for the config
+ * Files will be cleaned up later by orphaned file cleanup
+ */
+export async function handlePlaceholderCleanup(
+  config: CollectionConfig,
+  plexClient: PlexAPI,
+  libraryCache?: LibraryItemsCache,
+  sourceTmdbIds?: Set<number>
+): Promise<void> {
+  if (config.createPlaceholdersForMissing) {
+    // Setting enabled - run normal cleanup
+    await cleanupPlaceholdersForConfig(
+      config,
+      plexClient,
+      libraryCache,
+      sourceTmdbIds
+    );
+  } else {
+    // Setting disabled - delete all placeholders for this config
+    await deleteAllPlaceholdersForConfig(config.id);
+  }
+}
+
+/**
+ * Delete all placeholder records for a config when createPlaceholdersForMissing is disabled
+ * Files will be cleaned up later by orphaned file cleanup
+ */
+export async function deleteAllPlaceholdersForConfig(
+  configId: string
+): Promise<void> {
+  try {
+    const repository = getRepository(ComingSoonItem);
+
+    // Find all placeholders for this config (including multi-source sub-configs)
+    const placeholders = await repository.find({
+      where: [
+        { configId },
+        { configId: Like(`${configId}-source-%`) }, // Multi-source sub-collections
+      ],
+    });
+
+    if (placeholders.length === 0) {
+      return;
+    }
+
+    logger.info(
+      `Deleting ${placeholders.length} placeholder records for config with createPlaceholdersForMissing disabled`,
+      {
+        label: 'PlaceholderService',
+        configId,
+        count: placeholders.length,
+      }
+    );
+
+    await repository.remove(placeholders);
+
+    logger.info('Placeholder records deleted successfully', {
+      label: 'PlaceholderService',
+      configId,
+      removed: placeholders.length,
+    });
+  } catch (error) {
+    logger.error('Failed to delete placeholder records for config', {
+      label: 'PlaceholderService',
+      configId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Cleanup orphaned placeholder DB records where the collection no longer exists
+ * This runs during full sync to clean up records from deleted collections
+ */
+export async function cleanupOrphanedPlaceholderRecords(): Promise<void> {
+  try {
+    const repository = getRepository(ComingSoonItem);
+    const settings = getSettings();
+
+    // Get all active collection config IDs
+    const activeConfigs = settings.plex.collectionConfigs || [];
+    const activeConfigIds = new Set(activeConfigs.map((c) => c.id));
+
+    // Get all placeholder records
+    const allRecords = await repository.find();
+
+    if (allRecords.length === 0) {
+      return;
+    }
+
+    // Find orphaned records
+    const orphanedRecords = allRecords.filter((record) => {
+      // Check if configId exists in active configs
+      if (activeConfigIds.has(record.configId)) {
+        return false;
+      }
+
+      // For multi-source sub-collections (e.g., "33079-source-1762115269335")
+      // Check if the parent config exists
+      const match = record.configId.match(/^(\d+)-source-/);
+      if (match) {
+        const parentId = match[1];
+        if (activeConfigIds.has(parentId)) {
+          return false; // Parent exists, keep record
+        }
+      }
+
+      return true; // No matching config found - orphaned
+    });
+
+    if (orphanedRecords.length === 0) {
+      logger.debug('No orphaned placeholder records found', {
+        label: 'PlaceholderService',
+        totalRecords: allRecords.length,
+      });
+      return;
+    }
+
+    logger.info(
+      `Found ${orphanedRecords.length} orphaned placeholder records to clean up`,
+      {
+        label: 'PlaceholderService',
+        orphanedCount: orphanedRecords.length,
+        totalRecords: allRecords.length,
+      }
+    );
+
+    // Delete orphaned records (files will be cleaned up separately)
+    await repository.remove(orphanedRecords);
+
+    logger.info('Orphaned placeholder records cleaned up', {
+      label: 'PlaceholderService',
+      removed: orphanedRecords.length,
+    });
+  } catch (error) {
+    logger.error('Failed to cleanup orphaned placeholder records', {
+      label: 'PlaceholderService',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Cleanup orphaned placeholder files where no DB records reference them
+ * This runs after record cleanup to remove files that are no longer tracked
+ * @returns Number of files removed
+ */
+export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
+  try {
+    const repository = getRepository(ComingSoonItem);
+    const settings = getSettings();
+
+    const movieLibraryPath = settings.main.placeholderMovieRootFolder;
+    const tvLibraryPath = settings.main.placeholderTVRootFolder;
+
+    if (!movieLibraryPath && !tvLibraryPath) {
+      logger.debug(
+        'No placeholder library paths configured, skipping file cleanup',
+        {
+          label: 'PlaceholderService',
+        }
+      );
+      return 0;
+    }
+
+    // Get all placeholder file paths from database
+    const allRecords = await repository.find();
+    const trackedPaths = new Set(allRecords.map((r) => r.placeholderPath));
+
+    let filesRemoved = 0;
+
+    // Scan movie library for orphaned files
+    if (movieLibraryPath) {
+      try {
+        const movieFolders = await fs.readdir(movieLibraryPath);
+
+        for (const folder of movieFolders) {
+          const folderPath = path.join(movieLibraryPath, folder);
+
+          try {
+            const stats = await fs.stat(folderPath);
+            if (!stats.isDirectory()) continue;
+
+            const files = await fs.readdir(folderPath);
+            for (const file of files) {
+              // Check if this is a placeholder file (contains edition-Trailer)
+              if (!file.includes('{edition-Trailer}')) continue;
+
+              const filePath = path.join(folderPath, file);
+              const relativePath = path.join(folder, file);
+
+              // Check if any DB record references this file
+              if (!trackedPaths.has(relativePath)) {
+                // Orphaned file - delete it
+                try {
+                  const { removePlaceholder } = await import(
+                    '@server/lib/comingsoon/placeholderManager'
+                  );
+                  await removePlaceholder(filePath, 'movie');
+                  filesRemoved++;
+                  logger.info('Removed orphaned placeholder file', {
+                    label: 'PlaceholderService',
+                    path: relativePath,
+                    mediaType: 'movie',
+                  });
+                } catch (error) {
+                  logger.warn('Failed to remove orphaned placeholder file', {
+                    label: 'PlaceholderService',
+                    path: relativePath,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            // Folder access error, skip
+            continue;
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to scan movie library for orphaned files', {
+          label: 'PlaceholderService',
+          path: movieLibraryPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Scan TV library for orphaned files
+    if (tvLibraryPath) {
+      try {
+        const showFolders = await fs.readdir(tvLibraryPath);
+
+        for (const showFolder of showFolders) {
+          const showPath = path.join(tvLibraryPath, showFolder);
+
+          try {
+            const stats = await fs.stat(showPath);
+            if (!stats.isDirectory()) continue;
+
+            const seasonFolders = await fs.readdir(showPath);
+            for (const seasonFolder of seasonFolders) {
+              if (seasonFolder !== 'Season 00') continue; // Only check Season 00
+
+              const seasonPath = path.join(showPath, seasonFolder);
+              const seasonStats = await fs.stat(seasonPath);
+              if (!seasonStats.isDirectory()) continue;
+
+              const files = await fs.readdir(seasonPath);
+              for (const file of files) {
+                // Check if this is a placeholder file (S00E00.Trailer.mp4)
+                if (file !== 'S00E00.Trailer.mp4') continue;
+
+                const filePath = path.join(seasonPath, file);
+                const relativePath = path.join(showFolder, seasonFolder, file);
+
+                // Check if any DB record references this file
+                if (!trackedPaths.has(relativePath)) {
+                  // Orphaned file - delete it
+                  try {
+                    const { removePlaceholder } = await import(
+                      '@server/lib/comingsoon/placeholderManager'
+                    );
+                    await removePlaceholder(filePath, 'tv');
+                    filesRemoved++;
+                    logger.info('Removed orphaned placeholder file', {
+                      label: 'PlaceholderService',
+                      path: relativePath,
+                      mediaType: 'tv',
+                    });
+                  } catch (error) {
+                    logger.warn('Failed to remove orphaned placeholder file', {
+                      label: 'PlaceholderService',
+                      path: relativePath,
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            // Folder access error, skip
+            continue;
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to scan TV library for orphaned files', {
+          label: 'PlaceholderService',
+          path: tvLibraryPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    if (filesRemoved > 0) {
+      logger.info('Orphaned placeholder files cleaned up', {
+        label: 'PlaceholderService',
+        filesRemoved,
+      });
+    }
+
+    return filesRemoved;
+  } catch (error) {
+    logger.error('Failed to cleanup orphaned placeholder files', {
+      label: 'PlaceholderService',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
 export default {
   processPlaceholdersForMissingItems,
   cleanupPlaceholdersForConfig,
+  handlePlaceholderCleanup,
+  deleteAllPlaceholdersForConfig,
+  cleanupOrphanedPlaceholderRecords,
+  cleanupOrphanedPlaceholderFiles,
   isPlaceholderCreationEnabled,
   getReleasedDays,
   getDaysAhead,

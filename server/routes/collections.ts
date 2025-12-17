@@ -1058,7 +1058,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       const { PlaceholderItem } = await import(
         '@server/entity/PlaceholderItem'
       );
-      const { Not } = await import('typeorm');
+      const { Not, Like } = await import('typeorm');
       const path = await import('path');
 
       const repository = getRepository(PlaceholderItem);
@@ -1066,8 +1066,13 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       let totalFilesRemoved = 0;
 
       for (const deletedConfig of configsToDelete) {
+        // Find both direct records AND multi-source sub-collection records
+        // Multi-source collections have IDs like "33079-source-1762115269335"
         const orphanedRecords = await repository.find({
-          where: { configId: deletedConfig.id },
+          where: [
+            { configId: deletedConfig.id },
+            { configId: Like(`${deletedConfig.id}-source-%`) },
+          ],
         });
 
         if (orphanedRecords.length === 0) {
@@ -1084,17 +1089,23 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
           }
         );
 
+        // Collect all config IDs being deleted (parent + all sub-sources)
+        const allDeletedConfigIds = Array.from(
+          new Set(orphanedRecords.map((r) => r.configId))
+        );
+
         for (const record of orphanedRecords) {
           try {
             let fileDeleted = false;
 
             // Check if we should delete the placeholder file
             if (record.placeholderPath) {
-              // Check if any OTHER collection still needs this file
+              // Check if any OTHER collection (excluding all deleted IDs) still needs this file
+              const { In } = await import('typeorm');
               const otherCollectionRecords = await repository.find({
                 where: {
                   placeholderPath: record.placeholderPath,
-                  configId: Not(deletedConfig.id),
+                  configId: Not(In(allDeletedConfigIds)),
                 },
               });
 

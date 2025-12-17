@@ -106,51 +106,45 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
         config
       );
 
-      // Clean up placeholders (released items, orphaned items, stale items)
-      if (config.createPlaceholdersForMissing) {
-        const { cleanupPlaceholdersForConfig } = await import(
-          '@server/lib/collections/services/PlaceholderService'
-        );
-        const sourceTmdbIds = new Set([
-          ...items
-            .map((item) => item.tmdbId)
-            .filter((id): id is number => typeof id === 'number'),
-          ...(missingItems
-            ?.map((item) => item.tmdbId)
-            .filter((id): id is number => typeof id === 'number') || []),
-        ]);
-        await cleanupPlaceholdersForConfig(
-          config,
-          plexClient,
-          libraryCache,
-          sourceTmdbIds
-        );
-      }
+      // Handle placeholder cleanup and process missing items
+      const placeholderItems = await this.handlePlaceholdersAndMissingItems(
+        items,
+        missingItems,
+        config,
+        plexClient,
+        libraryCache,
+        missingItems && missingItems.length > 0
+          ? async () => {
+              try {
+                await processMissingItemsWithMode(
+                  missingItems,
+                  config,
+                  'myanimelist'
+                );
+              } catch (e) {
+                logger.debug('Failed to process missing items for MAL', {
+                  label: 'MyAnimeList Collections',
+                  error: String(e),
+                });
+              }
+            }
+          : undefined
+      );
 
-      // Handle auto-requests for missing items
-      if (missingItems && missingItems.length > 0) {
-        try {
-          await processMissingItemsWithMode(
-            missingItems,
-            config,
-            'myanimelist'
-          );
-        } catch (e) {
-          logger.debug('Failed to process missing items for MAL', {
-            label: 'MyAnimeList Collections',
-            error: String(e),
-          });
-        }
+      // Add placeholder items to the collection
+      let finalItems = items;
+      if (placeholderItems.length > 0) {
+        finalItems = [...items, ...placeholderItems];
       }
 
       // If no items were mapped, return early
-      if (!items || items.length === 0) {
+      if (finalItems.length === 0) {
         return { created: 0, updated: 0 };
       }
 
       // Process collection using media type strategy
       const result = await this.processWithMediaTypeStrategy(
-        items,
+        finalItems,
         config,
         plexClient,
         allCollections,

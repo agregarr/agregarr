@@ -17,7 +17,6 @@ import type {
   SyncResult,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
-import { cleanupPlaceholdersForConfig } from '@server/lib/collections/services/PlaceholderService';
 import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -149,27 +148,18 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
       const { items, missingItems, mappingStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
-      // Clean up placeholders (released items, orphaned items, stale items)
-      const sourceTmdbIds = new Set(sourceData.map((item) => item.tmdbId));
-      await cleanupPlaceholdersForConfig(
+      // Handle placeholder cleanup and process missing items
+      const placeholderItems = await this.handlePlaceholdersAndMissingItems(
+        items,
+        missingItems,
         config,
         plexClient,
         libraryCache,
-        sourceTmdbIds
+        undefined // No auto-requests for Coming Soon collections
       );
 
-      // Handle placeholder creation for missing items using unified flow
-      // This respects the createPlaceholdersForMissing checkbox (which should be force-enabled for Coming Soon)
-      if (missingItems && missingItems.length > 0) {
-        const newlyCreatedItems = await this.processMissingItems(
-          missingItems,
-          config,
-          plexClient
-        );
-
-        // Add newly created placeholder items to the collection
-        items.push(...newlyCreatedItems);
-      }
+      // Add newly created placeholder items to the collection
+      items.push(...placeholderItems);
 
       // Note: We don't show "released" items anymore
       // When real content is detected, placeholder is deleted immediately

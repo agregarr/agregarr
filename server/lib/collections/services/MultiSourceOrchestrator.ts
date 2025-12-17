@@ -384,70 +384,70 @@ export class MultiSourceOrchestrator {
         }
       );
 
-      // Clean up placeholders for multi-source collection
-      // This handles: released items (real content arrived), orphaned items (no longer in any source), stale items (7+ days old)
-      if (config.createPlaceholdersForMissing) {
-        try {
-          // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
-          const allSourceTmdbIds = new Set<number>();
+      // Handle placeholder cleanup for multi-source collection
+      // If createPlaceholdersForMissing enabled: cleans up released/orphaned/stale items
+      // If createPlaceholdersForMissing disabled: deletes all placeholder records
+      try {
+        // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
+        const allSourceTmdbIds = new Set<number>();
 
-          // Add tmdbIds from items that exist in Plex
-          for (const item of combinedItems) {
-            if (item.tmdbId !== undefined) {
-              allSourceTmdbIds.add(item.tmdbId);
-            }
+        // Add tmdbIds from items that exist in Plex
+        for (const item of combinedItems) {
+          if (item.tmdbId !== undefined) {
+            allSourceTmdbIds.add(item.tmdbId);
           }
-
-          // Add tmdbIds from missing items across all sources
-          for (const missingGroup of missingItemGroups) {
-            for (const missingItem of missingGroup) {
-              allSourceTmdbIds.add(missingItem.tmdbId);
-            }
-          }
-
-          logger.info(
-            `Running placeholder cleanup for multi-source collection: ${collectionNameForSync}`,
-            {
-              label: 'Multi-Source Orchestrator',
-              configId: config.id,
-              sourceTmdbIdCount: allSourceTmdbIds.size,
-            }
-          );
-
-          // Import cleanup function
-          const { cleanupPlaceholdersForConfig } = await import(
-            '@server/lib/collections/services/PlaceholderService'
-          );
-
-          // Run cleanup with parent config and combined source IDs
-          await cleanupPlaceholdersForConfig(
-            configForSync as unknown as CollectionConfig,
-            plexClient,
-            libraryCache,
-            allSourceTmdbIds
-          );
-
-          logger.debug(
-            'Placeholder cleanup completed for multi-source collection',
-            {
-              label: 'Multi-Source Orchestrator',
-              configId: config.id,
-            }
-          );
-        } catch (cleanupError) {
-          logger.error(
-            `Failed to cleanup placeholders for multi-source collection: ${collectionNameForSync}`,
-            {
-              label: 'Multi-Source Orchestrator',
-              configId: config.id,
-              error:
-                cleanupError instanceof Error
-                  ? cleanupError.message
-                  : String(cleanupError),
-            }
-          );
-          // Don't throw - cleanup failure shouldn't break collection sync
         }
+
+        // Add tmdbIds from missing items across all sources
+        for (const missingGroup of missingItemGroups) {
+          for (const missingItem of missingGroup) {
+            allSourceTmdbIds.add(missingItem.tmdbId);
+          }
+        }
+
+        logger.debug(
+          `Running placeholder handling for multi-source collection: ${collectionNameForSync}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            sourceTmdbIdCount: allSourceTmdbIds.size,
+            createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+          }
+        );
+
+        // Import helper function that handles both enabled/disabled cases
+        const { handlePlaceholderCleanup } = await import(
+          '@server/lib/collections/services/PlaceholderService'
+        );
+
+        // Run cleanup or deletion based on setting
+        await handlePlaceholderCleanup(
+          configForSync as unknown as CollectionConfig,
+          plexClient,
+          libraryCache,
+          allSourceTmdbIds
+        );
+
+        logger.debug(
+          'Placeholder handling completed for multi-source collection',
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+          }
+        );
+      } catch (cleanupError) {
+        logger.error(
+          `Failed to handle placeholders for multi-source collection: ${collectionNameForSync}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          }
+        );
+        // Don't throw - cleanup failure shouldn't break collection sync
       }
 
       // Create/update collection directly in Plex
