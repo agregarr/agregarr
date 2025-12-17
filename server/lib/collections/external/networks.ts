@@ -89,16 +89,12 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
         libraryCache
       );
 
-      // Get the collection media type for dual search
-      const collectionMediaType = getCollectionMediaType(config);
-
       // Map to standardized format
       const mappedResult = await this.mapSourceDataToItems(
         sourceData,
         config,
         plexClient,
-        libraryCache,
-        collectionMediaType
+        libraryCache
       );
 
       // Apply filtering safety net
@@ -264,13 +260,15 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
     sourceData: NetworksSourceData[],
     config: CollectionConfig,
     plexClient?: PlexAPI,
-    libraryCache?: LibraryItemsCache,
-    mediaType?: 'movie' | 'tv' | 'both'
+    libraryCache?: LibraryItemsCache
   ): Promise<{
     items: NetworksCollectionItem[];
     missingItems?: MissingItem[];
     stats?: FilteringStats;
   }> {
+    // Get media type from config - consistent with all other sources
+    const mediaType = getCollectionMediaType(config);
+
     const mappedItems: NetworksCollectionItem[] = [];
     const missingItems: MissingItem[] = [];
 
@@ -320,7 +318,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
           movieResults.results || [],
           tvResults.results || [],
           item.title,
-          mediaType || 'both' // Collection media type preference, default to 'both'
+          mediaType // Collection media type from library
         );
 
         if (bestMatch) {
@@ -328,7 +326,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
           // When using "Overall" FlixPatrol lists in a specific library (movie or TV),
           // only include items that match that library type.
           // Example: "Shrek" (movie) in an overall list should be skipped in a TV library
-          if (mediaType !== 'both' && bestMatch.mediaType !== mediaType) {
+          if (bestMatch.mediaType !== mediaType) {
             logger.debug(
               `Skipping ${bestMatch.mediaType} "${item.title}" - doesn't match ${mediaType} library type`,
               {
@@ -599,7 +597,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       id: number;
     }[],
     originalTitle: string,
-    collectionMediaType: 'movie' | 'tv' | 'both'
+    collectionMediaType: 'movie' | 'tv'
   ): {
     result: {
       title?: string;
@@ -651,7 +649,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       }
 
       // Collection type preference bonus
-      if (collectionMediaType !== 'both' && mediaType === collectionMediaType) {
+      if (mediaType === collectionMediaType) {
         score += 25; // Prefer matches that align with collection type
       }
 
