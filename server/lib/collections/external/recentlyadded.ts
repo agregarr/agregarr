@@ -160,14 +160,29 @@ export class FilteredHubCollectionSync extends BaseCollectionSync<'filtered_hub'
     );
 
     // Validate subtype
-    const subtype = config.subtype as 'recently_added' | 'recently_released';
+    const subtype = config.subtype as
+      | 'recently_added'
+      | 'recently_released'
+      | 'recently_released_episodes';
     if (
       !subtype ||
-      !['recently_added', 'recently_released'].includes(subtype)
+      ![
+        'recently_added',
+        'recently_released',
+        'recently_released_episodes',
+      ].includes(subtype)
     ) {
       throw this.createSyncError(
         CollectionSyncErrorType.CONFIGURATION_ERROR,
-        `Invalid filtered_hub subtype: ${subtype}. Must be 'recently_added' or 'recently_released'`
+        `Invalid filtered_hub subtype: ${subtype}. Must be 'recently_added', 'recently_released', or 'recently_released_episodes'`
+      );
+    }
+
+    // Validate that recently_released_episodes is only used with TV libraries
+    if (subtype === 'recently_released_episodes' && mediaType !== 'tv') {
+      throw this.createSyncError(
+        CollectionSyncErrorType.CONFIGURATION_ERROR,
+        `The 'recently_released_episodes' subtype is only supported for TV libraries`
       );
     }
 

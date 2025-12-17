@@ -673,6 +673,8 @@ const SortableItem = ({
                             return 'Recently Added';
                           case 'recently_released':
                             return 'Recently Released';
+                          case 'recently_released_episodes':
+                            return 'Recently Released Episodes';
                           default:
                             return subtype;
                         }

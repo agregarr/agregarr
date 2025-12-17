@@ -383,6 +383,12 @@ const CollectionTypeSection = ({
             description:
               'Replaces Recently Released hub (sorted by release date)',
           },
+          {
+            value: 'recently_released_episodes',
+            label: 'Recently Released Episodes',
+            description:
+              'Shows sorted by most recent episode added (TV libraries only)',
+          },
         ];
       default:
         return [];

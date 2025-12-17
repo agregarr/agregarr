@@ -278,11 +278,11 @@ class PlexSmartCollectionManager {
 
   /**
    * Create a filtered hub replacement smart collection that excludes coming soon placeholders
-   * Supports: recently_added, recently_released
+   * Supports: recently_added, recently_released, recently_released_episodes
    * @param title - Title for the smart collection
    * @param libraryKey - Library section key (e.g., "1" for movies)
    * @param mediaType - 'movie' or 'tv'
-   * @param subtype - Hub subtype ('recently_added' or 'recently_released')
+   * @param subtype - Hub subtype ('recently_added', 'recently_released', or 'recently_released_episodes')
    * @param maxItems - Maximum number of items to include in the smart collection
    * @returns The rating key of the created smart collection or null if failed
    */
@@ -290,7 +290,10 @@ class PlexSmartCollectionManager {
     title: string,
     libraryKey: string,
     mediaType: 'movie' | 'tv',
-    subtype: 'recently_added' | 'recently_released',
+    subtype:
+      | 'recently_added'
+      | 'recently_released'
+      | 'recently_released_episodes',
     maxItems?: number
   ): Promise<string | null> {
     try {
@@ -339,6 +342,18 @@ class PlexSmartCollectionManager {
           filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
             labelFilter
           )}`;
+        }
+      } else if (subtype === 'recently_released_episodes') {
+        // Last Episode Added: Sort by most recent episode added date (TV only)
+        if (mediaType === 'tv') {
+          // TV Shows: Sort by last episode added date, filter out "Trailer (Placeholder)"
+          const sortParam = 'episode.addedAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          throw new Error(
+            `recently_released_episodes subtype is only supported for TV libraries`
+          );
         }
       } else {
         throw new Error(`Unsupported filtered hub subtype: ${subtype}`);
@@ -640,7 +655,7 @@ class PlexSmartCollectionManager {
    * @param smartCollectionRatingKey - The rating key of the smart collection to update
    * @param libraryKey - Library section key (e.g., "1" for movies)
    * @param mediaType - 'movie' or 'tv'
-   * @param subtype - Hub subtype ('recently_added' or 'recently_released')
+   * @param subtype - Hub subtype ('recently_added', 'recently_released', or 'recently_released_episodes')
    * @param maxItems - Maximum number of items to include in the smart collection
    * @returns Promise<void>
    */
@@ -648,7 +663,10 @@ class PlexSmartCollectionManager {
     smartCollectionRatingKey: string,
     libraryKey: string,
     mediaType: 'movie' | 'tv',
-    subtype: 'recently_added' | 'recently_released',
+    subtype:
+      | 'recently_added'
+      | 'recently_released'
+      | 'recently_released_episodes',
     maxItems?: number
   ): Promise<void> {
     try {
@@ -698,6 +716,18 @@ class PlexSmartCollectionManager {
           filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
             labelFilter
           )}`;
+        }
+      } else if (subtype === 'recently_released_episodes') {
+        // Last Episode Added: Sort by most recent episode added date (TV only)
+        if (mediaType === 'tv') {
+          // TV Shows: Sort by last episode added date, filter out "Trailer (Placeholder)"
+          const sortParam = 'episode.addedAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          throw new Error(
+            `recently_released_episodes subtype is only supported for TV libraries`
+          );
         }
       } else {
         throw new Error(`Unsupported filtered hub subtype: ${subtype}`);

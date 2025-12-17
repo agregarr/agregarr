@@ -2280,7 +2280,10 @@ class PlexAPI {
     smartCollectionRatingKey: string,
     libraryKey: string,
     mediaType: 'movie' | 'tv',
-    subtype: 'recently_added' | 'recently_released',
+    subtype:
+      | 'recently_added'
+      | 'recently_released'
+      | 'recently_released_episodes',
     maxItems?: number
   ): Promise<void> {
     return this.smartCollectionManager.updateFilteredHubUri(
