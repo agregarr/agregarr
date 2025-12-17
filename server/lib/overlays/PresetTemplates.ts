@@ -194,11 +194,25 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
+          // Monitored items with upcoming release (movies, TV series premieres)
           rules: [
             { field: 'isMonitored', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            }, // Only ≤30 days
+          ],
+        },
+        {
+          // OR monitored TV shows with upcoming season premiere (e.g., Season 2 when Season 1 doesn't exist)
+          sectionOperator: 'or',
+          rules: [
+            { field: 'isMonitored', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilNextSeason',
               operator: 'lte',
               value: 30,
             }, // Only ≤30 days
