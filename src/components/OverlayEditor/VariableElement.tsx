@@ -83,12 +83,24 @@ export const VariableElement: React.FC<VariableElementComponentProps> = ({
       'November',
       'December',
     ];
+    const dayNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const dayNamesFull = [
+      'SUNDAY',
+      'MONDAY',
+      'TUESDAY',
+      'WEDNESDAY',
+      'THURSDAY',
+      'FRIDAY',
+      'SATURDAY',
+    ];
 
     const year = dateObj.getFullYear();
     const month = dateObj.getMonth() + 1;
     const day = dateObj.getDate();
     const monthName = monthNames[dateObj.getMonth()];
     const monthNameFull = monthNamesFull[dateObj.getMonth()];
+    const dayName = dayNames[dateObj.getDay()];
+    const dayNameFull = dayNamesFull[dateObj.getDay()];
 
     const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -103,6 +115,14 @@ export const VariableElement: React.FC<VariableElementComponentProps> = ({
         return `${pad(day)}/${pad(month)}/${year}`;
       case 'MM/DD/YYYY':
         return `${pad(month)}/${pad(day)}/${year}`;
+      case 'DD/MM':
+        return `${pad(day)}/${pad(month)}`;
+      case 'MM/DD':
+        return `${pad(month)}/${pad(day)}`;
+      case 'DDD DD/MM':
+        return `${dayName} ${pad(day)}/${pad(month)}`;
+      case 'DDDD':
+        return dayNameFull;
       case 'MMM DD':
         return `${monthName} ${pad(day)}`;
       case 'DD MMM':
