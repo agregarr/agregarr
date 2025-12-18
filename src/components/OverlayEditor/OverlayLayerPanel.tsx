@@ -188,6 +188,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         fontStyle: 'normal',
         color: '#FFFFFF',
         textAlign: 'left',
+        opacity: 100,
       },
     };
 
@@ -235,6 +236,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         fontStyle: 'normal',
         color: '#FFFFFF',
         textAlign: 'center',
+        opacity: 100,
       },
     };
 
@@ -540,6 +542,24 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.opacity)} ({props.opacity ?? 100}%)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={props.opacity ?? 100}
+            onChange={(e) =>
+              handleUpdateElement(element.id, {
+                properties: { ...props, opacity: parseInt(e.target.value) },
+              })
+            }
+            className="w-full"
+          />
         </div>
       </div>
     );
@@ -1342,6 +1362,24 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.opacity)} ({props.opacity ?? 100}%)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={props.opacity ?? 100}
+            onChange={(e) =>
+              handleUpdateElement(element.id, {
+                properties: { ...props, opacity: parseInt(e.target.value) },
+              })
+            }
+            className="w-full"
+          />
         </div>
       </div>
     );

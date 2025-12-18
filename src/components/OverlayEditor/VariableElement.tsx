@@ -203,6 +203,7 @@ export const VariableElement: React.FC<VariableElementComponentProps> = ({
       width={element.width}
       height={element.height}
       rotation={element.rotation || 0}
+      opacity={(props.opacity ?? 100) / 100}
       draggable
       onClick={() => {
         if (groupRef.current) {

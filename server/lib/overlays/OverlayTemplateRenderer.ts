@@ -663,6 +663,7 @@ class OverlayTemplateRendererService {
           font-weight="${props.fontWeight}"
           font-style="${props.fontStyle}"
           fill="${props.color}"
+          fill-opacity="${(props.opacity ?? 100) / 100}"
           text-anchor="${
             props.textAlign === 'center'
               ? 'middle'
@@ -903,6 +904,7 @@ class OverlayTemplateRendererService {
           font-weight="${props.fontWeight}"
           font-style="${props.fontStyle}"
           fill="${props.color}"
+          fill-opacity="${(props.opacity ?? 100) / 100}"
           text-anchor="${
             props.textAlign === 'center'
               ? 'middle'

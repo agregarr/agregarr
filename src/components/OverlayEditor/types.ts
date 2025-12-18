@@ -28,6 +28,7 @@ export interface OverlayTextElementProps {
   color: string;
   textAlign: 'left' | 'center' | 'right';
   maxLines?: number;
+  opacity?: number; // 0-100
 }
 
 export interface OverlayTileElementProps {
@@ -70,6 +71,7 @@ export interface OverlayVariableElementProps {
   fontStyle: 'normal' | 'italic';
   color: string;
   textAlign: 'left' | 'center' | 'right';
+  opacity?: number; // 0-100
 }
 
 export interface OverlayRasterElementProps {
