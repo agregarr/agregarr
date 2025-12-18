@@ -1572,46 +1572,20 @@ const CollectionSettings = ({
     }
   };
 
-  // Promote/Demote handlers for collections
-  const handlePromoteCollection = async (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => {
+  // Promote/Demote handlers - separate handlers for each collection type
+  const handlePromoteCollection = async (config: CollectionFormConfig) => {
     try {
-      let response;
-
-      if ('collectionRatingKey' in config) {
-        // Pre-existing collection
-        response = await axios.patch(
-          `/api/v1/preexisting/${config.id}/promote`
-        );
-      } else if ('hubIdentifier' in config) {
-        // Hub config - shouldn't happen since hubs don't appear in Library tab
-        return;
-      } else {
-        // Regular collection
-        response = await axios.patch(
-          `/api/v1/collections/${config.id}/promote`
-        );
-      }
+      const response = await axios.patch(
+        `/api/v1/collections/${config.id}/promote`
+      );
 
       // Update local state
       const updatedConfig = response.data.config;
-
-      if ('collectionRatingKey' in config) {
-        // Update pre-existing collection
-        setLocalPreExistingConfigs((prev: PreExistingCollectionConfig[]) =>
-          prev.map((c: PreExistingCollectionConfig) =>
-            c.id === config.id ? updatedConfig : c
-          )
-        );
-      } else {
-        // Update regular collection
-        setLocalCollectionConfigs((prev: CollectionFormConfig[]) =>
-          prev.map((c: CollectionFormConfig) =>
-            c.id === config.id ? updatedConfig : c
-          )
-        );
-      }
+      setLocalCollectionConfigs((prev: CollectionFormConfig[]) =>
+        prev.map((c: CollectionFormConfig) =>
+          c.id === config.id ? updatedConfig : c
+        )
+      );
 
       // Revalidate all data
       revalidateAll();
@@ -1628,41 +1602,81 @@ const CollectionSettings = ({
     }
   };
 
-  const handleDemoteCollection = async (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => {
+  const handleDemoteCollection = async (config: CollectionFormConfig) => {
     try {
-      let response;
-
-      if ('collectionRatingKey' in config) {
-        // Pre-existing collection
-        response = await axios.patch(`/api/v1/preexisting/${config.id}/demote`);
-      } else if ('hubIdentifier' in config) {
-        // Hub config - shouldn't happen since hubs don't appear in Library tab
-        return;
-      } else {
-        // Regular collection
-        response = await axios.patch(`/api/v1/collections/${config.id}/demote`);
-      }
+      const response = await axios.patch(
+        `/api/v1/collections/${config.id}/demote`
+      );
 
       // Update local state
       const updatedConfig = response.data.config;
+      setLocalCollectionConfigs((prev: CollectionFormConfig[]) =>
+        prev.map((c: CollectionFormConfig) =>
+          c.id === config.id ? updatedConfig : c
+        )
+      );
 
-      if ('collectionRatingKey' in config) {
-        // Update pre-existing collection
-        setLocalPreExistingConfigs((prev: PreExistingCollectionConfig[]) =>
-          prev.map((c: PreExistingCollectionConfig) =>
-            c.id === config.id ? updatedConfig : c
-          )
-        );
-      } else {
-        // Update regular collection
-        setLocalCollectionConfigs((prev: CollectionFormConfig[]) =>
-          prev.map((c: CollectionFormConfig) =>
-            c.id === config.id ? updatedConfig : c
-          )
-        );
-      }
+      // Revalidate all data
+      revalidateAll();
+
+      addToast('Collection moved to alphabetical section successfully!', {
+        autoDismiss: true,
+        appearance: 'success',
+      });
+    } catch (error) {
+      addToast('Failed to demote collection', {
+        autoDismiss: true,
+        appearance: 'error',
+      });
+    }
+  };
+
+  const handlePromotePreExisting = async (
+    config: PreExistingCollectionConfig
+  ) => {
+    try {
+      const response = await axios.patch(
+        `/api/v1/preexisting/${config.id}/promote`
+      );
+
+      // Update local state
+      const updatedConfig = response.data.config;
+      setLocalPreExistingConfigs((prev: PreExistingCollectionConfig[]) =>
+        prev.map((c: PreExistingCollectionConfig) =>
+          c.id === config.id ? updatedConfig : c
+        )
+      );
+
+      // Revalidate all data
+      revalidateAll();
+
+      addToast('Collection promoted to top section successfully!', {
+        autoDismiss: true,
+        appearance: 'success',
+      });
+    } catch (error) {
+      addToast('Failed to promote collection', {
+        autoDismiss: true,
+        appearance: 'error',
+      });
+    }
+  };
+
+  const handleDemotePreExisting = async (
+    config: PreExistingCollectionConfig
+  ) => {
+    try {
+      const response = await axios.patch(
+        `/api/v1/preexisting/${config.id}/demote`
+      );
+
+      // Update local state
+      const updatedConfig = response.data.config;
+      setLocalPreExistingConfigs((prev: PreExistingCollectionConfig[]) =>
+        prev.map((c: PreExistingCollectionConfig) =>
+          c.id === config.id ? updatedConfig : c
+        )
+      );
 
       // Revalidate all data
       revalidateAll();
@@ -2023,8 +2037,10 @@ const CollectionSettings = ({
                   onEditPreExisting={editPreExistingConfig}
                   onDelete={deleteCollectionConfig}
                   onHide={handleHideConfig}
-                  onPromote={handlePromoteCollection}
-                  onDemote={handleDemoteCollection}
+                  onPromoteCollection={handlePromoteCollection}
+                  onDemoteCollection={handleDemoteCollection}
+                  onPromotePreExisting={handlePromotePreExisting}
+                  onDemotePreExisting={handleDemotePreExisting}
                   onReorderItems={handleReorderItems}
                   badgeClickCount={badgeClickCount}
                   setBadgeClickCount={setBadgeClickCount}
@@ -2055,8 +2071,10 @@ const CollectionSettings = ({
               onEditPreExisting={editPreExistingConfig}
               onDelete={deleteCollectionConfig}
               onHide={handleHideConfig}
-              onPromote={handlePromoteCollection}
-              onDemote={handleDemoteCollection}
+              onPromoteCollection={handlePromoteCollection}
+              onDemoteCollection={handleDemoteCollection}
+              onPromotePreExisting={handlePromotePreExisting}
+              onDemotePreExisting={handleDemotePreExisting}
               onReorderItems={handleReorderItems}
               badgeClickCount={badgeClickCount}
               setBadgeClickCount={setBadgeClickCount}

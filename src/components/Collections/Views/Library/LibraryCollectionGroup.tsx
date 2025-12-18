@@ -101,12 +101,10 @@ interface LibraryCollectionGroupProps {
   onHide: (
     config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
   ) => void;
-  onPromote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
-  onDemote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
+  onPromoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onDemoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onPromotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
+  onDemotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
   onReorderItems: (
     libraryId: string,
     mixedItems: ((
@@ -134,12 +132,10 @@ interface SortableItemProps {
   onHide: (
     config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
   ) => void;
-  onPromote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
-  onDemote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
+  onPromoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onDemoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onPromotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
+  onDemotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
   setBadgeClickCount: (value: number | ((prev: number) => number)) => void;
   checkForUnlockSequence: () => void;
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
@@ -155,8 +151,10 @@ const SortableItem = ({
   onEditPreExisting,
   onDelete,
   onHide,
-  onPromote,
-  onDemote,
+  onPromoteCollection,
+  onDemoteCollection,
+  onPromotePreExisting,
+  onDemotePreExisting,
   setBadgeClickCount,
   checkForUnlockSequence,
   activeTab,
@@ -426,35 +424,81 @@ const SortableItem = ({
         </Button>
 
         {/* Promote/Demote buttons - only show on Library tab */}
-        {activeTab === 'library' && (onPromote || onDemote) && (
-          <>
-            {/* Show promote button for A-Z collections */}
-            {!isLibraryPromoted(config) && onPromote && (
-              <Button
-                buttonSize="sm"
-                buttonType="ghost"
-                onClick={() => onPromote(config)}
-                className="text-orange-400 hover:text-orange-300"
-                title="Promote to top section with custom ordering"
-              >
-                <span className="text-xs">↑</span>
-              </Button>
-            )}
+        {activeTab === 'library' &&
+          (onPromoteCollection ||
+            onDemoteCollection ||
+            onPromotePreExisting ||
+            onDemotePreExisting) && (
+            <>
+              {/* Show promote button for A-Z collections */}
+              {!isLibraryPromoted(config) && (
+                <>
+                  {configType === 'collection' && onPromoteCollection && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onPromoteCollection(config as CollectionFormConfig)
+                      }
+                      className="text-orange-400 hover:text-orange-300"
+                      title="Promote to top section with custom ordering"
+                    >
+                      <span className="text-xs">↑</span>
+                    </Button>
+                  )}
+                  {configType === 'preExisting' && onPromotePreExisting && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onPromotePreExisting(
+                          config as PreExistingCollectionConfig
+                        )
+                      }
+                      className="text-orange-400 hover:text-orange-300"
+                      title="Promote to top section with custom ordering"
+                    >
+                      <span className="text-xs">↑</span>
+                    </Button>
+                  )}
+                </>
+              )}
 
-            {/* Show demote button for promoted collections */}
-            {isLibraryPromoted(config) && onDemote && (
-              <Button
-                buttonSize="sm"
-                buttonType="ghost"
-                onClick={() => onDemote(config)}
-                className="text-yellow-400 hover:text-yellow-300"
-                title="Demote to alphabetical section"
-              >
-                <span className="text-xs">↓</span>
-              </Button>
-            )}
-          </>
-        )}
+              {/* Show demote button for promoted collections */}
+              {isLibraryPromoted(config) && (
+                <>
+                  {configType === 'collection' && onDemoteCollection && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onDemoteCollection(config as CollectionFormConfig)
+                      }
+                      className="text-yellow-400 hover:text-yellow-300"
+                      title="Demote to alphabetical section"
+                    >
+                      <span className="text-xs">↓</span>
+                    </Button>
+                  )}
+                  {configType === 'preExisting' && onDemotePreExisting && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onDemotePreExisting(
+                          config as PreExistingCollectionConfig
+                        )
+                      }
+                      className="text-yellow-400 hover:text-yellow-300"
+                      title="Demote to alphabetical section"
+                    >
+                      <span className="text-xs">↓</span>
+                    </Button>
+                  )}
+                </>
+              )}
+            </>
+          )}
 
         {isCollection ? (
           // Full delete for Agregarr collections
@@ -494,8 +538,10 @@ const LibraryCollectionGroup = ({
   onEditPreExisting,
   onDelete,
   onHide,
-  onPromote,
-  onDemote,
+  onPromoteCollection,
+  onDemoteCollection,
+  onPromotePreExisting,
+  onDemotePreExisting,
   onReorderItems,
   badgeClickCount,
   setBadgeClickCount,
@@ -815,8 +861,10 @@ const LibraryCollectionGroup = ({
                       onEditPreExisting={onEditPreExisting}
                       onDelete={onDelete}
                       onHide={onHide}
-                      onPromote={onPromote}
-                      onDemote={onDemote}
+                      onPromoteCollection={onPromoteCollection}
+                      onDemoteCollection={onDemoteCollection}
+                      onPromotePreExisting={onPromotePreExisting}
+                      onDemotePreExisting={onDemotePreExisting}
                       setBadgeClickCount={setBadgeClickCount}
                       checkForUnlockSequence={checkForUnlockSequence}
                       activeTab={activeTab}
