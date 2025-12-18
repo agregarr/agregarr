@@ -71,7 +71,12 @@ searchRouter.get('/search', async (req, res) => {
     if (searchResults.MediaContainer?.Hub) {
       for (const hub of searchResults.MediaContainer.Hub) {
         if (hub.Metadata) {
-          rawResults.push(...hub.Metadata);
+          // Filter out results with a "reason" field - these are related matches, not direct title matches
+          // Direct matches won't have a reason field
+          const directMatches = hub.Metadata.filter(
+            (item) => !(item as { reason?: string }).reason
+          );
+          rawResults.push(...directMatches);
         }
       }
     }
