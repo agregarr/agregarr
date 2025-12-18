@@ -13678,8 +13678,85 @@ paths:
                     example: '1'
         '401':
           description: Authentication required
+        '409':
+          description: Conflict - another overlay operation is already running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Full overlay sync is currently running. Please wait for it to complete or cancel it before syncing individual libraries.'
+                  conflictType:
+                    type: string
+                    enum: [full-sync-running, library-already-running]
+                    example: 'full-sync-running'
         '500':
           description: Failed to start overlay application
+
+  /overlay-library-configs/{libraryId}/status:
+    get:
+      summary: Get overlay application status for library
+      description: Returns the current status of overlay application for a specific library.
+      tags:
+        - overlays
+      parameters:
+        - name: libraryId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Plex library ID
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    description: Whether overlay application is running for this library
+                    example: true
+                  libraryName:
+                    type: string
+                    description: Name of the library (only present if running)
+                    example: 'Movies'
+                  startTime:
+                    type: number
+                    description: Timestamp when the job started (only present if running)
+                    example: 1640000000000
+
+  /overlay-library-configs/status/all:
+    get:
+      summary: Get all running library overlay operations
+      description: Returns a list of all libraries currently running overlay application.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Running libraries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runningLibraries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        libraryId:
+                          type: string
+                          example: '1'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
+                        startTime:
+                          type: number
+                          example: 1640000000000
 
   /overlay-settings:
     get:
@@ -14208,6 +14285,7 @@ paths:
         - in: query
           name: query
           required: true
+          allowReserved: true
           schema:
             type: string
           description: Search term

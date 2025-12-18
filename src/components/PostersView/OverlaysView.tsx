@@ -1,3 +1,4 @@
+import Spinner from '@app/assets/spinner.svg';
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import { OverlayEditorModal } from '@app/components/OverlayEditor';
@@ -6,6 +7,8 @@ import {
   ArrowUpTrayIcon,
   BeakerIcon,
   Cog6ToothIcon,
+  ExclamationTriangleIcon,
+  PlayIcon,
   PlusIcon,
 } from '@heroicons/react/24/solid';
 import type {
@@ -13,6 +16,7 @@ import type {
   OverlayTemplateData,
   OverlayTemplateType,
 } from '@server/entity/OverlayTemplate';
+import axios from 'axios';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
@@ -38,6 +42,12 @@ const messages = defineMessages({
     'Design reusable overlay templates for ratings, metadata, and more',
   librariesDescription: 'Configure which overlays are applied to each library',
   overlaySettings: 'Posters Source',
+  fullOverlaysSync: 'Full Overlays Sync',
+  fullOverlaysSyncConfirm: 'Confirm Full Sync?',
+  overlaySyncStarted: 'Full overlay sync started',
+  overlaySyncQueued:
+    'Per-library syncs are running. Full sync will start when they complete.',
+  overlaySyncError: 'Failed to start overlay sync',
 });
 
 interface OverlayTemplate {
@@ -58,7 +68,38 @@ const OverlaysView: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [fullSyncConfirmClicked, setFullSyncConfirmClicked] = useState(false);
+  const fullSyncConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Poll jobs to check if overlay-application is running
+  const { data: jobsData } = useSWR<{ id: string; running: boolean }[]>(
+    selectedTab === 1 ? '/api/v1/settings/jobs' : null,
+    {
+      refreshInterval: 3000, // Poll every 3 seconds when on Library Configuration tab
+    }
+  );
+
+  // Poll for running library overlays
+  const { data: runningLibrariesData } = useSWR<{
+    runningLibraries: { libraryId: string; libraryName: string }[];
+  }>(selectedTab === 1 ? '/api/v1/overlay-library-configs/status/all' : null, {
+    refreshInterval: 3000,
+  });
+
+  const isOverlaySyncRunning =
+    jobsData?.find((job) => job.id === 'overlay-application')?.running ?? false;
+  const hasRunningLibraries =
+    (runningLibrariesData?.runningLibraries.length ?? 0) > 0;
+
+  // Clear confirmation timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (fullSyncConfirmTimeoutRef.current) {
+        clearTimeout(fullSyncConfirmTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch overlay templates
   const {
@@ -180,6 +221,49 @@ const OverlaysView: React.FC = () => {
     });
   };
 
+  const handleFullOverlaysSync = async () => {
+    // First click - show confirmation
+    if (!fullSyncConfirmClicked) {
+      setFullSyncConfirmClicked(true);
+      // Reset after 3 seconds
+      fullSyncConfirmTimeoutRef.current = setTimeout(() => {
+        setFullSyncConfirmClicked(false);
+      }, 3000);
+      return;
+    }
+
+    // Second click - execute sync
+    if (fullSyncConfirmTimeoutRef.current) {
+      clearTimeout(fullSyncConfirmTimeoutRef.current);
+    }
+    setFullSyncConfirmClicked(false);
+
+    try {
+      // Check if per-library syncs are running
+      if (hasRunningLibraries) {
+        addToast(intl.formatMessage(messages.overlaySyncQueued), {
+          appearance: 'info',
+          autoDismiss: true,
+        });
+      }
+
+      await axios.post('/api/v1/settings/jobs/overlay-application/run');
+
+      // Show different message if queued vs started immediately
+      if (!hasRunningLibraries) {
+        addToast(intl.formatMessage(messages.overlaySyncStarted), {
+          appearance: 'success',
+          autoDismiss: true,
+        });
+      }
+    } catch (error) {
+      addToast(intl.formatMessage(messages.overlaySyncError), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
   const tabs = [
     {
       name: intl.formatMessage(messages.templatesTab),
@@ -281,14 +365,35 @@ const OverlaysView: React.FC = () => {
           )}
 
           {selectedTab === 1 && (
-            <Button
-              buttonType="ghost"
-              onClick={() => setIsSetupModalOpen(true)}
-              className="flex items-center space-x-2"
-            >
-              <Cog6ToothIcon className="h-5 w-5" />
-              <span>{intl.formatMessage(messages.overlaySettings)}</span>
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                buttonType="ghost"
+                onClick={() => setIsSetupModalOpen(true)}
+                className="flex items-center space-x-2"
+              >
+                <Cog6ToothIcon className="h-5 w-5" />
+                <span>{intl.formatMessage(messages.overlaySettings)}</span>
+              </Button>
+              <Button
+                buttonType={fullSyncConfirmClicked ? 'warning' : 'primary'}
+                onClick={handleFullOverlaysSync}
+                disabled={isOverlaySyncRunning}
+                className="flex items-center space-x-2"
+              >
+                {isOverlaySyncRunning ? (
+                  <Spinner className="h-4 w-4" />
+                ) : fullSyncConfirmClicked ? (
+                  <ExclamationTriangleIcon className="h-4 w-4" />
+                ) : (
+                  <PlayIcon className="h-4 w-4" />
+                )}
+                <span>
+                  {fullSyncConfirmClicked
+                    ? intl.formatMessage(messages.fullOverlaysSyncConfirm)
+                    : intl.formatMessage(messages.fullOverlaysSync)}
+                </span>
+              </Button>
+            </div>
           )}
         </div>
 

@@ -1,10 +1,17 @@
+import Spinner from '@app/assets/spinner.svg';
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import { ArrowUturnLeftIcon } from '@heroicons/react/24/solid';
+import {
+  ArrowUturnLeftIcon,
+  ExclamationTriangleIcon,
+  PlayIcon,
+} from '@heroicons/react/24/solid';
 import type { OverlayTemplateType } from '@server/entity/OverlayTemplate';
+import axios from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import LibraryDetailConfigView from './LibraryDetailConfigView';
 import PosterResetModal from './PosterResetModal';
@@ -16,7 +23,12 @@ const messages = defineMessages({
   noLibraries: 'No libraries found',
   configure: 'Configure',
   overlaysEnabled: '{count} overlays enabled',
-  resetPosters: 'Reset All Posters',
+  resetPosters: 'Reset Library',
+  cyclePoster: 'Cycle Poster',
+  syncOverlays: 'Sync',
+  syncOverlaysConfirm: 'Confirm?',
+  overlaySyncStarted: 'Overlay sync started for {libraryName}',
+  overlaySyncError: 'Failed to start overlay sync',
 });
 
 interface PlexLibrary {
@@ -160,6 +172,7 @@ const LibraryPreviewLarge: React.FC<{
 
 const LibraryConfigView: React.FC = () => {
   const intl = useIntl();
+  const { addToast } = useToasts();
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(
     null
   );
@@ -173,6 +186,39 @@ const LibraryConfigView: React.FC = () => {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetLibraryId, setResetLibraryId] = useState<string>('');
   const [resetLibraryName, setResetLibraryName] = useState<string>('');
+  const [syncingLibraries, setSyncingLibraries] = useState<Set<string>>(
+    new Set()
+  );
+  const [confirmClickedLibraries, setConfirmClickedLibraries] = useState<
+    Set<string>
+  >(new Set());
+  const confirmTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+
+  // Poll for running library overlays
+  const { data: runningLibrariesData } = useSWR<{
+    runningLibraries: { libraryId: string }[];
+  }>('/api/v1/overlay-library-configs/status/all', {
+    refreshInterval: 3000, // Poll every 3 seconds
+  });
+
+  // Update syncing libraries based on actual status
+  useEffect(() => {
+    if (runningLibrariesData) {
+      const runningIds = new Set(
+        runningLibrariesData.runningLibraries.map((lib) => lib.libraryId)
+      );
+      setSyncingLibraries(runningIds);
+    }
+  }, [runningLibrariesData]);
+
+  // Clear confirmation timeouts on unmount
+  useEffect(() => {
+    const timeouts = confirmTimeoutsRef.current;
+    return () => {
+      timeouts.forEach((timeout) => clearTimeout(timeout));
+      timeouts.clear();
+    };
+  }, []);
 
   const handleCyclePoster = (libraryId: string) => {
     setRefreshTriggers((prev) => ({
@@ -190,6 +236,64 @@ const LibraryConfigView: React.FC = () => {
   const handleResetComplete = () => {
     // Refresh the library configs after reset
     setResetModalOpen(false);
+  };
+
+  const handleLibrarySync = async (libraryId: string, libraryName: string) => {
+    // First click - show confirmation
+    if (!confirmClickedLibraries.has(libraryId)) {
+      setConfirmClickedLibraries((prev) => new Set(prev).add(libraryId));
+      // Reset after 3 seconds
+      const timeout = setTimeout(() => {
+        setConfirmClickedLibraries((prev) => {
+          const next = new Set(prev);
+          next.delete(libraryId);
+          return next;
+        });
+        confirmTimeoutsRef.current.delete(libraryId);
+      }, 3000);
+      confirmTimeoutsRef.current.set(libraryId, timeout);
+      return;
+    }
+
+    // Second click - execute sync
+    const timeout = confirmTimeoutsRef.current.get(libraryId);
+    if (timeout) {
+      clearTimeout(timeout);
+      confirmTimeoutsRef.current.delete(libraryId);
+    }
+    setConfirmClickedLibraries((prev) => {
+      const next = new Set(prev);
+      next.delete(libraryId);
+      return next;
+    });
+
+    try {
+      await axios.post(`/api/v1/overlay-library-configs/${libraryId}/apply`);
+      addToast(
+        intl.formatMessage(messages.overlaySyncStarted, { libraryName }),
+        {
+          appearance: 'success',
+          autoDismiss: true,
+        }
+      );
+      // Status will be updated via SWR polling
+    } catch (error) {
+      // Handle collision errors (409 Conflict)
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const errorMessage =
+          error.response.data?.error ||
+          intl.formatMessage(messages.overlaySyncError);
+        addToast(errorMessage, {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+      } else {
+        addToast(intl.formatMessage(messages.overlaySyncError), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+      }
+    }
   };
 
   // Fetch Plex libraries - backend returns array directly
@@ -262,6 +366,8 @@ const LibraryConfigView: React.FC = () => {
             config &&
             config.enabledOverlays.some((o) => o.enabled) &&
             templates.length > 0;
+          const isSyncing = syncingLibraries.has(library.key);
+          const isConfirmClicked = confirmClickedLibraries.has(library.key);
 
           return (
             <div
@@ -311,43 +417,77 @@ const LibraryConfigView: React.FC = () => {
                   })}
                 </p>
 
-                <div className="mt-3 flex gap-2">
-                  {hasOverlays && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCyclePoster(library.key);
+                <div className="mt-3 space-y-2">
+                  {/* Top row: Configure (2/3) + Sync (1/3) */}
+                  <div className="flex gap-2">
+                    <Button
+                      buttonType="primary"
+                      buttonSize="sm"
+                      className="flex-[2]"
+                      onClick={() => {
+                        setSelectedLibraryId(library.key);
+                        setSelectedLibraryName(library.name);
+                        setSelectedLibraryType(library.type);
                       }}
-                      className="flex items-center justify-center rounded-md bg-stone-700 p-2 text-stone-300 transition-colors hover:bg-stone-600"
-                      title="Cycle poster"
                     >
-                      <ArrowPathIcon className="h-4 w-4" />
-                    </button>
-                  )}
+                      {intl.formatMessage(messages.configure)}
+                    </Button>
+                    {hasOverlays && (
+                      <Button
+                        buttonType={isConfirmClicked ? 'warning' : 'ghost'}
+                        buttonSize="sm"
+                        className="flex-1"
+                        disabled={isSyncing}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLibrarySync(library.key, library.name);
+                        }}
+                      >
+                        {isSyncing ? (
+                          <Spinner className="h-4 w-4" />
+                        ) : isConfirmClicked ? (
+                          <ExclamationTriangleIcon className="h-4 w-4" />
+                        ) : (
+                          <PlayIcon className="h-4 w-4" />
+                        )}
+                        <span>
+                          {isConfirmClicked
+                            ? intl.formatMessage(messages.syncOverlaysConfirm)
+                            : intl.formatMessage(messages.syncOverlays)}
+                        </span>
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Bottom row: Cycle Poster + Reset Library (with text) */}
                   {hasOverlays && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenResetModal(library.key, library.name);
-                      }}
-                      className="flex items-center justify-center rounded-md bg-stone-700 p-2 text-stone-300 transition-colors hover:bg-stone-600"
-                      title={intl.formatMessage(messages.resetPosters)}
-                    >
-                      <ArrowUturnLeftIcon className="h-4 w-4" />
-                    </button>
+                    <div className="flex gap-2">
+                      <Button
+                        buttonType="ghost"
+                        buttonSize="sm"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCyclePoster(library.key);
+                        }}
+                      >
+                        <ArrowPathIcon className="h-4 w-4" />
+                        <span>{intl.formatMessage(messages.cyclePoster)}</span>
+                      </Button>
+                      <Button
+                        buttonType="ghost"
+                        buttonSize="sm"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenResetModal(library.key, library.name);
+                        }}
+                      >
+                        <ArrowUturnLeftIcon className="h-4 w-4" />
+                        <span>{intl.formatMessage(messages.resetPosters)}</span>
+                      </Button>
+                    </div>
                   )}
-                  <Button
-                    buttonType="primary"
-                    buttonSize="sm"
-                    className="flex-1"
-                    onClick={() => {
-                      setSelectedLibraryId(library.key);
-                      setSelectedLibraryName(library.name);
-                      setSelectedLibraryType(library.type);
-                    }}
-                  >
-                    {intl.formatMessage(messages.configure)}
-                  </Button>
                 </div>
               </div>
             </div>

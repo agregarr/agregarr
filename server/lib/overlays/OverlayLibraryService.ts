@@ -37,6 +37,40 @@ class OverlayLibraryService {
   private radarrMoviesCache?: Map<string, RadarrMovie[]>;
   private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
 
+  // Track running libraries
+  private runningLibraries = new Map<
+    string,
+    { libraryName: string; startTime: number }
+  >();
+
+  /**
+   * Get status for a specific library
+   */
+  public getLibraryStatus(libraryId: string) {
+    const status = this.runningLibraries.get(libraryId);
+    if (!status) {
+      return { running: false };
+    }
+    return {
+      running: true,
+      libraryName: status.libraryName,
+      startTime: status.startTime,
+    };
+  }
+
+  /**
+   * Get all running libraries
+   */
+  public getAllRunningLibraries() {
+    return Array.from(this.runningLibraries.entries()).map(
+      ([libraryId, status]) => ({
+        libraryId,
+        libraryName: status.libraryName,
+        startTime: status.startTime,
+      })
+    );
+  }
+
   /**
    * Clear library caches (call at start of overlay job)
    */
@@ -52,6 +86,18 @@ class OverlayLibraryService {
     libraryId: string,
     checkCancelled?: () => boolean
   ): Promise<void> {
+    // Get library configuration first to get name
+    const configRepository = getRepository(OverlayLibraryConfig);
+    const config = await configRepository.findOne({
+      where: { libraryId },
+    });
+
+    // Mark as running
+    this.runningLibraries.set(libraryId, {
+      libraryName: config?.libraryName || libraryId,
+      startTime: Date.now(),
+    });
+
     try {
       // Clear library caches at start of job
       this.clearLibraryCaches();
@@ -59,12 +105,6 @@ class OverlayLibraryService {
       logger.info('Starting overlay application for library', {
         label: 'OverlayLibrary',
         libraryId,
-      });
-
-      // Get library configuration
-      const configRepository = getRepository(OverlayLibraryConfig);
-      const config = await configRepository.findOne({
-        where: { libraryId },
       });
 
       if (!config || config.enabledOverlays.length === 0) {
@@ -218,6 +258,9 @@ class OverlayLibraryService {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
+    } finally {
+      // Remove from running libraries
+      this.runningLibraries.delete(libraryId);
     }
   }
 
