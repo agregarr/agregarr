@@ -1443,9 +1443,25 @@ const CollectionFormConfigForm = ({
           if (isPersonCollection) {
             const requiredVar =
               values.subtype === 'actors' ? '{actor}' : '{director}';
-            if (!values.template?.includes(requiredVar)) {
+
+            // Check the actual template being used
+            const actualTemplate =
+              values.template === 'custom'
+                ? ('customTVTemplate' in values
+                    ? values.customTVTemplate
+                    : undefined) ||
+                  ('customMovieTemplate' in values
+                    ? values.customMovieTemplate
+                    : undefined)
+                : values.template;
+
+            if (!actualTemplate?.includes(requiredVar)) {
+              const fieldToError =
+                values.template === 'custom'
+                  ? 'customMovieTemplate' // Use movie template field for error (both should have same validation)
+                  : 'template';
               setFieldError(
-                'template',
+                fieldToError,
                 `Template must include ${requiredVar} for ${
                   values.subtype === 'actors' ? 'actor' : 'director'
                 } collections`
@@ -1456,9 +1472,21 @@ const CollectionFormConfigForm = ({
             values.type === 'tmdb' &&
             values.subtype === 'auto_franchise'
           ) {
-            if (!values.template?.includes('{franchiseName}')) {
+            // Check the actual template being used (customMovieTemplate if template is 'custom')
+            const actualTemplate =
+              values.template === 'custom'
+                ? 'customMovieTemplate' in values
+                  ? values.customMovieTemplate
+                  : undefined
+                : values.template;
+
+            if (!actualTemplate?.includes('{franchiseName}')) {
+              const fieldToError =
+                values.template === 'custom'
+                  ? 'customMovieTemplate'
+                  : 'template';
               setFieldError(
-                'template',
+                fieldToError,
                 'Template must include {franchiseName} for auto franchise collections'
               );
               return; // Prevent save

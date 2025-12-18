@@ -958,7 +958,7 @@ export const getTemplatePresets = (
         return [
           {
             label: 'Franchise Name (from TMDB)',
-            value: '{franchiseName}',
+            value: '{franchiseName} Collection',
           },
           { label: 'Custom', value: 'custom' },
         ];

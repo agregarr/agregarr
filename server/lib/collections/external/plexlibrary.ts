@@ -702,6 +702,39 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
     };
   }
 
+  /**
+   * Create collection name for a specific person (director/actor)
+   * Similar to how Overseerr handles per-user collection names
+   */
+  private async createPersonCollectionName(
+    personName: string,
+    config: CollectionConfig,
+    mediaType: 'movie' | 'tv'
+  ): Promise<string> {
+    // Create context with actual person name instead of placeholders
+    const context = {
+      source: 'plex',
+      subtype: config.subtype,
+      director: personName,
+      actor: personName,
+      name: personName,
+      collectionName: personName,
+      mediaType: mediaType,
+    };
+
+    // Use the same template logic as generateCollectionNameWithCustom
+    const template = (() => {
+      if (config.template === 'custom') {
+        return mediaType === 'movie'
+          ? config.customMovieTemplate || config.name
+          : config.customTVTemplate || config.name;
+      }
+      return config.template || personName;
+    })();
+
+    return this.templateEngine.processTemplate(template, context);
+  }
+
   public override async fetchSourceData(
     _config: CollectionConfig,
     _options?: CollectionSyncOptions,
@@ -837,7 +870,12 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
 
       for (const person of qualifyingPeople) {
         try {
-          const collectionName = person.name;
+          // Generate collection name using template with actual person name
+          const collectionName = await this.createPersonCollectionName(
+            person.name,
+            config,
+            mediaType
+          );
           const personInfo =
             (await this.fetchTmdbPersonInfo(person.name)) ?? undefined;
           const labelSuffix =

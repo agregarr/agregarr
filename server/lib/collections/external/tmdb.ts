@@ -1073,8 +1073,17 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
   ): Promise<SyncResult> {
     // Generate collection name using template engine
     const context = this.templateEngine.createFranchiseContext(franchiseData);
+
+    // Handle custom template selection - franchise collections are movie-only
+    const template = (() => {
+      if (config.template === 'custom') {
+        return config.customMovieTemplate || config.name || '{franchiseName}';
+      }
+      return config.template || '{franchiseName}';
+    })();
+
     const collectionName = await this.templateEngine.processTemplate(
-      config.template || '{franchiseName}',
+      template,
       context
     );
 
