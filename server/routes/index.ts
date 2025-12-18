@@ -32,10 +32,12 @@ import myanimelistRoutes from './myanimelist';
 import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
 import overlaySettingsRoutes from './overlaySettings';
 import overlayTemplatesRoutes from './overlayTemplates';
+import overlayTestRoutes from './overlayTest';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
+import searchRoutes from './search';
 import sourceColorsRoutes from './sourceColors';
 import traktOAuthRoutes from './trakt-oauth';
 
@@ -161,6 +163,8 @@ router.use(
   overlayLibraryConfigsRoutes
 );
 router.use('/overlay-settings', isAuthenticated(), overlaySettingsRoutes);
+router.use('/overlay-test', isAuthenticated(), overlayTestRoutes);
+router.use('/plex', isAuthenticated(), searchRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/ratings', isAuthenticated(), ratingsRoutes);

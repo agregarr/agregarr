@@ -4,6 +4,7 @@ import { OverlayEditorModal } from '@app/components/OverlayEditor';
 import { Tab } from '@headlessui/react';
 import {
   ArrowUpTrayIcon,
+  BeakerIcon,
   Cog6ToothIcon,
   PlusIcon,
 } from '@heroicons/react/24/solid';
@@ -19,6 +20,7 @@ import useSWR from 'swr';
 import LibraryConfigView from './LibraryConfigView';
 import OverlayTemplateGrid from './OverlayTemplateGrid';
 import PosterSourceSetupModal from './PosterSourceSetupModal';
+import TestItemModal from './TestItemModal';
 
 const messages = defineMessages({
   title: 'Overlay System',
@@ -55,6 +57,7 @@ const OverlaysView: React.FC = () => {
   const [selectedTab, setSelectedTab] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch overlay templates
@@ -245,6 +248,14 @@ const OverlaysView: React.FC = () => {
             <div className="flex items-center space-x-2">
               <Button
                 buttonType="ghost"
+                onClick={() => setIsTestModalOpen(true)}
+                className="flex items-center space-x-2"
+              >
+                <BeakerIcon className="h-4 w-4" />
+                <span>Test Item</span>
+              </Button>
+              <Button
+                buttonType="ghost"
                 onClick={handleImportTemplate}
                 className="flex items-center space-x-2"
               >
@@ -319,6 +330,11 @@ const OverlaysView: React.FC = () => {
         onComplete={handleSetupComplete}
         isInitialSetup={!overlaySettings?.initialSetupComplete}
         currentPosterSource={overlaySettings?.defaultPosterSource}
+      />
+
+      <TestItemModal
+        isOpen={isTestModalOpen}
+        onClose={() => setIsTestModalOpen(false)}
       />
     </div>
   );

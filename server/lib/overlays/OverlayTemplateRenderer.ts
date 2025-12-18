@@ -84,6 +84,91 @@ function evaluateSection(
 }
 
 /**
+ * Evaluate condition and return detailed results for debugging
+ * Returns the same boolean result as evaluateCondition, plus detailed evaluation info
+ */
+export function evaluateConditionDetailed(
+  condition: ApplicationCondition | undefined,
+  context: OverlayRenderContext
+): {
+  matched: boolean;
+  sectionResults: {
+    sectionIndex: number;
+    sectionOperator?: 'and' | 'or';
+    matched: boolean;
+    ruleResults: {
+      ruleIndex: number;
+      ruleOperator?: 'and' | 'or';
+      field: string;
+      operator: string;
+      value: unknown;
+      actualValue: unknown;
+      matched: boolean;
+    }[];
+  }[];
+} {
+  if (!condition || !condition.sections || condition.sections.length === 0) {
+    return {
+      matched: true,
+      sectionResults: [],
+    };
+  }
+
+  const sectionResults = condition.sections.map((section, sectionIndex) => {
+    const ruleResults = section.rules.map((rule, ruleIndex) => {
+      const actualValue = context[rule.field];
+      const matched = evaluateRule(rule, context);
+
+      return {
+        ruleIndex,
+        ruleOperator: rule.ruleOperator,
+        field: rule.field,
+        operator: rule.operator,
+        value: rule.value,
+        actualValue,
+        matched,
+      };
+    });
+
+    // Determine section match based on rule operator logic
+    let sectionMatched = ruleResults[0]?.matched ?? true;
+    for (let i = 1; i < ruleResults.length; i++) {
+      const ruleResult = ruleResults[i];
+      if (ruleResult.ruleOperator === 'or') {
+        sectionMatched = sectionMatched || ruleResult.matched;
+      } else {
+        // Default to AND
+        sectionMatched = sectionMatched && ruleResult.matched;
+      }
+    }
+
+    return {
+      sectionIndex,
+      sectionOperator: section.sectionOperator,
+      matched: sectionMatched,
+      ruleResults,
+    };
+  });
+
+  // Determine overall match based on section operator logic
+  let overallMatched = sectionResults[0]?.matched ?? true;
+  for (let i = 1; i < sectionResults.length; i++) {
+    const sectionResult = sectionResults[i];
+    if (sectionResult.sectionOperator === 'and') {
+      overallMatched = overallMatched && sectionResult.matched;
+    } else {
+      // Default to OR
+      overallMatched = overallMatched || sectionResult.matched;
+    }
+  }
+
+  return {
+    matched: overallMatched,
+    sectionResults,
+  };
+}
+
+/**
  * Evaluate a single rule (field/operator/value comparison)
  */
 function evaluateRule(

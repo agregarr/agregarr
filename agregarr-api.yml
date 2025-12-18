@@ -14198,6 +14198,208 @@ paths:
         '401':
           description: Authentication required
 
+  /plex/search:
+    get:
+      summary: Search Plex libraries
+      description: Search across all Plex libraries for movies and TV shows.
+      tags:
+        - overlays
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+          description: Search term
+          example: 'Inception'
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of results to return
+          example: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ratingKey:
+                          type: string
+                          example: '12345'
+                        title:
+                          type: string
+                          example: 'Inception'
+                        year:
+                          type: integer
+                          example: 2010
+                        type:
+                          type: string
+                          enum: [movie, show]
+                          example: 'movie'
+                        thumb:
+                          type: string
+                          example: '/library/metadata/12345/thumb/1234567890'
+                        libraryId:
+                          type: string
+                          example: '1'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
+                  totalResults:
+                    type: integer
+                    example: 5
+        '400':
+          description: Query parameter is required
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to search Plex
+
+  /overlay-test:
+    post:
+      summary: Test overlay application on a single item
+      description: Test how overlays would be applied to a specific Plex item, returning the rendered poster with detailed debugging information including template matches, condition evaluation, and context variables.
+      tags:
+        - overlays
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ratingKey
+              properties:
+                ratingKey:
+                  type: string
+                  description: Plex rating key of the item to test
+                  example: '12345'
+      responses:
+        '200':
+          description: Overlay test completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  poster:
+                    type: string
+                    format: byte
+                    description: Base64-encoded WebP image of the poster with overlays applied
+                  item:
+                    type: object
+                    properties:
+                      ratingKey:
+                        type: string
+                        example: '12345'
+                      title:
+                        type: string
+                        example: 'Inception'
+                      year:
+                        type: integer
+                        example: 2010
+                      type:
+                        type: string
+                        enum: [movie, show]
+                        example: 'movie'
+                      libraryId:
+                        type: string
+                        example: '1'
+                      libraryName:
+                        type: string
+                        example: 'Movies'
+                  templates:
+                    type: array
+                    description: All enabled templates for the library with match results
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: 'IMDb Rating Badge'
+                        matched:
+                          type: boolean
+                          description: Whether this template's conditions were met
+                          example: true
+                        conditionResults:
+                          type: object
+                          description: Detailed condition evaluation for debugging
+                          properties:
+                            sectionResults:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  sectionIndex:
+                                    type: integer
+                                  sectionOperator:
+                                    type: string
+                                    enum: [and, or]
+                                  matched:
+                                    type: boolean
+                                  ruleResults:
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        ruleIndex:
+                                          type: integer
+                                        ruleOperator:
+                                          type: string
+                                          enum: [and, or]
+                                        field:
+                                          type: string
+                                          example: 'imdbRating'
+                                        operator:
+                                          type: string
+                                          example: 'gte'
+                                        value:
+                                          description: Expected value
+                                        actualValue:
+                                          description: Actual value from context
+                                        matched:
+                                          type: boolean
+                  context:
+                    type: object
+                    description: Context variables grouped by source
+                    properties:
+                      plex:
+                        type: object
+                        description: Plex metadata
+                      tmdb:
+                        type: object
+                        description: TMDB metadata
+                      ratings:
+                        type: object
+                        description: IMDb and Rotten Tomatoes ratings
+                      monitoring:
+                        type: object
+                        description: Radarr/Sonarr monitoring status
+                      computed:
+                        type: object
+                        description: Computed fields
+        '400':
+          description: Invalid request (missing ratingKey, no library config, item is episode/season)
+        '401':
+          description: Authentication required
+        '404':
+          description: Item not found in Plex
+        '500':
+          description: Failed to test overlay
+
 security:
   - cookieAuth: []
   - apiKey: []
