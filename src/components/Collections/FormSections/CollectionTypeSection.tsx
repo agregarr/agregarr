@@ -385,7 +385,7 @@ const CollectionTypeSection = ({
           },
           {
             value: 'recently_released_episodes',
-            label: 'Recently Released Episodes',
+            label: 'Recently Added Episodes',
             description:
               'Shows sorted by most recent episode added (TV libraries only)',
           },
