@@ -3,6 +3,7 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
+import { getCollectionMediaType } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionSource,
   SyncResult,
@@ -260,7 +261,7 @@ export class CollectionSyncService {
               name: config.name,
               type: 'multi-source',
               visibilityConfig: config.visibilityConfig,
-              mediaType: 'movie', // Default, should be set properly by caller
+              mediaType: getCollectionMediaType(config),
               libraryId: config.libraryId,
               libraryName: config.libraryName,
               maxItems: config.maxItems ?? 50, // Provide default for multi-source
