@@ -22,6 +22,7 @@ const messages = defineMessages({
   totalrequests: 'Total Requests',
   gettingsupport: 'Getting Support',
   githubdiscussions: 'GitHub Discussions',
+  agregarrdocs: 'Agregarr Documentation',
   timezone: 'Time Zone',
   appDataPath: 'Data Directory',
   supportagregarr: 'Support Agregarr',
@@ -167,6 +168,16 @@ const SettingsAbout = () => {
               className="text-orange-500 transition duration-300 hover:underline"
             >
               https://discord.gg/RfEPPRQJQ2
+            </a>
+          </List.Item>
+          <List.Item title={intl.formatMessage(messages.agregarrdocs)}>
+            <a
+              href="https://agregarr.org"
+              target="_blank"
+              rel="noreferrer"
+              className="text-orange-500 transition duration-300 hover:underline"
+            >
+              https://agregarr.org
             </a>
           </List.Item>
         </List>
