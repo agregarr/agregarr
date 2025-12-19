@@ -34,6 +34,7 @@ import {
   buildTraktRedirectUri,
   persistTraktTokens,
 } from '@server/utils/traktAuth';
+import archiver from 'archiver';
 import parser from 'cron-parser';
 import type { Request } from 'express';
 import { Router } from 'express';
@@ -1325,6 +1326,96 @@ settingsRoutes.post('/watchlistsync', (req, res) => {
   settings.save();
 
   return res.status(200).json(settings.watchlistSync);
+});
+
+settingsRoutes.post('/export-debug', (req, res, next) => {
+  try {
+    const { includeDatabase, includeSettings, includeLogs } = req.body;
+    const configPath = appDataPath();
+
+    logger.info('Debug export requested', {
+      label: 'Settings',
+      includeDatabase,
+      includeSettings,
+      includeLogs,
+    });
+
+    // Set response headers for file download
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `agregarr-debug-${timestamp}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Create archiver instance
+    const archive = archiver('zip', {
+      zlib: { level: 9 }, // Maximum compression
+    });
+
+    // Handle archiver errors
+    archive.on('error', (err) => {
+      logger.error('Error creating debug export archive', {
+        label: 'Settings',
+        errorMessage: err.message,
+      });
+      next(err);
+    });
+
+    // Pipe archive to response
+    archive.pipe(res);
+
+    // Add database if requested
+    if (includeDatabase) {
+      const dbPath = path.join(configPath, 'db', 'db.sqlite3');
+      if (fs.existsSync(dbPath)) {
+        archive.file(dbPath, { name: 'db/db.sqlite3' });
+        logger.debug('Added database to export', { label: 'Settings' });
+      } else {
+        logger.warn('Database file not found for export', {
+          label: 'Settings',
+        });
+      }
+    }
+
+    // Add settings.json if requested
+    if (includeSettings) {
+      const settingsPath = path.join(configPath, 'settings.json');
+      if (fs.existsSync(settingsPath)) {
+        archive.file(settingsPath, { name: 'settings.json' });
+        logger.debug('Added settings.json to export', { label: 'Settings' });
+      } else {
+        logger.warn('settings.json not found for export', {
+          label: 'Settings',
+        });
+      }
+    }
+
+    // Add logs directory if requested
+    if (includeLogs) {
+      const logsPath = path.join(configPath, 'logs');
+      if (fs.existsSync(logsPath)) {
+        archive.directory(logsPath, 'logs');
+        logger.debug('Added logs directory to export', { label: 'Settings' });
+      } else {
+        logger.warn('Logs directory not found for export', {
+          label: 'Settings',
+        });
+      }
+    }
+
+    // Finalize the archive
+    archive.finalize();
+
+    logger.info('Debug export completed successfully', {
+      label: 'Settings',
+      filename,
+    });
+  } catch (error) {
+    logger.error('Error during debug export', {
+      label: 'Settings',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
 });
 
 export default settingsRoutes;

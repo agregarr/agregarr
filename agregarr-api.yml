@@ -10017,6 +10017,48 @@ paths:
                     timestamp:
                       type: string
                       example: '2020-12-15T16:20:00.069Z'
+  /settings/export-debug:
+    post:
+      summary: Export debugging information
+      description: Exports selected debugging information (database, settings, logs) as a zip file for troubleshooting purposes.
+      tags:
+        - settings-system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                includeDatabase:
+                  type: boolean
+                  description: Include database file (db.sqlite3) in export
+                  example: true
+                includeSettings:
+                  type: boolean
+                  description: Include settings.json file in export
+                  example: true
+                includeLogs:
+                  type: boolean
+                  description: Include logs directory in export
+                  example: true
+      responses:
+        '200':
+          description: Debug export zip file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="agregarr-debug-2025-12-19T10-30-45.zip"'
+        '400':
+          description: Invalid request (no items selected)
+        '500':
+          description: Server error during export
   /settings/about:
     get:
       summary: Get server stats
