@@ -73,9 +73,6 @@ app
     // Migrate legacy sort order (reverseOrder/randomizeOrder) to sortOrder enum
     settings.migrateSortOrderToEnum();
 
-    // Migrate poster templates to unified layering system for v1.3.2
-    await settings.migratePosterTemplatesV132();
-
     // Seed default source colors and poster template (one-time setup)
     try {
       const { seedSourceColors } = await import(
