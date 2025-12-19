@@ -1697,6 +1697,25 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
       });
     }
 
+    // Check if full sync is running before allowing individual sync
+    const collectionsSync = (await import('@server/lib/collectionsSync'))
+      .default;
+    if (collectionsSync.running) {
+      logger.warn(
+        'Manual individual sync blocked - full sync is currently running',
+        {
+          label: 'Individual Collection Sync',
+          collectionId: id,
+          collectionName: collectionConfig.name,
+        }
+      );
+      return res.status(409).json({
+        status: 'error',
+        message:
+          'Cannot start individual collection sync while a full sync is running. Please wait for the full sync to complete.',
+      });
+    }
+
     logger.info(
       `Starting manual sync for collection: ${collectionConfig.name}`,
       {
