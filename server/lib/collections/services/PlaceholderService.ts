@@ -889,11 +889,20 @@ async function createPlaceholders(
                 : settings.main.placeholderTVRootFolder;
 
             if (libraryPath) {
-              // Extract relative path from full Plex path
-              const relativePath = placeholderPath.replace(
-                libraryPath + '/',
-                ''
-              );
+              // Extract relative path from Plex path by taking last N parts
+              // This works regardless of path separators (Windows \ vs Linux /)
+              // and handles cases where Plex runs on different OS than Agregarr
+              const pathParts = placeholderPath.split(/[/\\]/).filter((p) => p);
+
+              let relativePath = '';
+              if (itemExtended.type === 'movie') {
+                // Movies: last 2 parts (folder + filename)
+                relativePath = pathParts.slice(-2).join(path.sep);
+              } else {
+                // TV: last 3 parts (show folder + Season 00 + filename)
+                relativePath = pathParts.slice(-3).join(path.sep);
+              }
+
               const fullPath = path.join(libraryPath, relativePath);
 
               await removePlaceholder(
