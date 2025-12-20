@@ -734,11 +734,11 @@ async function createPlaceholders(
   }[] = [];
   let deletedOrphanCount = 0;
 
-  // Get existing database records to check for orphans
+  // Get ALL existing database records to check for orphans
+  // CRITICAL: Must query ALL records, not just current config, to avoid deleting
+  // placeholders that belong to other collections
   const placeholderRepository = getRepository(ComingSoonItem);
-  const existingRecords = await placeholderRepository.find({
-    where: { configId: config.id },
-  });
+  const existingRecords = await placeholderRepository.find();
   const existingByTmdbId = new Map(existingRecords.map((r) => [r.tmdbId, r]));
 
   // Check each library item to see if it's an orphaned placeholder
@@ -1570,7 +1570,13 @@ export async function cleanupPlaceholdersForConfig(
 
   try {
     repository = getRepository(ComingSoonItem);
-    placeholders = await repository.find({ where: { configId: config.id } });
+    // Find placeholders for this config (including multi-source sub-configs)
+    placeholders = await repository.find({
+      where: [
+        { configId: config.id },
+        { configId: Like(`${config.id}-source-%`) }, // Multi-source sub-collections
+      ],
+    });
   } catch (error) {
     // If table doesn't exist yet (first run), skip cleanup
     logger.debug('Skipping placeholder cleanup - table not initialized yet', {
@@ -2376,6 +2382,14 @@ export async function handlePlaceholderCleanup(
   libraryCache?: LibraryItemsCache,
   sourceTmdbIds?: Set<number>
 ): Promise<void> {
+  logger.debug('handlePlaceholderCleanup called', {
+    label: 'PlaceholderService',
+    configId: config.id,
+    configName: config.name,
+    createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+    willDeleteAll: !config.createPlaceholdersForMissing,
+  });
+
   if (config.createPlaceholdersForMissing) {
     // Setting enabled - run normal cleanup
     await cleanupPlaceholdersForConfig(
@@ -2453,7 +2467,17 @@ export async function cleanupOrphanedPlaceholderRecords(): Promise<void> {
     // Get all placeholder records
     const allRecords = await repository.find();
 
+    logger.debug('Starting orphaned placeholder record cleanup', {
+      label: 'PlaceholderService',
+      totalRecords: allRecords.length,
+      activeConfigCount: activeConfigs.length,
+      sampleConfigIds: allRecords.slice(0, 5).map((r) => r.configId),
+    });
+
     if (allRecords.length === 0) {
+      logger.debug('No placeholder records in database', {
+        label: 'PlaceholderService',
+      });
       return;
     }
 
@@ -2469,9 +2493,23 @@ export async function cleanupOrphanedPlaceholderRecords(): Promise<void> {
       const match = record.configId.match(/^(\d+)-source-/);
       if (match) {
         const parentId = match[1];
+        logger.debug('Checking multi-source placeholder record', {
+          label: 'PlaceholderService',
+          recordConfigId: record.configId,
+          extractedParentId: parentId,
+          parentExists: activeConfigIds.has(parentId),
+          activeConfigIds: Array.from(activeConfigIds),
+        });
         if (activeConfigIds.has(parentId)) {
           return false; // Parent exists, keep record
         }
+      } else if (record.configId.includes('-source-')) {
+        // Log if we have a source ID but regex didn't match
+        logger.warn('Multi-source configId did not match regex pattern', {
+          label: 'PlaceholderService',
+          recordConfigId: record.configId,
+          regexPattern: '/^(\\d+)-source-/',
+        });
       }
 
       return true; // No matching config found - orphaned
@@ -2534,6 +2572,13 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
 
     // Get all placeholder file paths from database
     const allRecords = await repository.find();
+
+    logger.debug('Starting orphaned placeholder file cleanup', {
+      label: 'PlaceholderService',
+      totalRecordsInDatabase: allRecords.length,
+      samplePaths: allRecords.slice(0, 5).map((r) => r.placeholderPath),
+    });
+
     const trackedPaths = new Set(allRecords.map((r) => r.placeholderPath));
 
     let filesRemoved = 0;
