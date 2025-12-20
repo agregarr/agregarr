@@ -1,7 +1,7 @@
 import AppDataWarning from '@app/components/AppDataWarning';
 import Button from '@app/components/Common/Button';
 import PageTitle from '@app/components/Common/PageTitle';
-// LanguagePicker removed - English-only support
+import LanguagePicker from '@app/components/Layout/LanguagePicker';
 import SettingsDownloads from '@app/components/Settings/SettingsDownloads';
 import SettingsPlex from '@app/components/Settings/SettingsPlex';
 import SettingsSources from '@app/components/Settings/SettingsSources';
@@ -64,7 +64,9 @@ const Setup = () => {
   return (
     <div className="relative flex min-h-screen flex-col justify-center bg-stone-900 py-8">
       <PageTitle title={intl.formatMessage(messages.setup)} />
-      {/* Language picker removed - English-only support */}
+      <div className="absolute top-4 right-4 z-50">
+        <LanguagePicker />
+      </div>
       <div className="relative z-40 px-4 sm:mx-auto sm:w-full sm:max-w-4xl">
         <img
           src="/logo_stacked.svg"

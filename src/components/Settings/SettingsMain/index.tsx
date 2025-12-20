@@ -7,6 +7,7 @@ import Tooltip from '@app/components/Common/Tooltip';
 import CopyButton from '@app/components/Settings/CopyButton';
 import SettingsBadge from '@app/components/Settings/SettingsBadge';
 import type { AvailableLocale } from '@app/context/LanguageContext';
+import { availableLanguages } from '@app/context/LanguageContext';
 import useLocale from '@app/hooks/useLocale';
 import { Permission, useUser, type UserSettings } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
@@ -291,6 +292,30 @@ const SettingsMain = () => {
                       typeof errors.applicationUrl === 'string' && (
                         <div className="error">{errors.applicationUrl}</div>
                       )}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="locale" className="text-label">
+                    {intl.formatMessage(messages.locale)}
+                  </label>
+                  <div className="form-input-area">
+                    <div className="form-input-field">
+                      <Field as="select" id="locale" name="locale">
+                        {(
+                          Object.keys(
+                            availableLanguages
+                          ) as (keyof typeof availableLanguages)[]
+                        ).map((key) => (
+                          <option
+                            key={key}
+                            value={availableLanguages[key].code}
+                            lang={availableLanguages[key].code}
+                          >
+                            {availableLanguages[key].display}
+                          </option>
+                        ))}
+                      </Field>
+                    </div>
                   </div>
                 </div>
                 <div className="form-row">
