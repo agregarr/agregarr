@@ -5,6 +5,7 @@
  * - upload://posters/1765149596
  * - /library/metadata/815/thumb/1765149596
  * - http://192.168.0.115:32400/library/metadata/815/thumb/1765149596?X-Plex-Token=xxx
+ * - http://192.168.0.115:32400/library/metadata/815/file?url=upload%3A%2F%2Fposters%2F1765149596&X-Plex-Token=xxx
  *
  * These helpers normalize URLs to extract the stable thumb ID for comparison.
  */
@@ -19,15 +20,38 @@
  * extractThumbId("upload://posters/1765149596") // "1765149596"
  * extractThumbId("/library/metadata/815/thumb/1765149596") // "1765149596"
  * extractThumbId("http://192.168.0.115:32400/library/metadata/815/thumb/1765149596?X-Plex-Token=xxx") // "1765149596"
+ * extractThumbId("http://192.168.0.115:32400/library/metadata/815/file?url=upload%3A%2F%2Fposters%2F1765149596&X-Plex-Token=xxx") // "1765149596"
  */
 export function extractThumbId(url: string | null | undefined): string | null {
   if (!url) {
     return null;
   }
 
+  // Format 4: URL-encoded upload URL embedded in query parameter
+  // http://192.168.0.115:32400/library/metadata/815/file?url=upload%3A%2F%2Fposters%2F1765149596&X-Plex-Token=xxx
+  if (url.includes('?url=') || url.includes('&url=')) {
+    try {
+      const urlObj = new URL(url);
+      const embeddedUrl = urlObj.searchParams.get('url');
+      if (embeddedUrl) {
+        // Recursively process the embedded URL
+        return extractThumbId(embeddedUrl);
+      }
+    } catch {
+      // Invalid URL, fall through to other methods
+    }
+  }
+
   // Format 1: upload://posters/{id}
   if (url.startsWith('upload://posters/')) {
     const id = url.replace('upload://posters/', '');
+    return id || null;
+  }
+
+  // Format 5: metadata://posters/{agent}/{hash}
+  // e.g., metadata://posters/tv.plex.agents.movie_48a22557dc2290aca2f37f5062f99d6a176bd0c6
+  if (url.startsWith('metadata://posters/')) {
+    const id = url.replace('metadata://posters/', '');
     return id || null;
   }
 
