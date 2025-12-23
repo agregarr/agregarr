@@ -1662,6 +1662,41 @@ class Settings {
   }
 
   /**
+   * Migrate overlay-application job schedule from midnight to 3am
+   * Prevents conflict with plex-collections-sync which runs at midnight
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateOverlayJobSchedule(): void {
+    const migrationId = 'overlay-job-schedule-fix';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    // If overlay-application job is still at old default (midnight), update to 3am
+    const currentSchedule = this.data.jobs['overlay-application'].schedule;
+    if (currentSchedule === '0 0 0 * * *') {
+      // Old midnight default
+      this.data.jobs['overlay-application'].schedule = '0 0 3 * * *'; // New 3am default
+      logger.info(
+        'Migrated overlay-application schedule from midnight to 3am to avoid conflict with collections sync',
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
    * Normalize pre-existing configs with pre-existing collection business rules
    */
   private normalizePreExistingConfigs(): number {

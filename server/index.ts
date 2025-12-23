@@ -73,6 +73,9 @@ app
     // Migrate legacy sort order (reverseOrder/randomizeOrder) to sortOrder enum
     settings.migrateSortOrderToEnum();
 
+    // Migrate overlay-application job schedule from midnight to 3am to prevent conflicts
+    settings.migrateOverlayJobSchedule();
+
     // Seed default source colors and poster template (one-time setup)
     try {
       const { seedSourceColors } = await import(
