@@ -1628,24 +1628,35 @@ class PlexAPI {
     for (let i = 0; i < desiredOrder.length; i++) {
       if (currentOrder[i] !== desiredOrder[i]) {
         const itemToMove = desiredOrder[i];
-        const afterItem = i > 0 ? desiredOrder[i - 1] : null;
 
-        if (afterItem) {
-          const success = await this.moveItemInCollection(
+        let success = false;
+        if (i === 0) {
+          // Special case: position 0 - move without 'after' parameter
+          try {
+            const moveUrl = `/library/collections/${collectionRatingKey}/items/${itemToMove}/move`;
+            await this.safePutQuery(moveUrl);
+            success = true;
+          } catch (error) {
+            success = false;
+          }
+        } else {
+          // Normal case: move after the previous item
+          const afterItem = desiredOrder[i - 1];
+          success = await this.moveItemInCollection(
             collectionRatingKey,
             itemToMove,
             afterItem
           );
+        }
 
-          if (success) {
-            moveCount++;
-            // Update in-memory tracking: remove from old position and insert at new position
-            const oldIndex = currentOrder.indexOf(itemToMove);
-            currentOrder.splice(oldIndex, 1);
-            currentOrder.splice(i, 0, itemToMove);
-          } else {
-            failCount++;
-          }
+        if (success) {
+          moveCount++;
+          // Update in-memory tracking: remove from old position and insert at new position
+          const oldIndex = currentOrder.indexOf(itemToMove);
+          currentOrder.splice(oldIndex, 1);
+          currentOrder.splice(i, 0, itemToMove);
+        } else {
+          failCount++;
         }
       }
     }
