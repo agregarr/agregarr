@@ -402,6 +402,37 @@ export const PRESET_TEMPLATES: {
             },
           ],
         },
+        {
+          // OR TV SHOWS: Already released (daysAgo >= 0), not downloaded, monitored, in Sonarr (fallback for shows without daysAgoNextSeason)
+          sectionOperator: 'or',
+          rules: [
+            { field: 'mediaType', operator: 'eq', value: 'show' },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
       ],
     },
     templateData: {
