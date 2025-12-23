@@ -24,20 +24,20 @@ import {
   validateAndSanitizeItems,
   validateCollectionItems,
 } from '@server/lib/collections/core/CollectionUtilities';
-import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
-import { ComingSoonCollectionSync } from '@server/lib/collections/external/comingsoon';
-import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
-import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
-import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
-import { MyAnimeListCollectionSync } from '@server/lib/collections/external/myanimelist';
-import { NetworksCollectionSync } from '@server/lib/collections/external/networks';
-import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
-import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
-import RadarrTagCollectionSync from '@server/lib/collections/external/radarr';
-import SonarrTagCollectionSync from '@server/lib/collections/external/sonarr';
-import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
-import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
-import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
+import { AnilistCollectionSync } from '@server/lib/collections/sources/anilist';
+import { ComingSoonCollectionSync } from '@server/lib/collections/sources/comingsoon';
+import { ImdbCollectionSync } from '@server/lib/collections/sources/imdb';
+import { LetterboxdCollectionSync } from '@server/lib/collections/sources/letterboxd';
+import { MDBListCollectionSync } from '@server/lib/collections/sources/mdblist';
+import { MyAnimeListCollectionSync } from '@server/lib/collections/sources/myanimelist';
+import { NetworksCollectionSync } from '@server/lib/collections/sources/networks';
+import { OriginalsCollectionSync } from '@server/lib/collections/sources/originals';
+import { OverseerrCollectionSync } from '@server/lib/collections/sources/overseerrSync';
+import RadarrTagCollectionSync from '@server/lib/collections/sources/radarr';
+import SonarrTagCollectionSync from '@server/lib/collections/sources/sonarr';
+import { TautulliCollectionSync } from '@server/lib/collections/sources/tautulli';
+import { TmdbCollectionSync } from '@server/lib/collections/sources/tmdb';
+import { TraktCollectionSync } from '@server/lib/collections/sources/trakt';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
 import { generatePoster } from '@server/lib/posterStorage';
@@ -417,7 +417,7 @@ export class MultiSourceOrchestrator {
 
         // Import helper function that handles both enabled/disabled cases
         const { handlePlaceholderCleanup } = await import(
-          '@server/lib/collections/services/PlaceholderService'
+          '@server/lib/placeholders/services/PlaceholderCleanup'
         );
 
         // Run cleanup or deletion based on setting
@@ -618,10 +618,10 @@ export class MultiSourceOrchestrator {
         );
 
         try {
-          // Use PlaceholderService for unified placeholder creation
+          // Use PlaceholderCreation service for unified placeholder creation
           // This works for any source type, not just Coming Soon
           const { processPlaceholdersForMissingItems } = await import(
-            '@server/lib/collections/services/PlaceholderService'
+            '@server/lib/placeholders/services/PlaceholderCreation'
           );
 
           const newPlaceholderItems = await processPlaceholdersForMissingItems(

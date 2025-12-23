@@ -1,8 +1,9 @@
 import logger from '@server/logger';
 import { spawn } from 'child_process';
+import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import type { TrailerDownloadOptions, VideoMetadata } from './types';
+import type { TrailerDownloadOptions } from './types';
 
 // Polyfill Intl.ListFormat if not available (needed for @sindresorhus/is in ts-node/CommonJS context)
 // This must be done BEFORE any dynamic imports that might use it
@@ -39,119 +40,6 @@ async function getYoutubeSearch() {
 }
 
 /**
- * Extract video metadata using yt-dlp before downloading
- * This allows us to check duration and file size before committing to download
- */
-async function extractVideoMetadata(videoUrl: string): Promise<VideoMetadata> {
-  return new Promise((resolve, reject) => {
-    logger.debug('Extracting video metadata with yt-dlp', {
-      label: 'Coming Soon Trailer',
-      videoUrl,
-    });
-
-    // Use yt-dlp to extract metadata without downloading
-    const ytdlp = spawn('yt-dlp', [
-      '--dump-json',
-      '-f',
-      'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]',
-      videoUrl,
-    ]);
-
-    let stdoutOutput = '';
-    let stderrOutput = '';
-
-    ytdlp.stdout.on('data', (data) => {
-      stdoutOutput += data.toString();
-    });
-
-    ytdlp.stderr.on('data', (data) => {
-      stderrOutput += data.toString();
-    });
-
-    ytdlp.on('close', (code) => {
-      if (code === 0) {
-        try {
-          const metadata = JSON.parse(stdoutOutput) as VideoMetadata;
-          logger.debug('Successfully extracted video metadata', {
-            label: 'Coming Soon Trailer',
-            duration: metadata.duration,
-            filesize: metadata.filesize,
-            filesize_approx: metadata.filesize_approx,
-            title: metadata.title,
-          });
-          resolve(metadata);
-        } catch (parseError) {
-          reject(
-            new Error(
-              `Failed to parse yt-dlp metadata: ${
-                parseError instanceof Error
-                  ? parseError.message
-                  : String(parseError)
-              }`
-            )
-          );
-        }
-      } else {
-        logger.error('yt-dlp metadata extraction failed', {
-          label: 'Coming Soon Trailer',
-          code,
-          stdout: stdoutOutput,
-          stderr: stderrOutput,
-        });
-        reject(
-          new Error(
-            `yt-dlp metadata extraction exited with code ${code}: ${stderrOutput}`
-          )
-        );
-      }
-    });
-
-    ytdlp.on('error', (error) => {
-      logger.error('yt-dlp metadata extraction spawn error', {
-        label: 'Coming Soon Trailer',
-        error: error.message,
-      });
-      reject(error);
-    });
-  });
-}
-
-/**
- * Validate video metadata against configured limits
- * Returns true if video passes validation, false otherwise
- */
-function validateVideoMetadata(
-  metadata: VideoMetadata,
-  options: TrailerDownloadOptions
-): { valid: boolean; reason?: string } {
-  const maxDuration = options.maxDuration || 300; // Default: 5 minutes
-  const maxFileSize = options.maxFileSize || 314572800; // Default: 300 MB
-
-  // Check duration
-  if (metadata.duration > maxDuration) {
-    return {
-      valid: false,
-      reason: `Video duration (${Math.round(
-        metadata.duration
-      )}s) exceeds maximum (${maxDuration}s)`,
-    };
-  }
-
-  // Check file size (use filesize if available, otherwise filesize_approx)
-  const estimatedSize = metadata.filesize || metadata.filesize_approx;
-  if (estimatedSize && estimatedSize > maxFileSize) {
-    const sizeMB = Math.round(estimatedSize / 1024 / 1024);
-    const maxSizeMB = Math.round(maxFileSize / 1024 / 1024);
-    return {
-      valid: false,
-      reason: `Video file size (~${sizeMB}MB) exceeds maximum (${maxSizeMB}MB)`,
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
  * Copy static placeholder video
  * This is used as a fallback when no trailer is found
  */
@@ -185,30 +73,65 @@ async function copyPlaceholderVideo(outputPath: string): Promise<void> {
 }
 
 /**
- * Download YouTube video using yt-dlp
+ * Download YouTube video using yt-dlp with duration filtering
  * Uses yt-dlp binary which is more reliable than JavaScript libraries for YouTube downloads
+ * Duration filter rejects videos over 3.5 minutes (210s) to avoid compilation videos
  */
 async function downloadWithYtDlp(
   videoUrl: string,
-  outputPath: string
+  outputPath: string,
+  maxDuration = 210
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     logger.debug('Downloading with yt-dlp', {
       label: 'Coming Soon Trailer',
       videoUrl,
       outputPath,
+      maxDuration,
     });
 
-    // yt-dlp command with 1080p max resolution and automatic merging
-    const ytdlp = spawn('yt-dlp', [
+    // Build yt-dlp arguments with duration filter
+    // Note: duration must be filtered using --match-filter, not in format selector
+    const args = [
+      '--break-on-reject',
+      '--match-filter',
+      `duration < ${maxDuration}`,
       '-f',
       'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]',
       '--merge-output-format',
       'mp4',
       '-o',
       outputPath,
-      videoUrl,
-    ]);
+    ];
+
+    // Auto-detect cookies file in config directory
+    const cookiesPath = path.join(
+      process.cwd(),
+      'config',
+      'youtube-cookies.txt'
+    );
+    try {
+      fs.accessSync(cookiesPath);
+      args.push('--cookies', cookiesPath);
+      logger.debug('Using YouTube cookies for download', {
+        label: 'Coming Soon Trailer',
+        cookiesPath,
+      });
+    } catch {
+      // Cookies file doesn't exist, continue without it
+      logger.debug(
+        'No YouTube cookies file found, proceeding without cookies',
+        {
+          label: 'Coming Soon Trailer',
+          expectedPath: cookiesPath,
+        }
+      );
+    }
+
+    args.push(videoUrl);
+
+    // yt-dlp command with 1080p max resolution, duration filter, and automatic merging
+    const ytdlp = spawn('yt-dlp', args);
 
     let stdoutOutput = '';
     let stderrOutput = '';
@@ -229,12 +152,32 @@ async function downloadWithYtDlp(
         });
         resolve();
       } else {
-        logger.error('yt-dlp download failed', {
-          label: 'Coming Soon Trailer',
-          code,
-          stdout: stdoutOutput,
-          stderr: stderrOutput,
-        });
+        // Check if this is a duration filter rejection (code 101)
+        const isDurationFilterRejection =
+          code === 101 && stdoutOutput.includes('does not pass filter');
+
+        if (isDurationFilterRejection) {
+          // Extract video title from stdout if available
+          const titleMatch = stdoutOutput.match(
+            /\[download\] (.+?) does not pass filter/
+          );
+          const videoTitle = titleMatch ? titleMatch[1] : 'Video';
+
+          logger.info('Video rejected by duration filter (over 3.5 minutes)', {
+            label: 'Coming Soon Trailer',
+            videoTitle,
+            maxDuration: maxDuration,
+          });
+        } else {
+          // Actual error (network, bot detection, etc.)
+          logger.error('yt-dlp download failed', {
+            label: 'Coming Soon Trailer',
+            code,
+            stdout: stdoutOutput,
+            stderr: stderrOutput,
+          });
+        }
+
         reject(new Error(`yt-dlp exited with code ${code}: ${stderrOutput}`));
       }
     });
@@ -296,46 +239,15 @@ async function searchAndDownloadTrailer(
       videoId,
     });
 
-    // Extract metadata before downloading to check duration and file size
-    let metadata: VideoMetadata;
-    try {
-      metadata = await extractVideoMetadata(videoUrl);
-    } catch (metadataError) {
-      logger.warn('Failed to extract video metadata, using fallback', {
-        label: 'Coming Soon Trailer',
-        title,
-        error:
-          metadataError instanceof Error
-            ? metadataError.message
-            : String(metadataError),
-      });
-      await copyPlaceholderVideo(outputPath);
-      return;
-    }
-
-    // Validate metadata against limits
-    const validation = validateVideoMetadata(metadata, options);
-    if (!validation.valid) {
-      logger.warn('Video failed validation, using fallback', {
-        label: 'Coming Soon Trailer',
-        title,
-        reason: validation.reason,
-        duration: metadata.duration,
-        filesize: metadata.filesize || metadata.filesize_approx,
-      });
-      await copyPlaceholderVideo(outputPath);
-      return;
-    }
-
-    // Download trailer with yt-dlp (automatically handles 1080p video+audio and merging)
-    logger.info('Downloading YouTube trailer in 1080p with yt-dlp', {
+    // Download trailer with yt-dlp (includes duration filter to reject videos over 3.5 minutes)
+    const maxDuration = options.maxDuration || 210; // Default: 3.5 minutes
+    logger.info('Downloading YouTube trailer with yt-dlp', {
       label: 'Coming Soon Trailer',
       title,
-      duration: Math.round(metadata.duration),
-      estimatedSize: metadata.filesize || metadata.filesize_approx,
+      maxDuration,
     });
 
-    await downloadWithYtDlp(videoUrl, outputPath);
+    await downloadWithYtDlp(videoUrl, outputPath, maxDuration);
 
     logger.info('Successfully downloaded 1080p trailer', {
       label: 'Coming Soon Trailer',
@@ -343,12 +255,29 @@ async function searchAndDownloadTrailer(
       outputPath,
     });
   } catch (error) {
-    logger.error('Failed to download YouTube trailer, using fallback', {
-      label: 'Coming Soon Trailer',
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      title,
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isDurationFilterRejection =
+      errorMessage.includes('code 101') &&
+      errorMessage.includes('does not pass filter');
+
+    if (isDurationFilterRejection) {
+      // Video was rejected by duration filter (too long)
+      logger.info(
+        'Trailer video too long (over 3.5 minutes), using placeholder instead',
+        {
+          label: 'Coming Soon Trailer',
+          title,
+        }
+      );
+    } else {
+      // Actual error (network, bot detection, etc.)
+      logger.error('Failed to download YouTube trailer, using fallback', {
+        label: 'Coming Soon Trailer',
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        title,
+      });
+    }
     // Fallback to placeholder video if download fails
     await copyPlaceholderVideo(outputPath);
   }
@@ -401,8 +330,7 @@ export async function downloadTrailer(
       title,
       year,
       outputPath,
-      maxDuration: 300, // 5 minutes max
-      maxFileSize: 314572800, // 300 MB max
+      maxDuration: 210, // 3.5 minutes max (avoids compilation videos)
     });
 
     return outputPath;

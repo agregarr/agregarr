@@ -477,7 +477,7 @@ class OverlayLibraryService {
 
       // Check if this is a placeholder (async version with API call for suspicious items)
       const { placeholderContextService } = await import(
-        '@server/lib/collections/services/PlaceholderContextService'
+        '@server/lib/placeholders/services/PlaceholderContextService'
       );
       const plexMetadata = item as {
         type: string;

@@ -1,6 +1,10 @@
 import type { OverseerrMediaRequest } from '@server/api/overseerr';
 import type { TmdbMovieDetails } from '@server/api/themoviedb/interfaces';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
+import type {
+  DiscoveredMoviePlaceholder,
+  DiscoveredPlaceholder,
+} from '@server/lib/placeholders/services/PlaceholderDiscovery';
 
 interface CacheEntry<T> {
   data: T;
@@ -18,6 +22,8 @@ export class SyncCacheService {
   private libraryItemsCache: LibraryItemsCache = {};
   private tmdbFranchiseCache: Map<number, CacheEntry<TmdbMovieDetails>> =
     new Map();
+  private placeholderDiscoveryCacheTv: DiscoveredPlaceholder[] = [];
+  private placeholderDiscoveryCacheMovies: DiscoveredMoviePlaceholder[] = [];
   private isInitialized = false;
 
   public static getInstance(): SyncCacheService {
@@ -40,12 +46,39 @@ export class SyncCacheService {
   }
 
   /**
+   * Initialize placeholder discovery cache
+   */
+  public setPlaceholderDiscoveryCache(
+    tv: DiscoveredPlaceholder[],
+    movies: DiscoveredMoviePlaceholder[]
+  ): void {
+    this.placeholderDiscoveryCacheTv = tv;
+    this.placeholderDiscoveryCacheMovies = movies;
+  }
+
+  /**
+   * Get cached TV placeholder discoveries
+   */
+  public getPlaceholderDiscoveryCacheTv(): DiscoveredPlaceholder[] {
+    return this.placeholderDiscoveryCacheTv;
+  }
+
+  /**
+   * Get cached movie placeholder discoveries
+   */
+  public getPlaceholderDiscoveryCacheMovies(): DiscoveredMoviePlaceholder[] {
+    return this.placeholderDiscoveryCacheMovies;
+  }
+
+  /**
    * Clear all cached data
    */
   public clear(): void {
     this.overseerrRequestsCache = [];
     this.libraryItemsCache = {};
     this.tmdbFranchiseCache.clear();
+    this.placeholderDiscoveryCacheTv = [];
+    this.placeholderDiscoveryCacheMovies = [];
     this.isInitialized = false;
   }
 

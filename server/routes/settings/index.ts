@@ -1245,7 +1245,7 @@ settingsRoutes.post('/reset', async (_req, res, next) => {
         // Delete all unique placeholder files
         if (filesToDelete.size > 0) {
           const { removePlaceholder } = await import(
-            '@server/lib/comingsoon/placeholderManager'
+            '@server/lib/placeholders/placeholderManager'
           );
 
           for (const fullPath of filesToDelete) {

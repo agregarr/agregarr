@@ -240,7 +240,7 @@ export class TemplateEngine {
     try {
       // Import the service to avoid circular dependencies
       const { overseerrCollectionService } = await import(
-        '@server/lib/collections/external/overseerr'
+        '@server/lib/collections/sources/overseerr'
       );
       const overseerrSettings =
         await overseerrCollectionService.getOverseerrSettings();

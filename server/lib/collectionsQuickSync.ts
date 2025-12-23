@@ -286,10 +286,10 @@ class CollectionsQuickSync {
   ): Promise<{ deletedCount: number; affectedLibraries: Set<string> }> {
     const placeholderRepository = getRepository(ComingSoonItem);
     const { placeholderContextService } = await import(
-      '@server/lib/collections/services/PlaceholderContextService'
+      '@server/lib/placeholders/services/PlaceholderContextService'
     );
     const { removePlaceholder } = await import(
-      '@server/lib/comingsoon/placeholderManager'
+      '@server/lib/placeholders/placeholderManager'
     );
 
     let deletedCount = 0;

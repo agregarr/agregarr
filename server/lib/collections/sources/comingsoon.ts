@@ -743,7 +743,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
 
       // Attempt to download a real trailer
       const { downloadTrailer } = await import(
-        '@server/lib/comingsoon/trailerDownload'
+        '@server/lib/placeholders/trailerDownload'
       );
       const trailerPath = await downloadTrailer(
         sourceItem.title,

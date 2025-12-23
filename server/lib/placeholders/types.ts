@@ -42,24 +42,6 @@ export interface TrailerDownloadOptions {
   year?: number;
   /** Output path for downloaded file */
   outputPath: string;
-  /** Maximum duration in seconds (optional, default: 300) */
+  /** Maximum duration in seconds (optional, default: 210 = 3.5 minutes) */
   maxDuration?: number;
-  /** Maximum file size in bytes (optional, default: 314572800 = 300 MB) */
-  maxFileSize?: number;
-}
-
-/**
- * Metadata extracted from yt-dlp before download
- */
-export interface VideoMetadata {
-  /** Video duration in seconds */
-  duration: number;
-  /** Estimated file size in bytes */
-  filesize?: number;
-  /** Approximate file size in bytes (fallback if filesize not available) */
-  filesize_approx?: number;
-  /** Video title */
-  title?: string;
-  /** Video ID */
-  id?: string;
 }

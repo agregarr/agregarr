@@ -1583,7 +1583,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
 
         // Parse the HTML to extract IMDb items using the proper parser
         const ImdbCollections = await import(
-          '@server/lib/collections/external/imdb'
+          '@server/lib/collections/sources/imdb'
         );
         const imdbCollections = new ImdbCollections.default();
         const imdbItems = imdbCollections.parseImdbListHtml(
@@ -1624,7 +1624,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
 
         // For IMDb validation, we need to resolve TMDB IDs like the actual sync process does
         const ImdbCollectionsModule = await import(
-          '@server/lib/collections/external/imdb'
+          '@server/lib/collections/sources/imdb'
         );
         const imdbValidator = new ImdbCollectionsModule.default();
 
@@ -1694,7 +1694,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
 
         // Parse the HTML to extract Letterboxd items using the proper parser
         const LetterboxdCollections = await import(
-          '@server/lib/collections/external/letterboxd'
+          '@server/lib/collections/sources/letterboxd'
         );
         const letterboxdCollections =
           new LetterboxdCollections.LetterboxdCollectionSync();

@@ -2,9 +2,9 @@ import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
-import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import { PreExistingCollectionConfigService } from '@server/lib/collections/services/PreExistingCollectionConfigService';
+import { OriginalsCollectionSync } from '@server/lib/collections/sources/originals';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import collectionsSync from '@server/lib/collectionsSync';
@@ -1124,7 +1124,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
 
                   try {
                     const { removePlaceholder } = await import(
-                      '@server/lib/comingsoon/placeholderManager'
+                      '@server/lib/placeholders/placeholderManager'
                     );
                     await removePlaceholder(fullPath, record.mediaType);
                     fileDeleted = true;

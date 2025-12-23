@@ -623,7 +623,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     ]);
 
     const { handlePlaceholderCleanup } = await import(
-      '@server/lib/collections/services/PlaceholderService'
+      '@server/lib/placeholders/services/PlaceholderCleanup'
     );
 
     await handlePlaceholderCleanup(
@@ -678,9 +678,9 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
 
     // Create placeholders if enabled
     if (config.createPlaceholdersForMissing) {
-      // Import and use the PlaceholderService
+      // Import and use the PlaceholderCreation service
       const { processPlaceholdersForMissingItems } = await import(
-        '@server/lib/collections/services/PlaceholderService'
+        '@server/lib/placeholders/services/PlaceholderCreation'
       );
 
       logger.info('Creating placeholders for missing items', {

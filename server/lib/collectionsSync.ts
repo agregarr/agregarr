@@ -118,7 +118,7 @@ class CollectionsSync {
       if (settings.overseerr?.hostname && settings.overseerr?.apiKey) {
         try {
           const { overseerrCollectionService } = await import(
-            '@server/lib/collections/external/overseerr'
+            '@server/lib/collections/sources/overseerr'
           );
           const overseerrSettings =
             await overseerrCollectionService.getOverseerrSettings();
@@ -381,16 +381,18 @@ class CollectionsSync {
       this.setStage('Cleaning up orphaned placeholders...');
       let filesWereRemoved = false;
       try {
-        const PlaceholderService = await import(
-          '@server/lib/collections/services/PlaceholderService'
+        const {
+          cleanupOrphanedPlaceholderRecords,
+          cleanupOrphanedPlaceholderFiles,
+        } = await import(
+          '@server/lib/placeholders/services/PlaceholderCleanup'
         );
 
         // Step 1: Remove orphaned DB records (where collection no longer exists)
-        await PlaceholderService.cleanupOrphanedPlaceholderRecords();
+        await cleanupOrphanedPlaceholderRecords();
 
         // Step 2: Remove orphaned files (where no DB records reference them)
-        const filesRemoved =
-          await PlaceholderService.cleanupOrphanedPlaceholderFiles();
+        const filesRemoved = await cleanupOrphanedPlaceholderFiles();
         filesWereRemoved = filesRemoved > 0;
 
         logger.info('Orphaned placeholder cleanup completed', {

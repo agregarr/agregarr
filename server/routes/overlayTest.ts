@@ -150,7 +150,7 @@ overlayTestRouter.post('/', async (req, res) => {
 
     // Check if this is a placeholder
     const { placeholderContextService } = await import(
-      '@server/lib/collections/services/PlaceholderContextService'
+      '@server/lib/placeholders/services/PlaceholderContextService'
     );
     const plexMetadata = item as {
       type: string;
