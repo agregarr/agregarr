@@ -985,9 +985,12 @@ settingsRoutes.get('/jobs', (_req, res) => {
 
       if (nextExecution && job.cronSchedule) {
         try {
-          const interval = parser.parse(job.cronSchedule);
-          interval.next(); // First next (skip it, we already have nextExecution)
-          followingExecution = interval.next().toDate(); // Second next
+          // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+          const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+          const interval = parser.parse(job.cronSchedule, {
+            currentDate: startDate,
+          });
+          followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
         } catch (error) {
           // If cron parsing fails, followingExecution stays null
         }
@@ -1021,9 +1024,12 @@ settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
 
   if (nextExecution && scheduledJob.cronSchedule) {
     try {
-      const interval = parser.parse(scheduledJob.cronSchedule);
-      interval.next(); // First next (skip it, we already have nextExecution)
-      followingExecution = interval.next().toDate(); // Second next
+      // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+      const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+      const interval = parser.parse(scheduledJob.cronSchedule, {
+        currentDate: startDate,
+      });
+      followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
     } catch (error) {
       // If cron parsing fails, followingExecution stays null
     }
@@ -1061,9 +1067,12 @@ settingsRoutes.post<{ jobId: JobId }>(
 
     if (nextExecution && scheduledJob.cronSchedule) {
       try {
-        const interval = parser.parse(scheduledJob.cronSchedule);
-        interval.next(); // First next (skip it, we already have nextExecution)
-        followingExecution = interval.next().toDate(); // Second next
+        // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+        const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+        const interval = parser.parse(scheduledJob.cronSchedule, {
+          currentDate: startDate,
+        });
+        followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
       } catch (error) {
         // If cron parsing fails, followingExecution stays null
       }
@@ -1107,9 +1116,12 @@ settingsRoutes.post<{ jobId: JobId }>(
 
       if (nextExecution && scheduledJob.cronSchedule) {
         try {
-          const interval = parser.parse(scheduledJob.cronSchedule);
-          interval.next(); // First next (skip it, we already have nextExecution)
-          followingExecution = interval.next().toDate(); // Second next
+          // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+          const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+          const interval = parser.parse(scheduledJob.cronSchedule, {
+            currentDate: startDate,
+          });
+          followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
         } catch (error) {
           // If cron parsing fails, followingExecution stays null
         }

@@ -471,8 +471,27 @@ const SettingsJobs = () => {
                             })
                           }
                         >
-                          {[5, 10, 15, 20, 30, 60, 120, 180, 240, 300, 360].map(
-                            (v) => (
+                          {(() => {
+                            // Job-specific minute presets
+                            const minutePresets: Record<string, number[]> = {
+                              'plex-collections-quick-sync': [
+                                2, 5, 10, 15, 20, 30, 60, 120, 180, 240, 300,
+                                360,
+                              ],
+                              'overlay-quick-sync': [
+                                2, 5, 10, 15, 20, 30, 60, 120, 180, 240, 300,
+                                360,
+                              ],
+                              'plex-randomize-home-order': [
+                                5, 10, 15, 20, 30, 60, 120, 180, 240, 300, 360,
+                              ],
+                            };
+                            const presets = minutePresets[
+                              jobModalState.job?.id || ''
+                            ] || [
+                              5, 10, 15, 20, 30, 60, 120, 180, 240, 300, 360,
+                            ];
+                            return presets.map((v) => (
                               <option value={v} key={`jobScheduleMinutes-${v}`}>
                                 {intl.formatMessage(
                                   messages.editJobScheduleSelectorMinutes,
@@ -481,8 +500,8 @@ const SettingsJobs = () => {
                                   }
                                 )}
                               </option>
-                            )
-                          )}
+                            ));
+                          })()}
                         </select>
                       ) : (
                         <select
@@ -496,16 +515,31 @@ const SettingsJobs = () => {
                             })
                           }
                         >
-                          {[1, 2, 3, 4, 6, 8, 12, 24, 48, 72].map((v) => (
-                            <option value={v} key={`jobScheduleHours-${v}`}>
-                              {intl.formatMessage(
-                                messages.editJobScheduleSelectorHours,
-                                {
-                                  jobScheduleHours: v,
-                                }
-                              )}
-                            </option>
-                          ))}
+                          {(() => {
+                            // Job-specific hour presets
+                            const hourPresets: Record<string, number[]> = {
+                              'plex-collections-sync': [
+                                1, 2, 3, 4, 6, 8, 12, 24, 48, 72,
+                              ],
+                              'overlay-application': [
+                                1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 96, 120, 168,
+                              ],
+                              'watchlist-sync': [1, 2, 3, 4, 6, 8, 12, 24, 48],
+                            };
+                            const presets = hourPresets[
+                              jobModalState.job?.id || ''
+                            ] || [1, 2, 3, 4, 6, 8, 12, 24, 48, 72];
+                            return presets.map((v) => (
+                              <option value={v} key={`jobScheduleHours-${v}`}>
+                                {intl.formatMessage(
+                                  messages.editJobScheduleSelectorHours,
+                                  {
+                                    jobScheduleHours: v,
+                                  }
+                                )}
+                              </option>
+                            ));
+                          })()}
                         </select>
                       )}
                     </div>
@@ -587,14 +621,22 @@ const SettingsJobs = () => {
                       (new Date(job.nextExecutionTime).getTime() - Date.now()) /
                         1000
                     );
+                    const minutesUntilNext = secondsUntilNext / 60;
                     const hoursUntilNext = secondsUntilNext / 3600;
 
-                    // Show hours for up to 48 hours, then switch to days
+                    // Show minutes for less than 1 hour, hours for up to 48 hours, then switch to days
                     return (
                       <div className="text-sm leading-5 text-white">
-                        {hoursUntilNext <= 48 ? (
+                        {hoursUntilNext < 1 ? (
                           <FormattedRelativeTime
-                            value={Math.floor(secondsUntilNext / 3600)}
+                            value={Math.floor(minutesUntilNext)}
+                            updateIntervalInSeconds={10}
+                            numeric="auto"
+                            unit="minute"
+                          />
+                        ) : hoursUntilNext <= 48 ? (
+                          <FormattedRelativeTime
+                            value={Math.floor(hoursUntilNext)}
                             updateIntervalInSeconds={60}
                             numeric="auto"
                             unit="hour"
@@ -617,31 +659,30 @@ const SettingsJobs = () => {
                           Date.now()) /
                           1000
                       );
-                      const hoursUntil = secondsUntil / 3600;
+                      const minutesUntil = Math.floor(secondsUntil / 60);
+                      const hoursUntil = Math.floor(secondsUntil / 3600);
+                      const daysUntil = Math.floor(secondsUntil / 86400);
 
-                      // Show hours for up to 48 hours, then switch to days
-                      if (hoursUntil <= 48) {
+                      // Show minutes for less than 1 hour, hours for up to 48 hours, then switch to days
+                      if (hoursUntil < 1) {
                         return (
                           <div className="text-xs leading-4 text-gray-400">
-                            Following execution{' '}
-                            <FormattedRelativeTime
-                              value={Math.floor(secondsUntil / 3600)}
-                              updateIntervalInSeconds={60}
-                              numeric="auto"
-                              unit="hour"
-                            />
+                            Following execution in {minutesUntil} minute
+                            {minutesUntil !== 1 ? 's' : ''}
+                          </div>
+                        );
+                      } else if (hoursUntil <= 48) {
+                        return (
+                          <div className="text-xs leading-4 text-gray-400">
+                            Following execution in {hoursUntil} hour
+                            {hoursUntil !== 1 ? 's' : ''}
                           </div>
                         );
                       } else {
                         return (
                           <div className="text-xs leading-4 text-gray-400">
-                            Following execution{' '}
-                            <FormattedRelativeTime
-                              value={Math.floor(secondsUntil / 86400)}
-                              updateIntervalInSeconds={3600}
-                              numeric="auto"
-                              unit="day"
-                            />
+                            Following execution in {daysUntil} day
+                            {daysUntil !== 1 ? 's' : ''}
                           </div>
                         );
                       }
