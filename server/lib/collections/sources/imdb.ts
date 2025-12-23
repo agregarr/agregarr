@@ -504,7 +504,6 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           if (
             titleTypeId === 'tvSeries' ||
             titleTypeId === 'tvMiniSeries' ||
-            titleTypeId === 'tvMovie' ||
             titleTypeId === 'tvShort' ||
             titleTypeId === 'tvSpecial'
           ) {
@@ -513,6 +512,7 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
             type = 'tv';
             // Handle episodes if needed
           }
+          // Note: tvMovie is NOT included - these are movies in TMDB
         }
 
         items.push({
