@@ -195,6 +195,24 @@ class CollectionsSync {
       }
     }
 
+    // Wait for Overlay Application to complete if running
+    const overlayApplication = (await import('@server/lib/overlayApplication'))
+      .default;
+    if (overlayApplication.status.running) {
+      logger.info(
+        'Overlay Application is currently running, waiting for completion...',
+        {
+          label: 'Collections Sync',
+        }
+      );
+      while (overlayApplication.status.running) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      logger.info('Overlay Application completed, starting Collections Sync', {
+        label: 'Collections Sync',
+      });
+    }
+
     // Wait for any running individual collection syncs to complete
     const { IndividualCollectionScheduler } = await import(
       '@server/lib/collections/services/IndividualCollectionScheduler'
