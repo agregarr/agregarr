@@ -430,6 +430,11 @@ const CollectionTypeSection = ({
               } else if (oldType === 'multi-source') {
                 setFieldValue('isMultiSource', false);
               }
+
+              // Auto-enable placeholders for Coming Soon
+              if (newType === 'comingsoon') {
+                setFieldValue('createPlaceholdersForMissing', true);
+              }
             }
 
             // Auto-set media type based on collection type

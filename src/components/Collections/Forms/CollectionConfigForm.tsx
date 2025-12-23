@@ -1,3 +1,4 @@
+import Alert from '@app/components/Common/Alert';
 import Modal from '@app/components/Common/Modal';
 import globalMessages from '@app/i18n/globalMessages';
 import type {
@@ -2774,6 +2775,34 @@ const CollectionFormConfigForm = ({
                                           </div>
                                         </div>
                                       )}
+
+                                    {/* Info alert about Filtered Plex Hubs */}
+                                    {typedValues.createPlaceholdersForMissing && (
+                                      <div className="mt-3">
+                                        <Alert type="info">
+                                          <p className="font-medium">
+                                            Use Filtered Plex Hubs to keep
+                                            placeholders out of Recently Added
+                                            etc
+                                          </p>
+                                          <p className="mt-1.5">
+                                            Create{' '}
+                                            <span className="font-semibold">
+                                              Filtered Plex Hub
+                                            </span>{' '}
+                                            collection type to replace default
+                                            Plex hubs (Recently Added, Recently
+                                            Released, Recently Released
+                                            Episodes) with filtered versions
+                                            that automatically exclude
+                                            placeholder items. You can also
+                                            Enable Collection Exclusion on other
+                                            collections to exclude placeholders
+                                            from them.
+                                          </p>
+                                        </Alert>
+                                      </div>
+                                    )}
 
                                     {/* Placeholder options - show when enabled */}
                                     {typedValues.createPlaceholdersForMissing && (
