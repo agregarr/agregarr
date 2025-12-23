@@ -105,6 +105,13 @@ const messages = defineMessages({
   toastPlaceholderSettingsSuccess: 'Placeholder settings saved successfully!',
   toastPlaceholderSettingsFailure:
     'Something went wrong while saving placeholder settings.',
+  youtubeSettings: 'YouTube Cookie Configuration',
+  youtubeSettingsDescription:
+    'Recommended: Set up YouTube cookies to prevent bot detection and IP bans when downloading trailers for placeholder feature. Once banned, adding cookies may not be enough to unban you (from downloading youtube videos without being signed in)',
+  youtubeSettingsInstructions:
+    'To set up cookies: 1) Install a browser extension to export cookies {firefoxLink} / {chromeLink}. 2) Visit YouTube while logged in. 3) Export cookies and save as {cookiesPath} in your Agregarr config directory.',
+  firefoxExtension: 'Firefox',
+  chromeExtension: 'Chrome',
 });
 
 interface ServerInstanceProps {
@@ -782,6 +789,48 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
             </form>
           )}
         </Formik>
+      </div>
+
+      {/* YouTube Settings */}
+      <div className="section">
+        <div className="mb-6">
+          <h3 className="heading">
+            {intl.formatMessage(messages.youtubeSettings)}
+          </h3>
+          <p className="description">
+            {intl.formatMessage(messages.youtubeSettingsDescription)}
+          </p>
+        </div>
+        <Alert
+          title={intl.formatMessage(messages.youtubeSettingsInstructions, {
+            cookiesPath: (
+              <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
+                youtube-cookies.txt
+              </code>
+            ),
+            firefoxLink: (
+              <a
+                href="https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-500 hover:underline"
+              >
+                {intl.formatMessage(messages.firefoxExtension)}
+              </a>
+            ),
+            chromeLink: (
+              <a
+                href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-500 hover:underline"
+              >
+                {intl.formatMessage(messages.chromeExtension)}
+              </a>
+            ),
+          })}
+          type="info"
+        />
       </div>
 
       {/* Plex Watchlist Sync Settings */}
