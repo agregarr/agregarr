@@ -1152,6 +1152,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                       [
                         'releaseDate',
                         'nextEpisodeAirDate',
+                        'nextSeasonAirDate',
                         'lastPlayed',
                         'dateAdded',
                       ].includes(segment.field) && (

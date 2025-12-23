@@ -842,6 +842,7 @@ class OverlayTemplateRendererService {
         const isDateField = [
           'releaseDate',
           'nextEpisodeAirDate',
+          'nextSeasonAirDate',
           'lastPlayed',
           'dateAdded',
         ].includes(segment.field);
