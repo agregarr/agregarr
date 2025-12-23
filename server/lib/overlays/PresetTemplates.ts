@@ -2655,6 +2655,67 @@ export const PRESET_TEMPLATES: {
   },
 
   // ========================================
+  // MAINTAINERR INTEGRATION
+  // ========================================
+
+  // Maintainerr - Deleting Soon
+  {
+    name: 'Maintainerr Deleting Soon',
+    description:
+      'Bottom banner showing countdown for items marked for deletion by Maintainerr',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'daysUntilAction', operator: 'gte', value: 0 }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'maintainerr-deleting-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#F59E0B',
+            fillOpacity: 100,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'maintainerr-deleting-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'DELETING IN ' },
+              { type: 'variable', field: 'daysUntilAction' },
+              { type: 'text', value: ' DAYS' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
   // TV SHOW STATUS
   // ========================================
 

@@ -342,8 +342,9 @@ export interface OverlayRenderContext {
   inSonarr?: boolean;
   hasFile?: boolean; // Whether *arr reports item has files
   downloaded?: boolean; // Derived from hasFile for monitored items, or !isPlaceholder for others
-  isTrending?: boolean;
-  isWatched?: boolean;
+
+  // Maintainerr integration
+  daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex

@@ -147,6 +147,7 @@ interface PreviewPosterMetadata {
   daysUntilRelease?: number;
   releaseDate?: string;
   runtime?: number;
+  daysUntilAction?: number;
 }
 
 // Apply authentication to all routes
@@ -297,6 +298,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
         status: 'Available',
         releaseDate: movieDetails.release_date,
         runtime: movieDetails.runtime,
+        daysUntilAction: 5, // Simulated Maintainerr data for preview
       };
     } else {
       // TV show
@@ -358,6 +360,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
             ? 'Ended'
             : 'Continuing',
         releaseDate: tvDetails.first_air_date,
+        daysUntilAction: 3, // Simulated Maintainerr data for preview
       };
     }
 
@@ -754,8 +757,9 @@ router.get('/:id/preview', async (req, res, next) => {
       inSonarr: true, // Always populate for previews
       hasFile: true,
       downloaded: true,
-      isTrending: true,
-      isWatched: false,
+
+      // Maintainerr integration
+      daysUntilAction: 5, // Always populate for previews
 
       // Item metadata
       isPlaceholder: false,
@@ -962,8 +966,9 @@ router.post('/combined-preview', async (req, res, next) => {
       inSonarr: true, // Always populate for previews
       hasFile: true,
       downloaded: true,
-      isTrending: true,
-      isWatched: false,
+
+      // Maintainerr integration
+      daysUntilAction: 5, // Always populate for previews
 
       // Item metadata
       isPlaceholder: false,

@@ -1,3 +1,4 @@
+import MaintainerrAPI from '@server/api/maintainerr';
 import MDBListAPI from '@server/api/mdblist';
 import { getRankedAnime } from '@server/api/myanimelist';
 import PlexAPI from '@server/api/plexapi';
@@ -539,6 +540,128 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
 
     logger.error('Tautulli connection test failed', {
       label: 'Tautulli Connection',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      httpStatus: e.response?.status,
+      connectionUrl,
+      responseTime: Date.now() - startTime,
+      requestedSettings: {
+        hostname: req.body.hostname,
+        port: req.body.port,
+        ssl: req.body.useSsl,
+        urlBase: req.body.urlBase,
+      },
+    });
+
+    return next({
+      status,
+      message: `${message} (${connectionUrl})`,
+    });
+  }
+});
+
+settingsRoutes.get('/maintainerr', (_req, res) => {
+  const settings = getSettings();
+
+  res.status(200).json(settings.maintainerr);
+});
+
+settingsRoutes.post('/maintainerr', async (req, res) => {
+  const settings = getSettings();
+
+  Object.assign(settings.maintainerr, req.body);
+  settings.save();
+
+  return res.status(200).json(settings.maintainerr);
+});
+
+settingsRoutes.post('/maintainerr/test', async (req, res, next) => {
+  const startTime = Date.now();
+
+  logger.debug('Maintainerr connection test requested', {
+    label: 'Maintainerr Connection',
+    hostname: req.body.hostname,
+    port: req.body.port,
+    useSsl: req.body.useSsl,
+    urlBase: req.body.urlBase,
+  });
+
+  try {
+    const { hostname, port, apiKey, useSsl, urlBase } = req.body;
+
+    if (!hostname || !port || !apiKey) {
+      return next({
+        status: 400,
+        message: 'Hostname, port, and API key are required',
+      });
+    }
+
+    const settings = {
+      hostname,
+      port: Number(port),
+      useSsl: useSsl || false,
+      urlBase: urlBase || '',
+      apiKey,
+    };
+
+    const connectionUrl = `${settings.useSsl ? 'https' : 'http'}://${
+      settings.hostname
+    }:${settings.port}${settings.urlBase}`;
+    logger.debug('Testing Maintainerr connection', {
+      label: 'Maintainerr Connection',
+      url: connectionUrl,
+      apiKeyLength: apiKey.length,
+    });
+
+    const maintainerrClient = new MaintainerrAPI(settings);
+    const collections = await maintainerrClient.getCollections();
+
+    if (!Array.isArray(collections)) {
+      throw new Error('Invalid response from Maintainerr API');
+    }
+
+    logger.info('Maintainerr connection test successful', {
+      label: 'Maintainerr Connection',
+      responseTime: Date.now() - startTime,
+      collectionsFound: collections.length,
+    });
+
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (e) {
+    const connectionUrl = `${req.body.useSsl ? 'https' : 'http'}://${
+      req.body.hostname
+    }:${req.body.port}${req.body.urlBase || ''}`;
+
+    let status = 500;
+    let message = 'Unable to connect to Maintainerr';
+
+    if (e.response) {
+      status = e.response.status;
+
+      if (status === 400 || status === 401 || status === 403) {
+        message = 'Invalid API key - Authentication failed';
+      } else if (status === 404) {
+        message = 'Maintainerr API not found - Check URL base and port';
+      } else {
+        message = `Maintainerr returned error: ${
+          e.response.statusText || 'Unknown error'
+        }`;
+      }
+    } else if (e.code === 'ECONNREFUSED') {
+      message = 'Connection refused - Check hostname and port';
+    } else if (e.code === 'ENOTFOUND') {
+      message = 'Host not found - Check hostname';
+    } else if (e.code === 'ETIMEDOUT') {
+      message = 'Connection timeout - Check network connectivity';
+    } else if (e.message) {
+      message = e.message;
+    }
+
+    logger.error('Maintainerr connection test failed', {
+      label: 'Maintainerr Connection',
       error: e.message,
       errorType: e.constructor?.name,
       errorCode: e.code,

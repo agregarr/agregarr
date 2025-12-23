@@ -1,3 +1,4 @@
+import type { MaintainerrCollection } from '@server/api/maintainerr';
 import type { PlexLibraryItem } from '@server/api/plexapi';
 import PlexAPI from '@server/api/plexapi';
 import type { RadarrMovie } from '@server/api/servarr/radarr';
@@ -36,6 +37,7 @@ class OverlayLibraryService {
   // Cache for Radarr/Sonarr library data (per job)
   private radarrMoviesCache?: Map<string, RadarrMovie[]>;
   private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
+  private maintainerrCollectionsCache?: MaintainerrCollection[];
 
   // Track running libraries
   private runningLibraries = new Map<
@@ -77,6 +79,7 @@ class OverlayLibraryService {
   private clearLibraryCaches() {
     this.radarrMoviesCache = new Map();
     this.sonarrSeriesCache = new Map();
+    this.maintainerrCollectionsCache = undefined;
   }
 
   /**
@@ -148,6 +151,28 @@ class OverlayLibraryService {
         templateCount: sortedTemplates.length,
         templates: sortedTemplates.map((t) => t.name),
       });
+
+      // Fetch Maintainerr collections once for the entire job
+      const settings = getSettings();
+      if (settings.maintainerr?.hostname && settings.maintainerr?.apiKey) {
+        try {
+          const MaintainerrAPI = (await import('@server/api/maintainerr'))
+            .default;
+          const maintainerrClient = new MaintainerrAPI(settings.maintainerr);
+          this.maintainerrCollectionsCache =
+            await maintainerrClient.getCollections();
+          logger.info('Fetched Maintainerr collections for overlay job', {
+            label: 'OverlayLibrary',
+            collectionsCount: this.maintainerrCollectionsCache.length,
+          });
+        } catch (error) {
+          logger.error('Failed to fetch Maintainerr collections', {
+            label: 'OverlayLibrary',
+            error: error instanceof Error ? error.message : String(error),
+          });
+          this.maintainerrCollectionsCache = [];
+        }
+      }
 
       // Get library items from Plex
       const { getAdminUser } = await import(
@@ -520,7 +545,8 @@ class OverlayLibraryService {
       const baseContext = await buildRenderContext(
         item,
         actualMediaType,
-        isPlaceholder
+        isPlaceholder,
+        this.maintainerrCollectionsCache
       );
 
       // Fetch fresh release date information for ALL items with TMDB ID

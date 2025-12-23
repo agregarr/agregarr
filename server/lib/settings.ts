@@ -425,6 +425,15 @@ export interface TautulliSettings {
   externalUrl?: string;
 }
 
+export interface MaintainerrSettings {
+  hostname?: string;
+  port?: number;
+  useSsl?: boolean;
+  urlBase?: string;
+  apiKey?: string;
+  externalUrl?: string;
+}
+
 export interface OverseerrSettings {
   hostname?: string;
   port?: number;
@@ -593,6 +602,7 @@ interface AllSettings {
   main: MainSettings;
   plex: PlexSettings;
   tautulli: TautulliSettings;
+  maintainerr: MaintainerrSettings;
   overseerr: OverseerrSettings;
   myanimelist: MyAnimeListSettings;
   serviceUser: ServiceUserSettings;
@@ -641,6 +651,7 @@ class Settings {
         usersHomeUnlocked: false,
       },
       tautulli: {},
+      maintainerr: {},
       overseerr: {},
       myanimelist: {},
       serviceUser: {
@@ -865,6 +876,14 @@ class Settings {
 
   set tautulli(data: TautulliSettings) {
     this.data.tautulli = data;
+  }
+
+  get maintainerr(): MaintainerrSettings {
+    return this.data.maintainerr;
+  }
+
+  set maintainerr(data: MaintainerrSettings) {
+    this.data.maintainerr = data;
   }
 
   get trakt(): TraktSettings {

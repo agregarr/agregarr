@@ -67,6 +67,7 @@ const NUMERIC_FIELDS = [
   'daysUntilNextSeason',
   'daysAgoNextSeason',
   'daysUntilNextEpisode',
+  'daysUntilAction',
   'seasonNumber',
   'episodeNumber',
   'width',
@@ -90,8 +91,6 @@ const BOOLEAN_FIELDS = [
   'hdr',
   'dolbyVision',
   'isImdbTop250',
-  'isTrending',
-  'isWatched',
 ];
 
 // ============================================================================

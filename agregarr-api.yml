@@ -3282,7 +3282,7 @@ components:
                           example: 'and'
                         field:
                           type: string
-                          description: 'Context field to evaluate (e.g., imdbRating, resolution, daysUntilRelease)'
+                          description: 'Context field to evaluate (e.g., imdbRating, resolution, daysUntilRelease, daysUntilAction)'
                           example: 'imdbRating'
                         operator:
                           type: string
@@ -3565,6 +3565,30 @@ components:
           type: string
           nullable: true
           example: '/tautulli'
+        apiKey:
+          type: string
+          nullable: true
+        externalUrl:
+          type: string
+          nullable: true
+    MaintainerrSettings:
+      type: object
+      properties:
+        hostname:
+          type: string
+          nullable: true
+          example: 'maintainerr.example.com'
+        port:
+          type: number
+          nullable: true
+          example: 6246
+        useSsl:
+          type: boolean
+          nullable: true
+        urlBase:
+          type: string
+          nullable: true
+          example: ''
         apiKey:
           type: string
           nullable: true
@@ -8746,6 +8770,89 @@ paths:
           description: 'Tautulli API not found at specified URL'
         '500':
           description: 'Connection test failed - Server error or network issue'
+  /settings/maintainerr:
+    get:
+      summary: Get Maintainerr settings
+      description: Retrieves current Maintainerr settings.
+      tags:
+        - settings-integrations
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintainerrSettings'
+    post:
+      summary: Update Maintainerr settings
+      description: Updates Maintainerr settings with the provided values.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintainerrSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintainerrSettings'
+  /settings/maintainerr/test:
+    post:
+      summary: Test Maintainerr connection
+      description: Tests connection to a Maintainerr instance.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hostname:
+                  type: string
+                  example: 'maintainerr.example.com'
+                port:
+                  type: number
+                  example: 6246
+                apiKey:
+                  type: string
+                  example: 'your-api-key-here'
+                useSsl:
+                  type: boolean
+                  example: false
+                urlBase:
+                  type: string
+                  example: ''
+              required:
+                - hostname
+                - apiKey
+      responses:
+        '200':
+          description: 'Connection test successful'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: 'Invalid API key - Authentication failed'
+        '401':
+          description: 'Invalid API key - Authentication failed'
+        '403':
+          description: 'API key lacks required permissions'
+        '404':
+          description: 'Maintainerr API not found at specified URL'
+        '500':
+          description: 'Connection test failed - Server error or network issue'
   /settings/trakt:
     get:
       summary: Get Trakt settings
@@ -13538,6 +13645,10 @@ paths:
                   runtime:
                     type: integer
                     example: 139
+                  daysUntilAction:
+                    type: integer
+                    example: 5
+                    description: 'Days until Maintainerr takes action on this item (negative = overdue)'
         '400':
           description: Invalid poster ID format
         '401':

@@ -374,6 +374,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
       ...AVAILABLE_VARIABLES.file,
       ...AVAILABLE_VARIABLES.playback,
       ...AVAILABLE_VARIABLES['coming-soon'],
+      ...AVAILABLE_VARIABLES.status,
     ];
 
     // Build preview from segments
@@ -1140,6 +1141,13 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                       </optgroup>
                       <optgroup label="Coming Soon">
                         {AVAILABLE_VARIABLES['coming-soon'].map((v) => (
+                          <option key={v.field} value={v.field}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Status">
+                        {AVAILABLE_VARIABLES.status.map((v) => (
                           <option key={v.field} value={v.field}>
                             {v.label}
                           </option>

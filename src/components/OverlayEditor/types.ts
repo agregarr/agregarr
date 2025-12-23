@@ -223,8 +223,9 @@ export interface OverlayRenderContext {
   inRadarr?: boolean;
   inSonarr?: boolean;
   downloaded?: boolean;
-  isTrending?: boolean;
-  isWatched?: boolean;
+
+  // Maintainerr integration
+  daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
@@ -348,8 +349,11 @@ export const AVAILABLE_VARIABLES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
-    { field: 'isTrending', label: 'Is Trending', example: 'true' },
-    { field: 'isWatched', label: 'Is Watched', example: 'true' },
+    {
+      field: 'daysUntilAction',
+      label: 'Days Until Maintainerr Action',
+      example: '5',
+    },
   ],
 };
 
@@ -452,8 +456,11 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
-    { field: 'isTrending', label: 'Is Trending', example: 'true' },
-    { field: 'isWatched', label: 'Is Watched', example: 'true' },
+    {
+      field: 'daysUntilAction',
+      label: 'Days Until Maintainerr Action',
+      example: '5',
+    },
   ],
 };
 
@@ -534,6 +541,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isMonitored: true,
     inRadarr: true,
     downloaded: false,
+    daysUntilAction: 5,
     isPlaceholder: true,
     mediaType: 'movie',
   },
@@ -578,6 +586,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isMonitored: true,
     inSonarr: true,
     downloaded: true,
+    daysUntilAction: 12,
     isPlaceholder: false,
     mediaType: 'show',
   },

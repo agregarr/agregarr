@@ -1,5 +1,6 @@
 import ImdbAPI from '@server/api/imdb';
 import ImdbRatingsAPI from '@server/api/imdbRatings';
+import type { MaintainerrCollection } from '@server/api/maintainerr';
 import type { PlexLibraryItem } from '@server/api/plexapi';
 import RottenTomatoes from '@server/api/rottentomatoes';
 import type { RadarrMovie } from '@server/api/servarr/radarr';
@@ -152,7 +153,8 @@ export async function getTvdbIdFromTmdb(
 export async function buildRenderContext(
   item: PlexLibraryItem,
   mediaType: 'movie' | 'show',
-  isPlaceholder = false
+  isPlaceholder = false,
+  maintainerrCollections?: MaintainerrCollection[]
 ): Promise<OverlayRenderContext> {
   const context: OverlayRenderContext = {
     title: item.title,
@@ -461,6 +463,67 @@ export async function buildRenderContext(
 
     if (item.index !== undefined) {
       context.episodeNumber = item.index;
+    }
+  }
+
+  // Maintainerr integration - calculate daysUntilAction
+  // Use cached collections if provided, otherwise fetch them
+  if (
+    item.ratingKey &&
+    maintainerrCollections &&
+    maintainerrCollections.length > 0
+  ) {
+    try {
+      // Find ALL collections containing this item
+      const matchingCollections: {
+        collection: MaintainerrCollection;
+        daysUntilAction: number;
+      }[] = [];
+
+      for (const collection of maintainerrCollections) {
+        const mediaItem = collection.media.find(
+          (m) => m.plexId === Number(item.ratingKey)
+        );
+
+        if (mediaItem && collection.deleteAfterDays) {
+          // Calculate days since item was added to collection
+          const addedDate = new Date(mediaItem.addDate);
+          const now = new Date();
+          const daysSinceAdded = Math.floor(
+            (now.getTime() - addedDate.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          // Calculate days until action: deleteAfterDays - daysSinceAdded
+          // Positive = days remaining, negative = overdue
+          const daysUntilAction = collection.deleteAfterDays - daysSinceAdded;
+
+          matchingCollections.push({ collection, daysUntilAction });
+        }
+      }
+
+      // If item is in multiple collections, use the one with LOWEST daysUntilAction
+      if (matchingCollections.length > 0) {
+        const selected = matchingCollections.reduce((min, curr) =>
+          curr.daysUntilAction < min.daysUntilAction ? curr : min
+        );
+
+        context.daysUntilAction = selected.daysUntilAction;
+
+        logger.debug('Calculated Maintainerr daysUntilAction', {
+          label: 'OverlayContextBuilder',
+          ratingKey: item.ratingKey,
+          title: item.title,
+          matchingCollections: matchingCollections.length,
+          selectedCollection: selected.collection.title,
+          daysUntilAction: selected.daysUntilAction,
+        });
+      }
+    } catch (error) {
+      logger.debug('Failed to calculate Maintainerr daysUntilAction', {
+        label: 'OverlayContextBuilder',
+        ratingKey: item.ratingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
