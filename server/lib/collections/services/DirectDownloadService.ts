@@ -22,8 +22,6 @@ import { missingItemFilterService } from './MissingItemFilterService';
  * Radarr/Sonarr without going through request/approval workflow
  */
 export class DirectDownloadService {
-  private radarrAPI: RadarrAPI | null = null;
-  private sonarrAPI: SonarrAPI | null = null;
   private tmdbAPI: TheMovieDb;
   private readonly SOURCE_LABELS: Record<
     | 'trakt'

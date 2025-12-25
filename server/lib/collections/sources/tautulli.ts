@@ -35,8 +35,6 @@ interface TautulliCollectionItem extends CollectionItem {
  * to the original TautulliCollectionSync class.
  */
 export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
-  private tautulliClient: TautulliAPI | null = null;
-
   constructor() {
     super('tautulli');
   }
@@ -429,14 +427,13 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
 
   // Private helper methods
 
+  /**
+   * Get Tautulli API client with current settings
+   */
   private async getTautulliClient(): Promise<TautulliAPI> {
-    if (this.tautulliClient) {
-      return this.tautulliClient;
-    }
-
     const settings = getSettings();
-    this.tautulliClient = new TautulliAPI(settings.tautulli);
-    return this.tautulliClient;
+    // Create fresh client with current settings
+    return new TautulliAPI(settings.tautulli);
   }
 
   private isValidTautulliConfig(config: CollectionConfig): boolean {

@@ -295,7 +295,7 @@ class TheMovieDb extends ExternalAPI {
             include_video_language: language + ', en',
           },
         },
-        43200
+        1800 // 30 minutes cache - next_episode_to_air changes frequently when shows are airing
       );
 
       return data;

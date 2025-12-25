@@ -25,7 +25,6 @@ import { syncCacheService } from './SyncCacheService';
  */
 export class AutoRequestService {
   private serviceUserManager: ServiceUserManager;
-  private overseerrAPI: OverseerrAPI | null = null;
   private missingItemRepository = getRepository(MissingItemRequest);
   private tmdbAPI: TheMovieDb;
 
@@ -35,20 +34,18 @@ export class AutoRequestService {
   }
 
   /**
-   * Get or initialize Overseerr API client
+   * Get Overseerr API client with current settings
    */
   private getOverseerrAPI(): OverseerrAPI {
-    if (!this.overseerrAPI) {
-      const settings = getSettings();
-      const overseerrSettings = settings.overseerr;
+    const settings = getSettings();
+    const overseerrSettings = settings.overseerr;
 
-      if (!overseerrSettings?.hostname || !overseerrSettings?.apiKey) {
-        throw new Error('Overseerr API settings not configured');
-      }
-
-      this.overseerrAPI = new OverseerrAPI(overseerrSettings);
+    if (!overseerrSettings?.hostname || !overseerrSettings?.apiKey) {
+      throw new Error('Overseerr API settings not configured');
     }
-    return this.overseerrAPI;
+
+    // Create fresh client with current settings
+    return new OverseerrAPI(overseerrSettings);
   }
 
   /**
