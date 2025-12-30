@@ -517,6 +517,91 @@ export const PRESET_TEMPLATES: {
     },
   },
 
+  // HDR10
+  {
+    name: 'HDR10',
+    description: 'Shows HDR10 logo for HDR content without Dolby Vision',
+    type: 'technical',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'hdr', operator: 'eq', value: true }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'hdr-logo',
+          layerOrder: 0,
+          type: 'svg',
+          x: 0,
+          y: 310.50617627005715,
+          width: 163,
+          height: 77,
+          properties: {
+            iconType: 'custom-icon',
+            iconPath: '/api/v1/posters/icons/system/hdr.svg',
+            opacity: 100,
+            grayscale: false,
+          },
+        },
+      ],
+    },
+  },
+
+  // Dolby Vision
+  {
+    name: 'Dolby Vision',
+    description: 'Shows Dolby Vision logo for any DoVi profile',
+    type: 'technical',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'dolbyVision', operator: 'eq', value: true }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'dovi-background',
+          layerOrder: 0,
+          type: 'tile',
+          x: -5.5246784801583,
+          y: 390.50433315836005,
+          width: 169,
+          height: 85,
+          properties: {
+            fillColor: '#BCB8B8',
+            fillOpacity: 40,
+            borderColor: '#FFFFFF',
+            borderWidth: 0,
+            lockCorners: true,
+            borderRadiusTopLeft: 10,
+          },
+        },
+        {
+          id: 'dovi-logo',
+          layerOrder: 1,
+          type: 'raster',
+          x: 5.9753215198417,
+          y: 384.50433315836005,
+          width: 146,
+          height: 97,
+          properties: {
+            imagePath: '/api/v1/posters/icons/system/dolbyVision.png',
+            opacity: 100,
+          },
+        },
+      ],
+    },
+  },
+
   // ========================================
   // BOTTOM BANNERS - Countdown/Date/Status for placeholders
   // ========================================

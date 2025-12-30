@@ -180,6 +180,8 @@ export interface OverlayRenderContext {
   bitDepth?: number; // 8, 10, 12
   hdr?: boolean; // HDR10/HDR10+
   dolbyVision?: boolean; // Dolby Vision
+  dolbyVisionProfile?: number; // Dolby Vision Profile (5, 7, 8, etc.)
+  colorTrc?: string; // Color transfer characteristic (e.g., 'smpte2084' for HDR10, 'arib' for HLG)
 
   // Audio specs
   audioCodec?: string; // 'truehd', 'dts', 'aac'
@@ -276,6 +278,16 @@ export const AVAILABLE_VARIABLES = {
     { field: 'bitDepth', label: 'Bit Depth', example: '10' },
     { field: 'hdr', label: 'HDR', example: 'true' },
     { field: 'dolbyVision', label: 'Dolby Vision', example: 'true' },
+    {
+      field: 'dolbyVisionProfile',
+      label: 'Dolby Vision Profile',
+      example: '7',
+    },
+    {
+      field: 'colorTrc',
+      label: 'Color Transfer',
+      example: 'smpte2084',
+    },
   ],
   audio: [
     {
@@ -387,6 +399,16 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'bitDepth', label: 'Bit Depth', example: '10' },
     { field: 'hdr', label: 'HDR', example: 'true' },
     { field: 'dolbyVision', label: 'Dolby Vision', example: 'true' },
+    {
+      field: 'dolbyVisionProfile',
+      label: 'Dolby Vision Profile',
+      example: '7',
+    },
+    {
+      field: 'colorTrc',
+      label: 'Color Transfer',
+      example: 'smpte2084',
+    },
     {
       field: 'audioFormat',
       label: 'Audio Format',
@@ -527,6 +549,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitDepth: 10,
     hdr: true,
     dolbyVision: true,
+    dolbyVisionProfile: 7,
+    colorTrc: 'smpte2084',
     audioFormat: 'English (Dolby TrueHD Atmos 7.1)',
     audioCodec: 'truehd',
     audioChannels: 8,

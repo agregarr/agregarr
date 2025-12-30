@@ -298,6 +298,8 @@ export interface OverlayRenderContext {
   bitDepth?: number; // 8, 10, 12
   hdr?: boolean; // HDR10/HDR10+
   dolbyVision?: boolean; // Dolby Vision
+  dolbyVisionProfile?: number; // Dolby Vision Profile (5, 7, 8, etc.)
+  colorTrc?: string; // Color transfer characteristic (e.g., 'smpte2084' for HDR10, 'arib' for HLG)
 
   // Audio specs
   audioCodec?: string; // 'truehd', 'dts', 'aac'
@@ -751,7 +753,11 @@ class OverlayTemplateRendererService {
           d="${path}"
           fill="${props.fillColor}"
           fill-opacity="${props.fillOpacity / 100}"
-          ${props.borderColor ? `stroke="${props.borderColor}"` : ''}
+          ${
+            borderWidth > 0 && props.borderColor
+              ? `stroke="${props.borderColor}"`
+              : ''
+          }
           ${borderWidth > 0 ? `stroke-width="${borderWidth}"` : ''}
         />
       </svg>

@@ -88,6 +88,13 @@ interface PlexStream {
 
   // Video stream fields
   DOVIPresent?: boolean;
+  DOVIProfile?: number; // Dolby Vision profile (5, 7, 8, etc.)
+  DOVILevel?: number;
+  DOVIVersion?: string;
+  DOVIBLPresent?: boolean;
+  DOVIELPresent?: boolean;
+  DOVIRPUPresent?: boolean;
+  DOVIBLCompatID?: number;
   height?: number;
   width?: number;
   colorPrimaries?: string;

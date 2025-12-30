@@ -405,11 +405,23 @@ export async function buildRenderContext(
       if (videoStream) {
         // HDR/Dolby Vision detection
         context.dolbyVision = videoStream.DOVIPresent || false;
+
+        // Dolby Vision Profile (5, 7, 8, etc.)
+        if (videoStream.DOVIProfile !== undefined) {
+          context.dolbyVisionProfile = videoStream.DOVIProfile;
+        }
+
         // Check for HDR in color transfer characteristic
         context.hdr =
           videoStream.colorTrc?.toLowerCase().includes('smpte2084') ||
           videoStream.colorTrc?.toLowerCase().includes('arib') ||
           false;
+
+        // Color transfer characteristic (for distinguishing HDR10 vs HLG, etc.)
+        if (videoStream.colorTrc) {
+          context.colorTrc = videoStream.colorTrc;
+        }
+
         // Parse bitDepth as number (Plex returns it as string)
         if (videoStream.bitDepth) {
           context.bitDepth = parseInt(String(videoStream.bitDepth), 10);
