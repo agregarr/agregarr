@@ -1,3 +1,5 @@
+import { getRepository } from '@server/datasource';
+import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import { defaultHubConfigService } from '@server/lib/collections/services/DefaultHubConfigService';
 import { preExistingCollectionConfigService } from '@server/lib/collections/services/PreExistingCollectionConfigService';
 import logger from '@server/logger';
@@ -2115,9 +2117,40 @@ export const getSettings = (initialSettings?: AllSettings): Settings => {
 
 /**
  * Get the configured TMDB language for API calls
- * Returns 'en' (English) as default if not configured
+ *
+ * Fallback chain:
+ * 1. Library-specific override (if libraryId provided)
+ * 2. Global setting (settings.main.tmdbLanguage)
+ * 3. Default 'en'
+ *
+ * @param libraryId - Optional Plex library ID for per-library override
+ * @returns ISO language code (e.g., 'en', 'fr', 'pt-BR')
  */
-export const getTmdbLanguage = (): string => {
+export const getTmdbLanguage = async (libraryId?: string): Promise<string> => {
+  // Step 1: Check for library-specific override
+  if (libraryId) {
+    try {
+      const overlayConfigRepo = getRepository(OverlayLibraryConfig);
+      const libraryConfig = await overlayConfigRepo.findOne({
+        where: { libraryId },
+      });
+
+      if (libraryConfig?.tmdbLanguage) {
+        return libraryConfig.tmdbLanguage;
+      }
+    } catch (error) {
+      logger.debug(
+        'Failed to fetch library TMDB language config, using global fallback',
+        {
+          label: 'Settings',
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
+  }
+
+  // Step 2: Fall back to global setting
   const settings = getSettings();
   return settings.main.tmdbLanguage || 'en';
 };

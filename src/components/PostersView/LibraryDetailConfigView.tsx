@@ -1,6 +1,7 @@
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import { AVAILABLE_VARIABLES } from '@app/components/OverlayEditor/types';
+import { TMDB_LANGUAGES } from '@app/utils/tmdbConstants';
 import type { DragEndEvent } from '@dnd-kit/core';
 import {
   closestCenter,
@@ -196,6 +197,7 @@ interface LibraryConfig {
   libraryName: string;
   mediaType: 'movie' | 'show';
   enabledOverlays: EnabledOverlay[];
+  tmdbLanguage?: string;
 }
 
 interface LibraryDetailConfigViewProps {
@@ -337,6 +339,9 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
   const intl = useIntl();
   const [saving, setSaving] = useState(false);
   const [enabledOverlays, setEnabledOverlays] = useState<EnabledOverlay[]>([]);
+  const [tmdbLanguage, setTmdbLanguage] = useState<string | undefined>(
+    undefined
+  );
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const previewDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -380,10 +385,17 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
     isOpen ? `/api/v1/overlay-library-configs/${libraryId}` : null
   );
 
-  // Initialize enabled overlays from config
+  const { data: overlaySettings } = useSWR<{
+    defaultPosterSource: 'tmdb' | 'plex' | 'local';
+  }>(isOpen ? '/api/v1/overlay-settings' : null);
+
+  // Initialize enabled overlays and language from config
   useEffect(() => {
     if (configData?.enabledOverlays) {
       setEnabledOverlays(configData.enabledOverlays);
+    }
+    if (configData?.tmdbLanguage !== undefined) {
+      setTmdbLanguage(configData.tmdbLanguage);
     }
   }, [configData]);
 
@@ -573,6 +585,7 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
             libraryName,
             mediaType: configData?.mediaType || libraryType,
             enabledOverlays,
+            tmdbLanguage: tmdbLanguage || undefined,
           }),
         }
       );
@@ -609,78 +622,110 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
           <LoadingSpinner />
         </div>
       ) : (
-        <div className="flex h-[600px] gap-8">
-          {/* Large Preview Panel - Main Focus */}
-          <div className="flex flex-shrink-0 flex-col">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Preview</h3>
-              {previewUrl && !previewLoading && (
-                <button
-                  onClick={handleCyclePoster}
-                  className="flex items-center gap-1.5 rounded-md bg-stone-700 px-2.5 py-1.5 text-xs text-stone-300 transition-colors hover:bg-stone-600"
-                  title="Cycle poster"
-                >
-                  <ArrowPathIcon className="h-3.5 w-3.5" />
-                  Cycle
-                </button>
-              )}
+        <>
+          <div className="flex h-[600px] gap-8">
+            {/* Large Preview Panel - Main Focus */}
+            <div className="flex flex-shrink-0 flex-col">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">Preview</h3>
+                {previewUrl && !previewLoading && (
+                  <button
+                    onClick={handleCyclePoster}
+                    className="flex items-center gap-1.5 rounded-md bg-stone-700 px-2.5 py-1.5 text-xs text-stone-300 transition-colors hover:bg-stone-600"
+                    title="Cycle poster"
+                  >
+                    <ArrowPathIcon className="h-3.5 w-3.5" />
+                    Cycle
+                  </button>
+                )}
+              </div>
+              <div className="relative aspect-[2/3] h-[540px] overflow-hidden rounded-lg bg-stone-900">
+                {previewLoading && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-black bg-opacity-50">
+                    <LoadingSpinner />
+                  </div>
+                )}
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt="Combined overlay preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-center text-sm text-stone-500">
+                    <span>Select overlays to see preview</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="relative aspect-[2/3] h-[540px] overflow-hidden rounded-lg bg-stone-900">
-              {previewLoading && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black bg-opacity-50">
-                  <LoadingSpinner />
-                </div>
-              )}
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Combined overlay preview"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-center text-sm text-stone-500">
-                  <span>Select overlays to see preview</span>
-                </div>
-              )}
+
+            {/* Overlay Selection - Drag & Drop Scrollable List */}
+            <div className="min-w-0 flex-1 overflow-y-auto pr-2">
+              <div className="mb-3 text-xs text-stone-400">
+                Drag to reorder • Top overlays render on top of bottom overlays
+              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={sortedTemplates.map((t) => t.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-2">
+                    {sortedTemplates.map((template) => {
+                      const forced = template.name.startsWith('Coming Soon:');
+                      return (
+                        <SortableTemplateItem
+                          key={template.id}
+                          template={template}
+                          enabled={isEnabled(template.id)}
+                          isHidden={hiddenFromPreview.has(template.id)}
+                          forced={forced}
+                          onToggle={() => handleToggle(template.id)}
+                          onTogglePreview={() =>
+                            togglePreviewVisibility(template.id)
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
           </div>
 
-          {/* Overlay Selection - Drag & Drop Scrollable List */}
-          <div className="min-w-0 flex-1 overflow-y-auto pr-2">
-            <div className="mb-3 text-xs text-stone-400">
-              Drag to reorder • Top overlays render on top of bottom overlays
+          {/* TMDB Language Setting - Footer Area - Only show if TMDB is the poster source */}
+          {overlaySettings?.defaultPosterSource === 'tmdb' && (
+            <div className="mt-4 border-t border-stone-700 pt-4">
+              <div className="flex items-center gap-4">
+                <label
+                  htmlFor="tmdbLanguage"
+                  className="text-sm font-medium text-white"
+                >
+                  TMDB Poster Language:
+                </label>
+                <select
+                  id="tmdbLanguage"
+                  value={tmdbLanguage || ''}
+                  onChange={(e) => setTmdbLanguage(e.target.value || undefined)}
+                  className="rounded-md border-stone-600 bg-stone-700 px-3 py-1.5 text-sm text-white"
+                >
+                  <option value="">Use global setting</option>
+                  {TMDB_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-stone-400">
+                  Language for fetching poster metadata from TMDB
+                </span>
+              </div>
             </div>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={sortedTemplates.map((t) => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {sortedTemplates.map((template) => {
-                    const forced = template.name.startsWith('Coming Soon:');
-                    return (
-                      <SortableTemplateItem
-                        key={template.id}
-                        template={template}
-                        enabled={isEnabled(template.id)}
-                        isHidden={hiddenFromPreview.has(template.id)}
-                        forced={forced}
-                        onToggle={() => handleToggle(template.id)}
-                        onTogglePreview={() =>
-                          togglePreviewVisibility(template.id)
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </Modal>
   );

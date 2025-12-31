@@ -3368,6 +3368,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
           mediaType,
           items: posterItems,
           autoPosterTemplate: config.autoPosterTemplate,
+          libraryId: config.libraryId,
           ...(options?.dynamicLogo && { dynamicLogo: options.dynamicLogo }),
           ...(options?.personImageUrl && {
             personImageUrl: options.personImageUrl,

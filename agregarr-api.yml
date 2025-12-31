@@ -3411,6 +3411,11 @@ components:
                     type: number
                     description: 'For rating badges - minimum rating to display'
                     example: 7.0
+        tmdbLanguage:
+          type: string
+          nullable: true
+          description: 'ISO language code for TMDB poster metadata (e.g., en, fr, pt-BR). If not set, uses global setting.'
+          example: 'en'
         createdAt:
           type: string
           format: date-time
@@ -13754,6 +13759,11 @@ paths:
                           minimumRating:
                             type: number
                             description: For rating badges - minimum rating to display
+                tmdbLanguage:
+                  type: string
+                  nullable: true
+                  description: ISO language code for TMDB poster metadata (e.g., en, fr, pt-BR). If not set, uses global setting.
+                  example: 'en'
               required:
                 - libraryName
                 - mediaType

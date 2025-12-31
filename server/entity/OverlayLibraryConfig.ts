@@ -39,6 +39,9 @@ export class OverlayLibraryConfig {
   @Column({ type: 'simple-json' })
   public enabledOverlays: EnabledOverlay[];
 
+  @Column({ type: 'varchar', nullable: true })
+  public tmdbLanguage?: string; // ISO language code for TMDB poster metadata (e.g., 'en', 'fr', 'pt-BR')
+
   @CreateDateColumn()
   public createdAt: Date;
 

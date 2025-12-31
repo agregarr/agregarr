@@ -47,7 +47,9 @@ async function fetchPreviewPosterMetadata(
   rtCriticsScore?: number;
   rtAudienceScore?: number;
 }> {
-  const tmdbClient = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdbClient = new TheMovieDb({
+    originalLanguage: await getTmdbLanguage(),
+  });
   let title = 'Sample Title';
   let year: number | undefined;
   let imdbId: string | undefined;
@@ -219,7 +221,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
     const tmdbId = parseInt(tmdbIdStr);
     const isMovie = type === 'movie';
 
-    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+    const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
     let metadata: PreviewPosterMetadata;
 

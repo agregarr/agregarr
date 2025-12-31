@@ -92,6 +92,7 @@ export interface PosterGenerationConfig {
   templateData?: PosterTemplateData; // Template data for customized colors and layout
   dynamicLogo?: string; // Path to dynamic logo file
   personImageUrl?: string; // Dynamic person image (e.g., director portrait)
+  libraryId?: string; // Library ID for per-library TMDB language setting
 }
 
 export interface CollectionItemWithPoster {
@@ -186,9 +187,10 @@ async function getColorScheme(
  * Fetch poster URLs from TMDB for collection items
  */
 async function fetchTMDbPosterUrls(
-  items: CollectionItemWithPoster[]
+  items: CollectionItemWithPoster[],
+  libraryId?: string
 ): Promise<CollectionItemWithPoster[]> {
-  const language = getTmdbLanguage();
+  const language = await getTmdbLanguage(libraryId);
   const tmdb = new TheMovieDb({ originalLanguage: language });
   const itemsWithPosters: CollectionItemWithPoster[] = [];
 
@@ -1751,7 +1753,10 @@ export async function generatePosterSVG(
         }
       }
 
-      itemsWithPosters = await fetchTMDbPosterUrls(items.slice(0, maxItems));
+      itemsWithPosters = await fetchTMDbPosterUrls(
+        items.slice(0, maxItems),
+        config.libraryId
+      );
 
       // Download and convert images to base64 for embedding
       for (const item of itemsWithPosters) {

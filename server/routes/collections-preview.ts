@@ -688,7 +688,7 @@ async function processMultiSourcePreview(
     imdbId?: string;
     tmdbRating?: number;
   }> => {
-    const language = getTmdbLanguage();
+    const language = await getTmdbLanguage(libraryId);
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -1237,7 +1237,7 @@ async function processPreviewAsync(
       imdbId?: string;
       tmdbRating?: number;
     }> => {
-      const language = getTmdbLanguage();
+      const language = await getTmdbLanguage(requestBody.libraryId);
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {

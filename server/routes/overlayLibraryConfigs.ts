@@ -113,7 +113,7 @@ router.post('/:libraryId', async (req, res, next) => {
     }
 
     const { libraryId } = req.params;
-    const { libraryName, mediaType, enabledOverlays } = req.body;
+    const { libraryName, mediaType, enabledOverlays, tmdbLanguage } = req.body;
 
     if (!libraryName || !mediaType) {
       return res.status(400).json({
@@ -144,6 +144,7 @@ router.post('/:libraryId', async (req, res, next) => {
       config.libraryName = libraryName;
       config.mediaType = mediaType;
       config.enabledOverlays = enabledOverlays;
+      config.tmdbLanguage = tmdbLanguage || undefined;
     } else {
       // Create new
       config = new OverlayLibraryConfig({
@@ -151,6 +152,7 @@ router.post('/:libraryId', async (req, res, next) => {
         libraryName,
         mediaType,
         enabledOverlays,
+        tmdbLanguage: tmdbLanguage || undefined,
       });
     }
 

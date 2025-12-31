@@ -14,6 +14,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
 // UserSettingsGeneralResponse removed - user settings functionality simplified
+import { TMDB_LANGUAGES } from '@app/utils/tmdbConstants';
 import type { MainSettings } from '@server/lib/settings';
 import axios from 'axios';
 import { Field, Form, Formik } from 'formik';
@@ -22,27 +23,6 @@ import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR, { mutate } from 'swr';
 import * as Yup from 'yup';
-
-// Curated list of common TMDB languages
-const TMDB_LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish (Español)' },
-  { code: 'fr', name: 'French (Français)' },
-  { code: 'de', name: 'German (Deutsch)' },
-  { code: 'it', name: 'Italian (Italiano)' },
-  { code: 'pt-BR', name: 'Portuguese - Brazil (Português)' },
-  { code: 'ja', name: 'Japanese (日本語)' },
-  { code: 'ko', name: 'Korean (한국어)' },
-  { code: 'zh-CN', name: 'Chinese Simplified (简体中文)' },
-  { code: 'zh-TW', name: 'Chinese Traditional (繁體中文)' },
-  { code: 'ru', name: 'Russian (Русский)' },
-  { code: 'nl', name: 'Dutch (Nederlands)' },
-  { code: 'pl', name: 'Polish (Polski)' },
-  { code: 'sv', name: 'Swedish (Svenska)' },
-  { code: 'no', name: 'Norwegian (Norsk)' },
-  { code: 'da', name: 'Danish (Dansk)' },
-  { code: 'fi', name: 'Finnish (Suomi)' },
-];
 
 const messages = defineMessages({
   general: 'General',

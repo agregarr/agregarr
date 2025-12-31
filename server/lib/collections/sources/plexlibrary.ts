@@ -150,7 +150,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
     personInfo?: PersonTmdbInfo
   ): Promise<boolean> {
     try {
-      const info = personInfo ?? (await this.fetchTmdbPersonInfo(personName));
+      const info =
+        personInfo ?? (await this.fetchTmdbPersonInfo(personName, undefined));
       const biography = info?.biography;
       const personLabel = this.getPersonTypeLabel(subtype);
 
@@ -359,16 +360,18 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
   }
 
   private async fetchTmdbPersonInfo(
-    personName: string
+    personName: string,
+    libraryId?: string
   ): Promise<PersonTmdbInfo | null> {
     try {
+      const language = await getTmdbLanguage(libraryId);
       const tmdbClient = new TheMovieDb({
-        originalLanguage: getTmdbLanguage(),
+        originalLanguage: language,
       });
 
       const searchResults = await tmdbClient.searchMulti({
         query: personName,
-        language: getTmdbLanguage(),
+        language,
       });
 
       const results = (searchResults.results ?? []) as TmdbSearchResult[];
@@ -395,7 +398,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
 
       const personDetails = await tmdbClient.getPerson({
         personId,
-        language: getTmdbLanguage(),
+        language,
       });
 
       return {
@@ -877,7 +880,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
             mediaType
           );
           const personInfo =
-            (await this.fetchTmdbPersonInfo(person.name)) ?? undefined;
+            (await this.fetchTmdbPersonInfo(person.name, config.libraryId)) ??
+            undefined;
           const labelSuffix =
             personInfo?.tmdbPersonId?.toString() ??
             this.sanitizePersonNameForLabel(person.name);
