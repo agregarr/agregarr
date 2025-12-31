@@ -1688,6 +1688,7 @@ const CollectionFormConfigForm = ({
             <>
               <Modal
                 onCancel={onCancel}
+                backgroundClickable={false}
                 okButtonType="primary"
                 okText={
                   isSubmitting
