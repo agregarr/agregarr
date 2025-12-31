@@ -303,6 +303,7 @@ const CollectionSettings = ({
           placeholderDaysAhead: config.placeholderDaysAhead,
           placeholderReleasedDays: config.placeholderReleasedDays,
           tautulliStatType: config.tautulliStatType,
+          minimumPlays: config.minimumPlays,
           searchMissingMovies: config.searchMissingMovies,
           searchMissingTV: config.searchMissingTV,
           autoApproveMovies: config.autoApproveMovies,

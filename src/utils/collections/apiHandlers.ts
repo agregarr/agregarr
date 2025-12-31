@@ -178,6 +178,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.tautulliStatType && {
           tautulliStatType: collectionConfig.tautulliStatType,
         }),
+        ...(collectionConfig.minimumPlays !== undefined && {
+          minimumPlays: collectionConfig.minimumPlays,
+        }),
         ...(collectionConfig.downloadMode && {
           downloadMode: collectionConfig.downloadMode,
         }),
