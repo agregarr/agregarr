@@ -1,6 +1,7 @@
 import logger from '@server/logger';
 import { exec } from 'child_process';
 import { Router } from 'express';
+import path from 'path';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
@@ -48,8 +49,8 @@ fontsRoutes.get('/', async (req, res) => {
           continue;
         }
 
-        // Only include TTF fonts for web serving
-        if (filePath.endsWith('.ttf')) {
+        // Include both TTF and OTF fonts for web serving
+        if (filePath.endsWith('.ttf') || filePath.endsWith('.otf')) {
           // Prioritize system fonts over local fonts for unified behavior
           if (
             !fontMap.has(family) ||
@@ -62,18 +63,30 @@ fontsRoutes.get('/', async (req, res) => {
     }
 
     // Convert to final format with exact CSS values and font URLs
+    const configFontsPath = path.join(process.cwd(), 'config', 'fonts');
     const fonts: FontInfo[] = [];
+
     for (const [family, filePath] of fontMap) {
-      // Only include fonts from /usr/share/fonts/ for unified Docker/local behavior
-      if (!filePath.startsWith('/usr/share/fonts/')) {
+      // Include fonts from system directory OR custom directory
+      if (
+        !filePath.startsWith('/usr/share/fonts/') &&
+        !filePath.startsWith(configFontsPath)
+      ) {
         continue;
       }
 
       // Store clean font name - quotes will be added during CSS/SVG generation when needed
       const cssValue = family;
 
-      // Convert system path to web URL
-      const fontUrl = filePath.replace('/usr/share/fonts/', '/fonts/');
+      // Convert path to web URL
+      let fontUrl: string;
+      if (filePath.startsWith('/usr/share/fonts/')) {
+        fontUrl = filePath.replace('/usr/share/fonts/', '/fonts/');
+      } else if (filePath.startsWith(configFontsPath)) {
+        fontUrl = filePath.replace(configFontsPath, '/custom-fonts');
+      } else {
+        continue;
+      }
 
       fonts.push({
         family,

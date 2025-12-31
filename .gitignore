@@ -47,13 +47,14 @@ config/posters/*.*
 config/temp/*.*
 config/plex-base-posters/**
 
-
-
 # wallpaper storage
 config/wallpapers/*.*
 
 # theme music storage
 config/themes/*.*
+
+# fonts storage
+config/fonts/*.*
 
 # logs
 config/logs/*.log*

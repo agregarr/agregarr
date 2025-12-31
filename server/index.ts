@@ -24,6 +24,7 @@ import express from 'express';
 import * as OpenApiValidator from 'express-openapi-validator';
 import type { Store } from 'express-session';
 import session from 'express-session';
+import fs from 'fs';
 import next from 'next';
 import path from 'path';
 import swaggerUi from 'swagger-ui-express';
@@ -155,6 +156,17 @@ app
       logger.info('Icon storage initialized successfully');
     } catch (error) {
       logger.error('Failed to initialize icon storage:', error);
+    }
+
+    // Initialize fonts directory for custom fonts
+    try {
+      const fontsDir = path.join(process.cwd(), 'config', 'fonts');
+      if (!fs.existsSync(fontsDir)) {
+        fs.mkdirSync(fontsDir, { recursive: true });
+        logger.info('Created fonts directory successfully');
+      }
+    } catch (error) {
+      logger.error('Failed to initialize fonts directory:', error);
     }
 
     // Initialize base poster storage directory
@@ -512,6 +524,22 @@ app
             res.setHeader('Content-Type', 'font/woff');
           } else if (path.endsWith('.woff2')) {
             res.setHeader('Content-Type', 'font/woff2');
+          }
+          res.setHeader('Access-Control-Allow-Origin', '*');
+        },
+      })
+    );
+
+    // Serve custom fonts
+    const customFontsPath = path.join(process.cwd(), 'config', 'fonts');
+    server.use(
+      '/custom-fonts',
+      express.static(customFontsPath, {
+        setHeaders: (res, path) => {
+          if (path.endsWith('.ttf')) {
+            res.setHeader('Content-Type', 'font/ttf');
+          } else if (path.endsWith('.otf')) {
+            res.setHeader('Content-Type', 'font/otf');
           }
           res.setHeader('Access-Control-Allow-Origin', '*');
         },
