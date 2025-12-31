@@ -1140,6 +1140,9 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).minimumImdbRating || 0,
           minimumRottenTomatoesRating:
             (config as CollectionFormConfig).minimumRottenTomatoesRating || 0,
+          minimumRottenTomatoesAudienceRating:
+            (config as CollectionFormConfig)
+              .minimumRottenTomatoesAudienceRating || 0,
           excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
           excludedCountries:
             (config as CollectionFormConfig).excludedCountries || [],
@@ -1591,6 +1594,13 @@ const CollectionFormConfigForm = ({
             minimumRottenTomatoesRating: values.enableGrabMissingItems
               ? values.minimumRottenTomatoesRating
                 ? parseFloat(values.minimumRottenTomatoesRating.toString())
+                : 0
+              : undefined,
+            minimumRottenTomatoesAudienceRating: values.enableGrabMissingItems
+              ? values.minimumRottenTomatoesAudienceRating
+                ? parseFloat(
+                    values.minimumRottenTomatoesAudienceRating.toString()
+                  )
                 : 0
               : undefined,
             // Unified person minimum items mapped to person collections

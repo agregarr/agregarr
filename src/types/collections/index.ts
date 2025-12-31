@@ -276,6 +276,7 @@ export interface CollectionFormConfig {
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
   readonly minimumRottenTomatoesRating?: number; // Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)
+  readonly minimumRottenTomatoesAudienceRating?: number; // Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)
   readonly excludedGenres?: number[]; // @deprecated Use filterSettings.genres - Exclude items with these TMDB genre IDs from missing items search
   readonly excludedCountries?: string[]; // @deprecated Use filterSettings.countries - Exclude items with these ISO 3166-1 country codes from missing items search
   readonly excludedLanguages?: string[]; // @deprecated Use filterSettings.languages - Exclude items with these ISO 639-1 language codes from missing items search
@@ -454,6 +455,7 @@ export interface CollectionConfigCreateRequest {
   readonly minimumYear?: number;
   readonly minimumImdbRating?: number;
   readonly minimumRottenTomatoesRating?: number;
+  readonly minimumRottenTomatoesAudienceRating?: number;
   readonly excludedGenres?: number[];
   readonly excludedCountries?: string[];
   readonly excludedLanguages?: string[];
@@ -595,6 +597,8 @@ export const toCollectionCreateRequest = (
     minimumYear: config.minimumYear,
     minimumImdbRating: config.minimumImdbRating,
     minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
+    minimumRottenTomatoesAudienceRating:
+      config.minimumRottenTomatoesAudienceRating,
     excludedGenres: config.excludedGenres,
     excludedCountries: config.excludedCountries,
     excludedLanguages: config.excludedLanguages,

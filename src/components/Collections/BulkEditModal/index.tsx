@@ -58,6 +58,7 @@ const messages = defineMessages({
   minimumYear: 'Minimum Year',
   minimumImdbRating: 'Minimum IMDb Rating',
   minimumRottenTomatoesRating: 'Minimum RT Rating',
+  minimumRottenTomatoesAudienceRating: 'Minimum RT Audience Rating',
   showUnwatchedOnly: 'Unwatched Only',
   createPlaceholders: 'Create Placeholders',
   editValues: 'Edit Selected',
@@ -104,6 +105,7 @@ type UnifiedCollection = {
   minimumYear?: number;
   minimumImdbRating?: number;
   minimumRottenTomatoesRating?: number;
+  minimumRottenTomatoesAudienceRating?: number;
   showUnwatchedOnly?: boolean;
   createPlaceholdersForMissing?: boolean;
   // Original config for saving
@@ -154,6 +156,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
     minimumYear?: number | '';
     minimumImdbRating?: number | '';
     minimumRottenTomatoesRating?: number | '';
+    minimumRottenTomatoesAudienceRating?: number | '';
     showUnwatchedOnly?: boolean;
     createPlaceholdersForMissing?: boolean;
   }>({});
@@ -190,6 +193,8 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
         minimumYear: config.minimumYear,
         minimumImdbRating: config.minimumImdbRating,
         minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
+        minimumRottenTomatoesAudienceRating:
+          config.minimumRottenTomatoesAudienceRating,
         showUnwatchedOnly: config.showUnwatchedOnly,
         createPlaceholdersForMissing: config.createPlaceholdersForMissing,
         originalConfig: config,
@@ -343,6 +348,11 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
             (a.minimumRottenTomatoesRating || 0) -
             (b.minimumRottenTomatoesRating || 0);
           break;
+        case 'minimumRottenTomatoesAudienceRating':
+          comparison =
+            (a.minimumRottenTomatoesAudienceRating || 0) -
+            (b.minimumRottenTomatoesAudienceRating || 0);
+          break;
         case 'showUnwatchedOnly':
           comparison =
             (a.showUnwatchedOnly ? 1 : 0) - (b.showUnwatchedOnly ? 1 : 0);
@@ -446,6 +456,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
       'minimumYear',
       'minimumImdbRating',
       'minimumRottenTomatoesRating',
+      'minimumRottenTomatoesAudienceRating',
       'showUnwatchedOnly',
       'createPlaceholdersForMissing',
     ];
@@ -630,6 +641,19 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
             editValues.minimumRottenTomatoesRating === ''
               ? undefined
               : editValues.minimumRottenTomatoesRating;
+        }
+
+        if (
+          editValues.minimumRottenTomatoesAudienceRating !== undefined &&
+          isFieldApplicable(
+            'minimumRottenTomatoesAudienceRating',
+            collection.type
+          )
+        ) {
+          updatedFields.minimumRottenTomatoesAudienceRating =
+            editValues.minimumRottenTomatoesAudienceRating === ''
+              ? undefined
+              : editValues.minimumRottenTomatoesAudienceRating;
         }
 
         if (
@@ -960,6 +984,17 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                   {renderSortIndicator('minimumRottenTomatoesRating')}
                 </th>
                 <th
+                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  onClick={() =>
+                    handleColumnSort('minimumRottenTomatoesAudienceRating')
+                  }
+                >
+                  {intl.formatMessage(
+                    messages.minimumRottenTomatoesAudienceRating
+                  )}
+                  {renderSortIndicator('minimumRottenTomatoesAudienceRating')}
+                </th>
+                <th
                   className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('showUnwatchedOnly')}
                 >
@@ -1275,6 +1310,18 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         }`}
                       >
                         {collection.minimumRottenTomatoesRating || '-'}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-center text-sm ${
+                          !isFieldApplicable(
+                            'minimumRottenTomatoesAudienceRating',
+                            collection.type
+                          )
+                            ? 'text-gray-600 opacity-30'
+                            : 'text-gray-300'
+                        }`}
+                      >
+                        {collection.minimumRottenTomatoesAudienceRating || '-'}
                       </td>
                       <td
                         className={`px-3 py-2 text-center ${
@@ -1722,6 +1769,27 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                           setEditValues({
                             ...editValues,
                             minimumRottenTomatoesRating:
+                              e.target.value === ''
+                                ? ''
+                                : Number(e.target.value),
+                          })
+                        }
+                        placeholder="-"
+                        className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
+                        min={0}
+                        max={100}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        value={
+                          editValues.minimumRottenTomatoesAudienceRating || ''
+                        }
+                        onChange={(e) =>
+                          setEditValues({
+                            ...editValues,
+                            minimumRottenTomatoesAudienceRating:
                               e.target.value === ''
                                 ? ''
                                 : Number(e.target.value),

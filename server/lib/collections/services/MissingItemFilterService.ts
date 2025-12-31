@@ -14,14 +14,18 @@ export interface FilteredMissingItemsResult {
   filteredItems: MissingItem[];
   /** IMDb ratings map for filtered items (tmdbId -> rating) */
   imdbRatingsMap: Map<number, number | null>;
-  /** Rotten Tomatoes ratings map for filtered items (tmdbId -> critics score) */
+  /** Rotten Tomatoes critics ratings map for filtered items (tmdbId -> critics score) */
   rtRatingsMap: Map<number, number | null>;
+  /** Rotten Tomatoes audience ratings map for filtered items (tmdbId -> audience score) */
+  rtAudienceRatingsMap: Map<number, number | null>;
   /** Items filtered by year */
   yearFilteredItems: string[];
   /** Items filtered by low IMDb rating */
   lowRatedItems: string[];
-  /** Items filtered by low Rotten Tomatoes rating */
+  /** Items filtered by low Rotten Tomatoes critics rating */
   lowRatedRTItems: string[];
+  /** Items filtered by low Rotten Tomatoes audience rating */
+  lowRatedRTAudienceItems: string[];
   /** Items filtered by excluded genres */
   excludedGenreItems: string[];
   /** Items filtered by excluded countries */
@@ -69,6 +73,7 @@ export class MissingItemFilterService {
     const yearFilteredItems: string[] = [];
     const lowRatedItems: string[] = [];
     const lowRatedRTItems: string[] = [];
+    const lowRatedRTAudienceItems: string[] = [];
     const excludedGenreItems: string[] = [];
     const excludedCountryItems: string[] = [];
     const excludedLanguageItems: string[] = [];
@@ -136,13 +141,17 @@ export class MissingItemFilterService {
 
     // Step 2.5: Fetch Rotten Tomatoes ratings if filter is enabled
     const rtRatingsMap = new Map<number, number | null>(); // tmdbId -> critics score
+    const rtAudienceRatingsMap = new Map<number, number | null>(); // tmdbId -> audience score
     if (
-      config.minimumRottenTomatoesRating &&
-      config.minimumRottenTomatoesRating > 0
+      (config.minimumRottenTomatoesRating &&
+        config.minimumRottenTomatoesRating > 0) ||
+      (config.minimumRottenTomatoesAudienceRating &&
+        config.minimumRottenTomatoesAudienceRating > 0)
     ) {
       await this.fetchRTRatings(
         yearFilteredMissingItems,
         rtRatingsMap,
+        rtAudienceRatingsMap,
         config,
         serviceLabel
       );
@@ -187,7 +196,7 @@ export class MissingItemFilterService {
         // If not in map (no IMDb ID found), allow the item (continue processing)
       }
 
-      // Check Rotten Tomatoes rating filter using cached ratings
+      // Check Rotten Tomatoes critics rating filter using cached ratings
       if (
         config.minimumRottenTomatoesRating &&
         config.minimumRottenTomatoesRating > 0
@@ -198,7 +207,7 @@ export class MissingItemFilterService {
           // If score is null or undefined (no rating found), allow the item
           if (score === null || score === undefined) {
             logger.debug(
-              `No Rotten Tomatoes rating found for ${item.title}, allowing item`,
+              `No Rotten Tomatoes critics rating found for ${item.title}, allowing item`,
               {
                 label: serviceLabel,
                 tmdbId: item.tmdbId,
@@ -208,7 +217,7 @@ export class MissingItemFilterService {
           } else if (score < config.minimumRottenTomatoesRating) {
             // Score exists but below threshold
             logger.debug(
-              `${item.title} RT score ${score} below minimum ${config.minimumRottenTomatoesRating}`,
+              `${item.title} RT critics score ${score} below minimum ${config.minimumRottenTomatoesRating}`,
               {
                 label: serviceLabel,
                 tmdbId: item.tmdbId,
@@ -218,6 +227,44 @@ export class MissingItemFilterService {
               }
             );
             lowRatedRTItems.push(item.title);
+            continue;
+          }
+          // else: score >= minimum, allow the item (continue processing)
+        }
+        // If not in map (no RT rating found), allow the item (continue processing)
+      }
+
+      // Check Rotten Tomatoes audience rating filter using cached ratings
+      if (
+        config.minimumRottenTomatoesAudienceRating &&
+        config.minimumRottenTomatoesAudienceRating > 0
+      ) {
+        if (rtAudienceRatingsMap.has(item.tmdbId)) {
+          const score = rtAudienceRatingsMap.get(item.tmdbId);
+
+          // If score is null or undefined (no rating found), allow the item
+          if (score === null || score === undefined) {
+            logger.debug(
+              `No Rotten Tomatoes audience rating found for ${item.title}, allowing item`,
+              {
+                label: serviceLabel,
+                tmdbId: item.tmdbId,
+                title: item.title,
+              }
+            );
+          } else if (score < config.minimumRottenTomatoesAudienceRating) {
+            // Score exists but below threshold
+            logger.debug(
+              `${item.title} RT audience score ${score} below minimum ${config.minimumRottenTomatoesAudienceRating}`,
+              {
+                label: serviceLabel,
+                tmdbId: item.tmdbId,
+                title: item.title,
+                score,
+                minimumScore: config.minimumRottenTomatoesAudienceRating,
+              }
+            );
+            lowRatedRTAudienceItems.push(item.title);
             continue;
           }
           // else: score >= minimum, allow the item (continue processing)
@@ -305,9 +352,11 @@ export class MissingItemFilterService {
       filteredItems: fullyFilteredItems,
       imdbRatingsMap,
       rtRatingsMap,
+      rtAudienceRatingsMap,
       yearFilteredItems,
       lowRatedItems,
       lowRatedRTItems,
+      lowRatedRTAudienceItems,
       excludedGenreItems,
       excludedCountryItems,
       excludedLanguageItems,
@@ -408,6 +457,7 @@ export class MissingItemFilterService {
   private async fetchRTRatings(
     items: MissingItem[],
     ratingsMap: Map<number, number | null>,
+    audienceRatingsMap: Map<number, number | null>,
     config: CollectionConfig,
     serviceLabel: string
   ): Promise<void> {
@@ -426,6 +476,7 @@ export class MissingItemFilterService {
         items.map(async (item) => {
           try {
             let rtRating = null;
+            let audienceScore = null;
 
             if (item.mediaType === 'movie' && item.year) {
               const rating = await this.rtAPI.getMovieRatings(
@@ -433,31 +484,48 @@ export class MissingItemFilterService {
                 item.year
               );
               rtRating = rating?.criticsScore ?? null;
+              audienceScore = rating?.audienceScore ?? null;
+              audienceRatingsMap.set(item.tmdbId, audienceScore);
             } else if (item.mediaType === 'tv' && item.year) {
               const rating = await this.rtAPI.getTVRatings(
                 item.title,
                 item.year
               );
               rtRating = rating?.criticsScore ?? null;
+              audienceScore = rating?.audienceScore ?? null;
+              audienceRatingsMap.set(item.tmdbId, audienceScore);
             }
 
             ratingsMap.set(item.tmdbId, rtRating);
 
             if (rtRating !== null) {
               logger.debug(
-                `Found RT rating ${rtRating} for ${item.title} (${item.year})`,
+                `Found RT critics score ${rtRating} for ${item.title} (${item.year})`,
                 {
                   label: serviceLabel,
                   tmdbId: item.tmdbId,
                   title: item.title,
                   year: item.year,
-                  rating: rtRating,
+                  criticsScore: rtRating,
+                }
+              );
+            }
+
+            if (audienceScore !== null) {
+              logger.debug(
+                `Found RT audience score ${audienceScore} for ${item.title} (${item.year})`,
+                {
+                  label: serviceLabel,
+                  tmdbId: item.tmdbId,
+                  title: item.title,
+                  year: item.year,
+                  audienceScore: audienceScore,
                 }
               );
             }
           } catch (error) {
             logger.debug(
-              `Failed to get RT rating for ${item.title}, will allow item`,
+              `Failed to get RT ratings for ${item.title}, will allow item`,
               {
                 label: serviceLabel,
                 tmdbId: item.tmdbId,
@@ -467,23 +535,34 @@ export class MissingItemFilterService {
             );
             // Set to null to indicate we tried but failed
             ratingsMap.set(item.tmdbId, null);
+            audienceRatingsMap.set(item.tmdbId, null);
           }
         })
       );
 
-      const ratingsFound = Array.from(ratingsMap.values()).filter(
+      const criticsRatingsFound = Array.from(ratingsMap.values()).filter(
         (r) => r !== null
       ).length;
+      const audienceRatingsFound = Array.from(
+        audienceRatingsMap.values()
+      ).filter((r) => r !== null).length;
       logger.debug(
-        `Cached ${ratingsMap.size} RT ratings (${ratingsFound} found, ${
-          ratingsMap.size - ratingsFound
-        } not found)`,
+        `Cached ${
+          ratingsMap.size
+        } RT ratings - Critics: ${criticsRatingsFound} found, ${
+          ratingsMap.size - criticsRatingsFound
+        } not found | Audience: ${audienceRatingsFound} found, ${
+          audienceRatingsMap.size - audienceRatingsFound
+        } not found`,
         {
           label: serviceLabel,
           collection: config.name,
           totalCached: ratingsMap.size,
-          ratingsFound,
-          ratingsNotFound: ratingsMap.size - ratingsFound,
+          criticsRatingsFound,
+          criticsRatingsNotFound: ratingsMap.size - criticsRatingsFound,
+          audienceRatingsFound,
+          audienceRatingsNotFound:
+            audienceRatingsMap.size - audienceRatingsFound,
         }
       );
     } catch (error) {
@@ -1000,10 +1079,10 @@ export class MissingItemFilterService {
       );
     }
 
-    // Log summary of items excluded by Rotten Tomatoes rating
+    // Log summary of items excluded by Rotten Tomatoes critics rating
     if (result.lowRatedRTItems.length > 0) {
       logger.info(
-        `Items skipped due to Rotten Tomatoes rating below ${config.minimumRottenTomatoesRating}`,
+        `Items skipped due to Rotten Tomatoes critics rating below ${config.minimumRottenTomatoesRating}`,
         {
           label: `${sourceLabel} Collections`,
           collection: config.name,
@@ -1012,6 +1091,23 @@ export class MissingItemFilterService {
           titles: result.lowRatedRTItems.slice(0, 10),
           ...(result.lowRatedRTItems.length > 10 && {
             additionalCount: result.lowRatedRTItems.length - 10,
+          }),
+        }
+      );
+    }
+
+    // Log summary of items excluded by Rotten Tomatoes audience rating
+    if (result.lowRatedRTAudienceItems.length > 0) {
+      logger.info(
+        `Items skipped due to Rotten Tomatoes audience rating below ${config.minimumRottenTomatoesAudienceRating}`,
+        {
+          label: `${sourceLabel} Collections`,
+          collection: config.name,
+          minimumRating: config.minimumRottenTomatoesAudienceRating,
+          count: result.lowRatedRTAudienceItems.length,
+          titles: result.lowRatedRTAudienceItems.slice(0, 10),
+          ...(result.lowRatedRTAudienceItems.length > 10 && {
+            additionalCount: result.lowRatedRTAudienceItems.length - 10,
           }),
         }
       );

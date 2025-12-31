@@ -46,6 +46,10 @@ const messages = defineMessages({
   minimumRottenTomatoesRating: 'Minimum Rotten Tomatoes rating',
   minimumRottenTomatoesRatingHelp:
     'Only grab movies/TV shows with a Rotten Tomatoes critics score >= this value (0 = no limit). Items without ratings will be allowed.',
+  minimumRottenTomatoesAudienceRating:
+    'Minimum Rotten Tomatoes audience rating',
+  minimumRottenTomatoesAudienceRatingHelp:
+    'Only grab movies/TV shows with a Rotten Tomatoes audience score >= this value (0 = no limit). Items without ratings will be allowed.',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -518,6 +522,34 @@ const AutoRequestSection = ({
               )}
             <div className="label-tip mt-2">
               {intl.formatMessage(messages.minimumRottenTomatoesRatingHelp)}
+            </div>
+          </div>
+
+          {/* Minimum Rotten Tomatoes Audience Rating */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumRottenTomatoesAudienceRating)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="decimal"
+                id="minimumRottenTomatoesAudienceRating"
+                name="minimumRottenTomatoesAudienceRating"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumRottenTomatoesAudienceRating &&
+              touched.minimumRottenTomatoesAudienceRating && (
+                <div className="error">
+                  {errors.minimumRottenTomatoesAudienceRating}
+                </div>
+              )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(
+                messages.minimumRottenTomatoesAudienceRatingHelp
+              )}
             </div>
           </div>
 

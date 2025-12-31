@@ -294,6 +294,11 @@ export const saveIndividualConfigs = async (
           minimumRottenTomatoesRating:
             collectionConfig.minimumRottenTomatoesRating,
         }),
+        ...(collectionConfig.minimumRottenTomatoesAudienceRating !==
+          undefined && {
+          minimumRottenTomatoesAudienceRating:
+            collectionConfig.minimumRottenTomatoesAudienceRating,
+        }),
         ...(collectionConfig.excludedGenres !== undefined && {
           excludedGenres: collectionConfig.excludedGenres,
         }),

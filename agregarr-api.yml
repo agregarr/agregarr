@@ -528,6 +528,14 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
+        minimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
         excludedGenres:
           type: array
           items:
@@ -1080,6 +1088,14 @@ components:
           format: float
           description: 'Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)'
           example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        minimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
           minimum: 0
           maximum: 100
           nullable: true
@@ -1788,6 +1804,14 @@ components:
           format: float
           description: 'Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)'
           example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        minimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
           minimum: 0
           maximum: 100
           nullable: true

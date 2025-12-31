@@ -420,6 +420,10 @@ const CollectionSettings = ({
           ...(config.minimumRottenTomatoesRating !== undefined && {
             minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
           }),
+          ...(config.minimumRottenTomatoesAudienceRating !== undefined && {
+            minimumRottenTomatoesAudienceRating:
+              config.minimumRottenTomatoesAudienceRating,
+          }),
           ...(config.excludedGenres !== undefined && {
             excludedGenres: config.excludedGenres,
           }),
