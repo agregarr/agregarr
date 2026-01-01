@@ -229,8 +229,41 @@ radarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
   return res.status(200).json(removed[0]);
 });
 
-radarrRoutes.get('/alltags', (_req, res) => {
-  return res.status(200).json([{ id: 1, label: 'test' }]);
+radarrRoutes.get('/alltags', async (_req, res) => {
+  const settings = getSettings();
+  const allTags: { id: number; label: string }[] = [];
+  const seenLabels = new Set<string>();
+
+  // Fetch tags from all Radarr instances
+  for (const radarrSettings of settings.radarr) {
+    if (!radarrSettings.hostname) continue;
+
+    try {
+      const radarr = new RadarrAPI({
+        apiKey: radarrSettings.apiKey,
+        url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+      });
+
+      const tags = await radarr.getTags();
+
+      // Add unique tags (deduplicate by label)
+      for (const tag of tags) {
+        if (!seenLabels.has(tag.label)) {
+          seenLabels.add(tag.label);
+          allTags.push(tag);
+        }
+      }
+    } catch (e) {
+      logger.debug('Failed to fetch tags from Radarr instance', {
+        label: 'Radarr',
+        hostname: radarrSettings.hostname,
+        message: e.message,
+      });
+      // Continue with other instances
+    }
+  }
+
+  return res.status(200).json(allTags);
 });
 
 export default radarrRoutes;
