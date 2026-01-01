@@ -225,6 +225,8 @@ export interface OverlayRenderContext {
   inRadarr?: boolean;
   inSonarr?: boolean;
   downloaded?: boolean;
+  radarrTags?: string[]; // Array of Radarr tag names
+  sonarrTags?: string[]; // Array of Sonarr tag names
 
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
@@ -361,6 +363,8 @@ export const AVAILABLE_VARIABLES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
+    { field: 'radarrTags', label: 'Radarr Tags', example: 'english-audio' },
+    { field: 'sonarrTags', label: 'Sonarr Tags', example: 'german-audio' },
     {
       field: 'daysUntilAction',
       label: 'Days Until Maintainerr Action',
@@ -478,6 +482,8 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
+    { field: 'radarrTags', label: 'Radarr Tags', example: 'english-audio' },
+    { field: 'sonarrTags', label: 'Sonarr Tags', example: 'german-audio' },
     {
       field: 'daysUntilAction',
       label: 'Days Until Maintainerr Action',
