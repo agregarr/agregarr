@@ -22,9 +22,16 @@ import type {
   ConditionRule,
   ConditionSection,
 } from '@server/entity/OverlayTemplate';
+import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import useSWR from 'swr';
 import { CONDITION_FIELD_CATEGORIES } from './types';
+
+interface ArrTag {
+  id: number;
+  label: string;
+}
 
 const messages = defineMessages({
   title: 'Edit Application Conditions',
@@ -132,6 +139,71 @@ const RuleItem: React.FC<RuleItemProps> = ({
 
   const isNumeric = NUMERIC_FIELDS.includes(field);
   const isBoolean = BOOLEAN_FIELDS.includes(field);
+  const isRadarrTags = field === 'radarrTags';
+  const isSonarrTags = field === 'sonarrTags';
+  const isTagField = isRadarrTags || isSonarrTags;
+
+  // Fetch Radarr/Sonarr instances and tags
+  const { data: radarrInstances } = useSWR<RadarrSettings[]>(
+    isRadarrTags ? '/api/v1/settings/radarr' : null,
+    (url) => fetch(url).then((res) => res.json())
+  );
+
+  const { data: sonarrInstances } = useSWR<SonarrSettings[]>(
+    isSonarrTags ? '/api/v1/settings/sonarr' : null,
+    (url) => fetch(url).then((res) => res.json())
+  );
+
+  // Fetch tags from all instances
+  const radarrTagUrls =
+    radarrInstances?.map((instance, idx) => ({
+      url: `/api/v1/settings/radarr/${idx}/tags`,
+      instanceName: instance.hostname,
+    })) || [];
+
+  const sonarrTagUrls =
+    sonarrInstances?.map((instance, idx) => ({
+      url: `/api/v1/settings/sonarr/${idx}/tags`,
+      instanceName: instance.hostname,
+    })) || [];
+
+  // Fetch all tags from all instances
+  const radarrTagsQueries = radarrTagUrls.map(({ url }) =>
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useSWR<ArrTag[]>(isRadarrTags ? url : null, (u) =>
+      fetch(u).then((res) => res.json())
+    )
+  );
+
+  const sonarrTagsQueries = sonarrTagUrls.map(({ url }) =>
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useSWR<ArrTag[]>(isSonarrTags ? url : null, (u) =>
+      fetch(u).then((res) => res.json())
+    )
+  );
+
+  // Combine all tags from all instances
+  const allRadarrTags =
+    radarrTagsQueries
+      .flatMap((query) => query.data || [])
+      .filter(
+        (tag, index, self) =>
+          index === self.findIndex((t) => t.label === tag.label)
+      ) || [];
+
+  const allSonarrTags =
+    sonarrTagsQueries
+      .flatMap((query) => query.data || [])
+      .filter(
+        (tag, index, self) =>
+          index === self.findIndex((t) => t.label === tag.label)
+      ) || [];
+
+  const availableTags = isRadarrTags
+    ? allRadarrTags
+    : isSonarrTags
+    ? allSonarrTags
+    : [];
 
   // Sanitize operator if it's invalid for the current field type (on mount)
   const lastSanitizedKey = useRef<string>('');
@@ -270,6 +342,24 @@ const RuleItem: React.FC<RuleItemProps> = ({
         >
           <option value="true">true</option>
           <option value="false">false</option>
+        </select>
+      ) : isTagField ? (
+        <select
+          value={String(value)}
+          onChange={(e) => {
+            onChange({
+              ...rule,
+              value: e.target.value,
+            });
+          }}
+          className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
+        >
+          <option value="">Select tag...</option>
+          {availableTags.map((tag) => (
+            <option key={tag.id} value={tag.label}>
+              {tag.label}
+            </option>
+          ))}
         </select>
       ) : (
         <input
