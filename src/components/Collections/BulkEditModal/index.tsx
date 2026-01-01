@@ -835,147 +835,147 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                   />
                 </th>
                 <th
-                  className="sticky left-12 z-20 w-48 cursor-pointer bg-stone-800 px-3 py-2 text-left text-xs font-medium text-gray-400 shadow-[2px_0_4px_rgba(0,0,0,0.3)] hover:text-gray-300"
+                  className="sticky left-12 z-20 w-48 cursor-pointer select-none bg-stone-800 px-3 py-2 text-left text-xs font-medium text-gray-400 shadow-[2px_0_4px_rgba(0,0,0,0.3)] hover:text-gray-300"
                   onClick={() => handleColumnSort('name')}
                 >
                   {intl.formatMessage(messages.collectionName)}
                   {renderSortIndicator('name')}
                 </th>
                 <th
-                  className="sticky left-60 z-20 w-32 cursor-pointer bg-stone-800 px-3 py-2 text-left text-xs font-medium text-gray-400 shadow-[2px_0_0_0_rgb(75,85,99)] hover:text-gray-300"
+                  className="sticky left-60 z-20 w-32 cursor-pointer select-none bg-stone-800 px-3 py-2 text-left text-xs font-medium text-gray-400 shadow-[2px_0_0_0_rgb(75,85,99)] hover:text-gray-300"
                   onClick={() => handleColumnSort('library')}
                 >
                   {intl.formatMessage(messages.library)}
                   {renderSortIndicator('library')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-left text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-left text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('type')}
                 >
                   {intl.formatMessage(messages.type)}
                   {renderSortIndicator('type')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('usersHome')}
                 >
                   {intl.formatMessage(messages.usersHome)}
                   {renderSortIndicator('usersHome')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('serverOwnerHome')}
                 >
                   {intl.formatMessage(messages.serverOwnerHome)}
                   {renderSortIndicator('serverOwnerHome')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('libraryRecommended')}
                 >
                   {intl.formatMessage(messages.libraryRecommended)}
                   {renderSortIndicator('libraryRecommended')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('maxItems')}
                 >
                   {intl.formatMessage(messages.maxItems)}
                   {renderSortIndicator('maxItems')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('randomizeHomeOrder')}
                 >
                   {intl.formatMessage(messages.randomizeHomeOrder)}
                   {renderSortIndicator('randomizeHomeOrder')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('sortOrder')}
                 >
                   {intl.formatMessage(messages.sortOrder)}
                   {renderSortIndicator('sortOrder')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('downloadMode')}
                 >
                   {intl.formatMessage(messages.downloadMode)}
                   {renderSortIndicator('downloadMode')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('searchMissingMovies')}
                 >
                   {intl.formatMessage(messages.searchMissingMovies)}
                   {renderSortIndicator('searchMissingMovies')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('searchMissingTV')}
                 >
                   {intl.formatMessage(messages.searchMissingTV)}
                   {renderSortIndicator('searchMissingTV')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('autoApproveMovies')}
                 >
                   {intl.formatMessage(messages.autoApproveMovies)}
                   {renderSortIndicator('autoApproveMovies')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('autoApproveTV')}
                 >
                   {intl.formatMessage(messages.autoApproveTV)}
                   {renderSortIndicator('autoApproveTV')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('maxSeasonsToRequest')}
                 >
                   {intl.formatMessage(messages.maxSeasonsToRequest)}
                   {renderSortIndicator('maxSeasonsToRequest')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('seasonsPerShowLimit')}
                 >
                   {intl.formatMessage(messages.seasonsPerShowLimit)}
                   {renderSortIndicator('seasonsPerShowLimit')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('seasonGrabOrder')}
                 >
                   {intl.formatMessage(messages.seasonGrabOrder)}
                   {renderSortIndicator('seasonGrabOrder')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('maxPositionToProcess')}
                 >
                   {intl.formatMessage(messages.maxPositionToProcess)}
                   {renderSortIndicator('maxPositionToProcess')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('minimumYear')}
                 >
                   {intl.formatMessage(messages.minimumYear)}
                   {renderSortIndicator('minimumYear')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('minimumImdbRating')}
                 >
                   {intl.formatMessage(messages.minimumImdbRating)}
                   {renderSortIndicator('minimumImdbRating')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() =>
                     handleColumnSort('minimumRottenTomatoesRating')
                   }
@@ -984,7 +984,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                   {renderSortIndicator('minimumRottenTomatoesRating')}
                 </th>
                 <th
-                  className="w-24 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-24 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() =>
                     handleColumnSort('minimumRottenTomatoesAudienceRating')
                   }
@@ -995,14 +995,14 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                   {renderSortIndicator('minimumRottenTomatoesAudienceRating')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() => handleColumnSort('showUnwatchedOnly')}
                 >
                   {intl.formatMessage(messages.showUnwatchedOnly)}
                   {renderSortIndicator('showUnwatchedOnly')}
                 </th>
                 <th
-                  className="w-32 cursor-pointer px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
+                  className="w-32 cursor-pointer select-none px-3 py-2 text-center text-xs font-medium text-gray-400 hover:text-gray-300"
                   onClick={() =>
                     handleColumnSort('createPlaceholdersForMissing')
                   }
