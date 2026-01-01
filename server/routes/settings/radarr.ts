@@ -74,7 +74,7 @@ radarrRoutes.post<
   }
 });
 
-radarrRoutes.get('/tags/all', async (_req, res) => {
+radarrRoutes.get('/alltags', async (_req, res) => {
   const settings = getSettings();
   const allTags: { id: number; label: string }[] = [];
   const seenLabels = new Set<string>();

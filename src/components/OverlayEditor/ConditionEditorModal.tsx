@@ -144,13 +144,13 @@ const RuleItem: React.FC<RuleItemProps> = ({
 
   // Fetch all tags from all Radarr instances
   const { data: radarrTags } = useSWR<ArrTag[]>(
-    isRadarrTags ? '/api/v1/settings/radarr/tags/all' : null,
+    isRadarrTags ? '/api/v1/settings/radarr/alltags' : null,
     (url) => fetch(url).then((res) => res.json())
   );
 
   // Fetch all tags from all Sonarr instances
   const { data: sonarrTags } = useSWR<ArrTag[]>(
-    isSonarrTags ? '/api/v1/settings/sonarr/tags/all' : null,
+    isSonarrTags ? '/api/v1/settings/sonarr/alltags' : null,
     (url) => fetch(url).then((res) => res.json())
   );
 

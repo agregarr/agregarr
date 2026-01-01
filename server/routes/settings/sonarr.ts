@@ -72,7 +72,7 @@ sonarrRoutes.post('/test', async (req, res, next) => {
   }
 });
 
-sonarrRoutes.get('/tags/all', async (_req, res) => {
+sonarrRoutes.get('/alltags', async (_req, res) => {
   const settings = getSettings();
   const allTags: { id: number; label: string }[] = [];
   const seenLabels = new Set<string>();
