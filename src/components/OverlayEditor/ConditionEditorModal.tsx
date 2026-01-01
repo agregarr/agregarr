@@ -155,9 +155,13 @@ const RuleItem: React.FC<RuleItemProps> = ({
   );
 
   const availableTags = isRadarrTags
-    ? radarrTags || []
+    ? Array.isArray(radarrTags)
+      ? radarrTags
+      : []
     : isSonarrTags
-    ? sonarrTags || []
+    ? Array.isArray(sonarrTags)
+      ? sonarrTags
+      : []
     : [];
 
   // Sanitize operator if it's invalid for the current field type (on mount)
@@ -222,7 +226,7 @@ const RuleItem: React.FC<RuleItemProps> = ({
             value: isNewFieldBoolean ? true : '',
           });
         }}
-        className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
+        className="flex-1 select-none rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
       >
         {Object.entries(CONDITION_FIELD_CATEGORIES).map(
           ([category, fields]) => (
