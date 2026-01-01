@@ -74,10 +74,6 @@ radarrRoutes.post<
   }
 });
 
-radarrRoutes.get('/alltags', (_req, res) => {
-  return res.status(200).json([{ id: 1, label: 'test' }]);
-});
-
 radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
   '/:id',
   (req, res, next) => {
@@ -231,6 +227,10 @@ radarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
   settings.save();
 
   return res.status(200).json(removed[0]);
+});
+
+radarrRoutes.get('/alltags', (_req, res) => {
+  return res.status(200).json([{ id: 1, label: 'test' }]);
 });
 
 export default radarrRoutes;
