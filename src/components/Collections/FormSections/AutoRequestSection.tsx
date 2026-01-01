@@ -111,9 +111,6 @@ interface AutoRequestSectionProps {
     downloadMode?: 'overseerr' | 'direct';
     searchMissingMovies?: boolean;
     searchMissingTV?: boolean;
-    excludedGenres?: number[];
-    excludedCountries?: string[];
-    excludedLanguages?: string[];
     filterSettings?: {
       genres?: {
         mode: 'exclude' | 'include';
@@ -595,24 +592,13 @@ const AutoRequestSection = ({
           <FilterWithMode
             filterType="genres"
             mode={values.filterSettings?.genres?.mode || 'exclude'}
-            selectedValues={
-              values.filterSettings?.genres?.values ||
-              values.excludedGenres ||
-              []
-            }
+            selectedValues={values.filterSettings?.genres?.values || []}
             onModeChange={(mode) => {
-              const currentValues =
-                values.filterSettings?.genres?.values ||
-                values.excludedGenres ||
-                [];
+              const currentValues = values.filterSettings?.genres?.values || [];
               setFieldValue?.('filterSettings', {
                 ...(values.filterSettings || {}),
                 genres: { mode, values: currentValues },
               });
-              // Clear old format when using new format
-              if (values.excludedGenres) {
-                setFieldValue?.('excludedGenres', undefined);
-              }
             }}
             onValuesChange={(selectedValues) => {
               const currentMode =
@@ -624,10 +610,6 @@ const AutoRequestSection = ({
                   values: selectedValues as number[],
                 },
               });
-              // Clear old format when using new format
-              if (values.excludedGenres) {
-                setFieldValue?.('excludedGenres', undefined);
-              }
             }}
           />
 
@@ -635,24 +617,14 @@ const AutoRequestSection = ({
           <FilterWithMode
             filterType="countries"
             mode={values.filterSettings?.countries?.mode || 'exclude'}
-            selectedValues={
-              values.filterSettings?.countries?.values ||
-              values.excludedCountries ||
-              []
-            }
+            selectedValues={values.filterSettings?.countries?.values || []}
             onModeChange={(mode) => {
               const currentValues =
-                values.filterSettings?.countries?.values ||
-                values.excludedCountries ||
-                [];
+                values.filterSettings?.countries?.values || [];
               setFieldValue?.('filterSettings', {
                 ...(values.filterSettings || {}),
                 countries: { mode, values: currentValues },
               });
-              // Clear old format when using new format
-              if (values.excludedCountries) {
-                setFieldValue?.('excludedCountries', undefined);
-              }
             }}
             onValuesChange={(selectedValues) => {
               const currentMode =
@@ -664,10 +636,6 @@ const AutoRequestSection = ({
                   values: selectedValues as string[],
                 },
               });
-              // Clear old format when using new format
-              if (values.excludedCountries) {
-                setFieldValue?.('excludedCountries', undefined);
-              }
             }}
           />
 
@@ -675,24 +643,14 @@ const AutoRequestSection = ({
           <FilterWithMode
             filterType="languages"
             mode={values.filterSettings?.languages?.mode || 'exclude'}
-            selectedValues={
-              values.filterSettings?.languages?.values ||
-              values.excludedLanguages ||
-              []
-            }
+            selectedValues={values.filterSettings?.languages?.values || []}
             onModeChange={(mode) => {
               const currentValues =
-                values.filterSettings?.languages?.values ||
-                values.excludedLanguages ||
-                [];
+                values.filterSettings?.languages?.values || [];
               setFieldValue?.('filterSettings', {
                 ...(values.filterSettings || {}),
                 languages: { mode, values: currentValues },
               });
-              // Clear old format when using new format
-              if (values.excludedLanguages) {
-                setFieldValue?.('excludedLanguages', undefined);
-              }
             }}
             onValuesChange={(selectedValues) => {
               const currentMode =
@@ -704,10 +662,6 @@ const AutoRequestSection = ({
                   values: selectedValues as string[],
                 },
               });
-              // Clear old format when using new format
-              if (values.excludedLanguages) {
-                setFieldValue?.('excludedLanguages', undefined);
-              }
             }}
           />
 

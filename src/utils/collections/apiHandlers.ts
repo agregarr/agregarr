@@ -302,15 +302,6 @@ export const saveIndividualConfigs = async (
           minimumRottenTomatoesAudienceRating:
             collectionConfig.minimumRottenTomatoesAudienceRating,
         }),
-        ...(collectionConfig.excludedGenres !== undefined && {
-          excludedGenres: collectionConfig.excludedGenres,
-        }),
-        ...(collectionConfig.excludedCountries !== undefined && {
-          excludedCountries: collectionConfig.excludedCountries,
-        }),
-        ...(collectionConfig.excludedLanguages !== undefined && {
-          excludedLanguages: collectionConfig.excludedLanguages,
-        }),
         ...(collectionConfig.filterSettings !== undefined && {
           filterSettings: collectionConfig.filterSettings,
         }),

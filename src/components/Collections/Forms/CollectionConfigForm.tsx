@@ -621,8 +621,6 @@ const CollectionFormConfigForm = ({
 
     // Direct download field validation
     downloadMode: Yup.string().oneOf(['overseerr', 'direct']),
-    excludedGenres: Yup.array().of(Yup.number().positive().integer()),
-    excludedCountries: Yup.array().of(Yup.string()),
     directDownloadRadarrServerId: Yup.number().integer().min(0),
     directDownloadRadarrProfileId: Yup.number().positive().integer(),
     directDownloadRadarrRootFolder: Yup.string(),
@@ -1143,11 +1141,6 @@ const CollectionFormConfigForm = ({
           minimumRottenTomatoesAudienceRating:
             (config as CollectionFormConfig)
               .minimumRottenTomatoesAudienceRating || 0,
-          excludedGenres: (config as CollectionFormConfig).excludedGenres || [],
-          excludedCountries:
-            (config as CollectionFormConfig).excludedCountries || [],
-          excludedLanguages:
-            (config as CollectionFormConfig).excludedLanguages || [],
           filterSettings: (config as CollectionFormConfig).filterSettings,
           excludeFromCollections:
             (config as CollectionFormConfig).excludeFromCollections || [],
@@ -1609,18 +1602,6 @@ const CollectionFormConfigForm = ({
                 (config as CollectionFormConfig).personMinimumItems ??
                 5
               : undefined,
-            excludedGenres:
-              values.enableGrabMissingItems && values.excludedGenres
-                ? values.excludedGenres
-                : undefined,
-            excludedCountries:
-              values.enableGrabMissingItems && values.excludedCountries
-                ? values.excludedCountries
-                : undefined,
-            excludedLanguages:
-              values.enableGrabMissingItems && values.excludedLanguages
-                ? values.excludedLanguages
-                : undefined,
             filterSettings:
               values.enableGrabMissingItems && values.filterSettings
                 ? values.filterSettings

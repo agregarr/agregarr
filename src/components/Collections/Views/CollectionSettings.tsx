@@ -425,15 +425,6 @@ const CollectionSettings = ({
             minimumRottenTomatoesAudienceRating:
               config.minimumRottenTomatoesAudienceRating,
           }),
-          ...(config.excludedGenres !== undefined && {
-            excludedGenres: config.excludedGenres,
-          }),
-          ...(config.excludedCountries !== undefined && {
-            excludedCountries: config.excludedCountries,
-          }),
-          ...(config.excludedLanguages !== undefined && {
-            excludedLanguages: config.excludedLanguages,
-          }),
           ...(config.filterSettings !== undefined && {
             filterSettings: config.filterSettings,
           }),

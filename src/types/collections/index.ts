@@ -277,10 +277,6 @@ export interface CollectionFormConfig {
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
   readonly minimumRottenTomatoesRating?: number; // Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)
   readonly minimumRottenTomatoesAudienceRating?: number; // Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)
-  readonly excludedGenres?: number[]; // @deprecated Use filterSettings.genres - Exclude items with these TMDB genre IDs from missing items search
-  readonly excludedCountries?: string[]; // @deprecated Use filterSettings.countries - Exclude items with these ISO 3166-1 country codes from missing items search
-  readonly excludedLanguages?: string[]; // @deprecated Use filterSettings.languages - Exclude items with these ISO 639-1 language codes from missing items search
-  // New unified filter settings with include/exclude modes
   readonly filterSettings?: {
     readonly genres?: {
       readonly mode: 'exclude' | 'include';
@@ -456,9 +452,6 @@ export interface CollectionConfigCreateRequest {
   readonly minimumImdbRating?: number;
   readonly minimumRottenTomatoesRating?: number;
   readonly minimumRottenTomatoesAudienceRating?: number;
-  readonly excludedGenres?: number[];
-  readonly excludedCountries?: string[];
-  readonly excludedLanguages?: string[];
   readonly filterSettings?: {
     readonly genres?: {
       readonly mode: 'exclude' | 'include';
@@ -599,9 +592,6 @@ export const toCollectionCreateRequest = (
     minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
     minimumRottenTomatoesAudienceRating:
       config.minimumRottenTomatoesAudienceRating,
-    excludedGenres: config.excludedGenres,
-    excludedCountries: config.excludedCountries,
-    excludedLanguages: config.excludedLanguages,
     filterSettings: config.filterSettings,
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
     directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
@@ -1016,9 +1006,6 @@ export interface MultiSourceCollectionConfig {
   readonly seasonGrabOrder?: SeasonGrabOrder;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
-  readonly excludedGenres?: number[];
-  readonly excludedCountries?: string[];
-  readonly excludedLanguages?: string[];
   readonly filterSettings?: {
     readonly genres?: {
       readonly mode: 'exclude' | 'include';

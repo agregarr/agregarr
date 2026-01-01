@@ -197,9 +197,6 @@ export const linkCollectionConfig = async (
             minimumImdbRating: masterConfig.minimumImdbRating,
             minimumRottenTomatoesRating:
               masterConfig.minimumRottenTomatoesRating,
-            excludedGenres: masterConfig.excludedGenres,
-            excludedCountries: masterConfig.excludedCountries,
-            excludedLanguages: masterConfig.excludedLanguages,
             filterSettings: masterConfig.filterSettings,
             excludeFromCollections: masterConfig.excludeFromCollections,
             timeRestriction: masterConfig.timeRestriction,

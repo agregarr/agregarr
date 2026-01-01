@@ -504,9 +504,6 @@ export class CollectionSyncService {
               seasonsPerShowLimit: config.seasonsPerShowLimit,
               maxPositionToProcess: config.maxPositionToProcess,
               minimumYear: config.minimumYear,
-              excludedGenres: config.excludedGenres,
-              excludedCountries: config.excludedCountries,
-              excludedLanguages: config.excludedLanguages,
               filterSettings: config.filterSettings,
               directDownloadRadarrServerId: config.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:

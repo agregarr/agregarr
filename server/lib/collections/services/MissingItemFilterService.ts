@@ -348,6 +348,71 @@ export class MissingItemFilterService {
       fullyFilteredItems.push(item);
     }
 
+    // Log filtering summary if any items were filtered out
+    const totalFiltered = missingItems.length - fullyFilteredItems.length;
+    if (totalFiltered > 0) {
+      const filterReasons: string[] = [];
+
+      if (yearFilteredItems.length > 0) {
+        filterReasons.push(`${yearFilteredItems.length} due to year`);
+      }
+      if (lowRatedItems.length > 0) {
+        filterReasons.push(`${lowRatedItems.length} due to IMDb rating`);
+      }
+      if (lowRatedRTItems.length > 0) {
+        filterReasons.push(
+          `${lowRatedRTItems.length} due to RT critics rating`
+        );
+      }
+      if (lowRatedRTAudienceItems.length > 0) {
+        filterReasons.push(
+          `${lowRatedRTAudienceItems.length} due to RT audience rating`
+        );
+      }
+      if (excludedGenreItems.length > 0) {
+        filterReasons.push(
+          `${excludedGenreItems.length} due to excluded genres`
+        );
+      }
+      if (excludedCountryItems.length > 0) {
+        filterReasons.push(
+          `${excludedCountryItems.length} due to excluded countries`
+        );
+      }
+      if (excludedLanguageItems.length > 0) {
+        filterReasons.push(
+          `${excludedLanguageItems.length} due to excluded languages`
+        );
+      }
+      if (includedGenreItems.length > 0) {
+        filterReasons.push(
+          `${includedGenreItems.length} due to included genres filter`
+        );
+      }
+      if (includedCountryItems.length > 0) {
+        filterReasons.push(
+          `${includedCountryItems.length} due to included countries filter`
+        );
+      }
+      if (includedLanguageItems.length > 0) {
+        filterReasons.push(
+          `${includedLanguageItems.length} due to included languages filter`
+        );
+      }
+
+      logger.info(
+        `Filtered ${totalFiltered}/${
+          missingItems.length
+        } items: ${filterReasons.join(', ')}`,
+        {
+          label: serviceLabel,
+          originalCount: missingItems.length,
+          filteredCount: fullyFilteredItems.length,
+          removedCount: totalFiltered,
+        }
+      );
+    }
+
     return {
       filteredItems: fullyFilteredItems,
       imdbRatingsMap,
@@ -575,162 +640,30 @@ export class MissingItemFilterService {
   }
 
   /**
-   * Normalize genre filter config (backward compatible with old excludedGenres format)
+   * Get genre filter config
    */
   private getGenreFilter(
     config: CollectionConfig
   ): { mode: 'exclude' | 'include'; values: number[] } | null {
-    // New format takes precedence
-    if (config.filterSettings?.genres) {
-      return config.filterSettings.genres;
-    }
-    // Fall back to old format
-    if (config.excludedGenres && config.excludedGenres.length > 0) {
-      return { mode: 'exclude', values: config.excludedGenres };
-    }
-    return null;
+    return config.filterSettings?.genres || null;
   }
 
   /**
-   * Normalize country filter config (backward compatible with old excludedCountries format)
+   * Get country filter config
    */
   private getCountryFilter(
     config: CollectionConfig
   ): { mode: 'exclude' | 'include'; values: string[] } | null {
-    // New format takes precedence
-    if (config.filterSettings?.countries) {
-      return config.filterSettings.countries;
-    }
-    // Fall back to old format
-    if (config.excludedCountries && config.excludedCountries.length > 0) {
-      return { mode: 'exclude', values: config.excludedCountries };
-    }
-    return null;
+    return config.filterSettings?.countries || null;
   }
 
   /**
-   * Normalize language filter config (backward compatible with old excludedLanguages format)
+   * Get language filter config
    */
   private getLanguageFilter(
     config: CollectionConfig
   ): { mode: 'exclude' | 'include'; values: string[] } | null {
-    // New format takes precedence
-    if (config.filterSettings?.languages) {
-      return config.filterSettings.languages;
-    }
-    // Fall back to old format
-    if (config.excludedLanguages && config.excludedLanguages.length > 0) {
-      return { mode: 'exclude', values: config.excludedLanguages };
-    }
-    return null;
-  }
-
-  /**
-   * Check if an item has any excluded genres
-   */
-  private async hasExcludedGenres(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedGenres: number[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        return movie.genres.some((genre) => excludedGenres.includes(genre.id));
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        return tvShow.genres.some((genre) => excludedGenres.includes(genre.id));
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check genres for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Missing Item Filter Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check genres, don't exclude the item
-    }
-  }
-
-  /**
-   * Check if an item has any excluded origin countries
-   */
-  private async hasExcludedCountries(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedCountries: string[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        // Movies use production_countries array
-        if (movie.production_countries) {
-          return movie.production_countries.some((country) =>
-            excludedCountries.includes(country.iso_3166_1)
-          );
-        }
-        return false;
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        // TV shows use origin_country array
-        if (tvShow.origin_country) {
-          return tvShow.origin_country.some((country) =>
-            excludedCountries.includes(country)
-          );
-        }
-        return false;
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check origin countries for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Missing Item Filter Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check countries, don't exclude the item
-    }
-  }
-
-  /**
-   * Check if an item has any excluded spoken languages
-   */
-  private async hasExcludedLanguages(
-    tmdbId: number,
-    mediaType: 'movie' | 'tv',
-    excludedLanguages: string[]
-  ): Promise<boolean> {
-    try {
-      if (mediaType === 'movie') {
-        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
-        // Movies use spoken_languages array
-        if (movie.spoken_languages) {
-          return movie.spoken_languages.some((language) =>
-            excludedLanguages.includes(language.iso_639_1)
-          );
-        }
-        return false;
-      } else {
-        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
-        // TV shows use spoken_languages array
-        if (tvShow.spoken_languages) {
-          return tvShow.spoken_languages.some((language) =>
-            excludedLanguages.includes(language.iso_639_1)
-          );
-        }
-        return false;
-      }
-    } catch (error) {
-      logger.warn(
-        `Failed to check spoken languages for TMDB ID ${tmdbId}, allowing item`,
-        {
-          label: 'Missing Item Filter Service',
-          error: error instanceof Error ? error.message : 'Unknown error',
-        }
-      );
-      return false; // If we can't check languages, don't exclude the item
-    }
+    return config.filterSettings?.languages || null;
   }
 
   /**

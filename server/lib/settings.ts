@@ -1585,7 +1585,7 @@ class Settings {
    * This is a one-time migration for users upgrading from older versions
    */
   public migrateToUnifiedFilterSettings(): void {
-    const migrationId = 'unified-filter-settings';
+    const migrationId = 'unified-filter-settings-v2';
 
     // Initialize completedMigrations if it doesn't exist
     if (!this.data.completedMigrations) {
@@ -1607,66 +1607,77 @@ class Settings {
 
     this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
       (config) => {
-        // Skip if already using new format
-        if (config.filterSettings) {
-          return config;
-        }
-
-        // Check if collection has any old-format filters
+        // Check if we need to migrate old-format filters to new format
         const hasOldFilters =
           (config.excludedGenres && config.excludedGenres.length > 0) ||
           (config.excludedCountries && config.excludedCountries.length > 0) ||
           (config.excludedLanguages && config.excludedLanguages.length > 0);
 
-        if (!hasOldFilters) {
-          return config; // No filters to migrate
-        }
+        // Build new filterSettings if migrating from old format
+        let filterSettings = config.filterSettings;
 
-        // Build new filterSettings object
-        const filterSettings: {
-          genres?: { mode: 'exclude' | 'include'; values: number[] };
-          countries?: { mode: 'exclude' | 'include'; values: string[] };
-          languages?: { mode: 'exclude' | 'include'; values: string[] };
-        } = {};
+        if (hasOldFilters && !config.filterSettings) {
+          // Build new filterSettings object from old format
+          const newFilterSettings: {
+            genres?: { mode: 'exclude' | 'include'; values: number[] };
+            countries?: { mode: 'exclude' | 'include'; values: string[] };
+            languages?: { mode: 'exclude' | 'include'; values: string[] };
+          } = {};
 
-        if (config.excludedGenres && config.excludedGenres.length > 0) {
-          filterSettings.genres = {
-            mode: 'exclude',
-            values: config.excludedGenres,
-          };
-        }
-
-        if (config.excludedCountries && config.excludedCountries.length > 0) {
-          filterSettings.countries = {
-            mode: 'exclude',
-            values: config.excludedCountries,
-          };
-        }
-
-        if (config.excludedLanguages && config.excludedLanguages.length > 0) {
-          filterSettings.languages = {
-            mode: 'exclude',
-            values: config.excludedLanguages,
-          };
-        }
-
-        migratedCount++;
-        logger.info(
-          `Migrating collection "${config.name}" to unified filter settings`,
-          {
-            label: 'Settings Migration',
-            configId: config.id,
+          if (config.excludedGenres && config.excludedGenres.length > 0) {
+            newFilterSettings.genres = {
+              mode: 'exclude',
+              values: config.excludedGenres,
+            };
           }
-        );
 
-        // Return collection with new format, removing old fields
-        return {
-          ...config,
-          filterSettings,
-          excludedGenres: undefined,
-          excludedCountries: undefined,
-          excludedLanguages: undefined,
-        };
+          if (config.excludedCountries && config.excludedCountries.length > 0) {
+            newFilterSettings.countries = {
+              mode: 'exclude',
+              values: config.excludedCountries,
+            };
+          }
+
+          if (config.excludedLanguages && config.excludedLanguages.length > 0) {
+            newFilterSettings.languages = {
+              mode: 'exclude',
+              values: config.excludedLanguages,
+            };
+          }
+
+          filterSettings = newFilterSettings;
+
+          migratedCount++;
+          logger.info(
+            `Migrating collection "${config.name}" from old filter format to unified filterSettings`,
+            {
+              label: 'Settings Migration',
+              configId: config.id,
+            }
+          );
+        }
+
+        // Check if we need to clean up deprecated fields
+        const hasDeprecatedFields =
+          config.excludedGenres !== undefined ||
+          config.excludedCountries !== undefined ||
+          config.excludedLanguages !== undefined;
+
+        // Always remove deprecated fields (whether they had values or not)
+        if (hasDeprecatedFields) {
+          return {
+            ...config,
+            filterSettings:
+              filterSettings && Object.keys(filterSettings).length > 0
+                ? filterSettings
+                : undefined,
+            excludedGenres: undefined,
+            excludedCountries: undefined,
+            excludedLanguages: undefined,
+          };
+        }
+
+        return config;
       }
     );
 

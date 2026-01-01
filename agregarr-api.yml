@@ -536,30 +536,9 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
-        excludedGenres:
-          type: array
-          items:
-            type: integer
-          description: 'TMDB genre IDs to exclude from missing items search'
-          example: [28, 53]
-          nullable: true
-        excludedCountries:
-          type: array
-          items:
-            type: string
-          description: 'ISO 3166-1 country codes to exclude from missing items search'
-          example: ['JP', 'KR']
-          nullable: true
-        excludedLanguages:
-          type: array
-          items:
-            type: string
-          description: 'ISO 639-1 language codes to exclude from missing items search'
-          example: ['ja', 'ko']
-          nullable: true
         filterSettings:
           type: object
-          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          description: 'Unified filter settings with include/exclude modes'
           properties:
             genres:
               type: object
@@ -1099,30 +1078,9 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
-        excludedGenres:
-          type: array
-          items:
-            type: integer
-          description: 'TMDB genre IDs to exclude from missing items search'
-          example: [28, 53]
-          nullable: true
-        excludedCountries:
-          type: array
-          items:
-            type: string
-          description: 'ISO 3166-1 country codes to exclude from missing items search'
-          example: ['JP', 'KR']
-          nullable: true
-        excludedLanguages:
-          type: array
-          items:
-            type: string
-          description: 'ISO 639-1 language codes to exclude from missing items search'
-          example: ['ja', 'ko']
-          nullable: true
         filterSettings:
           type: object
-          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          description: 'Unified filter settings with include/exclude modes'
           properties:
             genres:
               type: object
@@ -1815,30 +1773,9 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
-        excludedGenres:
-          type: array
-          items:
-            type: integer
-          description: 'TMDB genre IDs to exclude from missing items search'
-          example: [28, 53]
-          nullable: true
-        excludedCountries:
-          type: array
-          items:
-            type: string
-          description: 'ISO 3166-1 country codes to exclude from missing items search'
-          example: ['JP', 'KR']
-          nullable: true
-        excludedLanguages:
-          type: array
-          items:
-            type: string
-          description: 'ISO 639-1 language codes to exclude from missing items search'
-          example: ['ja', 'ko']
-          nullable: true
         filterSettings:
           type: object
-          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          description: 'Unified filter settings with include/exclude modes'
           properties:
             genres:
               type: object
