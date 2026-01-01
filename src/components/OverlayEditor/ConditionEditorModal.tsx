@@ -22,7 +22,6 @@ import type {
   ConditionRule,
   ConditionSection,
 } from '@server/entity/OverlayTemplate';
-import type { RadarrSettings, SonarrSettings } from '@server/lib/settings';
 import { useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
@@ -143,66 +142,22 @@ const RuleItem: React.FC<RuleItemProps> = ({
   const isSonarrTags = field === 'sonarrTags';
   const isTagField = isRadarrTags || isSonarrTags;
 
-  // Fetch Radarr/Sonarr instances and tags
-  const { data: radarrInstances } = useSWR<RadarrSettings[]>(
-    isRadarrTags ? '/api/v1/settings/radarr' : null,
+  // Fetch all tags from all Radarr instances
+  const { data: radarrTags } = useSWR<ArrTag[]>(
+    isRadarrTags ? '/api/v1/settings/radarr/tags/all' : null,
     (url) => fetch(url).then((res) => res.json())
   );
 
-  const { data: sonarrInstances } = useSWR<SonarrSettings[]>(
-    isSonarrTags ? '/api/v1/settings/sonarr' : null,
+  // Fetch all tags from all Sonarr instances
+  const { data: sonarrTags } = useSWR<ArrTag[]>(
+    isSonarrTags ? '/api/v1/settings/sonarr/tags/all' : null,
     (url) => fetch(url).then((res) => res.json())
   );
-
-  // Fetch tags from all instances
-  const radarrTagUrls =
-    radarrInstances?.map((instance, idx) => ({
-      url: `/api/v1/settings/radarr/${idx}/tags`,
-      instanceName: instance.hostname,
-    })) || [];
-
-  const sonarrTagUrls =
-    sonarrInstances?.map((instance, idx) => ({
-      url: `/api/v1/settings/sonarr/${idx}/tags`,
-      instanceName: instance.hostname,
-    })) || [];
-
-  // Fetch all tags from all instances
-  const radarrTagsQueries = radarrTagUrls.map(({ url }) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useSWR<ArrTag[]>(isRadarrTags ? url : null, (u) =>
-      fetch(u).then((res) => res.json())
-    )
-  );
-
-  const sonarrTagsQueries = sonarrTagUrls.map(({ url }) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useSWR<ArrTag[]>(isSonarrTags ? url : null, (u) =>
-      fetch(u).then((res) => res.json())
-    )
-  );
-
-  // Combine all tags from all instances
-  const allRadarrTags =
-    radarrTagsQueries
-      .flatMap((query) => query.data || [])
-      .filter(
-        (tag, index, self) =>
-          index === self.findIndex((t) => t.label === tag.label)
-      ) || [];
-
-  const allSonarrTags =
-    sonarrTagsQueries
-      .flatMap((query) => query.data || [])
-      .filter(
-        (tag, index, self) =>
-          index === self.findIndex((t) => t.label === tag.label)
-      ) || [];
 
   const availableTags = isRadarrTags
-    ? allRadarrTags
+    ? radarrTags || []
     : isSonarrTags
-    ? allSonarrTags
+    ? sonarrTags || []
     : [];
 
   // Sanitize operator if it's invalid for the current field type (on mount)
