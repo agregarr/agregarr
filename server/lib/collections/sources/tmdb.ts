@@ -1125,6 +1125,69 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       }
     );
 
+    // Identify missing movies from the franchise
+    const plexTmdbIds = new Set(plexItems.map((item) => item.tmdbId));
+    const missingItems: MissingItem[] = [];
+
+    for (let index = 0; index < franchiseData.movies.length; index++) {
+      const movie = franchiseData.movies[index];
+      if (!plexTmdbIds.has(movie.tmdbId)) {
+        // Extract year from release date (format: YYYY-MM-DD)
+        let year: number | undefined;
+        if (movie.releaseDate) {
+          year = parseInt(movie.releaseDate.substring(0, 4));
+        }
+
+        missingItems.push({
+          tmdbId: movie.tmdbId,
+          mediaType: 'movie',
+          title: movie.title,
+          year,
+          originalPosition: index + 1,
+          source: this.source,
+        });
+      }
+    }
+
+    if (missingItems.length > 0) {
+      logger.info(
+        `Franchise ${collectionName}: ${missingItems.length} missing movies identified`,
+        {
+          label: 'TMDB Franchise',
+          foundInPlex: plexItems.length,
+          missingCount: missingItems.length,
+          totalFranchiseMovies: franchiseData.movies.length,
+        }
+      );
+    }
+
+    // Handle placeholder cleanup and process missing items
+    const placeholderItems = await this.handlePlaceholdersAndMissingItems(
+      plexItems,
+      missingItems,
+      config,
+      plexClient,
+      libraryCache,
+      missingItems.length > 0
+        ? () => this.handleAutoRequests(missingItems, config)
+        : undefined
+    );
+
+    // Combine Plex items with any placeholder items
+    let finalItems = plexItems;
+    if (placeholderItems.length > 0) {
+      finalItems = [...plexItems, ...placeholderItems];
+      logger.debug(
+        `Added ${placeholderItems.length} placeholder items to franchise ${collectionName}`,
+        {
+          label: 'TMDB Franchise',
+          plexItems: plexItems.length,
+          placeholderItems: placeholderItems.length,
+          total: finalItems.length,
+        }
+      );
+    }
+
     // Check if we should skip auto-poster generation
     // Only skip if useTmdbFranchisePoster is enabled AND the poster is actually available
     const shouldSkipAutoPoster =
@@ -1138,7 +1201,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     // Label-based tracking is the primary method (like Overseerr),
     // with name as fallback for user-created collections
     const result = await this.createOrUpdateCollectionStandardized(
-      plexItems,
+      finalItems,
       collectionName,
       'movie',
       configForProcessing,
@@ -1233,7 +1296,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               config,
               collectionRatingKey,
               plexClient,
-              plexItems,
+              finalItems,
               { customLabel }
             );
           } catch (error) {

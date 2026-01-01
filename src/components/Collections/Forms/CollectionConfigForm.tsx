@@ -2661,15 +2661,11 @@ const CollectionFormConfigForm = ({
                             )}
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}
-                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex directors/actors */}
+                            {/* Hide for: overseerr, tautulli, recently_added, plex directors/actors */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
                               typedValues.type !== 'filtered_hub' &&
-                              !(
-                                typedValues.type === 'tmdb' &&
-                                typedValues.subtype === 'auto_franchise'
-                              ) &&
                               !(
                                 typedValues.type === 'plex' &&
                                 (typedValues.subtype === 'directors' ||
@@ -2941,15 +2937,11 @@ const CollectionFormConfigForm = ({
                               })()}
 
                             {/* Auto-Request Settings - only show for external sources */}
-                            {/* Hide for: overseerr, tautulli, recently_added, tmdb auto_franchise, plex directors/actors */}
+                            {/* Hide for: overseerr, tautulli, recently_added, plex directors/actors */}
                             {typedValues.type &&
                               typedValues.type !== 'overseerr' &&
                               typedValues.type !== 'tautulli' &&
                               typedValues.type !== 'filtered_hub' &&
-                              !(
-                                typedValues.type === 'tmdb' &&
-                                typedValues.subtype === 'auto_franchise'
-                              ) &&
                               !(
                                 typedValues.type === 'plex' &&
                                 (typedValues.subtype === 'directors' ||
