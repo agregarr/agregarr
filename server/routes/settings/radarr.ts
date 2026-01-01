@@ -74,6 +74,43 @@ radarrRoutes.post<
   }
 });
 
+radarrRoutes.get('/tags/all', async (_req, res) => {
+  const settings = getSettings();
+  const allTags: { id: number; label: string }[] = [];
+  const seenLabels = new Set<string>();
+
+  // Fetch tags from all Radarr instances
+  for (const radarrSettings of settings.radarr) {
+    if (!radarrSettings.hostname) continue;
+
+    try {
+      const radarr = new RadarrAPI({
+        apiKey: radarrSettings.apiKey,
+        url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
+      });
+
+      const tags = await radarr.getTags();
+
+      // Add unique tags (deduplicate by label)
+      for (const tag of tags) {
+        if (!seenLabels.has(tag.label)) {
+          seenLabels.add(tag.label);
+          allTags.push(tag);
+        }
+      }
+    } catch (e) {
+      logger.debug('Failed to fetch tags from Radarr instance', {
+        label: 'Radarr',
+        hostname: radarrSettings.hostname,
+        message: e.message,
+      });
+      // Continue with other instances
+    }
+  }
+
+  return res.status(200).json(allTags);
+});
+
 radarrRoutes.put<{ id: string }, RadarrSettings, RadarrSettings>(
   '/:id',
   (req, res, next) => {
@@ -158,43 +195,6 @@ radarrRoutes.get<{ id: string }>('/:id/rootfolders', async (req, res, next) => {
       path: folder.path,
     }))
   );
-});
-
-radarrRoutes.get('/tags/all', async (_req, res) => {
-  const settings = getSettings();
-  const allTags: { id: number; label: string }[] = [];
-  const seenLabels = new Set<string>();
-
-  // Fetch tags from all Radarr instances
-  for (const radarrSettings of settings.radarr) {
-    if (!radarrSettings.hostname) continue;
-
-    try {
-      const radarr = new RadarrAPI({
-        apiKey: radarrSettings.apiKey,
-        url: RadarrAPI.buildUrl(radarrSettings, '/api/v3'),
-      });
-
-      const tags = await radarr.getTags();
-
-      // Add unique tags (deduplicate by label)
-      for (const tag of tags) {
-        if (!seenLabels.has(tag.label)) {
-          seenLabels.add(tag.label);
-          allTags.push(tag);
-        }
-      }
-    } catch (e) {
-      logger.debug('Failed to fetch tags from Radarr instance', {
-        label: 'Radarr',
-        hostname: radarrSettings.hostname,
-        message: e.message,
-      });
-      // Continue with other instances
-    }
-  }
-
-  return res.status(200).json(allTags);
 });
 
 radarrRoutes.get<{ id: string }>('/:id/tags', async (req, res, next) => {
