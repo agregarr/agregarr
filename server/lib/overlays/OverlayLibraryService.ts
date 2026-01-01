@@ -39,10 +39,11 @@ class OverlayLibraryService {
   private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
   private maintainerrCollectionsCache?: MaintainerrCollection[];
 
-  // Track running libraries
+  // Track running libraries with mutex-like behavior
+  // Prevents concurrent processing of the same library
   private runningLibraries = new Map<
     string,
-    { libraryName: string; startTime: number }
+    { libraryName: string; startTime: number; promise: Promise<void> }
   >();
 
   /**
@@ -57,6 +58,7 @@ class OverlayLibraryService {
       running: true,
       libraryName: status.libraryName,
       startTime: status.startTime,
+      runningFor: Math.round((Date.now() - status.startTime) / 1000),
     };
   }
 
@@ -69,6 +71,7 @@ class OverlayLibraryService {
         libraryId,
         libraryName: status.libraryName,
         startTime: status.startTime,
+        runningFor: Math.round((Date.now() - status.startTime) / 1000),
       })
     );
   }
@@ -84,26 +87,89 @@ class OverlayLibraryService {
 
   /**
    * Apply overlays to all items in a library
+   * Uses mutex-like behavior to prevent concurrent processing of the same library
    */
   async applyOverlaysToLibrary(
     libraryId: string,
     checkCancelled?: () => boolean
   ): Promise<void> {
-    // Get library configuration first to get name
-    const configRepository = getRepository(OverlayLibraryConfig);
-    const config = await configRepository.findOne({
-      where: { libraryId },
+    // Check if library is already being processed (mutex check)
+    // Must check AND set before any await to prevent race condition
+    const existing = this.runningLibraries.get(libraryId);
+    if (existing) {
+      logger.warn('Library already being processed, waiting for completion', {
+        label: 'OverlayLibrary',
+        libraryId,
+        libraryName: existing.libraryName,
+        startedAt: new Date(existing.startTime).toISOString(),
+        runningFor: `${Math.round((Date.now() - existing.startTime) / 1000)}s`,
+      });
+      // Wait for existing job to complete instead of running concurrently
+      await existing.promise;
+      // After waiting, run our job (the previous one is done)
+    }
+
+    // Create a deferred promise to set in the map immediately
+    // This prevents race conditions where two calls pass the check before either awaits
+    let resolveDeferred: () => void;
+    let rejectDeferred: (error: Error) => void;
+    const deferredPromise = new Promise<void>((resolve, reject) => {
+      resolveDeferred = resolve;
+      rejectDeferred = reject;
     });
 
-    // Mark as running
+    // Mark as running BEFORE any await (to prevent race condition)
     this.runningLibraries.set(libraryId, {
-      libraryName: config?.libraryName || libraryId,
+      libraryName: libraryId, // Will update after config fetch
       startTime: Date.now(),
+      promise: deferredPromise,
     });
 
     try {
+      // Get library configuration
+      const configRepository = getRepository(OverlayLibraryConfig);
+      const config = await configRepository.findOne({
+        where: { libraryId },
+      });
+
+      // Update libraryName now that we have config
+      const runningEntry = this.runningLibraries.get(libraryId);
+      if (runningEntry) {
+        runningEntry.libraryName = config?.libraryName || libraryId;
+      }
+
+      // Process the library
+      await this.processLibraryOverlays(libraryId, config, checkCancelled);
+      resolveDeferred!();
+    } catch (error) {
+      rejectDeferred!(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    } finally {
+      // Clean up
+      this.runningLibraries.delete(libraryId);
+    }
+  }
+
+  /**
+   * Internal method to process library overlays
+   */
+  private async processLibraryOverlays(
+    libraryId: string,
+    config: OverlayLibraryConfig | null,
+    checkCancelled?: () => boolean
+  ): Promise<void> {
+    try {
       // Clear library caches at start of job
       this.clearLibraryCaches();
+
+      // Clear TMDB URL cache to avoid stale data from previous runs
+      const { plexBasePosterManager } = await import(
+        '@server/lib/overlays/PlexBasePosterManager'
+      );
+      plexBasePosterManager.clearTmdbUrlCache();
+
+      // Also clean up expired TMDB poster files
+      await plexBasePosterManager.cleanTmdbCache();
 
       logger.info('Starting overlay application for library', {
         label: 'OverlayLibrary',
@@ -283,10 +349,8 @@ class OverlayLibraryService {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
-    } finally {
-      // Remove from running libraries
-      this.runningLibraries.delete(libraryId);
     }
+    // Note: runningLibraries cleanup is handled by the caller (applyOverlaysToLibrary)
   }
 
   /**
@@ -809,13 +873,11 @@ class OverlayLibraryService {
           tmdbId
         );
       } catch (error) {
-        logger.error('Failed to get base poster, skipping overlay', {
-          label: 'OverlayLibrary',
-          itemTitle: item.title,
-          ratingKey: item.ratingKey,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return;
+        // Re-throw to let caller track this as a failure
+        // Previously this was silently returning, causing failed items to be counted as success
+        throw new Error(
+          `Failed to get base poster for "${item.title}": ${error instanceof Error ? error.message : String(error)}`
+        );
       }
 
       const posterBuffer = basePosterResult.posterBuffer;
