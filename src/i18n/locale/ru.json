@@ -1,5 +1,6 @@
 {
   "components.AppDataWarning.dockerVolumeMissingDescription": "Подключение тома <code>{appDataPath}</code> настроено неправильно. Все данные будут удалены при остановке или перезапуске контейнера.",
+  "components.Layout.LanguagePicker.displaylanguage": "Язык интерфейса",
   "components.Layout.Sidebar.dashboard": "Найти что-то новое",
   "components.Layout.Sidebar.settings": "Настройки",
   "components.Layout.UserDropdown.signout": "Выход",

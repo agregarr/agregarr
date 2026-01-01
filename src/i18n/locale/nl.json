@@ -1,5 +1,6 @@
 {
   "components.AppDataWarning.dockerVolumeMissingDescription": "De volumekoppeling <code>{appDataPath}</code> was niet correct geconfigureerd. Alle gegevens zullen worden gewist wanneer de container wordt gestopt of opnieuw wordt gestart.",
+  "components.Layout.LanguagePicker.displaylanguage": "Weergavetaal",
   "components.Layout.Sidebar.dashboard": "Ontdekken",
   "components.Layout.Sidebar.settings": "Instellingen",
   "components.Layout.UserDropdown.signout": "Uitloggen",

@@ -1,5 +1,6 @@
 {
   "components.AppDataWarning.dockerVolumeMissingDescription": "O ponto de montagem<code>{appDataPath}</code> não foi corretamente configurado. Todos dados serão perdidos quando o container parar ou reiniciar.",
+  "components.Layout.LanguagePicker.displaylanguage": "Idioma da Interface",
   "components.Layout.Sidebar.dashboard": "Explorar",
   "components.Layout.Sidebar.settings": "Configurações",
   "components.Layout.UserDropdown.signout": "Sair",

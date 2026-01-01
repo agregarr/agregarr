@@ -1,5 +1,6 @@
 {
   "components.AppDataWarning.dockerVolumeMissingDescription": "Il volume <code>{appDataPath}</code> non è configurato correttamente. Tutte le modifiche apportate saranno perse quando il container verrà interrotto o riavviato.",
+  "components.Layout.LanguagePicker.displaylanguage": "Lingua Interfaccia",
   "components.Layout.Sidebar.dashboard": "Esplora",
   "components.Layout.Sidebar.settings": "Impostazioni",
   "components.Layout.UserDropdown.signout": "Esci",

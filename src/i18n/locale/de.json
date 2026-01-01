@@ -1,5 +1,6 @@
 {
   "components.AppDataWarning.dockerVolumeMissingDescription": "Die <code>{appDataPath}</code> Volume Einbindung wurde nicht korrekt konfiguriert. Alle Daten werden gelöscht, wenn dieser Container gestoppt oder neugestartet wird.",
+  "components.Layout.LanguagePicker.displaylanguage": "Sprache darstellen",
   "components.Layout.Sidebar.dashboard": "Entdecken",
   "components.Layout.Sidebar.settings": "Einstellungen",
   "components.Layout.UserDropdown.signout": "Abmelden",

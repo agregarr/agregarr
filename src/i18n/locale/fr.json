@@ -1,5 +1,6 @@
 {
   "components.AppDataWarning.dockerVolumeMissingDescription": "Le montage du volume <code>{appDataPath}</code> n'a pas été correctement configuré. Toutes les données seront effacées lorsque le conteneur sera arrêté ou redémarré.",
+  "components.Layout.LanguagePicker.displaylanguage": "Langue d'affichage",
   "components.Layout.Sidebar.dashboard": "Découvrir",
   "components.Layout.Sidebar.settings": "Paramètres",
   "components.Layout.UserDropdown.signout": "Se déconnecter",
