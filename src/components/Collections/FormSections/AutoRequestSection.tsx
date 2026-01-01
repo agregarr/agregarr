@@ -260,6 +260,44 @@ const AutoRequestSection = ({
     fetchOverseerrServers();
   }, [overseerrSettings]);
 
+  // Auto-select single Overseerr Radarr server if only one exists
+  useEffect(() => {
+    if (
+      !overseerrLoading &&
+      overseerrServerOptions.servers.radarr.length === 1 &&
+      values.overseerrRadarrServerId === undefined
+    ) {
+      setFieldValue?.(
+        'overseerrRadarrServerId',
+        overseerrServerOptions.servers.radarr[0].id
+      );
+    }
+  }, [
+    overseerrLoading,
+    overseerrServerOptions.servers.radarr,
+    values.overseerrRadarrServerId,
+    setFieldValue,
+  ]);
+
+  // Auto-select single Overseerr Sonarr server if only one exists
+  useEffect(() => {
+    if (
+      !overseerrLoading &&
+      overseerrServerOptions.servers.sonarr.length === 1 &&
+      values.overseerrSonarrServerId === undefined
+    ) {
+      setFieldValue?.(
+        'overseerrSonarrServerId',
+        overseerrServerOptions.servers.sonarr[0].id
+      );
+    }
+  }, [
+    overseerrLoading,
+    overseerrServerOptions.servers.sonarr,
+    values.overseerrSonarrServerId,
+    setFieldValue,
+  ]);
+
   // Get the effective server IDs (only when server data has loaded)
   const effectiveRadarrServerId =
     values.directDownloadRadarrServerId !== undefined
