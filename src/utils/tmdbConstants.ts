@@ -7,6 +7,7 @@ export const TMDB_LANGUAGES = [
   { code: 'es', name: 'Spanish (Español)' },
   { code: 'fr', name: 'French (Français)' },
   { code: 'de', name: 'German (Deutsch)' },
+  { code: 'hu', name: 'Hungarian (Magyar)' },
   { code: 'it', name: 'Italian (Italiano)' },
   { code: 'pt-BR', name: 'Portuguese - Brazil (Português)' },
   { code: 'ja', name: 'Japanese (日本語)' },
