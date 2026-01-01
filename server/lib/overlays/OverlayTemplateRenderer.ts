@@ -355,7 +355,7 @@ export interface OverlayRenderContext {
   mediaType: 'movie' | 'show';
 
   // Future extensibility
-  [key: string]: string | number | boolean | Date | undefined;
+  [key: string]: string | number | boolean | Date | string[] | undefined;
 }
 
 /**

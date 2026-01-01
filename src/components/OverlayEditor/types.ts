@@ -239,7 +239,7 @@ export interface OverlayRenderContext {
   status?: string;
 
   // Allow additional fields
-  [key: string]: string | number | boolean | Date | undefined;
+  [key: string]: string | number | boolean | Date | string[] | undefined;
 }
 
 /**
