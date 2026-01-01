@@ -362,16 +362,14 @@ class PlexAPI {
         });
 
       settings.plex.libraries = newLibraries;
+      settings.save();
     } catch (e) {
-      logger.error('Failed to fetch Plex libraries.', {
+      logger.error('Failed to sync Plex libraries - keeping existing data', {
         label: 'Plex API',
         message: e.message,
       });
-
-      settings.plex.libraries = [];
+      throw e;
     }
-
-    settings.save();
   }
 
   public async getLibraryContents(

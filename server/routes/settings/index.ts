@@ -307,26 +307,16 @@ settingsRoutes.get('/plex/libraries', async (req, res) => {
     // Sync libraries to settings so they're available for collection operations
     await plexapi.syncLibraries();
 
-    const allLibraries = await plexapi.getLibraries();
-    // Filter to only movie and show libraries
-    const libraries = allLibraries.filter(
-      (lib) => lib.type === 'movie' || lib.type === 'show'
-    );
-
-    // Return clean library data directly from Plex (no transformation)
-    const cleanLibraries = libraries.map((lib) => ({
-      key: lib.key,
-      name: lib.title,
-      type: lib.type, // 'movie' or 'show'
-    }));
-
-    return res.status(200).json(cleanLibraries);
+    // Return the libraries that were just synced to settings
+    // This ensures UI and backend always see the same library data
+    const settings = getSettings();
+    return res.status(200).json(settings.plex.libraries);
   } catch (error) {
-    logger.error('Failed to fetch Plex libraries', {
+    logger.error('Failed to sync Plex libraries', {
       label: 'Settings Routes',
       error: error instanceof Error ? error.message : String(error),
     });
-    return res.status(500).json({ error: 'Failed to fetch Plex libraries' });
+    return res.status(500).json({ error: 'Failed to sync Plex libraries' });
   }
 });
 
