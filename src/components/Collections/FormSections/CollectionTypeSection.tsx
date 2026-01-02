@@ -82,8 +82,6 @@ const CollectionTypeSection = ({
     '/api/v1/settings/sonarr'
   );
 
-  if (!isVisible) return null;
-
   // Validate API keys for the current collection type
   const apiKeyValidation = validateApiKeysForCollectionType(
     values.type || '',
@@ -105,6 +103,7 @@ const CollectionTypeSection = ({
     { value: 'overseerr', label: 'Overseerr Requests' },
     { value: 'tautulli', label: 'Tautulli Statistics' },
     { value: 'trakt', label: 'Trakt Lists' },
+    { value: 'plex', label: 'Plex Library' },
     { value: 'letterboxd', label: 'Letterboxd Lists' },
     { value: 'tmdb', label: 'TMDB Lists' },
     { value: 'imdb', label: 'IMDb Lists' },
@@ -222,6 +221,21 @@ const CollectionTypeSection = ({
             value: 'random',
             label: 'Random Lists',
             description: 'Randomly select from configured TMDB lists',
+          },
+        ];
+      case 'plex':
+        return [
+          {
+            value: 'directors',
+            label: 'Auto Director Collections',
+            description:
+              'Automatically create a smart collection for each top director in this library.',
+          },
+          {
+            value: 'actors',
+            label: 'Auto Actor Collections',
+            description:
+              'Automatically create smart collections for the top 5 actors in this library.',
           },
         ];
       case 'imdb':
@@ -369,6 +383,12 @@ const CollectionTypeSection = ({
             description:
               'Replaces Recently Released hub (sorted by release date)',
           },
+          {
+            value: 'recently_released_episodes',
+            label: 'Recently Added Episodes',
+            description:
+              'Shows sorted by most recent episode added (TV libraries only)',
+          },
         ];
       default:
         return [];
@@ -376,6 +396,10 @@ const CollectionTypeSection = ({
   };
 
   const subtypeOptions = getSubtypeOptions(String(values.type || ''));
+
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <div className="space-y-4">
@@ -405,6 +429,11 @@ const CollectionTypeSection = ({
                 setFieldValue('isMultiSource', true);
               } else if (oldType === 'multi-source') {
                 setFieldValue('isMultiSource', false);
+              }
+
+              // Auto-enable placeholders for Coming Soon
+              if (newType === 'comingsoon') {
+                setFieldValue('createPlaceholdersForMissing', true);
               }
             }
 
@@ -524,6 +553,101 @@ const CollectionTypeSection = ({
           type="info"
         />
       )}
+
+      {/* Person minimum items & separator option for auto person collections */}
+      {values.type === 'plex' &&
+        (values.subtype === 'directors' || values.subtype === 'actors') && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label
+                htmlFor="personMinimumItems"
+                className="mb-2 block text-sm text-gray-300"
+              >
+                Minimum Items
+              </label>
+              <Field
+                type="number"
+                id="personMinimumItems"
+                name="personMinimumItems"
+                placeholder="5"
+                min="2"
+                max="50"
+                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Only create if this person has at least this many items
+                (default: 5, minimum allowed: 2)
+              </p>
+            </div>
+            <div className="rounded-md border border-gray-500/20 bg-transparent p-4 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label
+                    htmlFor="useSeparator"
+                    className="text-sm font-medium text-gray-300"
+                  >
+                    Use Separator
+                  </label>
+                  <p className="text-xs text-gray-400">
+                    Create a simple separator collection to group your auto{' '}
+                    {values.subtype === 'actors' ? 'actor' : 'director'}{' '}
+                    collections.
+                  </p>
+                </div>
+                <Field
+                  type="checkbox"
+                  id="useSeparator"
+                  name="useSeparator"
+                  className="h-5 w-5 rounded border-stone-500 bg-stone-700 text-orange-500 focus:ring-2 focus:ring-orange-500"
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    const checked = e.target.checked;
+                    setFieldValue('useSeparator', checked);
+                    if (
+                      checked &&
+                      (!values.separatorTitle ||
+                        values.separatorTitle.trim().length === 0)
+                    ) {
+                      setFieldValue(
+                        'separatorTitle',
+                        values.subtype === 'actors'
+                          ? 'Actor Collections'
+                          : 'Director Collections'
+                      );
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            {values.useSeparator && (
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="separatorTitle"
+                  className="mb-2 block text-sm text-gray-300"
+                >
+                  Separator Title <span className="text-red-500">*</span>
+                </label>
+                <Field
+                  type="text"
+                  id="separatorTitle"
+                  name="separatorTitle"
+                  placeholder={
+                    values.subtype === 'actors'
+                      ? 'Actor Collections'
+                      : 'Director Collections'
+                  }
+                  className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Defaults to{' '}
+                  {values.subtype === 'actors'
+                    ? 'Actor Collections'
+                    : 'Director Collections'}
+                  . This title is used for the separator collection and poster.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Tautulli Configuration - appears when type='tautulli' and subtype is selected */}
       {values.type === 'tautulli' && values.subtype && (

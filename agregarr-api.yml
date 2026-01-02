@@ -248,6 +248,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -527,30 +528,17 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
-        excludedGenres:
-          type: array
-          items:
-            type: integer
-          description: 'TMDB genre IDs to exclude from missing items search'
-          example: [28, 53]
-          nullable: true
-        excludedCountries:
-          type: array
-          items:
-            type: string
-          description: 'ISO 3166-1 country codes to exclude from missing items search'
-          example: ['JP', 'KR']
-          nullable: true
-        excludedLanguages:
-          type: array
-          items:
-            type: string
-          description: 'ISO 639-1 language codes to exclude from missing items search'
-          example: ['ja', 'ko']
+        minimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
           nullable: true
         filterSettings:
           type: object
-          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          description: 'Unified filter settings with include/exclude modes'
           properties:
             genres:
               type: object
@@ -626,6 +614,21 @@ components:
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
+          nullable: true
+        personMinimumItems:
+          type: number
+          description: 'Unified minimum items required to create actor/director collections'
+          example: 3
+          nullable: true
+        useSeparator:
+          type: boolean
+          description: 'Create a separator collection for auto actor/director collections'
+          example: false
+          nullable: true
+        separatorTitle:
+          type: string
+          description: 'Title for the separator collection'
+          example: 'Actors Collections'
           nullable: true
         excludeFromCollections:
           type: array
@@ -805,6 +808,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1066,30 +1070,17 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
-        excludedGenres:
-          type: array
-          items:
-            type: integer
-          description: 'TMDB genre IDs to exclude from missing items search'
-          example: [28, 53]
-          nullable: true
-        excludedCountries:
-          type: array
-          items:
-            type: string
-          description: 'ISO 3166-1 country codes to exclude from missing items search'
-          example: ['JP', 'KR']
-          nullable: true
-        excludedLanguages:
-          type: array
-          items:
-            type: string
-          description: 'ISO 639-1 language codes to exclude from missing items search'
-          example: ['ja', 'ko']
+        minimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
           nullable: true
         filterSettings:
           type: object
-          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          description: 'Unified filter settings with include/exclude modes'
           properties:
             genres:
               type: object
@@ -1165,6 +1156,21 @@ components:
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
+          nullable: true
+        personMinimumItems:
+          type: number
+          description: 'Unified minimum items required to create actor/director collections'
+          example: 3
+          nullable: true
+        useSeparator:
+          type: boolean
+          description: 'Create a separator collection for auto actor/director collections'
+          example: false
+          nullable: true
+        separatorTitle:
+          type: string
+          description: 'Title for the separator collection'
+          example: 'Actors Collections'
           nullable: true
         excludeFromCollections:
           type: array
@@ -1485,6 +1491,7 @@ components:
               'letterboxd',
               'networks',
               'originals',
+              'plex',
               'multi-source',
               'anilist',
               'myanimelist',
@@ -1758,30 +1765,17 @@ components:
           minimum: 0
           maximum: 100
           nullable: true
-        excludedGenres:
-          type: array
-          items:
-            type: integer
-          description: 'TMDB genre IDs to exclude from missing items search'
-          example: [28, 53]
-          nullable: true
-        excludedCountries:
-          type: array
-          items:
-            type: string
-          description: 'ISO 3166-1 country codes to exclude from missing items search'
-          example: ['JP', 'KR']
-          nullable: true
-        excludedLanguages:
-          type: array
-          items:
-            type: string
-          description: 'ISO 639-1 language codes to exclude from missing items search'
-          example: ['ja', 'ko']
+        minimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
           nullable: true
         filterSettings:
           type: object
-          description: 'Unified filter settings with include/exclude modes (new format, supersedes excludedGenres/excludedCountries/excludedLanguages)'
+          description: 'Unified filter settings with include/exclude modes'
           properties:
             genres:
               type: object
@@ -1867,6 +1861,21 @@ components:
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
+          nullable: true
+        personMinimumItems:
+          type: number
+          description: 'Unified minimum items required to create actor/director collections'
+          example: 3
+          nullable: true
+        useSeparator:
+          type: boolean
+          description: 'Create a separator collection for auto actor/director collections'
+          example: false
+          nullable: true
+        separatorTitle:
+          type: string
+          description: 'Title for the separator collection'
+          example: 'Actors Collections'
           nullable: true
         excludeFromCollections:
           type: array
@@ -2197,6 +2206,7 @@ components:
               'overseerr',
               'networks',
               'originals',
+              'plex',
               'anilist',
               'myanimelist',
               'radarrtag',
@@ -3233,7 +3243,7 @@ components:
                           example: 'and'
                         field:
                           type: string
-                          description: 'Context field to evaluate (e.g., imdbRating, resolution, daysUntilRelease)'
+                          description: 'Context field to evaluate (e.g., imdbRating, resolution, daysUntilRelease, daysUntilAction)'
                           example: 'imdbRating'
                         operator:
                           type: string
@@ -3362,6 +3372,11 @@ components:
                     type: number
                     description: 'For rating badges - minimum rating to display'
                     example: 7.0
+        tmdbLanguage:
+          type: string
+          nullable: true
+          description: 'ISO language code for TMDB poster metadata (e.g., en, fr, pt-BR). If not set, uses global setting.'
+          example: 'en'
         createdAt:
           type: string
           format: date-time
@@ -3516,6 +3531,30 @@ components:
           type: string
           nullable: true
           example: '/tautulli'
+        apiKey:
+          type: string
+          nullable: true
+        externalUrl:
+          type: string
+          nullable: true
+    MaintainerrSettings:
+      type: object
+      properties:
+        hostname:
+          type: string
+          nullable: true
+          example: 'maintainerr.example.com'
+        port:
+          type: number
+          nullable: true
+          example: 6246
+        useSsl:
+          type: boolean
+          nullable: true
+        urlBase:
+          type: string
+          nullable: true
+          example: ''
         apiKey:
           type: string
           nullable: true
@@ -6945,6 +6984,7 @@ paths:
                       sonarrtag,
                       comingsoon,
                       filtered_hub,
+                      plex,
                       multi-source,
                     ]
                   example: imdb
@@ -8696,6 +8736,89 @@ paths:
           description: 'Tautulli API not found at specified URL'
         '500':
           description: 'Connection test failed - Server error or network issue'
+  /settings/maintainerr:
+    get:
+      summary: Get Maintainerr settings
+      description: Retrieves current Maintainerr settings.
+      tags:
+        - settings-integrations
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintainerrSettings'
+    post:
+      summary: Update Maintainerr settings
+      description: Updates Maintainerr settings with the provided values.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintainerrSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintainerrSettings'
+  /settings/maintainerr/test:
+    post:
+      summary: Test Maintainerr connection
+      description: Tests connection to a Maintainerr instance.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hostname:
+                  type: string
+                  example: 'maintainerr.example.com'
+                port:
+                  type: number
+                  example: 6246
+                apiKey:
+                  type: string
+                  example: 'your-api-key-here'
+                useSsl:
+                  type: boolean
+                  example: false
+                urlBase:
+                  type: string
+                  example: ''
+              required:
+                - hostname
+                - apiKey
+      responses:
+        '200':
+          description: 'Connection test successful'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: 'Invalid API key - Authentication failed'
+        '401':
+          description: 'Invalid API key - Authentication failed'
+        '403':
+          description: 'API key lacks required permissions'
+        '404':
+          description: 'Maintainerr API not found at specified URL'
+        '500':
+          description: 'Connection test failed - Server error or network issue'
   /settings/trakt:
     get:
       summary: Get Trakt settings
@@ -9967,6 +10090,48 @@ paths:
                     timestamp:
                       type: string
                       example: '2020-12-15T16:20:00.069Z'
+  /settings/export-debug:
+    post:
+      summary: Export debugging information
+      description: Exports selected debugging information (database, settings, logs) as a zip file for troubleshooting purposes.
+      tags:
+        - settings-system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                includeDatabase:
+                  type: boolean
+                  description: Include database file (db.sqlite3) in export
+                  example: true
+                includeSettings:
+                  type: boolean
+                  description: Include settings.json file in export
+                  example: true
+                includeLogs:
+                  type: boolean
+                  description: Include logs directory in export
+                  example: true
+      responses:
+        '200':
+          description: Debug export zip file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="agregarr-debug-2025-12-19T10-30-45.zip"'
+        '400':
+          description: Invalid request (no items selected)
+        '500':
+          description: Server error during export
   /settings/about:
     get:
       summary: Get server stats
@@ -13446,6 +13611,10 @@ paths:
                   runtime:
                     type: integer
                     example: 139
+                  daysUntilAction:
+                    type: integer
+                    example: 5
+                    description: 'Days until Maintainerr takes action on this item (negative = overdue)'
         '400':
           description: Invalid poster ID format
         '401':
@@ -13551,6 +13720,11 @@ paths:
                           minimumRating:
                             type: number
                             description: For rating badges - minimum rating to display
+                tmdbLanguage:
+                  type: string
+                  nullable: true
+                  description: ISO language code for TMDB poster metadata (e.g., en, fr, pt-BR). If not set, uses global setting.
+                  example: 'en'
               required:
                 - libraryName
                 - mediaType
@@ -13628,8 +13802,85 @@ paths:
                     example: '1'
         '401':
           description: Authentication required
+        '409':
+          description: Conflict - another overlay operation is already running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Full overlay sync is currently running. Please wait for it to complete or cancel it before syncing individual libraries.'
+                  conflictType:
+                    type: string
+                    enum: [full-sync-running, library-already-running]
+                    example: 'full-sync-running'
         '500':
           description: Failed to start overlay application
+
+  /overlay-library-configs/{libraryId}/status:
+    get:
+      summary: Get overlay application status for library
+      description: Returns the current status of overlay application for a specific library.
+      tags:
+        - overlays
+      parameters:
+        - name: libraryId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Plex library ID
+      responses:
+        '200':
+          description: Status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  running:
+                    type: boolean
+                    description: Whether overlay application is running for this library
+                    example: true
+                  libraryName:
+                    type: string
+                    description: Name of the library (only present if running)
+                    example: 'Movies'
+                  startTime:
+                    type: number
+                    description: Timestamp when the job started (only present if running)
+                    example: 1640000000000
+
+  /overlay-library-configs/status/all:
+    get:
+      summary: Get all running library overlay operations
+      description: Returns a list of all libraries currently running overlay application.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Running libraries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runningLibraries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        libraryId:
+                          type: string
+                          example: '1'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
+                        startTime:
+                          type: number
+                          example: 1640000000000
 
   /overlay-settings:
     get:
@@ -14147,6 +14398,209 @@ paths:
           description: No Plex poster population running
         '401':
           description: Authentication required
+
+  /plex/search:
+    get:
+      summary: Search Plex libraries
+      description: Search across all Plex libraries for movies and TV shows.
+      tags:
+        - overlays
+      parameters:
+        - in: query
+          name: query
+          required: true
+          allowReserved: true
+          schema:
+            type: string
+          description: Search term
+          example: 'Inception'
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: Maximum number of results to return
+          example: 20
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        ratingKey:
+                          type: string
+                          example: '12345'
+                        title:
+                          type: string
+                          example: 'Inception'
+                        year:
+                          type: integer
+                          example: 2010
+                        type:
+                          type: string
+                          enum: [movie, show]
+                          example: 'movie'
+                        thumb:
+                          type: string
+                          example: '/library/metadata/12345/thumb/1234567890'
+                        libraryId:
+                          type: string
+                          example: '1'
+                        libraryName:
+                          type: string
+                          example: 'Movies'
+                  totalResults:
+                    type: integer
+                    example: 5
+        '400':
+          description: Query parameter is required
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to search Plex
+
+  /overlay-test:
+    post:
+      summary: Test overlay application on a single item
+      description: Test how overlays would be applied to a specific Plex item, returning the rendered poster with detailed debugging information including template matches, condition evaluation, and context variables.
+      tags:
+        - overlays
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ratingKey
+              properties:
+                ratingKey:
+                  type: string
+                  description: Plex rating key of the item to test
+                  example: '12345'
+      responses:
+        '200':
+          description: Overlay test completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  poster:
+                    type: string
+                    format: byte
+                    description: Base64-encoded WebP image of the poster with overlays applied
+                  item:
+                    type: object
+                    properties:
+                      ratingKey:
+                        type: string
+                        example: '12345'
+                      title:
+                        type: string
+                        example: 'Inception'
+                      year:
+                        type: integer
+                        example: 2010
+                      type:
+                        type: string
+                        enum: [movie, show]
+                        example: 'movie'
+                      libraryId:
+                        type: string
+                        example: '1'
+                      libraryName:
+                        type: string
+                        example: 'Movies'
+                  templates:
+                    type: array
+                    description: All enabled templates for the library with match results
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: 'IMDb Rating Badge'
+                        matched:
+                          type: boolean
+                          description: Whether this template's conditions were met
+                          example: true
+                        conditionResults:
+                          type: object
+                          description: Detailed condition evaluation for debugging
+                          properties:
+                            sectionResults:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  sectionIndex:
+                                    type: integer
+                                  sectionOperator:
+                                    type: string
+                                    enum: [and, or]
+                                  matched:
+                                    type: boolean
+                                  ruleResults:
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        ruleIndex:
+                                          type: integer
+                                        ruleOperator:
+                                          type: string
+                                          enum: [and, or]
+                                        field:
+                                          type: string
+                                          example: 'imdbRating'
+                                        operator:
+                                          type: string
+                                          example: 'gte'
+                                        value:
+                                          description: Expected value
+                                        actualValue:
+                                          description: Actual value from context
+                                        matched:
+                                          type: boolean
+                  context:
+                    type: object
+                    description: Context variables grouped by source
+                    properties:
+                      plex:
+                        type: object
+                        description: Plex metadata
+                      tmdb:
+                        type: object
+                        description: TMDB metadata
+                      ratings:
+                        type: object
+                        description: IMDb and Rotten Tomatoes ratings
+                      monitoring:
+                        type: object
+                        description: Radarr/Sonarr monitoring status
+                      computed:
+                        type: object
+                        description: Computed fields
+        '400':
+          description: Invalid request (missing ratingKey, no library config, item is episode/season)
+        '401':
+          description: Authentication required
+        '404':
+          description: Item not found in Plex
+        '500':
+          description: Failed to test overlay
 
 security:
   - cookieAuth: []

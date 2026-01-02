@@ -178,6 +178,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.tautulliStatType && {
           tautulliStatType: collectionConfig.tautulliStatType,
         }),
+        ...(collectionConfig.minimumPlays !== undefined && {
+          minimumPlays: collectionConfig.minimumPlays,
+        }),
         ...(collectionConfig.downloadMode && {
           downloadMode: collectionConfig.downloadMode,
         }),
@@ -294,14 +297,10 @@ export const saveIndividualConfigs = async (
           minimumRottenTomatoesRating:
             collectionConfig.minimumRottenTomatoesRating,
         }),
-        ...(collectionConfig.excludedGenres !== undefined && {
-          excludedGenres: collectionConfig.excludedGenres,
-        }),
-        ...(collectionConfig.excludedCountries !== undefined && {
-          excludedCountries: collectionConfig.excludedCountries,
-        }),
-        ...(collectionConfig.excludedLanguages !== undefined && {
-          excludedLanguages: collectionConfig.excludedLanguages,
+        ...(collectionConfig.minimumRottenTomatoesAudienceRating !==
+          undefined && {
+          minimumRottenTomatoesAudienceRating:
+            collectionConfig.minimumRottenTomatoesAudienceRating,
         }),
         ...(collectionConfig.filterSettings !== undefined && {
           filterSettings: collectionConfig.filterSettings,

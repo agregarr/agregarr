@@ -2,9 +2,9 @@ import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { User } from '@server/entity/User';
 import type { PlexCollection } from '@server/lib/collections/core/types';
-import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import { PreExistingCollectionConfigService } from '@server/lib/collections/services/PreExistingCollectionConfigService';
+import { OriginalsCollectionSync } from '@server/lib/collections/sources/originals';
 import { templateEngine } from '@server/lib/collections/utils/TemplateEngine';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import collectionsSync from '@server/lib/collectionsSync';
@@ -252,6 +252,38 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
     }
 
     const existingConfig = configs[existingConfigIndex];
+
+    // Debug logging for person settings payload (directors/actors)
+    if (
+      req.body?.type === 'plex' &&
+      (req.body?.subtype === 'directors' || req.body?.subtype === 'actors')
+    ) {
+      const maybeNumber = (value: unknown): number | undefined => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : undefined;
+      };
+      const personMinimum = maybeNumber(req.body.personMinimumItems);
+
+      if (personMinimum !== undefined && personMinimum < 2) {
+        return res.status(400).json({
+          error: `${req.body.subtype} minimum items must be at least 2`,
+          message:
+            'Person collections require a minimum of 2 items, 1 is not allowed',
+        });
+      }
+
+      if (personMinimum !== undefined) {
+        req.body.personMinimumItems = personMinimum;
+      }
+
+      logger.info(`Updating plex/${req.body.subtype} config`, {
+        label: 'Collections API',
+        id,
+        incomingMinimumItems: personMinimum,
+        rawBodyKeys: Object.keys(req.body || {}),
+        rawBody: req.body,
+      });
+    }
 
     // Check if this is a linked collection - if so, update all linked configs
     const configsToUpdate = [];
@@ -1026,7 +1058,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       const { PlaceholderItem } = await import(
         '@server/entity/PlaceholderItem'
       );
-      const { Not } = await import('typeorm');
+      const { Not, Like } = await import('typeorm');
       const path = await import('path');
 
       const repository = getRepository(PlaceholderItem);
@@ -1034,8 +1066,13 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
       let totalFilesRemoved = 0;
 
       for (const deletedConfig of configsToDelete) {
+        // Find both direct records AND multi-source sub-collection records
+        // Multi-source collections have IDs like "33079-source-1762115269335"
         const orphanedRecords = await repository.find({
-          where: { configId: deletedConfig.id },
+          where: [
+            { configId: deletedConfig.id },
+            { configId: Like(`${deletedConfig.id}-source-%`) },
+          ],
         });
 
         if (orphanedRecords.length === 0) {
@@ -1052,17 +1089,23 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
           }
         );
 
+        // Collect all config IDs being deleted (parent + all sub-sources)
+        const allDeletedConfigIds = Array.from(
+          new Set(orphanedRecords.map((r) => r.configId))
+        );
+
         for (const record of orphanedRecords) {
           try {
             let fileDeleted = false;
 
             // Check if we should delete the placeholder file
             if (record.placeholderPath) {
-              // Check if any OTHER collection still needs this file
+              // Check if any OTHER collection (excluding all deleted IDs) still needs this file
+              const { In } = await import('typeorm');
               const otherCollectionRecords = await repository.find({
                 where: {
                   placeholderPath: record.placeholderPath,
-                  configId: Not(deletedConfig.id),
+                  configId: Not(In(allDeletedConfigIds)),
                 },
               });
 
@@ -1081,7 +1124,7 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
 
                   try {
                     const { removePlaceholder } = await import(
-                      '@server/lib/comingsoon/placeholderManager'
+                      '@server/lib/placeholders/placeholderManager'
                     );
                     await removePlaceholder(fullPath, record.mediaType);
                     fileDeleted = true;
@@ -1651,6 +1694,25 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
       return res.status(404).json({
         status: 'error',
         message: `Collection with ID ${id} not found`,
+      });
+    }
+
+    // Check if full sync is running before allowing individual sync
+    const collectionsSync = (await import('@server/lib/collectionsSync'))
+      .default;
+    if (collectionsSync.running) {
+      logger.warn(
+        'Manual individual sync blocked - full sync is currently running',
+        {
+          label: 'Individual Collection Sync',
+          collectionId: id,
+          collectionName: collectionConfig.name,
+        }
+      );
+      return res.status(409).json({
+        status: 'error',
+        message:
+          'Cannot start individual collection sync while a full sync is running. Please wait for the full sync to complete.',
       });
     }
 

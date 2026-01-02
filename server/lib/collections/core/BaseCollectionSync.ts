@@ -593,6 +593,60 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
   }
 
   /**
+   * Handle placeholder cleanup and process missing items in one step
+   * This combines the cleanup phase (remove old placeholders) with creation phase (add new ones)
+   *
+   * @param items - Items that exist in Plex
+   * @param missingItems - Items that don't exist in Plex
+   * @param config - Collection configuration
+   * @param plexClient - Plex API client
+   * @param libraryCache - Optional library cache for optimization
+   * @param autoRequestHandler - Optional function to call for auto-requests
+   * @returns Collection items created from placeholders
+   */
+  protected async handlePlaceholdersAndMissingItems(
+    items: CollectionItem[],
+    missingItems: MissingItem[] | undefined,
+    config: CollectionConfig,
+    plexClient: PlexAPI,
+    libraryCache?: LibraryItemsCache,
+    autoRequestHandler?: () => Promise<void>
+  ): Promise<CollectionItem[]> {
+    // Phase 1: Cleanup old placeholders (or delete all if setting disabled)
+    const sourceTmdbIds = new Set([
+      ...items
+        .map((item) => item.tmdbId)
+        .filter((id): id is number => typeof id === 'number'),
+      ...(missingItems
+        ?.map((item) => item.tmdbId)
+        .filter((id): id is number => typeof id === 'number') || []),
+    ]);
+
+    const { handlePlaceholderCleanup } = await import(
+      '@server/lib/placeholders/services/PlaceholderCleanup'
+    );
+
+    await handlePlaceholderCleanup(
+      config,
+      plexClient,
+      libraryCache,
+      sourceTmdbIds
+    );
+
+    // Phase 2: Create new placeholders for missing items
+    if (!missingItems || missingItems.length === 0) {
+      return [];
+    }
+
+    return this.processMissingItems(
+      missingItems,
+      config,
+      plexClient,
+      autoRequestHandler
+    );
+  }
+
+  /**
    * Process missing items - create placeholders AND/OR send to auto-requests
    * This is the main entry point for handling missing items in any collection type.
    *
@@ -624,9 +678,9 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
 
     // Create placeholders if enabled
     if (config.createPlaceholdersForMissing) {
-      // Import and use the PlaceholderService
+      // Import and use the PlaceholderCreation service
       const { processPlaceholdersForMissingItems } = await import(
-        '@server/lib/collections/services/PlaceholderService'
+        '@server/lib/placeholders/services/PlaceholderCreation'
       );
 
       logger.info('Creating placeholders for missing items', {
@@ -3139,6 +3193,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     options?: {
       collectionTypeOverride?: string; // For networks/originals to pass platform name
       dynamicLogo?: string; // For networks to pass extracted sprite logo
+      personImageUrl?: string; // For person collections to pass TMDB profile image
     }
   ): Promise<void> {
     try {
@@ -3313,7 +3368,11 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
           mediaType,
           items: posterItems,
           autoPosterTemplate: config.autoPosterTemplate,
+          libraryId: config.libraryId,
           ...(options?.dynamicLogo && { dynamicLogo: options.dynamicLogo }),
+          ...(options?.personImageUrl && {
+            personImageUrl: options.personImageUrl,
+          }),
         },
         `Auto-generated: ${collectionName}`,
         collectionIdentifier

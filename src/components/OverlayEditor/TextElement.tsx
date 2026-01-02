@@ -93,6 +93,7 @@ export const TextElement: React.FC<TextElementComponentProps> = ({
       width={element.width}
       height={element.height}
       rotation={element.rotation || 0}
+      opacity={(props.opacity ?? 100) / 100}
       draggable
       onClick={() => {
         if (groupRef.current) {

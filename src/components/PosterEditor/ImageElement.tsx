@@ -27,7 +27,9 @@ export const ImageElement: React.FC<ImageElementProps> = ({
   onDragEnd,
   onTransformEnd,
 }) => {
-  const props = element.properties as RasterElementProps;
+  const props = element.properties as RasterElementProps & {
+    overlayOpacity?: number;
+  };
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const groupRef = useRef<Konva.Group | null>(null);
 
@@ -121,6 +123,8 @@ export const ImageElement: React.FC<ImageElementProps> = ({
   const scaledHeight = image.height * scale;
   const offsetX = (element.width - scaledWidth) / 2;
   const offsetY = (element.height - scaledHeight) / 2;
+  const imageOpacity =
+    typeof props.overlayOpacity === 'number' ? props.overlayOpacity : 1;
 
   return (
     <Group
@@ -192,6 +196,7 @@ export const ImageElement: React.FC<ImageElementProps> = ({
         height={image.height}
         scaleX={scale}
         scaleY={scale}
+        opacity={imageOpacity}
         listening={false}
       />
       {isSelected && (

@@ -14,6 +14,7 @@ const messages = defineMessages({
   errorLoading: 'Failed to load directories',
   noDirectories: 'No subdirectories found',
   goToParent: 'Go to parent directory',
+  goToRoot: 'Go to Root',
   select: 'Select',
   cancel: 'Cancel',
   selectedPath: 'Selected: {path}',
@@ -94,6 +95,10 @@ const FolderBrowser = ({
     }
   };
 
+  const handleRootClick = () => {
+    loadDirectory('/');
+  };
+
   const handleSelect = () => {
     onSelect(selectedPath);
     onClose();
@@ -120,17 +125,28 @@ const FolderBrowser = ({
           </div>
         </div>
 
-        {/* Parent Directory Button */}
-        {parentPath && (
+        {/* Navigation Buttons */}
+        <div className="flex gap-2">
+          {parentPath && (
+            <Button
+              buttonType="default"
+              className="flex-1"
+              onClick={handleParentClick}
+              disabled={isLoading}
+            >
+              <span>.. (Parent Directory)</span>
+            </Button>
+          )}
           <Button
             buttonType="default"
-            className="w-full"
-            onClick={handleParentClick}
-            disabled={isLoading}
+            className={parentPath ? 'flex-shrink-0' : 'w-full'}
+            onClick={handleRootClick}
+            disabled={isLoading || currentPath === '/'}
           >
-            <span>.. (Parent Directory)</span>
+            <HomeIcon className="mr-2 inline-block h-4 w-4" />
+            <span>{intl.formatMessage(messages.goToRoot)}</span>
           </Button>
-        )}
+        </div>
 
         {/* Directory List */}
         <div className="max-h-96 overflow-y-auto rounded-md border border-stone-600 bg-stone-800">

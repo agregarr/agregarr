@@ -302,6 +302,7 @@ class PlexBasePosterManager {
     plexApi: PlexAPI,
     item: PlexLibraryItem,
     posterSource: 'tmdb' | 'plex',
+    libraryId: string,
     metadata: {
       basePosterSource?: 'tmdb' | 'plex';
       originalPlexPosterUrl?: string;
@@ -360,7 +361,7 @@ class PlexBasePosterManager {
         item.type === 'movie' ? 'movie' : 'show';
 
       // Get TMDB poster URL (lightweight - no download)
-      const language = getTmdbLanguage();
+      const language = await getTmdbLanguage(libraryId);
       const tmdbClient = new TheMovieDb();
 
       let posterUrl: string | undefined;
@@ -668,7 +669,7 @@ class PlexBasePosterManager {
       });
 
       // Get TMDB poster URL (lightweight - no download yet)
-      const language = getTmdbLanguage();
+      const language = await getTmdbLanguage(libraryId);
       const tmdbClient = new TheMovieDb();
 
       let posterUrl: string | undefined;

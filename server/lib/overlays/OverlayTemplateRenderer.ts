@@ -84,6 +84,91 @@ function evaluateSection(
 }
 
 /**
+ * Evaluate condition and return detailed results for debugging
+ * Returns the same boolean result as evaluateCondition, plus detailed evaluation info
+ */
+export function evaluateConditionDetailed(
+  condition: ApplicationCondition | undefined,
+  context: OverlayRenderContext
+): {
+  matched: boolean;
+  sectionResults: {
+    sectionIndex: number;
+    sectionOperator?: 'and' | 'or';
+    matched: boolean;
+    ruleResults: {
+      ruleIndex: number;
+      ruleOperator?: 'and' | 'or';
+      field: string;
+      operator: string;
+      value: unknown;
+      actualValue: unknown;
+      matched: boolean;
+    }[];
+  }[];
+} {
+  if (!condition || !condition.sections || condition.sections.length === 0) {
+    return {
+      matched: true,
+      sectionResults: [],
+    };
+  }
+
+  const sectionResults = condition.sections.map((section, sectionIndex) => {
+    const ruleResults = section.rules.map((rule, ruleIndex) => {
+      const actualValue = context[rule.field];
+      const matched = evaluateRule(rule, context);
+
+      return {
+        ruleIndex,
+        ruleOperator: rule.ruleOperator,
+        field: rule.field,
+        operator: rule.operator,
+        value: rule.value,
+        actualValue,
+        matched,
+      };
+    });
+
+    // Determine section match based on rule operator logic
+    let sectionMatched = ruleResults[0]?.matched ?? true;
+    for (let i = 1; i < ruleResults.length; i++) {
+      const ruleResult = ruleResults[i];
+      if (ruleResult.ruleOperator === 'or') {
+        sectionMatched = sectionMatched || ruleResult.matched;
+      } else {
+        // Default to AND
+        sectionMatched = sectionMatched && ruleResult.matched;
+      }
+    }
+
+    return {
+      sectionIndex,
+      sectionOperator: section.sectionOperator,
+      matched: sectionMatched,
+      ruleResults,
+    };
+  });
+
+  // Determine overall match based on section operator logic
+  let overallMatched = sectionResults[0]?.matched ?? true;
+  for (let i = 1; i < sectionResults.length; i++) {
+    const sectionResult = sectionResults[i];
+    if (sectionResult.sectionOperator === 'and') {
+      overallMatched = overallMatched && sectionResult.matched;
+    } else {
+      // Default to OR
+      overallMatched = overallMatched || sectionResult.matched;
+    }
+  }
+
+  return {
+    matched: overallMatched,
+    sectionResults,
+  };
+}
+
+/**
  * Evaluate a single rule (field/operator/value comparison)
  */
 function evaluateRule(
@@ -188,7 +273,7 @@ export interface OverlayRenderContext {
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
-  metacriticScore?: number;
+  // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata
   title?: string;
@@ -213,6 +298,8 @@ export interface OverlayRenderContext {
   bitDepth?: number; // 8, 10, 12
   hdr?: boolean; // HDR10/HDR10+
   dolbyVision?: boolean; // Dolby Vision
+  dolbyVisionProfile?: number; // Dolby Vision Profile (5, 7, 8, etc.)
+  colorTrc?: string; // Color transfer characteristic (e.g., 'smpte2084' for HDR10, 'arib' for HLG)
 
   // Audio specs
   audioCodec?: string; // 'truehd', 'dts', 'aac'
@@ -257,8 +344,9 @@ export interface OverlayRenderContext {
   inSonarr?: boolean;
   hasFile?: boolean; // Whether *arr reports item has files
   downloaded?: boolean; // Derived from hasFile for monitored items, or !isPlaceholder for others
-  isTrending?: boolean;
-  isWatched?: boolean;
+
+  // Maintainerr integration
+  daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
@@ -578,6 +666,7 @@ class OverlayTemplateRendererService {
           font-weight="${props.fontWeight}"
           font-style="${props.fontStyle}"
           fill="${props.color}"
+          fill-opacity="${(props.opacity ?? 100) / 100}"
           text-anchor="${
             props.textAlign === 'center'
               ? 'middle'
@@ -664,7 +753,11 @@ class OverlayTemplateRendererService {
           d="${path}"
           fill="${props.fillColor}"
           fill-opacity="${props.fillOpacity / 100}"
-          ${props.borderColor ? `stroke="${props.borderColor}"` : ''}
+          ${
+            borderWidth > 0 && props.borderColor
+              ? `stroke="${props.borderColor}"`
+              : ''
+          }
           ${borderWidth > 0 ? `stroke-width="${borderWidth}"` : ''}
         />
       </svg>
@@ -756,6 +849,7 @@ class OverlayTemplateRendererService {
         const isDateField = [
           'releaseDate',
           'nextEpisodeAirDate',
+          'nextSeasonAirDate',
           'lastPlayed',
           'dateAdded',
         ].includes(segment.field);
@@ -779,7 +873,7 @@ class OverlayTemplateRendererService {
             segment.field.includes('Score') ||
             segment.field.includes('Rating')
           ) {
-            // RT/Metacritic scores are percentages - no decimal needed (e.g., 89)
+            // RT scores are percentages - no decimal needed (e.g., 89)
             formattedValue = Math.round(variableValue).toString();
           } else {
             formattedValue = variableValue.toString();
@@ -818,6 +912,7 @@ class OverlayTemplateRendererService {
           font-weight="${props.fontWeight}"
           font-style="${props.fontStyle}"
           fill="${props.color}"
+          fill-opacity="${(props.opacity ?? 100) / 100}"
           text-anchor="${
             props.textAlign === 'center'
               ? 'middle'

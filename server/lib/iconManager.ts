@@ -324,14 +324,35 @@ async function getSystemIcons(): Promise<IconMetadata[]> {
     }
 
     const files = await fs.promises.readdir(SERVICES_ICONS_DIR);
-    const svgFiles = files.filter((file) => file.endsWith('.svg'));
+    const imageFiles = files.filter((file) => {
+      const lower = file.toLowerCase();
+      return (
+        lower.endsWith('.svg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.gif')
+      );
+    });
     const systemIcons: IconMetadata[] = [];
 
-    for (const file of svgFiles) {
+    for (const file of imageFiles) {
       try {
         const filePath = path.join(SERVICES_ICONS_DIR, file);
         const stats = await fs.promises.stat(filePath);
         const iconName = path.parse(file).name;
+        const ext = path.extname(file).toLowerCase();
+
+        // Determine MIME type based on extension
+        const mimeTypeMap: Record<string, string> = {
+          '.svg': 'image/svg+xml',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.webp': 'image/webp',
+          '.gif': 'image/gif',
+        };
 
         const iconMetadata: IconMetadata = {
           id: `system-${iconName}`,
@@ -340,7 +361,7 @@ async function getSystemIcons(): Promise<IconMetadata[]> {
           type: 'system',
           category: 'services',
           tags: ['service', iconName],
-          mimeType: 'image/svg+xml',
+          mimeType: mimeTypeMap[ext] || 'image/svg+xml',
           size: stats.size,
           uploadedAt: new Date(stats.mtime).toISOString(),
           description: `${iconName} service logo`,

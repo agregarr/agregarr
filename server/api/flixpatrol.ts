@@ -98,14 +98,42 @@ class FlixPatrolAPI extends ExternalAPI {
       // Parse platform to extract base platform and requested section filter
       // Format: "netflix-kids_top_10" -> platform: "netflix", filter: "kids"
       //         "netflix_top_10" -> platform: "netflix", filter: undefined (all content)
-      const platformMatch = platform.match(/^([^-]+)(?:-(.+?))?_top_10$/);
+      //         "hbo-max_top_10" -> platform: "hbo-max", filter: undefined (hbo-max is the platform name)
+      //         "apple-tv_top_10" -> platform: "apple-tv", filter: undefined (apple-tv is the platform name)
+
+      // List of platforms that have dashes in their names (not filters)
+      const multiPartPlatforms = [
+        'hbo-max',
+        'apple-tv',
+        'amazon-prime',
+        'apple-tv-store',
+        'google-tv',
+      ];
+
       let basePlatform = platform;
       let contentFilter: 'kids' | undefined;
 
-      if (platformMatch) {
-        basePlatform = platformMatch[1];
-        if (platformMatch[2] === 'kids') {
-          contentFilter = 'kids';
+      // Check if this is a multi-part platform name
+      const isMultiPartPlatform = multiPartPlatforms.some((p) =>
+        platform.startsWith(p)
+      );
+
+      if (isMultiPartPlatform) {
+        // For multi-part platforms, extract the full platform name
+        const matchedPlatform = multiPartPlatforms.find((p) =>
+          platform.startsWith(p)
+        );
+        if (matchedPlatform) {
+          basePlatform = matchedPlatform;
+        }
+      } else {
+        // For single-part platforms, check for content filters
+        const platformMatch = platform.match(/^([^-]+)(?:-(.+?))?_top_10$/);
+        if (platformMatch) {
+          basePlatform = platformMatch[1];
+          if (platformMatch[2] === 'kids') {
+            contentFilter = 'kids';
+          }
         }
       }
 

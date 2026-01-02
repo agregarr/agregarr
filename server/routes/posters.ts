@@ -42,15 +42,17 @@ router.get('/templates', async (req, res, next) => {
       order: { isDefault: 'DESC', createdAt: 'ASC' },
     });
 
-    const templatesResponse = templates.map((template: PosterTemplate) => ({
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      isDefault: template.isDefault,
-      templateData: template.getTemplateData(),
-      createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
-    }));
+    const templatesResponse = templates.map((template: PosterTemplate) => {
+      return {
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        isDefault: template.isDefault,
+        templateData: template.getTemplateData(),
+        createdAt: template.createdAt,
+        updatedAt: template.updatedAt,
+      };
+    });
 
     return res.status(200).json({
       templates: templatesResponse,

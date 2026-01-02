@@ -32,17 +32,19 @@ import myanimelistRoutes from './myanimelist';
 import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
 import overlaySettingsRoutes from './overlaySettings';
 import overlayTemplatesRoutes from './overlayTemplates';
+import overlayTestRoutes from './overlayTest';
 import postersRoutes from './posters';
 import preExistingRoutes from './preexisting';
 import ratingsRoutes from './ratings';
 import reorderRoutes from './reorder';
+import searchRoutes from './search';
 import sourceColorsRoutes from './sourceColors';
 import traktOAuthRoutes from './trakt-oauth';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
-export const createTmdbWithRegionLanguage = (): TheMovieDb => {
-  return new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+export const createTmdbWithRegionLanguage = async (): Promise<TheMovieDb> => {
+  return new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 };
 // Movie, search, and TV routes removed - discovery functionality not needed
 import overseerrRoutes from './overseerr';
@@ -161,6 +163,8 @@ router.use(
   overlayLibraryConfigsRoutes
 );
 router.use('/overlay-settings', isAuthenticated(), overlaySettingsRoutes);
+router.use('/overlay-test', isAuthenticated(), overlayTestRoutes);
+router.use('/plex', isAuthenticated(), searchRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
 router.use('/preexisting', isAuthenticated(), preExistingRoutes);
 router.use('/ratings', isAuthenticated(), ratingsRoutes);
@@ -172,7 +176,7 @@ router.use('/anilist', anilistRoutes);
 router.use('/myanimelist', myanimelistRoutes);
 
 router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const movie = await tmdb.getMovie({ movieId: Number(req.params.id) });
@@ -192,7 +196,7 @@ router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
 });
 
 router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const tv = await tmdb.getTvShow({ tvId: Number(req.params.id) });
@@ -212,7 +216,7 @@ router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
 });
 
 router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const studio = await tmdb.getStudio(Number(req.params.id));
@@ -232,7 +236,7 @@ router.get<{ id: string }>('/studio/:id', async (req, res, next) => {
 });
 
 router.get<{ id: string }>('/network/:id', async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const network = await tmdb.getNetwork(Number(req.params.id));
@@ -252,7 +256,7 @@ router.get<{ id: string }>('/network/:id', async (req, res, next) => {
 });
 
 router.get('/genres/movie', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const genres = await tmdb.getMovieGenres({
@@ -273,7 +277,7 @@ router.get('/genres/movie', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const genres = await tmdb.getTvGenres({
@@ -294,7 +298,7 @@ router.get('/genres/tv', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/genres/combined', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
   try {
     const [movieGenres, tvGenres] = await Promise.all([
@@ -463,7 +467,7 @@ router.get('/languages/combined', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/backdrops', async (req, res, next) => {
-  const tmdb = createTmdbWithRegionLanguage();
+  const tmdb = await createTmdbWithRegionLanguage();
 
   try {
     const data = (
@@ -496,7 +500,7 @@ router.get('/backdrops', async (req, res, next) => {
 });
 
 router.get('/keyword/:keywordId', async (req, res, next) => {
-  const tmdb = createTmdbWithRegionLanguage();
+  const tmdb = await createTmdbWithRegionLanguage();
 
   try {
     const result = await tmdb.getKeywordDetails({

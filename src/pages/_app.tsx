@@ -27,6 +27,20 @@ import { SWRConfig } from 'swr';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
   switch (locale) {
+    case 'de':
+      return import('../i18n/locale/de.json');
+    case 'es':
+      return import('../i18n/locale/es.json');
+    case 'fr':
+      return import('../i18n/locale/fr.json');
+    case 'it':
+      return import('../i18n/locale/it.json');
+    case 'nl':
+      return import('../i18n/locale/nl.json');
+    case 'pt-BR':
+      return import('../i18n/locale/pt-BR.json');
+    case 'ru':
+      return import('../i18n/locale/ru.json');
     default:
       return import('../i18n/locale/en.json');
   }

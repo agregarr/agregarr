@@ -7,6 +7,7 @@ import SensitiveInput from '@app/components/Common/SensitiveInput';
 import globalMessages from '@app/i18n/globalMessages';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import type {
+  MaintainerrSettings,
   MDBListSettings,
   MyAnimeListSettings,
   TautulliSettings,
@@ -65,7 +66,7 @@ const messages = defineMessages({
   traktStatusPending: 'Not tested',
   traktStatusMissing: 'Not configured',
   traktCredsHint:
-    '(redirect URI: urn:ietf:wg:oauth:2.0:oob) and copy the Client ID and Client Secret.',
+    '(redirect URI: urn:ietf:wg:oauth:2.0:oob) and copy the Client ID above, and Client Secret below.',
   traktReconnect: 'Reconnect',
   traktDisconnect: 'Disconnect',
   traktDisconnected: 'Disconnected from Trakt',
@@ -96,6 +97,19 @@ const messages = defineMessages({
   testMyanimelistConnection: 'Test Connection',
   myanimelistConnectionSuccess: 'Connected to MyAnimeList successfully!',
   myanimelistConnectionFailure: 'Failed to connect to MyAnimeList',
+  maintainerrSettings: 'Maintainerr Settings (Poster Overlays Only)',
+  maintainerrSettingsDescription:
+    'Configure Maintainerr connection for overlay conditions based on action countdowns.',
+  maintainerrHostname: 'Hostname or IP Address',
+  maintainerrPort: 'Port',
+  maintainerrUseSsl: 'Use SSL',
+  maintainerrApiKey: 'API Key',
+  toastMaintainerrSettingsSuccess: 'Maintainerr settings saved successfully!',
+  toastMaintainerrSettingsFailure:
+    'Something went wrong while saving Maintainerr settings.',
+  testMaintainerrConnection: 'Test Connection',
+  maintainerrConnectionSuccess: 'Connected to Maintainerr successfully!',
+  maintainerrConnectionFailure: 'Failed to connect to Maintainerr',
   validationHostnameRequired: 'You must provide a valid hostname or IP address',
   validationPortRequired: 'You must provide a valid port number',
   testTautulliConnection: 'Test Connection',
@@ -120,6 +134,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const [mdblistTestSuccess, setMdblistTestSuccess] = useState(false);
   const [myanimelistTestSuccess, setMyanimelistTestSuccess] = useState(false);
   const [tautulliTestSuccess, setTautulliTestSuccess] = useState(false);
+  const [maintainerrTestSuccess, setMaintainerrTestSuccess] = useState(false);
   const [testingService, setTestingService] = useState<string | null>(null);
   const [isDisconnectingTrakt, setIsDisconnectingTrakt] = useState(false);
 
@@ -130,6 +145,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const [testedMyanimelistValues, setTestedMyanimelistValues] =
     useState<string>('');
   const [testedTautulliValues, setTestedTautulliValues] = useState<string>('');
+  const [testedMaintainerrValues, setTestedMaintainerrValues] =
+    useState<string>('');
 
   // Check if we're in setup mode
   const isSetupMode = !!onComplete;
@@ -143,6 +160,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
     useSWR<MDBListSettings>('/api/v1/settings/mdblist');
   const { data: dataMyanimelist, mutate: revalidateMyanimelist } =
     useSWR<MyAnimeListSettings>('/api/v1/settings/myanimelist');
+  const { data: dataMaintainerr, mutate: revalidateMaintainerr } =
+    useSWR<MaintainerrSettings>('/api/v1/settings/maintainerr');
   const [showTraktCodeModal, setShowTraktCodeModal] = useState(false);
   const [traktCode, setTraktCode] = useState('');
   const [isExchangingCode, setIsExchangingCode] = useState(false);
@@ -179,6 +198,16 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   useEffect(() => {
     setMyanimelistTestSuccess(false);
   }, [dataMyanimelist?.apiKey]);
+
+  useEffect(() => {
+    setMaintainerrTestSuccess(false);
+  }, [
+    dataMaintainerr?.hostname,
+    dataMaintainerr?.port,
+    dataMaintainerr?.apiKey,
+    dataMaintainerr?.useSsl,
+    dataMaintainerr?.urlBase,
+  ]);
 
   const TautulliValidationSchema = Yup.object().shape(
     {
@@ -234,6 +263,44 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   const MyanimelistSettingsSchema = Yup.object().shape({
     myanimelistApiKey: Yup.string().nullable(),
   });
+
+  const MaintainerrValidationSchema = Yup.object().shape(
+    {
+      maintainerrHostname: Yup.string()
+        .nullable()
+        .matches(
+          /^(([a-z]|\d|_|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*)?([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])$/i,
+          intl.formatMessage(messages.validationHostnameRequired)
+        ),
+      maintainerrPort: Yup.number()
+        .typeError(intl.formatMessage(messages.validationPortRequired))
+        .nullable(),
+      maintainerrUrlBase: Yup.string()
+        .test(
+          'leading-slash',
+          intl.formatMessage(messages.validationUrlBaseLeadingSlash),
+          (value) => !value || value.startsWith('/')
+        )
+        .test(
+          'no-trailing-slash',
+          intl.formatMessage(messages.validationUrlBaseTrailingSlash),
+          (value) => !value || !value.endsWith('/')
+        ),
+      maintainerrApiKey: Yup.string().nullable(),
+      maintainerrExternalUrl: Yup.string()
+        .url(intl.formatMessage(messages.validationUrl))
+        .test(
+          'no-trailing-slash',
+          intl.formatMessage(messages.validationUrlTrailingSlash),
+          (value) => !value || !value.endsWith('/')
+        ),
+    },
+    [
+      ['maintainerrHostname', 'maintainerrPort'],
+      ['maintainerrHostname', 'maintainerrApiKey'],
+      ['maintainerrPort', 'maintainerrApiKey'],
+    ]
+  );
 
   return (
     <>
@@ -1355,6 +1422,307 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                           (!myanimelistTestSuccess ||
                             testedMyanimelistValues !==
                               (values.myanimelistApiKey || '')))
+                      }
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(messages.saving)
+                          : intl.formatMessage(messages.save)}
+                      </span>
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            </form>
+          );
+        }}
+      </Formik>
+
+      {/* Maintainerr Settings */}
+      <div className="section">
+        <div className="mt-10 mb-6">
+          <h3 className="heading">
+            {intl.formatMessage(messages.maintainerrSettings)}
+          </h3>
+          <p className="description">
+            {intl.formatMessage(messages.maintainerrSettingsDescription)}
+          </p>
+        </div>
+      </div>
+      <Formik
+        initialValues={{
+          maintainerrHostname: dataMaintainerr?.hostname,
+          maintainerrPort: dataMaintainerr?.port ?? 6246,
+          maintainerrUseSsl: dataMaintainerr?.useSsl ?? false,
+          maintainerrUrlBase: dataMaintainerr?.urlBase,
+          maintainerrApiKey: dataMaintainerr?.apiKey,
+          maintainerrExternalUrl: dataMaintainerr?.externalUrl,
+        }}
+        validationSchema={MaintainerrValidationSchema}
+        enableReinitialize
+        onSubmit={async (values) => {
+          try {
+            await axios.post('/api/v1/settings/maintainerr', {
+              hostname: values.maintainerrHostname,
+              port: Number(values.maintainerrPort),
+              apiKey: values.maintainerrApiKey,
+              useSsl: values.maintainerrUseSsl,
+              urlBase: values.maintainerrUrlBase,
+              externalUrl: values.maintainerrExternalUrl,
+            });
+            addToast(
+              intl.formatMessage(messages.toastMaintainerrSettingsSuccess),
+              {
+                appearance: 'success',
+                autoDismiss: true,
+              }
+            );
+          } catch (e) {
+            addToast(
+              intl.formatMessage(messages.toastMaintainerrSettingsFailure),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
+          } finally {
+            revalidateMaintainerr();
+          }
+        }}
+      >
+        {({
+          errors,
+          touched,
+          handleSubmit,
+          setFieldValue,
+          isSubmitting,
+          isValid,
+          values,
+        }) => {
+          const testMaintainerrConnection = async () => {
+            if (
+              !values.maintainerrHostname ||
+              !values.maintainerrPort ||
+              !values.maintainerrApiKey
+            ) {
+              return;
+            }
+            setIsTesting(true);
+            setTestingService('maintainerr');
+            try {
+              const response = await axios.post(
+                '/api/v1/settings/maintainerr/test',
+                {
+                  hostname: values.maintainerrHostname,
+                  port: Number(values.maintainerrPort),
+                  apiKey: values.maintainerrApiKey,
+                  useSsl: values.maintainerrUseSsl,
+                  urlBase: values.maintainerrUrlBase,
+                }
+              );
+              if (response.data.success) {
+                setMaintainerrTestSuccess(true);
+                setTestedMaintainerrValues(
+                  `${values.maintainerrHostname}:${values.maintainerrPort}:${values.maintainerrApiKey}:${values.maintainerrUseSsl}:${values.maintainerrUrlBase}`
+                );
+
+                addToast(
+                  intl.formatMessage(messages.maintainerrConnectionSuccess),
+                  {
+                    autoDismiss: true,
+                    appearance: 'success',
+                  }
+                );
+              } else {
+                setMaintainerrTestSuccess(false);
+                addToast(
+                  intl.formatMessage(messages.maintainerrConnectionFailure),
+                  {
+                    autoDismiss: true,
+                    appearance: 'error',
+                  }
+                );
+              }
+            } catch (error) {
+              setMaintainerrTestSuccess(false);
+
+              let errorMessage =
+                error.response?.data?.message ||
+                intl.formatMessage(messages.maintainerrConnectionFailure);
+
+              if (!error.response?.data?.message) {
+                if (error.code === 'ECONNREFUSED') {
+                  errorMessage +=
+                    ' - Connection refused. Check hostname and port.';
+                } else if (error.code === 'ENOTFOUND') {
+                  errorMessage += ' - Host not found. Check hostname.';
+                } else if (error.code === 'ETIMEDOUT') {
+                  errorMessage +=
+                    ' - Connection timeout. Check network connectivity.';
+                } else if (error.message) {
+                  errorMessage += ` - ${error.message}`;
+                }
+              }
+
+              addToast(errorMessage, {
+                autoDismiss: true,
+                appearance: 'error',
+              });
+            } finally {
+              setTestingService(null);
+              setIsTesting(false);
+            }
+          };
+
+          return (
+            <form className="section" onSubmit={handleSubmit}>
+              <div className="form-row">
+                <label htmlFor="maintainerrHostname" className="text-label">
+                  {intl.formatMessage(messages.maintainerrHostname)}
+                  <span className="label-required">*</span>
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-stone-800 px-3 text-gray-100 sm:text-sm">
+                      {values.maintainerrUseSsl ? 'https://' : 'http://'}
+                    </span>
+                    <Field
+                      type="text"
+                      inputMode="url"
+                      id="maintainerrHostname"
+                      name="maintainerrHostname"
+                      className="rounded-r-only flex-1"
+                    />
+                  </div>
+                  {errors.maintainerrHostname &&
+                    touched.maintainerrHostname && (
+                      <div className="error">{errors.maintainerrHostname}</div>
+                    )}
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="maintainerrPort" className="text-label">
+                  {intl.formatMessage(messages.maintainerrPort)}
+                  <span className="label-required">*</span>
+                </label>
+                <div className="form-input-area">
+                  <Field
+                    type="text"
+                    inputMode="numeric"
+                    id="maintainerrPort"
+                    name="maintainerrPort"
+                    className="short"
+                  />
+                  {errors.maintainerrPort && touched.maintainerrPort && (
+                    <div className="error">{errors.maintainerrPort}</div>
+                  )}
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="maintainerrUseSsl" className="checkbox-label">
+                  {intl.formatMessage(messages.maintainerrUseSsl)}
+                </label>
+                <div className="form-input-area">
+                  <Field
+                    type="checkbox"
+                    id="maintainerrUseSsl"
+                    name="maintainerrUseSsl"
+                    onChange={() => {
+                      setFieldValue(
+                        'maintainerrUseSsl',
+                        !values.maintainerrUseSsl
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="maintainerrUrlBase" className="text-label">
+                  {intl.formatMessage(messages.urlBase)}
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <Field
+                      type="text"
+                      inputMode="url"
+                      id="maintainerrUrlBase"
+                      name="maintainerrUrlBase"
+                      autoComplete="off"
+                      data-1pignore="true"
+                      data-lpignore="true"
+                      data-bwignore="true"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="maintainerrApiKey" className="text-label">
+                  {intl.formatMessage(messages.maintainerrApiKey)}
+                  <span className="label-required">*</span>
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <SensitiveInput
+                      as="field"
+                      id="maintainerrApiKey"
+                      name="maintainerrApiKey"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="maintainerrExternalUrl" className="text-label">
+                  {intl.formatMessage(messages.externalUrl)}
+                </label>
+                <div className="form-input-area">
+                  <div className="form-input-field">
+                    <Field
+                      type="text"
+                      inputMode="url"
+                      id="maintainerrExternalUrl"
+                      name="maintainerrExternalUrl"
+                      autoComplete="off"
+                      data-1pignore="true"
+                      data-lpignore="true"
+                      data-bwignore="true"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="ml-3 inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="default"
+                      type="button"
+                      onClick={testMaintainerrConnection}
+                      disabled={
+                        !values.maintainerrHostname ||
+                        !values.maintainerrPort ||
+                        !values.maintainerrApiKey ||
+                        isTesting
+                      }
+                    >
+                      {isTesting
+                        ? intl.formatMessage(messages.testing)
+                        : intl.formatMessage(
+                            messages.testMaintainerrConnection
+                          )}
+                    </Button>
+                  </span>
+                  <span className="ml-3 inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={
+                        isSubmitting ||
+                        !isValid ||
+                        (isSetupMode &&
+                          !!values.maintainerrApiKey &&
+                          (!maintainerrTestSuccess ||
+                            testedMaintainerrValues !==
+                              `${values.maintainerrHostname}:${values.maintainerrPort}:${values.maintainerrApiKey}:${values.maintainerrUseSsl}:${values.maintainerrUrlBase}`))
                       }
                     >
                       <ArrowDownOnSquareIcon />

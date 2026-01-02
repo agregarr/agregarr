@@ -248,6 +248,21 @@ const autoRequestValidations = {
         return /^\d+(\.\d{1})?$/.test(value.toString());
       }
     ),
+
+  minimumRottenTomatoesAudienceRating: Yup.number()
+    .min(
+      0,
+      'Minimum Rotten Tomatoes audience rating must be 0 or greater (0 = no limit)'
+    )
+    .max(100, 'Rotten Tomatoes audience ratings cannot exceed 100')
+    .test(
+      'decimal-places',
+      'Rotten Tomatoes audience rating can have at most 1 decimal place',
+      (value) => {
+        if (value === undefined || value === null) return true;
+        return /^\d+(\.\d{1})?$/.test(value.toString());
+      }
+    ),
 };
 
 // Placeholder creation validation

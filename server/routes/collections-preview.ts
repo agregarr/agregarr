@@ -4,10 +4,8 @@ import { User } from '@server/entity/User';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
-  FilteringStats,
   ItemProducingSource,
   MissingItem,
-  NetworksSourceData,
 } from '@server/lib/collections/core/types';
 import { libraryCacheService } from '@server/lib/collections/services/LibraryCacheService';
 import type { CollectionConfig } from '@server/lib/settings';
@@ -690,7 +688,7 @@ async function processMultiSourcePreview(
     imdbId?: string;
     tmdbRating?: number;
   }> => {
-    const language = getTmdbLanguage();
+    const language = await getTmdbLanguage(libraryId);
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -1154,39 +1152,12 @@ async function processPreviewAsync(
     });
 
     // Map to collection items (this performs the Plex matching)
-    // Networks collections require mediaType as 5th parameter
-    type MapSourceDataResult = {
-      items: CollectionItem[];
-      missingItems?: MissingItem[];
-      stats?: FilteringStats;
-    };
-
-    let mappedResult: MapSourceDataResult;
-
-    if (type === 'networks') {
-      // Networks sync service has extended signature with mediaType parameter
-      const NetworksModule = await import(
-        '@server/lib/collections/external/networks'
-      );
-      mappedResult = await (
-        syncService as InstanceType<
-          typeof NetworksModule.NetworksCollectionSync
-        >
-      ).mapSourceDataToItems(
-        sourceData as NetworksSourceData[],
-        previewConfig,
-        plexClient,
-        libraryCache,
-        mediaType
-      );
-    } else {
-      mappedResult = await syncService.mapSourceDataToItems(
-        sourceData,
-        previewConfig,
-        plexClient,
-        libraryCache
-      );
-    }
+    const mappedResult = await syncService.mapSourceDataToItems(
+      sourceData,
+      previewConfig,
+      plexClient,
+      libraryCache
+    );
 
     // Filter items by mediaType BEFORE applying other filtering
     // This ensures movies only appear in movie libraries and TV in TV libraries
@@ -1266,7 +1237,7 @@ async function processPreviewAsync(
       imdbId?: string;
       tmdbRating?: number;
     }> => {
-      const language = getTmdbLanguage();
+      const language = await getTmdbLanguage(requestBody.libraryId);
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {

@@ -154,6 +154,7 @@ export interface CollectionFormConfig {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -275,10 +276,7 @@ export interface CollectionFormConfig {
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
   readonly minimumRottenTomatoesRating?: number; // Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)
-  readonly excludedGenres?: number[]; // @deprecated Use filterSettings.genres - Exclude items with these TMDB genre IDs from missing items search
-  readonly excludedCountries?: string[]; // @deprecated Use filterSettings.countries - Exclude items with these ISO 3166-1 country codes from missing items search
-  readonly excludedLanguages?: string[]; // @deprecated Use filterSettings.languages - Exclude items with these ISO 639-1 language codes from missing items search
-  // New unified filter settings with include/exclude modes
+  readonly minimumRottenTomatoesAudienceRating?: number; // Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)
   readonly filterSettings?: {
     readonly genres?: {
       readonly mode: 'exclude' | 'include';
@@ -334,6 +332,11 @@ export interface CollectionFormConfig {
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Unified person minimum items for plex/actors|directors
+  readonly personMinimumItems?: number;
+  // Plex Library separator settings for multi-collections (actors/directors)
+  readonly useSeparator?: boolean; // Whether to create a separator collection for auto person collections
+  readonly separatorTitle?: string; // Custom title for the separator collection
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
@@ -401,6 +404,7 @@ export interface CollectionConfigCreateRequest {
     | 'letterboxd'
     | 'anilist'
     | 'myanimelist'
+    | 'plex'
     | 'mdblist'
     | 'networks'
     | 'originals'
@@ -447,9 +451,7 @@ export interface CollectionConfigCreateRequest {
   readonly minimumYear?: number;
   readonly minimumImdbRating?: number;
   readonly minimumRottenTomatoesRating?: number;
-  readonly excludedGenres?: number[];
-  readonly excludedCountries?: string[];
-  readonly excludedLanguages?: string[];
+  readonly minimumRottenTomatoesAudienceRating?: number;
   readonly filterSettings?: {
     readonly genres?: {
       readonly mode: 'exclude' | 'include';
@@ -497,6 +499,11 @@ export interface CollectionConfigCreateRequest {
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
   readonly sortOrder?: CollectionSortOrder;
+  // Unified person minimum items for plex actors/directors
+  readonly personMinimumItems?: number;
+  // Plex Library separator settings for auto person multi-collections
+  readonly useSeparator?: boolean;
+  readonly separatorTitle?: string;
   readonly excludeFromCollections?: string[];
   readonly timeRestriction?: {
     readonly alwaysActive: boolean;
@@ -583,9 +590,8 @@ export const toCollectionCreateRequest = (
     minimumYear: config.minimumYear,
     minimumImdbRating: config.minimumImdbRating,
     minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
-    excludedGenres: config.excludedGenres,
-    excludedCountries: config.excludedCountries,
-    excludedLanguages: config.excludedLanguages,
+    minimumRottenTomatoesAudienceRating:
+      config.minimumRottenTomatoesAudienceRating,
     filterSettings: config.filterSettings,
     directDownloadRadarrServerId: config.directDownloadRadarrServerId,
     directDownloadRadarrProfileId: config.directDownloadRadarrProfileId,
@@ -618,11 +624,14 @@ export const toCollectionCreateRequest = (
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
     sortOrder: config.sortOrder,
+    personMinimumItems: config.personMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
     timeRestriction: config.timeRestriction,
     customPoster: config.customPoster,
     autoPoster: config.autoPoster,
     autoPosterTemplate: config.autoPosterTemplate,
+    useSeparator: config.useSeparator,
+    separatorTitle: config.separatorTitle,
     useTmdbFranchisePoster: config.useTmdbFranchisePoster,
     hideIndividualItems: config.hideIndividualItems,
     // Wallpaper, summary, and theme settings
@@ -772,6 +781,7 @@ export type CollectionSourceType =
   | 'originals'
   | 'anilist'
   | 'myanimelist'
+  | 'plex'
   | 'multi-source'
   | 'radarrtag'
   | 'sonarrtag'
@@ -996,9 +1006,6 @@ export interface MultiSourceCollectionConfig {
   readonly seasonGrabOrder?: SeasonGrabOrder;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
-  readonly excludedGenres?: number[];
-  readonly excludedCountries?: string[];
-  readonly excludedLanguages?: string[];
   readonly filterSettings?: {
     readonly genres?: {
       readonly mode: 'exclude' | 'include';

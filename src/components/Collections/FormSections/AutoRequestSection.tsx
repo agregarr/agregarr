@@ -46,6 +46,10 @@ const messages = defineMessages({
   minimumRottenTomatoesRating: 'Minimum Rotten Tomatoes rating',
   minimumRottenTomatoesRatingHelp:
     'Only grab movies/TV shows with a Rotten Tomatoes critics score >= this value (0 = no limit). Items without ratings will be allowed.',
+  minimumRottenTomatoesAudienceRating:
+    'Minimum Rotten Tomatoes audience rating',
+  minimumRottenTomatoesAudienceRatingHelp:
+    'Only grab movies/TV shows with a Rotten Tomatoes audience score >= this value (0 = no limit). Items without ratings will be allowed.',
 
   // Download method
   downloadMethod: 'Download Method',
@@ -107,9 +111,6 @@ interface AutoRequestSectionProps {
     downloadMode?: 'overseerr' | 'direct';
     searchMissingMovies?: boolean;
     searchMissingTV?: boolean;
-    excludedGenres?: number[];
-    excludedCountries?: string[];
-    excludedLanguages?: string[];
     filterSettings?: {
       genres?: {
         mode: 'exclude' | 'include';
@@ -255,6 +256,44 @@ const AutoRequestSection = ({
 
     fetchOverseerrServers();
   }, [overseerrSettings]);
+
+  // Auto-select single Overseerr Radarr server if only one exists
+  useEffect(() => {
+    if (
+      !overseerrLoading &&
+      overseerrServerOptions.servers.radarr.length === 1 &&
+      values.overseerrRadarrServerId === undefined
+    ) {
+      setFieldValue?.(
+        'overseerrRadarrServerId',
+        overseerrServerOptions.servers.radarr[0].id
+      );
+    }
+  }, [
+    overseerrLoading,
+    overseerrServerOptions.servers.radarr,
+    values.overseerrRadarrServerId,
+    setFieldValue,
+  ]);
+
+  // Auto-select single Overseerr Sonarr server if only one exists
+  useEffect(() => {
+    if (
+      !overseerrLoading &&
+      overseerrServerOptions.servers.sonarr.length === 1 &&
+      values.overseerrSonarrServerId === undefined
+    ) {
+      setFieldValue?.(
+        'overseerrSonarrServerId',
+        overseerrServerOptions.servers.sonarr[0].id
+      );
+    }
+  }, [
+    overseerrLoading,
+    overseerrServerOptions.servers.sonarr,
+    values.overseerrSonarrServerId,
+    setFieldValue,
+  ]);
 
   // Get the effective server IDs (only when server data has loaded)
   const effectiveRadarrServerId =
@@ -521,28 +560,45 @@ const AutoRequestSection = ({
             </div>
           </div>
 
+          {/* Minimum Rotten Tomatoes Audience Rating */}
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium text-gray-200">
+              {intl.formatMessage(messages.minimumRottenTomatoesAudienceRating)}
+            </div>
+            <div className="form-input-field">
+              <Field
+                type="text"
+                inputMode="decimal"
+                id="minimumRottenTomatoesAudienceRating"
+                name="minimumRottenTomatoesAudienceRating"
+                placeholder="0"
+                className="short"
+              />
+            </div>
+            {errors.minimumRottenTomatoesAudienceRating &&
+              touched.minimumRottenTomatoesAudienceRating && (
+                <div className="error">
+                  {errors.minimumRottenTomatoesAudienceRating}
+                </div>
+              )}
+            <div className="label-tip mt-2">
+              {intl.formatMessage(
+                messages.minimumRottenTomatoesAudienceRatingHelp
+              )}
+            </div>
+          </div>
+
           {/* Genre Filter with Include/Exclude Mode */}
           <FilterWithMode
             filterType="genres"
             mode={values.filterSettings?.genres?.mode || 'exclude'}
-            selectedValues={
-              values.filterSettings?.genres?.values ||
-              values.excludedGenres ||
-              []
-            }
+            selectedValues={values.filterSettings?.genres?.values || []}
             onModeChange={(mode) => {
-              const currentValues =
-                values.filterSettings?.genres?.values ||
-                values.excludedGenres ||
-                [];
+              const currentValues = values.filterSettings?.genres?.values || [];
               setFieldValue?.('filterSettings', {
                 ...(values.filterSettings || {}),
                 genres: { mode, values: currentValues },
               });
-              // Clear old format when using new format
-              if (values.excludedGenres) {
-                setFieldValue?.('excludedGenres', undefined);
-              }
             }}
             onValuesChange={(selectedValues) => {
               const currentMode =
@@ -554,10 +610,6 @@ const AutoRequestSection = ({
                   values: selectedValues as number[],
                 },
               });
-              // Clear old format when using new format
-              if (values.excludedGenres) {
-                setFieldValue?.('excludedGenres', undefined);
-              }
             }}
           />
 
@@ -565,24 +617,14 @@ const AutoRequestSection = ({
           <FilterWithMode
             filterType="countries"
             mode={values.filterSettings?.countries?.mode || 'exclude'}
-            selectedValues={
-              values.filterSettings?.countries?.values ||
-              values.excludedCountries ||
-              []
-            }
+            selectedValues={values.filterSettings?.countries?.values || []}
             onModeChange={(mode) => {
               const currentValues =
-                values.filterSettings?.countries?.values ||
-                values.excludedCountries ||
-                [];
+                values.filterSettings?.countries?.values || [];
               setFieldValue?.('filterSettings', {
                 ...(values.filterSettings || {}),
                 countries: { mode, values: currentValues },
               });
-              // Clear old format when using new format
-              if (values.excludedCountries) {
-                setFieldValue?.('excludedCountries', undefined);
-              }
             }}
             onValuesChange={(selectedValues) => {
               const currentMode =
@@ -594,10 +636,6 @@ const AutoRequestSection = ({
                   values: selectedValues as string[],
                 },
               });
-              // Clear old format when using new format
-              if (values.excludedCountries) {
-                setFieldValue?.('excludedCountries', undefined);
-              }
             }}
           />
 
@@ -605,24 +643,14 @@ const AutoRequestSection = ({
           <FilterWithMode
             filterType="languages"
             mode={values.filterSettings?.languages?.mode || 'exclude'}
-            selectedValues={
-              values.filterSettings?.languages?.values ||
-              values.excludedLanguages ||
-              []
-            }
+            selectedValues={values.filterSettings?.languages?.values || []}
             onModeChange={(mode) => {
               const currentValues =
-                values.filterSettings?.languages?.values ||
-                values.excludedLanguages ||
-                [];
+                values.filterSettings?.languages?.values || [];
               setFieldValue?.('filterSettings', {
                 ...(values.filterSettings || {}),
                 languages: { mode, values: currentValues },
               });
-              // Clear old format when using new format
-              if (values.excludedLanguages) {
-                setFieldValue?.('excludedLanguages', undefined);
-              }
             }}
             onValuesChange={(selectedValues) => {
               const currentMode =
@@ -634,10 +662,6 @@ const AutoRequestSection = ({
                   values: selectedValues as string[],
                 },
               });
-              // Clear old format when using new format
-              if (values.excludedLanguages) {
-                setFieldValue?.('excludedLanguages', undefined);
-              }
             }}
           />
 

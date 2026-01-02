@@ -194,11 +194,25 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
+          // Monitored items with upcoming release (movies, TV series premieres)
           rules: [
             { field: 'isMonitored', operator: 'eq', value: true },
             {
               ruleOperator: 'and',
               field: 'daysUntilRelease',
+              operator: 'lte',
+              value: 30,
+            }, // Only ≤30 days
+          ],
+        },
+        {
+          // OR monitored TV shows with upcoming season premiere (e.g., Season 2 when Season 1 doesn't exist)
+          sectionOperator: 'or',
+          rules: [
+            { field: 'isMonitored', operator: 'eq', value: true },
+            {
+              ruleOperator: 'and',
+              field: 'daysUntilNextSeason',
               operator: 'lte',
               value: 30,
             }, // Only ≤30 days
@@ -388,6 +402,37 @@ export const PRESET_TEMPLATES: {
             },
           ],
         },
+        {
+          // OR TV SHOWS: Already released (daysAgo >= 0), not downloaded, monitored, in Sonarr (fallback for shows without daysAgoNextSeason)
+          sectionOperator: 'or',
+          rules: [
+            { field: 'mediaType', operator: 'eq', value: 'show' },
+            {
+              ruleOperator: 'and',
+              field: 'daysAgo',
+              operator: 'gte',
+              value: 0,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'isMonitored',
+              operator: 'eq',
+              value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'inSonarr',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
       ],
     },
     templateData: {
@@ -466,6 +511,91 @@ export const PRESET_TEMPLATES: {
             fontStyle: 'normal',
             color: '#f1f505',
             textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // HDR10
+  {
+    name: 'HDR10',
+    description: 'Shows HDR10 logo for HDR content without Dolby Vision',
+    type: 'technical',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'hdr', operator: 'eq', value: true }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'hdr-logo',
+          layerOrder: 0,
+          type: 'svg',
+          x: 0,
+          y: 310.50617627005715,
+          width: 163,
+          height: 77,
+          properties: {
+            iconType: 'custom-icon',
+            iconPath: '/api/v1/posters/icons/system/hdr.svg',
+            opacity: 100,
+            grayscale: false,
+          },
+        },
+      ],
+    },
+  },
+
+  // Dolby Vision
+  {
+    name: 'Dolby Vision',
+    description: 'Shows Dolby Vision logo for any DoVi profile',
+    type: 'technical',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'dolbyVision', operator: 'eq', value: true }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'dovi-background',
+          layerOrder: 0,
+          type: 'tile',
+          x: -5.5246784801583,
+          y: 390.50433315836005,
+          width: 169,
+          height: 85,
+          properties: {
+            fillColor: '#BCB8B8',
+            fillOpacity: 40,
+            borderColor: '#FFFFFF',
+            borderWidth: 0,
+            lockCorners: true,
+            borderRadiusTopLeft: 10,
+          },
+        },
+        {
+          id: 'dovi-logo',
+          layerOrder: 1,
+          type: 'raster',
+          x: 5.9753215198417,
+          y: 384.50433315836005,
+          width: 146,
+          height: 97,
+          properties: {
+            imagePath: '/api/v1/posters/icons/system/dolbyVision.png',
+            opacity: 100,
           },
         },
       ],
@@ -2596,6 +2726,67 @@ export const PRESET_TEMPLATES: {
               { type: 'text', value: 'RELEASED ' },
               { type: 'variable', field: 'daysAgo' },
               { type: 'text', value: ' DAYS AGO' },
+            ],
+            fontSize: 74,
+            fontFamily: 'Inter',
+            fontWeight: 'bold',
+            fontStyle: 'normal',
+            color: '#FFFFFF',
+            textAlign: 'center',
+          },
+        },
+      ],
+    },
+  },
+
+  // ========================================
+  // MAINTAINERR INTEGRATION
+  // ========================================
+
+  // Maintainerr - Deleting Soon
+  {
+    name: 'Maintainerr Deleting Soon',
+    description:
+      'Bottom banner showing countdown for items marked for deletion by Maintainerr',
+    type: 'status',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [{ field: 'daysUntilAction', operator: 'gte', value: 0 }],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'maintainerr-deleting-banner-bg',
+          layerOrder: 0,
+          type: 'tile',
+          x: 0,
+          y: 1405,
+          width: 1000,
+          height: 95,
+          properties: {
+            fillColor: '#F59E0B',
+            fillOpacity: 100,
+            borderRadius: 0,
+          },
+        },
+        {
+          id: 'maintainerr-deleting-text',
+          layerOrder: 1,
+          type: 'variable',
+          x: 0,
+          y: 1382,
+          width: 1000,
+          height: 141,
+          properties: {
+            segments: [
+              { type: 'text', value: 'DELETING IN ' },
+              { type: 'variable', field: 'daysUntilAction' },
+              { type: 'text', value: ' DAYS' },
             ],
             fontSize: 74,
             fontFamily: 'Inter',

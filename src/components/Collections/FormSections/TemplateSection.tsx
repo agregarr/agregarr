@@ -397,9 +397,36 @@ const TemplateSection = ({
         <div className="error">{errors.template}</div>
       )}
       <div className="label-tip">
-        Available variables: Plex Username - {`{username}`} , Plex Nickname -{' '}
-        {`{nickname}`} , Plex Server Name - {`{servername}`} , Overseerr Domain
-        - {`{domain}`} , Overseerr App Title - {`{appTitle}`} .
+        {(() => {
+          // Show variables based on collection type
+          const baseVars = 'Media Type - {mediaType}';
+
+          if (values.type === 'overseerr') {
+            return `Available variables: Plex Username - {username}, Plex Nickname - {nickname}, Overseerr Domain - {domain}, Overseerr App Title - {appTitle}, ${baseVars}.`;
+          }
+
+          if (values.type === 'tautulli') {
+            return `Available variables: Plex Server Name - {servername}, Number of Days - {customdays}, ${baseVars}.`;
+          }
+
+          if (
+            values.type === 'plex' &&
+            (values.subtype === 'actors' || values.subtype === 'directors')
+          ) {
+            const personType =
+              values.subtype === 'actors' ? 'Actor' : 'Director';
+            return `Available variables: ${personType} Name - {${
+              values.subtype === 'actors' ? 'actor' : 'director'
+            }}, ${baseVars}.`;
+          }
+
+          if (values.type === 'tmdb' && values.subtype === 'auto_franchise') {
+            return `Available variables: Franchise Name - {franchiseName}, ${baseVars}.`;
+          }
+
+          // Default for other collection types
+          return `Available variables: ${baseVars}.`;
+        })()}
       </div>
     </>
   );

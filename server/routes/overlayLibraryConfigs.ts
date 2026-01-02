@@ -113,7 +113,7 @@ router.post('/:libraryId', async (req, res, next) => {
     }
 
     const { libraryId } = req.params;
-    const { libraryName, mediaType, enabledOverlays } = req.body;
+    const { libraryName, mediaType, enabledOverlays, tmdbLanguage } = req.body;
 
     if (!libraryName || !mediaType) {
       return res.status(400).json({
@@ -144,6 +144,7 @@ router.post('/:libraryId', async (req, res, next) => {
       config.libraryName = libraryName;
       config.mediaType = mediaType;
       config.enabledOverlays = enabledOverlays;
+      config.tmdbLanguage = tmdbLanguage || undefined;
     } else {
       // Create new
       config = new OverlayLibraryConfig({
@@ -151,6 +152,7 @@ router.post('/:libraryId', async (req, res, next) => {
         libraryName,
         mediaType,
         enabledOverlays,
+        tmdbLanguage: tmdbLanguage || undefined,
       });
     }
 
@@ -225,6 +227,26 @@ router.post('/:libraryId/apply', async (req, res, next) => {
 
     const { libraryId } = req.params;
 
+    // Check if full overlay application is running
+    const overlayApplication = (await import('@server/lib/overlayApplication'))
+      .default;
+    if (overlayApplication.running) {
+      return res.status(409).json({
+        error:
+          'Full overlay sync is currently running. Please wait for it to complete or cancel it before syncing individual libraries.',
+        conflictType: 'full-sync-running',
+      });
+    }
+
+    // Check if this library is already being processed
+    const libraryStatus = overlayLibraryService.getLibraryStatus(libraryId);
+    if (libraryStatus.running) {
+      return res.status(409).json({
+        error: 'This library is already being synced.',
+        conflictType: 'library-already-running',
+      });
+    }
+
     logger.info('Applying overlays to library', {
       libraryId,
       userId: req.user?.id,
@@ -250,6 +272,19 @@ router.post('/:libraryId/apply', async (req, res, next) => {
       message: 'Failed to start overlay application',
     });
   }
+});
+
+// GET /api/v1/overlay-library-configs/:libraryId/status - Get overlay application status for library
+router.get('/:libraryId/status', (req, res) => {
+  const { libraryId } = req.params;
+  const status = overlayLibraryService.getLibraryStatus(libraryId);
+  return res.status(200).json(status);
+});
+
+// GET /api/v1/overlay-library-configs/status/all - Get all running libraries
+router.get('/status/all', (_req, res) => {
+  const runningLibraries = overlayLibraryService.getAllRunningLibraries();
+  return res.status(200).json({ runningLibraries });
 });
 
 export default router;

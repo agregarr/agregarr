@@ -10,7 +10,7 @@ import {
 export interface LayeredElement {
   id: string;
   layerOrder: number; // 0 = bottom, higher = top
-  type: 'text' | 'raster' | 'svg' | 'content-grid';
+  type: 'text' | 'raster' | 'svg' | 'content-grid' | 'person';
 
   // Common properties
   x: number;
@@ -24,7 +24,8 @@ export interface LayeredElement {
     | TextElementProps
     | RasterElementProps
     | SVGElementProps
-    | ContentGridProps;
+    | ContentGridProps
+    | PersonElementProps;
 }
 
 export interface TextElementProps {
@@ -37,10 +38,17 @@ export interface TextElementProps {
   color: string;
   textAlign: 'left' | 'center' | 'right';
   maxLines?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
 }
 
 export interface RasterElementProps {
   imagePath: string; // Path to uploaded raster image
+}
+
+export interface PersonElementProps {
+  imagePath?: string; // Optional preview/placeholder image
+  overlayColor?: string; // Optional overlay tint color
+  overlayOpacity?: number; // 0-1 overlay opacity
 }
 
 export interface SVGElementProps {

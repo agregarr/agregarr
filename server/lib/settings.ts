@@ -1,3 +1,5 @@
+import { getRepository } from '@server/datasource';
+import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import { defaultHubConfigService } from '@server/lib/collections/services/DefaultHubConfigService';
 import { preExistingCollectionConfigService } from '@server/lib/collections/services/PreExistingCollectionConfigService';
 import logger from '@server/logger';
@@ -57,6 +59,7 @@ export interface CollectionConfig {
     | 'originals'
     | 'myanimelist'
     | 'anilist'
+    | 'plex'
     | 'multi-source'
     | 'radarrtag'
     | 'sonarrtag'
@@ -116,6 +119,7 @@ export interface CollectionConfig {
   readonly minimumYear?: number; // Only process movies/TV shows released on or after this year (0 = no limit)
   readonly minimumImdbRating?: number; // Only process movies/TV shows with IMDb rating >= this value (0 = no limit)
   readonly minimumRottenTomatoesRating?: number; // Only process movies/TV shows with Rotten Tomatoes critics score >= this value (0 = no limit)
+  readonly minimumRottenTomatoesAudienceRating?: number; // Only process movies/TV shows with Rotten Tomatoes audience score >= this value (0 = no limit)
   readonly excludedGenres?: number[]; // @deprecated Use filterSettings.genres - Exclude items with these TMDB genre IDs from missing items search
   readonly excludedCountries?: string[]; // @deprecated Use filterSettings.countries - Exclude items with these ISO 3166-1 country codes from missing items search
   readonly excludedLanguages?: string[]; // @deprecated Use filterSettings.languages - Exclude items with these ISO 639-1 language codes from missing items search
@@ -176,6 +180,11 @@ export interface CollectionConfig {
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
+  // Unified person minimum items (applies to both actors and directors)
+  readonly personMinimumItems?: number;
+  // Plex Library separator settings for auto person collections
+  readonly useSeparator?: boolean; // Create a separator collection for actors/directors multi-collections
+  readonly separatorTitle?: string; // Custom title for the separator collection
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
   // Poster settings
@@ -419,6 +428,15 @@ export interface TautulliSettings {
   externalUrl?: string;
 }
 
+export interface MaintainerrSettings {
+  hostname?: string;
+  port?: number;
+  useSsl?: boolean;
+  urlBase?: string;
+  apiKey?: string;
+  externalUrl?: string;
+}
+
 export interface OverseerrSettings {
   hostname?: string;
   port?: number;
@@ -587,6 +605,7 @@ interface AllSettings {
   main: MainSettings;
   plex: PlexSettings;
   tautulli: TautulliSettings;
+  maintainerr: MaintainerrSettings;
   overseerr: OverseerrSettings;
   myanimelist: MyAnimeListSettings;
   serviceUser: ServiceUserSettings;
@@ -635,6 +654,7 @@ class Settings {
         usersHomeUnlocked: false,
       },
       tautulli: {},
+      maintainerr: {},
       overseerr: {},
       myanimelist: {},
       serviceUser: {
@@ -859,6 +879,14 @@ class Settings {
 
   set tautulli(data: TautulliSettings) {
     this.data.tautulli = data;
+  }
+
+  get maintainerr(): MaintainerrSettings {
+    return this.data.maintainerr;
+  }
+
+  set maintainerr(data: MaintainerrSettings) {
+    this.data.maintainerr = data;
   }
 
   get trakt(): TraktSettings {
@@ -1321,46 +1349,6 @@ class Settings {
   }
 
   /**
-   * Migrate poster templates to unified layering system for v1.3.2
-   */
-  public async migratePosterTemplatesV132(): Promise<void> {
-    const migrationId = 'poster-template-unified-layers-v1.3.2';
-
-    // Initialize completedMigrations if it doesn't exist
-    if (!this.data.completedMigrations) {
-      this.data.completedMigrations = [];
-    }
-
-    // Check if migration already completed
-    if (this.data.completedMigrations.includes(migrationId)) {
-      return;
-    }
-
-    try {
-      // Import and run the migration
-      const { runPosterTemplateMigration } = await import(
-        './migrations/posterTemplateMigrationV132'
-      );
-      await runPosterTemplateMigration();
-
-      // Mark migration as completed
-      this.data.completedMigrations.push(migrationId);
-      this.save();
-
-      logger.info(
-        'v1.3.2 Migration: Poster templates migrated to unified layering system',
-        {
-          label: 'Settings Migration',
-          migrationId,
-        }
-      );
-    } catch (error) {
-      logger.error('v1.3.2 Migration failed:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Normalize hub configs with hub-specific business rules
    */
   private normalizeHubConfigs(): number {
@@ -1597,7 +1585,7 @@ class Settings {
    * This is a one-time migration for users upgrading from older versions
    */
   public migrateToUnifiedFilterSettings(): void {
-    const migrationId = 'unified-filter-settings';
+    const migrationId = 'unified-filter-settings-v2';
 
     // Initialize completedMigrations if it doesn't exist
     if (!this.data.completedMigrations) {
@@ -1619,72 +1607,118 @@ class Settings {
 
     this.data.plex.collectionConfigs = this.data.plex.collectionConfigs.map(
       (config) => {
-        // Skip if already using new format
-        if (config.filterSettings) {
-          return config;
-        }
-
-        // Check if collection has any old-format filters
+        // Check if we need to migrate old-format filters to new format
         const hasOldFilters =
           (config.excludedGenres && config.excludedGenres.length > 0) ||
           (config.excludedCountries && config.excludedCountries.length > 0) ||
           (config.excludedLanguages && config.excludedLanguages.length > 0);
 
-        if (!hasOldFilters) {
-          return config; // No filters to migrate
-        }
+        // Build new filterSettings if migrating from old format
+        let filterSettings = config.filterSettings;
 
-        // Build new filterSettings object
-        const filterSettings: {
-          genres?: { mode: 'exclude' | 'include'; values: number[] };
-          countries?: { mode: 'exclude' | 'include'; values: string[] };
-          languages?: { mode: 'exclude' | 'include'; values: string[] };
-        } = {};
+        if (hasOldFilters && !config.filterSettings) {
+          // Build new filterSettings object from old format
+          const newFilterSettings: {
+            genres?: { mode: 'exclude' | 'include'; values: number[] };
+            countries?: { mode: 'exclude' | 'include'; values: string[] };
+            languages?: { mode: 'exclude' | 'include'; values: string[] };
+          } = {};
 
-        if (config.excludedGenres && config.excludedGenres.length > 0) {
-          filterSettings.genres = {
-            mode: 'exclude',
-            values: config.excludedGenres,
-          };
-        }
-
-        if (config.excludedCountries && config.excludedCountries.length > 0) {
-          filterSettings.countries = {
-            mode: 'exclude',
-            values: config.excludedCountries,
-          };
-        }
-
-        if (config.excludedLanguages && config.excludedLanguages.length > 0) {
-          filterSettings.languages = {
-            mode: 'exclude',
-            values: config.excludedLanguages,
-          };
-        }
-
-        migratedCount++;
-        logger.info(
-          `Migrating collection "${config.name}" to unified filter settings`,
-          {
-            label: 'Settings Migration',
-            configId: config.id,
+          if (config.excludedGenres && config.excludedGenres.length > 0) {
+            newFilterSettings.genres = {
+              mode: 'exclude',
+              values: config.excludedGenres,
+            };
           }
-        );
 
-        // Return collection with new format, removing old fields
-        return {
-          ...config,
-          filterSettings,
-          excludedGenres: undefined,
-          excludedCountries: undefined,
-          excludedLanguages: undefined,
-        };
+          if (config.excludedCountries && config.excludedCountries.length > 0) {
+            newFilterSettings.countries = {
+              mode: 'exclude',
+              values: config.excludedCountries,
+            };
+          }
+
+          if (config.excludedLanguages && config.excludedLanguages.length > 0) {
+            newFilterSettings.languages = {
+              mode: 'exclude',
+              values: config.excludedLanguages,
+            };
+          }
+
+          filterSettings = newFilterSettings;
+
+          migratedCount++;
+          logger.info(
+            `Migrating collection "${config.name}" from old filter format to unified filterSettings`,
+            {
+              label: 'Settings Migration',
+              configId: config.id,
+            }
+          );
+        }
+
+        // Check if we need to clean up deprecated fields
+        const hasDeprecatedFields =
+          config.excludedGenres !== undefined ||
+          config.excludedCountries !== undefined ||
+          config.excludedLanguages !== undefined;
+
+        // Always remove deprecated fields (whether they had values or not)
+        if (hasDeprecatedFields) {
+          return {
+            ...config,
+            filterSettings:
+              filterSettings && Object.keys(filterSettings).length > 0
+                ? filterSettings
+                : undefined,
+            excludedGenres: undefined,
+            excludedCountries: undefined,
+            excludedLanguages: undefined,
+          };
+        }
+
+        return config;
       }
     );
 
     if (migratedCount > 0) {
       logger.info(
         `Migrated ${migratedCount} collection(s) to unified filter settings format`,
+        {
+          label: 'Settings Migration',
+        }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
+   * Migrate overlay-application job schedule from midnight to 3am
+   * Prevents conflict with plex-collections-sync which runs at midnight
+   * This is a one-time migration for users upgrading from older versions
+   */
+  public migrateOverlayJobSchedule(): void {
+    const migrationId = 'overlay-job-schedule-fix';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    // If overlay-application job is still at old default (midnight), update to 3am
+    const currentSchedule = this.data.jobs['overlay-application'].schedule;
+    if (currentSchedule === '0 0 0 * * *') {
+      // Old midnight default
+      this.data.jobs['overlay-application'].schedule = '0 0 3 * * *'; // New 3am default
+      logger.info(
+        'Migrated overlay-application schedule from midnight to 3am to avoid conflict with collections sync',
         {
           label: 'Settings Migration',
         }
@@ -2095,9 +2129,40 @@ export const getSettings = (initialSettings?: AllSettings): Settings => {
 
 /**
  * Get the configured TMDB language for API calls
- * Returns 'en' (English) as default if not configured
+ *
+ * Fallback chain:
+ * 1. Library-specific override (if libraryId provided)
+ * 2. Global setting (settings.main.tmdbLanguage)
+ * 3. Default 'en'
+ *
+ * @param libraryId - Optional Plex library ID for per-library override
+ * @returns ISO language code (e.g., 'en', 'fr', 'pt-BR')
  */
-export const getTmdbLanguage = (): string => {
+export const getTmdbLanguage = async (libraryId?: string): Promise<string> => {
+  // Step 1: Check for library-specific override
+  if (libraryId) {
+    try {
+      const overlayConfigRepo = getRepository(OverlayLibraryConfig);
+      const libraryConfig = await overlayConfigRepo.findOne({
+        where: { libraryId },
+      });
+
+      if (libraryConfig?.tmdbLanguage) {
+        return libraryConfig.tmdbLanguage;
+      }
+    } catch (error) {
+      logger.debug(
+        'Failed to fetch library TMDB language config, using global fallback',
+        {
+          label: 'Settings',
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
+  }
+
+  // Step 2: Fall back to global setting
   const settings = getSettings();
   return settings.main.tmdbLanguage || 'en';
 };

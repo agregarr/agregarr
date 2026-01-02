@@ -958,7 +958,7 @@ export const getTemplatePresets = (
         return [
           {
             label: 'Franchise Name (from TMDB)',
-            value: '{franchiseName}',
+            value: '{franchiseName} Collection',
           },
           { label: 'Custom', value: 'custom' },
         ];
@@ -989,6 +989,36 @@ export const getTemplatePresets = (
           {
             label: 'TMDB Collection',
             value: 'TMDB Collection',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+    }
+  }
+
+  // Plex Library (auto director collections)
+  if (values.type === 'plex') {
+    switch (values.subtype) {
+      case 'directors':
+        return [
+          {
+            label: 'Director Name',
+            value: '{director}',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      case 'actors':
+        return [
+          {
+            label: 'Actor Name',
+            value: '{actor}',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      default:
+        return [
+          {
+            label: 'Plex Library Collection',
+            value: 'Plex Library Collection',
           },
           { label: 'Custom', value: 'custom' },
         ];
@@ -1607,6 +1637,30 @@ export const getTemplatePresets = (
           {
             label: 'Just Released',
             value: 'Just Released',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
+      case 'recently_released_episodes':
+        return [
+          {
+            label: 'Recently Added Episodes',
+            value: 'Recently Added Episodes',
+          },
+          {
+            label: 'Recently Updated',
+            value: 'Recently Updated',
+          },
+          {
+            label: 'Latest Episodes',
+            value: 'Latest Episodes',
+          },
+          {
+            label: 'New Episodes',
+            value: 'New Episodes',
+          },
+          {
+            label: 'Continue Watching',
+            value: 'Continue Watching',
           },
           { label: 'Custom', value: 'custom' },
         ];

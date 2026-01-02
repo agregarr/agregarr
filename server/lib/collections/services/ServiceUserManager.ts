@@ -151,22 +151,19 @@ export function generateServiceUserConfig(
  */
 export class ServiceUserManager {
   private userRepository = getRepository(User);
-  private overseerrAPI: OverseerrAPI | null = null;
 
   /**
-   * Get or initialize Overseerr API client
+   * Get Overseerr API client with current settings
    */
   private getOverseerrAPI(): OverseerrAPI {
-    if (!this.overseerrAPI) {
-      const settings = getSettings();
-      if (!settings.overseerr.hostname || !settings.overseerr.apiKey) {
-        throw new Error(
-          'External Overseerr not configured for service user management'
-        );
-      }
-      this.overseerrAPI = new OverseerrAPI(settings.overseerr);
+    const settings = getSettings();
+    if (!settings.overseerr.hostname || !settings.overseerr.apiKey) {
+      throw new Error(
+        'External Overseerr not configured for service user management'
+      );
     }
-    return this.overseerrAPI;
+    // Create fresh client with current settings
+    return new OverseerrAPI(settings.overseerr);
   }
 
   /**

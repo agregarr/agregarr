@@ -19,7 +19,7 @@ Agregarr keeps your Plex Home and Recommended fresh by frequently updating it wi
 - **Poster Templates**: Create your own Poster Templates which can be dynamically filled with content per-collection
 - **Preview Collections**: Preview the collection and its matching/missing items, and add them individually via Radarr/Sonarr or Overseerr, or add items to the global exclusions list.
 
-<img width="1920" height="935" alt="vlcsnap-2025-08-25-21h02m59s912" src="https://github.com/user-attachments/assets/3ff916d1-2172-4f58-9581-362febbfa0eb" />
+<img width="1902" height="983" alt="agregarr-promo" src="https://github.com/user-attachments/assets/1b744502-30ce-4988-93fc-4588e1207e69" />
 
 ## Installation
 

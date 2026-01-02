@@ -3,11 +3,17 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
+import { getCollectionMediaType } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionSource,
   SyncResult,
 } from '@server/lib/collections/core/types';
 import type {
+  DiscoveredMoviePlaceholder,
+  DiscoveredPlaceholder,
+} from '@server/lib/placeholders/services/PlaceholderDiscovery';
+import type {
+  CollectionConfig,
   MultiSourceCollectionConfig,
   MultiSourceCombineMode,
   MultiSourceType,
@@ -73,6 +79,176 @@ export class CollectionSyncService {
       );
       return []; // Return empty array on error, services will handle fallback
     }
+  }
+
+  /**
+   * Pre-fetch placeholder discovery to avoid repeated filesystem scans during sync
+   * OPTIMIZATION: Run discovery ONCE per library and share results across all collections
+   */
+  private async prefetchPlaceholderDiscovery(
+    plexClient: PlexAPI,
+    collectionConfigs: CollectionConfig[]
+  ): Promise<{
+    tv: DiscoveredPlaceholder[];
+    movies: DiscoveredMoviePlaceholder[];
+  }> {
+    const settings = getSettings();
+    const tvLibraryPath = settings.main.placeholderTVRootFolder;
+    const movieLibraryPath = settings.main.placeholderMovieRootFolder;
+
+    let tv: DiscoveredPlaceholder[] = [];
+    let movies: DiscoveredMoviePlaceholder[] = [];
+
+    // Only run discovery if there are collections with placeholders enabled
+    const hasPlaceholderCollections = collectionConfigs.some(
+      (c) => c.createPlaceholdersForMissing
+    );
+
+    if (!hasPlaceholderCollections) {
+      logger.debug('No placeholder-enabled collections, skipping discovery', {
+        label: 'Collection Sync Service',
+      });
+      return { tv, movies };
+    }
+
+    // Import discovery functions
+    const {
+      discoverPlaceholdersFromMarkers,
+      discoverMoviePlaceholdersFromFilenames,
+    } = await import('@server/lib/placeholders/services/PlaceholderDiscovery');
+
+    // Find the first TV library ID from placeholder-enabled collections
+    const tvLibraryId = collectionConfigs.find(
+      (c) =>
+        c.createPlaceholdersForMissing && getCollectionMediaType(c) === 'tv'
+    )?.libraryId;
+
+    // Discover TV placeholders
+    if (tvLibraryPath && tvLibraryId) {
+      try {
+        logger.info('Running global TV placeholder discovery', {
+          label: 'Collection Sync Service',
+          libraryId: tvLibraryId,
+          libraryPath: tvLibraryPath,
+        });
+
+        tv = await discoverPlaceholdersFromMarkers(
+          plexClient,
+          tvLibraryId,
+          tvLibraryPath
+        );
+
+        logger.info('Global TV placeholder discovery complete', {
+          label: 'Collection Sync Service',
+          discovered: tv.length,
+        });
+
+        // Process discovered placeholders immediately: fix titles, cleanup real content
+        const { cleanupPlaceholderForRealContent } = await import(
+          '@server/lib/placeholders/services/PlaceholderCleanup'
+        );
+        const { ensurePlaceholderEpisodeTitle } = await import(
+          '@server/lib/placeholders/services/PlaceholderTitleFixer'
+        );
+
+        let cleanedUp = 0;
+        let titlesFixes = 0;
+
+        for (const { plexItem, needsTitleFix, marker } of tv) {
+          if (!plexItem) {
+            continue; // Not found in Plex
+          }
+
+          if (!needsTitleFix && marker.tmdbId) {
+            // Real content detected - clean up placeholder
+            await cleanupPlaceholderForRealContent(
+              marker.tmdbId,
+              marker.placeholderPath,
+              'tv'
+            );
+            cleanedUp++;
+          } else if (needsTitleFix) {
+            // Still a placeholder - fix episode title
+            await ensurePlaceholderEpisodeTitle(
+              plexClient,
+              plexItem.ratingKey,
+              marker.title
+            );
+            titlesFixes++;
+          }
+        }
+
+        logger.info('Global TV placeholder processing complete', {
+          label: 'Collection Sync Service',
+          cleanedUp,
+          titlesFixes,
+        });
+      } catch (error) {
+        logger.warn('Failed to run global TV placeholder discovery', {
+          label: 'Collection Sync Service',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Find the first movie library ID from placeholder-enabled collections
+    const movieLibraryId = collectionConfigs.find(
+      (c) =>
+        c.createPlaceholdersForMissing && getCollectionMediaType(c) === 'movie'
+    )?.libraryId;
+
+    // Discover movie placeholders
+    if (movieLibraryPath && movieLibraryId) {
+      try {
+        logger.info('Running global movie placeholder discovery', {
+          label: 'Collection Sync Service',
+          libraryId: movieLibraryId,
+          libraryPath: movieLibraryPath,
+        });
+
+        movies = await discoverMoviePlaceholdersFromFilenames(
+          plexClient,
+          movieLibraryId,
+          movieLibraryPath
+        );
+
+        logger.info('Global movie placeholder discovery complete', {
+          label: 'Collection Sync Service',
+          discovered: movies.length,
+        });
+
+        // Process discovered movie placeholders: cleanup real content
+        const { cleanupPlaceholderForRealContent } = await import(
+          '@server/lib/placeholders/services/PlaceholderCleanup'
+        );
+
+        let moviesCleanedUp = 0;
+
+        for (const { plexItem, needsCleanup, movie } of movies) {
+          if (plexItem && needsCleanup) {
+            // Real content detected - clean up placeholder
+            await cleanupPlaceholderForRealContent(
+              movie.tmdbId,
+              movie.placeholderPath,
+              'movie'
+            );
+            moviesCleanedUp++;
+          }
+        }
+
+        logger.info('Global movie placeholder processing complete', {
+          label: 'Collection Sync Service',
+          cleanedUp: moviesCleanedUp,
+        });
+      } catch (error) {
+        logger.warn('Failed to run global movie placeholder discovery', {
+          label: 'Collection Sync Service',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return { tv, movies };
   }
 
   /**
@@ -186,13 +362,26 @@ export class CollectionSyncService {
     onProgress?.(0, 'Pre-fetching Overseerr requests...');
     const overseerrRequestsCache = await this.prefetchOverseerrRequests();
 
+    // Pre-fetch placeholder discovery cache
+    onProgress?.(0, 'Discovering placeholders...');
+    const placeholderDiscovery = await this.prefetchPlaceholderDiscovery(
+      plexClient,
+      collectionConfigs
+    );
+
     // Initialize the global sync cache service for use across all sync operations
     syncCacheService.initialize(overseerrRequestsCache, libraryCache);
+    syncCacheService.setPlaceholderDiscoveryCache(
+      placeholderDiscovery.tv,
+      placeholderDiscovery.movies
+    );
 
     logger.info('Sync caches ready, starting collection processing', {
       label: 'Collection Sync Service',
       libraryCache: cachedLibraryCount,
       requestsCache: overseerrRequestsCache.length,
+      placeholderDiscoveryTv: placeholderDiscovery.tv.length,
+      placeholderDiscoveryMovies: placeholderDiscovery.movies.length,
     });
 
     let totalCreated = 0;
@@ -260,7 +449,7 @@ export class CollectionSyncService {
               name: config.name,
               type: 'multi-source',
               visibilityConfig: config.visibilityConfig,
-              mediaType: 'movie', // Default, should be set properly by caller
+              mediaType: getCollectionMediaType(config),
               libraryId: config.libraryId,
               libraryName: config.libraryName,
               maxItems: config.maxItems ?? 50, // Provide default for multi-source
@@ -315,9 +504,6 @@ export class CollectionSyncService {
               seasonsPerShowLimit: config.seasonsPerShowLimit,
               maxPositionToProcess: config.maxPositionToProcess,
               minimumYear: config.minimumYear,
-              excludedGenres: config.excludedGenres,
-              excludedCountries: config.excludedCountries,
-              excludedLanguages: config.excludedLanguages,
               filterSettings: config.filterSettings,
               directDownloadRadarrServerId: config.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:
@@ -507,76 +693,82 @@ export class CollectionSyncService {
   ): Promise<BaseCollectionSync<CollectionSource>> {
     switch (type) {
       case 'trakt': {
-        const { TraktCollectionSync } = await import('../external/trakt');
+        const { TraktCollectionSync } = await import('../sources/trakt');
         return new TraktCollectionSync();
       }
       case 'mdblist': {
-        const { MDBListCollectionSync } = await import('../external/mdblist');
+        const { MDBListCollectionSync } = await import('../sources/mdblist');
         return new MDBListCollectionSync();
       }
       case 'tmdb': {
-        const { TmdbCollectionSync } = await import('../external/tmdb');
+        const { TmdbCollectionSync } = await import('../sources/tmdb');
         return new TmdbCollectionSync();
       }
       case 'imdb': {
-        const { ImdbCollectionSync } = await import('../external/imdb');
+        const { ImdbCollectionSync } = await import('../sources/imdb');
         return new ImdbCollectionSync();
       }
       case 'tautulli': {
-        const { TautulliCollectionSync } = await import('../external/tautulli');
+        const { TautulliCollectionSync } = await import('../sources/tautulli');
         return new TautulliCollectionSync();
       }
       case 'letterboxd': {
         const { LetterboxdCollectionSync } = await import(
-          '../external/letterboxd'
+          '../sources/letterboxd'
         );
         return new LetterboxdCollectionSync();
       }
       case 'networks': {
-        const { NetworksCollectionSync } = await import('../external/networks');
+        const { NetworksCollectionSync } = await import('../sources/networks');
         return new NetworksCollectionSync();
       }
       case 'originals': {
         const { OriginalsCollectionSync } = await import(
-          '../external/originals'
+          '../sources/originals'
         );
         return new OriginalsCollectionSync();
       }
       case 'anilist': {
-        const { AnilistCollectionSync } = await import('../external/anilist');
+        const { AnilistCollectionSync } = await import('../sources/anilist');
         return new AnilistCollectionSync();
       }
       case 'myanimelist': {
         const { MyAnimeListCollectionSync } = await import(
-          '../external/myanimelist'
+          '../sources/myanimelist'
         );
         return new MyAnimeListCollectionSync();
       }
       case 'overseerr': {
         const { OverseerrCollectionSync } = await import(
-          '../external/overseerrSync'
+          '../sources/overseerrSync'
         );
         return new OverseerrCollectionSync();
       }
       case 'radarrtag': {
-        const { RadarrTagCollectionSync } = await import('../external/radarr');
+        const { RadarrTagCollectionSync } = await import('../sources/radarr');
         return new RadarrTagCollectionSync();
       }
       case 'sonarrtag': {
-        const { SonarrTagCollectionSync } = await import('../external/sonarr');
+        const { SonarrTagCollectionSync } = await import('../sources/sonarr');
         return new SonarrTagCollectionSync();
       }
       case 'comingsoon': {
         const { ComingSoonCollectionSync } = await import(
-          '../external/comingsoon'
+          '../sources/comingsoon'
         );
         return new ComingSoonCollectionSync();
       }
       case 'filtered_hub': {
         const { FilteredHubCollectionSync } = await import(
-          '../external/recentlyadded'
+          '../sources/recentlyadded'
         );
         return new FilteredHubCollectionSync();
+      }
+      case 'plex': {
+        const { PlexLibraryCollectionSync } = await import(
+          '../sources/plexlibrary'
+        );
+        return new PlexLibraryCollectionSync();
       }
       case 'multi-source':
         throw new Error(

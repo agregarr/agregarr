@@ -138,7 +138,9 @@ const PosterUploadSection = ({
     values.autoPoster ?? (isPreExisting ? false : true);
 
   // Get current selected template - if none selected, use the default template
-  const defaultTemplate = templates?.find((t) => t.isDefault);
+  const defaultTemplate =
+    templates?.find((t) => t.isDefault) ||
+    templates?.find((t) => t.name === 'Default Agregarr Template');
   const selectedTemplateId =
     values.autoPosterTemplate || defaultTemplate?.id || null;
   const selectedTemplate = templates?.find((t) => t.id === selectedTemplateId);
@@ -153,10 +155,25 @@ const PosterUploadSection = ({
 
   // Auto-select default template when templates load and no template is currently selected
   useEffect(() => {
-    if (templates && !values.autoPosterTemplate && defaultTemplate) {
+    if (!templates) {
+      return;
+    }
+
+    // Don't auto-select default template for pre-existing collections
+    if (isPreExisting) {
+      return;
+    }
+
+    if (!values.autoPosterTemplate && defaultTemplate) {
       setFieldValue('autoPosterTemplate', defaultTemplate.id);
     }
-  }, [templates, values.autoPosterTemplate, defaultTemplate, setFieldValue]);
+  }, [
+    templates,
+    values.autoPosterTemplate,
+    defaultTemplate,
+    setFieldValue,
+    isPreExisting,
+  ]);
 
   const handleRemovePoster = (libraryId: string) => {
     const updatedPosters = { ...currentPosters };

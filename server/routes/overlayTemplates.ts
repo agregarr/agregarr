@@ -47,7 +47,9 @@ async function fetchPreviewPosterMetadata(
   rtCriticsScore?: number;
   rtAudienceScore?: number;
 }> {
-  const tmdbClient = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+  const tmdbClient = new TheMovieDb({
+    originalLanguage: await getTmdbLanguage(),
+  });
   let title = 'Sample Title';
   let year: number | undefined;
   let imdbId: string | undefined;
@@ -147,6 +149,7 @@ interface PreviewPosterMetadata {
   daysUntilRelease?: number;
   releaseDate?: string;
   runtime?: number;
+  daysUntilAction?: number;
 }
 
 // Apply authentication to all routes
@@ -218,7 +221,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
     const tmdbId = parseInt(tmdbIdStr);
     const isMovie = type === 'movie';
 
-    const tmdb = new TheMovieDb({ originalLanguage: getTmdbLanguage() });
+    const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
     let metadata: PreviewPosterMetadata;
 
@@ -297,6 +300,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
         status: 'Available',
         releaseDate: movieDetails.release_date,
         runtime: movieDetails.runtime,
+        daysUntilAction: 5, // Simulated Maintainerr data for preview
       };
     } else {
       // TV show
@@ -358,6 +362,7 @@ router.get('/preview-metadata/:posterId', async (req, res, next) => {
             ? 'Ended'
             : 'Continuing',
         releaseDate: tvDetails.first_air_date,
+        daysUntilAction: 3, // Simulated Maintainerr data for preview
       };
     }
 
@@ -694,7 +699,7 @@ router.get('/:id/preview', async (req, res, next) => {
       // Ratings (additional)
       imdbTop250Rank: 42,
       isImdbTop250: true,
-      metacriticScore: 85,
+      // metacriticScore: 85, // TODO: Implement Metacritic integration
 
       // TMDB Metadata
       director: 'Christopher Nolan',
@@ -754,8 +759,9 @@ router.get('/:id/preview', async (req, res, next) => {
       inSonarr: true, // Always populate for previews
       hasFile: true,
       downloaded: true,
-      isTrending: true,
-      isWatched: false,
+
+      // Maintainerr integration
+      daysUntilAction: 5, // Always populate for previews
 
       // Item metadata
       isPlaceholder: false,
@@ -902,7 +908,7 @@ router.post('/combined-preview', async (req, res, next) => {
       // Ratings (additional)
       imdbTop250Rank: 42,
       isImdbTop250: true,
-      metacriticScore: 85,
+      // metacriticScore: 85, // TODO: Implement Metacritic integration
 
       // TMDB Metadata
       director: 'Christopher Nolan',
@@ -962,8 +968,9 @@ router.post('/combined-preview', async (req, res, next) => {
       inSonarr: true, // Always populate for previews
       hasFile: true,
       downloaded: true,
-      isTrending: true,
-      isWatched: false,
+
+      // Maintainerr integration
+      daysUntilAction: 5, // Always populate for previews
 
       // Item metadata
       isPlaceholder: false,

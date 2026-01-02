@@ -24,20 +24,20 @@ import {
   validateAndSanitizeItems,
   validateCollectionItems,
 } from '@server/lib/collections/core/CollectionUtilities';
-import { AnilistCollectionSync } from '@server/lib/collections/external/anilist';
-import { ComingSoonCollectionSync } from '@server/lib/collections/external/comingsoon';
-import { ImdbCollectionSync } from '@server/lib/collections/external/imdb';
-import { LetterboxdCollectionSync } from '@server/lib/collections/external/letterboxd';
-import { MDBListCollectionSync } from '@server/lib/collections/external/mdblist';
-import { MyAnimeListCollectionSync } from '@server/lib/collections/external/myanimelist';
-import { NetworksCollectionSync } from '@server/lib/collections/external/networks';
-import { OriginalsCollectionSync } from '@server/lib/collections/external/originals';
-import { OverseerrCollectionSync } from '@server/lib/collections/external/overseerrSync';
-import RadarrTagCollectionSync from '@server/lib/collections/external/radarr';
-import SonarrTagCollectionSync from '@server/lib/collections/external/sonarr';
-import { TautulliCollectionSync } from '@server/lib/collections/external/tautulli';
-import { TmdbCollectionSync } from '@server/lib/collections/external/tmdb';
-import { TraktCollectionSync } from '@server/lib/collections/external/trakt';
+import { AnilistCollectionSync } from '@server/lib/collections/sources/anilist';
+import { ComingSoonCollectionSync } from '@server/lib/collections/sources/comingsoon';
+import { ImdbCollectionSync } from '@server/lib/collections/sources/imdb';
+import { LetterboxdCollectionSync } from '@server/lib/collections/sources/letterboxd';
+import { MDBListCollectionSync } from '@server/lib/collections/sources/mdblist';
+import { MyAnimeListCollectionSync } from '@server/lib/collections/sources/myanimelist';
+import { NetworksCollectionSync } from '@server/lib/collections/sources/networks';
+import { OriginalsCollectionSync } from '@server/lib/collections/sources/originals';
+import { OverseerrCollectionSync } from '@server/lib/collections/sources/overseerrSync';
+import RadarrTagCollectionSync from '@server/lib/collections/sources/radarr';
+import SonarrTagCollectionSync from '@server/lib/collections/sources/sonarr';
+import { TautulliCollectionSync } from '@server/lib/collections/sources/tautulli';
+import { TmdbCollectionSync } from '@server/lib/collections/sources/tmdb';
+import { TraktCollectionSync } from '@server/lib/collections/sources/trakt';
 import { TimeRestrictionUtils } from '@server/lib/collections/utils/TimeRestrictionUtils';
 import type { CollectionItemWithPoster } from '@server/lib/posterGeneration';
 import { generatePoster } from '@server/lib/posterStorage';
@@ -384,70 +384,70 @@ export class MultiSourceOrchestrator {
         }
       );
 
-      // Clean up placeholders for multi-source collection
-      // This handles: released items (real content arrived), orphaned items (no longer in any source), stale items (7+ days old)
-      if (config.createPlaceholdersForMissing) {
-        try {
-          // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
-          const allSourceTmdbIds = new Set<number>();
+      // Handle placeholder cleanup for multi-source collection
+      // If createPlaceholdersForMissing enabled: cleans up released/orphaned/stale items
+      // If createPlaceholdersForMissing disabled: deletes all placeholder records
+      try {
+        // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
+        const allSourceTmdbIds = new Set<number>();
 
-          // Add tmdbIds from items that exist in Plex
-          for (const item of combinedItems) {
-            if (item.tmdbId !== undefined) {
-              allSourceTmdbIds.add(item.tmdbId);
-            }
+        // Add tmdbIds from items that exist in Plex
+        for (const item of combinedItems) {
+          if (item.tmdbId !== undefined) {
+            allSourceTmdbIds.add(item.tmdbId);
           }
-
-          // Add tmdbIds from missing items across all sources
-          for (const missingGroup of missingItemGroups) {
-            for (const missingItem of missingGroup) {
-              allSourceTmdbIds.add(missingItem.tmdbId);
-            }
-          }
-
-          logger.info(
-            `Running placeholder cleanup for multi-source collection: ${collectionNameForSync}`,
-            {
-              label: 'Multi-Source Orchestrator',
-              configId: config.id,
-              sourceTmdbIdCount: allSourceTmdbIds.size,
-            }
-          );
-
-          // Import cleanup function
-          const { cleanupPlaceholdersForConfig } = await import(
-            '@server/lib/collections/services/PlaceholderService'
-          );
-
-          // Run cleanup with parent config and combined source IDs
-          await cleanupPlaceholdersForConfig(
-            configForSync as unknown as CollectionConfig,
-            plexClient,
-            libraryCache,
-            allSourceTmdbIds
-          );
-
-          logger.debug(
-            'Placeholder cleanup completed for multi-source collection',
-            {
-              label: 'Multi-Source Orchestrator',
-              configId: config.id,
-            }
-          );
-        } catch (cleanupError) {
-          logger.error(
-            `Failed to cleanup placeholders for multi-source collection: ${collectionNameForSync}`,
-            {
-              label: 'Multi-Source Orchestrator',
-              configId: config.id,
-              error:
-                cleanupError instanceof Error
-                  ? cleanupError.message
-                  : String(cleanupError),
-            }
-          );
-          // Don't throw - cleanup failure shouldn't break collection sync
         }
+
+        // Add tmdbIds from missing items across all sources
+        for (const missingGroup of missingItemGroups) {
+          for (const missingItem of missingGroup) {
+            allSourceTmdbIds.add(missingItem.tmdbId);
+          }
+        }
+
+        logger.debug(
+          `Running placeholder handling for multi-source collection: ${collectionNameForSync}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            sourceTmdbIdCount: allSourceTmdbIds.size,
+            createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+          }
+        );
+
+        // Import helper function that handles both enabled/disabled cases
+        const { handlePlaceholderCleanup } = await import(
+          '@server/lib/placeholders/services/PlaceholderCleanup'
+        );
+
+        // Run cleanup or deletion based on setting
+        await handlePlaceholderCleanup(
+          configForSync as unknown as CollectionConfig,
+          plexClient,
+          libraryCache,
+          allSourceTmdbIds
+        );
+
+        logger.debug(
+          'Placeholder handling completed for multi-source collection',
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+          }
+        );
+      } catch (cleanupError) {
+        logger.error(
+          `Failed to handle placeholders for multi-source collection: ${collectionNameForSync}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            error:
+              cleanupError instanceof Error
+                ? cleanupError.message
+                : String(cleanupError),
+          }
+        );
+        // Don't throw - cleanup failure shouldn't break collection sync
       }
 
       // Create/update collection directly in Plex
@@ -618,10 +618,10 @@ export class MultiSourceOrchestrator {
         );
 
         try {
-          // Use PlaceholderService for unified placeholder creation
+          // Use PlaceholderCreation service for unified placeholder creation
           // This works for any source type, not just Coming Soon
           const { processPlaceholdersForMissingItems } = await import(
-            '@server/lib/collections/services/PlaceholderService'
+            '@server/lib/placeholders/services/PlaceholderCreation'
           );
 
           const newPlaceholderItems = await processPlaceholdersForMissingItems(

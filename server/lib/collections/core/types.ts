@@ -153,6 +153,7 @@ export type CollectionSource =
   | 'originals'
   | 'anilist'
   | 'myanimelist'
+  | 'plex'
   | 'radarrtag'
   | 'sonarrtag'
   | 'comingsoon'

@@ -1,6 +1,18 @@
-import HomeStarIcon from '@app/assets/icons/homeWithStar.svg';
-import LibraryBookmarkIcon from '@app/assets/icons/libraryRecommended.svg';
-import ThreeHomesIcon from '@app/assets/icons/threeHomes.svg';
+import {
+  CustomSyncScheduleBadge,
+  getVisibilityIcons,
+  ItemCountBadge,
+  LinkIcon as CollectionLinkIcon,
+  MissingIndicator,
+  MissingItemsBadge,
+  PlaceholdersBadge,
+  PlexDefaultBadge,
+  PreExistingBadge,
+  SourceSubtypeBadge,
+  SyncStatus,
+  TimeRestrictionsBadge,
+  UnwatchedBadge,
+} from '@app/components/Collections/Shared/CollectionBadges';
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
 import ConfirmButton from '@app/components/Common/ConfirmButton';
@@ -9,7 +21,6 @@ import type {
   FormConfigType,
   Library,
 } from '@app/types/collections';
-import { formatSyncScheduleBadge } from '@app/utils/collections/collectionUtils';
 import {
   closestCenter,
   DndContext,
@@ -28,17 +39,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ArrowPathIcon,
   Bars3Icon,
-  CheckIcon,
-  ExclamationTriangleIcon,
-  LinkIcon,
-  LinkSlashIcon,
   LockClosedIcon,
   PencilIcon,
   PencilSquareIcon,
   TrashIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type {
   PlexHubConfig,
@@ -96,12 +101,10 @@ interface LibraryCollectionGroupProps {
   onHide: (
     config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
   ) => void;
-  onPromote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
-  onDemote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
+  onPromoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onDemoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onPromotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
+  onDemotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
   onReorderItems: (
     libraryId: string,
     mixedItems: ((
@@ -129,12 +132,10 @@ interface SortableItemProps {
   onHide: (
     config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
   ) => void;
-  onPromote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
-  onDemote?: (
-    config: CollectionFormConfig | PlexHubConfig | PreExistingCollectionConfig
-  ) => Promise<void>;
+  onPromoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onDemoteCollection?: (config: CollectionFormConfig) => Promise<void>;
+  onPromotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
+  onDemotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
   setBadgeClickCount: (value: number | ((prev: number) => number)) => void;
   checkForUnlockSequence: () => void;
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
@@ -150,8 +151,10 @@ const SortableItem = ({
   onEditPreExisting,
   onDelete,
   onHide,
-  onPromote,
-  onDemote,
+  onPromoteCollection,
+  onDemoteCollection,
+  onPromotePreExisting,
+  onDemotePreExisting,
   setBadgeClickCount,
   checkForUnlockSequence,
   activeTab,
@@ -165,187 +168,6 @@ const SortableItem = ({
   // Check actual linking status for all config types
   const isLinked = Boolean(config.isLinked);
   const isUnlinked = Boolean(config.isUnlinked);
-
-  // Helper component for horizontal split icons
-  const HorizontalSplitIcon = ({
-    Icon,
-    activeState,
-    inactiveState,
-    removeWhenInactive,
-    title,
-  }: {
-    Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-    activeState: boolean;
-    inactiveState: boolean;
-    removeWhenInactive: boolean;
-    title: string;
-  }) => (
-    <div className="relative isolate h-5 w-5" title={title}>
-      {/* Background icon (inactive state) */}
-      <Icon
-        className={`absolute inset-0 h-5 w-5 ${
-          removeWhenInactive
-            ? 'text-gray-700 opacity-20' // Much darker when removed from Plex
-            : inactiveState
-            ? 'text-gray-400' // Regular inactive color
-            : 'text-gray-500 opacity-40' // Slightly lighter than previous inactive
-        }`}
-      />
-      {/* Top half mask for active state */}
-      <div className="absolute inset-0 isolate overflow-hidden">
-        <div
-          className="absolute inset-0 bg-stone-900"
-          style={{
-            clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%)',
-          }}
-        />
-        <Icon
-          className={`absolute inset-0 h-5 w-5 ${
-            activeState ? 'text-gray-400' : 'text-gray-500 opacity-40'
-          }`}
-          style={{
-            clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%)',
-          }}
-        />
-      </div>
-    </div>
-  );
-
-  const getVisibilityIcons = (
-    visibilityConfig?: {
-      usersHome?: boolean;
-      serverOwnerHome?: boolean;
-      libraryRecommended?: boolean;
-    },
-    timeRestriction?: {
-      alwaysActive: boolean;
-      removeFromPlexWhenInactive?: boolean;
-      inactiveVisibilityConfig?: {
-        usersHome: boolean;
-        serverOwnerHome: boolean;
-        libraryRecommended: boolean;
-      };
-    }
-  ) => {
-    const hasTimeRestriction = timeRestriction && !timeRestriction.alwaysActive;
-    const removeWhenInactive = Boolean(
-      timeRestriction?.removeFromPlexWhenInactive
-    );
-
-    // Default to false if no visibilityConfig
-    const activeVisibility = visibilityConfig || {
-      usersHome: false,
-      serverOwnerHome: false,
-      libraryRecommended: false,
-    };
-    const inactiveVisibility = timeRestriction?.inactiveVisibilityConfig || {
-      usersHome: false,
-      serverOwnerHome: false,
-      libraryRecommended: false,
-    };
-
-    return (
-      <div className="flex w-20 items-center space-x-1">
-        {/* Server Owner Home icon - fixed position */}
-        <div
-          className="flex h-5 w-5 items-center justify-center"
-          title={
-            hasTimeRestriction
-              ? `Server Owner Home - Active: ${
-                  activeVisibility.serverOwnerHome ? 'On' : 'Off'
-                }, Inactive: ${
-                  inactiveVisibility.serverOwnerHome ? 'On' : 'Off'
-                }`
-              : `Server Owner Home - ${
-                  activeVisibility.serverOwnerHome ? 'On' : 'Off'
-                }`
-          }
-        >
-          {hasTimeRestriction ? (
-            <HorizontalSplitIcon
-              Icon={HomeStarIcon}
-              activeState={Boolean(activeVisibility.serverOwnerHome)}
-              inactiveState={Boolean(inactiveVisibility.serverOwnerHome)}
-              removeWhenInactive={removeWhenInactive}
-              title=""
-            />
-          ) : (
-            <HomeStarIcon
-              className={`h-5 w-5 flex-shrink-0 ${
-                activeVisibility.serverOwnerHome
-                  ? 'text-gray-400'
-                  : 'text-gray-500 opacity-40'
-              }`}
-            />
-          )}
-        </div>
-
-        {/* Users Home icon - fixed position */}
-        <div
-          className="flex h-5 w-5 items-center justify-center"
-          title={
-            hasTimeRestriction
-              ? `Users Home - Active: ${
-                  activeVisibility.usersHome ? 'On' : 'Off'
-                }, Inactive: ${inactiveVisibility.usersHome ? 'On' : 'Off'}`
-              : `Users Home - ${activeVisibility.usersHome ? 'On' : 'Off'}`
-          }
-        >
-          {hasTimeRestriction ? (
-            <HorizontalSplitIcon
-              Icon={ThreeHomesIcon}
-              activeState={Boolean(activeVisibility.usersHome)}
-              inactiveState={Boolean(inactiveVisibility.usersHome)}
-              removeWhenInactive={removeWhenInactive}
-              title=""
-            />
-          ) : (
-            <ThreeHomesIcon
-              className={`h-5 w-5 ${
-                activeVisibility.usersHome
-                  ? 'text-gray-400'
-                  : 'text-gray-500 opacity-40'
-              }`}
-            />
-          )}
-        </div>
-
-        {/* Library Recommended icon - fixed position */}
-        <div
-          className="flex h-5 w-5 items-center justify-center"
-          title={
-            hasTimeRestriction
-              ? `Library Recommended - Active: ${
-                  activeVisibility.libraryRecommended ? 'On' : 'Off'
-                }, Inactive: ${
-                  inactiveVisibility.libraryRecommended ? 'On' : 'Off'
-                }`
-              : `Library Recommended - ${
-                  activeVisibility.libraryRecommended ? 'On' : 'Off'
-                }`
-          }
-        >
-          {hasTimeRestriction ? (
-            <HorizontalSplitIcon
-              Icon={LibraryBookmarkIcon}
-              activeState={Boolean(activeVisibility.libraryRecommended)}
-              inactiveState={Boolean(inactiveVisibility.libraryRecommended)}
-              removeWhenInactive={removeWhenInactive}
-              title=""
-            />
-          ) : (
-            <LibraryBookmarkIcon
-              className={`h-5 w-5 ${
-                activeVisibility.libraryRecommended
-                  ? 'text-gray-400'
-                  : 'text-gray-500 opacity-40'
-              }`}
-            />
-          )}
-        </div>
-      </div>
-    );
-  };
 
   // Check if this item should be greyed out in Recommended tab
   // Items are greyed out if they're visible in Home tab (ordering controlled there)
@@ -441,6 +263,21 @@ const SortableItem = ({
                 (config as CollectionFormConfig).subtype ===
                   'auto_franchise' ? (
                 'Auto Franchise Collections'
+              ) : isCollection &&
+                (config as CollectionFormConfig).type === 'plex' &&
+                ((config as CollectionFormConfig).subtype === 'directors' ||
+                  (config as CollectionFormConfig).subtype === 'actors') ? (
+                (config as CollectionFormConfig).subtype === 'actors' ? (
+                  'Auto Actor Collections'
+                ) : (
+                  'Auto Director Collections'
+                )
+              ) : config.name === '{director}' || config.name === '{actor}' ? (
+                config.name === '{actor}' ? (
+                  'Auto Actor Collections'
+                ) : (
+                  'Auto Director Collections'
+                )
               ) : (
                 config.name || 'Unnamed Collection'
               )}
@@ -462,346 +299,85 @@ const SortableItem = ({
           {/* Enhanced Badges - native type implementation */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Collection Type Badge - Removed for Agregarr collections */}
-            {isHub && (
-              <Badge badgeType="default" className="text-xs">
-                Plex Default
-              </Badge>
-            )}
-            {isPreExisting && (
-              <Badge badgeType="warning" className="text-xs">
-                Pre-Existing
-              </Badge>
-            )}
+            {isHub && <PlexDefaultBadge />}
+            {isPreExisting && <PreExistingBadge />}
 
             {/* Enhanced Source & Subtype Badge (for regular collections only) */}
             {isCollection && (config as CollectionFormConfig).type && (
-              <Badge badgeType="primary" className="!bg-opacity-60">
-                {(() => {
-                  const collection = config as CollectionFormConfig;
-                  const getSubtypeLabel = (
-                    type: string,
-                    subtype?: string
-                  ): string => {
-                    if (!subtype) return '';
-
-                    switch (type) {
-                      case 'trakt':
-                        switch (subtype) {
-                          case 'trending':
-                            return 'Trending';
-                          case 'popular':
-                            return 'Popular';
-                          case 'played':
-                            return 'Most Played';
-                          case 'watched':
-                            return 'Most Watched';
-                          case 'collected':
-                            return 'Most Collected';
-                          case 'favorited':
-                            return 'Most Favorited';
-                          case 'boxoffice':
-                            return 'Box Office';
-                          case 'custom':
-                            return 'Custom List';
-                          case 'watched_daily':
-                            return 'Watched Daily';
-                          case 'watched_weekly':
-                            return 'Watched Weekly';
-                          case 'watched_monthly':
-                            return 'Watched Monthly';
-                          case 'watched_all':
-                            return 'Most Watched All Time';
-                          case 'played_daily':
-                            return 'Played Daily';
-                          case 'played_weekly':
-                            return 'Played Weekly';
-                          case 'played_monthly':
-                            return 'Played Monthly';
-                          case 'played_all':
-                            return 'Most Played All Time';
-                          case 'collected_daily':
-                            return 'Collected Daily';
-                          case 'collected_weekly':
-                            return 'Collected Weekly';
-                          case 'collected_monthly':
-                            return 'Collected Monthly';
-                          case 'collected_all':
-                            return 'Most Collected All Time';
-                          default:
-                            return subtype
-                              .replace(/_/g, ' ')
-                              .replace(/\b\w/g, (l) => l.toUpperCase());
-                        }
-                      case 'tmdb':
-                        switch (subtype) {
-                          case 'trending_day':
-                            return 'Trending Today';
-                          case 'trending_week':
-                            return 'Trending This Week';
-                          case 'popular':
-                            return 'Popular';
-                          case 'top_rated':
-                            return 'Top Rated';
-                          case 'auto_franchise':
-                            return 'Auto Franchise Collections';
-                          case 'custom':
-                            return 'Custom Collection';
-                          default:
-                            return subtype;
-                        }
-                      case 'imdb':
-                        switch (subtype) {
-                          case 'top_250':
-                            return 'Top 250';
-                          case 'popular':
-                            return 'Popular';
-                          case 'most_popular':
-                            return 'Most Popular';
-                          case 'custom':
-                            return 'Custom List';
-                          default:
-                            return subtype;
-                        }
-                      case 'mdblist':
-                        switch (subtype) {
-                          case 'custom':
-                            return 'Custom List';
-                          default:
-                            return subtype;
-                        }
-                      case 'overseerr':
-                        switch (subtype) {
-                          case 'users':
-                            return 'Individual Users';
-                          case 'server_owner':
-                            return 'Server Owner';
-                          case 'global':
-                            return 'All Requests';
-                          default:
-                            return subtype;
-                        }
-                      case 'tautulli':
-                        switch (subtype) {
-                          case 'most_popular_plays':
-                            return 'Most Popular (Plays)';
-                          case 'most_popular_duration':
-                            return 'Most Popular (Duration)';
-                          default:
-                            return subtype;
-                        }
-                      case 'letterboxd':
-                        switch (subtype) {
-                          case 'custom':
-                            return 'Custom List';
-                          default:
-                            return subtype;
-                        }
-                      case 'anilist':
-                        switch (subtype) {
-                          case 'trending':
-                            return 'Trending Anime';
-                          case 'popular':
-                            return 'Popular Anime';
-                          case 'top_rated':
-                            return 'Top Rated Anime';
-                          case 'custom':
-                            return 'Custom List';
-                          default:
-                            return subtype;
-                        }
-                      case 'myanimelist':
-                        switch (subtype) {
-                          case 'all':
-                            return 'Top Anime';
-                          case 'airing':
-                            return 'Top Airing Anime';
-                          case 'tv':
-                            return 'Top TV';
-                          case 'movie':
-                            return 'Top Movies';
-                          case 'ova':
-                            return 'Top OVA';
-                          case 'special':
-                            return 'Top Specials';
-                          case 'bypopularity':
-                            return 'Most Popular Anime';
-                          case 'favorite':
-                            return 'Most Favorited Anime';
-                          default:
-                            return subtype;
-                        }
-                      case 'comingsoon':
-                        switch (subtype) {
-                          case 'monitored':
-                            return 'Monitored';
-                          case 'trakt_anticipated':
-                            return 'Trakt Anticipated';
-                          case 'tmdb_anticipated':
-                            return 'TMDB Anticipated';
-                          case 'recently_added':
-                            return 'Recently Added';
-                          default:
-                            return subtype;
-                        }
-                      case 'filtered_hub':
-                        switch (subtype) {
-                          case 'recently_added':
-                            return 'Recently Added';
-                          case 'recently_released':
-                            return 'Recently Released';
-                          default:
-                            return subtype;
-                        }
-                      case 'networks':
-                        // Format platform names like "netflix_top_10" -> "Netflix"
-                        // and "neon-tv" -> "Neon TV"
-                        return subtype
-                          .split('_')[0] // Take first part before underscore (removes "_top_10" etc)
-                          .split('-') // Split on dashes
-                          .map((word) => {
-                            // Special case for TV to maintain proper capitalization
-                            if (word.toLowerCase() === 'tv') {
-                              return 'TV';
-                            }
-                            return word.charAt(0).toUpperCase() + word.slice(1);
-                          })
-                          .join(' ');
-                      case 'originals':
-                        // Format provider names like "netflix_originals" -> "Netflix"
-                        // and "apple_originals" -> "Apple TV+"
-                        return subtype
-                          .replace('_originals', '') // Remove "_originals" suffix
-                          .split('_')[0] // Take first part before underscore
-                          .split('-') // Split on dashes
-                          .map((word) => {
-                            // Special case for TV to maintain proper capitalization
-                            if (word.toLowerCase() === 'tv') {
-                              return 'TV+';
-                            }
-                            return word.charAt(0).toUpperCase() + word.slice(1);
-                          })
-                          .join(' ');
-                      default:
-                        return subtype;
-                    }
-                  };
-
-                  const typeLabel =
-                    collection.type === 'trakt'
-                      ? 'Trakt'
-                      : collection.type === 'tmdb'
-                      ? 'TMDB'
-                      : collection.type === 'imdb'
-                      ? 'IMDb'
-                      : collection.type === 'mdblist'
-                      ? 'MDBList'
-                      : collection.type === 'letterboxd'
-                      ? 'Letterboxd'
-                      : collection.type === 'anilist'
-                      ? 'AniList'
-                      : collection.type === 'myanimelist'
-                      ? 'MyAnimeList'
-                      : collection.type === 'tautulli'
-                      ? 'Tautulli'
-                      : collection.type === 'radarrtag'
-                      ? 'Radarr Tag'
-                      : collection.type === 'sonarrtag'
-                      ? 'Sonarr Tag'
-                      : collection.type === 'overseerr'
-                      ? 'Overseerr'
-                      : collection.type === 'networks'
-                      ? 'Networks'
-                      : collection.type === 'originals'
-                      ? 'Originals'
-                      : collection.type === 'multi-source'
-                      ? 'Multi-Source'
-                      : collection.type === 'comingsoon'
-                      ? 'Coming Soon'
-                      : collection.type === 'filtered_hub'
-                      ? 'Filtered Hub'
-                      : collection.type || '';
-
-                  const subtypeLabel = getSubtypeLabel(
-                    collection.type || '',
-                    collection.subtype
-                  );
-
-                  return subtypeLabel
-                    ? `${typeLabel} - ${subtypeLabel}`
-                    : typeLabel;
-                })()}
-              </Badge>
+              <SourceSubtypeBadge
+                type={(config as CollectionFormConfig).type || ''}
+                subtype={(config as CollectionFormConfig).subtype}
+              />
             )}
 
             {/* Item Count Badge (only for Agregarr collections) */}
             {isCollection &&
-              (config as CollectionFormConfig).maxItems !== undefined &&
-              ((config as CollectionFormConfig).maxItems === 69 ? (
-                // Easter egg handling for maxItems === 69
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBadgeClickCount((prev) => {
-                      const newCount = prev + 1;
-                      if (newCount >= 10) {
-                        checkForUnlockSequence();
-                      }
-                      return newCount;
-                    });
-                  }}
-                  className="cursor-pointer"
-                >
-                  <Badge badgeType="success" className="!bg-opacity-40">
-                    Items: {(config as CollectionFormConfig).maxItems}
-                  </Badge>
-                </button>
-              ) : (
-                <Badge badgeType="default" className="!bg-opacity-30">
-                  Items: {(config as CollectionFormConfig).maxItems}
-                </Badge>
-              ))}
+              (() => {
+                const collectionConfig = config as CollectionFormConfig;
+                const maxItems = collectionConfig.maxItems;
+                if (maxItems === undefined) return null;
+
+                return (
+                  <ItemCountBadge
+                    maxItems={maxItems}
+                    onBadgeClick={
+                      maxItems === 69
+                        ? () => {
+                            setBadgeClickCount((prev) => {
+                              const newCount = prev + 1;
+                              if (newCount >= 10) {
+                                checkForUnlockSequence();
+                              }
+                              return newCount;
+                            });
+                          }
+                        : undefined
+                    }
+                  />
+                );
+              })()}
 
             {/* Missing Items Badge - Shows when grab missing is enabled for collections */}
-            {isCollection &&
-              (() => {
-                const collection = config as CollectionFormConfig;
-                const hasGrabMissing =
-                  collection.searchMissingMovies || collection.searchMissingTV;
-                return hasGrabMissing ? (
-                  <Badge badgeType="default" className="!bg-opacity-30">
-                    Grab Missing Items
-                  </Badge>
-                ) : null;
-              })()}
-
-            {/* Time Restrictions Badge */}
-            {config.timeRestriction && !config.timeRestriction.alwaysActive && (
-              <Badge badgeType="default" className="!bg-opacity-30">
-                Time Restrictions Set
-              </Badge>
+            {isCollection && (
+              <MissingItemsBadge
+                searchMissingMovies={
+                  (config as CollectionFormConfig).searchMissingMovies
+                }
+                searchMissingTV={
+                  (config as CollectionFormConfig).searchMissingTV
+                }
+              />
             )}
 
+            {/* Placeholders Badge - Shows when create placeholders is enabled for collections */}
+            {isCollection && (
+              <PlaceholdersBadge
+                createPlaceholdersForMissing={
+                  (config as CollectionFormConfig).createPlaceholdersForMissing
+                }
+              />
+            )}
+
+            {/* Time Restrictions Badge */}
+            <TimeRestrictionsBadge timeRestriction={config.timeRestriction} />
+
             {/* Custom Sync Schedule Badge (only for Agregarr collections) */}
-            {isCollection &&
-              (() => {
-                const collection = config as CollectionFormConfig;
-                const syncBadgeText = formatSyncScheduleBadge(
-                  collection.customSyncSchedule
-                );
-                return syncBadgeText ? (
-                  <Badge badgeType="warning" className="!bg-opacity-40">
-                    {syncBadgeText}
-                  </Badge>
-                ) : null;
-              })()}
+            {isCollection && (
+              <CustomSyncScheduleBadge
+                customSyncSchedule={
+                  (config as CollectionFormConfig).customSyncSchedule
+                }
+              />
+            )}
 
             {/* Unwatched Badge (shows when showUnwatchedOnly is enabled) */}
-            {isCollection &&
-              (config as CollectionFormConfig).showUnwatchedOnly && (
-                <Badge badgeType="default" className="!bg-opacity-30">
-                  Unwatched
-                </Badge>
-              )}
+            {isCollection && (
+              <UnwatchedBadge
+                showUnwatchedOnly={
+                  (config as CollectionFormConfig).showUnwatchedOnly
+                }
+              />
+            )}
           </div>
         </div>
       </div>
@@ -809,101 +385,26 @@ const SortableItem = ({
       {/* Actions - new ordered layout */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Missing indicator - shown when collection no longer exists in Plex */}
-        {config.missing && (
-          <div
-            title={`This ${
-              configType === 'hub' ? 'hub' : 'collection'
-            } no longer exists in Plex`}
-          >
-            <ExclamationTriangleIcon className="h-6 w-6 text-red-500" />
-          </div>
-        )}
+        <MissingIndicator missing={config.missing} configType={configType} />
 
         {/* Visibility icons */}
         {getVisibilityIcons(config.visibilityConfig, config.timeRestriction)}
 
         {/* Sync Status - Three-state system */}
-        <div className="flex w-12 justify-center">
-          {config.needsSync ? (
-            isCollection && onIndividualSync ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onIndividualSync(config.id);
-                }}
-                disabled={isSyncing}
-                className="group -m-1 rounded p-1 transition-colors hover:bg-gray-700/50"
-                title={
-                  isSyncing ? 'Syncing...' : 'Click to sync this collection now'
-                }
-              >
-                <ArrowPathIcon
-                  className={`h-4 w-4 transition-colors ${
-                    isSyncing
-                      ? 'animate-spin text-yellow-400'
-                      : 'text-red-400 group-hover:text-red-300'
-                  }`}
-                />
-              </button>
-            ) : (
-              <ArrowPathIcon
-                className="h-4 w-4 text-red-400"
-                title="Needs Sync - Collection has been modified and needs to be synced to Plex"
-              />
-            )
-          ) : config.isActive ? (
-            <CheckIcon
-              className="h-4 w-4 text-gray-400"
-              title="Synced and Active - Collection is up to date and currently active"
-            />
-          ) : (
-            <XMarkIcon
-              className="h-4 w-4 text-gray-400"
-              title="Inactive - Collection is disabled by time restrictions"
-            />
-          )}
-        </div>
+        <SyncStatus
+          needsSync={config.needsSync}
+          isActive={config.isActive}
+          onIndividualSync={isCollection ? onIndividualSync : undefined}
+          collectionId={config.id}
+          isSyncing={isSyncing}
+        />
 
         {/* Link icon - fixed space for consistent spacing */}
-        <div className="flex w-6 justify-center">
-          {isUnlinked ? (
-            // Show unlink icon for deliberately unlinked collections
-            <LinkSlashIcon
-              className="h-4 w-4 text-gray-400"
-              title={
-                isHub
-                  ? 'Unlinked Hub - was deliberately unlinked from group'
-                  : isPreExisting
-                  ? 'Unlinked Pre-existing Collection - was deliberately unlinked from group'
-                  : 'Unlinked Collection - was deliberately unlinked from group'
-              }
-            />
-          ) : isLinked ? (
-            // Show active link icon for linked collections
-            <LinkIcon
-              className="h-4 w-4 text-gray-400"
-              title={
-                isHub
-                  ? 'Linked Hub - applies to all compatible libraries'
-                  : isPreExisting
-                  ? 'Linked Pre-existing Collection - applies to all compatible libraries'
-                  : 'Linked Collection - applies to all compatible libraries'
-              }
-            />
-          ) : (
-            // Show shaded link icon for unlinked collections (false state)
-            <LinkIcon
-              className="h-4 w-4 text-gray-600 opacity-30"
-              title={
-                isHub
-                  ? 'Hub not linked to other libraries'
-                  : isPreExisting
-                  ? 'Pre-existing Collection not linked to other libraries'
-                  : 'Collection not linked to other libraries'
-              }
-            />
-          )}
-        </div>
+        <CollectionLinkIcon
+          isLinked={isLinked}
+          isUnlinked={isUnlinked}
+          configType={configType}
+        />
 
         <Button
           buttonType="ghost"
@@ -923,35 +424,81 @@ const SortableItem = ({
         </Button>
 
         {/* Promote/Demote buttons - only show on Library tab */}
-        {activeTab === 'library' && (onPromote || onDemote) && (
-          <>
-            {/* Show promote button for A-Z collections */}
-            {!isLibraryPromoted(config) && onPromote && (
-              <Button
-                buttonSize="sm"
-                buttonType="ghost"
-                onClick={() => onPromote(config)}
-                className="text-orange-400 hover:text-orange-300"
-                title="Promote to top section with custom ordering"
-              >
-                <span className="text-xs">↑</span>
-              </Button>
-            )}
+        {activeTab === 'library' &&
+          (onPromoteCollection ||
+            onDemoteCollection ||
+            onPromotePreExisting ||
+            onDemotePreExisting) && (
+            <>
+              {/* Show promote button for A-Z collections */}
+              {!isLibraryPromoted(config) && (
+                <>
+                  {configType === 'collection' && onPromoteCollection && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onPromoteCollection(config as CollectionFormConfig)
+                      }
+                      className="text-orange-400 hover:text-orange-300"
+                      title="Promote to top section with custom ordering"
+                    >
+                      <span className="text-xs">↑</span>
+                    </Button>
+                  )}
+                  {configType === 'preExisting' && onPromotePreExisting && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onPromotePreExisting(
+                          config as PreExistingCollectionConfig
+                        )
+                      }
+                      className="text-orange-400 hover:text-orange-300"
+                      title="Promote to top section with custom ordering"
+                    >
+                      <span className="text-xs">↑</span>
+                    </Button>
+                  )}
+                </>
+              )}
 
-            {/* Show demote button for promoted collections */}
-            {isLibraryPromoted(config) && onDemote && (
-              <Button
-                buttonSize="sm"
-                buttonType="ghost"
-                onClick={() => onDemote(config)}
-                className="text-yellow-400 hover:text-yellow-300"
-                title="Demote to alphabetical section"
-              >
-                <span className="text-xs">↓</span>
-              </Button>
-            )}
-          </>
-        )}
+              {/* Show demote button for promoted collections */}
+              {isLibraryPromoted(config) && (
+                <>
+                  {configType === 'collection' && onDemoteCollection && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onDemoteCollection(config as CollectionFormConfig)
+                      }
+                      className="text-yellow-400 hover:text-yellow-300"
+                      title="Demote to alphabetical section"
+                    >
+                      <span className="text-xs">↓</span>
+                    </Button>
+                  )}
+                  {configType === 'preExisting' && onDemotePreExisting && (
+                    <Button
+                      buttonSize="sm"
+                      buttonType="ghost"
+                      onClick={() =>
+                        onDemotePreExisting(
+                          config as PreExistingCollectionConfig
+                        )
+                      }
+                      className="text-yellow-400 hover:text-yellow-300"
+                      title="Demote to alphabetical section"
+                    >
+                      <span className="text-xs">↓</span>
+                    </Button>
+                  )}
+                </>
+              )}
+            </>
+          )}
 
         {isCollection ? (
           // Full delete for Agregarr collections
@@ -991,8 +538,10 @@ const LibraryCollectionGroup = ({
   onEditPreExisting,
   onDelete,
   onHide,
-  onPromote,
-  onDemote,
+  onPromoteCollection,
+  onDemoteCollection,
+  onPromotePreExisting,
+  onDemotePreExisting,
   onReorderItems,
   badgeClickCount,
   setBadgeClickCount,
@@ -1312,8 +861,10 @@ const LibraryCollectionGroup = ({
                       onEditPreExisting={onEditPreExisting}
                       onDelete={onDelete}
                       onHide={onHide}
-                      onPromote={onPromote}
-                      onDemote={onDemote}
+                      onPromoteCollection={onPromoteCollection}
+                      onDemoteCollection={onDemoteCollection}
+                      onPromotePreExisting={onPromotePreExisting}
+                      onDemotePreExisting={onDemotePreExisting}
                       setBadgeClickCount={setBadgeClickCount}
                       checkForUnlockSequence={checkForUnlockSequence}
                       activeTab={activeTab}

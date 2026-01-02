@@ -188,6 +188,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         fontStyle: 'normal',
         color: '#FFFFFF',
         textAlign: 'left',
+        opacity: 100,
       },
     };
 
@@ -235,6 +236,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         fontStyle: 'normal',
         color: '#FFFFFF',
         textAlign: 'center',
+        opacity: 100,
       },
     };
 
@@ -372,6 +374,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
       ...AVAILABLE_VARIABLES.file,
       ...AVAILABLE_VARIABLES.playback,
       ...AVAILABLE_VARIABLES['coming-soon'],
+      ...AVAILABLE_VARIABLES.status,
     ];
 
     // Build preview from segments
@@ -540,6 +543,24 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.opacity)} ({props.opacity ?? 100}%)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={props.opacity ?? 100}
+            onChange={(e) =>
+              handleUpdateElement(element.id, {
+                properties: { ...props, opacity: parseInt(e.target.value) },
+              })
+            }
+            className="w-full"
+          />
         </div>
       </div>
     );
@@ -1125,6 +1146,13 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                           </option>
                         ))}
                       </optgroup>
+                      <optgroup label="Status">
+                        {AVAILABLE_VARIABLES.status.map((v) => (
+                          <option key={v.field} value={v.field}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
 
                     {/* Date format dropdown - show for date fields */}
@@ -1132,6 +1160,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                       [
                         'releaseDate',
                         'nextEpisodeAirDate',
+                        'nextSeasonAirDate',
                         'lastPlayed',
                         'dateAdded',
                       ].includes(segment.field) && (
@@ -1170,6 +1199,12 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                               <option value="MM/DD/YYYY">12/20/2025</option>
                               <option value="DD/MM/YYYY">20/12/2025</option>
                               <option value="DD-MM-YYYY">20-12-2025</option>
+                              <option value="DD/MM">20/12</option>
+                              <option value="MM/DD">12/20</option>
+                            </optgroup>
+                            <optgroup label="With Weekday">
+                              <option value="DDD DD/MM">MON 20/12</option>
+                              <option value="DDDD">MONDAY</option>
                             </optgroup>
                           </select>
                         </div>
@@ -1342,6 +1377,24 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.opacity)} ({props.opacity ?? 100}%)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={props.opacity ?? 100}
+            onChange={(e) =>
+              handleUpdateElement(element.id, {
+                properties: { ...props, opacity: parseInt(e.target.value) },
+              })
+            }
+            className="w-full"
+          />
         </div>
       </div>
     );

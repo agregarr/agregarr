@@ -278,11 +278,11 @@ class PlexSmartCollectionManager {
 
   /**
    * Create a filtered hub replacement smart collection that excludes coming soon placeholders
-   * Supports: recently_added, recently_released
+   * Supports: recently_added, recently_released, recently_released_episodes
    * @param title - Title for the smart collection
    * @param libraryKey - Library section key (e.g., "1" for movies)
    * @param mediaType - 'movie' or 'tv'
-   * @param subtype - Hub subtype ('recently_added' or 'recently_released')
+   * @param subtype - Hub subtype ('recently_added', 'recently_released', or 'recently_released_episodes')
    * @param maxItems - Maximum number of items to include in the smart collection
    * @returns The rating key of the created smart collection or null if failed
    */
@@ -290,7 +290,10 @@ class PlexSmartCollectionManager {
     title: string,
     libraryKey: string,
     mediaType: 'movie' | 'tv',
-    subtype: 'recently_added' | 'recently_released',
+    subtype:
+      | 'recently_added'
+      | 'recently_released'
+      | 'recently_released_episodes',
     maxItems?: number
   ): Promise<string | null> {
     try {
@@ -339,6 +342,18 @@ class PlexSmartCollectionManager {
           filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
             labelFilter
           )}`;
+        }
+      } else if (subtype === 'recently_released_episodes') {
+        // Last Episode Added: Sort by most recent episode added date (TV only)
+        if (mediaType === 'tv') {
+          // TV Shows: Sort by last episode added date, filter out "Trailer (Placeholder)"
+          const sortParam = 'episode.addedAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          throw new Error(
+            `recently_released_episodes subtype is only supported for TV libraries`
+          );
         }
       } else {
         throw new Error(`Unsupported filtered hub subtype: ${subtype}`);
@@ -422,12 +437,225 @@ class PlexSmartCollectionManager {
   }
 
   /**
+   * Create a smart collection filtered by director name
+   */
+  public async createDirectorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    directorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    try {
+      logger.debug(
+        `Creating director smart collection "${title}" for library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          title,
+          libraryKey,
+          mediaType,
+          directorName,
+          limit,
+        }
+      );
+
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build filter URI: director filter + exclude placeholders
+      const directorFilter = encodeURIComponent(directorName);
+      let filterUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&director=${directorFilter}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&director=${directorFilter}&label!=${labelFilter}`;
+      }
+
+      if (limit && limit > 0) {
+        filterUri += `&limit=${limit}`;
+      }
+
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
+      const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
+        title
+      )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
+
+      const createResponse = await this.plexApi['safePostQuery'](createUrl);
+      if (
+        !createResponse ||
+        typeof createResponse !== 'object' ||
+        !('MediaContainer' in createResponse)
+      ) {
+        logger.error(
+          'Invalid response when creating director smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
+        return null;
+      }
+
+      const mediaContainer = createResponse.MediaContainer as {
+        Metadata?: { ratingKey: string }[];
+      };
+      if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
+        logger.error(
+          'No metadata returned when creating director smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
+        return null;
+      }
+
+      const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
+
+      // Set the collection to be filtered by user
+      await this.setCollectionUserFilter(smartCollectionRatingKey);
+
+      logger.info(
+        `Successfully created director smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          title,
+          smartCollectionRatingKey,
+          mediaType,
+          directorName,
+          limit,
+        }
+      );
+
+      return smartCollectionRatingKey;
+    } catch (error) {
+      logger.error(`Error creating director smart collection "${title}"`, {
+        label: 'Plex API',
+        title,
+        libraryKey,
+        mediaType,
+        directorName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Create a smart collection filtered by actor name
+   */
+  public async createActorCollection(
+    title: string,
+    libraryKey: string,
+    mediaType: 'movie' | 'tv',
+    actorName: string,
+    limit?: number
+  ): Promise<string | null> {
+    try {
+      logger.debug(
+        `Creating actor smart collection "${title}" for library ${libraryKey}`,
+        {
+          label: 'Plex API',
+          title,
+          libraryKey,
+          mediaType,
+          actorName,
+          limit,
+        }
+      );
+
+      const type = mediaType === 'movie' ? 1 : 2;
+
+      // Build filter URI: actor filter + exclude placeholders
+      const actorFilter = encodeURIComponent(actorName);
+      let filterUri: string;
+      if (mediaType === 'tv') {
+        const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&actor=${actorFilter}&episode.title!=${titleFilter}`;
+      } else {
+        const labelFilter = encodeURIComponent('trailer-placeholder');
+        filterUri = `/library/sections/${libraryKey}/all?type=${type}&actor=${actorFilter}&label!=${labelFilter}`;
+      }
+
+      if (limit && limit > 0) {
+        filterUri += `&limit=${limit}`;
+      }
+
+      const uri = `server://${
+        getSettings().plex.machineId
+      }/com.plexapp.plugins.library${filterUri}`;
+      const createUrl = `/library/collections?type=${type}&title=${encodeURIComponent(
+        title
+      )}&smart=1&uri=${encodeURIComponent(uri)}&sectionId=${libraryKey}`;
+
+      const createResponse = await this.plexApi['safePostQuery'](createUrl);
+      if (
+        !createResponse ||
+        typeof createResponse !== 'object' ||
+        !('MediaContainer' in createResponse)
+      ) {
+        logger.error('Invalid response when creating actor smart collection', {
+          label: 'Plex API',
+          response: createResponse,
+        });
+        return null;
+      }
+
+      const mediaContainer = createResponse.MediaContainer as {
+        Metadata?: { ratingKey: string }[];
+      };
+      if (!mediaContainer.Metadata || mediaContainer.Metadata.length === 0) {
+        logger.error(
+          'No metadata returned when creating actor smart collection',
+          {
+            label: 'Plex API',
+            response: createResponse,
+          }
+        );
+        return null;
+      }
+
+      const smartCollectionRatingKey = mediaContainer.Metadata[0].ratingKey;
+
+      // Set the collection to be filtered by user
+      await this.setCollectionUserFilter(smartCollectionRatingKey);
+
+      logger.info(
+        `Successfully created actor smart collection "${title}" with rating key ${smartCollectionRatingKey}`,
+        {
+          label: 'Plex API',
+          title,
+          smartCollectionRatingKey,
+          mediaType,
+          actorName,
+          limit,
+        }
+      );
+
+      return smartCollectionRatingKey;
+    } catch (error) {
+      logger.error(`Error creating actor smart collection "${title}"`, {
+        label: 'Plex API',
+        title,
+        libraryKey,
+        mediaType,
+        actorName,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
    * Update an existing filtered hub smart collection's URI
    * This updates the filter parameters including maxItems limit
    * @param smartCollectionRatingKey - The rating key of the smart collection to update
    * @param libraryKey - Library section key (e.g., "1" for movies)
    * @param mediaType - 'movie' or 'tv'
-   * @param subtype - Hub subtype ('recently_added' or 'recently_released')
+   * @param subtype - Hub subtype ('recently_added', 'recently_released', or 'recently_released_episodes')
    * @param maxItems - Maximum number of items to include in the smart collection
    * @returns Promise<void>
    */
@@ -435,7 +663,10 @@ class PlexSmartCollectionManager {
     smartCollectionRatingKey: string,
     libraryKey: string,
     mediaType: 'movie' | 'tv',
-    subtype: 'recently_added' | 'recently_released',
+    subtype:
+      | 'recently_added'
+      | 'recently_released'
+      | 'recently_released_episodes',
     maxItems?: number
   ): Promise<void> {
     try {
@@ -485,6 +716,18 @@ class PlexSmartCollectionManager {
           filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&label!=${encodeURIComponent(
             labelFilter
           )}`;
+        }
+      } else if (subtype === 'recently_released_episodes') {
+        // Last Episode Added: Sort by most recent episode added date (TV only)
+        if (mediaType === 'tv') {
+          // TV Shows: Sort by last episode added date, filter out "Trailer (Placeholder)"
+          const sortParam = 'episode.addedAt:desc';
+          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+        } else {
+          throw new Error(
+            `recently_released_episodes subtype is only supported for TV libraries`
+          );
         }
       } else {
         throw new Error(`Unsupported filtered hub subtype: ${subtype}`);

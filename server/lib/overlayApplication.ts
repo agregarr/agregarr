@@ -1,7 +1,6 @@
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
 import logger from '@server/logger';
-import { overlayLibraryService } from './overlays/OverlayLibraryService';
 
 /**
  * Job for applying overlay templates to configured Plex libraries
@@ -87,6 +86,46 @@ class OverlayApplication {
       while (overlaysQuickSync.status.running) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+    }
+
+    // Wait for Collections Sync to complete if running
+    const collectionsSync = (await import('@server/lib/collectionsSync'))
+      .default;
+    if (collectionsSync.status.running) {
+      logger.info(
+        'Collections Sync is currently running, waiting for completion...',
+        {
+          label: 'Overlay Application',
+        }
+      );
+      while (collectionsSync.status.running) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      logger.info('Collections Sync completed, starting Overlay Application', {
+        label: 'Overlay Application',
+      });
+    }
+
+    // Wait for any per-library overlay syncs to complete
+    const { overlayLibraryService } = await import(
+      '@server/lib/overlays/OverlayLibraryService'
+    );
+    let runningLibraries = overlayLibraryService.getAllRunningLibraries();
+    if (runningLibraries.length > 0) {
+      logger.info(
+        'Per-library overlay syncs are currently running, waiting for completion...',
+        {
+          label: 'Overlay Application',
+          runningLibraries: runningLibraries.map((l) => l.libraryName),
+        }
+      );
+      while (runningLibraries.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        runningLibraries = overlayLibraryService.getAllRunningLibraries();
+      }
+      logger.info('Per-library overlay syncs completed, starting full sync', {
+        label: 'Overlay Application',
+      });
     }
 
     this.running = true;

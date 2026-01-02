@@ -30,6 +30,9 @@ export interface TemplateContext {
   franchiseName?: string; // TMDB collection/franchise name
   franchiseId?: number; // TMDB collection ID
   movieCount?: number; // Number of movies in franchise
+  // Person-specific placeholders (actor/director collections)
+  actor?: string; // Actor name for actor collections
+  director?: string; // Director name for director collections
 }
 
 /**
@@ -158,6 +161,15 @@ export class TemplateEngine {
       processed = processed.replace(/{franchiseName}/g, context.franchiseName);
     }
 
+    // Person-specific placeholders (actor/director collections)
+    if (context.actor !== undefined) {
+      processed = processed.replace(/{actor}/g, context.actor);
+    }
+
+    if (context.director !== undefined) {
+      processed = processed.replace(/{director}/g, context.director);
+    }
+
     // Debug logging to see the final result
     logger.debug('Template processing result', {
       label: 'Template Engine',
@@ -228,7 +240,7 @@ export class TemplateEngine {
     try {
       // Import the service to avoid circular dependencies
       const { overseerrCollectionService } = await import(
-        '@server/lib/collections/external/overseerr'
+        '@server/lib/collections/sources/overseerr'
       );
       const overseerrSettings =
         await overseerrCollectionService.getOverseerrSettings();
@@ -352,9 +364,16 @@ export class TemplateEngine {
   public createFranchiseContext(
     franchiseData: TmdbFranchiseSourceData
   ): TemplateContext {
+    // Strip " Collection" suffix from franchise name for cleaner templates
+    // e.g., "Moana Collection" -> "Moana"
+    const cleanFranchiseName = franchiseData.franchiseName.replace(
+      / Collection$/i,
+      ''
+    );
+
     return {
       ...this.getDefaultContext(),
-      franchiseName: franchiseData.franchiseName,
+      franchiseName: cleanFranchiseName,
       franchiseId: franchiseData.franchiseId,
       movieCount: franchiseData.movies.length,
       mediaType: 'movie' as const,

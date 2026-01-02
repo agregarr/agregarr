@@ -72,6 +72,14 @@ RUN apk add --no-cache \
     fc-cache -fv && \
     rm -rf /tmp/*
 
+# Configure fontconfig to scan custom fonts directory
+RUN mkdir -p /etc/fonts/conf.d && \
+    echo '<?xml version="1.0"?>' > /etc/fonts/conf.d/99-agregarr-custom-fonts.conf && \
+    echo '<!DOCTYPE fontconfig SYSTEM "fonts.dtd">' >> /etc/fonts/conf.d/99-agregarr-custom-fonts.conf && \
+    echo '<fontconfig>' >> /etc/fonts/conf.d/99-agregarr-custom-fonts.conf && \
+    echo '  <dir>/app/config/fonts</dir>' >> /etc/fonts/conf.d/99-agregarr-custom-fonts.conf && \
+    echo '</fontconfig>' >> /etc/fonts/conf.d/99-agregarr-custom-fonts.conf
+
 # Install Deno - yt-dlp requires a JS runtime as of 2025-11-12
 RUN echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories && \
     echo "@edge https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories && \

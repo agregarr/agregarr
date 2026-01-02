@@ -28,6 +28,7 @@ export interface OverlayTextElementProps {
   color: string;
   textAlign: 'left' | 'center' | 'right';
   maxLines?: number;
+  opacity?: number; // 0-100
 }
 
 export interface OverlayTileElementProps {
@@ -70,6 +71,7 @@ export interface OverlayVariableElementProps {
   fontStyle: 'normal' | 'italic';
   color: string;
   textAlign: 'left' | 'center' | 'right';
+  opacity?: number; // 0-100
 }
 
 export interface OverlayRasterElementProps {
@@ -153,7 +155,7 @@ export interface OverlayRenderContext {
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
-  metacriticScore?: number;
+  // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata
   title?: string;
@@ -178,6 +180,8 @@ export interface OverlayRenderContext {
   bitDepth?: number; // 8, 10, 12
   hdr?: boolean; // HDR10/HDR10+
   dolbyVision?: boolean; // Dolby Vision
+  dolbyVisionProfile?: number; // Dolby Vision Profile (5, 7, 8, etc.)
+  colorTrc?: string; // Color transfer characteristic (e.g., 'smpte2084' for HDR10, 'arib' for HLG)
 
   // Audio specs
   audioCodec?: string; // 'truehd', 'dts', 'aac'
@@ -221,8 +225,9 @@ export interface OverlayRenderContext {
   inRadarr?: boolean;
   inSonarr?: boolean;
   downloaded?: boolean;
-  isTrending?: boolean;
-  isWatched?: boolean;
+
+  // Maintainerr integration
+  daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
@@ -246,7 +251,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
-    { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
+    // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   metadata: [
     { field: 'title', label: 'Title', example: 'The Matrix' },
@@ -273,6 +278,16 @@ export const AVAILABLE_VARIABLES = {
     { field: 'bitDepth', label: 'Bit Depth', example: '10' },
     { field: 'hdr', label: 'HDR', example: 'true' },
     { field: 'dolbyVision', label: 'Dolby Vision', example: 'true' },
+    {
+      field: 'dolbyVisionProfile',
+      label: 'Dolby Vision Profile',
+      example: '7',
+    },
+    {
+      field: 'colorTrc',
+      label: 'Color Transfer',
+      example: 'smpte2084',
+    },
   ],
   audio: [
     {
@@ -346,8 +361,11 @@ export const AVAILABLE_VARIABLES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
-    { field: 'isTrending', label: 'Is Trending', example: 'true' },
-    { field: 'isWatched', label: 'Is Watched', example: 'true' },
+    {
+      field: 'daysUntilAction',
+      label: 'Days Until Maintainerr Action',
+      example: '5',
+    },
   ],
 };
 
@@ -382,6 +400,16 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'hdr', label: 'HDR', example: 'true' },
     { field: 'dolbyVision', label: 'Dolby Vision', example: 'true' },
     {
+      field: 'dolbyVisionProfile',
+      label: 'Dolby Vision Profile',
+      example: '7',
+    },
+    {
+      field: 'colorTrc',
+      label: 'Color Transfer',
+      example: 'smpte2084',
+    },
+    {
       field: 'audioFormat',
       label: 'Audio Format',
       example: 'Dolby TrueHD Atmos 7.1',
@@ -403,7 +431,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
-    { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
+    // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   Status: [
     { field: 'mediaType', label: 'Media Type (movie/show)', example: 'movie' },
@@ -450,8 +478,11 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
-    { field: 'isTrending', label: 'Is Trending', example: 'true' },
-    { field: 'isWatched', label: 'Is Watched', example: 'true' },
+    {
+      field: 'daysUntilAction',
+      label: 'Days Until Maintainerr Action',
+      example: '5',
+    },
   ],
 };
 
@@ -504,7 +535,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 88,
     rtAudienceScore: 85,
-    metacriticScore: 73,
+    // metacriticScore: 73, // TODO: Implement Metacritic integration
     director: 'Lana Wachowski',
     studio: 'Warner Bros.',
     genre: 'Sci-Fi',
@@ -518,6 +549,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitDepth: 10,
     hdr: true,
     dolbyVision: true,
+    dolbyVisionProfile: 7,
+    colorTrc: 'smpte2084',
     audioFormat: 'English (Dolby TrueHD Atmos 7.1)',
     audioCodec: 'truehd',
     audioChannels: 8,
@@ -532,6 +565,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isMonitored: true,
     inRadarr: true,
     downloaded: false,
+    daysUntilAction: 5,
     isPlaceholder: true,
     mediaType: 'movie',
   },
@@ -543,7 +577,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 96,
     rtAudienceScore: 98,
-    metacriticScore: 96,
+    // metacriticScore: 96, // TODO: Implement Metacritic integration
     seasonNumber: 5,
     episodeNumber: 16,
     episodeLabel: 'SERIES FINALE',
@@ -576,6 +610,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isMonitored: true,
     inSonarr: true,
     downloaded: true,
+    daysUntilAction: 12,
     isPlaceholder: false,
     mediaType: 'show',
   },

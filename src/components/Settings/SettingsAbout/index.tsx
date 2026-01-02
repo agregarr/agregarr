@@ -1,16 +1,22 @@
 import Alert from '@app/components/Common/Alert';
 import Badge from '@app/components/Common/Badge';
+import Button from '@app/components/Common/Button';
+import ExportDebugModal from '@app/components/Common/ExportDebugModal';
 import List from '@app/components/Common/List';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
 import Releases from '@app/components/Settings/SettingsAbout/Releases';
 import globalMessages from '@app/i18n/globalMessages';
 import Error from '@app/pages/_error';
-import { InformationCircleIcon } from '@heroicons/react/24/solid';
+import {
+  ArrowDownTrayIcon,
+  InformationCircleIcon,
+} from '@heroicons/react/24/solid';
 import type {
   SettingsAboutResponse,
   StatusResponse,
 } from '@server/interfaces/api/settingsInterfaces';
+import { useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
 
@@ -22,6 +28,8 @@ const messages = defineMessages({
   totalrequests: 'Total Requests',
   gettingsupport: 'Getting Support',
   githubdiscussions: 'GitHub Discussions',
+  agregarrdocs: 'Agregarr Documentation',
+  exportdebug: 'Export Debugging Information',
   timezone: 'Time Zone',
   appDataPath: 'Data Directory',
   supportagregarr: 'Support Agregarr',
@@ -34,10 +42,12 @@ const messages = defineMessages({
     'This is BETA software. Features may be broken and/or unstable. Please report any issues on GitHub!',
   runningDevelop:
     'You are running the <code>develop</code> branch of Agregarr, which is only recommended for those contributing to development or assisting with bleeding-edge testing.',
+  exportDebugInfo: 'Export Debugging Info',
 });
 
 const SettingsAbout = () => {
   const intl = useIntl();
+  const [showExportModal, setShowExportModal] = useState(false);
   const { data, error } = useSWR<SettingsAboutResponse>(
     '/api/v1/settings/about'
   );
@@ -169,6 +179,25 @@ const SettingsAbout = () => {
               https://discord.gg/RfEPPRQJQ2
             </a>
           </List.Item>
+          <List.Item title={intl.formatMessage(messages.agregarrdocs)}>
+            <a
+              href="https://agregarr.org"
+              target="_blank"
+              rel="noreferrer"
+              className="text-orange-500 transition duration-300 hover:underline"
+            >
+              https://agregarr.org
+            </a>
+          </List.Item>
+          <List.Item title={intl.formatMessage(messages.exportdebug)}>
+            <Button
+              buttonType="primary"
+              onClick={() => setShowExportModal(true)}
+            >
+              <ArrowDownTrayIcon className="mr-2 h-5 w-5" />
+              {intl.formatMessage(messages.exportDebugInfo)}
+            </Button>
+          </List.Item>
         </List>
       </div>
       <div className="section">
@@ -193,6 +222,10 @@ const SettingsAbout = () => {
       <div className="section">
         <Releases currentVersion={data.version} />
       </div>
+      <ExportDebugModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+      />
     </>
   );
 };

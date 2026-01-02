@@ -22,7 +22,7 @@ import type {
   ConditionRule,
   ConditionSection,
 } from '@server/entity/OverlayTemplate';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { CONDITION_FIELD_CATEGORIES } from './types';
 
@@ -59,11 +59,15 @@ const NUMERIC_FIELDS = [
   'imdbRating',
   'rtCriticsScore',
   'rtAudienceScore',
-  'metacriticScore',
+  // 'metacriticScore', // TODO: Implement Metacritic integration
   'year',
   'runtime',
   'daysUntilRelease',
   'daysAgo',
+  'daysUntilNextSeason',
+  'daysAgoNextSeason',
+  'daysUntilNextEpisode',
+  'daysUntilAction',
   'seasonNumber',
   'episodeNumber',
   'width',
@@ -87,8 +91,6 @@ const BOOLEAN_FIELDS = [
   'hdr',
   'dolbyVision',
   'isImdbTop250',
-  'isTrending',
-  'isWatched',
 ];
 
 // ============================================================================
@@ -131,6 +133,25 @@ const RuleItem: React.FC<RuleItemProps> = ({
   const isNumeric = NUMERIC_FIELDS.includes(field);
   const isBoolean = BOOLEAN_FIELDS.includes(field);
 
+  // Sanitize operator if it's invalid for the current field type (on mount)
+  const lastSanitizedKey = useRef<string>('');
+
+  useEffect(() => {
+    const sanitizeKey = `${field}-${operator}`;
+    if (lastSanitizedKey.current === sanitizeKey) return;
+
+    const numericOnlyOperators = ['gt', 'gte', 'lt', 'lte'];
+    const isInvalid =
+      (!isNumeric && numericOnlyOperators.includes(operator)) ||
+      (isBoolean && !['eq', 'neq'].includes(operator));
+
+    if (isInvalid) {
+      lastSanitizedKey.current = sanitizeKey;
+      onChange({ ...rule, operator: 'eq' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field, operator, isNumeric, isBoolean]);
+
   const allConditionFields = Object.values(CONDITION_FIELD_CATEGORIES).flat();
   const placeholder =
     allConditionFields.find((f) => f.field === field)?.example || '';
@@ -158,12 +179,19 @@ const RuleItem: React.FC<RuleItemProps> = ({
         onChange={(e) => {
           const newField = e.target.value;
           const isNewFieldBoolean = BOOLEAN_FIELDS.includes(newField);
+          const isNewFieldNumeric = NUMERIC_FIELDS.includes(newField);
+
+          // Determine if current operator is valid for new field type
+          const numericOnlyOperators = ['gt', 'gte', 'lt', 'lte'];
+          const isCurrentOperatorInvalid =
+            (!isNewFieldNumeric && numericOnlyOperators.includes(operator)) ||
+            (isNewFieldBoolean && !['eq', 'neq'].includes(operator));
 
           // Reset to appropriate defaults when changing field
           onChange({
             ...rule,
             field: newField,
-            operator: isNewFieldBoolean ? 'eq' : rule.operator,
+            operator: isCurrentOperatorInvalid ? 'eq' : rule.operator,
             value: isNewFieldBoolean ? true : '',
           });
         }}

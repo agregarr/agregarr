@@ -1,5 +1,6 @@
 import Badge from '@app/components/Common/Badge';
 import Button from '@app/components/Common/Button';
+import ExportDebugModal from '@app/components/Common/ExportDebugModal';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import Modal from '@app/components/Common/Modal';
 import PageTitle from '@app/components/Common/PageTitle';
@@ -11,6 +12,7 @@ import globalMessages from '@app/i18n/globalMessages';
 import Error from '@app/pages/_error';
 import { Transition } from '@headlessui/react';
 import {
+  ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClipboardDocumentIcon,
@@ -51,6 +53,7 @@ const messages = defineMessages({
   extraData: 'Additional Data',
   copiedLogMessage: 'Copied log message to clipboard.',
   viewdetails: 'View Details',
+  exportDebugInfo: 'Export Debugging Info',
 });
 
 type Filter = 'debug' | 'info' | 'warn' | 'error';
@@ -68,6 +71,7 @@ const SettingsLogs = () => {
     isOpen: boolean;
     log?: LogMessage;
   }>({ isOpen: false });
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const page = router.query.page ? Number(router.query.page) : 1;
   const pageIndex = page - 1;
@@ -240,15 +244,27 @@ const SettingsLogs = () => {
         </Modal>
       </Transition>
       <div className="mb-2">
-        <h3 className="heading">{intl.formatMessage(messages.logs)}</h3>
-        <p className="description">
-          {intl.formatMessage(messages.logsDescription, {
-            code: (msg: React.ReactNode) => (
-              <code className="bg-opacity-50">{msg}</code>
-            ),
-            appDataPath: appData ? appData.appDataPath : '/app/config',
-          })}
-        </p>
+        <div className="mb-4 flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="heading">{intl.formatMessage(messages.logs)}</h3>
+            <p className="description">
+              {intl.formatMessage(messages.logsDescription, {
+                code: (msg: React.ReactNode) => (
+                  <code className="bg-opacity-50">{msg}</code>
+                ),
+                appDataPath: appData ? appData.appDataPath : '/app/config',
+              })}
+            </p>
+          </div>
+          <Button
+            buttonType="primary"
+            onClick={() => setShowExportModal(true)}
+            className="ml-4"
+          >
+            <ArrowDownTrayIcon className="mr-2 h-5 w-5" />
+            {intl.formatMessage(messages.exportDebugInfo)}
+          </Button>
+        </div>
         <div className="mt-2 flex flex-grow flex-col sm:flex-grow-0 sm:flex-row sm:justify-end">
           <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 md:flex-grow-0">
             <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-stone-800 px-3 text-sm text-gray-100">
@@ -485,6 +501,10 @@ const SettingsLogs = () => {
           </Table.TBody>
         </Table>
       </div>
+      <ExportDebugModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+      />
     </>
   );
 };

@@ -539,7 +539,7 @@ export async function applyPreSyncUserRestrictions(): Promise<void> {
 
     // Get all potential Overseerr users (those who could have collections)
     const { overseerrCollectionService } = await import(
-      '@server/lib/collections/external/overseerr'
+      '@server/lib/collections/sources/overseerr'
     );
     const potentialOverseerrUsers =
       await overseerrCollectionService.getUsersWithPlexIds();
@@ -619,7 +619,7 @@ export async function applySelectivePreSyncUserRestrictions(
       // Get Overseerr users with Plex IDs for regular user collections
       // Exclude admin user from user collections (consistent with overseerr sync logic)
       const { overseerrCollectionService } = await import(
-        '@server/lib/collections/external/overseerr'
+        '@server/lib/collections/sources/overseerr'
       );
       const overseerrUsers =
         await overseerrCollectionService.getUsersWithPlexIds();

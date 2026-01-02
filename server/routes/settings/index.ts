@@ -1,3 +1,4 @@
+import MaintainerrAPI from '@server/api/maintainerr';
 import MDBListAPI from '@server/api/mdblist';
 import { getRankedAnime } from '@server/api/myanimelist';
 import PlexAPI from '@server/api/plexapi';
@@ -34,6 +35,7 @@ import {
   buildTraktRedirectUri,
   persistTraktTokens,
 } from '@server/utils/traktAuth';
+import archiver from 'archiver';
 import parser from 'cron-parser';
 import type { Request } from 'express';
 import { Router } from 'express';
@@ -305,26 +307,16 @@ settingsRoutes.get('/plex/libraries', async (req, res) => {
     // Sync libraries to settings so they're available for collection operations
     await plexapi.syncLibraries();
 
-    const allLibraries = await plexapi.getLibraries();
-    // Filter to only movie and show libraries
-    const libraries = allLibraries.filter(
-      (lib) => lib.type === 'movie' || lib.type === 'show'
-    );
-
-    // Return clean library data directly from Plex (no transformation)
-    const cleanLibraries = libraries.map((lib) => ({
-      key: lib.key,
-      name: lib.title,
-      type: lib.type, // 'movie' or 'show'
-    }));
-
-    return res.status(200).json(cleanLibraries);
+    // Return the libraries that were just synced to settings
+    // This ensures UI and backend always see the same library data
+    const settings = getSettings();
+    return res.status(200).json(settings.plex.libraries);
   } catch (error) {
-    logger.error('Failed to fetch Plex libraries', {
+    logger.error('Failed to sync Plex libraries', {
       label: 'Settings Routes',
       error: error instanceof Error ? error.message : String(error),
     });
-    return res.status(500).json({ error: 'Failed to fetch Plex libraries' });
+    return res.status(500).json({ error: 'Failed to sync Plex libraries' });
   }
 });
 
@@ -538,6 +530,128 @@ settingsRoutes.post('/tautulli/test', async (req, res, next) => {
 
     logger.error('Tautulli connection test failed', {
       label: 'Tautulli Connection',
+      error: e.message,
+      errorType: e.constructor?.name,
+      errorCode: e.code,
+      httpStatus: e.response?.status,
+      connectionUrl,
+      responseTime: Date.now() - startTime,
+      requestedSettings: {
+        hostname: req.body.hostname,
+        port: req.body.port,
+        ssl: req.body.useSsl,
+        urlBase: req.body.urlBase,
+      },
+    });
+
+    return next({
+      status,
+      message: `${message} (${connectionUrl})`,
+    });
+  }
+});
+
+settingsRoutes.get('/maintainerr', (_req, res) => {
+  const settings = getSettings();
+
+  res.status(200).json(settings.maintainerr);
+});
+
+settingsRoutes.post('/maintainerr', async (req, res) => {
+  const settings = getSettings();
+
+  Object.assign(settings.maintainerr, req.body);
+  settings.save();
+
+  return res.status(200).json(settings.maintainerr);
+});
+
+settingsRoutes.post('/maintainerr/test', async (req, res, next) => {
+  const startTime = Date.now();
+
+  logger.debug('Maintainerr connection test requested', {
+    label: 'Maintainerr Connection',
+    hostname: req.body.hostname,
+    port: req.body.port,
+    useSsl: req.body.useSsl,
+    urlBase: req.body.urlBase,
+  });
+
+  try {
+    const { hostname, port, apiKey, useSsl, urlBase } = req.body;
+
+    if (!hostname || !port || !apiKey) {
+      return next({
+        status: 400,
+        message: 'Hostname, port, and API key are required',
+      });
+    }
+
+    const settings = {
+      hostname,
+      port: Number(port),
+      useSsl: useSsl || false,
+      urlBase: urlBase || '',
+      apiKey,
+    };
+
+    const connectionUrl = `${settings.useSsl ? 'https' : 'http'}://${
+      settings.hostname
+    }:${settings.port}${settings.urlBase}`;
+    logger.debug('Testing Maintainerr connection', {
+      label: 'Maintainerr Connection',
+      url: connectionUrl,
+      apiKeyLength: apiKey.length,
+    });
+
+    const maintainerrClient = new MaintainerrAPI(settings);
+    const collections = await maintainerrClient.getCollections();
+
+    if (!Array.isArray(collections)) {
+      throw new Error('Invalid response from Maintainerr API');
+    }
+
+    logger.info('Maintainerr connection test successful', {
+      label: 'Maintainerr Connection',
+      responseTime: Date.now() - startTime,
+      collectionsFound: collections.length,
+    });
+
+    return res.status(200).json({
+      success: true,
+    });
+  } catch (e) {
+    const connectionUrl = `${req.body.useSsl ? 'https' : 'http'}://${
+      req.body.hostname
+    }:${req.body.port}${req.body.urlBase || ''}`;
+
+    let status = 500;
+    let message = 'Unable to connect to Maintainerr';
+
+    if (e.response) {
+      status = e.response.status;
+
+      if (status === 400 || status === 401 || status === 403) {
+        message = 'Invalid API key - Authentication failed';
+      } else if (status === 404) {
+        message = 'Maintainerr API not found - Check URL base and port';
+      } else {
+        message = `Maintainerr returned error: ${
+          e.response.statusText || 'Unknown error'
+        }`;
+      }
+    } else if (e.code === 'ECONNREFUSED') {
+      message = 'Connection refused - Check hostname and port';
+    } else if (e.code === 'ENOTFOUND') {
+      message = 'Host not found - Check hostname';
+    } else if (e.code === 'ETIMEDOUT') {
+      message = 'Connection timeout - Check network connectivity';
+    } else if (e.message) {
+      message = e.message;
+    }
+
+    logger.error('Maintainerr connection test failed', {
+      label: 'Maintainerr Connection',
       error: e.message,
       errorType: e.constructor?.name,
       errorCode: e.code,
@@ -984,9 +1098,12 @@ settingsRoutes.get('/jobs', (_req, res) => {
 
       if (nextExecution && job.cronSchedule) {
         try {
-          const interval = parser.parse(job.cronSchedule);
-          interval.next(); // First next (skip it, we already have nextExecution)
-          followingExecution = interval.next().toDate(); // Second next
+          // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+          const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+          const interval = parser.parse(job.cronSchedule, {
+            currentDate: startDate,
+          });
+          followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
         } catch (error) {
           // If cron parsing fails, followingExecution stays null
         }
@@ -1020,9 +1137,12 @@ settingsRoutes.post<{ jobId: string }>('/jobs/:jobId/run', (req, res, next) => {
 
   if (nextExecution && scheduledJob.cronSchedule) {
     try {
-      const interval = parser.parse(scheduledJob.cronSchedule);
-      interval.next(); // First next (skip it, we already have nextExecution)
-      followingExecution = interval.next().toDate(); // Second next
+      // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+      const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+      const interval = parser.parse(scheduledJob.cronSchedule, {
+        currentDate: startDate,
+      });
+      followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
     } catch (error) {
       // If cron parsing fails, followingExecution stays null
     }
@@ -1060,9 +1180,12 @@ settingsRoutes.post<{ jobId: JobId }>(
 
     if (nextExecution && scheduledJob.cronSchedule) {
       try {
-        const interval = parser.parse(scheduledJob.cronSchedule);
-        interval.next(); // First next (skip it, we already have nextExecution)
-        followingExecution = interval.next().toDate(); // Second next
+        // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+        const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+        const interval = parser.parse(scheduledJob.cronSchedule, {
+          currentDate: startDate,
+        });
+        followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
       } catch (error) {
         // If cron parsing fails, followingExecution stays null
       }
@@ -1106,9 +1229,12 @@ settingsRoutes.post<{ jobId: JobId }>(
 
       if (nextExecution && scheduledJob.cronSchedule) {
         try {
-          const interval = parser.parse(scheduledJob.cronSchedule);
-          interval.next(); // First next (skip it, we already have nextExecution)
-          followingExecution = interval.next().toDate(); // Second next
+          // Add 1 second to nextExecution to ensure we get the occurrence AFTER it
+          const startDate = new Date(new Date(nextExecution).getTime() + 1000);
+          const interval = parser.parse(scheduledJob.cronSchedule, {
+            currentDate: startDate,
+          });
+          followingExecution = interval.next().toDate(); // Get execution AFTER nextExecution
         } catch (error) {
           // If cron parsing fails, followingExecution stays null
         }
@@ -1244,7 +1370,7 @@ settingsRoutes.post('/reset', async (_req, res, next) => {
         // Delete all unique placeholder files
         if (filesToDelete.size > 0) {
           const { removePlaceholder } = await import(
-            '@server/lib/comingsoon/placeholderManager'
+            '@server/lib/placeholders/placeholderManager'
           );
 
           for (const fullPath of filesToDelete) {
@@ -1325,6 +1451,96 @@ settingsRoutes.post('/watchlistsync', (req, res) => {
   settings.save();
 
   return res.status(200).json(settings.watchlistSync);
+});
+
+settingsRoutes.post('/export-debug', (req, res, next) => {
+  try {
+    const { includeDatabase, includeSettings, includeLogs } = req.body;
+    const configPath = appDataPath();
+
+    logger.info('Debug export requested', {
+      label: 'Settings',
+      includeDatabase,
+      includeSettings,
+      includeLogs,
+    });
+
+    // Set response headers for file download
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `agregarr-debug-${timestamp}.zip`;
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Create archiver instance
+    const archive = archiver('zip', {
+      zlib: { level: 9 }, // Maximum compression
+    });
+
+    // Handle archiver errors
+    archive.on('error', (err) => {
+      logger.error('Error creating debug export archive', {
+        label: 'Settings',
+        errorMessage: err.message,
+      });
+      next(err);
+    });
+
+    // Pipe archive to response
+    archive.pipe(res);
+
+    // Add database if requested
+    if (includeDatabase) {
+      const dbPath = path.join(configPath, 'db', 'db.sqlite3');
+      if (fs.existsSync(dbPath)) {
+        archive.file(dbPath, { name: 'db/db.sqlite3' });
+        logger.debug('Added database to export', { label: 'Settings' });
+      } else {
+        logger.warn('Database file not found for export', {
+          label: 'Settings',
+        });
+      }
+    }
+
+    // Add settings.json if requested
+    if (includeSettings) {
+      const settingsPath = path.join(configPath, 'settings.json');
+      if (fs.existsSync(settingsPath)) {
+        archive.file(settingsPath, { name: 'settings.json' });
+        logger.debug('Added settings.json to export', { label: 'Settings' });
+      } else {
+        logger.warn('settings.json not found for export', {
+          label: 'Settings',
+        });
+      }
+    }
+
+    // Add logs directory if requested
+    if (includeLogs) {
+      const logsPath = path.join(configPath, 'logs');
+      if (fs.existsSync(logsPath)) {
+        archive.directory(logsPath, 'logs');
+        logger.debug('Added logs directory to export', { label: 'Settings' });
+      } else {
+        logger.warn('Logs directory not found for export', {
+          label: 'Settings',
+        });
+      }
+    }
+
+    // Finalize the archive
+    archive.finalize();
+
+    logger.info('Debug export completed successfully', {
+      label: 'Settings',
+      filename,
+    });
+  } catch (error) {
+    logger.error('Error during debug export', {
+      label: 'Settings',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+    next(error);
+  }
 });
 
 export default settingsRoutes;

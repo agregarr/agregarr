@@ -4,7 +4,7 @@ import type {
   PlexCollection,
   PlexLabel,
 } from '@server/lib/collections/core/types';
-import { overseerrCollectionService } from '@server/lib/collections/external/overseerr';
+import { overseerrCollectionService } from '@server/lib/collections/sources/overseerr';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
@@ -448,7 +448,7 @@ export class CollectionCleanupService {
             // For server_owner, get the actual admin user plexId to match the real label format
             try {
               const { overseerrCollectionService } = await import(
-                '@server/lib/collections/external/overseerr'
+                '@server/lib/collections/sources/overseerr'
               );
               const adminUser = await overseerrCollectionService.getAdminUser();
               const adminPlexId = adminUser?.plexId || adminUser?.id;
