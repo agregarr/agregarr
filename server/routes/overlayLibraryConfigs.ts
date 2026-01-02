@@ -274,6 +274,33 @@ router.post('/:libraryId/apply', async (req, res, next) => {
   }
 });
 
+// POST /api/v1/overlay-library-configs/:libraryId/stop - Stop overlay application for library
+router.post('/:libraryId/stop', (req, res) => {
+  const { libraryId } = req.params;
+
+  const result = overlayLibraryService.requestCancellation(libraryId);
+  if (result === 'requested') {
+    logger.info('Requested cancellation of overlay application', {
+      libraryId,
+      userId: req.user?.id,
+    });
+    return res.status(200).json({
+      message: 'Stop requested',
+      libraryId,
+    });
+  } else if (result === 'already') {
+    // Idempotent - return success if already stopping
+    return res.status(200).json({
+      message: 'Stop already in progress',
+      libraryId,
+    });
+  } else {
+    return res.status(404).json({
+      error: 'No running job found for this library',
+    });
+  }
+});
+
 // GET /api/v1/overlay-library-configs/:libraryId/status - Get overlay application status for library
 router.get('/:libraryId/status', (req, res) => {
   const { libraryId } = req.params;

@@ -31,6 +31,72 @@ export interface OverlayItemInput {
 }
 
 /**
+ * Job state machine states
+ */
+export type JobState =
+  | 'running'
+  | 'cancelling'
+  | 'completed'
+  | 'cancelled'
+  | 'failed';
+
+/**
+ * Internal progress tracking for a library overlay job
+ */
+interface LibraryProgress {
+  // Identity
+  libraryName: string;
+  startTime: number;
+
+  // State machine
+  state: JobState;
+  completedAt?: number; // For TTL cleanup after completion
+
+  // Progress
+  totalItems: number;
+  currentItem: number;
+  currentTitle: string;
+  filteredCount: number; // Episodes/seasons skipped by type filter
+
+  // Outcome counts
+  // INVARIANT: successCount + errorCount + skippedCount + filteredCount === currentItem
+  successCount: number;
+  errorCount: number;
+  skippedCount: number; // Items with no changes (hash matched)
+
+  // ETA calculation (private, not serialized)
+  _recentItemTimes: number[]; // Rolling window of last 20 item timestamps
+  _promise: Promise<void>; // For mutex, not serialized
+}
+
+/**
+ * Public status shape returned by API
+ */
+export interface LibraryStatus {
+  running: boolean;
+  state: JobState;
+  libraryName: string;
+  startTime: number;
+  runningFor: number;
+  totalItems: number;
+  currentItem: number;
+  currentTitle: string;
+  filteredCount: number;
+  successCount: number;
+  errorCount: number;
+  skippedCount: number;
+  progressPercent: number; // Clamped 0-100
+  estimatedSecondsRemaining: number | null; // Capped at 7200 (2h)
+}
+
+/**
+ * Result from applying overlays to a single item
+ */
+interface OverlayApplyResult {
+  skipped: boolean; // true if nothing changed (hash match)
+}
+
+/**
  * Service for applying overlay templates to Plex library items
  */
 class OverlayLibraryService {
@@ -39,38 +105,147 @@ class OverlayLibraryService {
   private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
   private maintainerrCollectionsCache?: MaintainerrCollection[];
 
-  // Track running libraries
-  private runningLibraries = new Map<
-    string,
-    { libraryName: string; startTime: number }
-  >();
+  // Track running libraries with mutex-like behavior and detailed progress
+  // Prevents concurrent processing of the same library
+  private runningLibraries = new Map<string, LibraryProgress>();
+
+  // Track libraries that have been requested to cancel
+  private cancelledLibraries = new Set<string>();
+
+  // TTL for completed jobs (visible to UI before cleanup)
+  private static readonly COMPLETED_TTL_MS = 10_000;
+
+  /**
+   * Request cancellation of a library overlay job
+   * Returns 'requested' if newly requested, 'already' if already cancelling, 'not_found' otherwise
+   */
+  public requestCancellation(libraryId: string): 'requested' | 'already' | 'not_found' {
+    const progress = this.runningLibraries.get(libraryId);
+    if (!progress) {
+      return 'not_found';
+    }
+    if (progress.state === 'cancelling') {
+      return 'already'; // Idempotent - already in progress
+    }
+    if (progress.state === 'running') {
+      this.cancelledLibraries.add(libraryId);
+      progress.state = 'cancelling';
+      return 'requested';
+    }
+    return 'not_found'; // Job completed/failed/cancelled
+  }
+
+  /**
+   * Safely update progress for a library (while running or cancelling)
+   * Allows final progress updates during cancellation to maintain count accuracy
+   */
+  private updateProgress(
+    libraryId: string,
+    mutator: (progress: LibraryProgress) => void
+  ): void {
+    const progress = this.runningLibraries.get(libraryId);
+    if (progress && (progress.state === 'running' || progress.state === 'cancelling')) {
+      mutator(progress);
+    }
+  }
+
+  /**
+   * Clean up completed jobs after TTL expires
+   */
+  private cleanupCompletedJobs(): void {
+    const now = Date.now();
+    for (const [id, status] of this.runningLibraries) {
+      if (
+        status.completedAt &&
+        now - status.completedAt > OverlayLibraryService.COMPLETED_TTL_MS
+      ) {
+        this.runningLibraries.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Calculate ETA using rolling average of recent item times
+   * Returns null if not enough data, caps at 2 hours
+   */
+  private calculateEta(progress: LibraryProgress): number | null {
+    const times = progress._recentItemTimes;
+
+    // Need at least 5 samples and library must have 20+ items
+    if (times.length < 5 || progress.totalItems < 20) {
+      return null;
+    }
+
+    // Calculate average ms per item from rolling window
+    const windowDuration = times[times.length - 1] - times[0];
+    const avgMsPerItem = windowDuration / (times.length - 1);
+
+    // Estimate remaining time
+    const remaining = progress.totalItems - progress.currentItem;
+    const etaMs = remaining * avgMsPerItem;
+
+    // Cap at 2 hours (7200 seconds)
+    return Math.min(7200, Math.round(etaMs / 1000));
+  }
 
   /**
    * Get status for a specific library
    */
-  public getLibraryStatus(libraryId: string) {
-    const status = this.runningLibraries.get(libraryId);
-    if (!status) {
+  public getLibraryStatus(libraryId: string): LibraryStatus | { running: false } {
+    // Clean up expired entries first
+    this.cleanupCompletedJobs();
+
+    const progress = this.runningLibraries.get(libraryId);
+    if (!progress) {
       return { running: false };
     }
+
+    const runningFor = Math.round((Date.now() - progress.startTime) / 1000);
+
+    // Calculate progress percent (clamped 0-100)
+    const rawPercent =
+      progress.totalItems > 0
+        ? (progress.currentItem / progress.totalItems) * 100
+        : 0;
+    const progressPercent = Math.min(100, Math.max(0, Math.round(rawPercent)));
+
+    // Calculate ETA
+    const estimatedSecondsRemaining = this.calculateEta(progress);
+
+    // Return cloned status object
     return {
-      running: true,
-      libraryName: status.libraryName,
-      startTime: status.startTime,
+      running: progress.state === 'running' || progress.state === 'cancelling',
+      state: progress.state,
+      libraryName: progress.libraryName,
+      startTime: progress.startTime,
+      runningFor,
+      totalItems: progress.totalItems,
+      currentItem: progress.currentItem,
+      currentTitle: progress.currentTitle,
+      filteredCount: progress.filteredCount,
+      successCount: progress.successCount,
+      errorCount: progress.errorCount,
+      skippedCount: progress.skippedCount,
+      progressPercent,
+      estimatedSecondsRemaining,
     };
   }
 
   /**
-   * Get all running libraries
+   * Get all running libraries with full status
    */
-  public getAllRunningLibraries() {
-    return Array.from(this.runningLibraries.entries()).map(
-      ([libraryId, status]) => ({
-        libraryId,
-        libraryName: status.libraryName,
-        startTime: status.startTime,
+  public getAllRunningLibraries(): (LibraryStatus & { libraryId: string })[] {
+    this.cleanupCompletedJobs();
+
+    return Array.from(this.runningLibraries.entries())
+      .map(([libraryId, _]) => {
+        const status = this.getLibraryStatus(libraryId);
+        if ('state' in status) {
+          return { libraryId, ...status };
+        }
+        return null;
       })
-    );
+      .filter((s): s is LibraryStatus & { libraryId: string } => s !== null);
   }
 
   /**
@@ -84,23 +259,117 @@ class OverlayLibraryService {
 
   /**
    * Apply overlays to all items in a library
+   * Uses mutex-like behavior to prevent concurrent processing of the same library
    */
   async applyOverlaysToLibrary(
     libraryId: string,
     checkCancelled?: () => boolean
   ): Promise<void> {
-    // Get library configuration first to get name
-    const configRepository = getRepository(OverlayLibraryConfig);
-    const config = await configRepository.findOne({
-      where: { libraryId },
+    // Mutex: wait for any in-progress job to complete before starting
+    // Loop to handle multiple waiters waking up simultaneously
+    let existing = this.runningLibraries.get(libraryId);
+    while (existing && (existing.state === 'running' || existing.state === 'cancelling')) {
+      logger.warn('Library already being processed, waiting for completion', {
+        label: 'OverlayLibrary',
+        libraryId,
+        libraryName: existing.libraryName,
+        state: existing.state,
+        startedAt: new Date(existing.startTime).toISOString(),
+        runningFor: `${Math.round((Date.now() - existing.startTime) / 1000)}s`,
+      });
+      // Wait for existing job, catch errors so retries proceed after failures
+      await existing._promise.catch(() => undefined);
+      // Re-check in case another waiter started a new job
+      existing = this.runningLibraries.get(libraryId);
+    }
+
+    // Clean up old completed jobs
+    this.cleanupCompletedJobs();
+
+    // Create a deferred promise to set in the map immediately
+    // This prevents race conditions where two calls pass the check before either awaits
+    let resolveDeferred: () => void;
+    let rejectDeferred: (error: Error) => void;
+    const deferredPromise = new Promise<void>((resolve, reject) => {
+      resolveDeferred = resolve;
+      rejectDeferred = reject;
     });
 
-    // Mark as running
+    // Initialize progress with all fields BEFORE any await (to prevent race condition)
     this.runningLibraries.set(libraryId, {
-      libraryName: config?.libraryName || libraryId,
+      libraryName: libraryId, // Will update after config fetch
       startTime: Date.now(),
+      state: 'running',
+      completedAt: undefined,
+      totalItems: 0,
+      currentItem: 0,
+      currentTitle: '',
+      filteredCount: 0,
+      successCount: 0,
+      errorCount: 0,
+      skippedCount: 0,
+      _recentItemTimes: [],
+      _promise: deferredPromise,
     });
 
+    // Create cancellation checker that includes both external callback and internal set
+    const combinedCheckCancelled = () => {
+      if (checkCancelled && checkCancelled()) return true;
+      return this.cancelledLibraries.has(libraryId);
+    };
+
+    try {
+      // Get library configuration
+      const configRepository = getRepository(OverlayLibraryConfig);
+      const config = await configRepository.findOne({
+        where: { libraryId },
+      });
+
+      // Update libraryName now that we have config
+      this.updateProgress(libraryId, (p) => {
+        p.libraryName = config?.libraryName || libraryId;
+      });
+
+      // Process the library
+      await this.processLibraryOverlays(libraryId, config, combinedCheckCancelled);
+
+      // Mark completed (stays in map for TTL period)
+      // Set completedAt for ANY state to ensure TTL cleanup works
+      const progress = this.runningLibraries.get(libraryId);
+      if (progress) {
+        // If still running, mark completed. If cancelling but finished, mark cancelled.
+        if (progress.state === 'running') {
+          progress.state = 'completed';
+        } else if (progress.state === 'cancelling') {
+          progress.state = 'cancelled';
+        }
+        // Always set completedAt for TTL cleanup
+        progress.completedAt = Date.now();
+      }
+      resolveDeferred!();
+    } catch (error) {
+      // Mark failed
+      const progress = this.runningLibraries.get(libraryId);
+      if (progress) {
+        progress.state = 'failed';
+        progress.completedAt = Date.now();
+      }
+      rejectDeferred!(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    } finally {
+      // Clean up cancellation flag
+      this.cancelledLibraries.delete(libraryId);
+    }
+  }
+
+  /**
+   * Internal method to process library overlays
+   */
+  private async processLibraryOverlays(
+    libraryId: string,
+    config: OverlayLibraryConfig | null,
+    checkCancelled?: () => boolean
+  ): Promise<void> {
     try {
       // Clear library caches at start of job
       this.clearLibraryCaches();
@@ -208,35 +477,67 @@ class OverlayLibraryService {
         offset += pageSize;
       }
 
+      // Set total items count
+      this.updateProgress(libraryId, (p) => {
+        p.totalItems = allItems.length;
+      });
+
       logger.info('Processing library items', {
         label: 'OverlayLibrary',
         libraryId,
         itemCount: allItems.length,
       });
 
-      // Process each item
-      let successCount = 0;
-      let errorCount = 0;
+      // Handle empty library - mark completed immediately
+      if (allItems.length === 0) {
+        logger.info('Library has no items to process', {
+          label: 'OverlayLibrary',
+          libraryId,
+        });
+        return;
+      }
 
+      // Process each item
       for (const item of allItems) {
         // CRITICAL: Skip episodes and seasons - overlays only apply to movies and shows
         if (item.type === 'episode' || item.type === 'season') {
+          this.updateProgress(libraryId, (p) => {
+            p.currentItem++; // Advance currentItem to maintain accurate progress %
+            p.filteredCount++;
+          });
           continue;
         }
 
-        // Check for cancellation
+        // Check for cancellation FIRST
         if (checkCancelled && checkCancelled()) {
+          // Transition to cancelling state
+          const progress = this.runningLibraries.get(libraryId);
+          if (progress) {
+            progress.state = 'cancelling';
+          }
+
           logger.info(
             'Overlay application cancelled during library processing',
             {
               label: 'OverlayLibrary',
               libraryId,
-              processedItems: successCount + errorCount,
+              processedItems: progress?.currentItem || 0,
               totalItems: allItems.length,
             }
           );
-          break;
+
+          // Mark cancelled (not completed)
+          if (progress) {
+            progress.state = 'cancelled';
+            progress.completedAt = Date.now();
+          }
+          return; // Exit early, don't continue processing
         }
+
+        // Update current item title (before processing)
+        this.updateProgress(libraryId, (p) => {
+          p.currentTitle = item.title || '';
+        });
 
         try {
           // Fetch full metadata including Stream details (needed for HDR, bitDepth, etc.)
@@ -248,7 +549,7 @@ class OverlayLibraryService {
             Media: fullMetadata.Media,
           };
 
-          await this.applyOverlaysToItem(
+          const result = await this.applyOverlaysToItem(
             plexApi,
             itemWithFullMetadata,
             sortedTemplates,
@@ -256,9 +557,36 @@ class OverlayLibraryService {
             libraryId,
             config.libraryName
           );
-          successCount++;
+
+          // Update counts AFTER outcome is known
+          this.updateProgress(libraryId, (p) => {
+            p.currentItem++;
+
+            // Track timing for ETA
+            p._recentItemTimes.push(Date.now());
+            if (p._recentItemTimes.length > 20) {
+              p._recentItemTimes.shift();
+            }
+
+            if (result.skipped) {
+              p.skippedCount++;
+            } else {
+              p.successCount++;
+            }
+          });
         } catch (error) {
-          errorCount++;
+          // Update error count AFTER failure
+          this.updateProgress(libraryId, (p) => {
+            p.currentItem++;
+            p.errorCount++;
+
+            // Track timing for ETA even on errors
+            p._recentItemTimes.push(Date.now());
+            if (p._recentItemTimes.length > 20) {
+              p._recentItemTimes.shift();
+            }
+          });
+
           logger.error('Failed to apply overlays to item', {
             label: 'OverlayLibrary',
             itemTitle: item.title,
@@ -270,11 +598,15 @@ class OverlayLibraryService {
         }
       }
 
+      // Get final counts from progress
+      const finalProgress = this.runningLibraries.get(libraryId);
       logger.info('Completed overlay application for library', {
         label: 'OverlayLibrary',
         libraryId,
-        successCount,
-        errorCount,
+        successCount: finalProgress?.successCount || 0,
+        errorCount: finalProgress?.errorCount || 0,
+        skippedCount: finalProgress?.skippedCount || 0,
+        filteredCount: finalProgress?.filteredCount || 0,
       });
     } catch (error) {
       logger.error('Failed to apply overlays to library', {
@@ -283,10 +615,8 @@ class OverlayLibraryService {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
-    } finally {
-      // Remove from running libraries
-      this.runningLibraries.delete(libraryId);
     }
+    // Note: runningLibraries cleanup is handled by the caller (applyOverlaysToLibrary)
   }
 
   /**
@@ -463,7 +793,7 @@ class OverlayLibraryService {
     libraryId: string,
     libraryName: string,
     contextOverrides?: Partial<OverlayRenderContext>
-  ): Promise<void> {
+  ): Promise<OverlayApplyResult> {
     try {
       // CRITICAL: Derive actual media type from item.type, not library config
       // This prevents TMDB API namespace mismatches that cause wrong posters
@@ -754,7 +1084,7 @@ class OverlayLibraryService {
             plexPosterMissing: false,
             basePosterSourceChanged: false,
           });
-          return; // Skip this item - no need to download poster
+          return { skipped: true }; // Skip this item - no need to download poster
         }
 
         logger.info('Applying overlays - changes detected', {
@@ -809,13 +1139,11 @@ class OverlayLibraryService {
           tmdbId
         );
       } catch (error) {
-        logger.error('Failed to get base poster, skipping overlay', {
-          label: 'OverlayLibrary',
-          itemTitle: item.title,
-          ratingKey: item.ratingKey,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return;
+        // Re-throw to let caller track this as a failure
+        // Previously this was silently returning, causing failed items to be counted as success
+        throw new Error(
+          `Failed to get base poster for "${item.title}": ${error instanceof Error ? error.message : String(error)}`
+        );
       }
 
       const posterBuffer = basePosterResult.posterBuffer;
@@ -949,6 +1277,8 @@ class OverlayLibraryService {
           templateCount: templates.length,
           templatesApplied,
         });
+
+        return { skipped: false };
       } finally {
         // Clean up temp file
         await fs.unlink(tempFilePath).catch(() => {

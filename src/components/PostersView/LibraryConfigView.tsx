@@ -14,6 +14,7 @@ import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import LibraryDetailConfigView from './LibraryDetailConfigView';
+import LibraryProgressCard, { type LibraryStatus } from './LibraryProgressCard';
 import PosterResetModal from './PosterResetModal';
 
 const messages = defineMessages({
@@ -194,18 +195,20 @@ const LibraryConfigView: React.FC = () => {
   >(new Set());
   const confirmTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
-  // Poll for running library overlays
-  const { data: runningLibrariesData } = useSWR<{
-    runningLibraries: { libraryId: string }[];
+  // Poll for running library overlays with full progress status
+  const { data: runningLibrariesData, mutate: mutateRunningLibraries } = useSWR<{
+    runningLibraries: (LibraryStatus & { libraryId: string })[];
   }>('/api/v1/overlay-library-configs/status/all', {
-    refreshInterval: 3000, // Poll every 3 seconds
+    refreshInterval: 1000, // Poll every second for responsive progress updates
   });
 
-  // Update syncing libraries based on actual status
+  // Update syncing libraries based on actual status (only running/cancelling, not completed TTL entries)
   useEffect(() => {
     if (runningLibrariesData) {
       const runningIds = new Set(
-        runningLibrariesData.runningLibraries.map((lib) => lib.libraryId)
+        runningLibrariesData.runningLibraries
+          .filter((lib) => lib.state === 'running' || lib.state === 'cancelling')
+          .map((lib) => lib.libraryId)
       );
       setSyncingLibraries(runningIds);
     }
@@ -236,6 +239,23 @@ const LibraryConfigView: React.FC = () => {
   const handleResetComplete = () => {
     // Refresh the library configs after reset
     setResetModalOpen(false);
+  };
+
+  const handleStopSync = async (_libraryId: string) => {
+    try {
+      // Cancel via the scheduled jobs system (same as Jobs settings page)
+      await axios.post('/api/v1/settings/jobs/overlay-application/cancel');
+      addToast('Overlay job cancelled', {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+      mutateRunningLibraries();
+    } catch (error) {
+      addToast('Failed to stop overlay sync', {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
   };
 
   const handleLibrarySync = async (libraryId: string, libraryName: string) => {
@@ -355,8 +375,29 @@ const LibraryConfigView: React.FC = () => {
     return configsData?.configs.find((c) => c.libraryId === libraryId);
   };
 
+  // Get running jobs for progress display
+  const runningJobs = runningLibrariesData?.runningLibraries.filter(
+    (lib) => lib.running
+  ) || [];
+
   return (
     <div className="space-y-6">
+      {/* Progress Cards for Running Jobs */}
+      {runningJobs.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium text-stone-400">Running Jobs</h3>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {runningJobs.map((lib) => (
+              <LibraryProgressCard
+                key={lib.libraryId}
+                status={lib}
+                onStop={() => handleStopSync(lib.libraryId)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {libraries.map((library) => {
           const config = getLibraryConfig(library.key);
