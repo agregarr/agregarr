@@ -241,7 +241,7 @@ const LibraryConfigView: React.FC = () => {
     setResetModalOpen(false);
   };
 
-  const handleStopSync = async (_libraryId: string) => {
+  const handleStopSync = async () => {
     try {
       // Cancel via the scheduled jobs system (same as Jobs settings page)
       await axios.post('/api/v1/settings/jobs/overlay-application/cancel');
@@ -391,7 +391,7 @@ const LibraryConfigView: React.FC = () => {
               <LibraryProgressCard
                 key={lib.libraryId}
                 status={lib}
-                onStop={() => handleStopSync(lib.libraryId)}
+                onStop={() => handleStopSync()}
               />
             ))}
           </div>

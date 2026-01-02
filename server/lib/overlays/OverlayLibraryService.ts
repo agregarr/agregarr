@@ -237,8 +237,8 @@ class OverlayLibraryService {
   public getAllRunningLibraries(): (LibraryStatus & { libraryId: string })[] {
     this.cleanupCompletedJobs();
 
-    return Array.from(this.runningLibraries.entries())
-      .map(([libraryId, _]) => {
+    return Array.from(this.runningLibraries.keys())
+      .map((libraryId) => {
         const status = this.getLibraryStatus(libraryId);
         if ('state' in status) {
           return { libraryId, ...status };
