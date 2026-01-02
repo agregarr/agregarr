@@ -107,7 +107,7 @@ class LocalPosterFolderService {
     plexApi: PlexAPI,
     libraryId: string,
     libraryName: string
-  ): Promise<{ created: number; skipped: number; failed: number }> {
+  ): Promise {
     logger.info('Generating folder structure for library', {
       label: 'LocalPosterFolderService',
       libraryId,
@@ -204,7 +204,7 @@ class LocalPosterFolderService {
   /**
    * Generate empty folder structure for all configured libraries
    */
-  async generateFolderStructureForAllLibraries(): Promise<void> {
+  async generateFolderStructureForAllLibraries(): Promise {
     if (this.running) {
       logger.warn('Folder generation already running', {
         label: 'LocalPosterFolderService',
@@ -222,9 +222,8 @@ class LocalPosterFolderService {
       });
 
       // Get admin user
-      const { getAdminUser } = await import(
-        '@server/lib/collections/core/CollectionUtilities'
-      );
+      const { getAdminUser } =
+        await import('@server/lib/collections/core/CollectionUtilities');
       const admin = await getAdminUser();
       if (!admin) {
         throw new Error('No admin user found');
@@ -277,7 +276,7 @@ class LocalPosterFolderService {
     plexApi: PlexAPI,
     libraryId: string,
     libraryName: string
-  ): Promise<{ downloaded: number; skipped: number; failed: number }> {
+  ): Promise {
     logger.info('Populating folders with Plex posters for library', {
       label: 'LocalPosterFolderService',
       libraryId,
@@ -429,7 +428,7 @@ class LocalPosterFolderService {
   /**
    * Populate local folders with Plex posters for all configured libraries
    */
-  async populateFromPlexForAllLibraries(): Promise<void> {
+  async populateFromPlexForAllLibraries(): Promise {
     if (this.running) {
       logger.warn('Plex poster population already running', {
         label: 'LocalPosterFolderService',
@@ -447,9 +446,8 @@ class LocalPosterFolderService {
       });
 
       // Get admin user
-      const { getAdminUser } = await import(
-        '@server/lib/collections/core/CollectionUtilities'
-      );
+      const { getAdminUser } =
+        await import('@server/lib/collections/core/CollectionUtilities');
       const admin = await getAdminUser();
       if (!admin) {
         throw new Error('No admin user found');

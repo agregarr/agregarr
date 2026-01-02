@@ -1,8 +1,8 @@
+import logger from '@server/logger';
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import axios from 'axios';
 import rateLimit from 'axios-rate-limit';
 import type NodeCache from 'node-cache';
-import logger from '@server/logger';
 
 // 5 minute default TTL (in seconds)
 const DEFAULT_TTL = 300;
@@ -12,7 +12,7 @@ const DEFAULT_ROLLING_BUFFER = 10000;
 
 interface ExternalAPIOptions {
   nodeCache?: NodeCache;
-  headers?: Record<string, unknown>;
+  headers?: Record;
   rateLimit?: {
     maxRPS: number;
     maxRequests: number;
@@ -26,7 +26,7 @@ class ExternalAPI {
 
   constructor(
     baseUrl: string,
-    params: Record<string, unknown>,
+    params: Record,
     options: ExternalAPIOptions = {}
   ) {
     this.axios = axios.create({
@@ -54,14 +54,14 @@ class ExternalAPI {
     endpoint: string,
     config?: AxiosRequestConfig,
     ttl?: number
-  ): Promise<T> {
+  ): Promise {
     const cacheKey = this.serializeCacheKey(endpoint, config?.params);
-    const cachedItem = this.cache?.get<T>(cacheKey);
+    const cachedItem = this.cache?.get(cacheKey);
     if (cachedItem) {
       return cachedItem;
     }
 
-    const response = await this.axios.get<T>(endpoint, config);
+    const response = await this.axios.get(endpoint, config);
 
     if (this.cache) {
       this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
@@ -72,20 +72,20 @@ class ExternalAPI {
 
   protected async post<T>(
     endpoint: string,
-    data: Record<string, unknown>,
+    data: Record,
     config?: AxiosRequestConfig,
     ttl?: number
-  ): Promise<T> {
+  ): Promise {
     const cacheKey = this.serializeCacheKey(endpoint, {
       config: config?.params,
       data,
     });
-    const cachedItem = this.cache?.get<T>(cacheKey);
+    const cachedItem = this.cache?.get(cacheKey);
     if (cachedItem) {
       return cachedItem;
     }
 
-    const response = await this.axios.post<T>(endpoint, data, config);
+    const response = await this.axios.post(endpoint, data, config);
 
     if (this.cache) {
       this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
@@ -98,9 +98,9 @@ class ExternalAPI {
     endpoint: string,
     config?: AxiosRequestConfig,
     ttl?: number
-  ): Promise<T> {
+  ): Promise {
     const cacheKey = this.serializeCacheKey(endpoint, config?.params);
-    const cachedItem = this.cache?.get<T>(cacheKey);
+    const cachedItem = this.cache?.get(cacheKey);
 
     if (cachedItem) {
       const keyTtl = this.cache?.getTtl(cacheKey) ?? 0;
@@ -111,7 +111,7 @@ class ExternalAPI {
         Date.now() - DEFAULT_ROLLING_BUFFER
       ) {
         this.axios
-          .get<T>(endpoint, config)
+          .get(endpoint, config)
           .then((response) => {
             this.cache?.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
           })
@@ -127,7 +127,7 @@ class ExternalAPI {
       return cachedItem;
     }
 
-    const response = await this.axios.get<T>(endpoint, config);
+    const response = await this.axios.get(endpoint, config);
 
     if (this.cache) {
       this.cache.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
@@ -136,10 +136,7 @@ class ExternalAPI {
     return response.data;
   }
 
-  private serializeCacheKey(
-    endpoint: string,
-    params?: Record<string, unknown>
-  ) {
+  private serializeCacheKey(endpoint: string, params?: Record) {
     if (!params) {
       return `${this.baseUrl}${endpoint}`;
     }

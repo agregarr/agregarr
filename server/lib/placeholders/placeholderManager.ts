@@ -1,5 +1,5 @@
-import logger from '@server/logger';
 import { getSettings } from '@server/lib/settings';
+import logger from '@server/logger';
 import fs from 'fs/promises';
 import path from 'path';
 import type { PlaceholderOptions, PlaceholderResult } from './types';
@@ -17,9 +17,7 @@ function sanitizeFilename(filename: string): string {
 /**
  * Create placeholder file for movie
  */
-async function createMoviePlaceholder(
-  options: PlaceholderOptions
-): Promise<PlaceholderResult> {
+async function createMoviePlaceholder(options: PlaceholderOptions): Promise {
   const { title, year, tmdbId, libraryPath, trailerPath } = options;
 
   // Folder format: MovieName (Year)
@@ -76,9 +74,7 @@ async function createMoviePlaceholder(
 /**
  * Create placeholder file for TV show
  */
-async function createTVPlaceholder(
-  options: PlaceholderOptions
-): Promise<PlaceholderResult> {
+async function createTVPlaceholder(options: PlaceholderOptions): Promise {
   const { title, year, libraryPath, trailerPath } = options;
 
   // Directory format: ShowName (Year)/Season 00/S00E00.Trailer.mp4
@@ -146,9 +142,7 @@ async function createTVPlaceholder(
 /**
  * Create placeholder file in Plex library
  */
-export async function createPlaceholder(
-  options: PlaceholderOptions
-): Promise<PlaceholderResult> {
+export async function createPlaceholder(options: PlaceholderOptions): Promise {
   const { mediaType } = options;
 
   try {
@@ -174,7 +168,7 @@ export async function createPlaceholder(
 export async function removePlaceholder(
   placeholderPath: string,
   mediaType: 'movie' | 'tv'
-): Promise<void> {
+): Promise {
   try {
     // Security: Validate path is within configured library roots
     const settings = getSettings();
@@ -184,9 +178,7 @@ export async function removePlaceholder(
         : settings.main.placeholderTVRootFolder;
 
     if (!libraryRoot) {
-      throw new Error(
-        `Placeholder ${mediaType} library root not configured`
-      );
+      throw new Error(`Placeholder ${mediaType} library root not configured`);
     }
 
     // Use fs.realpath to resolve symlinks - prevents symlink escape attacks
@@ -318,9 +310,7 @@ export interface DiscoveredMarker extends PlaceholderMarker {
  * Scan a library directory for .comingsoon marker files
  * Returns all discovered markers with their file paths
  */
-export async function scanForMarkerFiles(
-  libraryPath: string
-): Promise<DiscoveredMarker[]> {
+export async function scanForMarkerFiles(libraryPath: string): Promise {
   const markers: DiscoveredMarker[] = [];
 
   try {
@@ -398,7 +388,7 @@ export async function upgradeMarkerFile(
   markerPath: string,
   tmdbId: number,
   tvdbId?: number
-): Promise<void> {
+): Promise {
   try {
     // Read existing marker
     const markerContent = await fs.readFile(markerPath, 'utf-8');
@@ -452,9 +442,7 @@ export interface DiscoveredMoviePlaceholder {
  * Movies use {edition-Trailer} and {tmdb-12345} in filename - no marker file needed
  * Returns all discovered movie placeholders with extracted metadata
  */
-export async function scanForMoviePlaceholders(
-  libraryPath: string
-): Promise<DiscoveredMoviePlaceholder[]> {
+export async function scanForMoviePlaceholders(libraryPath: string): Promise {
   const placeholders: DiscoveredMoviePlaceholder[] = [];
 
   try {

@@ -10,16 +10,16 @@ export type AnimeIdsRow = {
   tmdb_movie_id?: number | number[]; // TMDB Movie ID(s) - can be single or array
   tmdb_show_id?: number; // TMDB Show ID - always single
   tvdb_id?: number; // TVDB ID - always single
-  tmdb_mappings?: Record<string, string>; // TMDB season mappings (e.g., {"s1": "e1-e12|2"})
-  tvdb_mappings?: Record<string, string>; // TVDB season mappings
+  tmdb_mappings?: Record; // TMDB season mappings (e.g., {"s1": "e1-e12|2"})
+  tvdb_mappings?: Record; // TVDB season mappings
 };
 
-type RawAnimeIds = Record<string, AnimeIdsRow>; // keyed by AniList ID
+type RawAnimeIds = Record; // keyed by AniList ID
 
 let _loadedAt = 0;
-let _byAniList = new Map<number, AnimeIdsRow>();
-let _byAniDB = new Map<number, AnimeIdsRow>(); // For AniDB lookups
-let _loadInFlight: Promise<void> | null = null;
+let _byAniList = new Map();
+let _byAniDB = new Map(); // For AniDB lookups
+let _loadInFlight: Promise | null = null;
 
 // Normalize array fields to always be arrays for consistent handling
 function normalizeToArray<T>(value: T | T[] | undefined): T[] {
@@ -44,7 +44,7 @@ const FETCH_TIMEOUT_MS = 30000;
 
 export async function loadAnimeIds(
   url = 'https://raw.githubusercontent.com/eliasbenb/PlexAniBridge-Mappings/refs/heads/v2/mappings.json'
-): Promise<void> {
+): Promise {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -96,8 +96,8 @@ export async function loadAnimeIds(
 
     const json = JSON.parse(new TextDecoder().decode(combined)) as RawAnimeIds;
 
-    const byAniList = new Map<number, AnimeIdsRow>();
-    const byAniDB = new Map<number, AnimeIdsRow>();
+    const byAniList = new Map();
+    const byAniDB = new Map();
 
     for (const [anilistIdStr, row] of Object.entries(json)) {
       if (anilistIdStr.startsWith('$')) continue;
@@ -127,7 +127,7 @@ export async function loadAnimeIds(
 
 export async function ensureAnimeIdsLoaded(
   ttlMs = 12 * 60 * 60 * 1000
-): Promise<void> {
+): Promise {
   const stale = Date.now() - _loadedAt > ttlMs;
   if (_byAniList.size > 0 && !stale) return;
   if (_loadInFlight) return _loadInFlight;

@@ -69,8 +69,8 @@ interface CollectionUpdateOptions {
   sortOrderLibrary?: number;
   isLibraryPromoted?: boolean;
   totalCollectionsInLibrary?: number;
-  customPoster?: string | Record<string, string>;
-  processedCollectionKeys?: Set<string>;
+  customPoster?: string | Record;
+  processedCollectionKeys?: Set;
   libraryKey: string;
   config: MultiSourceCollectionConfig;
 }
@@ -80,7 +80,7 @@ interface MetadataUpdateOptions {
   visibilityConfig: CollectionVisibilityConfig;
   sortOrderLibrary?: number;
   isLibraryPromoted?: boolean;
-  customPoster?: string | Record<string, string>;
+  customPoster?: string | Record;
   config: MultiSourceCollectionConfig;
 }
 
@@ -96,10 +96,7 @@ interface MetadataUpdateOptions {
  * This approach reuses all existing sync logic while keeping multi-source as a separate concern.
  */
 export class MultiSourceOrchestrator {
-  private syncServices = new Map<
-    string,
-    BaseCollectionSync<CollectionSource>
-  >();
+  private syncServices = new Map();
   private dynamicCycleTitle: string | null = null;
 
   constructor() {
@@ -113,10 +110,10 @@ export class MultiSourceOrchestrator {
     config: MultiSourceCollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>,
+    processedCollectionKeys?: Set,
     libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise {
     let configForSync: MultiSourceCollectionConfig = config;
     let collectionNameForSync = config.name;
 
@@ -212,9 +209,8 @@ export class MultiSourceOrchestrator {
         sourcesToFetch.length === 1
       ) {
         const activeSource = sourcesToFetch[0];
-        this.dynamicCycleTitle = await this.extractTitleFromSource(
-          activeSource
-        );
+        this.dynamicCycleTitle =
+          await this.extractTitleFromSource(activeSource);
 
         if (this.dynamicCycleTitle) {
           const previousName = config.name;
@@ -280,7 +276,7 @@ export class MultiSourceOrchestrator {
         } catch (error) {
           // Proper error serialization - handle CollectionSyncError objects
           let errorMessage: string;
-          const errorDetails: Record<string, unknown> = {};
+          const errorDetails: Record = {};
 
           if (error instanceof Error) {
             errorMessage = error.message;
@@ -296,7 +292,7 @@ export class MultiSourceOrchestrator {
             const structuredError = error as {
               message: string;
               type?: string;
-              details?: Record<string, unknown>;
+              details?: Record;
               originalError?: Error;
             };
             errorMessage = structuredError.message;
@@ -399,7 +395,7 @@ export class MultiSourceOrchestrator {
       // If createPlaceholdersForMissing disabled: deletes all placeholder records
       try {
         // Collect all tmdbIds from ALL sources (both items that exist in Plex and missing items)
-        const allSourceTmdbIds = new Set<number>();
+        const allSourceTmdbIds = new Set();
 
         // Add tmdbIds from items that exist in Plex
         for (const item of combinedItems) {
@@ -426,9 +422,8 @@ export class MultiSourceOrchestrator {
         );
 
         // Import helper function that handles both enabled/disabled cases
-        const { handlePlaceholderCleanup } = await import(
-          '@server/lib/placeholders/services/PlaceholderCleanup'
-        );
+        const { handlePlaceholderCleanup } =
+          await import('@server/lib/placeholders/services/PlaceholderCleanup');
 
         // Run cleanup or deletion based on setting
         await handlePlaceholderCleanup(
@@ -583,7 +578,7 @@ export class MultiSourceOrchestrator {
     plexClient: PlexAPI,
     libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
-  ): Promise<{ items: CollectionItem[]; missingItems?: MissingItem[] }> {
+  ): Promise {
     // Create temporary single-source config
     const tempConfig = this.createTempConfig(source, parentConfig);
 
@@ -630,9 +625,8 @@ export class MultiSourceOrchestrator {
         try {
           // Use PlaceholderCreation service for unified placeholder creation
           // This works for any source type, not just Coming Soon
-          const { processPlaceholdersForMissingItems } = await import(
-            '@server/lib/placeholders/services/PlaceholderCreation'
-          );
+          const { processPlaceholdersForMissingItems } =
+            await import('@server/lib/placeholders/services/PlaceholderCreation');
 
           const newPlaceholderItems = await processPlaceholdersForMissingItems(
             missingItems,
@@ -679,7 +673,7 @@ export class MultiSourceOrchestrator {
     } catch (error) {
       // Proper error serialization - handle CollectionSyncError objects
       let errorMessage: string;
-      const errorDetails: Record<string, unknown> = {};
+      const errorDetails: Record = {};
 
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -695,7 +689,7 @@ export class MultiSourceOrchestrator {
         const structuredError = error as {
           message: string;
           type?: string;
-          details?: Record<string, unknown>;
+          details?: Record;
           originalError?: Error;
         };
         errorMessage = structuredError.message;
@@ -797,9 +791,7 @@ export class MultiSourceOrchestrator {
   /**
    * Get or create sync service for the specified source type
    */
-  private getSyncService(
-    sourceType: string
-  ): BaseCollectionSync<CollectionSource> {
+  private getSyncService(sourceType: string): BaseCollectionSync {
     if (!this.syncServices.has(sourceType)) {
       switch (sourceType) {
         case 'trakt':
@@ -983,7 +975,7 @@ export class MultiSourceOrchestrator {
             }
             return acc;
           },
-          { seen: new Set<string>(), items: [] as MissingItem[] }
+          { seen: new Set(), items: [] as MissingItem[] }
         ).items;
 
         logger.debug(
@@ -1011,7 +1003,7 @@ export class MultiSourceOrchestrator {
     collectionRatingKey: string,
     currentContainsEpisodes: boolean,
     mediaType: 'movie' | 'tv'
-  ): Promise<boolean> {
+  ): Promise {
     // Only need to check TV collections (movies can't have episode content)
     if (mediaType !== 'tv') {
       return false;
@@ -1019,9 +1011,8 @@ export class MultiSourceOrchestrator {
 
     try {
       // Get current collection items to analyze their type
-      const currentItemRatingKeys = await plexClient.getCollectionItems(
-        collectionRatingKey
-      );
+      const currentItemRatingKeys =
+        await plexClient.getCollectionItems(collectionRatingKey);
 
       // For empty collections, we need to check the collection's inherent type
       // Unfortunately, Plex doesn't directly expose this, but we can infer it by
@@ -1235,8 +1226,8 @@ export class MultiSourceOrchestrator {
     config: MultiSourceCollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>
-  ): Promise<{ created: number; updated: number }> {
+    processedCollectionKeys?: Set
+  ): Promise {
     const mediaType = getMediaTypeFromLibrary(config.libraryId);
     const customLabel = createCollectionLabel(
       'multi-source' as 'overseerr',
@@ -1278,7 +1269,7 @@ export class MultiSourceOrchestrator {
     allCollections: PlexCollection[],
     items: CollectionItem[],
     options: CollectionUpdateOptions
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise {
     const { collectionName, mediaType } = options;
 
     // Validate items first
@@ -1744,14 +1735,12 @@ export class MultiSourceOrchestrator {
           }
         );
 
-        const { overlayLibraryService } = await import(
-          '@server/lib/overlays/OverlayLibraryService'
-        );
+        const { overlayLibraryService } =
+          await import('@server/lib/overlays/OverlayLibraryService');
 
         // Get item rating keys from this specific collection
-        const itemRatingKeys = await plexClient.getCollectionItems(
-          collectionRatingKey
-        );
+        const itemRatingKeys =
+          await plexClient.getCollectionItems(collectionRatingKey);
 
         if (itemRatingKeys && itemRatingKeys.length > 0) {
           logger.info('Applying overlays to collection items', {
@@ -1790,7 +1779,7 @@ export class MultiSourceOrchestrator {
     collectionRatingKey: string,
     options: MetadataUpdateOptions,
     items: CollectionItem[]
-  ): Promise<void> {
+  ): Promise {
     // 1. Add proper Agregarr label (replaces any existing Agregarr labels)
     await plexClient.addLabelToCollection(
       collectionRatingKey,
@@ -1853,9 +1842,8 @@ export class MultiSourceOrchestrator {
       if (wallpaperFilename) {
         try {
           // Get full path to wallpaper file
-          const { getWallpaperPath } = await import(
-            '@server/lib/wallpaperStorage'
-          );
+          const { getWallpaperPath } =
+            await import('@server/lib/wallpaperStorage');
           const wallpaperPath = getWallpaperPath(wallpaperFilename);
 
           // Check if wallpaper needs reapplication using metadata tracking
@@ -1866,9 +1854,8 @@ export class MultiSourceOrchestrator {
           let shouldUploadWallpaper = true;
 
           try {
-            const currentArtUrl = await plexClient.getCurrentArtUrl(
-              collectionRatingKey
-            );
+            const currentArtUrl =
+              await plexClient.getCurrentArtUrl(collectionRatingKey);
 
             const shouldReapply = await metadataService.shouldReapplyWallpaper(
               collectionRatingKey,
@@ -1904,9 +1891,8 @@ export class MultiSourceOrchestrator {
 
             // Get new Plex art URL after upload and record metadata
             try {
-              const newArtUrl = await plexClient.getCurrentArtUrl(
-                collectionRatingKey
-              );
+              const newArtUrl =
+                await plexClient.getCurrentArtUrl(collectionRatingKey);
 
               if (newArtUrl) {
                 await metadataService.recordWallpaperApplication(
@@ -2010,9 +1996,8 @@ export class MultiSourceOrchestrator {
           let shouldUploadTheme = true;
 
           try {
-            const currentThemeUrl = await plexClient.getCurrentThemeUrl(
-              collectionRatingKey
-            );
+            const currentThemeUrl =
+              await plexClient.getCurrentThemeUrl(collectionRatingKey);
 
             const shouldReapply = await metadataService.shouldReapplyTheme(
               collectionRatingKey,
@@ -2048,9 +2033,8 @@ export class MultiSourceOrchestrator {
 
             // Get new Plex theme URL after upload and record metadata
             try {
-              const newThemeUrl = await plexClient.getCurrentThemeUrl(
-                collectionRatingKey
-              );
+              const newThemeUrl =
+                await plexClient.getCurrentThemeUrl(collectionRatingKey);
 
               if (newThemeUrl) {
                 await metadataService.recordThemeApplication(
@@ -2188,7 +2172,7 @@ export class MultiSourceOrchestrator {
     collectionRatingKey: string,
     plexClient: PlexAPI,
     items: CollectionItem[]
-  ): Promise<void> {
+  ): Promise {
     // Check if autoPoster is enabled (default to true for multi-source)
     const shouldGeneratePoster = config.autoPoster ?? true;
     if (!shouldGeneratePoster) {
@@ -2445,8 +2429,8 @@ export class MultiSourceOrchestrator {
     config: MultiSourceCollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
-    processedCollectionKeys?: Set<string>
-  ): Promise<void> {
+    processedCollectionKeys?: Set
+  ): Promise {
     // Find existing collection
     const existingCollection = allCollections.find(
       (c) => c.title === config.name && c.libraryKey === config.libraryId
@@ -2515,7 +2499,7 @@ export class MultiSourceOrchestrator {
     collectionRatingKey: string,
     collectionName: string,
     config: MultiSourceCollectionConfig
-  ): Promise<void> {
+  ): Promise {
     // Only update sortTitle if we have sortOrderLibrary defined
     if (config.sortOrderLibrary === undefined) {
       return;
@@ -2602,9 +2586,7 @@ export class MultiSourceOrchestrator {
    * For preset lists, use the subtype label
    * For custom lists, fetch the title from the API
    */
-  private async extractTitleFromSource(
-    source: SourceDefinition
-  ): Promise<string | null> {
+  private async extractTitleFromSource(source: SourceDefinition): Promise {
     try {
       // For custom lists, fetch the title from the API using same logic as fetch-title endpoint
       if (source.subtype === 'custom' && source.customUrl) {
@@ -2628,9 +2610,7 @@ export class MultiSourceOrchestrator {
    * Fetch custom list title using API clients directly
    * Based on the /api/v1/collections/fetch-title endpoint logic
    */
-  private async fetchCustomListTitle(
-    source: SourceDefinition
-  ): Promise<string | null> {
+  private async fetchCustomListTitle(source: SourceDefinition): Promise {
     if (!source.customUrl) return null;
 
     try {
@@ -2893,10 +2873,7 @@ export class MultiSourceOrchestrator {
     const subtype = source.subtype;
 
     // Map subtypes to their human-readable titles (first option in dropdown)
-    const titleMappings: Record<
-      string,
-      Record<string, string | ((source: SourceDefinition) => string)>
-    > = {
+    const titleMappings: Record = {
       trakt: {
         trending: 'Trending Now',
         popular: 'Popular',
@@ -3014,7 +2991,7 @@ export class MultiSourceOrchestrator {
    */
   private updateCollectionConfigField(
     configId: string,
-    updateConfig: Partial<MultiSourceCollectionConfig>
+    updateConfig: Partial
   ): void {
     try {
       const settings = getSettings();

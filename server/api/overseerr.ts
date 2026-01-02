@@ -202,10 +202,10 @@ class OverseerrAPI {
    * Retry helper with exponential backoff for transient network errors
    */
   private async retryWithBackoff<T>(
-    fn: () => Promise<T>,
+    fn: () => Promise,
     maxRetries = 3,
     initialDelayMs = 1000
-  ): Promise<T> {
+  ): Promise {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -250,7 +250,7 @@ class OverseerrAPI {
    * Uses /auth/me endpoint to validate API key authentication
    * Throws the actual error for proper error handling in routes
    */
-  async testConnection(): Promise<{ success: boolean }> {
+  async testConnection(): Promise {
     await this.axios.get('/auth/me');
     return {
       success: true,
@@ -260,10 +260,7 @@ class OverseerrAPI {
   /**
    * Get all users from Overseerr
    */
-  async getUsers(params?: { take?: number; skip?: number }): Promise<{
-    results: OverseerrUser[];
-    total: number;
-  }> {
+  async getUsers(params?: { take?: number; skip?: number }): Promise {
     const response = await this.axios.get('/user', { params });
     return response.data;
   }
@@ -271,7 +268,7 @@ class OverseerrAPI {
   /**
    * Get specific user by ID
    */
-  async getUser(userId: number): Promise<OverseerrUser> {
+  async getUser(userId: number): Promise {
     const response = await this.axios.get(`/user/${userId}`);
     return response.data;
   }
@@ -279,7 +276,7 @@ class OverseerrAPI {
   /**
    * Create or update a service user
    */
-  async createUser(userData: CreateUserRequest): Promise<OverseerrUser> {
+  async createUser(userData: CreateUserRequest): Promise {
     const response = await this.axios.post('/user', userData);
     return response.data;
   }
@@ -287,10 +284,7 @@ class OverseerrAPI {
   /**
    * Update user permissions
    */
-  async updateUserPermissions(
-    userId: number,
-    permissions: number
-  ): Promise<void> {
+  async updateUserPermissions(userId: number, permissions: number): Promise {
     await this.axios.post(`/user/${userId}/settings/permissions`, {
       permissions: permissions,
     });
@@ -299,7 +293,7 @@ class OverseerrAPI {
   /**
    * Get current authenticated user (admin check)
    */
-  async getCurrentUser(): Promise<OverseerrUser> {
+  async getCurrentUser(): Promise {
     const response = await this.axios.get('/auth/me');
     return response.data;
   }
@@ -322,10 +316,7 @@ class OverseerrAPI {
       | 'deleted'
       | 'completed';
     sort?: 'added' | 'modified';
-  }): Promise<{
-    results: OverseerrMediaRequest[];
-    total: number;
-  }> {
+  }): Promise {
     const response = await this.axios.get('/request', { params });
     return response.data;
   }
@@ -333,9 +324,7 @@ class OverseerrAPI {
   /**
    * Create a new media request
    */
-  async createRequest(
-    requestData: CreateMediaRequestParams
-  ): Promise<OverseerrMediaRequest> {
+  async createRequest(requestData: CreateMediaRequestParams): Promise {
     const payload: OverseerrRequestPayload = {
       mediaId: requestData.mediaId,
       mediaType: requestData.mediaType,
@@ -379,7 +368,7 @@ class OverseerrAPI {
   /**
    * Check if media exists in Plex by TMDB ID
    */
-  async getMediaByTmdbId(tmdbId: number): Promise<OverseerrMedia | null> {
+  async getMediaByTmdbId(tmdbId: number): Promise {
     try {
       const response = await this.axios.get(`/media/${tmdbId}`);
       return response.data;
@@ -394,10 +383,7 @@ class OverseerrAPI {
   /**
    * Search for existing requests to avoid duplicates
    */
-  async checkRequestExists(
-    tmdbId: number,
-    userId: number
-  ): Promise<OverseerrMediaRequest | null> {
+  async checkRequestExists(tmdbId: number, userId: number): Promise {
     try {
       // Get user's requests and check for this TMDB ID
       const requests = await this.getRequests({
@@ -421,7 +407,7 @@ class OverseerrAPI {
   /**
    * Get request count (for admin operations)
    */
-  async getRequestCount(): Promise<number> {
+  async getRequestCount(): Promise {
     const response = await this.axios.get('/request/count');
     return response.data;
   }
@@ -429,7 +415,7 @@ class OverseerrAPI {
   /**
    * Get media season count for TV shows
    */
-  async getMediaSeasonCount(tmdbId: number): Promise<number> {
+  async getMediaSeasonCount(tmdbId: number): Promise {
     const media = await this.getMediaByTmdbId(tmdbId);
     return media?.seasonCount || 0;
   }
@@ -437,7 +423,7 @@ class OverseerrAPI {
   /**
    * Batch get users by IDs
    */
-  async getUsersByIds(userIds: number[]): Promise<OverseerrUser[]> {
+  async getUsersByIds(userIds: number[]): Promise {
     // Overseerr doesn't have batch user endpoint, so fetch individually
     const users: OverseerrUser[] = [];
 
@@ -458,7 +444,7 @@ class OverseerrAPI {
   /**
    * Get admin user (typically user ID 1) with caching and retry logic
    */
-  async getAdminUser(): Promise<OverseerrUser | null> {
+  async getAdminUser(): Promise {
     // Check cache first
     if (
       this.adminUserCache &&
@@ -507,10 +493,7 @@ class OverseerrAPI {
    * Get main settings from external Overseerr instance
    * Used for template variables like {domain} and {appTitle}
    */
-  async getMainSettings(): Promise<{
-    applicationUrl?: string;
-    applicationTitle?: string;
-  } | null> {
+  async getMainSettings(): Promise {
     try {
       const response = await this.axios.get('/settings/main');
       return {
@@ -531,16 +514,7 @@ class OverseerrAPI {
   /**
    * Get Radarr servers from Overseerr
    */
-  async getRadarrServers(): Promise<
-    {
-      id: number;
-      name: string;
-      hostname: string;
-      port: number;
-      is4k: boolean;
-      isDefault: boolean;
-    }[]
-  > {
+  async getRadarrServers(): Promise {
     try {
       const response = await this.axios.get('/settings/radarr');
       return response.data;
@@ -558,16 +532,7 @@ class OverseerrAPI {
   /**
    * Get Sonarr servers from Overseerr
    */
-  async getSonarrServers(): Promise<
-    {
-      id: number;
-      name: string;
-      hostname: string;
-      port: number;
-      is4k: boolean;
-      isDefault: boolean;
-    }[]
-  > {
+  async getSonarrServers(): Promise {
     try {
       const response = await this.axios.get('/settings/sonarr');
       return response.data;
@@ -585,9 +550,7 @@ class OverseerrAPI {
   /**
    * Get quality profiles from a Radarr server
    */
-  async getRadarrProfiles(
-    serverId: number
-  ): Promise<{ id: number; name: string }[]> {
+  async getRadarrProfiles(serverId: number): Promise {
     try {
       const response = await this.axios.get(`/service/radarr/${serverId}`);
       return response.data.profiles || [];
@@ -605,9 +568,7 @@ class OverseerrAPI {
   /**
    * Get quality profiles from a Sonarr server
    */
-  async getSonarrProfiles(
-    serverId: number
-  ): Promise<{ id: number; name: string }[]> {
+  async getSonarrProfiles(serverId: number): Promise {
     try {
       const response = await this.axios.get(`/service/sonarr/${serverId}`);
       return response.data.profiles || [];
@@ -625,9 +586,7 @@ class OverseerrAPI {
   /**
    * Get root folders from a Radarr server
    */
-  async getRadarrRootFolders(
-    serverId: number
-  ): Promise<{ id: number; path: string }[]> {
+  async getRadarrRootFolders(serverId: number): Promise {
     try {
       const response = await this.axios.get(`/service/radarr/${serverId}`);
       return response.data.rootFolders || [];
@@ -645,9 +604,7 @@ class OverseerrAPI {
   /**
    * Get root folders from a Sonarr server
    */
-  async getSonarrRootFolders(
-    serverId: number
-  ): Promise<{ id: number; path: string }[]> {
+  async getSonarrRootFolders(serverId: number): Promise {
     try {
       const response = await this.axios.get(`/service/sonarr/${serverId}`);
       return response.data.rootFolders || [];
@@ -665,9 +622,7 @@ class OverseerrAPI {
   /**
    * Get tags from a Radarr server
    */
-  async getRadarrTags(
-    serverId: number
-  ): Promise<{ id: number; label: string }[]> {
+  async getRadarrTags(serverId: number): Promise {
     try {
       const response = await this.axios.get(`/service/radarr/${serverId}`);
       return response.data.tags || [];
@@ -685,9 +640,7 @@ class OverseerrAPI {
   /**
    * Get tags from a Sonarr server
    */
-  async getSonarrTags(
-    serverId: number
-  ): Promise<{ id: number; label: string }[]> {
+  async getSonarrTags(serverId: number): Promise {
     try {
       const response = await this.axios.get(`/service/sonarr/${serverId}`);
       return response.data.tags || [];
@@ -705,10 +658,7 @@ class OverseerrAPI {
   /**
    * Get a user's Plex watchlist
    */
-  async getUserWatchlist(userId: number): Promise<{
-    results: OverseerrWatchlistItem[];
-    total: number;
-  }> {
+  async getUserWatchlist(userId: number): Promise {
     try {
       const response = await this.axios.get(`/user/${userId}/watchlist`);
       return {
