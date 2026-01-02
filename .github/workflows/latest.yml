@@ -8,7 +8,7 @@ on:
 jobs:
   semantic-release:
     name: Tag and release latest version
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     permissions:
       contents: write
       issues: write
