@@ -13,6 +13,7 @@ import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import routes from '@server/routes';
 import restartFlag from '@server/utils/restartFlag';
+import { sanitizeErrorMessage } from '@server/utils/errorResponse';
 // imageproxy removed - not needed for collections-only app
 import { getAppVersion } from '@server/utils/appVersion';
 import { getClientIp } from '@supercharge/request-ip';
@@ -1333,10 +1334,33 @@ app
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         _next: NextFunction
       ) => {
-        // format error
-        res.status(err.status || 500).json({
+        // Log full error details internally
+        logger.error('Unhandled API error', {
+          label: 'Server',
+          status: err.status,
           message: err.message,
           errors: err.errors,
+          stack: err instanceof Error ? err.stack : undefined,
+        });
+
+        // Sanitize error response
+        const safeMessage = sanitizeErrorMessage(
+          err.message,
+          'An unexpected error occurred'
+        );
+
+        let safeErrors: string[] | undefined;
+        if (Array.isArray(err.errors)) {
+          safeErrors = err.errors.map((e) =>
+            sanitizeErrorMessage(e, 'Validation error')
+          );
+        } else if (typeof err.errors === 'string') {
+          safeErrors = [sanitizeErrorMessage(err.errors, 'Validation error')];
+        }
+
+        res.status(err.status || 500).json({
+          message: safeMessage,
+          ...(safeErrors && safeErrors.length > 0 && { errors: safeErrors }),
         });
       }
     );
