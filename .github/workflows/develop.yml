@@ -38,7 +38,7 @@ jobs:
   build_and_push:
     name: Build & Publish Docker Images
     if: github.event_name == 'push'
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@v4
