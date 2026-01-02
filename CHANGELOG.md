@@ -1,3 +1,62 @@
+# [2.1.0](https://github.com/agregarr/agregarr/compare/v2.0.0...v2.1.0) (2026-01-02)
+
+
+### Bug Fixes
+
+* **api:** fix caching of api clients causing settings to not reflect in sync ([553e99a](https://github.com/agregarr/agregarr/commit/553e99a8a08fecfcbf2825a292208c5eb079a3cd))
+* **badges:** extract badge data to common component, add placeholder creation badge ([3c4ca7c](https://github.com/agregarr/agregarr/commit/3c4ca7c64c9186b2dd6cf9b69e0cf161e774bce0))
+* **collection config:** prevents closing form when clicking outside of modal ([82a04d3](https://github.com/agregarr/agregarr/commit/82a04d33fec6e2cfe3a91532d64ce9b8f6db275c)), closes [#237](https://github.com/agregarr/agregarr/issues/237)
+* **config:** fix incorrect variable check ([9cbc3b5](https://github.com/agregarr/agregarr/commit/9cbc3b594a09eb996e2693da5d21724b991cb71b))
+* **debug:** add export for config data ([31098b2](https://github.com/agregarr/agregarr/commit/31098b2b1c81855865df9c19f1f1afb48e0e3cf5))
+* **filtered hubs:** adds recently released episodes filtered hub ([5b0023d](https://github.com/agregarr/agregarr/commit/5b0023de6812160cf31101f860b990461e91130e))
+* **imdb:** fix tvMovie media type being categorised as tv ([162926a](https://github.com/agregarr/agregarr/commit/162926a7985370ed458d2fe954cd6c4b20a559f3)), closes [#229](https://github.com/agregarr/agregarr/issues/229)
+* **item order:** fixes item ordering in plex collections ([8c94464](https://github.com/agregarr/agregarr/commit/8c94464c17339b420e0446535e30bf4ed8484f38)), closes [#225](https://github.com/agregarr/agregarr/issues/225)
+* **job scheduling:** fixes cron parsing for following execution time ([7f0962e](https://github.com/agregarr/agregarr/commit/7f0962e5fe4ecafa2f913e87db44e6510e2cda23))
+* **language:** add Hungarian as language option (locale and TMDB) ([464825d](https://github.com/agregarr/agregarr/commit/464825d28c19c94e9f9d1e3484ae46de7b70c9e1))
+* **library:** fixes promotion/demotion not working for agregarr collections ([7d96b52](https://github.com/agregarr/agregarr/commit/7d96b52f2578ac7d458bd83b8407a8a5d19e2ad7)), closes [#207](https://github.com/agregarr/agregarr/issues/207)
+* **migration:** moves app migration to inline typeORM ([f2e310d](https://github.com/agregarr/agregarr/commit/f2e310dc98be14086f463292a04f0d3f353f49d0)), closes [#215](https://github.com/agregarr/agregarr/issues/215)
+* **missing item filtering:** fixes country/language exclusions ([74e4dab](https://github.com/agregarr/agregarr/commit/74e4dabe497734c9b5b1888190925d5a473b950c)), closes [#262](https://github.com/agregarr/agregarr/issues/262)
+* **missing items filtering:** adds RT audience as missing item filter ([424c8f2](https://github.com/agregarr/agregarr/commit/424c8f2347efc3bbc52cf79fbb1bbebc8b97feb9)), closes [#246](https://github.com/agregarr/agregarr/issues/246)
+* **multi source:** fixes incorrect library type ([4bcd1cc](https://github.com/agregarr/agregarr/commit/4bcd1cc2c13d2c724d69f8c5e7a91ea72b3b0b16))
+* **networks:** fix parsing of hyphenated lists ([f4acd17](https://github.com/agregarr/agregarr/commit/f4acd171441dabd73fb40ed2b6e4af51ec5f860f)), closes [#259](https://github.com/agregarr/agregarr/issues/259) [#263](https://github.com/agregarr/agregarr/issues/263)
+* **networks:** fixes multi-source networks not showing in preview ([173b353](https://github.com/agregarr/agregarr/commit/173b35358b658ba4c1c9ffaa9d487d8fcfdfa824)), closes [#209](https://github.com/agregarr/agregarr/issues/209)
+* **overlay editor:** add text opacity for overlays ([c5af8b4](https://github.com/agregarr/agregarr/commit/c5af8b422638b1468015d78ffef2bda06b0533ca))
+* **overlays job:** migrate old default job to 3am default to avoid conflitc with collections sync ([5640152](https://github.com/agregarr/agregarr/commit/56401528592886c8120fa1db1f3087b60d773fcb))
+* **overlays:** add backend support for DoVi, add preset for HDR and DoVi ([b2e645b](https://github.com/agregarr/agregarr/commit/b2e645bc95cad2b09952f9e2989edf6e2503e8a2)), closes [#183](https://github.com/agregarr/agregarr/issues/183)
+* **overlays:** add date formatting options for nextSeasonAirDate ([ea2d07b](https://github.com/agregarr/agregarr/commit/ea2d07b74a6f55ef7ff142d6808dda038d968001)), closes [#231](https://github.com/agregarr/agregarr/issues/231)
+* **overlays:** add further date formats ([7b56890](https://github.com/agregarr/agregarr/commit/7b568909e5c836f4fcfa6172f98a6e5c8ab9b201)), closes [#216](https://github.com/agregarr/agregarr/issues/216)
+* **overlays:** add support for various plex url formats ([22653c9](https://github.com/agregarr/agregarr/commit/22653c9b212a373d92a472a0245a5d3559c3d004))
+* **overlays:** adds condition for gap in awaiting download preset template ([192ed95](https://github.com/agregarr/agregarr/commit/192ed954f82181218f4a695101dfe717a7eb3576))
+* **overlays:** enable per library overlays sync ([57e3c5a](https://github.com/agregarr/agregarr/commit/57e3c5a8044647cb27c008b8ec8ad235556cc02e)), closes [#218](https://github.com/agregarr/agregarr/issues/218)
+* **overlays:** ensure poster is locked ([136d0e9](https://github.com/agregarr/agregarr/commit/136d0e92f3a1190d9c1f977696dbdaac0be17977))
+* **overlays:** fix some variables not having correct operators ([73984f0](https://github.com/agregarr/agregarr/commit/73984f0961eaed418523b2c6a3b67d624b3a88ca)), closes [#211](https://github.com/agregarr/agregarr/issues/211)
+* **overlays:** fix spaces in plex search query ([31b2650](https://github.com/agregarr/agregarr/commit/31b2650648565f685c9c45c08349a1cff8fedd10)), closes [#217](https://github.com/agregarr/agregarr/issues/217)
+* **overlays:** fixes operator not updating when changing condition ([4c066b3](https://github.com/agregarr/agregarr/commit/4c066b33fcfba73a2ab454b881059fbc3d6bf744)), closes [#210](https://github.com/agregarr/agregarr/issues/210)
+* **overlays:** update coming soon preset to include upcoming seasons ([c581536](https://github.com/agregarr/agregarr/commit/c581536745dc1cf2f6af878a29e25d30db09e2d2))
+* **overseerr:** fixes radarr/sonarr settings not being avaialable when only a single server is setup ([f579260](https://github.com/agregarr/agregarr/commit/f5792601bc873a98fba08a65b22feaa104151b19)), closes [#154](https://github.com/agregarr/agregarr/issues/154)
+* **placeholders:** ensure placeholders are cleaned up in various scenarios ([788371c](https://github.com/agregarr/agregarr/commit/788371c0f03119fa20ce42729590143c6eafa24d))
+* **placeholders:** extract placeholder functions, refactor sources, overlays fixes ([4900554](https://github.com/agregarr/agregarr/commit/4900554cc184b81df257b1940d377776cc8919b2))
+* **placeholders:** fix incorrect parsing of path from plex ([2cb7d07](https://github.com/agregarr/agregarr/commit/2cb7d07c91eebf73febea92a092a505794d508f4))
+* **placeholders:** fix placeholders being deleted incorrectly ([10a43af](https://github.com/agregarr/agregarr/commit/10a43afd0b7c638745689f69346564cd70179976))
+* **placeholders:** fixes Days Ahead not being respected ([c30692c](https://github.com/agregarr/agregarr/commit/c30692ce0cfc6af5c5420db11b06164d1721b4d4)), closes [#253](https://github.com/agregarr/agregarr/issues/253) [#268](https://github.com/agregarr/agregarr/issues/268)
+* **plex libraries:** improved error handling. remove dual update paths ([691ae05](https://github.com/agregarr/agregarr/commit/691ae055f8f1893717fc54416b100bb7b1e82d0b)), closes [#255](https://github.com/agregarr/agregarr/issues/255)
+* **posters:** add custom fonts support ([02999ac](https://github.com/agregarr/agregarr/commit/02999acad6645b52e497ee2ae939e4d2542758b4)), closes [#219](https://github.com/agregarr/agregarr/issues/219)
+* **root folder:** add home button to go to root ([bc630a7](https://github.com/agregarr/agregarr/commit/bc630a759e7c622a8d4933e59ef79e6a89e2b89c))
+* **sync:** ensure individual sync does not run concurrently with main sync ([b911590](https://github.com/agregarr/agregarr/commit/b911590fdf0700435526240b473448b117a740b6))
+* **sync:** prevent collections sync and overlays sync running concurrently ([376d83c](https://github.com/agregarr/agregarr/commit/376d83c1a2784eaa4b29f46ace5768f29b2f70ab))
+* **tautulli:** fixes changes to tautulli minimum plays not being respected ([3eeaf27](https://github.com/agregarr/agregarr/commit/3eeaf2704c036c774db1e724b1fcee4a74c7674f))
+* **titles:** fix some title variables not working correctly ([0bcd709](https://github.com/agregarr/agregarr/commit/0bcd709a806168efe0579e4e8767fb29c0e08c5e))
+* **tmdb auto-franchise:** add grab missing item ([b2b7e3f](https://github.com/agregarr/agregarr/commit/b2b7e3f3f349e340dbbb185571fcb4074ae30469)), closes [#205](https://github.com/agregarr/agregarr/issues/205)
+* **tmdb posters:** language option can now be selected per-library ([a3fec40](https://github.com/agregarr/agregarr/commit/a3fec4027f184208e0327e944285964e7647eed1)), closes [#220](https://github.com/agregarr/agregarr/issues/220)
+
+
+### Features
+
+* **internationalisation:** enable language picker and first few languages ([ad0e964](https://github.com/agregarr/agregarr/commit/ad0e96400cf7f109a752daad69d6cde69a5a11f7))
+* **overlays:** add overlays test modal, allowing testing of indivdual items ([6333c1a](https://github.com/agregarr/agregarr/commit/6333c1a7a53e49c1a4f2ae42e30c70971cba0860)), closes [#212](https://github.com/agregarr/agregarr/issues/212)
+* **overlays:** add support for overlays based on maintainerr action ([858f793](https://github.com/agregarr/agregarr/commit/858f7934a602bb2b9b528c3e2e237b86476d3394)), closes [#233](https://github.com/agregarr/agregarr/issues/233)
+* **sources:** add actor and director collections with seperators ([#198](https://github.com/agregarr/agregarr/issues/198)) ([f91b7fa](https://github.com/agregarr/agregarr/commit/f91b7faa804c9c0a49e4733f405bafbe70a44f16))
+
 # [2.0.0](https://github.com/agregarr/agregarr/compare/v1.4.2...v2.0.0) (2025-12-16)
 
 
