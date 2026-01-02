@@ -30,7 +30,7 @@ class PlexBasePosterManager {
   // Key format: `${tmdbId}-${mediaType}-${language}`
   // Stores Promises to handle concurrent requests (request coalescing)
   // Uses null to indicate "no poster available" (negative caching)
-  private tmdbUrlCache: Map<string, Promise<string | null>> = new Map();
+  private tmdbUrlCache: Map = new Map();
 
   /**
    * Clear the per-job TMDB URL cache
@@ -57,7 +57,7 @@ class PlexBasePosterManager {
     tmdbId: number,
     mediaType: 'movie' | 'show',
     language: string
-  ): Promise<string | undefined> {
+  ): Promise {
     const cacheKey = `${tmdbId}-${mediaType}-${language}`;
 
     // Check cache first - returns Promise to handle concurrent requests
@@ -76,12 +76,15 @@ class PlexBasePosterManager {
     // Cache miss - create Promise for TMDB API call
     // Store Promise immediately to coalesce concurrent requests
     // Wrap with error handling to remove failed entries from cache
-    const fetchPromise = this.fetchTmdbPosterUrl(tmdbId, mediaType, language)
-      .catch((error) => {
-        // Remove failed entry so future calls can retry
-        this.tmdbUrlCache.delete(cacheKey);
-        throw error;
-      });
+    const fetchPromise = this.fetchTmdbPosterUrl(
+      tmdbId,
+      mediaType,
+      language
+    ).catch((error) => {
+      // Remove failed entry so future calls can retry
+      this.tmdbUrlCache.delete(cacheKey);
+      throw error;
+    });
 
     this.tmdbUrlCache.set(cacheKey, fetchPromise);
 
@@ -105,7 +108,7 @@ class PlexBasePosterManager {
     tmdbId: number,
     mediaType: 'movie' | 'show',
     language: string
-  ): Promise<string | null> {
+  ): Promise {
     const TheMovieDb = (await import('@server/api/themoviedb')).default;
     const tmdbClient = new TheMovieDb();
 
@@ -165,7 +168,7 @@ class PlexBasePosterManager {
   /**
    * Initialize base poster storage directory
    */
-  async initialize(): Promise<void> {
+  async initialize(): Promise {
     try {
       await fs.mkdir(BASE_POSTERS_DIR, { recursive: true });
       await fs.mkdir(TMDB_POSTER_CACHE_DIR, { recursive: true });
@@ -197,7 +200,7 @@ class PlexBasePosterManager {
   /**
    * Get cached TMDB poster if valid (exists and not expired)
    */
-  private async getTmdbCachedPoster(posterUrl: string): Promise<Buffer | null> {
+  private async getTmdbCachedPoster(posterUrl: string): Promise {
     const filename = this.getTmdbCacheFilename(posterUrl);
     const cachePath = path.join(TMDB_POSTER_CACHE_DIR, filename);
 
@@ -244,7 +247,7 @@ class PlexBasePosterManager {
    * Clean up expired TMDB cache files to prevent disk growth
    * Call this periodically or at job start
    */
-  async cleanTmdbCache(): Promise<{ deleted: number; errors: number }> {
+  async cleanTmdbCache(): Promise {
     let deleted = 0;
     let errors = 0;
 
@@ -285,7 +288,10 @@ class PlexBasePosterManager {
   /**
    * Store TMDB poster in cache
    */
-  private async storeTmdbCachedPoster(posterUrl: string, buffer: Buffer): Promise<void> {
+  private async storeTmdbCachedPoster(
+    posterUrl: string,
+    buffer: Buffer
+  ): Promise {
     const filename = this.getTmdbCacheFilename(posterUrl);
     const cachePath = path.join(TMDB_POSTER_CACHE_DIR, filename);
 
@@ -327,7 +333,7 @@ class PlexBasePosterManager {
     plexApi: PlexAPI,
     uploadUrl: string,
     ratingKey: string
-  ): Promise<string> {
+  ): Promise {
     // If it's already a path, return it
     if (uploadUrl.startsWith('/')) {
       return uploadUrl;
@@ -362,7 +368,7 @@ class PlexBasePosterManager {
     plexApi: PlexAPI,
     thumbUrl: string,
     ratingKey?: string
-  ): Promise<Buffer> {
+  ): Promise {
     let downloadPath = thumbUrl;
 
     // Convert upload:// URLs to downloadable paths
@@ -404,7 +410,7 @@ class PlexBasePosterManager {
   /**
    * Download poster from TMDB
    */
-  private async downloadFromTMDB(tmdbUrl: string): Promise<Buffer> {
+  private async downloadFromTMDB(tmdbUrl: string): Promise {
     const response = await axios.get(tmdbUrl, {
       responseType: 'arraybuffer',
       timeout: 30000,
@@ -420,7 +426,7 @@ class PlexBasePosterManager {
     posterBuffer: Buffer,
     libraryId: string,
     ratingKey: string
-  ): Promise<string> {
+  ): Promise {
     const filepath = this.getFilePath(libraryId, ratingKey);
     const filename = this.generateFilename(libraryId, ratingKey);
 
@@ -439,10 +445,7 @@ class PlexBasePosterManager {
   /**
    * Get stored base poster
    */
-  async getStoredBasePoster(
-    libraryId: string,
-    ratingKey: string
-  ): Promise<Buffer | null> {
+  async getStoredBasePoster(libraryId: string, ratingKey: string): Promise {
     const filepath = this.getFilePath(libraryId, ratingKey);
 
     try {
@@ -467,10 +470,9 @@ class PlexBasePosterManager {
     itemTitle: string,
     itemYear: number | undefined,
     tmdbId: number
-  ): Promise<string> {
-    const { sanitizeForFilename } = await import(
-      '@server/utils/fileSystemHelpers'
-    );
+  ): Promise {
+    const { sanitizeForFilename } =
+      await import('@server/utils/fileSystemHelpers');
 
     // Sanitize components
     const safeName = sanitizeForFilename(libraryName);
@@ -492,14 +494,9 @@ class PlexBasePosterManager {
   private async scanLocalPoster(
     localPosterPath: string,
     previousModTime: number | undefined
-  ): Promise<{
-    posterBuffer: Buffer | null;
-    fileModTime: number | null;
-    fileChanged: boolean;
-  }> {
-    const { findImageFile, getFileModTime, validateImageFile } = await import(
-      '@server/utils/fileSystemHelpers'
-    );
+  ): Promise {
+    const { findImageFile, getFileModTime, validateImageFile } =
+      await import('@server/utils/fileSystemHelpers');
 
     // Automatically create folder if it doesn't exist
     try {
@@ -576,7 +573,7 @@ class PlexBasePosterManager {
       basePosterSource?: 'tmdb' | 'plex';
       originalPlexPosterUrl?: string;
     }
-  ): Promise<boolean> {
+  ): Promise {
     // Check if source switched (TMDB ↔ Plex)
     if (
       metadata.basePosterSource &&
@@ -630,7 +627,11 @@ class PlexBasePosterManager {
 
       // Get TMDB poster URL using cached lookup
       const language = await getTmdbLanguage(libraryId);
-      const posterUrl = await this.getTmdbPosterUrl(tmdbId, mediaType, language);
+      const posterUrl = await this.getTmdbPosterUrl(
+        tmdbId,
+        mediaType,
+        language
+      );
 
       if (!posterUrl) {
         throw new Error('No TMDB poster available');
@@ -665,13 +666,7 @@ class PlexBasePosterManager {
       localPosterModifiedTime?: number;
     },
     tmdbId?: number
-  ): Promise<{
-    posterBuffer: Buffer;
-    basePosterChanged: boolean;
-    sourceUrl: string;
-    filename: string;
-    fileModTime?: number | null;
-  }> {
+  ): Promise {
     // CRITICAL FIX: Use item.type from Plex API, not library config type!
     // - item.type comes from Plex's metadata and is authoritative
     // - TMDB has separate ID namespaces for movies vs TV shows (same ID = different items!)
@@ -789,9 +784,8 @@ class PlexBasePosterManager {
       }
 
       // Check if poster changed using normalized URL comparison
-      const { posterUrlsMatch } = await import(
-        '@server/utils/posterUrlHelpers'
-      );
+      const { posterUrlsMatch } =
+        await import('@server/utils/posterUrlHelpers');
 
       if (posterUrlsMatch(currentPlexPosterUrl, metadata.ourOverlayPosterUrl)) {
         // Plex still has our overlaid poster - use cached base
@@ -894,12 +888,19 @@ class PlexBasePosterManager {
         itemType: item.type,
         tmdbId: resolvedTmdbId,
         mediaType,
-        endpoint: mediaType === 'movie' ? `/movie/${resolvedTmdbId}` : `/tv/${resolvedTmdbId}`,
+        endpoint:
+          mediaType === 'movie'
+            ? `/movie/${resolvedTmdbId}`
+            : `/tv/${resolvedTmdbId}`,
       });
 
       // Get TMDB poster URL using cached lookup
       const language = await getTmdbLanguage(libraryId);
-      const posterUrl = await this.getTmdbPosterUrl(resolvedTmdbId, mediaType, language);
+      const posterUrl = await this.getTmdbPosterUrl(
+        resolvedTmdbId,
+        mediaType,
+        language
+      );
 
       if (!posterUrl) {
         throw new Error('No TMDB poster available');
@@ -952,7 +953,7 @@ class PlexBasePosterManager {
     plexApi: PlexAPI,
     libraryId: string,
     onProgress?: (current: number, total: number, failed: number) => void
-  ): Promise<{ success: number; failed: number }> {
+  ): Promise {
     logger.info('Starting bulk base poster download', {
       label: 'PlexBasePosterManager',
       libraryId,
@@ -1032,16 +1033,13 @@ class PlexBasePosterManager {
    * Move orphaned posters to orphaned subfolder
    * Called during bulk download to clean up old files from Plex Dance
    */
-  async moveOrphanedPosters(
-    plexApi: PlexAPI,
-    libraryIds: string[]
-  ): Promise<number> {
+  async moveOrphanedPosters(plexApi: PlexAPI, libraryIds: string[]): Promise {
     try {
       const orphanedDir = path.join(BASE_POSTERS_DIR, 'orphaned');
       await fs.mkdir(orphanedDir, { recursive: true });
 
       // Get all current rating keys from Plex for configured libraries
-      const currentRatingKeys = new Set<string>();
+      const currentRatingKeys = new Set();
 
       for (const libraryId of libraryIds) {
         let offset = 0;
