@@ -186,7 +186,7 @@ export const VariableElement: React.FC<VariableElementComponentProps> = ({
                 segment.field.includes('Score') ||
                 segment.field.includes('Rating')
               ) {
-                // RT/Metacritic scores are percentages - no decimal needed (e.g., 89)
+                // RT scores are percentages - no decimal needed (e.g., 89)
                 text += Math.round(value).toString();
               } else {
                 text += value.toString();

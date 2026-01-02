@@ -155,7 +155,7 @@ export interface OverlayRenderContext {
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
-  metacriticScore?: number;
+  // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata
   title?: string;
@@ -251,7 +251,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
-    { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
+    // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   metadata: [
     { field: 'title', label: 'Title', example: 'The Matrix' },
@@ -431,7 +431,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
-    { field: 'metacriticScore', label: 'Metacritic Score', example: '73' },
+    // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   Status: [
     { field: 'mediaType', label: 'Media Type (movie/show)', example: 'movie' },
@@ -535,7 +535,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 88,
     rtAudienceScore: 85,
-    metacriticScore: 73,
+    // metacriticScore: 73, // TODO: Implement Metacritic integration
     director: 'Lana Wachowski',
     studio: 'Warner Bros.',
     genre: 'Sci-Fi',
@@ -577,7 +577,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 96,
     rtAudienceScore: 98,
-    metacriticScore: 96,
+    // metacriticScore: 96, // TODO: Implement Metacritic integration
     seasonNumber: 5,
     episodeNumber: 16,
     episodeLabel: 'SERIES FINALE',

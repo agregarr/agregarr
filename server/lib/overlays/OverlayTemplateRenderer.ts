@@ -273,7 +273,7 @@ export interface OverlayRenderContext {
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
-  metacriticScore?: number;
+  // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata
   title?: string;
@@ -873,7 +873,7 @@ class OverlayTemplateRendererService {
             segment.field.includes('Score') ||
             segment.field.includes('Rating')
           ) {
-            // RT/Metacritic scores are percentages - no decimal needed (e.g., 89)
+            // RT scores are percentages - no decimal needed (e.g., 89)
             formattedValue = Math.round(variableValue).toString();
           } else {
             formattedValue = variableValue.toString();

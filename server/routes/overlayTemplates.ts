@@ -699,7 +699,7 @@ router.get('/:id/preview', async (req, res, next) => {
       // Ratings (additional)
       imdbTop250Rank: 42,
       isImdbTop250: true,
-      metacriticScore: 85,
+      // metacriticScore: 85, // TODO: Implement Metacritic integration
 
       // TMDB Metadata
       director: 'Christopher Nolan',
@@ -908,7 +908,7 @@ router.post('/combined-preview', async (req, res, next) => {
       // Ratings (additional)
       imdbTop250Rank: 42,
       isImdbTop250: true,
-      metacriticScore: 85,
+      // metacriticScore: 85, // TODO: Implement Metacritic integration
 
       // TMDB Metadata
       director: 'Christopher Nolan',
