@@ -2,6 +2,7 @@ import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 import axios from 'axios';
 import rateLimit from 'axios-rate-limit';
 import type NodeCache from 'node-cache';
+import logger from '@server/logger';
 
 // 5 minute default TTL (in seconds)
 const DEFAULT_TTL = 300;
@@ -109,9 +110,19 @@ class ExternalAPI {
         keyTtl - (ttl ?? DEFAULT_TTL) * 1000 <
         Date.now() - DEFAULT_ROLLING_BUFFER
       ) {
-        this.axios.get<T>(endpoint, config).then((response) => {
-          this.cache?.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
-        });
+        this.axios
+          .get<T>(endpoint, config)
+          .then((response) => {
+            this.cache?.set(cacheKey, response.data, ttl ?? DEFAULT_TTL);
+          })
+          .catch((error) => {
+            // Log but don't throw - background refresh failure is acceptable
+            logger.warn('Rolling cache refresh failed', {
+              label: 'ExternalAPI',
+              endpoint,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
       }
       return cachedItem;
     }

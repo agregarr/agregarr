@@ -154,21 +154,44 @@ class OverseerrAPI {
       timeout: 30000,
     });
 
-    // Add response/error logging
+    // Add response/error logging (with sensitive data redacted)
     this.axios.interceptors.response.use(
       (response) => {
         return response;
       },
       (error) => {
+        // Redact sensitive headers to prevent credential leaks in logs
+        const safeHeaders = error.config?.headers
+          ? { ...error.config.headers }
+          : undefined;
+        if (safeHeaders) {
+          delete safeHeaders['X-Api-Key'];
+          delete safeHeaders['Authorization'];
+          delete safeHeaders['x-api-key'];
+          delete safeHeaders['authorization'];
+        }
+
+        // Truncate response data to prevent log bloat and credential echo
+        let safeResponseData: string | undefined;
+        if (error.response?.data) {
+          const dataStr =
+            typeof error.response.data === 'string'
+              ? error.response.data
+              : JSON.stringify(error.response.data);
+          safeResponseData =
+            dataStr.length > 500
+              ? dataStr.substring(0, 500) + '... [truncated]'
+              : dataStr;
+        }
+
         logger.error(`Overseerr API Error: ${error.message}`, {
           label: 'OverseerrAPI',
           url: error.config?.url,
           method: error.config?.method?.toUpperCase(),
           status: error.response?.status,
           statusText: error.response?.statusText,
-          responseData: error.response?.data,
-          requestHeaders: error.config?.headers,
-          requestData: error.config?.data,
+          responseData: safeResponseData,
+          requestHeaders: safeHeaders,
         });
         throw error;
       }

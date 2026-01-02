@@ -156,6 +156,16 @@ export class MultiSourceOrchestrator {
         isActive: timeRestrictionResult.isActive,
       });
 
+      // Validate sources array is not empty (prevents division by zero in cycle_lists)
+      if (!config.sources || config.sources.length === 0) {
+        logger.error(`Multi-source collection has no sources: ${config.name}`, {
+          label: 'Multi-Source Orchestrator',
+          configId: config.id,
+          combineMode: config.combineMode,
+        });
+        return { created: 0, updated: 0 };
+      }
+
       // Increment sync counter for cycle_lists mode
       if (config.combineMode === 'cycle_lists') {
         const newCounter = incrementCollectionSyncCounter(config.id);

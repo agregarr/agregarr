@@ -1,4 +1,5 @@
 import logger from '@server/logger';
+import { getSettings } from '@server/lib/settings';
 import fs from 'fs/promises';
 import path from 'path';
 import type { PlaceholderOptions, PlaceholderResult } from './types';
@@ -175,6 +176,46 @@ export async function removePlaceholder(
   mediaType: 'movie' | 'tv'
 ): Promise<void> {
   try {
+    // Security: Validate path is within configured library roots
+    const settings = getSettings();
+    const libraryRoot =
+      mediaType === 'movie'
+        ? settings.main.placeholderMovieRootFolder
+        : settings.main.placeholderTVRootFolder;
+
+    if (!libraryRoot) {
+      throw new Error(
+        `Placeholder ${mediaType} library root not configured`
+      );
+    }
+
+    // Use fs.realpath to resolve symlinks - prevents symlink escape attacks
+    let realPath: string;
+    let realRoot: string;
+
+    try {
+      realPath = await fs.realpath(placeholderPath);
+    } catch {
+      realPath = path.resolve(placeholderPath);
+    }
+
+    try {
+      realRoot = await fs.realpath(libraryRoot);
+    } catch {
+      realRoot = path.resolve(libraryRoot);
+    }
+
+    if (!realPath.startsWith(realRoot + path.sep)) {
+      logger.error('Path traversal attempt detected', {
+        label: 'Coming Soon Placeholder',
+        requestedPath: placeholderPath,
+        realPath,
+        libraryRoot: realRoot,
+        mediaType,
+      });
+      throw new Error('Invalid placeholder path - outside library root');
+    }
+
     // Safety check: Verify path contains placeholder marker (supports both old and new format)
     if (
       !placeholderPath.includes('{edition-Trailer}') &&
