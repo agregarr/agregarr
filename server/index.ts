@@ -12,8 +12,8 @@ import { startJobs } from '@server/job/schedule';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import routes from '@server/routes';
-import restartFlag from '@server/utils/restartFlag';
 import { sanitizeErrorMessage } from '@server/utils/errorResponse';
+import restartFlag from '@server/utils/restartFlag';
 // imageproxy removed - not needed for collections-only app
 import { getAppVersion } from '@server/utils/appVersion';
 import { getClientIp } from '@supercharge/request-ip';
@@ -80,12 +80,10 @@ app
 
     // Seed default source colors and poster template (one-time setup)
     try {
-      const { seedSourceColors } = await import(
-        '@server/scripts/seedSourceColors'
-      );
-      const { seedDefaultTemplate } = await import(
-        '@server/scripts/seedDefaultTemplate'
-      );
+      const { seedSourceColors } =
+        await import('@server/scripts/seedSourceColors');
+      const { seedDefaultTemplate } =
+        await import('@server/scripts/seedDefaultTemplate');
 
       await seedSourceColors();
       await seedDefaultTemplate();
@@ -95,9 +93,8 @@ app
 
     // Seed preset overlay templates (one-time setup)
     try {
-      const { presetTemplateService } = await import(
-        '@server/lib/overlays/PresetTemplates'
-      );
+      const { presetTemplateService } =
+        await import('@server/lib/overlays/PresetTemplates');
 
       await presetTemplateService.createPresetTemplates();
     } catch (error) {
@@ -106,9 +103,8 @@ app
 
     // Initialize IndividualCollectionScheduler for custom sync schedules
     try {
-      const { IndividualCollectionScheduler } = await import(
-        '@server/lib/collections/services/IndividualCollectionScheduler'
-      );
+      const { IndividualCollectionScheduler } =
+        await import('@server/lib/collections/services/IndividualCollectionScheduler');
       await IndividualCollectionScheduler.initialize();
     } catch (error) {
       logger.error(
@@ -119,9 +115,8 @@ app
 
     // Initialize poster storage directory
     try {
-      const { initializePosterStorage } = await import(
-        '@server/lib/posterStorage'
-      );
+      const { initializePosterStorage } =
+        await import('@server/lib/posterStorage');
       await initializePosterStorage();
       logger.info('Poster storage initialized successfully');
     } catch (error) {
@@ -130,9 +125,8 @@ app
 
     // Initialize wallpaper storage directory
     try {
-      const { initializeWallpaperStorage } = await import(
-        '@server/lib/wallpaperStorage'
-      );
+      const { initializeWallpaperStorage } =
+        await import('@server/lib/wallpaperStorage');
       initializeWallpaperStorage();
       logger.info('Wallpaper storage initialized successfully');
     } catch (error) {
@@ -141,9 +135,8 @@ app
 
     // Initialize theme storage directory
     try {
-      const { initializeThemeStorage } = await import(
-        '@server/lib/themeStorage'
-      );
+      const { initializeThemeStorage } =
+        await import('@server/lib/themeStorage');
       initializeThemeStorage();
       logger.info('Theme storage initialized successfully');
     } catch (error) {
@@ -172,9 +165,8 @@ app
 
     // Initialize base poster storage directory
     try {
-      const { plexBasePosterManager } = await import(
-        '@server/lib/overlays/PlexBasePosterManager'
-      );
+      const { plexBasePosterManager } =
+        await import('@server/lib/overlays/PlexBasePosterManager');
       await plexBasePosterManager.initialize();
       logger.info('Base poster storage initialized successfully');
     } catch (error) {
@@ -183,9 +175,8 @@ app
 
     // Initialize RandomListManager for multi-source collections
     try {
-      const { RandomListManager } = await import(
-        '@server/lib/collections/utils/RandomListManager'
-      );
+      const { RandomListManager } =
+        await import('@server/lib/collections/utils/RandomListManager');
       const configDir =
         process.env.CONFIG_DIRECTORY || path.join(__dirname, '../config');
       RandomListManager.initialize(configDir);
@@ -414,9 +405,8 @@ app
     server.post('/upload-wallpaper', async (req, res) => {
       try {
         const multer = (await import('multer')).default;
-        const { saveWallpaperFile, initializeWallpaperStorage } = await import(
-          '@server/lib/wallpaperStorage'
-        );
+        const { saveWallpaperFile, initializeWallpaperStorage } =
+          await import('@server/lib/wallpaperStorage');
 
         // Initialize storage
         initializeWallpaperStorage();
@@ -465,9 +455,8 @@ app
     server.post('/upload-theme', async (req, res) => {
       try {
         const multer = (await import('multer')).default;
-        const { saveThemeFile, initializeThemeStorage } = await import(
-          '@server/lib/themeStorage'
-        );
+        const { saveThemeFile, initializeThemeStorage } =
+          await import('@server/lib/themeStorage');
 
         // Initialize storage
         initializeThemeStorage();
@@ -550,9 +539,8 @@ app
     server.post('/upload-icon', async (req, res) => {
       try {
         const multer = (await import('multer')).default;
-        const { uploadIcon, initializeIconStorage } = await import(
-          '@server/lib/iconManager'
-        );
+        const { uploadIcon, initializeIconStorage } =
+          await import('@server/lib/iconManager');
 
         // Initialize storage
         initializeIconStorage();
@@ -655,12 +643,10 @@ app
 
           try {
             const { getRepository } = await import('@server/datasource');
-            const { PosterTemplate } = await import(
-              '@server/entity/PosterTemplate'
-            );
-            const { sanitizeTemplateData, validateTemplateData } = await import(
-              '@server/lib/posterTemplates'
-            );
+            const { PosterTemplate } =
+              await import('@server/entity/PosterTemplate');
+            const { sanitizeTemplateData, validateTemplateData } =
+              await import('@server/lib/posterTemplates');
             const fs = await import('fs');
             const path = await import('path');
 
@@ -668,7 +654,7 @@ app
             let name: string;
             let description: string;
             let version: string;
-            const assetMapping = new Map<string, string>();
+            const assetMapping = new Map();
 
             const StreamZip = (await import('node-stream-zip')).default;
             const os = await import('os');
@@ -701,16 +687,15 @@ app
                   const entryData = await zip.entryData(entryName);
 
                   if (entryName.startsWith('assets/icons/')) {
-                    const { uploadIcon } = await import(
-                      '@server/lib/iconManager'
-                    );
+                    const { uploadIcon } =
+                      await import('@server/lib/iconManager');
                     const originalFilename = path.basename(entryName);
                     const fileExtension = path
                       .extname(originalFilename)
                       .toLowerCase();
 
                     // Determine MIME type
-                    const mimeTypeMap: Record<string, string> = {
+                    const mimeTypeMap: Record = {
                       '.svg': 'image/svg+xml',
                       '.png': 'image/png',
                       '.jpg': 'image/jpeg',
@@ -900,9 +885,8 @@ app
         }
 
         const { getRepository } = await import('@server/datasource');
-        const { OverlayTemplate } = await import(
-          '@server/entity/OverlayTemplate'
-        );
+        const { OverlayTemplate } =
+          await import('@server/entity/OverlayTemplate');
         const fs = await import('fs');
         const path = await import('path');
 
@@ -920,7 +904,7 @@ app
         const templateData = template.getTemplateData();
 
         // Collect all asset paths that need to be included
-        const assetPaths = new Set<string>();
+        const assetPaths = new Set();
 
         // Check elements for custom assets
         templateData.elements?.forEach((element) => {
@@ -1088,9 +1072,8 @@ app
 
           try {
             const { getRepository } = await import('@server/datasource');
-            const { OverlayTemplate } = await import(
-              '@server/entity/OverlayTemplate'
-            );
+            const { OverlayTemplate } =
+              await import('@server/entity/OverlayTemplate');
             const fs = await import('fs');
             const path = await import('path');
 
@@ -1100,7 +1083,7 @@ app
             let type: OverlayTemplateType;
             let applicationCondition: ApplicationCondition | undefined;
             let version: string;
-            const assetMapping = new Map<string, string>();
+            const assetMapping = new Map();
 
             const StreamZip = (await import('node-stream-zip')).default;
             const os = await import('os');
@@ -1135,16 +1118,15 @@ app
                   const entryData = await zip.entryData(entryName);
 
                   if (entryName.startsWith('assets/icons/')) {
-                    const { uploadIcon } = await import(
-                      '@server/lib/iconManager'
-                    );
+                    const { uploadIcon } =
+                      await import('@server/lib/iconManager');
                     const originalFilename = path.basename(entryName);
                     const fileExtension = path
                       .extname(originalFilename)
                       .toLowerCase();
 
                     // Determine MIME type
-                    const mimeTypeMap: Record<string, string> = {
+                    const mimeTypeMap: Record = {
                       '.svg': 'image/svg+xml',
                       '.png': 'image/png',
                       '.jpg': 'image/jpeg',
