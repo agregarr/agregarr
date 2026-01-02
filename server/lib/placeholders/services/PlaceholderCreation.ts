@@ -58,16 +58,93 @@ export async function processPlaceholdersForMissingItems(
     return [];
   }
 
+  // Filter by days ahead - only create placeholders for items releasing within the configured window
+  const daysAhead = getDaysAhead(config);
+  const { isDateWithinDays, determineReleaseDate } = await import(
+    '@server/utils/dateHelpers'
+  );
+
+  const filteredSourceData = sourceData.filter((item) => {
+    // Determine the effective release date to check
+    let releaseDateToCheck: string | undefined;
+
+    if (item.mediaType === 'movie') {
+      // Use the shared determineReleaseDate function which handles:
+      // Priority 1: Digital release
+      // Priority 2: Physical release
+      // Priority 3: Theatrical + 90 days estimate
+      const result = determineReleaseDate(
+        item.digitalRelease,
+        item.physicalRelease,
+        item.inCinemas
+      );
+      if (result) {
+        releaseDateToCheck = result.releaseDate;
+      } else if (item.releaseDate) {
+        // Fallback to generic release date if specific dates unavailable
+        releaseDateToCheck = item.releaseDate;
+      }
+    } else if (item.mediaType === 'tv') {
+      // For TV: use air date
+      releaseDateToCheck = item.airDate;
+    }
+
+    // If no release date, include the item (can't filter what we don't know)
+    if (!releaseDateToCheck) {
+      return true;
+    }
+
+    // Check if release date is within the configured window
+    const withinWindow = isDateWithinDays(releaseDateToCheck, daysAhead);
+
+    if (!withinWindow) {
+      logger.debug(
+        'Skipping placeholder creation - release date too far ahead',
+        {
+          label: 'PlaceholderService',
+          title: item.title,
+          releaseDate: releaseDateToCheck,
+          daysAhead,
+          configName: config.name,
+        }
+      );
+    }
+
+    return withinWindow;
+  });
+
+  const skippedByDateFilter = sourceData.length - filteredSourceData.length;
+
+  if (filteredSourceData.length === 0) {
+    logger.info(
+      'No items within configured days ahead window for placeholder creation',
+      {
+        label: 'PlaceholderService',
+        configName: config.name,
+        originalCount: missingItems.length,
+        skippedNoReleaseDate: missingItems.length - sourceData.length,
+        skippedByDateFilter,
+        daysAhead,
+        collectionType: config.type,
+      }
+    );
+    return [];
+  }
+
   logger.info('Creating placeholders for missing items', {
     label: 'PlaceholderService',
     configName: config.name,
-    itemCount: sourceData.length,
+    itemCount: filteredSourceData.length,
     skippedNoReleaseDate: missingItems.length - sourceData.length,
+    skippedByDateFilter,
+    daysAhead,
     collectionType: config.type,
   });
 
-  // Filter missingItems to only those that have sourceData
-  const tmdbIdsWithSourceData = new Set(sourceData.map((s) => s.tmdbId));
+  // Filter missingItems to only those that have filteredSourceData
+  const tmdbIdsWithSourceData = new Set(
+    filteredSourceData.map((s) => s.tmdbId)
+  );
   const filteredMissingItems = missingItems.filter((item) =>
     tmdbIdsWithSourceData.has(item.tmdbId)
   );
@@ -75,7 +152,7 @@ export async function processPlaceholdersForMissingItems(
   // Call the internal placeholder creation logic
   return createPlaceholders(
     filteredMissingItems,
-    sourceData,
+    filteredSourceData,
     config,
     plexClient
   );

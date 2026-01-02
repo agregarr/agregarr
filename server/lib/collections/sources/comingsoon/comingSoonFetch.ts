@@ -67,7 +67,8 @@ export async function fetchMonitoredMovies(
   }
 
   const { getFutureDateFromToday } = await import('@server/utils/dateHelpers');
-  const maxDaysAway = config.comingSoonDays || 360;
+  const maxDaysAway =
+    config.placeholderDaysAhead || config.comingSoonDays || 360;
   const maxDate = getFutureDateFromToday(maxDaysAway);
 
   for (const radarrInstance of settings.radarr) {
@@ -237,7 +238,8 @@ export async function fetchMonitoredShows(
     return items;
   }
 
-  const maxDaysAway = config.comingSoonDays || 360;
+  const maxDaysAway =
+    config.placeholderDaysAhead || config.comingSoonDays || 360;
 
   for (const sonarrInstance of settings.sonarr) {
     try {
@@ -664,7 +666,8 @@ export async function fetchTmdbComingSoonMovies(
     const tmdbClient = new TmdbAPI();
 
     const perPage = 20; // TMDB returns 20 per page
-    const maxDaysAway = config.comingSoonDays || 360;
+    const maxDaysAway =
+      config.placeholderDaysAhead || config.comingSoonDays || 360;
 
     // Calculate date range for upcoming releases
     const { getToday, getFutureDateFromToday, extractReleaseDates } =
@@ -829,7 +832,8 @@ export async function fetchTmdbComingSoonShows(
     const tmdbClient = new TmdbAPI();
 
     const perPage = 20; // TMDB returns 20 per page
-    const maxDaysAway = config.comingSoonDays || 360;
+    const maxDaysAway =
+      config.placeholderDaysAhead || config.comingSoonDays || 360;
 
     // Calculate date range for upcoming air dates
     const { getToday, getFutureDateFromToday } = await import(
