@@ -196,18 +196,21 @@ const LibraryConfigView: React.FC = () => {
   const confirmTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // Poll for running library overlays with full progress status
-  const { data: runningLibrariesData, mutate: mutateRunningLibraries } = useSWR<{
-    runningLibraries: (LibraryStatus & { libraryId: string })[];
-  }>('/api/v1/overlay-library-configs/status/all', {
-    refreshInterval: 1000, // Poll every second for responsive progress updates
-  });
+  const { data: runningLibrariesData, mutate: mutateRunningLibraries } =
+    useSWR<{
+      runningLibraries: (LibraryStatus & { libraryId: string })[];
+    }>('/api/v1/overlay-library-configs/status/all', {
+      refreshInterval: 1000, // Poll every second for responsive progress updates
+    });
 
   // Update syncing libraries based on actual status (only running/cancelling, not completed TTL entries)
   useEffect(() => {
     if (runningLibrariesData) {
       const runningIds = new Set(
         runningLibrariesData.runningLibraries
-          .filter((lib) => lib.state === 'running' || lib.state === 'cancelling')
+          .filter(
+            (lib) => lib.state === 'running' || lib.state === 'cancelling'
+          )
           .map((lib) => lib.libraryId)
       );
       setSyncingLibraries(runningIds);
@@ -376,9 +379,8 @@ const LibraryConfigView: React.FC = () => {
   };
 
   // Get running jobs for progress display
-  const runningJobs = runningLibrariesData?.runningLibraries.filter(
-    (lib) => lib.running
-  ) || [];
+  const runningJobs =
+    runningLibrariesData?.runningLibraries.filter((lib) => lib.running) || [];
 
   return (
     <div className="space-y-6">

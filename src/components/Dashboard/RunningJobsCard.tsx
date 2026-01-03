@@ -1,10 +1,10 @@
+import LibraryProgressCard, {
+  type LibraryStatus,
+} from '@app/components/PostersView/LibraryProgressCard';
 import axios from 'axios';
 import { useState } from 'react';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
-import LibraryProgressCard, {
-  type LibraryStatus,
-} from '@app/components/PostersView/LibraryProgressCard';
 
 interface RunningLibrariesResponse {
   runningLibraries: LibraryStatus[];

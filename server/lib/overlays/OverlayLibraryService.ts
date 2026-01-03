@@ -119,7 +119,9 @@ class OverlayLibraryService {
    * Request cancellation of a library overlay job
    * Returns 'requested' if newly requested, 'already' if already cancelling, 'not_found' otherwise
    */
-  public requestCancellation(libraryId: string): 'requested' | 'already' | 'not_found' {
+  public requestCancellation(
+    libraryId: string
+  ): 'requested' | 'already' | 'not_found' {
     const progress = this.runningLibraries.get(libraryId);
     if (!progress) {
       return 'not_found';
@@ -144,7 +146,10 @@ class OverlayLibraryService {
     mutator: (progress: LibraryProgress) => void
   ): void {
     const progress = this.runningLibraries.get(libraryId);
-    if (progress && (progress.state === 'running' || progress.state === 'cancelling')) {
+    if (
+      progress &&
+      (progress.state === 'running' || progress.state === 'cancelling')
+    ) {
       mutator(progress);
     }
   }
@@ -191,7 +196,9 @@ class OverlayLibraryService {
   /**
    * Get status for a specific library
    */
-  public getLibraryStatus(libraryId: string): LibraryStatus | { running: false } {
+  public getLibraryStatus(
+    libraryId: string
+  ): LibraryStatus | { running: false } {
     // Clean up expired entries first
     this.cleanupCompletedJobs();
 
@@ -268,7 +275,10 @@ class OverlayLibraryService {
     // Mutex: wait for any in-progress job to complete before starting
     // Loop to handle multiple waiters waking up simultaneously
     let existing = this.runningLibraries.get(libraryId);
-    while (existing && (existing.state === 'running' || existing.state === 'cancelling')) {
+    while (
+      existing &&
+      (existing.state === 'running' || existing.state === 'cancelling')
+    ) {
       logger.warn('Library already being processed, waiting for completion', {
         label: 'OverlayLibrary',
         libraryId,
@@ -331,7 +341,11 @@ class OverlayLibraryService {
       });
 
       // Process the library
-      await this.processLibraryOverlays(libraryId, config, combinedCheckCancelled);
+      await this.processLibraryOverlays(
+        libraryId,
+        config,
+        combinedCheckCancelled
+      );
 
       // Mark completed (stays in map for TTL period)
       // Set completedAt for ANY state to ensure TTL cleanup works
@@ -354,7 +368,9 @@ class OverlayLibraryService {
         progress.state = 'failed';
         progress.completedAt = Date.now();
       }
-      rejectDeferred!(error instanceof Error ? error : new Error(String(error)));
+      rejectDeferred!(
+        error instanceof Error ? error : new Error(String(error))
+      );
       throw error;
     } finally {
       // Clean up cancellation flag
@@ -1142,7 +1158,9 @@ class OverlayLibraryService {
         // Re-throw to let caller track this as a failure
         // Previously this was silently returning, causing failed items to be counted as success
         throw new Error(
-          `Failed to get base poster for "${item.title}": ${error instanceof Error ? error.message : String(error)}`
+          `Failed to get base poster for "${item.title}": ${
+            error instanceof Error ? error.message : String(error)
+          }`
         );
       }
 

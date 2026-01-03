@@ -1,12 +1,12 @@
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import PageTitle from '@app/components/Common/PageTitle';
-import { Permission, useUser } from '@app/hooks/useUser';
-import type { NextPage } from 'next';
-import { defineMessages, useIntl } from 'react-intl';
 import CollectionStatsGrid from '@app/components/Dashboard/CollectionStatsGrid';
 import DashboardStats from '@app/components/Dashboard/DashboardStats';
 import MissingItemsFeed from '@app/components/Dashboard/MissingItemsFeed';
 import RunningJobsCard from '@app/components/Dashboard/RunningJobsCard';
+import { Permission, useUser } from '@app/hooks/useUser';
+import type { NextPage } from 'next';
+import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
   dashboardTitle: 'Dashboard',

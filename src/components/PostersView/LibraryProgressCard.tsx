@@ -9,7 +9,12 @@ import {
 import type React from 'react';
 import { useMemo } from 'react';
 
-export type JobState = 'running' | 'cancelling' | 'completed' | 'cancelled' | 'failed';
+export type JobState =
+  | 'running'
+  | 'cancelling'
+  | 'completed'
+  | 'cancelled'
+  | 'failed';
 
 export interface LibraryStatus {
   libraryId: string;
@@ -80,7 +85,10 @@ const LibraryProgressCard: React.FC<LibraryProgressCardProps> = ({
   onStop,
   isStopping = false,
 }) => {
-  const borderColor = useMemo(() => getBorderColor(status.state), [status.state]);
+  const borderColor = useMemo(
+    () => getBorderColor(status.state),
+    [status.state]
+  );
   const progressBarColor = useMemo(
     () => getProgressBarColor(status.state),
     [status.state]
@@ -97,7 +105,12 @@ const LibraryProgressCard: React.FC<LibraryProgressCardProps> = ({
       status.errorCount +
       status.skippedCount +
       status.filteredCount,
-    [status.successCount, status.errorCount, status.skippedCount, status.filteredCount]
+    [
+      status.successCount,
+      status.errorCount,
+      status.skippedCount,
+      status.filteredCount,
+    ]
   );
 
   return (
@@ -107,13 +120,15 @@ const LibraryProgressCard: React.FC<LibraryProgressCardProps> = ({
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">{status.libraryName}</h3>
+          <h3 className="text-lg font-semibold text-white">
+            {status.libraryName}
+          </h3>
           <p className="text-xs text-gray-400">
             {status.state === 'cancelling'
               ? 'Stopping...'
               : status.state === 'running'
-                ? 'In Progress'
-                : status.state.charAt(0).toUpperCase() + status.state.slice(1)}
+              ? 'In Progress'
+              : status.state.charAt(0).toUpperCase() + status.state.slice(1)}
           </p>
         </div>
         <Button
@@ -132,7 +147,9 @@ const LibraryProgressCard: React.FC<LibraryProgressCardProps> = ({
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-medium text-gray-300">Progress</span>
-          <span className="text-xs text-gray-400">{status.progressPercent}%</span>
+          <span className="text-xs text-gray-400">
+            {status.progressPercent}%
+          </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-gray-700">
           <div
@@ -146,7 +163,9 @@ const LibraryProgressCard: React.FC<LibraryProgressCardProps> = ({
       {status.currentTitle && (
         <div className="mb-4 rounded-md bg-stone-900 p-3">
           <p className="text-xs text-gray-500">Processing</p>
-          <p className="truncate text-sm font-medium text-white">{status.currentTitle}</p>
+          <p className="truncate text-sm font-medium text-white">
+            {status.currentTitle}
+          </p>
           <p className="text-xs text-gray-500">
             Item {status.currentItem} of {status.totalItems}
           </p>
