@@ -263,6 +263,17 @@ export async function fetchMonitoredShows(
           continue;
         }
 
+        // Skip daily shows (soaps, talk shows) - they always have "upcoming" episodes
+        // which pollutes Coming Soon collections with irrelevant content
+        if (series.seriesType === 'daily') {
+          logger.debug('Skipping daily show from Coming Soon', {
+            label: 'Coming Soon Collections',
+            title: series.title,
+            seriesType: series.seriesType,
+          });
+          continue;
+        }
+
         if (!series.id) {
           // Series doesn't have an ID yet (not added to Sonarr), skip
           continue;
