@@ -51,6 +51,9 @@ const messages = defineMessages({
   locale: 'Display Language',
   tmdbLanguage: 'TMDB Language',
   tmdbLanguageTip: 'Language for TMDB posters',
+  enableTmdbPosterCache: 'Enable TMDB Poster Cache',
+  enableTmdbPosterCacheTip:
+    'Cache TMDB posters for 7 days to reduce API calls and improve performance (recommended)',
   resetAgregarr: 'Reset',
   resetAgregarrDescription:
     'Remove all Agregarr collections from Plex and clear all user labels.',
@@ -155,6 +158,7 @@ const SettingsMain = () => {
             csrfProtection: data?.csrfProtection,
             locale: data?.locale ?? 'en',
             tmdbLanguage: data?.tmdbLanguage ?? 'en',
+            enableTmdbPosterCache: data?.enableTmdbPosterCache ?? true,
             trustProxy: data?.trustProxy,
           }}
           enableReinitialize
@@ -167,6 +171,7 @@ const SettingsMain = () => {
                 csrfProtection: values.csrfProtection,
                 locale: values.locale,
                 tmdbLanguage: values.tmdbLanguage,
+                enableTmdbPosterCache: values.enableTmdbPosterCache,
                 trustProxy: values.trustProxy,
               });
               mutate('/api/v1/settings/public');
@@ -315,6 +320,32 @@ const SettingsMain = () => {
                         ))}
                       </Field>
                     </div>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label
+                    htmlFor="enableTmdbPosterCache"
+                    className="checkbox-label"
+                  >
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.enableTmdbPosterCache)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.enableTmdbPosterCacheTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="enableTmdbPosterCache"
+                      name="enableTmdbPosterCache"
+                      onChange={() => {
+                        setFieldValue(
+                          'enableTmdbPosterCache',
+                          !values.enableTmdbPosterCache
+                        );
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="form-row">

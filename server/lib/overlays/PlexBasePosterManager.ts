@@ -244,10 +244,15 @@ class PlexBasePosterManager {
   }
 
   /**
-   * Clean up expired TMDB cache files to prevent disk growth
+   * Clean up TMDB cache files
+   * - If caching is enabled: Deletes expired files (7-day TTL)
+   * - If caching is disabled: Deletes ALL cached files to free disk space
    * Call this periodically or at job start
    */
   async cleanTmdbCache(): Promise<{ deleted: number; errors: number }> {
+    const settings = getSettings();
+    const cacheEnabled = settings.main.enableTmdbPosterCache ?? true;
+
     let deleted = 0;
     let errors = 0;
 
@@ -258,8 +263,15 @@ class PlexBasePosterManager {
       for (const file of files) {
         const filePath = path.join(TMDB_POSTER_CACHE_DIR, file);
         try {
-          const stats = await fs.stat(filePath);
-          if (now - stats.mtimeMs > TMDB_CACHE_TTL_MS) {
+          if (cacheEnabled) {
+            // Cache enabled - only delete expired files
+            const stats = await fs.stat(filePath);
+            if (now - stats.mtimeMs > TMDB_CACHE_TTL_MS) {
+              await fs.unlink(filePath);
+              deleted++;
+            }
+          } else {
+            // Cache disabled - delete ALL files to free disk space
             await fs.unlink(filePath);
             deleted++;
           }
@@ -269,11 +281,17 @@ class PlexBasePosterManager {
       }
 
       if (deleted > 0) {
-        logger.info('Cleaned TMDB poster cache', {
-          label: 'PlexBasePosterManager',
-          deleted,
-          errors,
-        });
+        logger.info(
+          cacheEnabled
+            ? 'Cleaned expired TMDB poster cache files'
+            : 'Cleared all TMDB poster cache files (caching disabled)',
+          {
+            label: 'PlexBasePosterManager',
+            deleted,
+            errors,
+            cacheEnabled,
+          }
+        );
       }
     } catch (error) {
       logger.warn('Failed to clean TMDB cache', {
@@ -925,31 +943,50 @@ class PlexBasePosterManager {
       // Check if TMDB URL changed (for deduplication)
       const tmdbUrlChanged = metadata.originalPlexPosterUrl !== posterUrl;
 
-      // Try to get from cache first (7-day TTL)
-      let posterBuffer = await this.getTmdbCachedPoster(posterUrl);
+      // Check if file caching is enabled (defaults to true)
+      const settings = getSettings();
+      const cacheEnabled = settings.main.enableTmdbPosterCache ?? true;
 
-      if (posterBuffer) {
-        logger.debug('Using cached TMDB poster', {
-          label: 'PlexBasePosterManager',
-          libraryId,
-          ratingKey: item.ratingKey,
-          tmdbUrl: posterUrl,
-          urlChanged: tmdbUrlChanged,
-        });
+      let posterBuffer: Buffer;
+
+      if (cacheEnabled) {
+        // Try to get from cache first (7-day TTL)
+        const cachedPoster = await this.getTmdbCachedPoster(posterUrl);
+
+        if (cachedPoster) {
+          logger.debug('Using cached TMDB poster', {
+            label: 'PlexBasePosterManager',
+            libraryId,
+            ratingKey: item.ratingKey,
+            tmdbUrl: posterUrl,
+            urlChanged: tmdbUrlChanged,
+          });
+          posterBuffer = cachedPoster;
+        } else {
+          // Cache miss - download from TMDB
+          logger.info('Downloading TMDB poster (cache miss)', {
+            label: 'PlexBasePosterManager',
+            libraryId,
+            ratingKey: item.ratingKey,
+            tmdbUrl: posterUrl,
+            urlChanged: tmdbUrlChanged,
+          });
+
+          posterBuffer = await this.downloadFromTMDB(posterUrl);
+
+          // Store in cache for future use
+          await this.storeTmdbCachedPoster(posterUrl, posterBuffer);
+        }
       } else {
-        // Cache miss - download from TMDB
-        logger.info('Downloading TMDB poster (cache miss)', {
+        // Cache disabled - always download fresh from TMDB
+        logger.debug('Downloading TMDB poster (cache disabled)', {
           label: 'PlexBasePosterManager',
           libraryId,
           ratingKey: item.ratingKey,
           tmdbUrl: posterUrl,
-          urlChanged: tmdbUrlChanged,
         });
 
         posterBuffer = await this.downloadFromTMDB(posterUrl);
-
-        // Store in cache for future use
-        await this.storeTmdbCachedPoster(posterUrl, posterBuffer);
       }
 
       return {
