@@ -222,8 +222,9 @@ class LocalPosterFolderService {
       });
 
       // Get admin user
-      const { getAdminUser } =
-        await import('@server/lib/collections/core/CollectionUtilities');
+      const { getAdminUser } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
       const admin = await getAdminUser();
       if (!admin) {
         throw new Error('No admin user found');
@@ -446,8 +447,9 @@ class LocalPosterFolderService {
       });
 
       // Get admin user
-      const { getAdminUser } =
-        await import('@server/lib/collections/core/CollectionUtilities');
+      const { getAdminUser } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
       const admin = await getAdminUser();
       if (!admin) {
         throw new Error('No admin user found');

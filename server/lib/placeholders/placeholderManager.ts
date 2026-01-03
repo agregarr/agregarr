@@ -2,7 +2,7 @@ import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import fs from 'fs/promises';
 import path from 'path';
-import type { PlaceholderOptions, PlaceholderResult } from './types';
+import type { PlaceholderOptions } from './types';
 
 /**
  * Sanitize filename to remove invalid characters

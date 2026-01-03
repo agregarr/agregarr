@@ -2,7 +2,6 @@ import type PlexAPI from '@server/api/plexapi';
 import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionItem,
-  CollectionSource,
   CollectionSyncOptions,
   MissingItem,
   PlexCollection,
@@ -209,8 +208,9 @@ export class MultiSourceOrchestrator {
         sourcesToFetch.length === 1
       ) {
         const activeSource = sourcesToFetch[0];
-        this.dynamicCycleTitle =
-          await this.extractTitleFromSource(activeSource);
+        this.dynamicCycleTitle = await this.extractTitleFromSource(
+          activeSource
+        );
 
         if (this.dynamicCycleTitle) {
           const previousName = config.name;
@@ -422,8 +422,9 @@ export class MultiSourceOrchestrator {
         );
 
         // Import helper function that handles both enabled/disabled cases
-        const { handlePlaceholderCleanup } =
-          await import('@server/lib/placeholders/services/PlaceholderCleanup');
+        const { handlePlaceholderCleanup } = await import(
+          '@server/lib/placeholders/services/PlaceholderCleanup'
+        );
 
         // Run cleanup or deletion based on setting
         await handlePlaceholderCleanup(
@@ -625,8 +626,9 @@ export class MultiSourceOrchestrator {
         try {
           // Use PlaceholderCreation service for unified placeholder creation
           // This works for any source type, not just Coming Soon
-          const { processPlaceholdersForMissingItems } =
-            await import('@server/lib/placeholders/services/PlaceholderCreation');
+          const { processPlaceholdersForMissingItems } = await import(
+            '@server/lib/placeholders/services/PlaceholderCreation'
+          );
 
           const newPlaceholderItems = await processPlaceholdersForMissingItems(
             missingItems,
@@ -1011,8 +1013,9 @@ export class MultiSourceOrchestrator {
 
     try {
       // Get current collection items to analyze their type
-      const currentItemRatingKeys =
-        await plexClient.getCollectionItems(collectionRatingKey);
+      const currentItemRatingKeys = await plexClient.getCollectionItems(
+        collectionRatingKey
+      );
 
       // For empty collections, we need to check the collection's inherent type
       // Unfortunately, Plex doesn't directly expose this, but we can infer it by
@@ -1735,12 +1738,14 @@ export class MultiSourceOrchestrator {
           }
         );
 
-        const { overlayLibraryService } =
-          await import('@server/lib/overlays/OverlayLibraryService');
+        const { overlayLibraryService } = await import(
+          '@server/lib/overlays/OverlayLibraryService'
+        );
 
         // Get item rating keys from this specific collection
-        const itemRatingKeys =
-          await plexClient.getCollectionItems(collectionRatingKey);
+        const itemRatingKeys = await plexClient.getCollectionItems(
+          collectionRatingKey
+        );
 
         if (itemRatingKeys && itemRatingKeys.length > 0) {
           logger.info('Applying overlays to collection items', {
@@ -1842,8 +1847,9 @@ export class MultiSourceOrchestrator {
       if (wallpaperFilename) {
         try {
           // Get full path to wallpaper file
-          const { getWallpaperPath } =
-            await import('@server/lib/wallpaperStorage');
+          const { getWallpaperPath } = await import(
+            '@server/lib/wallpaperStorage'
+          );
           const wallpaperPath = getWallpaperPath(wallpaperFilename);
 
           // Check if wallpaper needs reapplication using metadata tracking
@@ -1854,8 +1860,9 @@ export class MultiSourceOrchestrator {
           let shouldUploadWallpaper = true;
 
           try {
-            const currentArtUrl =
-              await plexClient.getCurrentArtUrl(collectionRatingKey);
+            const currentArtUrl = await plexClient.getCurrentArtUrl(
+              collectionRatingKey
+            );
 
             const shouldReapply = await metadataService.shouldReapplyWallpaper(
               collectionRatingKey,
@@ -1891,8 +1898,9 @@ export class MultiSourceOrchestrator {
 
             // Get new Plex art URL after upload and record metadata
             try {
-              const newArtUrl =
-                await plexClient.getCurrentArtUrl(collectionRatingKey);
+              const newArtUrl = await plexClient.getCurrentArtUrl(
+                collectionRatingKey
+              );
 
               if (newArtUrl) {
                 await metadataService.recordWallpaperApplication(
@@ -1996,8 +2004,9 @@ export class MultiSourceOrchestrator {
           let shouldUploadTheme = true;
 
           try {
-            const currentThemeUrl =
-              await plexClient.getCurrentThemeUrl(collectionRatingKey);
+            const currentThemeUrl = await plexClient.getCurrentThemeUrl(
+              collectionRatingKey
+            );
 
             const shouldReapply = await metadataService.shouldReapplyTheme(
               collectionRatingKey,
@@ -2033,8 +2042,9 @@ export class MultiSourceOrchestrator {
 
             // Get new Plex theme URL after upload and record metadata
             try {
-              const newThemeUrl =
-                await plexClient.getCurrentThemeUrl(collectionRatingKey);
+              const newThemeUrl = await plexClient.getCurrentThemeUrl(
+                collectionRatingKey
+              );
 
               if (newThemeUrl) {
                 await metadataService.recordThemeApplication(
