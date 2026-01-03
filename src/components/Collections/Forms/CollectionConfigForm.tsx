@@ -2464,7 +2464,7 @@ const CollectionFormConfigForm = ({
                                           <div className="mt-2 text-xs text-gray-400">
                                             Choose how items in the smart
                                             collection should be sorted. Due to
-                                            Plex limiations, the original list
+                                            Plex limitations, the original list
                                             order cannot be preserved when using
                                             smart collections.
                                           </div>
