@@ -27,7 +27,7 @@ import {
  */
 export interface OverlayItemInput {
   ratingKey: string;
-  contextOverrides?: Partial;
+  contextOverrides?: Partial<OverlayRenderContext>;
 }
 
 /**
@@ -35,13 +35,16 @@ export interface OverlayItemInput {
  */
 class OverlayLibraryService {
   // Cache for Radarr/Sonarr library data (per job)
-  private radarrMoviesCache?: Map;
-  private sonarrSeriesCache?: Map;
+  private radarrMoviesCache?: Map<string, RadarrMovie[]>;
+  private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
   private maintainerrCollectionsCache?: MaintainerrCollection[];
 
   // Track running libraries with mutex-like behavior
   // Prevents concurrent processing of the same library
-  private runningLibraries = new Map();
+  private runningLibraries = new Map<
+    string,
+    { libraryName: string; startTime: number; promise: Promise<void> }
+  >();
 
   /**
    * Get status for a specific library
@@ -77,43 +80,52 @@ class OverlayLibraryService {
    * Clear library caches (call at start of overlay job)
    */
   private clearLibraryCaches() {
-    this.radarrMoviesCache = new Map();
-    this.sonarrSeriesCache = new Map();
+    this.radarrMoviesCache = new Map<string, RadarrMovie[]>();
+    this.sonarrSeriesCache = new Map<string, SonarrSeries[]>();
     this.maintainerrCollectionsCache = undefined;
   }
 
   /**
    * Apply overlays to all items in a library
-   * Uses mutex-like behavior to prevent concurrent processing of the same library
+   * Uses mutex to prevent concurrent processing of the same library
    */
   async applyOverlaysToLibrary(
     libraryId: string,
     checkCancelled?: () => boolean
-  ): Promise {
+  ): Promise<void> {
     // Check if library is already being processed (mutex check)
-    // Must check AND set before any await to prevent race condition
+    // Reject duplicate requests to prevent corruption and match API layer behavior
     const existing = this.runningLibraries.get(libraryId);
     if (existing) {
-      logger.warn('Library already being processed, waiting for completion', {
-        label: 'OverlayLibrary',
-        libraryId,
-        libraryName: existing.libraryName,
-        startedAt: new Date(existing.startTime).toISOString(),
-        runningFor: `${Math.round((Date.now() - existing.startTime) / 1000)}s`,
-      });
-      // Wait for existing job to complete instead of running concurrently
-      await existing.promise;
-      // After waiting, run our job (the previous one is done)
+      const runningFor = Math.round((Date.now() - existing.startTime) / 1000);
+      logger.warn(
+        'Library already being processed, rejecting duplicate request',
+        {
+          label: 'OverlayLibrary',
+          libraryId,
+          libraryName: existing.libraryName,
+          startedAt: new Date(existing.startTime).toISOString(),
+          runningFor: `${runningFor}s`,
+        }
+      );
+      throw new Error(
+        `Library "${existing.libraryName}" is already being processed (running for ${runningFor}s)`
+      );
     }
 
     // Create a deferred promise to set in the map immediately
     // This prevents race conditions where two calls pass the check before either awaits
-    let resolveDeferred: () => void;
-    let rejectDeferred: (error: Error) => void;
-    const deferredPromise = new Promise((resolve, reject) => {
+    let resolveDeferred: (() => void) | undefined;
+    let rejectDeferred: ((error: Error) => void) | undefined;
+    const deferredPromise = new Promise<void>((resolve, reject) => {
       resolveDeferred = resolve;
       rejectDeferred = reject;
     });
+
+    // Verify promise initialization succeeded
+    if (!resolveDeferred || !rejectDeferred) {
+      throw new Error('Failed to initialize deferred promise');
+    }
 
     // Mark as running BEFORE any await (to prevent race condition)
     this.runningLibraries.set(libraryId, {
@@ -137,11 +149,9 @@ class OverlayLibraryService {
 
       // Process the library
       await this.processLibraryOverlays(libraryId, config, checkCancelled);
-      resolveDeferred!();
+      resolveDeferred();
     } catch (error) {
-      rejectDeferred!(
-        error instanceof Error ? error : new Error(String(error))
-      );
+      rejectDeferred(error instanceof Error ? error : new Error(String(error)));
       throw error;
     } finally {
       // Clean up
@@ -156,14 +166,15 @@ class OverlayLibraryService {
     libraryId: string,
     config: OverlayLibraryConfig | null,
     checkCancelled?: () => boolean
-  ): Promise {
+  ): Promise<void> {
     try {
       // Clear library caches at start of job
       this.clearLibraryCaches();
 
       // Clear TMDB URL cache to avoid stale data from previous runs
-      const { plexBasePosterManager } =
-        await import('@server/lib/overlays/PlexBasePosterManager');
+      const { plexBasePosterManager } = await import(
+        '@server/lib/overlays/PlexBasePosterManager'
+      );
       plexBasePosterManager.clearTmdbUrlCache();
 
       // Also clean up expired TMDB poster files
@@ -239,8 +250,9 @@ class OverlayLibraryService {
       }
 
       // Get library items from Plex
-      const { getAdminUser } =
-        await import('@server/lib/collections/core/CollectionUtilities');
+      const { getAdminUser } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
       const admin = await getAdminUser();
 
       if (!admin) {
@@ -360,7 +372,7 @@ class OverlayLibraryService {
   async applyOverlaysToCollectionItems(
     items: string[] | OverlayItemInput[],
     libraryId: string
-  ): Promise {
+  ): Promise<void> {
     try {
       // Clear library caches at start of job
       this.clearLibraryCaches();
@@ -425,8 +437,9 @@ class OverlayLibraryService {
       });
 
       // Get admin user for Plex API
-      const { getAdminUser } =
-        await import('@server/lib/collections/core/CollectionUtilities');
+      const { getAdminUser } = await import(
+        '@server/lib/collections/core/CollectionUtilities'
+      );
       const admin = await getAdminUser();
 
       if (!admin) {
@@ -522,8 +535,8 @@ class OverlayLibraryService {
     configuredLibraryType: 'movie' | 'show',
     libraryId: string,
     libraryName: string,
-    contextOverrides?: Partial
-  ): Promise {
+    contextOverrides?: Partial<OverlayRenderContext>
+  ): Promise<void> {
     try {
       // CRITICAL: Derive actual media type from item.type, not library config
       // This prevents TMDB API namespace mismatches that cause wrong posters
@@ -561,8 +574,9 @@ class OverlayLibraryService {
       }
 
       // Check if this is a placeholder (async version with API call for suspicious items)
-      const { placeholderContextService } =
-        await import('@server/lib/placeholders/services/PlaceholderContextService');
+      const { placeholderContextService } = await import(
+        '@server/lib/placeholders/services/PlaceholderContextService'
+      );
       const plexMetadata = item as {
         type: string;
         guid?: string;
@@ -587,7 +601,12 @@ class OverlayLibraryService {
         await placeholderContextService.isPlaceholderItemAsync(
           plexMetadata,
           plexApi['plexClient'] as {
-            query: (path: string) => Promise;
+            query: (path: string) => Promise<{
+              MediaContainer?: {
+                Directory?: unknown[];
+                Metadata?: unknown[];
+              };
+            }>;
           }
         );
 
@@ -607,7 +626,7 @@ class OverlayLibraryService {
       );
 
       // Fetch fresh release date information for ALL items with TMDB ID
-      let releaseDateContext: Partial = {};
+      let releaseDateContext: Partial<OverlayRenderContext> = {};
       if (tmdbId) {
         const releaseDateInfo = await fetchReleaseDateInfo(
           tmdbId,
@@ -616,8 +635,9 @@ class OverlayLibraryService {
 
         if (releaseDateInfo) {
           // Calculate days until release and days ago
-          const { calculateDaysSince } =
-            await import('@server/utils/dateHelpers');
+          const { calculateDaysSince } = await import(
+            '@server/utils/dateHelpers'
+          );
           let daysUntilRelease: number | undefined;
           let daysAgo: number | undefined;
           let daysUntilNextEpisode: number | undefined;
@@ -668,7 +688,7 @@ class OverlayLibraryService {
       }
 
       // Check monitoring status for ALL items with TMDB ID
-      let monitoringContext: Partial = {};
+      let monitoringContext: Partial<OverlayRenderContext> = {};
       if (tmdbId) {
         monitoringContext = await checkMonitoringStatus(
           tmdbId,
@@ -736,7 +756,7 @@ class OverlayLibraryService {
       const overlayInputHash = calculateOverlayInputHash({
         templateIds: matchingTemplates.map((t) => t.id).sort(),
         usedFields: usedFields,
-        context: context as Record,
+        context: context as Record<string, unknown>,
       });
 
       // Debug logging for hash comparison
@@ -771,8 +791,9 @@ class OverlayLibraryService {
 
         // Check if Plex poster changed using normalized comparison
         // This handles different URL formats (upload://, /library/metadata/, http://...)
-        const { posterUrlsMatch, extractThumbId } =
-          await import('@server/utils/posterUrlHelpers');
+        const { posterUrlsMatch, extractThumbId } = await import(
+          '@server/utils/posterUrlHelpers'
+        );
         const plexPosterMissing = !posterUrlsMatch(
           metadata?.ourOverlayPosterUrl,
           currentPosterUrl
@@ -834,8 +855,9 @@ class OverlayLibraryService {
       const posterSource = settings.overlays?.defaultPosterSource || 'tmdb';
 
       // Get base poster with change detection
-      const { plexBasePosterManager } =
-        await import('@server/lib/overlays/PlexBasePosterManager');
+      const { plexBasePosterManager } = await import(
+        '@server/lib/overlays/PlexBasePosterManager'
+      );
 
       let basePosterResult: {
         posterBuffer: Buffer;
@@ -866,7 +888,9 @@ class OverlayLibraryService {
         // Re-throw to let caller track this as a failure
         // Previously this was silently returning, causing failed items to be counted as success
         throw new Error(
-          `Failed to get base poster for "${item.title}": ${error instanceof Error ? error.message : String(error)}`
+          `Failed to get base poster for "${item.title}": ${
+            error instanceof Error ? error.message : String(error)
+          }`
         );
       }
 
