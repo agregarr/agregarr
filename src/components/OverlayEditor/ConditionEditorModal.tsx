@@ -24,7 +24,13 @@ import type {
 } from '@server/entity/OverlayTemplate';
 import { useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
+import useSWR from 'swr';
 import { CONDITION_FIELD_CATEGORIES } from './types';
+
+interface ArrTag {
+  id: number;
+  label: string;
+}
 
 const messages = defineMessages({
   title: 'Edit Application Conditions',
@@ -132,6 +138,31 @@ const RuleItem: React.FC<RuleItemProps> = ({
 
   const isNumeric = NUMERIC_FIELDS.includes(field);
   const isBoolean = BOOLEAN_FIELDS.includes(field);
+  const isRadarrTags = field === 'radarrTags';
+  const isSonarrTags = field === 'sonarrTags';
+  const isTagField = isRadarrTags || isSonarrTags;
+
+  // Fetch all tags from all Radarr instances
+  const { data: radarrTags } = useSWR<ArrTag[]>(
+    isRadarrTags ? '/api/v1/settings/radarr/alltags' : null,
+    (url) => fetch(url).then((res) => res.json())
+  );
+
+  // Fetch all tags from all Sonarr instances
+  const { data: sonarrTags } = useSWR<ArrTag[]>(
+    isSonarrTags ? '/api/v1/settings/sonarr/alltags' : null,
+    (url) => fetch(url).then((res) => res.json())
+  );
+
+  const availableTags = isRadarrTags
+    ? Array.isArray(radarrTags)
+      ? radarrTags
+      : []
+    : isSonarrTags
+    ? Array.isArray(sonarrTags)
+      ? sonarrTags
+      : []
+    : [];
 
   // Sanitize operator if it's invalid for the current field type (on mount)
   const lastSanitizedKey = useRef<string>('');
@@ -195,7 +226,7 @@ const RuleItem: React.FC<RuleItemProps> = ({
             value: isNewFieldBoolean ? true : '',
           });
         }}
-        className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
+        className="flex-1 select-none rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
       >
         {Object.entries(CONDITION_FIELD_CATEGORIES).map(
           ([category, fields]) => (
@@ -270,6 +301,24 @@ const RuleItem: React.FC<RuleItemProps> = ({
         >
           <option value="true">true</option>
           <option value="false">false</option>
+        </select>
+      ) : isTagField ? (
+        <select
+          value={String(value)}
+          onChange={(e) => {
+            onChange({
+              ...rule,
+              value: e.target.value,
+            });
+          }}
+          className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
+        >
+          <option value="">Select tag...</option>
+          {availableTags.map((tag) => (
+            <option key={tag.id} value={tag.label}>
+              {tag.label}
+            </option>
+          ))}
         </select>
       ) : (
         <input

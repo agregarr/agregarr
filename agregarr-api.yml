@@ -9444,6 +9444,21 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ServiceProfile'
+  /settings/radarr/alltags:
+    get:
+      summary: Get all Radarr tags from all instances
+      description: Returns a deduplicated list of tags from all configured Radarr instances.
+      tags:
+        - settings-services
+      responses:
+        '200':
+          description: List of tags from all Radarr instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/radarr/{radarrId}:
     put:
       summary: Update Radarr instance
@@ -9671,6 +9686,21 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ServiceProfile'
+  /settings/sonarr/alltags:
+    get:
+      summary: Get all Sonarr tags from all instances
+      description: Returns a deduplicated list of tags from all configured Sonarr instances.
+      tags:
+        - settings-services
+      responses:
+        '200':
+          description: List of tags from all Sonarr instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/sonarr/{sonarrId}:
     put:
       summary: Update Sonarr instance

@@ -228,4 +228,41 @@ sonarrRoutes.delete<{ id: string }>('/:id', (req, res) => {
   return res.status(200).json(removed[0]);
 });
 
+sonarrRoutes.get('/alltags', async (_req, res) => {
+  const settings = getSettings();
+  const allTags: { id: number; label: string }[] = [];
+  const seenLabels = new Set<string>();
+
+  // Fetch tags from all Sonarr instances
+  for (const sonarrSettings of settings.sonarr) {
+    if (!sonarrSettings.hostname) continue;
+
+    try {
+      const sonarr = new SonarrAPI({
+        apiKey: sonarrSettings.apiKey,
+        url: SonarrAPI.buildUrl(sonarrSettings, '/api/v3'),
+      });
+
+      const tags = await sonarr.getTags();
+
+      // Add unique tags (deduplicate by label)
+      for (const tag of tags) {
+        if (!seenLabels.has(tag.label)) {
+          seenLabels.add(tag.label);
+          allTags.push(tag);
+        }
+      }
+    } catch (e) {
+      logger.debug('Failed to fetch tags from Sonarr instance', {
+        label: 'Sonarr',
+        hostname: sonarrSettings.hostname,
+        message: e.message,
+      });
+      // Continue with other instances
+    }
+  }
+
+  return res.status(200).json(allTags);
+});
+
 export default sonarrRoutes;

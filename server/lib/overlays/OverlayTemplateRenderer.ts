@@ -182,12 +182,28 @@ function evaluateRule(
 
   switch (rule.operator) {
     case 'eq':
+      // For array fields (like radarrTags/sonarrTags), check if array contains the value
+      if (Array.isArray(value) && typeof conditionValue === 'string') {
+        return value.some(
+          (item) =>
+            typeof item === 'string' &&
+            item.toLowerCase() === conditionValue.toLowerCase()
+        );
+      }
       // Case-insensitive comparison for strings
       if (typeof value === 'string' && typeof conditionValue === 'string') {
         return value.toLowerCase() === conditionValue.toLowerCase();
       }
       return value === conditionValue;
     case 'neq':
+      // For array fields, check if array does NOT contain the value
+      if (Array.isArray(value) && typeof conditionValue === 'string') {
+        return !value.some(
+          (item) =>
+            typeof item === 'string' &&
+            item.toLowerCase() === conditionValue.toLowerCase()
+        );
+      }
       // Case-insensitive comparison for strings
       if (typeof value === 'string' && typeof conditionValue === 'string') {
         return value.toLowerCase() !== conditionValue.toLowerCase();
@@ -231,6 +247,14 @@ function evaluateRule(
         conditionValue.includes(value as string | number)
       );
     case 'contains':
+      // For array fields, check if array contains the value
+      if (Array.isArray(value) && typeof conditionValue === 'string') {
+        return value.some(
+          (item) =>
+            typeof item === 'string' &&
+            item.toLowerCase().includes(conditionValue.toLowerCase())
+        );
+      }
       return (
         typeof value === 'string' &&
         typeof conditionValue === 'string' &&
@@ -344,6 +368,8 @@ export interface OverlayRenderContext {
   inSonarr?: boolean;
   hasFile?: boolean; // Whether *arr reports item has files
   downloaded?: boolean; // Derived from hasFile for monitored items, or !isPlaceholder for others
+  radarrTags?: string[]; // Array of Radarr tag names
+  sonarrTags?: string[]; // Array of Sonarr tag names
 
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
@@ -353,7 +379,7 @@ export interface OverlayRenderContext {
   mediaType: 'movie' | 'show';
 
   // Future extensibility
-  [key: string]: string | number | boolean | Date | undefined;
+  [key: string]: string | number | boolean | Date | string[] | undefined;
 }
 
 /**
