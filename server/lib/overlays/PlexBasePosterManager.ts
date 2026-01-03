@@ -12,20 +12,170 @@ const BASE_POSTERS_DIR = path.join(
   'plex-base-posters'
 );
 
+const TMDB_POSTER_CACHE_DIR = path.join(
+  process.cwd(),
+  'config',
+  'tmdb-poster-cache'
+);
+
+// TMDB poster cache TTL: 7 days
+const TMDB_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
  * Simple file storage manager for base posters used in overlay application
  * All tracking is done via MediaItemMetadata database - NO JSON registry
  */
 class PlexBasePosterManager {
+  // Per-job cache for TMDB poster URLs (avoids repeated API calls within a single overlay run)
+  // Key format: `${tmdbId}-${mediaType}-${language}`
+  // Stores Promises to handle concurrent requests (request coalescing)
+  // Uses null to indicate "no poster available" (negative caching)
+  private tmdbUrlCache: Map<string, Promise<string | null>> = new Map();
+
+  /**
+   * Clear the per-job TMDB URL cache
+   * Call this at the start of each overlay job
+   */
+  clearTmdbUrlCache(): void {
+    const size = this.tmdbUrlCache.size;
+    this.tmdbUrlCache.clear();
+    if (size > 0) {
+      logger.debug('Cleared TMDB URL cache', {
+        label: 'PlexBasePosterManager',
+        previousSize: size,
+      });
+    }
+  }
+
+  /**
+   * Get TMDB poster URL with per-job caching
+   * Avoids repeated API calls for the same item within a single overlay run
+   * Uses Promise caching to handle concurrent requests (request coalescing)
+   * Caches null for items without posters (negative caching)
+   */
+  private async getTmdbPosterUrl(
+    tmdbId: number,
+    mediaType: 'movie' | 'show',
+    language: string
+  ): Promise<string | undefined> {
+    const cacheKey = `${tmdbId}-${mediaType}-${language}`;
+
+    // Check cache first - returns Promise to handle concurrent requests
+    const cachedPromise = this.tmdbUrlCache.get(cacheKey);
+    if (cachedPromise) {
+      logger.debug('TMDB URL cache hit', {
+        label: 'PlexBasePosterManager',
+        tmdbId,
+        mediaType,
+        language,
+      });
+      const result = await cachedPromise;
+      return result ?? undefined; // Convert null back to undefined
+    }
+
+    // Cache miss - create Promise for TMDB API call
+    // Store Promise immediately to coalesce concurrent requests
+    // Wrap with error handling to remove failed entries from cache
+    const fetchPromise = this.fetchTmdbPosterUrl(
+      tmdbId,
+      mediaType,
+      language
+    ).catch((error: unknown) => {
+      // Remove failed entry so future calls can retry
+      this.tmdbUrlCache.delete(cacheKey);
+      throw error;
+    });
+
+    this.tmdbUrlCache.set(cacheKey, fetchPromise);
+
+    logger.debug('TMDB URL cache miss - fetching', {
+      label: 'PlexBasePosterManager',
+      tmdbId,
+      mediaType,
+      language,
+      cacheSize: this.tmdbUrlCache.size,
+    });
+
+    const result = await fetchPromise;
+    return result ?? undefined; // Convert null back to undefined
+  }
+
+  /**
+   * Fetch TMDB poster URL from API (internal helper)
+   * Returns null if no poster available (for negative caching)
+   */
+  private async fetchTmdbPosterUrl(
+    tmdbId: number,
+    mediaType: 'movie' | 'show',
+    language: string
+  ): Promise<string | null> {
+    const TheMovieDb = (await import('@server/api/themoviedb')).default;
+    const tmdbClient = new TheMovieDb();
+
+    let posterUrl: string | null = null;
+
+    try {
+      if (mediaType === 'movie') {
+        const images = await tmdbClient.getMovieImages({
+          movieId: tmdbId,
+          language,
+        });
+
+        const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+        if (poster) {
+          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+        } else {
+          // Fallback to main poster from movie details
+          const movie = await tmdbClient.getMovie({ movieId: tmdbId });
+          posterUrl = movie.poster_path
+            ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
+            : null;
+        }
+      } else {
+        const images = await tmdbClient.getTvShowImages({
+          tvId: tmdbId,
+          language,
+        });
+
+        const poster = images.posters.find((p) => p.iso_639_1 === language);
+
+        if (poster) {
+          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
+        } else {
+          // Fallback to main poster from TV show details
+          const tvShow = await tmdbClient.getTvShow({ tvId: tmdbId });
+          posterUrl = tvShow.poster_path
+            ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
+            : null;
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to fetch TMDB poster URL', {
+        label: 'PlexBasePosterManager',
+        tmdbId,
+        mediaType,
+        language,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Return null to cache the failure (negative caching)
+      return null;
+    }
+
+    return posterUrl;
+  }
+
   /**
    * Initialize base poster storage directory
    */
   async initialize(): Promise<void> {
     try {
       await fs.mkdir(BASE_POSTERS_DIR, { recursive: true });
+      await fs.mkdir(TMDB_POSTER_CACHE_DIR, { recursive: true });
       logger.info('Initialized base poster storage', {
         label: 'PlexBasePosterManager',
         directory: BASE_POSTERS_DIR,
+        tmdbCacheDirectory: TMDB_POSTER_CACHE_DIR,
       });
     } catch (error) {
       logger.error('Failed to initialize base poster storage', {
@@ -33,6 +183,149 @@ class PlexBasePosterManager {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
+    }
+  }
+
+  /**
+   * Extract cache filename from TMDB poster URL
+   * TMDB URLs have clean filenames that are filesystem-safe (e.g., /abc123.jpg)
+   */
+  private getTmdbCacheFilename(posterUrl: string): string {
+    // Extract the file path from URL (e.g., /abc123.jpg from https://image.tmdb.org/t/p/original/abc123.jpg)
+    const urlPath = new URL(posterUrl).pathname;
+    const filename = path.basename(urlPath);
+    return filename;
+  }
+
+  /**
+   * Get cached TMDB poster if valid (exists and not expired)
+   */
+  private async getTmdbCachedPoster(posterUrl: string): Promise<Buffer | null> {
+    const filename = this.getTmdbCacheFilename(posterUrl);
+    const cachePath = path.join(TMDB_POSTER_CACHE_DIR, filename);
+
+    try {
+      const stats = await fs.stat(cachePath);
+      const age = Date.now() - stats.mtimeMs;
+
+      if (age > TMDB_CACHE_TTL_MS) {
+        logger.debug('TMDB poster cache expired', {
+          label: 'PlexBasePosterManager',
+          filename,
+          ageHours: Math.round(age / (60 * 60 * 1000)),
+        });
+        // Delete expired file to free disk space
+        try {
+          await fs.unlink(cachePath);
+        } catch {
+          // Ignore deletion errors
+        }
+        return null;
+      }
+
+      const buffer = await fs.readFile(cachePath);
+      logger.debug('TMDB poster cache hit', {
+        label: 'PlexBasePosterManager',
+        filename,
+        ageHours: Math.round(age / (60 * 60 * 1000)),
+      });
+      return buffer;
+    } catch (error) {
+      // File doesn't exist is expected - only log unexpected errors
+      if (error instanceof Error && !error.message.includes('ENOENT')) {
+        logger.debug('TMDB poster cache read error', {
+          label: 'PlexBasePosterManager',
+          filename,
+          error: error.message,
+        });
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Clean up TMDB cache files
+   * - If caching is enabled: Deletes expired files (7-day TTL)
+   * - If caching is disabled: Deletes ALL cached files to free disk space
+   * Call this periodically or at job start
+   */
+  async cleanTmdbCache(): Promise<{ deleted: number; errors: number }> {
+    const settings = getSettings();
+    const cacheEnabled = settings.main.enableTmdbPosterCache ?? true;
+
+    let deleted = 0;
+    let errors = 0;
+
+    try {
+      const files = await fs.readdir(TMDB_POSTER_CACHE_DIR);
+      const now = Date.now();
+
+      for (const file of files) {
+        const filePath = path.join(TMDB_POSTER_CACHE_DIR, file);
+        try {
+          if (cacheEnabled) {
+            // Cache enabled - only delete expired files
+            const stats = await fs.stat(filePath);
+            if (now - stats.mtimeMs > TMDB_CACHE_TTL_MS) {
+              await fs.unlink(filePath);
+              deleted++;
+            }
+          } else {
+            // Cache disabled - delete ALL files to free disk space
+            await fs.unlink(filePath);
+            deleted++;
+          }
+        } catch {
+          errors++;
+        }
+      }
+
+      if (deleted > 0) {
+        logger.info(
+          cacheEnabled
+            ? 'Cleaned expired TMDB poster cache files'
+            : 'Cleared all TMDB poster cache files (caching disabled)',
+          {
+            label: 'PlexBasePosterManager',
+            deleted,
+            errors,
+            cacheEnabled,
+          }
+        );
+      }
+    } catch (error) {
+      logger.warn('Failed to clean TMDB cache', {
+        label: 'PlexBasePosterManager',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return { deleted, errors };
+  }
+
+  /**
+   * Store TMDB poster in cache
+   */
+  private async storeTmdbCachedPoster(
+    posterUrl: string,
+    buffer: Buffer
+  ): Promise<void> {
+    const filename = this.getTmdbCacheFilename(posterUrl);
+    const cachePath = path.join(TMDB_POSTER_CACHE_DIR, filename);
+
+    try {
+      await fs.writeFile(cachePath, buffer);
+      logger.debug('Stored TMDB poster in cache', {
+        label: 'PlexBasePosterManager',
+        filename,
+        size: buffer.length,
+      });
+    } catch (error) {
+      logger.warn('Failed to cache TMDB poster', {
+        label: 'PlexBasePosterManager',
+        filename,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -337,7 +630,6 @@ class PlexBasePosterManager {
       return urlChanged;
     } else {
       // ===== TMDB SOURCE =====
-      const TheMovieDb = (await import('@server/api/themoviedb')).default;
       const { getTmdbLanguage } = await import('@server/lib/settings');
 
       // Extract TMDB ID
@@ -360,47 +652,13 @@ class PlexBasePosterManager {
       const mediaType: 'movie' | 'show' =
         item.type === 'movie' ? 'movie' : 'show';
 
-      // Get TMDB poster URL (lightweight - no download)
+      // Get TMDB poster URL using cached lookup
       const language = await getTmdbLanguage(libraryId);
-      const tmdbClient = new TheMovieDb();
-
-      let posterUrl: string | undefined;
-
-      if (mediaType === 'movie') {
-        const images = await tmdbClient.getMovieImages({
-          movieId: tmdbId,
-          language,
-        });
-
-        const poster = images.posters.find((p) => p.iso_639_1 === language);
-
-        if (poster) {
-          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-        } else {
-          // Fallback to main poster from movie details
-          const movie = await tmdbClient.getMovie({ movieId: tmdbId });
-          posterUrl = movie.poster_path
-            ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
-            : undefined;
-        }
-      } else {
-        const images = await tmdbClient.getTvShowImages({
-          tvId: tmdbId,
-          language,
-        });
-
-        const poster = images.posters.find((p) => p.iso_639_1 === language);
-
-        if (poster) {
-          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-        } else {
-          // Fallback to main poster from TV show details
-          const tvShow = await tmdbClient.getTvShow({ tvId: tmdbId });
-          posterUrl = tvShow.poster_path
-            ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
-            : undefined;
-        }
-      }
+      const posterUrl = await this.getTmdbPosterUrl(
+        tmdbId,
+        mediaType,
+        language
+      );
 
       if (!posterUrl) {
         throw new Error('No TMDB poster available');
@@ -638,102 +896,104 @@ class PlexBasePosterManager {
       };
     } else {
       // ===== TMDB SOURCE =====
-      const TheMovieDb = (await import('@server/api/themoviedb')).default;
       const { getTmdbLanguage } = await import('@server/lib/settings');
 
-      // Extract TMDB ID
-      let tmdbId: number | undefined;
-      if (item.Guid) {
+      // Use passed tmdbId if available, otherwise extract from item
+      let resolvedTmdbId = tmdbId;
+      if (!resolvedTmdbId && item.Guid) {
         const tmdbGuid = item.Guid.find((g) => g.id?.includes('tmdb://'));
         if (tmdbGuid) {
           const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
           if (match) {
-            tmdbId = parseInt(match[1]);
+            resolvedTmdbId = parseInt(match[1]);
           }
         }
       }
 
-      if (!tmdbId) {
+      if (!resolvedTmdbId) {
         throw new Error('No TMDB ID found for item');
       }
 
       // Log TMDB fetch details for debugging wrong poster issues
-      logger.info('Fetching TMDB poster', {
+      logger.debug('Fetching TMDB poster', {
         label: 'PlexBasePosterManager',
         itemTitle: item.title,
         ratingKey: item.ratingKey,
         itemType: item.type,
-        tmdbId,
+        tmdbId: resolvedTmdbId,
         mediaType,
-        endpoint: mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`,
+        endpoint:
+          mediaType === 'movie'
+            ? `/movie/${resolvedTmdbId}`
+            : `/tv/${resolvedTmdbId}`,
       });
 
-      // Get TMDB poster URL (lightweight - no download yet)
+      // Get TMDB poster URL using cached lookup
       const language = await getTmdbLanguage(libraryId);
-      const tmdbClient = new TheMovieDb();
-
-      let posterUrl: string | undefined;
-
-      if (mediaType === 'movie') {
-        const images = await tmdbClient.getMovieImages({
-          movieId: tmdbId,
-          language,
-        });
-
-        const poster = images.posters.find((p) => p.iso_639_1 === language);
-
-        if (poster) {
-          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-        } else {
-          // Fallback to main poster from movie details
-          const movie = await tmdbClient.getMovie({ movieId: tmdbId });
-          posterUrl = movie.poster_path
-            ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
-            : undefined;
-        }
-      } else {
-        const images = await tmdbClient.getTvShowImages({
-          tvId: tmdbId,
-          language,
-        });
-
-        const poster = images.posters.find((p) => p.iso_639_1 === language);
-
-        if (poster) {
-          posterUrl = `https://image.tmdb.org/t/p/original${poster.file_path}`;
-        } else {
-          // Fallback to main poster from TV show details
-          const tvShow = await tmdbClient.getTvShow({ tvId: tmdbId });
-          posterUrl = tvShow.poster_path
-            ? `https://image.tmdb.org/t/p/original${tvShow.poster_path}`
-            : undefined;
-        }
-      }
+      const posterUrl = await this.getTmdbPosterUrl(
+        resolvedTmdbId,
+        mediaType,
+        language
+      );
 
       if (!posterUrl) {
         throw new Error('No TMDB poster available');
       }
 
       // Check if TMDB URL changed (for deduplication)
-      // We don't cache TMDB posters - always download fresh
       const tmdbUrlChanged = metadata.originalPlexPosterUrl !== posterUrl;
 
-      // ALWAYS download fresh from TMDB (no caching)
-      logger.info('Downloading TMDB poster', {
-        label: 'PlexBasePosterManager',
-        libraryId,
-        ratingKey: item.ratingKey,
-        tmdbUrl: posterUrl,
-        urlChanged: tmdbUrlChanged,
-      });
+      // Check if file caching is enabled (defaults to true)
+      const settings = getSettings();
+      const cacheEnabled = settings.main.enableTmdbPosterCache ?? true;
 
-      const posterBuffer = await this.downloadFromTMDB(posterUrl);
+      let posterBuffer: Buffer;
+
+      if (cacheEnabled) {
+        // Try to get from cache first (7-day TTL)
+        const cachedPoster = await this.getTmdbCachedPoster(posterUrl);
+
+        if (cachedPoster) {
+          logger.debug('Using cached TMDB poster', {
+            label: 'PlexBasePosterManager',
+            libraryId,
+            ratingKey: item.ratingKey,
+            tmdbUrl: posterUrl,
+            urlChanged: tmdbUrlChanged,
+          });
+          posterBuffer = cachedPoster;
+        } else {
+          // Cache miss - download from TMDB
+          logger.info('Downloading TMDB poster (cache miss)', {
+            label: 'PlexBasePosterManager',
+            libraryId,
+            ratingKey: item.ratingKey,
+            tmdbUrl: posterUrl,
+            urlChanged: tmdbUrlChanged,
+          });
+
+          posterBuffer = await this.downloadFromTMDB(posterUrl);
+
+          // Store in cache for future use
+          await this.storeTmdbCachedPoster(posterUrl, posterBuffer);
+        }
+      } else {
+        // Cache disabled - always download fresh from TMDB
+        logger.debug('Downloading TMDB poster (cache disabled)', {
+          label: 'PlexBasePosterManager',
+          libraryId,
+          ratingKey: item.ratingKey,
+          tmdbUrl: posterUrl,
+        });
+
+        posterBuffer = await this.downloadFromTMDB(posterUrl);
+      }
 
       return {
         posterBuffer,
         basePosterChanged: tmdbUrlChanged, // Only changed if URL is different
         sourceUrl: posterUrl,
-        filename: '', // NO LOCAL CACHE for TMDB
+        filename: this.getTmdbCacheFilename(posterUrl), // Now we cache TMDB posters
         fileModTime: undefined,
       };
     }
@@ -835,7 +1095,7 @@ class PlexBasePosterManager {
       await fs.mkdir(orphanedDir, { recursive: true });
 
       // Get all current rating keys from Plex for configured libraries
-      const currentRatingKeys = new Set<string>();
+      const currentRatingKeys = new Set();
 
       for (const libraryId of libraryIds) {
         let offset = 0;

@@ -253,12 +253,14 @@ router.post('/:libraryId/apply', async (req, res, next) => {
     });
 
     // Start async overlay application
-    overlayLibraryService.applyOverlaysToLibrary(libraryId).catch((error) => {
-      logger.error('Overlay application failed', {
-        libraryId,
-        error: error instanceof Error ? error.message : String(error),
+    overlayLibraryService
+      .applyOverlaysToLibrary(libraryId)
+      .catch((error: unknown) => {
+        logger.error('Overlay application failed', {
+          libraryId,
+          error: error instanceof Error ? error.message : String(error),
+        });
       });
-    });
 
     // Return immediately - overlay application runs in background
     return res.status(202).json({

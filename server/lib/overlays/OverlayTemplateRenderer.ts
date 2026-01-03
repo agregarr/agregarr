@@ -176,9 +176,19 @@ function evaluateRule(
   context: OverlayRenderContext
 ): boolean {
   const value = context[rule.field];
-  if (value === undefined || value === null) return false;
-
   const conditionValue = rule.value;
+
+  // Handle undefined/null values specially based on operator
+  if (value === undefined || value === null) {
+    // For 'neq' (not equal), missing/null IS different from any defined value
+    // e.g., "downloaded != true" should match when downloaded is undefined
+    if (rule.operator === 'neq') {
+      return conditionValue !== undefined && conditionValue !== null;
+    }
+    // For all other operators (eq, gt, gte, lt, lte, contains, in, etc.)
+    // undefined/null means the condition can't be evaluated, so false
+    return false;
+  }
 
   switch (rule.operator) {
     case 'eq':

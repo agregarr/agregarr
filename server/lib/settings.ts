@@ -539,6 +539,7 @@ export interface MainSettings {
   trustProxy: boolean;
   locale: string;
   tmdbLanguage?: string; // Language for TMDB API calls (poster metadata, etc.) - defaults to 'en'
+  enableTmdbPosterCache?: boolean; // Enable 7-day file cache for TMDB posters to reduce API calls - defaults to true
   nextConfigId?: number; // Next sequential ID for collection configs (starts at 10000)
   // Global sync status tracking
   lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
@@ -641,6 +642,7 @@ class Settings {
         trustProxy: false,
         locale: 'en',
         tmdbLanguage: 'en',
+        enableTmdbPosterCache: true,
       },
       plex: {
         name: '',
