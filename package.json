@@ -231,7 +231,6 @@
           "message": "chore(release): ${nextRelease.version}"
         }
       ],
-      "semantic-release-docker-buildx",
       [
         "@semantic-release/github",
         {
@@ -242,23 +241,6 @@
     "branches": [
       "latest"
     ],
-    "npmPublish": false,
-    "publish": [
-      {
-        "path": "semantic-release-docker-buildx",
-        "buildArgs": {
-          "COMMIT_TAG": "$GIT_SHA"
-        },
-        "imageNames": [
-          "agregarr/agregarr",
-          "ghcr.io/agregarr/agregarr"
-        ],
-        "platforms": [
-          "linux/amd64",
-          "linux/arm64"
-        ]
-      },
-      "@semantic-release/github"
-    ]
+    "npmPublish": false
   }
 }
