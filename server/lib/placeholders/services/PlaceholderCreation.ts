@@ -753,6 +753,119 @@ async function waitForPlexDiscovery(
 }
 
 /**
+ * Verify that discovered placeholders have posters in Plex
+ * If Plex has no poster but TMDB does, apply the TMDB poster directly
+ */
+async function verifyPlexPosters(
+  discovered: Map<number, { ratingKey: string; title: string }>,
+  config: CollectionConfig,
+  plexClient: PlexAPI,
+  placeholderPathMap: Map<number, string>,
+  sourceMap: Map<number, ComingSoonSourceData>
+): Promise<Map<number, { ratingKey: string; title: string }>> {
+  const TmdbAPI = (await import('@server/api/themoviedb')).default;
+  const tmdbClient = new TmdbAPI();
+
+  let postersApplied = 0;
+  let postersAlreadyPresent = 0;
+
+  logger.info('Verifying Plex posters for discovered placeholders', {
+    label: 'PlaceholderService',
+    itemCount: discovered.size,
+  });
+
+  // Check each discovered item for poster
+  for (const [tmdbId, plexItem] of discovered) {
+    try {
+      const metadata = await plexClient.getMetadata(plexItem.ratingKey);
+
+      if (!metadata.thumb) {
+        const sourceItem = sourceMap.get(tmdbId);
+
+        if (sourceItem) {
+          logger.info(
+            'Placeholder has no poster in Plex - applying TMDB poster',
+            {
+              label: 'PlaceholderService',
+              title: plexItem.title,
+              tmdbId,
+              ratingKey: plexItem.ratingKey,
+              mediaType: sourceItem.mediaType,
+            }
+          );
+
+          // Fetch TMDB poster URL
+          let posterPath: string | undefined;
+
+          if (sourceItem.mediaType === 'movie') {
+            const movieDetails = await tmdbClient.getMovie({
+              movieId: tmdbId,
+            });
+            posterPath = movieDetails.poster_path;
+          } else {
+            const showDetails = await tmdbClient.getTvShow({
+              tvId: tmdbId,
+            });
+            posterPath = showDetails.poster_path;
+          }
+
+          if (posterPath) {
+            const tmdbPosterUrl = `https://image.tmdb.org/t/p/original${posterPath}`;
+
+            // Apply TMDB poster to Plex item
+            const posterManager = plexClient['posterManager'];
+            await posterManager.uploadPosterFromUrl(
+              plexItem.ratingKey,
+              tmdbPosterUrl
+            );
+
+            postersApplied++;
+
+            logger.info('Successfully applied TMDB poster to placeholder', {
+              label: 'PlaceholderService',
+              title: plexItem.title,
+              tmdbId,
+              ratingKey: plexItem.ratingKey,
+            });
+          } else {
+            // This shouldn't happen since we pre-filter for TMDB posters,
+            // but log it just in case
+            logger.warn(
+              'TMDB has no poster for item (unexpected - pre-filter should have caught this)',
+              {
+                label: 'PlaceholderService',
+                title: plexItem.title,
+                tmdbId,
+                mediaType: sourceItem.mediaType,
+              }
+            );
+          }
+        }
+      } else {
+        postersAlreadyPresent++;
+      }
+    } catch (error) {
+      logger.error('Failed to verify/apply poster', {
+        label: 'PlaceholderService',
+        title: plexItem.title,
+        tmdbId,
+        ratingKey: plexItem.ratingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  logger.info('Poster verification complete', {
+    label: 'PlaceholderService',
+    totalChecked: discovered.size,
+    postersAlreadyPresent,
+    postersApplied,
+  });
+
+  return discovered;
+}
+
+/**
  * Create placeholders for missing items
  * Strategy: Create ALL files first, then trigger ONE scan, then apply overlays
  * Returns the discovered placeholder items as CollectionItems
@@ -1370,6 +1483,25 @@ async function createPlaceholders(
   for (const orphaned of orphanedPlaceholders) {
     discoveredItemsMap.set(orphaned.sourceItem.tmdbId, orphaned.plexItem);
   }
+
+  // Build maps for poster verification
+  const placeholderPathMap = new Map<number, string>();
+  for (const { sourceItem, placeholderPath } of [
+    ...createdPlaceholders,
+    ...orphanedPlaceholders,
+  ]) {
+    placeholderPathMap.set(sourceItem.tmdbId, placeholderPath);
+  }
+
+  // Verify that discovered placeholders have posters in Plex
+  // If Plex has no poster (common for future releases), apply the TMDB poster directly
+  discoveredItemsMap = await verifyPlexPosters(
+    discoveredItemsMap,
+    config,
+    plexClient,
+    placeholderPathMap,
+    sourceMap
+  );
 
   const matchedPlaceholders = createdPlaceholders.filter((placeholder) =>
     discoveredItemsMap.has(placeholder.sourceItem.tmdbId)

@@ -63,6 +63,7 @@ export interface PlexMetadata {
   guid: string;
   type: 'movie' | 'show' | 'season' | 'episode';
   title: string;
+  thumb?: string;
   Guid: {
     id: string;
   }[];
