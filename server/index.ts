@@ -695,7 +695,7 @@ app
                       .toLowerCase();
 
                     // Determine MIME type
-                    const mimeTypeMap: Record = {
+                    const mimeTypeMap: Record<string, string> = {
                       '.svg': 'image/svg+xml',
                       '.png': 'image/png',
                       '.jpg': 'image/jpeg',
@@ -904,7 +904,7 @@ app
         const templateData = template.getTemplateData();
 
         // Collect all asset paths that need to be included
-        const assetPaths = new Set();
+        const assetPaths = new Set<string>();
 
         // Check elements for custom assets
         templateData.elements?.forEach((element) => {
@@ -1126,7 +1126,7 @@ app
                       .toLowerCase();
 
                     // Determine MIME type
-                    const mimeTypeMap: Record = {
+                    const mimeTypeMap: Record<string, string> = {
                       '.svg': 'image/svg+xml',
                       '.png': 'image/png',
                       '.jpg': 'image/jpeg',
