@@ -77,6 +77,9 @@ app
     // Migrate overlay-application job schedule from midnight to 3am to prevent conflicts
     settings.migrateOverlayJobSchedule();
 
+    // Migrate placeholder settings from global to per-library format
+    settings.migratePlaceholderSettingsToPerLibrary();
+
     // Seed default source colors and poster template (one-time setup)
     try {
       const { seedSourceColors } = await import(

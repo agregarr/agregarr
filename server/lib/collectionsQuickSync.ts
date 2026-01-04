@@ -397,16 +397,17 @@ class CollectionsQuickSync {
       // Delete the placeholder file once
       let fileDeleted = false;
       if (placeholderPath) {
-        const libraryPath =
-          mediaType === 'movie'
-            ? settings.main.placeholderMovieRootFolder
-            : settings.main.placeholderTVRootFolder;
+        const { getPlaceholderRootFolder } = await import(
+          '@server/lib/placeholders/helpers/placeholderPathHelpers'
+        );
+        const libraryPath = getPlaceholderRootFolder(libraryId, mediaType);
 
         if (!libraryPath) {
           logger.warn('Library path not configured - skipping file deletion', {
             label: 'Collections Quick Sync',
             title: recentItem.title,
             mediaType,
+            libraryId,
           });
           continue;
         }
