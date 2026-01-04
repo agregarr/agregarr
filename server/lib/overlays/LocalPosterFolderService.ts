@@ -381,9 +381,27 @@ class LocalPosterFolderService {
           const response = await axios.get(downloadPath, {
             responseType: 'arraybuffer',
             timeout: 30000,
+            maxContentLength: 50 * 1024 * 1024, // 50MB max poster size
+            validateStatus: (status) => status === 200, // Only accept 200 OK
           });
 
+          // Validate content type is an image
+          const contentType = response.headers['content-type'] || '';
+          if (!contentType.startsWith('image/')) {
+            throw new Error(
+              `Invalid content type for poster: ${contentType} (expected image/*)`
+            );
+          }
+
           const posterBuffer = Buffer.from(response.data);
+
+          // Additional size check (in case maxContentLength wasn't honored)
+          if (posterBuffer.length > 50 * 1024 * 1024) {
+            throw new Error(
+              `Poster too large: ${posterBuffer.length} bytes (max: 50MB)`
+            );
+          }
+
           await fs.writeFile(posterPath, posterBuffer);
 
           stats.downloaded++;

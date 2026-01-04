@@ -38,46 +38,107 @@ export function getAllValues<T>(value: T | T[] | undefined): T[] {
   return normalizeToArray(value);
 }
 
+// Maximum allowed response size (50MB - the mapping file is typically ~10-20MB)
+const MAX_RESPONSE_SIZE = 50 * 1024 * 1024;
+// Request timeout (30 seconds)
+const FETCH_TIMEOUT_MS = 30000;
+
 export async function loadAnimeIds(
   url = 'https://raw.githubusercontent.com/eliasbenb/PlexAniBridge-Mappings/refs/heads/v2/mappings.json'
 ): Promise<void> {
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    // be explicit that we want fresh-ish
-    cache: 'no-store' as RequestCache,
-  });
-  if (!res.ok) throw new Error(`Anime-IDs fetch failed: ${res.status}`);
-  const json = (await res.json()) as RawAnimeIds;
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-  const byAniList = new Map<number, AnimeIdsRow>();
-  const byAniDB = new Map<number, AnimeIdsRow>();
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      // be explicit that we want fresh-ish
+      cache: 'no-store' as RequestCache,
+      signal: controller.signal,
+    });
 
-  // Build indices - keys are now AniList IDs directly!
-  for (const [anilistIdStr, row] of Object.entries(json)) {
-    // Skip metadata keys like "$includes"
-    if (anilistIdStr.startsWith('$')) continue;
+    if (!res.ok) throw new Error(`Anime-IDs fetch failed: ${res.status}`);
 
-    const anilistId = parseInt(anilistIdStr);
-    if (!anilistId || !Number.isFinite(anilistId)) continue;
-
-    // Store the row as-is (already well-structured)
-    const normalized: AnimeIdsRow = {
-      ...row,
-      anilist_id: anilistId, // Add the key as a field for completeness
-    };
-
-    // Store by AniList ID (primary key)
-    byAniList.set(anilistId, normalized);
-
-    // Also index by AniDB ID if present
-    if (row.anidb_id) {
-      byAniDB.set(row.anidb_id, normalized);
+    // Check content-length if provided to reject obviously oversized responses
+    const contentLength = res.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
+      throw new Error(
+        `Anime-IDs response too large: ${contentLength} bytes (max: ${MAX_RESPONSE_SIZE})`
+      );
     }
-  }
 
-  _byAniList = byAniList;
-  _byAniDB = byAniDB;
-  _loadedAt = Date.now();
+    // Stream response with size enforcement to prevent memory exhaustion
+    const reader = res.body?.getReader();
+    if (!reader) {
+      throw new Error('Anime-IDs response body is not readable');
+    }
+
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
+    try {
+      // eslint-disable-next-line no-constant-condition -- standard streaming read pattern
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        totalBytes += value.length;
+        if (totalBytes > MAX_RESPONSE_SIZE) {
+          controller.abort();
+          throw new Error(
+            `Anime-IDs response too large: exceeded ${MAX_RESPONSE_SIZE} bytes during download`
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // Combine chunks and decode as UTF-8
+    const combined = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    const text = new TextDecoder().decode(combined);
+
+    const json = JSON.parse(text) as RawAnimeIds;
+
+    const byAniList = new Map<number, AnimeIdsRow>();
+    const byAniDB = new Map<number, AnimeIdsRow>();
+
+    // Build indices - keys are now AniList IDs directly!
+    for (const [anilistIdStr, row] of Object.entries(json)) {
+      // Skip metadata keys like "$includes"
+      if (anilistIdStr.startsWith('$')) continue;
+
+      const anilistId = parseInt(anilistIdStr);
+      if (!anilistId || !Number.isFinite(anilistId)) continue;
+
+      // Store the row as-is (already well-structured)
+      const normalized: AnimeIdsRow = {
+        ...row,
+        anilist_id: anilistId, // Add the key as a field for completeness
+      };
+
+      // Store by AniList ID (primary key)
+      byAniList.set(anilistId, normalized);
+
+      // Also index by AniDB ID if present
+      if (row.anidb_id) {
+        byAniDB.set(row.anidb_id, normalized);
+      }
+    }
+
+    _byAniList = byAniList;
+    _byAniDB = byAniDB;
+    _loadedAt = Date.now();
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function ensureAnimeIdsLoaded(
