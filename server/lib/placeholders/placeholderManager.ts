@@ -202,8 +202,24 @@ export async function removePlaceholder(
     // Delete the file
     await fs.unlink(placeholderPath);
 
-    // For TV shows, also clean up parent directories if empty
-    if (mediaType === 'tv') {
+    // Clean up parent directories if empty
+    if (mediaType === 'movie') {
+      const movieDir = path.dirname(placeholderPath);
+
+      // Try to remove movie directory if it's empty
+      try {
+        const files = await fs.readdir(movieDir);
+        if (files.length === 0) {
+          await fs.rmdir(movieDir);
+          logger.debug('Removed empty movie directory', {
+            label: 'Coming Soon Placeholder',
+            path: movieDir,
+          });
+        }
+      } catch {
+        // Directory not empty or other error, ignore
+      }
+    } else if (mediaType === 'tv') {
       const seasonDir = path.dirname(placeholderPath);
       const showDir = path.dirname(seasonDir);
 
