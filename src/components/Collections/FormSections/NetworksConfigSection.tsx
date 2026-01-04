@@ -89,9 +89,18 @@ const NetworksConfigSection = ({
             const newCountry = e.target.value;
             setFieldValue('networksCountry', newCountry);
 
+            // Also update sources[0].networksCountry if sources exist (for existing collections)
+            if (values.sources && values.sources.length > 0) {
+              setFieldValue('sources[0].networksCountry', newCountry);
+            }
+
             // Reset platform selection when country changes
             if (newCountry !== values.networksCountry) {
               setFieldValue('subtype', '');
+              // Also reset sources[0].subtype if sources exist
+              if (values.sources && values.sources.length > 0) {
+                setFieldValue('sources[0].subtype', '');
+              }
             }
           }}
           disabled={false}
