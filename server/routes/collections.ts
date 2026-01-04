@@ -1111,10 +1111,13 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
 
               if (otherCollectionRecords.length === 0) {
                 // No other collections use this file - safe to delete
-                const libraryPath =
-                  record.mediaType === 'movie'
-                    ? settings.main.placeholderMovieRootFolder
-                    : settings.main.placeholderTVRootFolder;
+                const { getPlaceholderRootFolder } = await import(
+                  '@server/lib/placeholders/helpers/placeholderPathHelpers'
+                );
+                const libraryPath = getPlaceholderRootFolder(
+                  deletedConfig.libraryId,
+                  record.mediaType
+                );
 
                 if (libraryPath) {
                   const fullPath = path.join(

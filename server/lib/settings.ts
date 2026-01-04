@@ -555,9 +555,9 @@ export interface MainSettings {
   externalApplicationTitle?: string; // External Overseerr title
   // Overseerr user label state tracking
   overseerrLabelsApplied?: boolean; // True if Overseerr user filter labels are currently applied to Plex users
-  // Placeholder root folders
-  placeholderMovieRootFolder?: string; // Root folder path for movie placeholders
-  placeholderTVRootFolder?: string; // Root folder path for TV show placeholders
+  // Placeholder root folders (per-library)
+  placeholderMovieRootFolders?: Record<string, string>; // libraryKey -> movie placeholder path mapping
+  placeholderTVRootFolders?: Record<string, string>; // libraryKey -> TV placeholder path mapping
 }
 
 interface PublicSettings {
@@ -1724,6 +1724,69 @@ class Settings {
         {
           label: 'Settings Migration',
         }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
+   * Migrate global placeholder settings to per-library format
+   * One-time migration: copies global settings to each library, then removes global settings
+   */
+  public migratePlaceholderSettingsToPerLibrary(): void {
+    const migrationId = 'placeholder-settings-per-library-v1';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    let migratedCount = 0;
+
+    // Initialize per-library maps if they don't exist
+    if (!this.data.main.placeholderMovieRootFolders) {
+      this.data.main.placeholderMovieRootFolders = {};
+    }
+    if (!this.data.main.placeholderTVRootFolders) {
+      this.data.main.placeholderTVRootFolders = {};
+    }
+
+    // Get legacy global settings (access via index signature for backwards compatibility)
+    type LegacyMainSettings = MainSettings & {
+      placeholderMovieRootFolder?: string;
+      placeholderTVRootFolder?: string;
+    };
+    const mainSettings = this.data.main as LegacyMainSettings;
+    const globalMovieFolder = mainSettings.placeholderMovieRootFolder;
+    const globalTVFolder = mainSettings.placeholderTVRootFolder;
+
+    // Copy global settings to all libraries
+    if (globalMovieFolder || globalTVFolder) {
+      for (const library of this.data.plex.libraries) {
+        if (library.type === 'movie' && globalMovieFolder) {
+          this.data.main.placeholderMovieRootFolders[library.key] =
+            globalMovieFolder;
+          migratedCount++;
+        } else if (library.type === 'show' && globalTVFolder) {
+          this.data.main.placeholderTVRootFolders[library.key] = globalTVFolder;
+          migratedCount++;
+        }
+      }
+
+      // Delete global settings after migration
+      delete mainSettings.placeholderMovieRootFolder;
+      delete mainSettings.placeholderTVRootFolder;
+
+      logger.info(
+        `Migrated ${migratedCount} library placeholder folder setting(s) from global to per-library format`,
+        { label: 'Settings Migration' }
       );
     }
 

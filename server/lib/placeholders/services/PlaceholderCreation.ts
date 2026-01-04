@@ -12,7 +12,6 @@ import type {
   PlaceholderSourceData,
 } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
-import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import path from 'path';
 import { ensurePlaceholderEpisodeTitle } from './PlaceholderTitleFixer';
@@ -234,7 +233,8 @@ function missingItemsToPlaceholderSourceData(
  * Returns the path to the created file
  */
 async function createPlaceholderFile(
-  sourceItem: ComingSoonSourceData
+  sourceItem: ComingSoonSourceData,
+  libraryKey: string
 ): Promise<string> {
   const { downloadTrailer } = await import(
     '@server/lib/placeholders/trailerDownload'
@@ -250,44 +250,30 @@ async function createPlaceholderFile(
     sourceItem.mediaType
   );
 
-  // 2. Get library path from placeholder root folder settings
-  const settings = getSettings();
-  let libraryPath: string | undefined;
+  // 2. Get library-specific placeholder root folder
+  const { getPlaceholderRootFolder } = await import(
+    '@server/lib/placeholders/helpers/placeholderPathHelpers'
+  );
 
-  if (sourceItem.mediaType === 'movie') {
-    libraryPath = settings.main.placeholderMovieRootFolder;
-
-    if (!libraryPath) {
-      throw new Error(
-        `Placeholder movie root folder not configured. Please set it in Settings > Downloads.`
-      );
-    }
-
-    logger.debug(
-      'Using configured movie root folder for placeholder creation',
-      {
-        label: 'PlaceholderService',
-        rootFolder: libraryPath,
-      }
-    );
-  } else if (sourceItem.mediaType === 'tv') {
-    libraryPath = settings.main.placeholderTVRootFolder;
-
-    if (!libraryPath) {
-      throw new Error(
-        `Placeholder TV root folder not configured. Please set it in Settings > Downloads.`
-      );
-    }
-
-    logger.debug('Using configured TV root folder for placeholder creation', {
-      label: 'PlaceholderService',
-      rootFolder: libraryPath,
-    });
-  }
+  const libraryPath = getPlaceholderRootFolder(
+    libraryKey,
+    sourceItem.mediaType
+  );
 
   if (!libraryPath) {
-    throw new Error(`Could not determine library path for ${sourceItem.title}`);
+    throw new Error(
+      `Placeholder root folder not configured for library ${libraryKey}. Please set it in Settings > Downloads.`
+    );
   }
+
+  logger.debug(
+    `Using configured ${sourceItem.mediaType} root folder for placeholder creation`,
+    {
+      label: 'PlaceholderService',
+      libraryKey,
+      rootFolder: libraryPath,
+    }
+  );
 
   // 3. Create placeholder file in library
   const result = await createPlaceholder({
@@ -1092,11 +1078,15 @@ async function createPlaceholders(
             const { removePlaceholder } = await import(
               '@server/lib/placeholders/placeholderManager'
             );
-            const settings = getSettings();
-            const libraryPath =
-              itemExtended.type === 'movie'
-                ? settings.main.placeholderMovieRootFolder
-                : settings.main.placeholderTVRootFolder;
+            const { getPlaceholderRootFolder } = await import(
+              '@server/lib/placeholders/helpers/placeholderPathHelpers'
+            );
+            const mediaType: 'movie' | 'tv' =
+              itemExtended.type === 'movie' ? 'movie' : 'tv';
+            const libraryPath = getPlaceholderRootFolder(
+              config.libraryId,
+              mediaType
+            );
 
             if (libraryPath) {
               // Extract relative path from Plex path by taking last N parts
@@ -1319,17 +1309,20 @@ async function createPlaceholders(
         }
 
         // Verify file exists in our library
-        const settings = getSettings();
-        const libraryPath =
-          sourceItem.mediaType === 'movie'
-            ? settings.main.placeholderMovieRootFolder
-            : settings.main.placeholderTVRootFolder;
+        const { getPlaceholderRootFolder } = await import(
+          '@server/lib/placeholders/helpers/placeholderPathHelpers'
+        );
+        const libraryPath = getPlaceholderRootFolder(
+          config.libraryId,
+          sourceItem.mediaType
+        );
 
         if (!libraryPath) {
           logger.warn('Placeholder library path not configured', {
             label: 'PlaceholderService',
             title: item.title,
             mediaType: sourceItem.mediaType,
+            libraryId: config.libraryId,
           });
           continue;
         }
@@ -1427,7 +1420,10 @@ async function createPlaceholders(
     }
 
     try {
-      const placeholderPath = await createPlaceholderFile(sourceItem);
+      const placeholderPath = await createPlaceholderFile(
+        sourceItem,
+        config.libraryId
+      );
 
       createdPlaceholders.push({ sourceItem, placeholderPath });
 
@@ -1571,11 +1567,13 @@ async function createPlaceholders(
       });
 
       // Convert absolute path to relative path before storing
-      const settings = getSettings();
-      const libraryPath =
-        sourceItem.mediaType === 'movie'
-          ? settings.main.placeholderMovieRootFolder
-          : settings.main.placeholderTVRootFolder;
+      const { getPlaceholderRootFolder } = await import(
+        '@server/lib/placeholders/helpers/placeholderPathHelpers'
+      );
+      const libraryPath = getPlaceholderRootFolder(
+        config.libraryId,
+        sourceItem.mediaType
+      );
 
       let relativePath = placeholderPath;
       if (libraryPath && placeholderPath.startsWith(libraryPath)) {

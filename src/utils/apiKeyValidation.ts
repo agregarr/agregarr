@@ -3,6 +3,7 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
@@ -29,6 +30,7 @@ export function validateApiKeysForCollectionType(
   collectionType: string,
   settings: {
     main?: MainSettings;
+    plex?: PlexSettings;
     trakt?: TraktSettings;
     mdblist?: MDBListSettings;
     tautulli?: TautulliSettings;
@@ -38,7 +40,8 @@ export function validateApiKeysForCollectionType(
     sonarr?: SonarrSettings[];
   },
   subtype?: string,
-  createPlaceholdersForMissing?: boolean
+  createPlaceholdersForMissing?: boolean,
+  libraryId?: string
 ): ApiKeyValidationResult {
   const requirements: ApiKeyRequirement[] = [];
   // Trakt can work with just clientId (basic mode) OR full OAuth
@@ -179,26 +182,32 @@ export function validateApiKeysForCollectionType(
       break;
   }
 
-  // Check if placeholder creation is enabled and requires root folders configured
-  if (createPlaceholdersForMissing) {
-    const hasMovieRootFolder = !!settings.main?.placeholderMovieRootFolder;
-    const hasTVRootFolder = !!settings.main?.placeholderTVRootFolder;
+  // Check if placeholder creation is enabled and if THIS SPECIFIC LIBRARY has a placeholder folder configured
+  if (createPlaceholdersForMissing && libraryId && settings.plex) {
+    // Find the library to determine its type
+    const library = settings.plex.libraries?.find(
+      (lib) => lib.key === libraryId
+    );
 
-    if (!hasMovieRootFolder) {
-      requirements.push({
-        service: 'Movie Placeholder Root Folder',
-        required: true,
-        configured: false,
-        settingsPath: '/settings/downloads',
-      });
-    }
-    if (!hasTVRootFolder) {
-      requirements.push({
-        service: 'TV Placeholder Root Folder',
-        required: true,
-        configured: false,
-        settingsPath: '/settings/downloads',
-      });
+    if (library) {
+      const libraryType = library.type === 'movie' ? 'movie' : 'tv';
+      const placeholderFolders =
+        libraryType === 'movie'
+          ? settings.main?.placeholderMovieRootFolders
+          : settings.main?.placeholderTVRootFolders;
+
+      const hasPlaceholderFolder = !!(
+        placeholderFolders && placeholderFolders[libraryId]
+      );
+
+      if (!hasPlaceholderFolder) {
+        requirements.push({
+          service: `${library.name} Placeholder Root Folder`,
+          required: true,
+          configured: false,
+          settingsPath: '/settings/downloads',
+        });
+      }
     }
   }
 

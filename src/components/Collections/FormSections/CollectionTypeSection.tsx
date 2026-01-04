@@ -6,6 +6,7 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
@@ -60,6 +61,7 @@ const CollectionTypeSection = ({
 
   // Fetch API settings for validation
   const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
+  const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -87,6 +89,7 @@ const CollectionTypeSection = ({
     values.type || '',
     {
       main: mainSettings,
+      plex: plexSettings,
       trakt: traktSettings,
       mdblist: mdblistSettings,
       tautulli: tautulliSettings,
@@ -96,7 +99,8 @@ const CollectionTypeSection = ({
       sonarr: sonarrSettings,
     },
     values.subtype,
-    values.createPlaceholdersForMissing
+    values.createPlaceholdersForMissing,
+    values.libraryId
   );
 
   const collectionTypes = [

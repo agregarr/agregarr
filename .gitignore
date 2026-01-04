@@ -46,6 +46,7 @@ config/icons/*.*
 config/posters/*.*
 config/temp/*.*
 config/plex-base-posters/**
+config/tmdb-poster-cache/**
 
 # wallpaper storage
 config/wallpapers/*.*

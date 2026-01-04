@@ -10,6 +10,7 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
@@ -381,6 +382,7 @@ const MultiSourceConfigSection = ({
 
   // Fetch API settings for validation
   const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
+  const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -990,6 +992,7 @@ const MultiSourceConfigSection = ({
                     sourceType,
                     {
                       main: mainSettings,
+                      plex: plexSettings,
                       trakt: traktSettings,
                       mdblist: mdblistSettings,
                       tautulli: tautulliSettings,
@@ -999,7 +1002,8 @@ const MultiSourceConfigSection = ({
                       sonarr: sonarrSettings,
                     },
                     sourceSubtype,
-                    values.createPlaceholdersForMissing
+                    values.createPlaceholdersForMissing,
+                    values.libraryId
                   );
                   return <ApiKeyWarning validation={apiKeyValidation} />;
                 })()}

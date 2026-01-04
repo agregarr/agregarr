@@ -92,9 +92,9 @@ export class CollectionSyncService {
     tv: DiscoveredPlaceholder[];
     movies: DiscoveredMoviePlaceholder[];
   }> {
-    const settings = getSettings();
-    const tvLibraryPath = settings.main.placeholderTVRootFolder;
-    const movieLibraryPath = settings.main.placeholderMovieRootFolder;
+    const { getPlaceholderRootFolder } = await import(
+      '@server/lib/placeholders/helpers/placeholderPathHelpers'
+    );
 
     let tv: DiscoveredPlaceholder[] = [];
     let movies: DiscoveredMoviePlaceholder[] = [];
@@ -124,6 +124,9 @@ export class CollectionSyncService {
     )?.libraryId;
 
     // Discover TV placeholders
+    const tvLibraryPath = tvLibraryId
+      ? getPlaceholderRootFolder(tvLibraryId, 'tv')
+      : undefined;
     if (tvLibraryPath && tvLibraryId) {
       try {
         logger.info('Running global TV placeholder discovery', {
@@ -198,6 +201,9 @@ export class CollectionSyncService {
     )?.libraryId;
 
     // Discover movie placeholders
+    const movieLibraryPath = movieLibraryId
+      ? getPlaceholderRootFolder(movieLibraryId, 'movie')
+      : undefined;
     if (movieLibraryPath && movieLibraryId) {
       try {
         logger.info('Running global movie placeholder discovery', {

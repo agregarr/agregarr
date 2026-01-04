@@ -16,6 +16,7 @@ import { PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
 import type {
   MainSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
 } from '@server/lib/settings';
@@ -95,12 +96,10 @@ const messages = defineMessages({
     'Something went wrong while saving service user settings.',
   placeholderSettings: 'Placeholder Root Folders',
   placeholderSettingsDescription:
-    'Configure root folders for placeholder files. These paths should match the mounted Plex library paths inside the Agregarr container.',
-  placeholderMovieRootFolder: 'Movie Placeholder Root Folder',
-  placeholderTVRootFolder: 'TV Placeholder Root Folder',
-  placeholderMovieRootFolderTip:
-    'Path where movie placeholder files will be created',
-  placeholderTVRootFolderTip: 'Path where TV placeholder files will be created',
+    'Configure root folders for placeholder files for each library. These paths should match the mounted Plex library paths inside the Agregarr container.',
+  libraryPlaceholderFolder: 'Placeholder Folder for {libraryName}',
+  libraryPlaceholderFolderTip:
+    'Path where placeholder files will be created for this library',
   browse: 'Browse',
   toastPlaceholderSettingsSuccess: 'Placeholder settings saved successfully!',
   toastPlaceholderSettingsFailure:
@@ -260,7 +259,8 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const [folderBrowser, setFolderBrowser] = useState<{
     isOpen: boolean;
     type: 'movie' | 'tv' | null;
-  }>({ isOpen: false, type: null });
+    libraryKey: string | null;
+  }>({ isOpen: false, type: null, libraryKey: null });
   const [editOverseerrModal, setEditOverseerrModal] = useState<{
     open: boolean;
   }>({
@@ -280,6 +280,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const { data: dataMain, mutate: revalidateMain } = useSWR<MainSettings>(
     '/api/v1/settings/main'
   );
+  const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
   const [editRadarrModal, setEditRadarrModal] = useState<{
     open: boolean;
     radarr: RadarrSettings | null;
@@ -637,16 +638,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
         </div>
         <Formik
           initialValues={{
-            placeholderMovieRootFolder:
-              dataMain?.placeholderMovieRootFolder || '',
-            placeholderTVRootFolder: dataMain?.placeholderTVRootFolder || '',
+            placeholderMovieRootFolders:
+              dataMain?.placeholderMovieRootFolders || {},
+            placeholderTVRootFolders: dataMain?.placeholderTVRootFolders || {},
           }}
           enableReinitialize
           onSubmit={async (values) => {
             try {
               await axios.post('/api/v1/settings/main', {
-                placeholderMovieRootFolder: values.placeholderMovieRootFolder,
-                placeholderTVRootFolder: values.placeholderTVRootFolder,
+                placeholderMovieRootFolders: values.placeholderMovieRootFolders,
+                placeholderTVRootFolders: values.placeholderTVRootFolders,
               });
 
               addToast(
@@ -671,102 +672,140 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
         >
           {({ values, handleSubmit, setFieldValue, isSubmitting }) => (
             <form className="section" onSubmit={handleSubmit}>
-              {/* Folder Browser Modals */}
-              {folderBrowser.isOpen && folderBrowser.type === 'movie' && (
+              {/* Folder Browser Modal */}
+              {folderBrowser.isOpen && folderBrowser.libraryKey && (
                 <FolderBrowser
                   isOpen={true}
                   onClose={() =>
-                    setFolderBrowser({ isOpen: false, type: null })
+                    setFolderBrowser({
+                      isOpen: false,
+                      type: null,
+                      libraryKey: null,
+                    })
                   }
                   onSelect={(path) => {
-                    setFieldValue('placeholderMovieRootFolder', path);
+                    if (folderBrowser.libraryKey) {
+                      const fieldName =
+                        folderBrowser.type === 'movie'
+                          ? 'placeholderMovieRootFolders'
+                          : 'placeholderTVRootFolders';
+                      setFieldValue(fieldName, {
+                        ...values[fieldName],
+                        [folderBrowser.libraryKey]: path,
+                      });
+                    }
                   }}
-                  initialPath={values.placeholderMovieRootFolder || '/'}
-                  title={intl.formatMessage(
-                    messages.placeholderMovieRootFolder
-                  )}
-                />
-              )}
-              {folderBrowser.isOpen && folderBrowser.type === 'tv' && (
-                <FolderBrowser
-                  isOpen={true}
-                  onClose={() =>
-                    setFolderBrowser({ isOpen: false, type: null })
+                  initialPath={
+                    folderBrowser.libraryKey
+                      ? (folderBrowser.type === 'movie'
+                          ? values.placeholderMovieRootFolders?.[
+                              folderBrowser.libraryKey
+                            ]
+                          : values.placeholderTVRootFolders?.[
+                              folderBrowser.libraryKey
+                            ]) || '/'
+                      : '/'
                   }
-                  onSelect={(path) => {
-                    setFieldValue('placeholderTVRootFolder', path);
-                  }}
-                  initialPath={values.placeholderTVRootFolder || '/'}
-                  title={intl.formatMessage(messages.placeholderTVRootFolder)}
+                  title={
+                    folderBrowser.libraryKey
+                      ? intl.formatMessage(messages.libraryPlaceholderFolder, {
+                          libraryName:
+                            plexSettings?.libraries.find(
+                              (lib) => lib.key === folderBrowser.libraryKey
+                            )?.name || folderBrowser.libraryKey,
+                        })
+                      : 'Browse'
+                  }
                 />
               )}
 
-              {/* Movie Root Folder */}
-              <div className="form-row">
-                <label
-                  htmlFor="placeholderMovieRootFolder"
-                  className="text-label"
-                >
-                  {intl.formatMessage(messages.placeholderMovieRootFolder)}
-                  <span className="label-tip">
-                    {intl.formatMessage(messages.placeholderMovieRootFolderTip)}
-                  </span>
-                </label>
-                <div className="form-input-area">
-                  <div className="flex space-x-2">
-                    <div className="form-input-field flex-1">
-                      <Field
-                        id="placeholderMovieRootFolder"
-                        name="placeholderMovieRootFolder"
-                        type="text"
-                        placeholder="/data/media/movies"
-                      />
-                    </div>
-                    <Button
-                      buttonType="default"
-                      type="button"
-                      onClick={() =>
-                        setFolderBrowser({ isOpen: true, type: 'movie' })
-                      }
-                    >
-                      <FolderIcon className="h-5 w-5" />
-                      <span>{intl.formatMessage(messages.browse)}</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              {/* Per-Library Configuration */}
+              {plexSettings?.libraries && plexSettings.libraries.length > 0 ? (
+                <div className="space-y-4">
+                  {plexSettings.libraries
+                    .filter(
+                      (lib) => lib.type === 'movie' || lib.type === 'show'
+                    )
+                    .map((library) => {
+                      const isMovie = library.type === 'movie';
+                      const fieldName = isMovie
+                        ? 'placeholderMovieRootFolders'
+                        : 'placeholderTVRootFolders';
+                      const currentValue =
+                        (isMovie
+                          ? values.placeholderMovieRootFolders?.[library.key]
+                          : values.placeholderTVRootFolders?.[library.key]) ||
+                        '';
 
-              {/* TV Root Folder */}
-              <div className="form-row">
-                <label htmlFor="placeholderTVRootFolder" className="text-label">
-                  {intl.formatMessage(messages.placeholderTVRootFolder)}
-                  <span className="label-tip">
-                    {intl.formatMessage(messages.placeholderTVRootFolderTip)}
-                  </span>
-                </label>
-                <div className="form-input-area">
-                  <div className="flex space-x-2">
-                    <div className="form-input-field flex-1">
-                      <Field
-                        id="placeholderTVRootFolder"
-                        name="placeholderTVRootFolder"
-                        type="text"
-                        placeholder="/data/media/tv"
-                      />
-                    </div>
-                    <Button
-                      buttonType="default"
-                      type="button"
-                      onClick={() =>
-                        setFolderBrowser({ isOpen: true, type: 'tv' })
-                      }
-                    >
-                      <FolderIcon className="h-5 w-5" />
-                      <span>{intl.formatMessage(messages.browse)}</span>
-                    </Button>
-                  </div>
+                      return (
+                        <div key={library.key} className="form-row">
+                          <label
+                            htmlFor={`placeholder-${library.key}`}
+                            className="text-label"
+                          >
+                            {intl.formatMessage(
+                              messages.libraryPlaceholderFolder,
+                              {
+                                libraryName: library.name,
+                              }
+                            )}
+                            <span className="label-tip">
+                              {intl.formatMessage(
+                                messages.libraryPlaceholderFolderTip
+                              )}
+                            </span>
+                          </label>
+                          <div className="form-input-area">
+                            <div className="flex space-x-2">
+                              <div className="form-input-field flex-1">
+                                <Field
+                                  id={`placeholder-${library.key}`}
+                                  name={`${fieldName}.${library.key}`}
+                                  type="text"
+                                  placeholder={
+                                    isMovie
+                                      ? '/data/media/movies'
+                                      : '/data/media/tv'
+                                  }
+                                  value={currentValue}
+                                  onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>
+                                  ) => {
+                                    setFieldValue(fieldName, {
+                                      ...values[fieldName],
+                                      [library.key]: e.target.value,
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <Button
+                                buttonType="default"
+                                type="button"
+                                onClick={() =>
+                                  setFolderBrowser({
+                                    isOpen: true,
+                                    type:
+                                      library.type === 'movie' ? 'movie' : 'tv',
+                                    libraryKey: library.key,
+                                  })
+                                }
+                              >
+                                <FolderIcon className="h-5 w-5" />
+                                <span>
+                                  {intl.formatMessage(messages.browse)}
+                                </span>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
-              </div>
+              ) : (
+                <div className="text-sm text-stone-400">
+                  No libraries found. Configure your Plex connection first.
+                </div>
+              )}
 
               <div className="actions">
                 <div className="flex justify-end">
