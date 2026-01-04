@@ -457,14 +457,22 @@ class OverlayTemplateRendererService {
       const posterHeight = posterMetadata.height || 750;
 
       // Calculate scale factors from template canvas to actual poster
+      // Use uniform scaling to prevent overlay drift on non-standard aspect ratios
+      // (e.g., 1000x1426 instead of standard 2:3 ratio like 2000x3000)
       const scaleX = posterWidth / templateData.width;
       const scaleY = posterHeight / templateData.height;
+      const scale = Math.min(scaleX, scaleY);
+
+      // Calculate offsets to center the template on non-standard posters
+      const offsetX = (posterWidth - templateData.width * scale) / 2;
+      const offsetY = (posterHeight - templateData.height * scale) / 2;
 
       logger.debug('Rendering overlay template', {
         label: 'OverlayRenderer',
         posterDimensions: `${posterWidth}x${posterHeight}`,
         templateDimensions: `${templateData.width}x${templateData.height}`,
-        scaleFactor: `${scaleX.toFixed(2)}x${scaleY.toFixed(2)}`,
+        scaleFactor: scale.toFixed(2),
+        offsets: `${offsetX.toFixed(1)},${offsetY.toFixed(1)}`,
         elementCount: elements.length,
       });
 
@@ -492,8 +500,8 @@ class OverlayTemplateRendererService {
         if (overlayBuffer) {
           // Get overlay buffer metadata
           const overlayMeta = await sharp(overlayBuffer).metadata();
-          const overlayWidth = overlayMeta.width ?? 0;
-          const overlayHeight = overlayMeta.height ?? 0;
+          let overlayWidth = overlayMeta.width ?? 0;
+          let overlayHeight = overlayMeta.height ?? 0;
 
           let safeOverlayBuffer = overlayBuffer;
 
@@ -511,19 +519,25 @@ class OverlayTemplateRendererService {
                 fit: 'inside',
               })
               .toBuffer();
+
+            // Recalculate dimensions after resize to ensure correct positioning
+            const safeMeta = await sharp(safeOverlayBuffer).metadata();
+            overlayWidth = safeMeta.width ?? overlayWidth;
+            overlayHeight = safeMeta.height ?? overlayHeight;
           }
 
           // Scale position from template coordinates to poster coordinates
-          // For rotated elements, we need to adjust position to keep the center in the same place
-          const scaledElementWidth = Math.round(element.width * scaleX);
-          const scaledElementHeight = Math.round(element.height * scaleY);
+          // Use uniform scaling with offsets to handle non-standard aspect ratios
+          const scaledElementWidth = Math.round(element.width * scale);
+          const scaledElementHeight = Math.round(element.height * scale);
 
           // Calculate the center position where this element should be
+          // Apply offsets to center overlays on non-standard posters
           const centerX = Math.round(
-            element.x * scaleX + scaledElementWidth / 2
+            offsetX + element.x * scale + scaledElementWidth / 2
           );
           const centerY = Math.round(
-            element.y * scaleY + scaledElementHeight / 2
+            offsetY + element.y * scale + scaledElementHeight / 2
           );
 
           // Position the rotated buffer so its center aligns with the element center
@@ -676,14 +690,15 @@ class OverlayTemplateRendererService {
   ): Promise<Buffer> {
     const props = element.properties as OverlayTextElementProps;
 
-    // Calculate scale factors
+    // Calculate uniform scale factor to handle non-standard aspect ratios
     const scaleX = posterWidth / templateWidth;
     const scaleY = posterHeight / templateHeight;
+    const scale = Math.min(scaleX, scaleY);
 
-    // Scale dimensions from template to poster
-    const width = Math.round(element.width * scaleX);
-    const height = Math.round(element.height * scaleY);
-    const fontSize = Math.round(props.fontSize * scaleY);
+    // Scale dimensions from template to poster using uniform scale
+    const width = Math.round(element.width * scale);
+    const height = Math.round(element.height * scale);
+    const fontSize = Math.round(props.fontSize * scale);
 
     // Create SVG for text rendering
     const svg = `
@@ -732,15 +747,16 @@ class OverlayTemplateRendererService {
   ): Promise<Buffer> {
     const props = element.properties as OverlayTileElementProps;
 
-    // Calculate scale factors
+    // Calculate uniform scale factor to handle non-standard aspect ratios
     const scaleX = posterWidth / templateWidth;
     const scaleY = posterHeight / templateHeight;
+    const scale = Math.min(scaleX, scaleY);
 
-    // Scale dimensions from template to poster
-    const width = Math.round(element.width * scaleX);
-    const height = Math.round(element.height * scaleY);
+    // Scale dimensions from template to poster using uniform scale
+    const width = Math.round(element.width * scale);
+    const height = Math.round(element.height * scale);
     const borderWidth = props.borderWidth
-      ? Math.round(props.borderWidth * scaleX)
+      ? Math.round(props.borderWidth * scale)
       : 0;
 
     // Determine corner radii (with backward compatibility)
@@ -752,7 +768,7 @@ class OverlayTemplateRendererService {
     if (props.lockCorners || props.borderRadius !== undefined) {
       // Locked mode or legacy borderRadius - all corners same
       const baseRadius = props.borderRadiusTopLeft ?? props.borderRadius ?? 0;
-      const scaledRadius = Math.round(baseRadius * scaleX);
+      const scaledRadius = Math.round(baseRadius * scale);
       radiusTopLeft = scaledRadius;
       radiusTopRight = scaledRadius;
       radiusBottomLeft = scaledRadius;
@@ -760,16 +776,16 @@ class OverlayTemplateRendererService {
     } else {
       // Unlocked mode - individual corners
       radiusTopLeft = props.borderRadiusTopLeft
-        ? Math.round(props.borderRadiusTopLeft * scaleX)
+        ? Math.round(props.borderRadiusTopLeft * scale)
         : 0;
       radiusTopRight = props.borderRadiusTopRight
-        ? Math.round(props.borderRadiusTopRight * scaleX)
+        ? Math.round(props.borderRadiusTopRight * scale)
         : 0;
       radiusBottomLeft = props.borderRadiusBottomLeft
-        ? Math.round(props.borderRadiusBottomLeft * scaleX)
+        ? Math.round(props.borderRadiusBottomLeft * scale)
         : 0;
       radiusBottomRight = props.borderRadiusBottomRight
-        ? Math.round(props.borderRadiusBottomRight * scaleX)
+        ? Math.round(props.borderRadiusBottomRight * scale)
         : 0;
     }
 
@@ -922,14 +938,15 @@ class OverlayTemplateRendererService {
       }
     }
 
-    // Calculate scale factors
+    // Calculate uniform scale factor to handle non-standard aspect ratios
     const scaleX = posterWidth / templateWidth;
     const scaleY = posterHeight / templateHeight;
+    const scale = Math.min(scaleX, scaleY);
 
-    // Scale dimensions from template to poster
-    const width = Math.round(element.width * scaleX);
-    const height = Math.round(element.height * scaleY);
-    const fontSize = Math.round(props.fontSize * scaleY);
+    // Scale dimensions from template to poster using uniform scale
+    const width = Math.round(element.width * scale);
+    const height = Math.round(element.height * scale);
+    const fontSize = Math.round(props.fontSize * scale);
 
     // Create SVG for text rendering
     const svg = `
@@ -979,13 +996,14 @@ class OverlayTemplateRendererService {
   ): Promise<Buffer | null> {
     const props = element.properties as OverlaySVGElementProps;
 
-    // Calculate scale factors
+    // Calculate uniform scale factor to handle non-standard aspect ratios
     const scaleX = posterWidth / templateWidth;
     const scaleY = posterHeight / templateHeight;
+    const scale = Math.min(scaleX, scaleY);
 
-    // Scale dimensions from template to poster
-    const width = Math.round(element.width * scaleX);
-    const height = Math.round(element.height * scaleY);
+    // Scale dimensions from template to poster using uniform scale
+    const width = Math.round(element.width * scale);
+    const height = Math.round(element.height * scale);
 
     // Load SVG file
     if (props.iconPath) {
@@ -1045,13 +1063,14 @@ class OverlayTemplateRendererService {
   ): Promise<Buffer | null> {
     const props = element.properties as OverlayRasterElementProps;
 
-    // Calculate scale factors
+    // Calculate uniform scale factor to handle non-standard aspect ratios
     const scaleX = posterWidth / templateWidth;
     const scaleY = posterHeight / templateHeight;
+    const scale = Math.min(scaleX, scaleY);
 
-    // Scale dimensions from template to poster
-    const width = Math.round(element.width * scaleX);
-    const height = Math.round(element.height * scaleY);
+    // Scale dimensions from template to poster using uniform scale
+    const width = Math.round(element.width * scale);
+    const height = Math.round(element.height * scale);
 
     // Load raster image
     if (props.imagePath) {
