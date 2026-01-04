@@ -2,6 +2,7 @@ import BulkEditModal from '@app/components/Collections/BulkEditModal';
 import CollectionConfigForm from '@app/components/Collections/Forms/CollectionConfigForm';
 import GlobalSyncStatus from '@app/components/Collections/GlobalSyncStatus';
 import LibraryCollectionGroup from '@app/components/Collections/Views/Library/LibraryCollectionGroup';
+import Alert from '@app/components/Common/Alert';
 import Button from '@app/components/Common/Button';
 import { useCollectionReordering } from '@app/hooks/collections/useCollectionReordering';
 import useFirstTimeSetup from '@app/hooks/useFirstTimeSetup';
@@ -47,6 +48,110 @@ const messages = defineMessages({
   collectionConfigError: 'Failed to save collection configuration.',
   collectionConfigDeleted: 'Collection configuration deleted successfully!',
 });
+
+interface HubIssue {
+  hubName: string;
+  filteredHubType: string;
+  hasFilteredHub: boolean; // Whether filtered hub exists
+}
+
+interface LibraryIssue {
+  libraryName: string;
+  problematicHubs: HubIssue[];
+}
+
+/**
+ * Check if any library needs a filtered hub warning
+ * Returns specific hub issues per library with recommendations
+ */
+const checkPlaceholderHubWarning = (
+  collections: CollectionFormConfig[],
+  hubs: PlexHubConfig[],
+  libs: Library[]
+): LibraryIssue[] => {
+  if (!collections || !hubs || !libs) return [];
+
+  const libraryIssues: LibraryIssue[] = [];
+
+  // Map hub identifiers to required filtered hub subtypes
+  // Note: There are only 4 Plex default hubs that can show placeholders:
+  // - movie.recentlyadded, movie.recentlyreleased (Movies)
+  // - tv.recentlyadded, tv.recentlyaired (TV)
+  // There is NO tv.recentlyreleased hub (recently_released for TV is user-created only)
+  const hubSubtypeMapping: Record<string, string> = {
+    'movie.recentlyadded': 'recently_added',
+    'movie.recentlyreleased': 'recently_released',
+    'tv.recentlyadded': 'recently_added',
+    'tv.recentlyaired': 'recently_released_episodes',
+  };
+
+  libs.forEach((library) => {
+    // 1. Check if library has any collection with placeholders enabled
+    const hasPlaceholders = collections.some(
+      (c) =>
+        c.libraryId === library.key && c.createPlaceholdersForMissing === true
+    );
+
+    if (!hasPlaceholders) return;
+
+    // 2. Find which specific default hubs are enabled for this library
+    const enabledHubs = hubs.filter((hub) => {
+      if (hub.libraryId !== library.key) return false;
+      if (!hubSubtypeMapping[hub.hubIdentifier]) return false;
+
+      const { visibilityConfig } = hub;
+      return (
+        visibilityConfig.usersHome ||
+        visibilityConfig.serverOwnerHome ||
+        visibilityConfig.libraryRecommended
+      );
+    });
+
+    if (enabledHubs.length === 0) return;
+
+    // 3. Find which filtered hub collections exist for this library
+    const filteredHubsBySubtype = new Map<string, string>();
+    collections
+      .filter((c) => c.libraryId === library.key && c.type === 'filtered_hub')
+      .forEach((c) => {
+        if (c.subtype) {
+          filteredHubsBySubtype.set(c.subtype, c.name);
+        }
+      });
+
+    // 4. Check each enabled hub - they're all problematic when placeholders are enabled
+    const problematicHubs: HubIssue[] = [];
+
+    enabledHubs.forEach((hub) => {
+      const filteredSubtype = hubSubtypeMapping[hub.hubIdentifier];
+      if (!filteredSubtype) return;
+
+      // Check if a filtered hub with the required subtype exists and get its name
+      const filteredHubName = filteredHubsBySubtype.get(filteredSubtype);
+      const hasFilteredHub = !!filteredHubName;
+
+      // Always warn if default hub has visibility - either need to create filtered hub
+      // or disable the default hub if filtered hub already exists
+      // Use the hub's name which already contains the proper display name (e.g., "Recently Added Movies")
+      // For filtered hub type, use the actual filtered hub's name if it exists
+      problematicHubs.push({
+        hubName: hub.name,
+        filteredHubType: filteredHubName || hub.name,
+        hasFilteredHub,
+      });
+    });
+
+    // Only add library issue if there are problematic hubs
+    if (problematicHubs.length > 0) {
+      libraryIssues.push({
+        libraryName: library.name,
+        problematicHubs,
+      });
+    }
+  });
+
+  return libraryIssues;
+};
 
 const CollectionSettings = ({
   libraries: librariesProp,
@@ -221,6 +326,20 @@ const CollectionSettings = ({
       return true;
     }
   );
+
+  // Check for placeholder/hub warning
+  const libraryIssues = useMemo(
+    () =>
+      checkPlaceholderHubWarning(
+        localCollectionConfigs,
+        localHubConfigs,
+        libraries
+      ),
+    [localCollectionConfigs, localHubConfigs, libraries]
+  );
+
+  const shouldShowPlaceholderAlert =
+    !isFirstTimeUser && libraryIssues.length > 0;
 
   const checkForUnlockSequence = () => {
     // Check if there's an Overseerr user collection with 69 items and user has clicked 10 times
@@ -1834,6 +1953,45 @@ const CollectionSettings = ({
           </div>
         )}
       </div>
+
+      {/* Placeholder/Filtered Hub Warning Alert */}
+      {shouldShowPlaceholderAlert && (
+        <Alert type="warning" title="Filtered Hubs Recommended">
+          <div className="space-y-2">
+            <p>
+              You have at least one collection with{' '}
+              <strong>Create placeholders for missing items</strong> enabled.
+              The following default hubs are enabled but will show placeholder
+              items:
+            </p>
+            {libraryIssues.map((issue) => (
+              <div key={issue.libraryName} className="ml-4">
+                <p className="font-semibold text-orange-300">
+                  {issue.libraryName}:
+                </p>
+                <ul className="ml-4 list-disc space-y-1">
+                  {issue.problematicHubs.map((hub) => (
+                    <li key={hub.hubName}>
+                      <strong>{hub.hubName}</strong> -{' '}
+                      {hub.hasFilteredHub ? (
+                        <>
+                          Disable visibility on this default hub (you have a{' '}
+                          <strong>{hub.filteredHubType}</strong> filtered hub)
+                        </>
+                      ) : (
+                        <>
+                          Create a <strong>{hub.filteredHubType}</strong>{' '}
+                          filtered hub to exclude placeholders
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Alert>
+      )}
 
       {/* Main Tabs for Home, Recommended, Library, and Inactive - only show when not filtering */}
       {!filterTab && (
