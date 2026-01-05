@@ -58,8 +58,15 @@ export async function processPlaceholdersForMissingItems(
     return [];
   }
 
-  // Filter by days ahead - only create placeholders for items releasing within the configured window
+  // Enrich source data with TMDB release dates for items that don't have them
+  // This is critical for regular collections (IMDb, Trakt, Letterboxd) which don't populate release dates
+  const { enrichWithTMDBReleaseDates } = await import(
+    '@server/lib/collections/sources/comingsoon/comingSoonFetch'
+  );
   const daysAhead = getDaysAhead(config);
+  await enrichWithTMDBReleaseDates(sourceData, daysAhead);
+
+  // Filter by days ahead - only create placeholders for items releasing within the configured window
   const { isDateWithinDays, determineReleaseDate } = await import(
     '@server/utils/dateHelpers'
   );
@@ -89,9 +96,21 @@ export async function processPlaceholdersForMissingItems(
       releaseDateToCheck = item.airDate;
     }
 
-    // If no release date, include the item (can't filter what we don't know)
+    // If no release date after TMDB enrichment, exclude the item
+    // This prevents creating placeholders for items with unknown release dates
+    // when user has specified a specific days ahead window
     if (!releaseDateToCheck) {
-      return true;
+      logger.debug(
+        'Skipping placeholder creation - no release date available after TMDB enrichment',
+        {
+          label: 'PlaceholderService',
+          title: item.title,
+          tmdbId: item.tmdbId,
+          mediaType: item.mediaType,
+          configName: config.name,
+        }
+      );
+      return false;
     }
 
     // Check if release date is within the configured window
@@ -122,7 +141,7 @@ export async function processPlaceholdersForMissingItems(
         label: 'PlaceholderService',
         configName: config.name,
         originalCount: missingItems.length,
-        skippedNoReleaseDate: missingItems.length - sourceData.length,
+        skippedNoReleaseDateMetadata: missingItems.length - sourceData.length,
         skippedByDateFilter,
         daysAhead,
         collectionType: config.type,
@@ -135,7 +154,7 @@ export async function processPlaceholdersForMissingItems(
     label: 'PlaceholderService',
     configName: config.name,
     itemCount: filteredSourceData.length,
-    skippedNoReleaseDate: missingItems.length - sourceData.length,
+    skippedNoReleaseDateMetadata: missingItems.length - sourceData.length,
     skippedByDateFilter,
     daysAhead,
     collectionType: config.type,
