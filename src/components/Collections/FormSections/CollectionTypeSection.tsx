@@ -98,9 +98,7 @@ const CollectionTypeSection = ({
       radarr: radarrSettings,
       sonarr: sonarrSettings,
     },
-    values.subtype,
-    values.createPlaceholdersForMissing,
-    values.libraryId
+    values.subtype
   );
 
   const collectionTypes = [

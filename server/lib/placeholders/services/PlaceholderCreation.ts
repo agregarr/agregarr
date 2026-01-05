@@ -11,7 +11,8 @@ import type {
   MissingItem,
   PlaceholderSourceData,
 } from '@server/lib/collections/core/types';
-import type { CollectionConfig } from '@server/lib/settings';
+import type { CollectionConfig, Library } from '@server/lib/settings';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import path from 'path';
 import { ensurePlaceholderEpisodeTitle } from './PlaceholderTitleFixer';
@@ -261,8 +262,16 @@ async function createPlaceholderFile(
   );
 
   if (!libraryPath) {
+    // Get library name for better error message
+    const settings = getSettings();
+    const library = settings.plex.libraries?.find(
+      (lib: Library) => lib.key === libraryKey
+    );
+    const libraryName = library?.name || `Library ${libraryKey}`;
+    const mediaTypeLabel = sourceItem.mediaType === 'movie' ? 'Movie' : 'TV';
+
     throw new Error(
-      `Placeholder root folder not configured for library ${libraryKey}. Please set it in Settings > Downloads.`
+      `${mediaTypeLabel} placeholder root folder not configured for "${libraryName}". Please configure it in Settings > Downloads > ${mediaTypeLabel} Placeholder Folders.`
     );
   }
 

@@ -969,6 +969,8 @@ export interface MultiSourceCollectionConfig {
   readonly mediaType?: 'movie' | 'tv';
   readonly libraryId: string;
   readonly libraryName: string;
+  readonly libraryIds?: string[]; // Temporary field for form UI when editing linked configs
+  readonly libraryNames?: string[]; // Temporary field for form UI when editing linked configs
   readonly maxItems?: number;
   readonly template?: string;
   // Multi-source specific fields

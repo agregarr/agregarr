@@ -39,9 +39,7 @@ export function validateApiKeysForCollectionType(
     radarr?: RadarrSettings[];
     sonarr?: SonarrSettings[];
   },
-  subtype?: string,
-  createPlaceholdersForMissing?: boolean,
-  libraryId?: string
+  subtype?: string
 ): ApiKeyValidationResult {
   const requirements: ApiKeyRequirement[] = [];
   // Trakt can work with just clientId (basic mode) OR full OAuth
@@ -180,35 +178,6 @@ export function validateApiKeysForCollectionType(
     default:
       // No API key requirements
       break;
-  }
-
-  // Check if placeholder creation is enabled and if THIS SPECIFIC LIBRARY has a placeholder folder configured
-  if (createPlaceholdersForMissing && libraryId && settings.plex) {
-    // Find the library to determine its type
-    const library = settings.plex.libraries?.find(
-      (lib) => lib.key === libraryId
-    );
-
-    if (library) {
-      const libraryType = library.type === 'movie' ? 'movie' : 'tv';
-      const placeholderFolders =
-        libraryType === 'movie'
-          ? settings.main?.placeholderMovieRootFolders
-          : settings.main?.placeholderTVRootFolders;
-
-      const hasPlaceholderFolder = !!(
-        placeholderFolders && placeholderFolders[libraryId]
-      );
-
-      if (!hasPlaceholderFolder) {
-        requirements.push({
-          service: `${library.name} Placeholder Root Folder`,
-          required: true,
-          configured: false,
-          settingsPath: '/settings/downloads',
-        });
-      }
-    }
   }
 
   const missingServices = requirements
