@@ -1001,9 +1001,7 @@ const MultiSourceConfigSection = ({
                       radarr: radarrSettings,
                       sonarr: sonarrSettings,
                     },
-                    sourceSubtype,
-                    values.createPlaceholdersForMissing,
-                    values.libraryId
+                    sourceSubtype
                   );
                   return <ApiKeyWarning validation={apiKeyValidation} />;
                 })()}

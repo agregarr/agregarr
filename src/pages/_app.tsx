@@ -33,6 +33,8 @@ const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
       return import('../i18n/locale/es.json');
     case 'fr':
       return import('../i18n/locale/fr.json');
+    case 'hu':
+      return import('../i18n/locale/hu.json');
     case 'it':
       return import('../i18n/locale/it.json');
     case 'nl':
@@ -41,6 +43,8 @@ const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
       return import('../i18n/locale/pt-BR.json');
     case 'ru':
       return import('../i18n/locale/ru.json');
+    case 'sv':
+      return import('../i18n/locale/sv.json');
     default:
       return import('../i18n/locale/en.json');
   }

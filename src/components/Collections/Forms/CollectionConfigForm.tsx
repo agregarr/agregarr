@@ -115,8 +115,8 @@ const CollectionFormConfigForm = ({
 
   // Fetch settings to check if placeholder root folders are configured
   const { data: settingsData } = useSWR<{
-    placeholderMovieRootFolder?: string;
-    placeholderTVRootFolder?: string;
+    placeholderMovieRootFolders?: Record<string, string>;
+    placeholderTVRootFolders?: Record<string, string>;
   }>('/api/v1/settings/main');
 
   // State for storing fetched titles and detected media types
@@ -2715,9 +2715,57 @@ const CollectionFormConfigForm = ({
                                     </p>
 
                                     {/* Warning when placeholder creation enabled but no root folders configured */}
-                                    {typedValues.createPlaceholdersForMissing &&
-                                      !settingsData?.placeholderMovieRootFolder &&
-                                      !settingsData?.placeholderTVRootFolder && (
+                                    {(() => {
+                                      if (
+                                        !typedValues.createPlaceholdersForMissing
+                                      )
+                                        return null;
+
+                                      const selectedLibraryIds =
+                                        typedValues.libraryIds || [];
+
+                                      // Don't show warning if no libraries selected yet
+                                      if (selectedLibraryIds.length === 0)
+                                        return null;
+
+                                      // Find which specific libraries are missing folders
+                                      const librariesMissingFolders =
+                                        selectedLibraryIds.filter((libId) => {
+                                          return !(
+                                            settingsData
+                                              ?.placeholderMovieRootFolders?.[
+                                              libId
+                                            ] ||
+                                            settingsData
+                                              ?.placeholderTVRootFolders?.[
+                                              libId
+                                            ]
+                                          );
+                                        });
+
+                                      if (librariesMissingFolders.length === 0)
+                                        return null;
+
+                                      // Get library names for display
+                                      const missingLibraryNames =
+                                        librariesMissingFolders.map((libId) => {
+                                          const library = libraries?.find(
+                                            (lib) => lib.key === libId
+                                          );
+                                          return (
+                                            library?.name || `Library ${libId}`
+                                          );
+                                        });
+
+                                      const count = missingLibraryNames.length;
+                                      const namesText =
+                                        missingLibraryNames.join(', ');
+                                      const pluralLibrary =
+                                        count > 1 ? 'libraries' : 'library';
+                                      const pluralNeed =
+                                        count > 1 ? 'need' : 'needs';
+
+                                      return (
                                         <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
                                           <div className="flex">
                                             <div className="flex-shrink-0">
@@ -2742,9 +2790,16 @@ const CollectionFormConfigForm = ({
                                                 )}
                                               </p>
                                               <p className="mt-1 text-xs text-yellow-200">
-                                                {intl.formatMessage(
-                                                  messages.placeholderRootFoldersMessage
-                                                )}
+                                                The following {pluralLibrary}{' '}
+                                                {pluralNeed} placeholder root
+                                                folders configured:{' '}
+                                                <strong>{namesText}</strong>.
+                                                Please configure placeholder
+                                                folders for{' '}
+                                                {count > 1
+                                                  ? 'these libraries'
+                                                  : 'this library'}{' '}
+                                                in Settings &gt; Downloads.
                                               </p>
                                               <div className="mt-2">
                                                 <a
@@ -2762,7 +2817,8 @@ const CollectionFormConfigForm = ({
                                             </div>
                                           </div>
                                         </div>
-                                      )}
+                                      );
+                                    })()}
 
                                     {/* Info alert about Filtered Plex Hubs */}
                                     {typedValues.createPlaceholdersForMissing && (

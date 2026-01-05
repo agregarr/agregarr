@@ -9,7 +9,8 @@ export type AvailableLocale =
   | 'it'
   | 'nl'
   | 'pt-BR'
-  | 'ru';
+  | 'ru'
+  | 'sv';
 
 type AvailableLanguageObject = Record<
   string,
@@ -52,6 +53,10 @@ export const availableLanguages: AvailableLanguageObject = {
   ru: {
     code: 'ru',
     display: 'Русский',
+  },
+  sv: {
+    code: 'sv',
+    display: 'Svenska',
   },
 };
 

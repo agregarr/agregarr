@@ -311,13 +311,19 @@ async function fetchTMDbPosterUrls(
       logger.debug(`No TMDB ID available for ${item.title}`);
     }
 
-    itemsWithPosters.push({ ...item, posterUrl });
+    // Only include items that have a valid poster URL
+    // Items without posters are excluded so next items in list can fill the grid
+    if (posterUrl) {
+      itemsWithPosters.push({ ...item, posterUrl });
+    } else {
+      logger.debug(
+        `Excluding ${item.title} from poster grid - no poster available from TMDb`
+      );
+    }
   }
 
   logger.debug(
-    `Returning ${itemsWithPosters.length} items, ${
-      itemsWithPosters.filter((i) => i.posterUrl).length
-    } with posters`
+    `Returning ${itemsWithPosters.length} items with valid posters (from ${items.length} total items)`
   );
   return itemsWithPosters;
 }
@@ -1753,10 +1759,16 @@ export async function generatePosterSVG(
         }
       }
 
-      itemsWithPosters = await fetchTMDbPosterUrls(
-        items.slice(0, maxItems),
+      // Fetch more items than needed to account for items without posters
+      // This ensures we fill the grid even if some items don't have TMDb posters
+      const fetchLimit = Math.min(items.length, maxItems * 2);
+      const allFetchedItems = await fetchTMDbPosterUrls(
+        items.slice(0, fetchLimit),
         config.libraryId
       );
+
+      // Take only the items we need for the grid (already filtered to have posters)
+      itemsWithPosters = allFetchedItems.slice(0, maxItems);
 
       // Download and convert images to base64 for embedding
       for (const item of itemsWithPosters) {
