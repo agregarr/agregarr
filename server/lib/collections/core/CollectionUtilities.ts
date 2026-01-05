@@ -1698,7 +1698,7 @@ export async function findPlexItemsByTmdbIds(
             (lib) => lib.key === targetLibraryId
           );
           if (movieLibraries.length === 0) {
-            logger.warn(
+            logger.debug(
               `Target library ${targetLibraryId} not found or is not a movie library`,
               {
                 label: 'Plex Search',
@@ -1794,7 +1794,7 @@ export async function findPlexItemsByTmdbIds(
             (lib) => lib.key === targetLibraryId
           );
           if (tvLibraries.length === 0) {
-            logger.warn(
+            logger.debug(
               `Target library ${targetLibraryId} not found or is not a TV library`,
               {
                 label: 'Plex Search',
