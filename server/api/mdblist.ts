@@ -1,5 +1,5 @@
 import logger from '@server/logger';
-import type { AxiosInstance } from 'axios';
+import type { AxiosError, AxiosInstance } from 'axios';
 import axios from 'axios';
 
 export interface MDBListMovie {
@@ -81,23 +81,30 @@ class MDBListAPI {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         return await requestFn();
-      } catch (error) {
+      } catch (error: unknown) {
         if (attempt === maxRetries) {
           throw error;
         }
 
         // Check if it's a retryable error (5xx or network errors)
-        const isRetryable = error.response?.status >= 500 || !error.response;
+        const isAxiosError = axios.isAxiosError(error);
+        const status = isAxiosError ? error.response?.status : undefined;
+        const isRetryable =
+          (status !== undefined && status >= 500) || !isAxiosError;
+
         if (!isRetryable) {
           throw error;
         }
+
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
 
         logger.debug(
           `MDBList API request failed, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`,
           {
             label: 'MDBList API',
-            error: error.message,
-            status: error.response?.status,
+            error: errorMessage,
+            status,
           }
         );
 
@@ -106,6 +113,73 @@ class MDBListAPI {
       }
     }
     throw new Error('Max retries exceeded');
+  }
+
+  /**
+   * Extract detailed error information from Axios errors
+   */
+  private extractErrorDetails(error: unknown): {
+    message: string;
+    status?: number;
+    statusText?: string;
+    responseData?: unknown;
+  } {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const status = axiosError.response?.status;
+      const statusText = axiosError.response?.statusText;
+      const responseData = axiosError.response?.data;
+
+      // Build a detailed error message
+      let message = axiosError.message;
+
+      if (status) {
+        message = `HTTP ${status}`;
+        if (statusText) {
+          message += ` ${statusText}`;
+        }
+
+        // Add specific context for common errors
+        if (status === 401 || status === 403) {
+          message +=
+            ' - Invalid API key or authentication failed. Please check your MDBList API key in Settings.';
+        } else if (status === 404) {
+          message +=
+            ' - List not found. Please check the MDBList URL is correct.';
+        } else if (status === 429) {
+          message += ' - Rate limit exceeded. Please try again later.';
+        }
+
+        // Include response data if available
+        if (responseData) {
+          const dataStr =
+            typeof responseData === 'string'
+              ? responseData
+              : JSON.stringify(responseData);
+          if (dataStr && dataStr.length < 200) {
+            message += ` | Response: ${dataStr}`;
+          }
+        }
+      } else if (axiosError.code === 'ECONNABORTED') {
+        message = 'Request timeout - MDBList API did not respond in time';
+      } else if (axiosError.code === 'ENOTFOUND') {
+        message = 'Network error - Could not reach MDBList API';
+      }
+
+      return {
+        message,
+        status,
+        statusText,
+        responseData,
+      };
+    }
+
+    // Not an Axios error
+    if (error instanceof Error) {
+      return { message: error.message };
+    }
+
+    return { message: String(error) };
   }
 
   /**
@@ -118,26 +192,17 @@ class MDBListAPI {
         return response.data;
       });
     } catch (error: unknown) {
-      const axiosError = error as Error & { response?: { status?: number } };
+      const errorDetails = this.extractErrorDetails(error);
 
-      logger.error('Something went wrong fetching user limits from MDBList', {
+      logger.error('Failed to fetch user limits from MDBList', {
         label: 'MDBList API',
-        errorMessage: axiosError?.message,
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
       });
 
-      const originalMessage = axiosError?.message ?? 'Unknown error';
-      const statusCode = axiosError?.response?.status;
-      const formattedMessage =
-        statusCode === 401 || statusCode === 403
-          ? 'Invalid API key - Authentication failed'
-          : `[MDBList] Failed to fetch user limits: ${originalMessage}`;
-
-      if (error instanceof Error) {
-        error.message = formattedMessage;
-        throw error;
-      }
-
-      throw new Error(formattedMessage);
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -150,12 +215,18 @@ class MDBListAPI {
         const response = await this.axios.get<MDBListSummary[]>('/lists/user');
         return response.data;
       });
-    } catch (e) {
-      logger.error('Something went wrong fetching user lists from MDBList', {
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error('Failed to fetch user lists from MDBList', {
         label: 'MDBList API',
-        errorMessage: e.message,
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
       });
-      throw new Error(`[MDBList] Failed to fetch user lists: ${e.message}`);
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -172,18 +243,19 @@ class MDBListAPI {
         );
         return response.data;
       });
-    } catch (e) {
-      logger.error(
-        `Something went wrong fetching lists for user ${username} from MDBList`,
-        {
-          label: 'MDBList API',
-          errorMessage: e.message,
-          username,
-        }
-      );
-      throw new Error(
-        `[MDBList] Failed to fetch lists for user ${username}: ${e.message}`
-      );
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error(`Failed to fetch lists for user ${username} from MDBList`, {
+        label: 'MDBList API',
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
+        username,
+      });
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -198,16 +270,19 @@ class MDBListAPI {
         );
         return response.data;
       });
-    } catch (e) {
-      logger.error(
-        `Something went wrong fetching list ${listId} from MDBList`,
-        {
-          label: 'MDBList API',
-          errorMessage: e.message,
-          listId,
-        }
-      );
-      throw new Error(`[MDBList] Failed to fetch list ${listId}: ${e.message}`);
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error(`Failed to fetch list ${listId} from MDBList`, {
+        label: 'MDBList API',
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
+        listId,
+      });
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -240,19 +315,20 @@ class MDBListAPI {
         );
         return response.data;
       });
-    } catch (e) {
-      logger.error(
-        `Something went wrong fetching items for list ${listId} from MDBList`,
-        {
-          label: 'MDBList API',
-          errorMessage: e.message,
-          listId,
-          options,
-        }
-      );
-      throw new Error(
-        `[MDBList] Failed to fetch items for list ${listId}: ${e.message}`
-      );
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error(`Failed to fetch items for list ${listId} from MDBList`, {
+        label: 'MDBList API',
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
+        listId,
+        options,
+      });
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -286,20 +362,24 @@ class MDBListAPI {
         );
         return response.data;
       });
-    } catch (e) {
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
       logger.error(
-        `Something went wrong fetching items for list ${username}/${listName} from MDBList`,
+        `Failed to fetch items for list ${username}/${listName} from MDBList`,
         {
           label: 'MDBList API',
-          errorMessage: e.message,
+          errorMessage: errorDetails.message,
+          httpStatus: errorDetails.status,
+          statusText: errorDetails.statusText,
+          responseData: errorDetails.responseData,
           username,
           listName,
           options,
         }
       );
-      throw new Error(
-        `[MDBList] Failed to fetch items for list ${username}/${listName}: ${e.message}`
-      );
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -312,12 +392,18 @@ class MDBListAPI {
         const response = await this.axios.get<MDBListSummary[]>('/lists/top');
         return response.data;
       });
-    } catch (e) {
-      logger.error('Something went wrong fetching top lists from MDBList', {
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error('Failed to fetch top lists from MDBList', {
         label: 'MDBList API',
-        errorMessage: e.message,
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
       });
-      throw new Error(`[MDBList] Failed to fetch top lists: ${e.message}`);
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -335,18 +421,19 @@ class MDBListAPI {
         );
         return response.data;
       });
-    } catch (e) {
-      logger.error(
-        `Something went wrong searching lists for "${query}" from MDBList`,
-        {
-          label: 'MDBList API',
-          errorMessage: e.message,
-          query,
-        }
-      );
-      throw new Error(
-        `[MDBList] Failed to search lists for "${query}": ${e.message}`
-      );
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error(`Failed to search lists for "${query}" from MDBList`, {
+        label: 'MDBList API',
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
+        query,
+      });
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
@@ -392,10 +479,13 @@ class MDBListAPI {
       }
 
       return null;
-    } catch (e) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       logger.error('Failed to parse MDBList URL', {
         label: 'MDBList API',
-        errorMessage: e.message,
+        errorMessage,
         url,
       });
       return null;
@@ -441,14 +531,20 @@ class MDBListAPI {
       } else {
         throw new Error('Unable to determine list type from URL');
       }
-    } catch (e) {
-      logger.error('Something went wrong fetching custom list from MDBList', {
+    } catch (error: unknown) {
+      const errorDetails = this.extractErrorDetails(error);
+
+      logger.error('Failed to fetch custom list from MDBList', {
         label: 'MDBList API',
-        errorMessage: e.message,
+        errorMessage: errorDetails.message,
+        httpStatus: errorDetails.status,
+        statusText: errorDetails.statusText,
+        responseData: errorDetails.responseData,
         listUrl,
         options,
       });
-      throw new Error(`[MDBList] Failed to fetch custom list: ${e.message}`);
+
+      throw new Error(`[MDBList] ${errorDetails.message}`);
     }
   }
 
