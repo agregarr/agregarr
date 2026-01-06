@@ -80,6 +80,8 @@ export interface CollectionConfig {
   readonly lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
   readonly lastModifiedAt?: string; // ISO string timestamp when config was last modified
   readonly needsSync?: boolean; // true if modified since last sync
+  readonly lastSyncError?: string; // Error message from last failed sync (cleared on success)
+  readonly lastSyncErrorAt?: string; // ISO string timestamp of when the sync error occurred
   readonly maxItems: number;
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
@@ -1158,7 +1160,7 @@ class Settings {
   }
 
   /**
-   * Mark a collection as successfully synced
+   * Mark a collection as successfully synced (clears any previous error)
    */
   public markCollectionSynced(
     collectionId: string,
@@ -1174,7 +1176,12 @@ class Settings {
             (c) => c.id === collectionId
           );
           if (config) {
-            Object.assign(config, { needsSync: false, lastSyncedAt: now });
+            Object.assign(config, {
+              needsSync: false,
+              lastSyncedAt: now,
+              lastSyncError: undefined,
+              lastSyncErrorAt: undefined,
+            });
           }
         }
         break;
@@ -1205,6 +1212,27 @@ class Settings {
     }
 
     this.save();
+  }
+
+  /**
+   * Set a sync error for a specific collection
+   */
+  public setCollectionSyncError(collectionId: string, error: string): void {
+    const now = new Date().toISOString();
+
+    if (this.data.plex.collectionConfigs) {
+      const config = this.data.plex.collectionConfigs.find(
+        (c) => c.id === collectionId
+      );
+      if (config) {
+        Object.assign(config, {
+          lastSyncError: error,
+          lastSyncErrorAt: now,
+          needsSync: true, // Keep marked as needing sync since it failed
+        });
+        this.save();
+      }
+    }
   }
 
   /**

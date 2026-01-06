@@ -548,6 +548,22 @@ export class CollectionSyncService {
 
           created += result.created || 0;
           updated += result.updated || 0;
+
+          // Check if the sync returned an error (e.g., from multi-source orchestrator)
+          if (result.error) {
+            logger.warn(
+              `Collection sync returned error for ${config.name}: ${result.error}`,
+              {
+                label: 'Collection Sync Service',
+                configId: config.id,
+              }
+            );
+            // Persist error for UI display
+            settings.setCollectionSyncError(config.id, result.error);
+          } else {
+            // Mark collection as successfully synced (clears any previous error)
+            settings.markCollectionSynced(config.id, 'collection');
+          }
         }
 
         totalCreated += created;
@@ -562,18 +578,20 @@ export class CollectionSyncService {
           );
         }
 
-        // Mark collection as successfully synced
-        settings.markCollectionSynced(config.id, 'collection');
-
         // Update progress count
         processedCount++;
         onProgress?.(processedCount);
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         logger.error(`Failed to process collection ${config.name}: ${error}`, {
           label: 'Collection Sync Service',
           configId: config.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
+
+        // Persist error for UI display
+        settings.setCollectionSyncError(config.id, errorMessage);
 
         // Still increment counter to avoid getting stuck
         processedCount++;
