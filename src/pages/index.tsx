@@ -8,7 +8,7 @@ import { defineMessages, useIntl } from 'react-intl';
 const messages = defineMessages({
   homeTitle: 'Home',
   homeDescription:
-    'Collections and Hubs on the Home screen. Ordering is shared between Home and Recommended views, but can have seperate visibility settings.',
+    'Collections and Hubs on the Home screen. Ordering is shared between Home and Recommended views, but can have separate visibility settings.',
 });
 
 const Index: NextPage = () => {
