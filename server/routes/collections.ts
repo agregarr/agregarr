@@ -1845,9 +1845,23 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
           );
         }
 
-        // Mark collection as synced (update needsSync status)
-        settings.markCollectionSynced(id, 'collection');
-        settings.save();
+        // Check if the sync returned an error (e.g., from multi-source orchestrator)
+        if (result.error) {
+          logger.warn(
+            `Individual collection sync returned error for ${collectionConfig.name}: ${result.error}`,
+            {
+              label: 'Individual Collection Sync',
+              collectionId: id,
+            }
+          );
+          // Persist error for UI display
+          settings.setCollectionSyncError(id, result.error);
+          settings.save();
+        } else {
+          // Mark collection as synced (update needsSync status, clears any previous error)
+          settings.markCollectionSynced(id, 'collection');
+          settings.save();
+        }
 
         // Sync Plex collection ordering after collection sync
         const { HubSyncService } = await import(
@@ -1862,19 +1876,25 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
             label: 'Individual Collection Sync',
             collectionId: id,
             result,
+            hasError: !!result.error,
           }
         );
 
         return result;
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         logger.error(
           `Individual collection sync failed for ${collectionConfig.name}: ${error}`,
           {
             label: 'Individual Collection Sync',
             collectionId: id,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
           }
         );
+        // Persist error for UI display
+        settings.setCollectionSyncError(id, errorMessage);
+        settings.save();
         throw error;
       }
     })();
