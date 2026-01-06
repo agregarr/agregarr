@@ -116,7 +116,7 @@ export class MultiSourceOrchestrator {
     processedCollectionKeys?: Set<string>,
     libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise<{ created: number; updated: number; error?: string }> {
     let configForSync: MultiSourceCollectionConfig = config;
     let collectionNameForSync = config.name;
 
@@ -541,6 +541,10 @@ export class MultiSourceOrchestrator {
           ? collectionNameForSync
           : config.name;
 
+      // Extract the original error message for surfacing to UI
+      const originalErrorMessage =
+        error instanceof Error ? error.message : String(error);
+
       // 4. Error Handling - use standard pipeline utilities
       const syncError = createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
@@ -553,6 +557,7 @@ export class MultiSourceOrchestrator {
         label: 'Multi-Source Orchestrator',
         configId: config.id,
         error: syncError.details,
+        originalError: originalErrorMessage,
       });
 
       // Call error callback if provided
@@ -560,7 +565,8 @@ export class MultiSourceOrchestrator {
         options.onError(syncError);
       }
 
-      return { created: 0, updated: 0 };
+      // Return error message so callers can persist it for UI display
+      return { created: 0, updated: 0, error: originalErrorMessage };
     }
   }
 
