@@ -176,16 +176,16 @@ components:
             type: string
           description: Per-library movie placeholder root folders (libraryKey -> path)
           example:
-            "1": /data/media/movies
-            "3": /data/media/movies-4k
+            '1': /data/media/movies
+            '3': /data/media/movies-4k
         placeholderTVRootFolders:
           type: object
           additionalProperties:
             type: string
           description: Per-library TV placeholder root folders (libraryKey -> path)
           example:
-            "2": /data/media/tv
-            "4": /data/media/anime
+            '2': /data/media/tv
+            '4': /data/media/anime
     PlexLibrary:
       type: object
       properties:
