@@ -1608,9 +1608,29 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       }
                       filter="raster"
                       onChange={(imagePath) => {
-                        updateElementProperties(selectedElement.id, {
-                          imagePath,
-                        });
+                        // Auto-size raster element to match image dimensions
+                        const img = new window.Image();
+                        img.onload = () => {
+                          // Update image path AND element dimensions in ONE call
+                          updateElement(selectedElement.id, {
+                            width: img.width,
+                            height: img.height,
+                            properties: {
+                              ...selectedElement.properties,
+                              imagePath,
+                            },
+                          });
+                        };
+                        img.onerror = () => {
+                          // If image fails to load, just update the image path
+                          updateElement(selectedElement.id, {
+                            properties: {
+                              ...selectedElement.properties,
+                              imagePath,
+                            },
+                          });
+                        };
+                        img.src = imagePath;
                       }}
                       addToast={addToast}
                     />
@@ -1861,20 +1881,25 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           // Load the image to get its width and height
                           const img = new window.Image();
                           img.onload = () => {
-                            // Update both icon path and element dimensions
-                            updateElementProperties(selectedElement.id, {
-                              iconPath,
-                            });
-                            // Update canvas element dimensions
+                            // Update icon path, icon type, AND element dimensions in ONE call
                             updateElement(selectedElement.id, {
                               width: img.width,
                               height: img.height,
+                              properties: {
+                                ...selectedElement.properties,
+                                iconType: 'custom-icon',
+                                iconPath,
+                              },
                             });
                           };
                           img.onerror = () => {
-                            // If image fails to load, just update the icon path
-                            updateElementProperties(selectedElement.id, {
-                              iconPath,
+                            // If image fails to load, just update the icon path and type
+                            updateElement(selectedElement.id, {
+                              properties: {
+                                ...selectedElement.properties,
+                                iconType: 'custom-icon',
+                                iconPath,
+                              },
                             });
                           };
                           img.src = iconPath;

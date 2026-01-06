@@ -96,8 +96,9 @@ export interface PersonElementProps extends Partial<RasterElementProps> {
 }
 
 export interface SVGElementProps {
-  iconType: 'source-logo' | 'svg-icon';
+  iconType: 'source-logo' | 'svg-icon' | 'custom-icon';
   iconPath?: string; // For custom icons, service logo is dynamic
+  grayscale?: boolean;
 }
 
 export interface ContentGridProps {
