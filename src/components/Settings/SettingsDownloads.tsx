@@ -297,7 +297,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   });
   const [deleteServerModal, setDeleteServerModal] = useState<{
     open: boolean;
-    type: 'radarr' | 'sonarr';
+    type: 'radarr' | 'sonarr' | 'overseerr';
     serverId: number | null;
   }>({
     open: false,
@@ -309,13 +309,20 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
     useSWR<OverseerrSettings>('/api/v1/settings/overseerr');
 
   const deleteServer = async () => {
-    await axios.delete(
-      `/api/v1/settings/${deleteServerModal.type}/${deleteServerModal.serverId}`
-    );
-    setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
-    revalidateRadarr();
-    revalidateSonarr();
-    mutate('/api/v1/settings/public');
+    if (deleteServerModal.type === 'overseerr') {
+      await axios.delete('/api/v1/settings/overseerr');
+      setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
+      revalidateOverseerr();
+      mutate('/api/v1/settings/public');
+    } else {
+      await axios.delete(
+        `/api/v1/settings/${deleteServerModal.type}/${deleteServerModal.serverId}`
+      );
+      setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
+      revalidateRadarr();
+      revalidateSonarr();
+      mutate('/api/v1/settings/public');
+    }
   };
 
   return (
@@ -388,7 +395,11 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
           }
           title={intl.formatMessage(messages.deleteServer, {
             serverType:
-              deleteServerModal.type === 'radarr' ? 'Radarr' : 'Sonarr',
+              deleteServerModal.type === 'radarr'
+                ? 'Radarr'
+                : deleteServerModal.type === 'sonarr'
+                ? 'Sonarr'
+                : 'Overseerr',
           })}
         >
           {intl.formatMessage(messages.deleteserverconfirm)}
@@ -428,22 +439,23 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
               isOverseerr={true}
               externalUrl={dataOverseerr.externalUrl}
               onEdit={() => setEditOverseerrModal({ open: true })}
-              onDelete={() => {
-                // We can't actually delete Overseerr, just clear the settings
-                // For now, disable the delete button by not providing the handler
-              }}
+              onDelete={() =>
+                setDeleteServerModal({
+                  open: true,
+                  serverId: null,
+                  type: 'overseerr',
+                })
+              }
             />
           ) : (
-            <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
-              <div className="flex h-full w-full items-center justify-center">
-                <Button
-                  buttonType="ghost"
-                  onClick={() => setEditOverseerrModal({ open: true })}
-                >
-                  <PlusIcon />
-                  <span>{intl.formatMessage(messages.addoverseerr)}</span>
-                </Button>
-              </div>
+            <li className="col-span-1 min-h-[160px] rounded-lg border-2 border-dashed border-stone-400 shadow">
+              <button
+                onClick={() => setEditOverseerrModal({ open: true })}
+                className="flex h-full w-full items-center justify-center gap-2 text-stone-400 transition hover:text-white"
+              >
+                <PlusIcon className="h-6 w-6" />
+                <span>{intl.formatMessage(messages.addoverseerr)}</span>
+              </button>
             </li>
           )}
         </ul>
@@ -519,18 +531,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   }
                 />
               ))}
-              <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
-                <div className="flex h-full w-full items-center justify-center">
-                  <Button
-                    buttonType="ghost"
-                    onClick={() =>
-                      setEditRadarrModal({ open: true, radarr: null })
-                    }
-                  >
-                    <PlusIcon />
-                    <span>{intl.formatMessage(messages.addradarr)}</span>
-                  </Button>
-                </div>
+              <li className="col-span-1 min-h-[160px] rounded-lg border-2 border-dashed border-stone-400 shadow">
+                <button
+                  onClick={() =>
+                    setEditRadarrModal({ open: true, radarr: null })
+                  }
+                  className="flex h-full w-full items-center justify-center gap-2 text-stone-400 transition hover:text-white"
+                >
+                  <PlusIcon className="h-6 w-6" />
+                  <span>{intl.formatMessage(messages.addradarr)}</span>
+                </button>
               </li>
             </ul>
           </>
@@ -608,18 +618,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   }
                 />
               ))}
-              <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
-                <div className="flex h-full w-full items-center justify-center">
-                  <Button
-                    buttonType="ghost"
-                    onClick={() =>
-                      setEditSonarrModal({ open: true, sonarr: null })
-                    }
-                  >
-                    <PlusIcon />
-                    <span>{intl.formatMessage(messages.addsonarr)}</span>
-                  </Button>
-                </div>
+              <li className="col-span-1 min-h-[160px] rounded-lg border-2 border-dashed border-stone-400 shadow">
+                <button
+                  onClick={() =>
+                    setEditSonarrModal({ open: true, sonarr: null })
+                  }
+                  className="flex h-full w-full items-center justify-center gap-2 text-stone-400 transition hover:text-white"
+                >
+                  <PlusIcon className="h-6 w-6" />
+                  <span>{intl.formatMessage(messages.addsonarr)}</span>
+                </button>
               </li>
             </ul>
           </>

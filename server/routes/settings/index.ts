@@ -898,6 +898,16 @@ settingsRoutes.post('/overseerr', async (req, res) => {
   return res.status(200).json(settings.overseerr);
 });
 
+settingsRoutes.delete('/overseerr', (req, res) => {
+  const settings = getSettings();
+
+  // Clear all Overseerr settings
+  settings.overseerr = {};
+  settings.save();
+
+  return res.status(200).json(settings.overseerr);
+});
+
 settingsRoutes.get('/serviceuser', (_req, res) => {
   const settings = getSettings();
   res.status(200).json(settings.serviceUser);

@@ -9179,6 +9179,18 @@ paths:
                 $ref: '#/components/schemas/OverseerrSettings'
         '500':
           description: 'Connection test failed'
+    delete:
+      summary: Delete Overseerr settings
+      description: Clears all Overseerr connection settings.
+      tags:
+        - settings-integrations
+      responses:
+        '200':
+          description: 'Settings were successfully cleared'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverseerrSettings'
   /overseerr/test:
     post:
       summary: Test Overseerr connection
