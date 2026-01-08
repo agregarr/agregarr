@@ -1,6 +1,7 @@
 import React from 'react';
 
 export type AvailableLocale =
+  | 'da'
   | 'de'
   | 'en'
   | 'es'
@@ -21,6 +22,10 @@ export const availableLanguages: AvailableLanguageObject = {
   en: {
     code: 'en',
     display: 'English',
+  },
+  da: {
+    code: 'da',
+    display: 'Dansk',
   },
   de: {
     code: 'de',
