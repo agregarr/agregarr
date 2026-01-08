@@ -85,6 +85,8 @@ const NUMERIC_FIELDS = [
   'fileSize',
   'viewCount',
   'imdbTop250Rank',
+  'daysSinceAdded',
+  'daysSinceLastPlayed',
 ];
 
 // List of boolean fields

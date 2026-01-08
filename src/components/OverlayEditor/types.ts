@@ -199,6 +199,8 @@ export interface OverlayRenderContext {
   viewCount?: number; // Number of times played
   lastPlayed?: Date; // Last playback date
   dateAdded?: Date; // Date added to Plex
+  daysSinceAdded?: number; // Days since item was added to Plex
+  daysSinceLastPlayed?: number; // Days since item was last played
 
   // Status fields (for Coming Soon / New Release)
   // PRIMARY RELEASE DATE - Smart calculated field
@@ -311,6 +313,12 @@ export const AVAILABLE_VARIABLES = {
     { field: 'viewCount', label: 'View Count', example: '5' },
     { field: 'lastPlayed', label: 'Last Played', example: '2024-01-15' },
     { field: 'dateAdded', label: 'Date Added', example: '2024-01-01' },
+    { field: 'daysSinceAdded', label: 'Days Since Added', example: '14' },
+    {
+      field: 'daysSinceLastPlayed',
+      label: 'Days Since Last Played',
+      example: '7',
+    },
   ],
   'coming-soon': [
     { field: 'releaseDate', label: 'Release Date', example: 'JAN 15' },
@@ -428,6 +436,12 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'viewCount', label: 'View Count', example: '5' },
     { field: 'lastPlayed', label: 'Last Played', example: '2024-01-15' },
     { field: 'dateAdded', label: 'Date Added', example: '2024-01-01' },
+    { field: 'daysSinceAdded', label: 'Days Since Added', example: '14' },
+    {
+      field: 'daysSinceLastPlayed',
+      label: 'Days Since Last Played',
+      example: '7',
+    },
   ],
   Ratings: [
     { field: 'imdbRating', label: 'IMDb Rating', example: '8.7' },
@@ -565,6 +579,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitrate: 15000,
     fileSize: 4500000000,
     viewCount: 5,
+    daysSinceAdded: 14,
+    daysSinceLastPlayed: 3,
     releaseDate: '2025-02-15', // Primary release date (digital)
     daysUntilRelease: 14,
     runtime: 136,
@@ -606,6 +622,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitrate: 8000,
     fileSize: 3000000000,
     viewCount: 12,
+    daysSinceAdded: 120,
+    daysSinceLastPlayed: 7,
     releaseDate: '2008-01-20', // Series premiere (NOT next episode)
     nextEpisodeAirDate: '2025-01-22', // Next episode (any episode, including mid-season)
     daysUntilNextEpisode: 7, // Days until next episode

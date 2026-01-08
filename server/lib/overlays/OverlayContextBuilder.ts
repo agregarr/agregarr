@@ -460,9 +460,19 @@ export async function buildRenderContext(
   }
   if (item.lastViewedAt) {
     context.lastPlayed = new Date(item.lastViewedAt * 1000);
+    // Calculate days since last played
+    const daysSinceLastPlayed = Math.floor(
+      (Date.now() - item.lastViewedAt * 1000) / (1000 * 60 * 60 * 24)
+    );
+    context.daysSinceLastPlayed = daysSinceLastPlayed;
   }
   if (item.addedAt) {
     context.dateAdded = new Date(item.addedAt * 1000);
+    // Calculate days since added
+    const daysSinceAdded = Math.floor(
+      (Date.now() - item.addedAt * 1000) / (1000 * 60 * 60 * 24)
+    );
+    context.daysSinceAdded = daysSinceAdded;
   }
 
   // TV-specific
