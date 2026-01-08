@@ -109,26 +109,46 @@ class RottenTomatoes extends ExternalAPI {
         return null;
       }
 
-      // First, attempt to match exact name and year
+      const nameLower = name.toLowerCase();
+
+      // 1. Exact case-insensitive title + exact year (highest confidence)
       let movie = contentResults.hits.find(
-        (movie) => movie.releaseYear === year && movie.title === name
+        (movie) =>
+          movie.releaseYear === year && movie.title.toLowerCase() === nameLower
       );
 
-      // If we don't find a movie, try to match partial name and year
+      // 2. Exact case-insensitive title + ±1 year (handles RT data discrepancies)
       if (!movie) {
         movie = contentResults.hits.find(
-          (movie) => movie.releaseYear === year && movie.title.includes(name)
+          (movie) =>
+            Math.abs(movie.releaseYear - year) <= 1 &&
+            movie.title.toLowerCase() === nameLower
         );
       }
 
-      // If we still dont find a movie, try to match just on year
+      // 3. Partial case-insensitive title + exact year
       if (!movie) {
-        movie = contentResults.hits.find((movie) => movie.releaseYear === year);
+        movie = contentResults.hits.find(
+          (movie) =>
+            movie.releaseYear === year &&
+            movie.title.toLowerCase().includes(nameLower)
+        );
       }
 
-      // One last try, try exact name match only
+      // 4. Partial case-insensitive title + ±1 year
       if (!movie) {
-        movie = contentResults.hits.find((movie) => movie.title === name);
+        movie = contentResults.hits.find(
+          (movie) =>
+            Math.abs(movie.releaseYear - year) <= 1 &&
+            movie.title.toLowerCase().includes(nameLower)
+        );
+      }
+
+      // 5. Exact case-insensitive title only (no year constraint)
+      if (!movie) {
+        movie = contentResults.hits.find(
+          (movie) => movie.title.toLowerCase() === nameLower
+        );
       }
 
       if (!movie) {
@@ -182,11 +202,54 @@ class RottenTomatoes extends ExternalAPI {
         return null;
       }
 
-      let tvshow: RTAlgoliaHit | undefined = contentResults.hits[0];
+      const nameLower = name.toLowerCase();
+      let tvshow: RTAlgoliaHit | undefined;
 
       if (year) {
+        // 1. Exact case-insensitive title + exact year (highest confidence)
         tvshow = contentResults.hits.find(
-          (series) => series.releaseYear === year
+          (series) =>
+            series.releaseYear === year &&
+            series.title.toLowerCase() === nameLower
+        );
+
+        // 2. Exact case-insensitive title + ±1 year (handles RT data discrepancies)
+        if (!tvshow) {
+          tvshow = contentResults.hits.find(
+            (series) =>
+              Math.abs(series.releaseYear - year) <= 1 &&
+              series.title.toLowerCase() === nameLower
+          );
+        }
+
+        // 3. Partial case-insensitive title + exact year
+        if (!tvshow) {
+          tvshow = contentResults.hits.find(
+            (series) =>
+              series.releaseYear === year &&
+              series.title.toLowerCase().includes(nameLower)
+          );
+        }
+
+        // 4. Partial case-insensitive title + ±1 year
+        if (!tvshow) {
+          tvshow = contentResults.hits.find(
+            (series) =>
+              Math.abs(series.releaseYear - year) <= 1 &&
+              series.title.toLowerCase().includes(nameLower)
+          );
+        }
+
+        // 5. Exact case-insensitive title only (no year constraint)
+        if (!tvshow) {
+          tvshow = contentResults.hits.find(
+            (series) => series.title.toLowerCase() === nameLower
+          );
+        }
+      } else {
+        // If no year provided, use exact case-insensitive title match
+        tvshow = contentResults.hits.find(
+          (series) => series.title.toLowerCase() === nameLower
         );
       }
 
