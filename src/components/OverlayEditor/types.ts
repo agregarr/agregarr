@@ -139,7 +139,8 @@ export interface ConditionRule {
     | 'contains' // string contains
     | 'regex' // regex match
     | 'begins' // string begins with
-    | 'ends'; // string ends with
+    | 'ends' // string ends with
+    | 'exists'; // field exists (has non-null/undefined value)
   value: string | number | boolean | (string | number)[];
 }
 

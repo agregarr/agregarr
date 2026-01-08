@@ -56,6 +56,7 @@ const messages = defineMessages({
   opBegins: 'begins with',
   opEnds: 'ends with',
   opIn: 'in',
+  opExists: 'exists',
   and: 'AND',
   or: 'OR',
 });
@@ -143,6 +144,7 @@ const RuleItem: React.FC<RuleItemProps> = ({
   const isRadarrTags = field === 'radarrTags';
   const isSonarrTags = field === 'sonarrTags';
   const isTagField = isRadarrTags || isSonarrTags;
+  const isExistsOperator = operator === 'exists';
 
   // Fetch all tags from all Radarr instances
   const { data: radarrTags } = useSWR<ArrTag[]>(
@@ -218,14 +220,14 @@ const RuleItem: React.FC<RuleItemProps> = ({
           const numericOnlyOperators = ['gt', 'gte', 'lt', 'lte'];
           const isCurrentOperatorInvalid =
             (!isNewFieldNumeric && numericOnlyOperators.includes(operator)) ||
-            (isNewFieldBoolean && !['eq', 'neq'].includes(operator));
+            (isNewFieldBoolean && !['eq', 'neq', 'exists'].includes(operator));
 
           // Reset to appropriate defaults when changing field
           onChange({
             ...rule,
             field: newField,
             operator: isCurrentOperatorInvalid ? 'eq' : rule.operator,
-            value: isNewFieldBoolean ? true : '',
+            value: operator === 'exists' || isNewFieldBoolean ? true : '',
           });
         }}
         className="flex-1 select-none rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
@@ -247,9 +249,12 @@ const RuleItem: React.FC<RuleItemProps> = ({
       <select
         value={operator}
         onChange={(e) => {
+          const newOperator = e.target.value as ConditionRule['operator'];
           onChange({
             ...rule,
-            operator: e.target.value as ConditionRule['operator'],
+            operator: newOperator,
+            // Set value to true when switching to 'exists' operator
+            value: newOperator === 'exists' ? true : rule.value,
           });
         }}
         className="w-32 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
@@ -287,10 +292,11 @@ const RuleItem: React.FC<RuleItemProps> = ({
             <option value="ends">{intl.formatMessage(messages.opEnds)}</option>
           </>
         )}
+        <option value="exists">{intl.formatMessage(messages.opExists)}</option>
       </select>
 
       {/* Value Input */}
-      {isBoolean ? (
+      {isBoolean || isExistsOperator ? (
         <select
           value={String(value)}
           onChange={(e) => {
