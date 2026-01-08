@@ -217,7 +217,7 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
               'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
-            timeout: 10000,
+            timeout: 15000,
           });
 
           // Extract title from HTML
@@ -346,9 +346,13 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             }
           }
         } catch (error) {
+          const isTimeout =
+            error.code === 'ECONNABORTED' || error.message?.includes('timeout');
           return res.status(400).json({
             status: 'error',
-            message: 'Could not fetch IMDb list title',
+            message: isTimeout
+              ? 'Request timed out while fetching IMDb list. The list page may be loading slowly. Please try again.'
+              : 'Could not fetch IMDb list title. Please verify the URL is correct and the list is publicly accessible.',
           });
         }
         break;
@@ -378,7 +382,7 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
               'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
-            timeout: 10000,
+            timeout: 15000,
           });
 
           if (watchlistMatch) {
@@ -437,9 +441,13 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           // For Letterboxd, assume movies by default since it's primarily a film platform
           mediaType = 'movie';
         } catch (error) {
+          const isTimeout =
+            error.code === 'ECONNABORTED' || error.message?.includes('timeout');
           return res.status(400).json({
             status: 'error',
-            message: 'Could not fetch Letterboxd list title',
+            message: isTimeout
+              ? 'Request timed out while fetching Letterboxd list. The list page may be loading slowly. Please try again.'
+              : 'Could not fetch Letterboxd list title. Please verify the URL is correct and the list is publicly accessible.',
           });
         }
         break;
@@ -454,7 +462,7 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
               'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
-            timeout: 10000,
+            timeout: 15000,
           });
 
           const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
@@ -473,9 +481,13 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             mediaType = 'tv'; // default to tv for AniList (anime)
           }
         } catch (error) {
+          const isTimeout =
+            error.code === 'ECONNABORTED' || error.message?.includes('timeout');
           return res.status(400).json({
             status: 'error',
-            message: 'Could not fetch AniList list title',
+            message: isTimeout
+              ? 'Request timed out while fetching AniList list. The list page may be loading slowly. Please try again.'
+              : 'Could not fetch AniList list title. Please verify the URL is correct and the list is publicly accessible.',
           });
         }
 
