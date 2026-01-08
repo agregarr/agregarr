@@ -2109,6 +2109,34 @@ class PlexAPI {
     }
   }
 
+  /**
+   * Empty trash for a Plex library section
+   * Removes items that Plex has detected as missing/unavailable
+   * @param libraryId - The library section ID to empty trash for
+   */
+  public async emptyTrash(libraryId: string): Promise<void> {
+    try {
+      logger.debug('Emptying Plex library trash', {
+        label: 'Plex API',
+        libraryId,
+      });
+
+      await this.safePutQuery(`/library/sections/${libraryId}/emptyTrash`);
+
+      logger.info('Plex library trash emptied', {
+        label: 'Plex API',
+        libraryId,
+      });
+    } catch (error) {
+      logger.error('Failed to empty Plex library trash', {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
   // PLEX.TV METHODS - Delegated to PlexTvAPI
 
   /**

@@ -186,6 +186,45 @@ export class CollectionSyncService {
           cleanedUp,
           titlesFixes,
         });
+
+        // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
+        if (cleanedUp > 0 && tvLibraryId) {
+          const libraryId = tvLibraryId;
+          logger.info(
+            'Triggering Plex scan to clean up deleted TV placeholders',
+            {
+              label: 'Collection Sync Service',
+              libraryId,
+              placeholdersDeleted: cleanedUp,
+            }
+          );
+          // Fire-and-forget: don't block sync while Plex processes
+          const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
+          void (async () => {
+            try {
+              await plexClient.scanLibrary(libraryId);
+              if (autoEmptyTrash) {
+                // Brief delay for scan to detect missing files
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                await plexClient.emptyTrash(libraryId);
+              }
+              logger.info('Plex placeholder cleanup complete', {
+                label: 'Collection Sync Service',
+                libraryId,
+                trashedEmptied: autoEmptyTrash,
+              });
+            } catch (cleanupError) {
+              logger.warn('Failed to complete Plex placeholder cleanup', {
+                label: 'Collection Sync Service',
+                libraryId,
+                error:
+                  cleanupError instanceof Error
+                    ? cleanupError.message
+                    : String(cleanupError),
+              });
+            }
+          })();
+        }
       } catch (error) {
         logger.warn('Failed to run global TV placeholder discovery', {
           label: 'Collection Sync Service',
@@ -246,6 +285,45 @@ export class CollectionSyncService {
           label: 'Collection Sync Service',
           cleanedUp: moviesCleanedUp,
         });
+
+        // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
+        if (moviesCleanedUp > 0 && movieLibraryId) {
+          const libraryId = movieLibraryId;
+          logger.info(
+            'Triggering Plex scan to clean up deleted movie placeholders',
+            {
+              label: 'Collection Sync Service',
+              libraryId,
+              placeholdersDeleted: moviesCleanedUp,
+            }
+          );
+          // Fire-and-forget: don't block sync while Plex processes
+          const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
+          void (async () => {
+            try {
+              await plexClient.scanLibrary(libraryId);
+              if (autoEmptyTrash) {
+                // Brief delay for scan to detect missing files
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                await plexClient.emptyTrash(libraryId);
+              }
+              logger.info('Plex placeholder cleanup complete', {
+                label: 'Collection Sync Service',
+                libraryId,
+                trashedEmptied: autoEmptyTrash,
+              });
+            } catch (cleanupError) {
+              logger.warn('Failed to complete Plex placeholder cleanup', {
+                label: 'Collection Sync Service',
+                libraryId,
+                error:
+                  cleanupError instanceof Error
+                    ? cleanupError.message
+                    : String(cleanupError),
+              });
+            }
+          })();
+        }
       } catch (error) {
         logger.warn('Failed to run global movie placeholder discovery', {
           label: 'Collection Sync Service',
