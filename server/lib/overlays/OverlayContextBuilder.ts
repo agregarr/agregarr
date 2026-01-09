@@ -286,6 +286,11 @@ export async function buildRenderContext(
         context.studio = tmdbData.production_companies[0].name;
       }
 
+      // Network (TV shows)
+      if ('networks' in tmdbData && tmdbData.networks?.[0]) {
+        context.network = tmdbData.networks[0].name;
+      }
+
       // Genre (concatenate all genres for matching)
       if (
         'genres' in tmdbData &&

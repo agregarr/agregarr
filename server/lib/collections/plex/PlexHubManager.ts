@@ -205,7 +205,11 @@ class PlexHubManager {
    */
   public async getAllLibraryHubs(): Promise<{ [sectionId: string]: unknown }> {
     try {
-      const libraries = await this.plexApi.getLibraries();
+      const allLibraries = await this.plexApi.getLibraries();
+      // Filter to only movie and show libraries - we don't manage music, photo, or other library types
+      const libraries = allLibraries.filter(
+        (library) => library.type === 'movie' || library.type === 'show'
+      );
       const allHubs: { [sectionId: string]: unknown } = {};
 
       for (const library of libraries) {
