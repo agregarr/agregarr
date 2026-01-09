@@ -186,7 +186,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         allCollections,
         processedCollectionKeys,
         undefined,
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       logger.error('Coming Soon collection processing failed', {

@@ -169,7 +169,8 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(

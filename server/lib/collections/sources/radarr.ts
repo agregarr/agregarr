@@ -129,7 +129,8 @@ export class RadarrTagCollectionSync extends BaseCollectionSync<'radarrtag'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(

@@ -726,7 +726,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       allCollections,
       processedCollectionKeys,
       undefined, // userInfo
-      libraryCache
+      libraryCache,
+      missingItems
     );
   }
 
@@ -1210,7 +1211,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       processedCollectionKeys,
       {
         customLabel, // Enables findExistingCollection() to track by label
-      }
+      },
+      missingItems // Enable Quick Sync for franchise collections
     );
 
     // Handle poster upload and collection mode

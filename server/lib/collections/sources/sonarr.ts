@@ -131,7 +131,8 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(

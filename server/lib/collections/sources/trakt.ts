@@ -139,7 +139,8 @@ export class TraktCollectionSync extends BaseCollectionSync<'trakt'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       // Log detailed error information before rethrowing

@@ -23,7 +23,11 @@ export class CollectionMissingItems {
 
   @Column({ type: 'varchar' })
   @Index()
-  public collectionId: string; // Links to CollectionConfig.id
+  public collectionRatingKey: string; // Plex collection rating key (primary identifier)
+
+  @Column({ type: 'varchar' })
+  @Index()
+  public configId: string; // Parent CollectionConfig.id (same for multi-collection patterns)
 
   @Column({ type: 'varchar' })
   @Index()
