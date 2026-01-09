@@ -797,6 +797,16 @@ const CollectionFormConfigForm = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'trakt' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        addToast(errorData.message || 'Failed to fetch Trakt list title', {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+        return;
+      }
+
       const data = await response.json();
 
       if (data.title) {
@@ -819,7 +829,15 @@ const CollectionFormConfigForm = ({
         detectMediaType(url, 'trakt');
       }
     } catch (error) {
-      // Failed to fetch Trakt title - silently continue
+      addToast(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch Trakt list title. Please check your connection and try again.',
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setFetchingTitle((prev) => ({ ...prev, trakt: false }));
     }
@@ -836,6 +854,16 @@ const CollectionFormConfigForm = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'tmdb' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        addToast(errorData.message || 'Failed to fetch TMDB title', {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+        return;
+      }
+
       const data = await response.json();
       if (data.title) {
         setFetchedTitles((prev) => ({ ...prev, tmdb: data.title }));
@@ -851,7 +879,15 @@ const CollectionFormConfigForm = ({
         }
       }
     } catch (error) {
-      // Failed to fetch TMDB title - silently continue
+      addToast(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch TMDB title. Please check your connection and try again.',
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
     }
@@ -870,6 +906,16 @@ const CollectionFormConfigForm = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'imdb' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        addToast(errorData.message || 'Failed to fetch IMDb list title', {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+        return;
+      }
+
       const data = await response.json();
 
       if (data.title) {
@@ -891,7 +937,15 @@ const CollectionFormConfigForm = ({
         detectMediaType(url, 'imdb');
       }
     } catch (error) {
-      // Failed to fetch IMDb title - silently continue
+      addToast(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch IMDb list title. Please check your connection and try again.',
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setFetchingTitle((prev) => ({ ...prev, imdb: false }));
     }
@@ -908,6 +962,16 @@ const CollectionFormConfigForm = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'letterboxd' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        addToast(errorData.message || 'Failed to fetch Letterboxd list title', {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+        return;
+      }
+
       const data = await response.json();
       if (data.title) {
         setFetchedTitles((prev) => ({ ...prev, letterboxd: data.title }));
@@ -926,7 +990,15 @@ const CollectionFormConfigForm = ({
         }
       }
     } catch (error) {
-      // Failed to fetch Letterboxd title - silently continue
+      addToast(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch Letterboxd list title. Please check your connection and try again.',
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
     }
@@ -943,6 +1015,16 @@ const CollectionFormConfigForm = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'mdblist' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        addToast(errorData.message || 'Failed to fetch MDBList title', {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+        return;
+      }
+
       const data = await response.json();
       if (data.title) {
         setFetchedTitles((prev) => ({ ...prev, mdblist: data.title }));
@@ -961,7 +1043,15 @@ const CollectionFormConfigForm = ({
         }
       }
     } catch (error) {
-      // Failed to fetch MDBList title - silently continue
+      addToast(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch MDBList title. Please check your connection and try again.',
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
     }
@@ -978,6 +1068,16 @@ const CollectionFormConfigForm = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, type: 'anilist' }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        addToast(errorData.message || 'Failed to fetch AniList title', {
+          appearance: 'error',
+          autoDismiss: true,
+        });
+        return;
+      }
+
       const data = await response.json();
       if (data.title) {
         setFetchedTitles((prev) => ({ ...prev, anilist: data.title }));
@@ -996,7 +1096,15 @@ const CollectionFormConfigForm = ({
         }
       }
     } catch (error) {
-      // Failed to fetch AniList title - silently continue
+      addToast(
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch AniList title. Please check your connection and try again.',
+        {
+          appearance: 'error',
+          autoDismiss: true,
+        }
+      );
     } finally {
       setFetchingTitle((prev) => ({ ...prev, anilist: false }));
     }
@@ -1219,6 +1327,19 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).customWallpaper || '',
           customSummary: (config as CollectionFormConfig).customSummary || '',
           customTheme: (config as CollectionFormConfig).customTheme || '',
+          // Custom URL fields (default to empty strings to prevent uncontrolled->controlled warnings)
+          traktCustomListUrl:
+            (config as CollectionFormConfig).traktCustomListUrl || '',
+          tmdbCustomCollectionUrl:
+            (config as CollectionFormConfig).tmdbCustomCollectionUrl || '',
+          imdbCustomListUrl:
+            (config as CollectionFormConfig).imdbCustomListUrl || '',
+          letterboxdCustomListUrl:
+            (config as CollectionFormConfig).letterboxdCustomListUrl || '',
+          mdblistCustomListUrl:
+            (config as CollectionFormConfig).mdblistCustomListUrl || '',
+          anilistCustomListUrl:
+            (config as CollectionFormConfig).anilistCustomListUrl || '',
           // Enable flags for custom features (default to false)
           enableCustomWallpaper:
             (config as CollectionFormConfig).enableCustomWallpaper ?? false,
