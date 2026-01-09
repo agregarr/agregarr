@@ -391,7 +391,8 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     config: CollectionConfig,
-    processedCollectionKeys?: Set<string>
+    processedCollectionKeys?: Set<string>,
+    missingItems?: MissingItem[]
   ): Promise<CollectionOperationResult> {
     try {
       // Use the new standardized approach via BaseCollectionSync
@@ -402,7 +403,9 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
         config,
         plexClient,
         allCollections,
-        processedCollectionKeys
+        processedCollectionKeys,
+        undefined,
+        missingItems
       );
 
       // Update config with rating key if we got one
@@ -490,6 +493,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       );
       const {
         items: movieItems,
+        missingItems: movieMissingItems,
         mappingStats: movieMappingStats,
         filteringStats: movieFilteringStats,
       } = await this.applyFilteringToMappedItems(movieMappedResult, config);
@@ -506,7 +510,8 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
           plexClient,
           allCollections,
           config,
-          processedCollectionKeys
+          processedCollectionKeys,
+          movieMissingItems
         );
 
         totalCreated += movieResult.created;
@@ -561,6 +566,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       );
       const {
         items: tvItems,
+        missingItems: tvMissingItems,
         mappingStats: tvMappingStats,
         filteringStats: tvFilteringStats,
       } = await this.applyFilteringToMappedItems(tvMappedResult, config);
@@ -577,7 +583,8 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
           plexClient,
           allCollections,
           config,
-          processedCollectionKeys
+          processedCollectionKeys,
+          tvMissingItems
         );
 
         totalCreated += tvResult.created;

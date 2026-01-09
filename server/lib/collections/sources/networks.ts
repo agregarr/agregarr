@@ -140,7 +140,8 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(

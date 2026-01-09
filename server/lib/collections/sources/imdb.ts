@@ -982,7 +982,8 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       logger.error('Error in IMDb processConfiguration', {
