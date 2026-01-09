@@ -315,12 +315,13 @@ function evaluateRule(
  * Metadata context for dynamic field replacement
  */
 export interface OverlayRenderContext {
-  // Ratings (from IMDb API / RT API)
+  // Ratings (from IMDb API / RT API / Plex)
   imdbRating?: number;
   imdbTop250Rank?: number; // IMDb Top 250 ranking (1-250 for movies, 1-250 for TV)
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
+  plexUserRating?: number; // Plex user rating (0-10 scale where 10 = 5 stars)
   // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata

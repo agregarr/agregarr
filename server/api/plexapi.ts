@@ -30,6 +30,7 @@ export interface PlexLibraryItem {
   index?: number;
   parentIndex?: number;
   editionTitle?: string;
+  userRating?: number; // User rating from server admin/user (0-10 scale where 10 = 5 stars)
   Guid?: {
     id: string;
   }[];

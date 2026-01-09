@@ -150,12 +150,13 @@ export interface ConditionRule {
  * Matches server/lib/overlays/OverlayTemplateRenderer.ts OverlayRenderContext
  */
 export interface OverlayRenderContext {
-  // Ratings (from IMDb API / RT API)
+  // Ratings (from IMDb API / RT API / Plex)
   imdbRating?: number;
   imdbTop250Rank?: number; // IMDb Top 250 ranking (1-250 for movies, 1-250 for TV)
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
+  plexUserRating?: number; // Plex user rating (0-10 scale where 10 = 5 stars)
   // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata
@@ -256,6 +257,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
+    { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   metadata: [
@@ -450,6 +452,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
+    { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   Status: [
@@ -556,6 +559,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 88,
     rtAudienceScore: 85,
+    plexUserRating: 8,
     // metacriticScore: 73, // TODO: Implement Metacritic integration
     director: 'Lana Wachowski',
     studio: 'Warner Bros.',
@@ -600,6 +604,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 96,
     rtAudienceScore: 98,
+    plexUserRating: 10,
     // metacriticScore: 96, // TODO: Implement Metacritic integration
     seasonNumber: 5,
     episodeNumber: 16,
