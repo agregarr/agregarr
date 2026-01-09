@@ -66,6 +66,7 @@ const NUMERIC_FIELDS = [
   'imdbRating',
   'rtCriticsScore',
   'rtAudienceScore',
+  'plexUserRating',
   // 'metacriticScore', // TODO: Implement Metacritic integration
   'year',
   'runtime',

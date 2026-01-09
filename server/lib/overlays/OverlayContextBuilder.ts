@@ -164,6 +164,11 @@ export async function buildRenderContext(
     downloaded: !isPlaceholder, // Real items in Plex are downloaded, placeholders are not
   };
 
+  // Extract Plex user rating if available
+  if (item.userRating !== undefined) {
+    context.plexUserRating = item.userRating;
+  }
+
   // Extract TMDb ID from GUID
   let tmdbId: number | undefined;
 
