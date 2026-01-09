@@ -557,7 +557,11 @@ class PlexAPI {
     const allCollections: PlexCollection[] = [];
 
     try {
-      const libraries = await this.getLibraries();
+      const allLibraries = await this.getLibraries();
+      // Filter to only movie and show libraries - we don't manage music, photo, or other library types
+      const libraries = allLibraries.filter(
+        (library) => library.type === 'movie' || library.type === 'show'
+      );
       logger.debug('Processing collections across libraries', {
         label: 'Plex API',
         libraryCount: libraries.length,

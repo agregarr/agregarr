@@ -1622,7 +1622,11 @@ export class DiscoveryService {
         status.plexConnected = !!plexStatus;
 
         if (status.plexConnected) {
-          const libraries = await plexClient.getLibraries();
+          const allLibraries = await plexClient.getLibraries();
+          // Filter to only movie and show libraries - we don't manage music, photo, or other library types
+          const libraries = allLibraries.filter(
+            (library) => library.type === 'movie' || library.type === 'show'
+          );
           status.libraryCount = libraries.length;
         }
       } catch (error) {
