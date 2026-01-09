@@ -333,53 +333,17 @@ router.get('/genres/combined', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/countries/combined', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
   try {
-    // Return a curated list of countries users commonly want to exclude
-    // Focuses on major non-English content producers with distinct styles
-    const commonCountries = [
-      // East Asian - anime, K-dramas, C-dramas
-      'JP',
-      'KR',
-      'CN',
-      'TW',
-      'HK',
-      // South Asian - Bollywood
-      'IN',
-      // Southeast Asian - Thai dramas, Indonesian films
-      'TH',
-      'ID',
-      'MY',
-      'PH',
-      'VN',
-      'SG',
-      // European - major cinema markets
-      'FR',
-      'DE',
-      'IT',
-      'ES',
-      'RU',
-      'SE',
-      'NO',
-      'DK',
-      // Latin American
-      'MX',
-      'BR',
-      'AR',
-      // Middle Eastern - Turkish dramas
-      'TR',
-      'IL',
-      'AE',
-    ];
+    // Fetch all countries from TMDB configuration
+    const regions = await tmdb.getRegions();
 
-    // Convert ISO codes to readable names using Intl.DisplayNames
-    const regionNames = new Intl.DisplayNames([req.locale ?? 'en'], {
-      type: 'region',
-    });
-
-    const combined = commonCountries
-      .map((code) => ({
-        code,
-        name: regionNames.of(code) ?? code,
+    // Map TMDB region format to our format and sort by name
+    const combined = regions
+      .map((region) => ({
+        code: region.iso_3166_1,
+        name: region.english_name,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -397,59 +361,17 @@ router.get('/countries/combined', isAuthenticated(), async (req, res, next) => {
 });
 
 router.get('/languages/combined', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
   try {
-    // Return a curated list of languages users commonly want to filter
-    // Focuses on major languages with significant film/TV production
-    const commonLanguages = [
-      // Major global languages
-      'en', // English
-      'es', // Spanish
-      'fr', // French
-      'de', // German
-      'it', // Italian
-      'pt', // Portuguese
-      'ru', // Russian
-      'ar', // Arabic
-      // East Asian
-      'ja', // Japanese
-      'ko', // Korean
-      'zh', // Chinese (Mandarin)
-      'yue', // Cantonese
-      // South Asian
-      'hi', // Hindi
-      'ta', // Tamil
-      'te', // Telugu
-      'bn', // Bengali
-      // Southeast Asian
-      'th', // Thai
-      'id', // Indonesian
-      'vi', // Vietnamese
-      'tl', // Tagalog
-      // European
-      'pl', // Polish
-      'nl', // Dutch
-      'sv', // Swedish
-      'no', // Norwegian
-      'da', // Danish
-      'fi', // Finnish
-      'cs', // Czech
-      'hu', // Hungarian
-      'tr', // Turkish
-      'el', // Greek
-      'he', // Hebrew
-      // Other
-      'fa', // Persian
-    ];
+    // Fetch all languages from TMDB configuration
+    const languages = await tmdb.getLanguages();
 
-    // Convert ISO codes to readable names using Intl.DisplayNames
-    const languageNames = new Intl.DisplayNames([req.locale ?? 'en'], {
-      type: 'language',
-    });
-
-    const combined = commonLanguages
-      .map((code) => ({
-        code,
-        name: languageNames.of(code) ?? code,
+    // Map TMDB language format to our format and sort by name
+    const combined = languages
+      .map((language) => ({
+        code: language.iso_639_1,
+        name: language.english_name,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
