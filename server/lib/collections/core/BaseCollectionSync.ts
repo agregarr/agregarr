@@ -2916,6 +2916,31 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
         return sorted;
       }
 
+      case 'alphabetical_asc':
+      case 'alphabetical_desc': {
+        // Sort alphabetically by title
+        const sorted = [...items].sort((a, b) => {
+          const titleA = a.title.toLowerCase();
+          const titleB = b.title.toLowerCase();
+
+          if (sortOrder === 'alphabetical_asc') {
+            return titleA.localeCompare(titleB); // A-Z
+          } else {
+            return titleB.localeCompare(titleA); // Z-A
+          }
+        });
+
+        logger.debug(
+          `Applied alphabetical sort (${sortOrder}) to ${sorted.length} items`,
+          {
+            label: `${this.source} Collections`,
+            collection: config.name,
+          }
+        );
+
+        return sorted;
+      }
+
       case 'default':
       default:
         // No ordering, return original

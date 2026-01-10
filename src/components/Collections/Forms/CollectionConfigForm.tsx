@@ -2413,6 +2413,12 @@ const CollectionFormConfigForm = ({
                                         <option value="date_added_asc">
                                           Date Added to Plex (Least Recent)
                                         </option>
+                                        <option value="alphabetical_asc">
+                                          Alphabetical (A-Z)
+                                        </option>
+                                        <option value="alphabetical_desc">
+                                          Alphabetical (Z-A)
+                                        </option>
                                       </Field>
                                     </div>
                                   </div>

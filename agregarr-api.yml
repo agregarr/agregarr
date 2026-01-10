@@ -625,6 +625,8 @@ components:
             - release_date_asc
             - date_added_desc
             - date_added_asc
+            - alphabetical_asc
+            - alphabetical_desc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -1171,6 +1173,8 @@ components:
             - release_date_asc
             - date_added_desc
             - date_added_asc
+            - alphabetical_asc
+            - alphabetical_desc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -1880,6 +1884,8 @@ components:
             - release_date_asc
             - date_added_desc
             - date_added_asc
+            - alphabetical_asc
+            - alphabetical_desc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
