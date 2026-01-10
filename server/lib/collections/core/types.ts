@@ -29,6 +29,10 @@ export interface CollectionItem {
   imdbRating?: number;
   /** Optional poster URL from source (e.g., AniList coverImage) */
   posterUrl?: string;
+  /** Optional date when item was added to Plex (Unix timestamp in seconds) */
+  addedAt?: number;
+  /** Optional original release date (Unix timestamp in seconds) */
+  releaseDate?: number;
   /** Optional additional metadata */
   metadata?: Record<string, unknown>;
   /** Episode-specific information (for individual episodes in collections) */

@@ -621,6 +621,10 @@ components:
             - random
             - imdb_rating_desc
             - imdb_rating_asc
+            - release_date_desc
+            - release_date_asc
+            - date_added_desc
+            - date_added_asc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -1163,6 +1167,10 @@ components:
             - random
             - imdb_rating_desc
             - imdb_rating_asc
+            - release_date_desc
+            - release_date_asc
+            - date_added_desc
+            - date_added_asc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -1868,6 +1876,10 @@ components:
             - random
             - imdb_rating_desc
             - imdb_rating_asc
+            - release_date_desc
+            - release_date_asc
+            - date_added_desc
+            - date_added_asc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'

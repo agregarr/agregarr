@@ -809,7 +809,13 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
     // Use direct Plex queries instead of Media table
     let plexLookup: Map<
       string,
-      { ratingKey: string; title: string; libraryKey: string }
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
     > = new Map();
 
     if (plexClient) {
@@ -842,6 +848,8 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
           imdbId: lookup.imdbId, // Include IMDb ID for rating-based sorting
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
           metadata: {
             libraryKey: plexItem.libraryKey,
             showTmdbId: lookup.showTmdbId, // Preserve show TMDB ID for episodes

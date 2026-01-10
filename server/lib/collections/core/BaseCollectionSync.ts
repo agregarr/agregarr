@@ -2854,6 +2854,68 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
         return sorted;
       }
 
+      case 'release_date_desc':
+      case 'release_date_asc': {
+        // Sort by release date
+        const sorted = [...items].sort((a, b) => {
+          const dateA = a.releaseDate ?? 0; // Items without date go to end
+          const dateB = b.releaseDate ?? 0;
+
+          if (sortOrder === 'release_date_desc') {
+            return dateB - dateA; // Newest to oldest
+          } else {
+            return dateA - dateB; // Oldest to newest
+          }
+        });
+
+        const itemsWithDates = sorted.filter(
+          (i) => i.releaseDate !== undefined
+        ).length;
+
+        logger.debug(
+          `Applied release date sort (${sortOrder}) to ${sorted.length} items`,
+          {
+            label: `${this.source} Collections`,
+            collection: config.name,
+            itemsWithDates,
+            itemsWithoutDates: sorted.length - itemsWithDates,
+          }
+        );
+
+        return sorted;
+      }
+
+      case 'date_added_desc':
+      case 'date_added_asc': {
+        // Sort by date added to Plex
+        const sorted = [...items].sort((a, b) => {
+          const dateA = a.addedAt ?? 0; // Items without date go to end
+          const dateB = b.addedAt ?? 0;
+
+          if (sortOrder === 'date_added_desc') {
+            return dateB - dateA; // Most recently added first
+          } else {
+            return dateA - dateB; // Least recently added first
+          }
+        });
+
+        const itemsWithDates = sorted.filter(
+          (i) => i.addedAt !== undefined
+        ).length;
+
+        logger.debug(
+          `Applied date added sort (${sortOrder}) to ${sorted.length} items`,
+          {
+            label: `${this.source} Collections`,
+            collection: config.name,
+            itemsWithDates,
+            itemsWithoutDates: sorted.length - itemsWithDates,
+          }
+        );
+
+        return sorted;
+      }
+
       case 'default':
       default:
         // No ordering, return original

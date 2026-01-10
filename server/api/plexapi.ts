@@ -27,6 +27,7 @@ export interface PlexLibraryItem {
   lastViewedAt?: number;
   viewCount?: number;
   year?: number;
+  originallyAvailableAt?: string; // Original release date (YYYY-MM-DD format)
   index?: number;
   parentIndex?: number;
   editionTitle?: string;
