@@ -520,8 +520,8 @@ const CollectionFormConfigForm = ({
         schema
           .required('Letterboxd list URL is required')
           .matches(
-            /letterboxd\.com\/[^/]+\/list\/[^/?]+/,
-            'Please enter a valid Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)'
+            /letterboxd\.com\/[^/]+\/(list\/[^/?]+|films\/.*)/,
+            'Please enter a valid Letterboxd URL (e.g., https://letterboxd.com/username/list/list-name/ or https://letterboxd.com/username/films/rated/4.5-5/)'
           ),
       otherwise: (schema) =>
         schema.when(['type', 'subtype'], {
