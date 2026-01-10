@@ -2401,6 +2401,18 @@ const CollectionFormConfigForm = ({
                                         <option value="imdb_rating_asc">
                                           IMDb Rating (Lowest to Highest)
                                         </option>
+                                        <option value="release_date_desc">
+                                          Release Date (Newest to Oldest)
+                                        </option>
+                                        <option value="release_date_asc">
+                                          Release Date (Oldest to Newest)
+                                        </option>
+                                        <option value="date_added_desc">
+                                          Date Added to Plex (Most Recent)
+                                        </option>
+                                        <option value="date_added_asc">
+                                          Date Added to Plex (Least Recent)
+                                        </option>
                                       </Field>
                                     </div>
                                   </div>

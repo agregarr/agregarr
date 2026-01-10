@@ -565,7 +565,13 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     // Use direct Plex queries instead of Media table
     let plexLookup: Map<
       string,
-      { ratingKey: string; title: string; libraryKey: string }
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
     > = new Map();
 
     if (plexClient) {
@@ -597,6 +603,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: lookup.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
           metadata: {
             libraryKey: plexItem.libraryKey,
           },
@@ -1357,6 +1365,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: plexItem.title,
           type: 'movie',
           tmdbId: movie.tmdbId,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
         });
       }
     }

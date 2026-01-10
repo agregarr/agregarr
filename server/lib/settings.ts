@@ -27,7 +27,11 @@ export type CollectionSortOrder =
   | 'reverse' // Reverse source order
   | 'random' // Fisher-Yates shuffle
   | 'imdb_rating_desc' // Highest to lowest IMDb rating
-  | 'imdb_rating_asc'; // Lowest to highest IMDb rating
+  | 'imdb_rating_asc' // Lowest to highest IMDb rating
+  | 'release_date_desc' // Newest to oldest release date
+  | 'release_date_asc' // Oldest to newest release date
+  | 'date_added_desc' // Most recently added to Plex
+  | 'date_added_asc'; // Least recently added to Plex
 
 export interface Library {
   readonly key: string;

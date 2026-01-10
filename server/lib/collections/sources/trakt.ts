@@ -644,7 +644,13 @@ export class TraktCollectionSync extends BaseCollectionSync<'trakt'> {
     // Use direct Plex queries instead of Media table
     let plexLookup: Map<
       string,
-      { ratingKey: string; title: string; libraryKey: string }
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
     > = new Map();
 
     if (plexClient) {
@@ -675,6 +681,8 @@ export class TraktCollectionSync extends BaseCollectionSync<'trakt'> {
           title: plexItem.title, // Use Plex title (episode title) instead of lookup title (show title)
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
           metadata: {
             libraryKey: plexItem.libraryKey,
             showTmdbId: lookup.showTmdbId, // Preserve show TMDB ID for episodes

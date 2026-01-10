@@ -451,6 +451,8 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
             type: lookup.mediaType,
             tmdbId: lookup.tmdbId,
             year: lookup.year,
+            addedAt: plexItem.addedAt,
+            releaseDate: plexItem.releaseDate,
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,

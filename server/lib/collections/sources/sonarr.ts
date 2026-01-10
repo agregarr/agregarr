@@ -426,6 +426,8 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
               tvdbId: lookup.tvdbId,
               tmdbId: lookup.tmdbId,
               year: lookup.year,
+              addedAt: plexItem.addedAt,
+              releaseDate: plexItem.releaseDate,
               metadata: {
                 libraryKey: plexItem.libraryKey,
                 tvdbId: lookup.tvdbId,

@@ -1,6 +1,7 @@
 import type PlexAPI from '@server/api/plexapi';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  findPlexItemsByTmdbIds,
   getCollectionMediaType,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -418,8 +419,9 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
    */
   public async mapSourceDataToItems(
     sourceData: OverseerrMediaRequest[],
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    config: CollectionConfig
+    config: CollectionConfig,
+    plexClient?: PlexAPI,
+    libraryCache?: LibraryItemsCache
   ): Promise<{
     items: OverseerrCollectionItem[];
     missingItems?: OverseerrMissingItem[];
@@ -428,36 +430,90 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     const mappedItems: OverseerrCollectionItem[] = [];
     const missingItems: OverseerrMissingItem[] = [];
 
-    for (const request of sourceData) {
-      const ratingKey = request.is4k
-        ? request.media?.ratingKey4k
-        : request.media?.ratingKey;
+    // Build lookups from Overseerr requests with TMDB IDs
+    const tmdbLookups: {
+      tmdbId: number;
+      mediaType: 'movie' | 'tv';
+      title: string;
+      year?: number;
+      requestId: number;
+      userId: number;
+      createdAt: string;
+    }[] = [];
 
+    for (const request of sourceData) {
       if (!request.requestedBy) continue;
 
-      // Item is in Plex - add to collection
-      if (ratingKey) {
-        mappedItems.push({
-          ratingKey: ratingKey.toString(),
-          title: request.media?.title || 'Unknown',
-          type: request.type as 'movie' | 'tv',
-          requestId: request.id,
-          userId: request.requestedBy.id,
-          tmdbId: request.media?.tmdbId,
-          createdAt: request.createdAt,
-        });
-      }
-      // Item not in Plex yet - track as missing for quick sync
-      else if (request.media?.tmdbId) {
-        missingItems.push({
+      if (request.media?.tmdbId) {
+        tmdbLookups.push({
           tmdbId: request.media.tmdbId,
-          tvdbId: request.media.tvdbId,
           mediaType: request.type as 'movie' | 'tv',
           title: request.media.title || 'Unknown',
           year: request.media.year,
+          requestId: request.id,
+          userId: request.requestedBy.id,
+          createdAt: request.createdAt,
+        });
+      }
+    }
+
+    // Use standard findPlexItemsByTmdbIds to get items with addedAt/releaseDate
+    let plexLookup: Map<
+      string,
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
+    > = new Map();
+
+    if (plexClient) {
+      const targetLibraryId = Array.isArray(config.libraryId)
+        ? config.libraryId[0]
+        : config.libraryId;
+
+      plexLookup = await findPlexItemsByTmdbIds(
+        plexClient,
+        tmdbLookups,
+        targetLibraryId,
+        libraryCache,
+        false
+      );
+    } else {
+      logger.warn('No Plex client provided to mapSourceDataToItems', {
+        label: 'Overseerr Collections',
+      });
+    }
+
+    // Map results to collection items with date fields
+    for (const lookup of tmdbLookups) {
+      const key = `${lookup.tmdbId}-${lookup.mediaType}`;
+      const plexItem = plexLookup.get(key);
+
+      if (plexItem) {
+        mappedItems.push({
+          ratingKey: plexItem.ratingKey,
+          title: plexItem.title,
+          type: lookup.mediaType,
+          requestId: lookup.requestId,
+          userId: lookup.userId,
+          tmdbId: lookup.tmdbId,
+          createdAt: lookup.createdAt,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
+        });
+      } else {
+        // Item not in Plex - track as missing
+        missingItems.push({
+          tmdbId: lookup.tmdbId,
+          mediaType: lookup.mediaType,
+          title: lookup.title,
+          year: lookup.year,
           originalPosition: missingItems.length + 1,
-          source: 'tmdb' as ItemProducingSource, // Use TMDB as the source since Overseerr requests are TMDB-based
-          userId: request.requestedBy.id, // Track which user requested this item
+          source: 'tmdb' as ItemProducingSource,
+          userId: lookup.userId,
         });
       }
     }

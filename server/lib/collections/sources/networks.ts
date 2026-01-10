@@ -466,6 +466,8 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
             year: lookup.year, // Include year for poster generation
             rank: lookup.rank,
             platform: lookup.platform,
+            addedAt: plexItem.addedAt,
+            releaseDate: plexItem.releaseDate,
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,
