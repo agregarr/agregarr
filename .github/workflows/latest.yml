@@ -5,6 +5,10 @@ on:
     branches:
       - latest
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   semantic-release:
     name: Tag and release latest version
