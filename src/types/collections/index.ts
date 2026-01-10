@@ -22,7 +22,9 @@ export type CollectionSortOrder =
   | 'release_date_desc' // Newest to oldest release date
   | 'release_date_asc' // Oldest to newest release date
   | 'date_added_desc' // Most recently added to Plex
-  | 'date_added_asc'; // Least recently added to Plex
+  | 'date_added_asc' // Least recently added to Plex
+  | 'alphabetical_asc' // A-Z alphabetical order
+  | 'alphabetical_desc'; // Z-A alphabetical order
 
 export interface PlexHubConfig {
   id: string; // Generated unique identifier
