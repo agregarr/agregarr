@@ -369,11 +369,14 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           const listMatch = sanitizedUrl.match(
             /letterboxd\.com\/([^/]+)\/list\/([^/?]+)/
           );
+          const filmsMatch = sanitizedUrl.match(
+            /letterboxd\.com\/([^/]+)\/films\/(.*)/
+          );
 
-          if (!watchlistMatch && !listMatch) {
+          if (!watchlistMatch && !listMatch && !filmsMatch) {
             return res.status(400).json({
               status: 'error',
-              message: 'Invalid Letterboxd list URL format',
+              message: 'Invalid Letterboxd URL format',
             });
           }
 
