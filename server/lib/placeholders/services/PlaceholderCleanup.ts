@@ -319,6 +319,14 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
                 if (!file.includes('{edition-Trailer}')) continue;
 
                 const filePath = path.join(folderPath, file);
+
+                // Skip directories (Plex creates .trickplay folders with same base name)
+                try {
+                  const fileStat = await fs.stat(filePath);
+                  if (!fileStat.isFile()) continue;
+                } catch {
+                  continue; // Can't stat, skip
+                }
                 const relativePath = path.join(folder, file);
 
                 // Check if any DB record references this file
