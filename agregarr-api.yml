@@ -6395,61 +6395,51 @@ paths:
         '500':
           description: Failed to generate template preview
   /collections/fetch-title:
-    post:
-      summary: Quick validation and title extraction from external collection URL
-      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDB, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
+    get:
+      summary: Fetch title with real-time progress updates via SSE
+      description: Fetches title from external collection URL with Server-Sent Events for real-time progress updates. Particularly useful for IMDb which requires WAF challenge solving (10-20 seconds on first request).
       tags:
         - collections-utility
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                url:
-                  type: string
-                  example: 'https://trakt.tv/users/username/lists/my-list'
-                type:
-                  type: string
-                  enum:
-                    [
-                      trakt,
-                      tmdb,
-                      imdb,
-                      mdblist,
-                      letterboxd,
-                      anilist,
-                      myanimelist,
-                    ]
-                  example: 'trakt'
-              required:
-                - url
-                - type
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+          example: 'https://www.imdb.com/list/ls123456789/'
+          description: External collection URL
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [trakt, tmdb, imdb, letterboxd, mdblist, anilist]
+          example: 'imdb'
+          description: Collection source type
       responses:
         '200':
-          description: Title fetched successfully
+          description: Server-Sent Events stream with progress updates
           content:
-            application/json:
+            text/event-stream:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: 'success'
-                  title:
-                    type: string
-                    example: 'My List'
-                  mediaType:
-                    type: string
-                    enum: [movie, tv, both]
-                    example: 'movie'
+                type: string
+                description: SSE messages with progress updates and final result
+              example: |
+                data: {"stage":"connecting","message":"Connecting to IMDb..."}
+
+                data: {"stage":"challenge","message":"Solving IMDb bot protection challenge... (first request takes 10-20 seconds)"}
+
+                data: {"stage":"parsing","message":"Extracting list information..."}
+
+                data: {"stage":"complete","message":"Complete!"}
+
+                data: {"status":"success","title":"My IMDb List","mediaType":"movie","contentTypes":["movies"]}
         '400':
-          description: Bad request - invalid URL or unsupported type
+          description: Bad request - missing or invalid parameters
         '429':
           description: Too many requests - rate limited
         '500':
-          description: Failed to fetch title
+          description: Internal server error
   /collections/detect-media-type:
     post:
       summary: Comprehensive media type detection from external collection URL

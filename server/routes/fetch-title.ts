@@ -5,49 +5,73 @@ import {
   buildTraktRedirectUri,
   persistTraktTokens,
 } from '@server/utils/traktAuth';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { rateLimiter, validateExternalUrl } from './collections';
 
 const fetchTitleRoutes = Router();
 
 /**
- * POST /api/v1/collections/fetch-title
- * Fetch title from external collection URL
+ * Helper to send SSE progress updates
  */
-fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
+function sendProgress(res: Response, stage: string, message: string) {
+  res.write(`data: ${JSON.stringify({ stage, message })}\n\n`);
+}
+
+/**
+ * GET /api/v1/collections/fetch-title
+ * Fetch title from external collection URL with SSE progress updates
+ */
+fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
+  const { url, type } = req.query;
+
+  if (!url || !type || typeof url !== 'string' || typeof type !== 'string') {
+    return res.status(400).json({
+      status: 'error',
+      message: 'URL and type are required',
+    });
+  }
+
+  // Setup SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
   try {
-    const { url, type } = req.body;
-
-    if (!url || !type) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'URL and type are required',
-      });
-    }
-
     // Check rate limiting (per user)
     const userId = req.user?.id?.toString() || req.ip || 'anonymous';
     if (!rateLimiter.isAllowed(userId)) {
-      return res.status(429).json({
-        status: 'error',
-        message: 'Too many requests. Please wait before trying again.',
-      });
+      res.write(
+        `data: ${JSON.stringify({
+          status: 'error',
+          message: 'Too many requests. Please wait before trying again.',
+        })}\n\n`
+      );
+      return res.end();
     }
+
+    sendProgress(res, 'validating', 'Validating URL...');
 
     // Validate and sanitize the URL
     const validation = validateExternalUrl(url, type);
     if (!validation.isValid) {
-      return res.status(400).json({
-        status: 'error',
-        message: validation.error,
-      });
+      res.write(
+        `data: ${JSON.stringify({
+          status: 'error',
+          message: validation.error,
+        })}\n\n`
+      );
+      return res.end();
     }
 
     if (!validation.sanitizedUrl) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'URL sanitization failed',
-      });
+      res.write(
+        `data: ${JSON.stringify({
+          status: 'error',
+          message: 'URL sanitization failed',
+        })}\n\n`
+      );
+      return res.end();
     }
     const sanitizedUrl = validation.sanitizedUrl;
 
@@ -57,16 +81,21 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
 
     switch (type) {
       case 'trakt': {
+        sendProgress(res, 'connecting', 'Connecting to Trakt...');
+
         const TraktAPI = (await import('@server/api/trakt')).default;
         const settings = getSettings();
 
         const clientId = settings.trakt.clientId || settings.trakt.apiKey;
         const redirectUri = buildTraktRedirectUri(settings, req);
         if (!clientId) {
-          return res.status(400).json({
-            status: 'error',
-            message: 'Trakt is not configured',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: 'Trakt is not configured',
+            })}\n\n`
+          );
+          return res.end();
         }
 
         const traktClient = new TraktAPI({
@@ -82,13 +111,15 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
         // Get list metadata to extract real title, then validate with items
         try {
           // First get the real list title from metadata
+          sendProgress(res, 'metadata', 'Fetching list metadata...');
           const listMetadata = await traktClient.getListMetadata(sanitizedUrl);
           title = listMetadata.name || 'Trakt List';
 
-          // Then validate list accessibility with first 10 items
-          const listData = await traktClient.getCustomList(sanitizedUrl, 10);
+          // Then validate list accessibility with first 100 items
+          sendProgress(res, 'analyzing', 'Analyzing list content...');
+          const listData = await traktClient.getCustomList(sanitizedUrl, 100);
           if (listData && listData.length >= 0) {
-            // Quick media type detection from first 10 items
+            // Comprehensive media type detection from first 100 items
             if (listData.length > 0) {
               const hasMovies = listData.some(
                 (item) => item.type === 'movie' || item.movie
@@ -113,15 +144,20 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             }
           }
         } catch (error) {
-          return res.status(400).json({
-            status: 'error',
-            message: 'Invalid Trakt list URL or list not accessible',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: 'Invalid Trakt list URL or list not accessible',
+            })}\n\n`
+          );
+          return res.end();
         }
         break;
       }
 
       case 'tmdb': {
+        sendProgress(res, 'connecting', 'Connecting to TMDb...');
+
         const TheMovieDb = (await import('@server/api/themoviedb')).default;
         const tmdbClient = new TheMovieDb();
 
@@ -140,6 +176,8 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           const companyMatch = sanitizedUrl.match(
             /themoviedb\.org\/company\/(\d+)(?:-[^/]+)?\/(movie|tv)/
           );
+
+          sendProgress(res, 'fetching', 'Fetching data...');
 
           if (collectionMatch) {
             const collectionId = parseInt(collectionMatch[1]);
@@ -183,50 +221,117 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             title = company.name;
             mediaType = companyMediaType === 'movie' ? 'movie' : 'tv';
           } else {
-            return res.status(400).json({
-              status: 'error',
-              message:
-                'Invalid TMDB URL format. Expected: collection, list, network, or company URL',
-            });
+            res.write(
+              `data: ${JSON.stringify({
+                status: 'error',
+                message:
+                  'Invalid TMDB URL format. Expected: collection, list, network, or company URL',
+              })}\n\n`
+            );
+            return res.end();
           }
         } catch (error) {
-          return res.status(400).json({
-            status: 'error',
-            message:
-              'Invalid TMDB collection/list/network/company ID or not found',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message:
+                'Invalid TMDB collection/list/network/company ID or not found',
+            })}\n\n`
+          );
+          return res.end();
         }
         break;
       }
 
       case 'imdb': {
-        // For IMDb, we'll need to scrape the title from the page
-        const axios = (await import('axios')).default;
+        sendProgress(res, 'connecting', 'Connecting to IMDb...');
+
+        const { ImdbAxiosClient } = await import(
+          '@server/lib/collections/utils/ImdbAxiosClient'
+        );
+        const axios = await ImdbAxiosClient.getInstance();
 
         try {
-          const urlMatch = sanitizedUrl.match(/imdb\.com\/list\/(ls\d+)/);
-          if (!urlMatch) {
-            return res.status(400).json({
-              status: 'error',
-              message: 'Invalid IMDb list URL format',
-            });
+          const listMatch = sanitizedUrl.match(/imdb\.com\/list\/(ls\d+)/);
+          const watchlistMatch = sanitizedUrl.match(
+            /imdb\.com\/user\/(ur\d+)\/watchlist/
+          );
+          if (!listMatch && !watchlistMatch) {
+            res.write(
+              `data: ${JSON.stringify({
+                status: 'error',
+                message:
+                  'Invalid IMDb URL format. Expected list or watchlist URL',
+              })}\n\n`
+            );
+            return res.end();
           }
 
+          sendProgress(
+            res,
+            'challenge',
+            'Solving IMDb bot protection challenge... (first request takes 10-20 seconds)'
+          );
+
           const response = await axios.get(sanitizedUrl, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-            timeout: 15000,
+            timeout: 30000, // Longer timeout for WAF challenge
           });
 
-          // Extract title from HTML
-          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
-          if (titleMatch) {
-            let extractedTitle = titleMatch[1].replace(' - IMDb', '').trim();
+          sendProgress(res, 'parsing', 'Extracting list information...');
 
+          // Extract __NEXT_DATA__ for accurate parsing
+          const nextDataMatch = response.data.match(
+            /<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s
+          );
+
+          if (!nextDataMatch) {
+            res.write(
+              `data: ${JSON.stringify({
+                status: 'error',
+                message: 'Could not parse IMDb list data',
+              })}\n\n`
+            );
+            return res.end();
+          }
+
+          const nextData = JSON.parse(nextDataMatch[1]);
+
+          // Get list data (works for both lists and watchlists)
+          let listData =
+            nextData?.props?.pageProps?.mainColumnData?.list
+              ?.titleListItemSearch;
+
+          if (!listData || !listData.edges) {
+            listData =
+              nextData?.props?.pageProps?.mainColumnData?.predefinedList
+                ?.titleListItemSearch;
+          }
+
+          if (!listData || !listData.edges) {
+            res.write(
+              `data: ${JSON.stringify({
+                status: 'error',
+                message: 'Could not find list items in IMDb data',
+              })}\n\n`
+            );
+            return res.end();
+          }
+
+          // Extract title - use list name if available, otherwise from page title
+          let rawTitle =
+            nextData?.props?.pageProps?.mainColumnData?.list?.name ||
+            nextData?.props?.pageProps?.mainColumnData?.predefinedList?.name;
+
+          if (!rawTitle) {
+            const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+            if (titleMatch) {
+              rawTitle = titleMatch[1].replace(' - IMDb', '').trim();
+            }
+          }
+
+          if (rawTitle) {
             // Decode HTML entities (same as RandomListManager and Letterboxd)
-            extractedTitle = extractedTitle
+            title = rawTitle
               .replace(/&lrm;/g, '') // Remove left-to-right mark
               .replace(/&rlm;/g, '') // Remove right-to-left mark
               .replace(/&bull;/g, '•') // Replace bullet entity with actual bullet
@@ -239,74 +344,44 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
               .replace(/&amp;/g, '&') // Replace ampersand (do this last)
               .replace(/&lt;/g, '<')
               .replace(/&gt;/g, '>');
-
-            title = extractedTitle;
           }
 
-          // Try to detect media type from the page content by analyzing list items
-          const htmlContent = response.data;
-
-          // Try multiple approaches to find list items
-          let listItemMatches = htmlContent.match(
-            /<li[^>]*class="[^"]*ipc-metadata-list-summary-item[^"]*"[^>]*>.*?<\/li>/gs
-          );
-
-          // If the first pattern doesn't work, try alternative patterns
-          if (!listItemMatches) {
-            listItemMatches =
-              htmlContent.match(
-                /<div[^>]*class="[^"]*titleColumn[^"]*"[^>]*>.*?<\/div>/gs
-              ) ||
-              htmlContent.match(
-                /<div[^>]*class="[^"]*list[^"]*item[^"]*"[^>]*>.*?<\/div>/gs
-              ) ||
-              [];
-          }
-
+          // Analyze items for media type using structured data
           let movieCount = 0;
           let showCount = 0;
           let episodeCount = 0;
+          const unknownTypes: string[] = [];
 
-          // Analyze up to 1000 items to determine media type accurately
-          listItemMatches.slice(0, 1000).forEach((item: string) => {
-            // Look for title type indicators in the structured data or metadata
-            const lowerItem = item.toLowerCase();
+          for (const edge of listData.edges) {
+            const titleTypeId = edge.listItem?.titleType?.id;
 
-            // Check for movie indicators
-            if (
-              lowerItem.includes('titletype-movie') ||
-              lowerItem.includes('feature') ||
-              lowerItem.includes('film') ||
-              lowerItem.includes('"@type":"movie"') ||
-              lowerItem.includes('(movie)') ||
-              lowerItem.includes('feature film') ||
-              lowerItem.includes('short film')
-            ) {
+            if (titleTypeId === 'movie') {
               movieCount++;
-            }
-            // Check for episode indicators (more specific than shows)
-            else if (
-              lowerItem.includes('tv episode') ||
-              lowerItem.includes('"@type":"episode"') ||
-              lowerItem.includes('"@type":"tvepisode"') ||
-              lowerItem.includes('(tv episode)') ||
-              (lowerItem.includes('season') && lowerItem.includes('episode'))
-            ) {
+            } else if (titleTypeId === 'tvEpisode') {
               episodeCount++;
-            }
-            // Check for TV show indicators (but not episodes)
-            else if (
-              lowerItem.includes('titletype-tv') ||
-              lowerItem.includes('tv series') ||
-              lowerItem.includes('tv mini-series') ||
-              lowerItem.includes('tv movie') ||
-              lowerItem.includes('"@type":"tvseries"') ||
-              lowerItem.includes('(tv series)') ||
-              lowerItem.includes('television')
+            } else if (
+              titleTypeId === 'tvSeries' ||
+              titleTypeId === 'tvMiniSeries' ||
+              titleTypeId === 'tvShort' ||
+              titleTypeId === 'tvSpecial'
             ) {
               showCount++;
+            } else if (titleTypeId) {
+              // Track unknown types for debugging
+              if (!unknownTypes.includes(titleTypeId)) {
+                unknownTypes.push(titleTypeId);
+              }
             }
-          });
+          }
+
+          // Log unknown types for debugging
+          if (unknownTypes.length > 0) {
+            logger.warn('Unknown IMDb titleType IDs found', {
+              label: 'Collections API',
+              unknownTypes,
+              url: sanitizedUrl,
+            });
+          }
 
           // Determine media type and content types based on what we found
           contentTypes = [];
@@ -315,6 +390,24 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           if (episodeCount > 0) contentTypes.push('episodes');
 
           const totalTvContent = showCount + episodeCount;
+
+          logger.info('IMDb media type detection', {
+            label: 'Collections API',
+            url: sanitizedUrl,
+            totalItems: listData.edges.length,
+            movieCount,
+            showCount,
+            episodeCount,
+            unknownTypesCount: unknownTypes.length,
+            detectedMediaType:
+              contentTypes.length > 1
+                ? 'mixed'
+                : movieCount > 0 && totalTvContent === 0
+                ? 'movie'
+                : totalTvContent > 0 && movieCount === 0
+                ? 'tv'
+                : 'mixed/default',
+          });
 
           if (contentTypes.length > 1) {
             mediaType = 'mixed';
@@ -325,42 +418,30 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           } else if (movieCount > 0 && totalTvContent > 0) {
             mediaType = 'mixed';
           } else {
-            // Fallback: try to detect from page title or description
-            const lowerContent = htmlContent.toLowerCase();
-            if (
-              lowerContent.includes('movie list') ||
-              lowerContent.includes('film list')
-            ) {
-              mediaType = 'movie';
-              contentTypes = ['movies'];
-            } else if (
-              lowerContent.includes('tv list') ||
-              lowerContent.includes('television list') ||
-              lowerContent.includes('series list')
-            ) {
-              mediaType = 'tv';
-              contentTypes = ['shows'];
-            } else {
-              mediaType = 'movie'; // Default when we can't determine
-              contentTypes = ['movies'];
-            }
+            mediaType = 'movie'; // Default when we can't determine
+            contentTypes = ['movies'];
           }
         } catch (error) {
           const isTimeout =
             error.code === 'ECONNABORTED' || error.message?.includes('timeout');
-          return res.status(400).json({
-            status: 'error',
-            message: isTimeout
-              ? 'Request timed out while fetching IMDb list. The list page may be loading slowly. Please try again.'
-              : 'Could not fetch IMDb list title. Please verify the URL is correct and the list is publicly accessible.',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: isTimeout
+                ? 'Request timed out while fetching IMDb list. The list page may be loading slowly. Please try again.'
+                : 'Could not fetch IMDb list title. Please verify the URL is correct and the list is publicly accessible.',
+            })}\n\n`
+          );
+          return res.end();
         }
         break;
       }
 
       case 'letterboxd': {
         // For Letterboxd, we'll need to scrape the title from the page
-        const axios = (await import('axios')).default;
+        sendProgress(res, 'connecting', 'Connecting to Letterboxd...');
+
+        const letterboxdAxios = (await import('axios')).default;
 
         try {
           const watchlistMatch = sanitizedUrl.match(
@@ -374,19 +455,26 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           );
 
           if (!watchlistMatch && !listMatch && !filmsMatch) {
-            return res.status(400).json({
-              status: 'error',
-              message: 'Invalid Letterboxd URL format',
-            });
+            res.write(
+              `data: ${JSON.stringify({
+                status: 'error',
+                message: 'Invalid Letterboxd URL format',
+              })}\n\n`
+            );
+            return res.end();
           }
 
-          const response = await axios.get(sanitizedUrl, {
+          sendProgress(res, 'fetching', 'Fetching list information...');
+
+          const response = await letterboxdAxios.get(sanitizedUrl, {
             headers: {
               'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
             timeout: 15000,
           });
+
+          sendProgress(res, 'parsing', 'Extracting list title...');
 
           if (watchlistMatch) {
             const username = watchlistMatch[1]
@@ -446,27 +534,37 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
         } catch (error) {
           const isTimeout =
             error.code === 'ECONNABORTED' || error.message?.includes('timeout');
-          return res.status(400).json({
-            status: 'error',
-            message: isTimeout
-              ? 'Request timed out while fetching Letterboxd list. The list page may be loading slowly. Please try again.'
-              : 'Could not fetch Letterboxd list title. Please verify the URL is correct and the list is publicly accessible.',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: isTimeout
+                ? 'Request timed out while fetching Letterboxd list'
+                : 'Could not fetch Letterboxd list title',
+            })}\n\n`
+          );
+          return res.end();
         }
         break;
       }
+
       case 'anilist': {
         // Fetch the AniList page and extract the HTML title
-        const axios = (await import('axios')).default;
+        sendProgress(res, 'connecting', 'Connecting to AniList...');
+
+        const anilistAxios = (await import('axios')).default;
 
         try {
-          const response = await axios.get(sanitizedUrl, {
+          sendProgress(res, 'fetching', 'Fetching list information...');
+
+          const response = await anilistAxios.get(sanitizedUrl, {
             headers: {
               'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             },
             timeout: 15000,
           });
+
+          sendProgress(res, 'parsing', 'Extracting list title...');
 
           const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
           if (titleMatch) {
@@ -486,26 +584,33 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
         } catch (error) {
           const isTimeout =
             error.code === 'ECONNABORTED' || error.message?.includes('timeout');
-          return res.status(400).json({
-            status: 'error',
-            message: isTimeout
-              ? 'Request timed out while fetching AniList list. The list page may be loading slowly. Please try again.'
-              : 'Could not fetch AniList list title. Please verify the URL is correct and the list is publicly accessible.',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: isTimeout
+                ? 'Request timed out while fetching AniList list'
+                : 'Could not fetch AniList list title',
+            })}\n\n`
+          );
+          return res.end();
         }
-
         break;
       }
 
       case 'mdblist': {
+        sendProgress(res, 'connecting', 'Connecting to MDBList...');
+
         const MDBListAPI = (await import('@server/api/mdblist')).default;
         const settings = getSettings();
 
         if (!settings.mdblist.apiKey) {
-          return res.status(400).json({
-            status: 'error',
-            message: 'MDBList API key not configured',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: 'MDBList API key not configured',
+            })}\n\n`
+          );
+          return res.end();
         }
 
         const mdblistClient = new MDBListAPI(settings.mdblist.apiKey);
@@ -514,15 +619,20 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
           // Parse URL to get username and list name
           const parsedUrl = mdblistClient.parseListUrl(sanitizedUrl);
           if (!parsedUrl) {
-            return res.status(400).json({
-              status: 'error',
-              message: 'Invalid MDBList URL format',
-            });
+            res.write(
+              `data: ${JSON.stringify({
+                status: 'error',
+                message: 'Invalid MDBList URL format',
+              })}\n\n`
+            );
+            return res.end();
           }
 
           // Get list metadata to extract title
           // Try two approaches: first try getting by username (for other users' public lists),
           // then fallback to getting own lists (for private lists or when username endpoint fails)
+          sendProgress(res, 'fetching', 'Fetching list metadata...');
+
           if (
             parsedUrl.type === 'user' &&
             parsedUrl.username &&
@@ -571,12 +681,14 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             }
           }
 
-          // Validate list accessibility and get data with first 10 items
+          // Validate list accessibility and get data with first 100 items
+          sendProgress(res, 'analyzing', 'Analyzing list content...');
+
           const listData = await mdblistClient.getCustomList(sanitizedUrl, {
-            limit: 10,
+            limit: 100,
           });
 
-          // Quick media type detection from first 10 items
+          // Comprehensive media type detection from first 100 items
           const movies = listData.movies || [];
           const shows = listData.shows || [];
 
@@ -588,44 +700,62 @@ fetchTitleRoutes.post('/', isAuthenticated(), async (req, res) => {
             mediaType = 'tv';
           }
         } catch (error) {
-          return res.status(400).json({
-            status: 'error',
-            message: 'Invalid MDBList list URL or list not accessible',
-          });
+          res.write(
+            `data: ${JSON.stringify({
+              status: 'error',
+              message: 'Invalid MDBList list URL or list not accessible',
+            })}\n\n`
+          );
+          return res.end();
         }
         break;
       }
 
       default:
-        return res.status(400).json({
-          status: 'error',
-          message: 'Unsupported collection type',
-        });
+        res.write(
+          `data: ${JSON.stringify({
+            status: 'error',
+            message: 'Unsupported collection type',
+          })}\n\n`
+        );
+        return res.end();
     }
 
     if (!title) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Could not extract title from URL',
-      });
+      res.write(
+        `data: ${JSON.stringify({
+          status: 'error',
+          message: 'Could not extract title from URL',
+        })}\n\n`
+      );
+      return res.end();
     }
 
-    return res.status(200).json({
-      status: 'success',
-      title: title,
-      mediaType: mediaType,
-      contentTypes: contentTypes,
-    });
+    sendProgress(res, 'complete', 'Complete!');
+
+    // Send final result
+    res.write(
+      `data: ${JSON.stringify({
+        status: 'success',
+        title,
+        mediaType,
+        contentTypes,
+      })}\n\n`
+    );
+    res.end();
   } catch (error) {
     logger.error('Error fetching collection title', {
       label: 'Collections API',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
     });
 
-    return res.status(500).json({
-      status: 'error',
-      message: 'Internal server error while fetching title',
-    });
+    res.write(
+      `data: ${JSON.stringify({
+        status: 'error',
+        message: 'Internal server error while fetching title',
+      })}\n\n`
+    );
+    res.end();
   }
 });
 

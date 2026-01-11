@@ -111,8 +111,8 @@ const customUrlValidations = {
       schema
         .required('IMDb list URL is required')
         .matches(
-          /imdb\.com\/list\/ls\d+/,
-          'Please enter a valid IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          /(imdb\.com\/list\/ls\d+|imdb\.com\/user\/ur\d+\/watchlist)/,
+          'Please enter a valid IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
         ),
     otherwise: (schema) => schema,
   }),

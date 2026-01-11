@@ -78,6 +78,7 @@ interface UseTitleFetchingReturn {
   ) => Promise<void>;
   isLoading: boolean;
   lastError: string | null;
+  progressMessage: string | null;
 }
 
 /**
@@ -288,6 +289,7 @@ export const useTitleFetching = ({
 }: UseTitleFetchingOptions = {}): UseTitleFetchingReturn => {
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
 
   const fetchTitle = useCallback(
     async (
@@ -304,48 +306,70 @@ export const useTitleFetching = ({
 
       setIsLoading(true);
       setLastError(null);
+      setProgressMessage(null);
 
-      try {
-        const response = await fetch('/api/v1/collections/fetch-title', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url, type }),
-        });
+      return new Promise<void>((resolve, reject) => {
+        const eventSource = new EventSource(
+          `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+            url
+          )}&type=${type}`
+        );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Failed to fetch ${type} title`);
-        }
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-        const data = await response.json();
+            if (data.status === 'success') {
+              // Success - update form fields and call success callback
+              if (setFieldValue && data.title) {
+                setFieldValue('template', data.title);
 
-        if (data.title) {
-          // Update form field if setFieldValue is provided
-          if (setFieldValue) {
-            setFieldValue('template', data.title);
+                // Set detected media type if available
+                if (data.mediaType) {
+                  setFieldValue('mediaType', data.mediaType);
+                }
+              }
 
-            // Set detected media type if available
-            if (data.mediaType) {
-              setFieldValue('mediaType', data.mediaType);
+              onSuccess?.(data.title, data.mediaType, data.contentTypes);
+              eventSource.close();
+              setIsLoading(false);
+              setProgressMessage(null);
+              resolve();
+            } else if (data.status === 'error') {
+              // Error - set error message and call error callback
+              const errorMessage =
+                data.message || `Failed to fetch ${type} title`;
+              setLastError(errorMessage);
+              onError?.(errorMessage);
+              eventSource.close();
+              setIsLoading(false);
+              setProgressMessage(null);
+              reject(new Error(errorMessage));
+            } else {
+              // Progress update - update progress message
+              setProgressMessage(data.message || '');
             }
+          } catch (parseError) {
+            const errorMessage = 'Failed to parse server response';
+            setLastError(errorMessage);
+            onError?.(errorMessage);
+            eventSource.close();
+            setIsLoading(false);
+            setProgressMessage(null);
+            reject(new Error(errorMessage));
           }
+        };
 
-          onSuccess?.(data.title, data.mediaType, data.contentTypes);
-        } else {
-          throw new Error(`No title found for ${type} URL`);
-        }
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : `Failed to fetch ${type} title`;
-        setLastError(errorMessage);
-        onError?.(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
+        eventSource.onerror = () => {
+          const errorMessage = 'Connection error while fetching title';
+          setLastError(errorMessage);
+          onError?.(errorMessage);
+          eventSource.close();
+          setIsLoading(false);
+          setProgressMessage(null);
+          reject(new Error(errorMessage));
+        };
+      });
     },
     [onSuccess, onError]
   );
@@ -393,6 +417,7 @@ export const useTitleFetching = ({
     fetchMdblistTitle,
     isLoading,
     lastError,
+    progressMessage,
   };
 };
 

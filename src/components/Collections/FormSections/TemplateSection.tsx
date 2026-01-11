@@ -13,7 +13,7 @@ interface FetchedTitles {
 }
 
 interface DetectedMediaTypes {
-  [key: string]: 'movie' | 'tv' | 'both' | null;
+  [key: string]: 'movie' | 'tv' | 'both' | 'mixed' | null;
 }
 
 interface TemplateSectionProps {
