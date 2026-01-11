@@ -605,7 +605,7 @@ components:
           nullable: true
         imdbCustomListUrl:
           type: string
-          description: 'Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           example: 'https://www.imdb.com/list/ls123456789/'
           nullable: true
         mdblistCustomListUrl:
@@ -1153,7 +1153,7 @@ components:
           nullable: true
         imdbCustomListUrl:
           type: string
-          description: 'Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           example: 'https://www.imdb.com/list/ls123456789/'
           nullable: true
         mdblistCustomListUrl:
@@ -1854,7 +1854,7 @@ components:
           nullable: true
         imdbCustomListUrl:
           type: string
-          description: 'Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           example: 'https://www.imdb.com/list/ls123456789/'
           nullable: true
         mdblistCustomListUrl:

@@ -123,11 +123,14 @@ export function validateExternalUrl(
         }
         break;
       case 'imdb':
-        if (!urlObj.pathname.match(/^\/list\/ls\d+\/?$/)) {
+        if (
+          !urlObj.pathname.match(/^\/list\/ls\d+\/?$/) &&
+          !urlObj.pathname.match(/^\/user\/ur\d+\/watchlist\/?$/)
+        ) {
           return {
             isValid: false,
             error:
-              'Invalid IMDb list URL format. Expected: https://www.imdb.com/list/ls123456789',
+              'Invalid IMDb URL format. Expected: https://www.imdb.com/list/ls123456789 or https://www.imdb.com/user/ur12345678/watchlist',
           };
         }
         break;
