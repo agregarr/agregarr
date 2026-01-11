@@ -1,3 +1,4 @@
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import fs from 'fs/promises';
 import path from 'path';
@@ -175,6 +176,76 @@ export async function removePlaceholder(
   mediaType: 'movie' | 'tv'
 ): Promise<void> {
   try {
+    // Security: Validate path is within configured library roots to prevent path traversal
+    const settings = getSettings();
+    const libraryRoot =
+      mediaType === 'movie'
+        ? settings.main.placeholderMovieRootFolder
+        : settings.main.placeholderTVRootFolder;
+
+    if (!libraryRoot) {
+      throw new Error(
+        `Placeholder ${mediaType} library root not configured - cannot safely delete`
+      );
+    }
+
+    // Resolve both paths to real paths (following symlinks) to prevent symlink escape attacks
+    // This ensures even if an attacker creates a symlink inside the library pointing outside,
+    // we check the actual destination, not the symlink path
+    // NOTE: We fail hard on realpath errors - no unsafe fallback to path.resolve()
+    let realPath: string;
+    let realRoot: string;
+
+    try {
+      realPath = await fs.realpath(placeholderPath);
+    } catch (realpathError) {
+      // File doesn't exist or can't be resolved - this is a security issue, fail hard
+      logger.error('Cannot resolve real path for placeholder deletion', {
+        label: 'Coming Soon Placeholder',
+        requestedPath: placeholderPath,
+        error:
+          realpathError instanceof Error
+            ? realpathError.message
+            : String(realpathError),
+      });
+      throw new Error(
+        'Cannot resolve placeholder path - file may not exist or permissions denied'
+      );
+    }
+
+    try {
+      realRoot = await fs.realpath(libraryRoot);
+    } catch (rootRealpathError) {
+      logger.error('Cannot resolve library root path', {
+        label: 'Coming Soon Placeholder',
+        libraryRoot,
+        error:
+          rootRealpathError instanceof Error
+            ? rootRealpathError.message
+            : String(rootRealpathError),
+      });
+      throw new Error(
+        'Cannot resolve library root path - check placeholder folder configuration'
+      );
+    }
+
+    // Validate the resolved path is within the library root
+    if (!realPath.startsWith(realRoot + path.sep) && realPath !== realRoot) {
+      logger.error(
+        'Path traversal attempt detected - refusing to delete file outside library root',
+        {
+          label: 'Coming Soon Placeholder',
+          requestedPath: placeholderPath,
+          realPath,
+          libraryRoot: realRoot,
+          mediaType,
+        }
+      );
+      throw new Error(
+        'Invalid placeholder path - path traversal detected, file is outside library root'
+      );
+    }
+
     // Safety check: Verify path contains placeholder marker (supports both old and new format)
     if (
       !placeholderPath.includes('{edition-Trailer}') &&
