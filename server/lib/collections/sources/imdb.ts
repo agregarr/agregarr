@@ -17,6 +17,7 @@ import type {
   PlexCollection,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
+import { ImdbAxiosClient } from '@server/lib/collections/utils/ImdbAxiosClient';
 import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -66,7 +67,7 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           );
         }
 
-        const axios = (await import('axios')).default;
+        const axios = await ImdbAxiosClient.getInstance();
 
         logger.debug(
           `Fetching IMDb custom list with __NEXT_DATA__ pagination: ${config.imdbCustomListUrl}`,
@@ -94,10 +95,6 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           });
 
           const response = await axios.get(pageUrl, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
             timeout: 15000,
           });
 
@@ -194,7 +191,7 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
         });
 
         // Fetch all pages using __NEXT_DATA__ pagination (same as custom lists)
-        const axios = (await import('axios')).default;
+        const axios = await ImdbAxiosClient.getInstance();
 
         let currentPage = 1;
         const maxPages = 50; // Safety limit
@@ -213,10 +210,6 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           );
 
           const response = await axios.get(pageUrl, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
             timeout: 15000,
           });
 
@@ -289,17 +282,13 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           config.subtype || '',
           mediaType
         );
-        const axios = (await import('axios')).default;
+        const axios = await ImdbAxiosClient.getInstance();
 
         // Fetching predefined IMDb list
 
         const response = await axios.get(
           `https://www.imdb.com${predefinedUrl}`,
           {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
             timeout: 10000,
           }
         );

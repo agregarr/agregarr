@@ -16,7 +16,6 @@ import {
   createSyncError,
   getCollectionSyncCounter,
   getMediaTypeFromLibrary,
-  handleRateLimit,
   incrementCollectionSyncCounter,
   parseConfigIdFromLabel,
   processMissingItemsWithMode,
@@ -238,11 +237,6 @@ export class MultiSourceOrchestrator {
         const source = sourcesToFetch[i];
 
         try {
-          // Apply rate limiting between source fetches
-          if (i > 0) {
-            await handleRateLimit(1, 'Multi-Source');
-          }
-
           const { items, missingItems } = await this.fetchItemsFromSource(
             source,
             config,
