@@ -414,6 +414,27 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
           }
         }
 
+        // Extract per-library wallpaper if available
+        let customWallpaperForNewLibrary: string | undefined;
+        if (req.body.customWallpaper) {
+          if (typeof req.body.customWallpaper === 'string') {
+            customWallpaperForNewLibrary = req.body.customWallpaper;
+          } else if (typeof req.body.customWallpaper === 'object') {
+            customWallpaperForNewLibrary =
+              req.body.customWallpaper[libraryId] || '';
+          }
+        }
+
+        // Extract per-library theme if available
+        let customThemeForNewLibrary: string | undefined;
+        if (req.body.customTheme) {
+          if (typeof req.body.customTheme === 'string') {
+            customThemeForNewLibrary = req.body.customTheme;
+          } else if (typeof req.body.customTheme === 'object') {
+            customThemeForNewLibrary = req.body.customTheme[libraryId] || '';
+          }
+        }
+
         // Generate new ID for this config
         const { IdGenerator } = await import('@server/utils/idGenerator');
         const newConfigId = IdGenerator.generateId();
@@ -426,8 +447,9 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
           name: processedName,
           libraryId: libraryId,
           libraryName: library.name,
-          mediaType: libraryMediaType,
           customPoster: customPosterForNewLibrary || '',
+          customWallpaper: customWallpaperForNewLibrary || '',
+          customTheme: customThemeForNewLibrary || '',
           isLinked: true,
           linkId: existingConfig.linkId,
           isActive: false, // Will be computed by sync service
@@ -595,22 +617,65 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         }
       }
 
+      // Handle per-library wallpaper extraction for linked collections
+      let customWallpaperForThisLibrary: string | undefined;
+      if (req.body.customWallpaper) {
+        if (typeof req.body.customWallpaper === 'string') {
+          customWallpaperForThisLibrary = req.body.customWallpaper;
+        } else if (typeof req.body.customWallpaper === 'object') {
+          customWallpaperForThisLibrary =
+            req.body.customWallpaper[configToUpdate.libraryId] || '';
+        }
+      }
+
+      // Handle per-library theme extraction for linked collections
+      let customThemeForThisLibrary: string | undefined;
+      if (req.body.customTheme) {
+        if (typeof req.body.customTheme === 'string') {
+          customThemeForThisLibrary = req.body.customTheme;
+        } else if (typeof req.body.customTheme === 'object') {
+          customThemeForThisLibrary =
+            req.body.customTheme[configToUpdate.libraryId] || '';
+        }
+      }
+
       // Merge settings while preserving computed fields and library-specific fields
       const updatedConfig: CollectionConfig = {
         ...configToUpdate, // Preserve all existing fields including computed ones
         ...req.body, // Apply user changes
         name: processedName, // Use processed template name
-        // Override customPoster with library-specific value
+        // Override per-library media fields with library-specific values
         customPoster:
           customPosterForThisLibrary !== undefined
             ? customPosterForThisLibrary
             : configToUpdate.customPoster,
+        customWallpaper:
+          customWallpaperForThisLibrary !== undefined
+            ? customWallpaperForThisLibrary
+            : configToUpdate.customWallpaper,
+        customTheme:
+          customThemeForThisLibrary !== undefined
+            ? customThemeForThisLibrary
+            : configToUpdate.customTheme,
         // Ensure computed fields stay computed:
         id: configToUpdate.id, // ID never changes
         isActive: configToUpdate.isActive, // Preserve sync service's isActive calculation
         // For linked collections, preserve library-specific fields
         libraryId: configToUpdate.libraryId, // Don't change the library assignment
         libraryName: configToUpdate.libraryName, // Don't change the library name
+        // Preserve library-specific Plex state fields (CRITICAL: prevents cross-library ratingKey bugs)
+        collectionRatingKey: configToUpdate.collectionRatingKey, // Plex collection rating key is library-specific
+        smartCollectionRatingKey: configToUpdate.smartCollectionRatingKey, // Legacy smart collection rating key is library-specific
+        sortOrderHome: configToUpdate.sortOrderHome, // Home screen position is library-specific
+        sortOrderLibrary: configToUpdate.sortOrderLibrary, // Library tab position is library-specific
+        isLibraryPromoted: configToUpdate.isLibraryPromoted, // Library promotion status is library-specific
+        everLibraryPromoted: configToUpdate.everLibraryPromoted, // Library promotion history is library-specific
+        isPromotedToHub: configToUpdate.isPromotedToHub, // Hub promotion status is library-specific
+        // Preserve library-specific sync tracking fields (each library syncs independently)
+        lastSyncedAt: configToUpdate.lastSyncedAt, // Last sync timestamp is per-library
+        lastSyncError: configToUpdate.lastSyncError, // Sync errors are per-library
+        lastSyncErrorAt: configToUpdate.lastSyncErrorAt, // Sync error timestamp is per-library
+        missing: configToUpdate.missing, // Missing status is per-library (can exist in one library but not another)
       };
 
       // Handle firstSyncAt for custom sync schedules
