@@ -322,7 +322,11 @@ export function createCollectionLabel(
  */
 export function parseConfigIdFromLabel(label: string): string | null {
   // Match pattern: Agregarr[Source][ConfigId] or Agregarr[Source][ConfigId]user[UserId]
-  const match = label.match(/^Agregarr([A-Za-z]+)([a-f0-9-]+)(?:user\d+)?$/i);
+  // Source can contain hyphens/underscores (e.g., multi-source, filtered_hub)
+  // ConfigId starts with a digit (numeric ID or UUID)
+  const match = label.match(
+    /^Agregarr([A-Za-z]+(?:[-_][A-Za-z]+)*)([0-9][a-f0-9-]*)(?:user\d+)?$/i
+  );
   return match ? match[2] : null;
 }
 
