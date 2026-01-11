@@ -71,6 +71,6 @@ Inspired by [Kometa](https://github.com/Kometa-Team/Kometa)
 
 Code references for Coming Soon feature from [UMTK](https://github.com/netplexflix/Upcoming-Movies-TV-Shows-for-Kometa)
 
-Anime ID mappings file by [PlexAniBridge](https://github.com/PlexAniBridge/PlexAniBridge)
+Anime ID mappings file by [PlexAniBridge](https://github.com/eliasbenb/PlexAniBridge)
 
 A massive thanks to the developers and contributors of these projects!
