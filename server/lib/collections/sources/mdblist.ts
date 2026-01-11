@@ -365,6 +365,7 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
           releaseDate: plexItem.releaseDate,
           metadata: {
             libraryKey: plexItem.libraryKey,
+            originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
           },
         };
 

@@ -384,6 +384,7 @@ export class RadarrTagCollectionSync extends BaseCollectionSync<'radarrtag'> {
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,
+              originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
             },
           });
         } else {

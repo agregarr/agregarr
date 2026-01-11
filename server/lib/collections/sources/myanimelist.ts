@@ -380,7 +380,10 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                     raw?.main_picture?.large ||
                     raw?.main_picture?.medium ||
                     undefined,
-                  metadata: { libraryKey: hit.libraryKey },
+                  metadata: {
+                    libraryKey: hit.libraryKey,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -396,7 +399,10 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                     raw?.main_picture?.large ||
                     raw?.main_picture?.medium ||
                     undefined,
-                  metadata: { libraryKey: hit.libraryKey },
+                  metadata: {
+                    libraryKey: hit.libraryKey,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -411,7 +417,10 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                     raw?.main_picture?.large ||
                     raw?.main_picture?.medium ||
                     undefined,
-                  metadata: { libraryKey: hit.libraryKey },
+                  metadata: {
+                    libraryKey: hit.libraryKey,
+                    originalPosition: i + 1,
+                  },
                 });
                 matched = true;
               }
@@ -438,7 +447,10 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                       raw?.main_picture?.large ||
                       raw?.main_picture?.medium ||
                       undefined,
-                    metadata: { libraryKey: hit.libraryKey },
+                    metadata: {
+                      libraryKey: hit.libraryKey,
+                      originalPosition: i + 1,
+                    },
                   });
                   matched = true;
                   break;

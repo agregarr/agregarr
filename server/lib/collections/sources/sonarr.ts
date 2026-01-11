@@ -432,6 +432,7 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
                 libraryKey: plexItem.libraryKey,
                 tvdbId: lookup.tvdbId,
                 tmdbId: lookup.tmdbId,
+                originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
               },
             });
           } else if (lookup.tmdbId) {

@@ -667,6 +667,18 @@ export class MultiSourceOrchestrator {
       // When real content is detected, placeholder is deleted immediately
       // Real items appear naturally if still in the source list
 
+      // CRITICAL: Sort items by originalPosition to maintain source order
+      // This is essential for proper interleaving on subsequent syncs where some
+      // items already exist in Plex (and may be returned in cache/Plex order)
+      // while others are newly created placeholders (returned in source order)
+      items.sort((a, b) => {
+        const posA =
+          (a.metadata?.originalPosition as number | undefined) || Infinity;
+        const posB =
+          (b.metadata?.originalPosition as number | undefined) || Infinity;
+        return posA - posB;
+      });
+
       logger.debug(
         `Successfully fetched ${items.length} items from ${source.type}`,
         {
