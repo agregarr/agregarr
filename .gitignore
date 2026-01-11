@@ -36,6 +36,9 @@ config/db/*.sqlite3*
 config/settings.json
 config/*.json
 
+# youtube cookies
+config/youtube-cookies.txt
+
 # random lists
 config/random-lists/*.txt
 

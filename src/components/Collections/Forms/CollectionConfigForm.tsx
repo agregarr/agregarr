@@ -79,6 +79,12 @@ const messages = defineMessages({
   preview: 'Preview:',
   previewCollection: 'Preview Collection',
   alwaysActive: 'Always Active',
+  youtubeCookiesNotConfigured: 'YouTube Cookies Not Configured',
+  youtubeCookiesWarningMessage:
+    'The {cookiesPath} file was not found. YouTube trailer downloads for placeholders may fail due to bot detection. Configure YouTube cookies in Settings > Downloads to prevent issues.',
+  youtubeCookiesConfigured: 'YouTube Cookies Configured',
+  youtubeCookiesConfiguredMessage:
+    'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
 });
 
 const CollectionFormConfigForm = ({
@@ -118,6 +124,11 @@ const CollectionFormConfigForm = ({
     placeholderMovieRootFolders?: Record<string, string>;
     placeholderTVRootFolders?: Record<string, string>;
   }>('/api/v1/settings/main');
+
+  // Check if youtube-cookies.txt file exists
+  const { data: youtubeCookiesStatus } = useSWR<{ exists: boolean }>(
+    '/api/v1/settings/youtube-cookies-status'
+  );
 
   // State for storing fetched titles and detected media types
   const [fetchedTitles, setFetchedTitles] = useState<{
@@ -3112,6 +3123,107 @@ const CollectionFormConfigForm = ({
                                         </div>
                                       );
                                     })()}
+
+                                    {/* YouTube cookies status */}
+                                    {typedValues.createPlaceholdersForMissing &&
+                                      youtubeCookiesStatus &&
+                                      !youtubeCookiesStatus.exists && (
+                                        <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
+                                          <div className="flex">
+                                            <div className="flex-shrink-0">
+                                              <svg
+                                                className="h-4 w-4 text-yellow-400"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                                aria-hidden="true"
+                                              >
+                                                <path
+                                                  fillRule="evenodd"
+                                                  d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                                                  clipRule="evenodd"
+                                                />
+                                              </svg>
+                                            </div>
+                                            <div className="ml-2 flex-1">
+                                              <p className="text-xs font-medium text-yellow-300">
+                                                {intl.formatMessage(
+                                                  messages.youtubeCookiesNotConfigured
+                                                )}
+                                              </p>
+                                              <p className="mt-1 text-xs text-yellow-200">
+                                                {intl.formatMessage(
+                                                  messages.youtubeCookiesWarningMessage,
+                                                  {
+                                                    cookiesPath: (
+                                                      <code className="bg-yellow-950 rounded px-1 py-0.5 font-mono">
+                                                        youtube-cookies.txt
+                                                      </code>
+                                                    ),
+                                                  }
+                                                )}
+                                              </p>
+                                              <div className="mt-2">
+                                                <a
+                                                  href="/settings/downloads"
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1.5 rounded-md bg-yellow-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 focus:ring-offset-stone-900"
+                                                >
+                                                  {intl.formatMessage(
+                                                    messages.configureDownloads
+                                                  )}
+                                                  <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                                </a>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                    {/* YouTube cookies success message */}
+                                    {typedValues.createPlaceholdersForMissing &&
+                                      youtubeCookiesStatus &&
+                                      youtubeCookiesStatus.exists && (
+                                        <div className="mt-3 rounded-md bg-stone-800 p-3 ring-1 ring-stone-600">
+                                          <div className="flex">
+                                            <div className="flex-shrink-0">
+                                              <svg
+                                                className="h-4 w-4 text-green-400"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                                aria-hidden="true"
+                                              >
+                                                <path
+                                                  fillRule="evenodd"
+                                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                                  clipRule="evenodd"
+                                                />
+                                              </svg>
+                                            </div>
+                                            <div className="ml-2 flex-1">
+                                              <p className="text-xs font-medium text-stone-300">
+                                                {intl.formatMessage(
+                                                  messages.youtubeCookiesConfigured
+                                                )}
+                                              </p>
+                                              <p className="mt-1 text-xs text-stone-400">
+                                                {intl.formatMessage(
+                                                  messages.youtubeCookiesConfiguredMessage,
+                                                  {
+                                                    cookiesPath: (
+                                                      <code className="rounded bg-stone-700 px-1 py-0.5 font-mono">
+                                                        youtube-cookies.txt
+                                                      </code>
+                                                    ),
+                                                  }
+                                                )}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
 
                                     {/* Info alert about Filtered Plex Hubs */}
                                     {typedValues.createPlaceholdersForMissing && (

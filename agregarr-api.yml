@@ -8193,6 +8193,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MainSettings'
+  /settings/youtube-cookies-status:
+    get:
+      summary: Check YouTube cookies file status
+      description: Checks if the youtube-cookies.txt file exists in the config directory.
+      tags:
+        - settings-general
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists:
+                    type: boolean
+                    description: Whether the youtube-cookies.txt file exists
+                    example: true
   /settings/reset:
     post:
       summary: Reset all Agregarr collections

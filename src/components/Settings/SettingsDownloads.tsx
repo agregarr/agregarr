@@ -111,6 +111,18 @@ const messages = defineMessages({
     'To set up cookies: 1) Install a browser extension to export cookies {firefoxLink} / {chromeLink}. 2) Visit YouTube while logged in. 3) Export cookies and save as {cookiesPath} in your Agregarr config directory.',
   firefoxExtension: 'Firefox',
   chromeExtension: 'Chrome',
+  youtubeCookiesNotFound: 'YouTube cookies file not found',
+  youtubeCookiesNotFoundMessage:
+    'The {cookiesPath} file was not found in your config directory. Without this file, YouTube trailer downloads may fail due to bot detection.',
+  youtubeCookiesFound: 'YouTube cookies file found',
+  youtubeCookiesFoundMessage:
+    'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
+  youtubeSetupInstructionsTitle: 'Setup Instructions:',
+  youtubeSetupStep1:
+    'Install a browser extension to export cookies: {firefoxLink} / {chromeLink}',
+  youtubeSetupStep2: 'Visit YouTube while logged in to your account',
+  youtubeSetupStep3:
+    'Export cookies and save as {cookiesPath} in your Agregarr config directory',
 });
 
 interface ServerInstanceProps {
@@ -307,6 +319,10 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
 
   const { data: dataOverseerr, mutate: revalidateOverseerr } =
     useSWR<OverseerrSettings>('/api/v1/settings/overseerr');
+
+  const { data: youtubeCookiesStatus } = useSWR<{ exists: boolean }>(
+    '/api/v1/settings/youtube-cookies-status'
+  );
 
   const deleteServer = async () => {
     if (deleteServerModal.type === 'overseerr') {
@@ -848,36 +864,98 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
             {intl.formatMessage(messages.youtubeSettingsDescription)}
           </p>
         </div>
-        <Alert
-          title={intl.formatMessage(messages.youtubeSettingsInstructions, {
-            cookiesPath: (
-              <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
-                youtube-cookies.txt
-              </code>
-            ),
-            firefoxLink: (
-              <a
-                href="https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-orange-500 hover:underline"
-              >
-                {intl.formatMessage(messages.firefoxExtension)}
-              </a>
-            ),
-            chromeLink: (
-              <a
-                href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-orange-500 hover:underline"
-              >
-                {intl.formatMessage(messages.chromeExtension)}
-              </a>
-            ),
-          })}
-          type="info"
-        />
+        {youtubeCookiesStatus && !youtubeCookiesStatus.exists && (
+          <Alert
+            title={intl.formatMessage(messages.youtubeCookiesNotFound)}
+            type="warning"
+          >
+            <p>
+              {intl.formatMessage(messages.youtubeCookiesNotFoundMessage, {
+                cookiesPath: (
+                  <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
+                    youtube-cookies.txt
+                  </code>
+                ),
+              })}
+            </p>
+          </Alert>
+        )}
+        {youtubeCookiesStatus && youtubeCookiesStatus.exists && (
+          <div className="mb-4 rounded-md bg-stone-800 p-4 ring-1 ring-stone-600">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-green-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-medium text-stone-300">
+                  {intl.formatMessage(messages.youtubeCookiesFound)}
+                </p>
+                <p className="mt-1 text-sm text-stone-400">
+                  {intl.formatMessage(messages.youtubeCookiesFoundMessage, {
+                    cookiesPath: (
+                      <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
+                        youtube-cookies.txt
+                      </code>
+                    ),
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="space-y-3 text-sm text-stone-400">
+          <p className="font-medium text-stone-300">
+            {intl.formatMessage(messages.youtubeSetupInstructionsTitle)}
+          </p>
+          <ol className="ml-4 list-decimal space-y-2">
+            <li>
+              {intl.formatMessage(messages.youtubeSetupStep1, {
+                firefoxLink: (
+                  <a
+                    href="https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-500 hover:underline"
+                  >
+                    {intl.formatMessage(messages.firefoxExtension)}
+                  </a>
+                ),
+                chromeLink: (
+                  <a
+                    href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-500 hover:underline"
+                  >
+                    {intl.formatMessage(messages.chromeExtension)}
+                  </a>
+                ),
+              })}
+            </li>
+            <li>{intl.formatMessage(messages.youtubeSetupStep2)}</li>
+            <li>
+              {intl.formatMessage(messages.youtubeSetupStep3, {
+                cookiesPath: (
+                  <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
+                    youtube-cookies.txt
+                  </code>
+                ),
+              })}
+            </li>
+          </ol>
+        </div>
       </div>
 
       {/* Plex Watchlist Sync Settings */}
