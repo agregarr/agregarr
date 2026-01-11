@@ -332,6 +332,7 @@ export interface OverlayRenderContext {
   network?: string; // For TV shows
   genre?: string;
   runtime?: number;
+  runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
 
   // Plex Media Info (from actual file analysis)

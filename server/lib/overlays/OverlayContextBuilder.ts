@@ -305,12 +305,35 @@ export async function buildRenderContext(
       // Runtime
       if (mediaType === 'movie' && 'runtime' in tmdbData) {
         context.runtime = tmdbData.runtime;
+        // Format runtime as "2h 16m" or "47m"
+        if (tmdbData.runtime) {
+          const hours = Math.floor(tmdbData.runtime / 60);
+          const minutes = tmdbData.runtime % 60;
+          if (hours > 0) {
+            context.runtimeHHMM =
+              minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+          } else {
+            context.runtimeHHMM = `${minutes}m`;
+          }
+        }
       } else if (
         mediaType === 'show' &&
         'episode_run_time' in tmdbData &&
         tmdbData.episode_run_time?.[0]
       ) {
         context.runtime = tmdbData.episode_run_time[0];
+        // Format runtime as "2h 16m" or "47m"
+        const runtimeValue = tmdbData.episode_run_time[0];
+        if (runtimeValue) {
+          const hours = Math.floor(runtimeValue / 60);
+          const minutes = runtimeValue % 60;
+          if (hours > 0) {
+            context.runtimeHHMM =
+              minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+          } else {
+            context.runtimeHHMM = `${minutes}m`;
+          }
+        }
       }
 
       // TMDB Status (TV shows only) - using Kometa's user-friendly mapping

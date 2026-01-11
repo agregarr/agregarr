@@ -167,6 +167,7 @@ export interface OverlayRenderContext {
   network?: string; // For TV shows
   genre?: string;
   runtime?: number;
+  runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
 
   // Plex Media Info (from actual file analysis)
@@ -268,6 +269,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'network', label: 'Network (TV)', example: 'AMC' },
     { field: 'genre', label: 'Genre', example: 'Sci-Fi' },
     { field: 'runtime', label: 'Runtime (min)', example: '136' },
+    { field: 'runtimeHHMM', label: 'Runtime (HHMM)', example: '2h 16m' },
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
@@ -397,6 +399,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'network', label: 'Network (TV)', example: 'AMC' },
     { field: 'genre', label: 'Genre', example: 'Sci-Fi' },
     { field: 'runtime', label: 'Runtime (min)', example: '136' },
+    { field: 'runtimeHHMM', label: 'Runtime (HHMM)', example: '2h 16m' },
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
@@ -589,6 +592,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     releaseDate: '2025-02-15', // Primary release date (digital)
     daysUntilRelease: 14,
     runtime: 136,
+    runtimeHHMM: '2h 16m',
     isMonitored: true,
     inRadarr: true,
     downloaded: false,
@@ -611,6 +615,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     episodeLabel: 'SERIES FINALE',
     network: 'AMC',
     genre: 'Drama',
+    runtime: 47,
+    runtimeHHMM: '47m',
     tmdbStatus: 'ENDED',
     resolution: '1080p',
     width: 1920,
