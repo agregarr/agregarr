@@ -202,6 +202,24 @@ export async function removePlaceholder(
     // Delete the file
     await fs.unlink(placeholderPath);
 
+    // Clean up associated .trickplay directory (Jellyfin creates these for video thumbnails)
+    // Pattern: "Movie {tmdb-123} {edition-Trailer}.mp4" -> "Movie {tmdb-123} {edition-Trailer}.trickplay"
+    if (placeholderPath.endsWith('.mp4')) {
+      const trickplayPath = placeholderPath.replace(/\.mp4$/, '.trickplay');
+      try {
+        const trickplayStat = await fs.stat(trickplayPath);
+        if (trickplayStat.isDirectory()) {
+          await fs.rm(trickplayPath, { recursive: true });
+          logger.debug('Removed associated trickplay directory', {
+            label: 'Coming Soon Placeholder',
+            path: trickplayPath,
+          });
+        }
+      } catch {
+        // Trickplay directory doesn't exist, that's fine
+      }
+    }
+
     // Clean up parent directories if empty
     if (mediaType === 'movie') {
       const movieDir = path.dirname(placeholderPath);
