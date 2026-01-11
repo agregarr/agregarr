@@ -407,6 +407,7 @@ export interface PlexSettings {
   hubConfigs?: PlexHubConfig[]; // Plex built-in hub configurations
   preExistingCollectionConfigs?: PreExistingCollectionConfig[]; // Pre-existing Plex collections discovered by hub discovery
   usersHomeUnlocked?: boolean; // Secret unlock for Users Home collections
+  autoEmptyTrash?: boolean; // Auto-empty Plex trash after placeholder cleanup (default: true)
 }
 
 export interface TraktSettings {
