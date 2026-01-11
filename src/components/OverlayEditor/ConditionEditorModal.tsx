@@ -101,6 +101,7 @@ const BOOLEAN_FIELDS = [
   'hdr',
   'dolbyVision',
   'isImdbTop250',
+  'rtCertifiedFresh',
 ];
 
 // ============================================================================
