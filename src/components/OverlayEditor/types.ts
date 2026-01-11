@@ -156,6 +156,7 @@ export interface OverlayRenderContext {
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
+  rtCertifiedFresh?: boolean; // True if Rotten Tomatoes Certified Fresh
   plexUserRating?: number; // Plex user rating (0-10 scale where 10 = 5 stars)
   // metacriticScore?: number; // TODO: Implement Metacritic integration
 
@@ -258,6 +259,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
+    { field: 'rtCertifiedFresh', label: 'RT Certified Fresh', example: 'true' },
     { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
@@ -455,6 +457,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
+    { field: 'rtCertifiedFresh', label: 'RT Certified Fresh', example: 'true' },
     { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
@@ -562,6 +565,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 88,
     rtAudienceScore: 85,
+    rtCertifiedFresh: true,
     plexUserRating: 8,
     // metacriticScore: 73, // TODO: Implement Metacritic integration
     director: 'Lana Wachowski',
@@ -608,6 +612,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 96,
     rtAudienceScore: 98,
+    // rtCertifiedFresh not included - TV shows don't have Certified Fresh in RT API
     plexUserRating: 10,
     // metacriticScore: 96, // TODO: Implement Metacritic integration
     seasonNumber: 5,
