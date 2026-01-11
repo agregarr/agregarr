@@ -150,10 +150,23 @@ export class MultiSourceOrchestrator {
       logger.info(`Processing multi-source collection: ${config.name}`, {
         label: 'Multi-Source Orchestrator',
         configId: config.id,
-        sourceCount: config.sources.length,
+        sourceCount: config.sources?.length ?? 0,
         combineMode: config.combineMode,
         isActive: timeRestrictionResult.isActive,
       });
+
+      // Validate sources array is not empty (prevents division by zero in cycle_lists mode)
+      if (!config.sources || config.sources.length === 0) {
+        logger.error(
+          `Multi-source collection ${config.name} has no sources configured`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            combineMode: config.combineMode,
+          }
+        );
+        return { created: 0, updated: 0 };
+      }
 
       // Increment sync counter for cycle_lists mode
       if (config.combineMode === 'cycle_lists') {
