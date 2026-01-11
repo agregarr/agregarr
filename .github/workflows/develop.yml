@@ -8,10 +8,6 @@ on:
     branches:
       - develop
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   test:
     name: Lint & Test Build
@@ -57,11 +53,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push by digest
         id: build
@@ -71,7 +68,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             COMMIT_TAG=${{ github.sha }}
-          outputs: type=image,name=agregarr/agregarr,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=ghcr.io/agregarr/agregarr,push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         run: |
@@ -102,21 +99,38 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      - name: Create manifest list and push
+      - name: Create manifest on GHCR
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create \
-            -t agregarr/agregarr:develop \
-            $(printf 'agregarr/agregarr@sha256:%s ' *)
+            -t ghcr.io/agregarr/agregarr:develop \
+            $(printf 'ghcr.io/agregarr/agregarr@sha256:%s ' *)
 
-      - name: Inspect image
+      - name: Install regctl
         run: |
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 >/tmp/regctl
+          chmod +x /tmp/regctl
+
+      - name: Copy to Docker Hub
+        run: |
+          /tmp/regctl image copy ghcr.io/agregarr/agregarr:develop agregarr/agregarr:develop
+
+      - name: Inspect images
+        run: |
+          docker buildx imagetools inspect ghcr.io/agregarr/agregarr:develop
           docker buildx imagetools inspect agregarr/agregarr:develop
 
   discord:
