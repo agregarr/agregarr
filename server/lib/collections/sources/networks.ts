@@ -38,6 +38,7 @@ interface NetworksCollectionItem extends CollectionItem {
       spriteUrl: string;
       position: string;
     };
+    originalPosition?: number;
   };
 }
 
@@ -473,6 +474,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
               tmdbId: lookup.tmdbId,
               flixpatrolUrl: lookup.flixpatrolUrl,
               platformLogo: lookup.platformLogo, // Include platform logo metadata
+              originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
             },
           });
         } else {

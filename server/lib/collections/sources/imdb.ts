@@ -854,6 +854,7 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
           metadata: {
             libraryKey: plexItem.libraryKey,
             showTmdbId: lookup.showTmdbId, // Preserve show TMDB ID for episodes
+            originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
           },
           episodeInfo: lookup.episodeInfo,
         });

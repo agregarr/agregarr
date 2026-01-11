@@ -456,6 +456,7 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,
+              originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
             },
           });
         } else {
