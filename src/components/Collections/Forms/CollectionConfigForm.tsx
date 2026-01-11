@@ -130,20 +130,12 @@ const CollectionFormConfigForm = ({
   }>({});
 
   const [detectedMediaTypes, setDetectedMediaTypes] = useState<{
-    trakt?: 'movie' | 'tv' | 'both';
-    tmdb?: 'movie' | 'tv' | 'both';
-    imdb?: 'movie' | 'tv' | 'both';
-    letterboxd?: 'movie' | 'tv' | 'both';
-    mdblist?: 'movie' | 'tv' | 'both';
-    anilist?: 'movie' | 'tv' | 'both';
-  }>({});
-
-  const [detectingMediaTypes, setDetectingMediaTypes] = useState<{
-    trakt?: boolean;
-    tmdb?: boolean;
-    imdb?: boolean;
-    letterboxd?: boolean;
-    mdblist?: boolean;
+    trakt?: 'movie' | 'tv' | 'both' | 'mixed';
+    tmdb?: 'movie' | 'tv' | 'both' | 'mixed';
+    imdb?: 'movie' | 'tv' | 'both' | 'mixed';
+    letterboxd?: 'movie' | 'tv' | 'both' | 'mixed';
+    mdblist?: 'movie' | 'tv' | 'both' | 'mixed';
+    anilist?: 'movie' | 'tv' | 'both' | 'mixed';
   }>({});
 
   const [, setFetchingTitle] = useState<{
@@ -153,6 +145,15 @@ const CollectionFormConfigForm = ({
     letterboxd?: boolean;
     mdblist?: boolean;
     anilist?: boolean;
+  }>({});
+
+  const [titleFetchProgress, setTitleFetchProgress] = useState<{
+    trakt?: string;
+    tmdb?: string;
+    imdb?: string;
+    letterboxd?: string;
+    mdblist?: string;
+    anilist?: string;
   }>({});
 
   // State for confirmation - MUST be before any early returns to avoid React Hooks violation
@@ -507,8 +508,8 @@ const CollectionFormConfigForm = ({
         schema
           .required('IMDb list URL is required')
           .matches(
-            /imdb\.com\/list\/ls\d+/,
-            'Please enter a valid IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+            /(imdb\.com\/list\/ls\d+|imdb\.com\/user\/ur\d+\/watchlist)/,
+            'Please enter a valid IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           ),
       otherwise: (schema) => schema,
     }),
@@ -760,354 +761,514 @@ const CollectionFormConfigForm = ({
     }
   };
 
-  // Comprehensive media type detection function
-  const detectMediaType = async (
-    url: string,
-    type: 'trakt' | 'tmdb' | 'imdb' | 'letterboxd'
-  ) => {
-    try {
-      setDetectingMediaTypes((prev) => ({ ...prev, [type]: true }));
-      const response = await fetch(`/api/v1/collections/detect-media-type`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type }),
-      });
-      const data = await response.json();
-      if (data.mediaType) {
-        setDetectedMediaTypes((prev) => ({ ...prev, [type]: data.mediaType }));
-      }
-    } catch (error) {
-      // Silently fail - media type detection is optional
-    } finally {
-      setDetectingMediaTypes((prev) => ({ ...prev, [type]: false }));
-    }
-  };
-
-  // Title fetching functions
+  // Title fetching functions (SSE endpoints now handle media type detection)
   const fetchTraktTitle = async (
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => {
-    try {
-      setFetchingTitle((prev) => ({ ...prev, trakt: true }));
+    setFetchingTitle((prev) => ({ ...prev, trakt: true }));
+    setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
 
-      // Step 1: Quick title fetch and validation (first 10 items)
-      const response = await fetch(`/api/v1/collections/fetch-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type: 'trakt' }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        addToast(errorData.message || 'Failed to fetch Trakt list title', {
-          appearance: 'error',
-          autoDismiss: true,
-        });
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.title) {
-        setFetchedTitles((prev) => ({ ...prev, trakt: data.title }));
-
-        // Set initial media type from first 10 items if available
-        if (data.mediaType) {
-          setDetectedMediaTypes((prev) => ({ ...prev, trakt: data.mediaType }));
-        }
-
-        // Auto-select first template option when title is fetched
-        if (setFieldValue) {
-          setTimeout(() => {
-            setFieldValue('template', data.title);
-          }, 100); // Small delay to ensure state is updated
-        }
-
-        // Step 2: Start comprehensive media type detection in background
-        setDetectingMediaTypes((prev) => ({ ...prev, trakt: true }));
-        detectMediaType(url, 'trakt');
-      }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch Trakt list title. Please check your connection and try again.',
-        {
-          appearance: 'error',
-          autoDismiss: true,
-        }
+    return new Promise<void>((resolve, reject) => {
+      const eventSource = new EventSource(
+        `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+          url
+        )}&type=trakt`
       );
-    } finally {
-      setFetchingTitle((prev) => ({ ...prev, trakt: false }));
-    }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.status === 'success') {
+            // Success - update state and call callbacks
+            if (data.title) {
+              setFetchedTitles((prev) => ({ ...prev, trakt: data.title }));
+
+              // Set initial media type from first 10 items if available
+              if (data.mediaType) {
+                setDetectedMediaTypes((prev) => ({
+                  ...prev,
+                  trakt: data.mediaType,
+                }));
+              }
+
+              // Auto-select first template option when title is fetched
+              if (setFieldValue) {
+                setTimeout(() => {
+                  setFieldValue('template', data.title);
+                }, 100); // Small delay to ensure state is updated
+              }
+
+              // Note: SSE endpoint now analyzes 100 items and returns accurate media type
+            }
+
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, trakt: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
+            resolve();
+          } else if (data.status === 'error') {
+            // Error - show toast and cleanup
+            addToast(data.message || 'Failed to fetch Trakt list title', {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, trakt: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
+            reject(new Error(data.message));
+          } else {
+            // Progress update
+            setTitleFetchProgress((prev) => ({ ...prev, trakt: data.message }));
+          }
+        } catch (parseError) {
+          addToast('Failed to parse server response', {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          eventSource.close();
+          setFetchingTitle((prev) => ({ ...prev, trakt: false }));
+          setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
+          reject(parseError);
+        }
+      };
+
+      eventSource.onerror = () => {
+        addToast(
+          'Connection error while fetching Trakt list title. Please check your connection and try again.',
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
+        eventSource.close();
+        setFetchingTitle((prev) => ({ ...prev, trakt: false }));
+        setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
+        reject(new Error('Connection error'));
+      };
+    });
   };
 
   const fetchTmdbTitle = async (
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => {
-    try {
-      setFetchingTitle((prev) => ({ ...prev, tmdb: true }));
-      const response = await fetch(`/api/v1/collections/fetch-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type: 'tmdb' }),
-      });
+    setFetchingTitle((prev) => ({ ...prev, tmdb: true }));
+    setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        addToast(errorData.message || 'Failed to fetch TMDB title', {
-          appearance: 'error',
-          autoDismiss: true,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      if (data.title) {
-        setFetchedTitles((prev) => ({ ...prev, tmdb: data.title }));
-        if (data.mediaType) {
-          setDetectedMediaTypes((prev) => ({ ...prev, tmdb: data.mediaType }));
-        }
-
-        // Auto-select first template option when title is fetched
-        if (setFieldValue) {
-          setTimeout(() => {
-            setFieldValue('template', data.title);
-          }, 100); // Small delay to ensure state is updated
-        }
-      }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch TMDB title. Please check your connection and try again.',
-        {
-          appearance: 'error',
-          autoDismiss: true,
-        }
+    return new Promise<void>((resolve, reject) => {
+      const eventSource = new EventSource(
+        `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+          url
+        )}&type=tmdb`
       );
-    } finally {
-      setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
-    }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.status === 'success') {
+            // Success - update state and call callbacks
+            if (data.title) {
+              setFetchedTitles((prev) => ({ ...prev, tmdb: data.title }));
+              if (data.mediaType) {
+                setDetectedMediaTypes((prev) => ({
+                  ...prev,
+                  tmdb: data.mediaType,
+                }));
+              }
+
+              // Auto-select first template option when title is fetched
+              if (setFieldValue) {
+                setTimeout(() => {
+                  setFieldValue('template', data.title);
+                }, 100); // Small delay to ensure state is updated
+              }
+            }
+
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
+            resolve();
+          } else if (data.status === 'error') {
+            // Error - show toast and cleanup
+            addToast(data.message || 'Failed to fetch TMDB title', {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
+            reject(new Error(data.message));
+          } else {
+            // Progress update
+            setTitleFetchProgress((prev) => ({ ...prev, tmdb: data.message }));
+          }
+        } catch (parseError) {
+          addToast('Failed to parse server response', {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          eventSource.close();
+          setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
+          setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
+          reject(parseError);
+        }
+      };
+
+      eventSource.onerror = () => {
+        addToast(
+          'Connection error while fetching TMDB title. Please check your connection and try again.',
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
+        eventSource.close();
+        setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
+        setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
+        reject(new Error('Connection error'));
+      };
+    });
   };
 
   const fetchImdbTitle = async (
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => {
-    try {
-      setFetchingTitle((prev) => ({ ...prev, imdb: true }));
+    setFetchingTitle((prev) => ({ ...prev, imdb: true }));
+    setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
 
-      // Step 1: Quick title fetch and validation
-      const response = await fetch(`/api/v1/collections/fetch-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type: 'imdb' }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        addToast(errorData.message || 'Failed to fetch IMDb list title', {
-          appearance: 'error',
-          autoDismiss: true,
-        });
-        return;
-      }
-
-      const data = await response.json();
-
-      if (data.title) {
-        setFetchedTitles((prev) => ({ ...prev, imdb: data.title }));
-
-        // Set initial media type if available
-        if (data.mediaType) {
-          setDetectedMediaTypes((prev) => ({ ...prev, imdb: data.mediaType }));
-        }
-
-        // Auto-select first template option when title is fetched
-        if (setFieldValue) {
-          setTimeout(() => {
-            setFieldValue('template', data.title);
-          }, 100);
-        }
-
-        // Step 2: Start comprehensive media type detection in background
-        detectMediaType(url, 'imdb');
-      }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch IMDb list title. Please check your connection and try again.',
-        {
-          appearance: 'error',
-          autoDismiss: true,
-        }
+    return new Promise<void>((resolve, reject) => {
+      const eventSource = new EventSource(
+        `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+          url
+        )}&type=imdb`
       );
-    } finally {
-      setFetchingTitle((prev) => ({ ...prev, imdb: false }));
-    }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.status === 'success') {
+            // Success - update state and call callbacks
+            if (data.title) {
+              setFetchedTitles((prev) => ({ ...prev, imdb: data.title }));
+
+              // Set initial media type if available
+              if (data.mediaType) {
+                setDetectedMediaTypes((prev) => ({
+                  ...prev,
+                  imdb: data.mediaType,
+                }));
+              }
+
+              // Auto-select first template option when title is fetched
+              if (setFieldValue) {
+                setTimeout(() => {
+                  setFieldValue('template', data.title);
+                }, 100);
+              }
+
+              // Note: SSE endpoint now analyzes 100 items and returns accurate media type
+            }
+
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, imdb: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
+            resolve();
+          } else if (data.status === 'error') {
+            // Error - show toast and cleanup
+            addToast(data.message || 'Failed to fetch IMDb list title', {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, imdb: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
+            reject(new Error(data.message));
+          } else {
+            // Progress update
+            setTitleFetchProgress((prev) => ({ ...prev, imdb: data.message }));
+          }
+        } catch (parseError) {
+          addToast('Failed to parse server response', {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          eventSource.close();
+          setFetchingTitle((prev) => ({ ...prev, imdb: false }));
+          setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
+          reject(parseError);
+        }
+      };
+
+      eventSource.onerror = () => {
+        addToast(
+          'Connection error while fetching IMDb list title. Please check your connection and try again.',
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
+        eventSource.close();
+        setFetchingTitle((prev) => ({ ...prev, imdb: false }));
+        setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
+        reject(new Error('Connection error'));
+      };
+    });
   };
 
   const fetchLetterboxdTitle = async (
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => {
-    try {
-      setFetchingTitle((prev) => ({ ...prev, letterboxd: true }));
-      const response = await fetch(`/api/v1/collections/fetch-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type: 'letterboxd' }),
-      });
+    setFetchingTitle((prev) => ({ ...prev, letterboxd: true }));
+    setTitleFetchProgress((prev) => ({ ...prev, letterboxd: undefined }));
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        addToast(errorData.message || 'Failed to fetch Letterboxd list title', {
-          appearance: 'error',
-          autoDismiss: true,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      if (data.title) {
-        setFetchedTitles((prev) => ({ ...prev, letterboxd: data.title }));
-        if (data.mediaType) {
-          setDetectedMediaTypes((prev) => ({
-            ...prev,
-            letterboxd: data.mediaType,
-          }));
-        }
-
-        // Auto-select first template option when title is fetched
-        if (setFieldValue) {
-          setTimeout(() => {
-            setFieldValue('template', data.title);
-          }, 100); // Small delay to ensure state is updated
-        }
-      }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch Letterboxd list title. Please check your connection and try again.',
-        {
-          appearance: 'error',
-          autoDismiss: true,
-        }
+    return new Promise<void>((resolve, reject) => {
+      const eventSource = new EventSource(
+        `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+          url
+        )}&type=letterboxd`
       );
-    } finally {
-      setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
-    }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.status === 'success') {
+            if (data.title) {
+              setFetchedTitles((prev) => ({ ...prev, letterboxd: data.title }));
+              if (data.mediaType) {
+                setDetectedMediaTypes((prev) => ({
+                  ...prev,
+                  letterboxd: data.mediaType,
+                }));
+              }
+
+              if (setFieldValue) {
+                setTimeout(() => {
+                  setFieldValue('template', data.title);
+                }, 100);
+              }
+            }
+
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
+            setTitleFetchProgress((prev) => ({
+              ...prev,
+              letterboxd: undefined,
+            }));
+            resolve();
+          } else if (data.status === 'error') {
+            addToast(data.message || 'Failed to fetch Letterboxd list title', {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
+            setTitleFetchProgress((prev) => ({
+              ...prev,
+              letterboxd: undefined,
+            }));
+            reject(new Error(data.message));
+          } else {
+            setTitleFetchProgress((prev) => ({
+              ...prev,
+              letterboxd: data.message,
+            }));
+          }
+        } catch (parseError) {
+          addToast('Failed to parse server response', {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          eventSource.close();
+          setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
+          setTitleFetchProgress((prev) => ({ ...prev, letterboxd: undefined }));
+          reject(parseError);
+        }
+      };
+
+      eventSource.onerror = () => {
+        addToast(
+          'Connection error while fetching Letterboxd list title. Please check your connection and try again.',
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
+        eventSource.close();
+        setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
+        setTitleFetchProgress((prev) => ({ ...prev, letterboxd: undefined }));
+        reject(new Error('Connection error'));
+      };
+    });
   };
 
   const fetchMdblistTitle = async (
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => {
-    try {
-      setFetchingTitle((prev) => ({ ...prev, mdblist: true }));
-      const response = await fetch(`/api/v1/collections/fetch-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type: 'mdblist' }),
-      });
+    setFetchingTitle((prev) => ({ ...prev, mdblist: true }));
+    setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        addToast(errorData.message || 'Failed to fetch MDBList title', {
-          appearance: 'error',
-          autoDismiss: true,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      if (data.title) {
-        setFetchedTitles((prev) => ({ ...prev, mdblist: data.title }));
-        if (data.mediaType) {
-          setDetectedMediaTypes((prev) => ({
-            ...prev,
-            mdblist: data.mediaType,
-          }));
-        }
-
-        // Auto-select first template option when title is fetched
-        if (setFieldValue) {
-          setTimeout(() => {
-            setFieldValue('template', data.title);
-          }, 100); // Small delay to ensure state is updated
-        }
-      }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch MDBList title. Please check your connection and try again.',
-        {
-          appearance: 'error',
-          autoDismiss: true,
-        }
+    return new Promise<void>((resolve, reject) => {
+      const eventSource = new EventSource(
+        `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+          url
+        )}&type=mdblist`
       );
-    } finally {
-      setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
-    }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.status === 'success') {
+            if (data.title) {
+              setFetchedTitles((prev) => ({ ...prev, mdblist: data.title }));
+              if (data.mediaType) {
+                setDetectedMediaTypes((prev) => ({
+                  ...prev,
+                  mdblist: data.mediaType,
+                }));
+              }
+
+              if (setFieldValue) {
+                setTimeout(() => {
+                  setFieldValue('template', data.title);
+                }, 100);
+              }
+            }
+
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
+            resolve();
+          } else if (data.status === 'error') {
+            addToast(data.message || 'Failed to fetch MDBList title', {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
+            reject(new Error(data.message));
+          } else {
+            setTitleFetchProgress((prev) => ({
+              ...prev,
+              mdblist: data.message,
+            }));
+          }
+        } catch (parseError) {
+          addToast('Failed to parse server response', {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          eventSource.close();
+          setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
+          setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
+          reject(parseError);
+        }
+      };
+
+      eventSource.onerror = () => {
+        addToast(
+          'Connection error while fetching MDBList title. Please check your connection and try again.',
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
+        eventSource.close();
+        setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
+        setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
+        reject(new Error('Connection error'));
+      };
+    });
   };
 
   const fetchAnilistTitle = async (
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => {
-    try {
-      setFetchingTitle((prev) => ({ ...prev, anilist: true }));
-      const response = await fetch(`/api/v1/collections/fetch-title`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, type: 'anilist' }),
-      });
+    setFetchingTitle((prev) => ({ ...prev, anilist: true }));
+    setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        addToast(errorData.message || 'Failed to fetch AniList title', {
-          appearance: 'error',
-          autoDismiss: true,
-        });
-        return;
-      }
-
-      const data = await response.json();
-      if (data.title) {
-        setFetchedTitles((prev) => ({ ...prev, anilist: data.title }));
-        if (data.mediaType) {
-          setDetectedMediaTypes((prev) => ({
-            ...prev,
-            anilist: data.mediaType,
-          }));
-        }
-
-        // Auto-select first template option when title is fetched
-        if (setFieldValue) {
-          setTimeout(() => {
-            setFieldValue('template', data.title);
-          }, 100); // Small delay to ensure state is updated
-        }
-      }
-    } catch (error) {
-      addToast(
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch AniList title. Please check your connection and try again.',
-        {
-          appearance: 'error',
-          autoDismiss: true,
-        }
+    return new Promise<void>((resolve, reject) => {
+      const eventSource = new EventSource(
+        `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+          url
+        )}&type=anilist`
       );
-    } finally {
-      setFetchingTitle((prev) => ({ ...prev, anilist: false }));
-    }
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.status === 'success') {
+            if (data.title) {
+              setFetchedTitles((prev) => ({ ...prev, anilist: data.title }));
+              if (data.mediaType) {
+                setDetectedMediaTypes((prev) => ({
+                  ...prev,
+                  anilist: data.mediaType,
+                }));
+              }
+
+              if (setFieldValue) {
+                setTimeout(() => {
+                  setFieldValue('template', data.title);
+                }, 100);
+              }
+            }
+
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, anilist: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
+            resolve();
+          } else if (data.status === 'error') {
+            addToast(data.message || 'Failed to fetch AniList title', {
+              appearance: 'error',
+              autoDismiss: true,
+            });
+            eventSource.close();
+            setFetchingTitle((prev) => ({ ...prev, anilist: false }));
+            setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
+            reject(new Error(data.message));
+          } else {
+            setTitleFetchProgress((prev) => ({
+              ...prev,
+              anilist: data.message,
+            }));
+          }
+        } catch (parseError) {
+          addToast('Failed to parse server response', {
+            appearance: 'error',
+            autoDismiss: true,
+          });
+          eventSource.close();
+          setFetchingTitle((prev) => ({ ...prev, anilist: false }));
+          setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
+          reject(parseError);
+        }
+      };
+
+      eventSource.onerror = () => {
+        addToast(
+          'Connection error while fetching AniList title. Please check your connection and try again.',
+          {
+            appearance: 'error',
+            autoDismiss: true,
+          }
+        );
+        eventSource.close();
+        setFetchingTitle((prev) => ({ ...prev, anilist: false }));
+        setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
+        reject(new Error('Connection error'));
+      };
+    });
   };
 
   // getVisibilityOptions will be defined inside the Formik render function
@@ -2198,6 +2359,7 @@ const CollectionFormConfigForm = ({
                           fetchLetterboxdTitle={fetchLetterboxdTitle}
                           fetchMdblistTitle={fetchMdblistTitle}
                           fetchAnilistTitle={fetchAnilistTitle}
+                          titleFetchProgress={titleFetchProgress}
                         />
                       )}
 
@@ -2278,15 +2440,7 @@ const CollectionFormConfigForm = ({
 
                             return undefined;
                           })()}
-                          isDetectingMediaType={(() => {
-                            // Return detecting state for custom lists
-                            if (values.subtype === 'custom') {
-                              return detectingMediaTypes?.[
-                                values.type as keyof typeof detectingMediaTypes
-                              ];
-                            }
-                            return false;
-                          })()}
+                          isDetectingMediaType={false}
                         />
                       )}
 

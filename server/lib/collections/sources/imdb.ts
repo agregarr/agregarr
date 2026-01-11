@@ -456,15 +456,27 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
 
       const nextData = JSON.parse(nextDataMatch[1]);
 
-      // Navigate to the list data structure
-      const listData =
+      // Navigate to the list or watchlist data structure
+      // Regular lists use: mainColumnData.list.titleListItemSearch
+      // Watchlists use: mainColumnData.predefinedList.titleListItemSearch
+      let listData =
         nextData?.props?.pageProps?.mainColumnData?.list?.titleListItemSearch;
 
+      // Try predefinedList (watchlists) if list structure not found
       if (!listData || !listData.edges) {
-        logger.warn('Could not find titleListItemSearch in __NEXT_DATA__', {
-          label: 'IMDb Collections',
-          configName,
-        });
+        listData =
+          nextData?.props?.pageProps?.mainColumnData?.predefinedList
+            ?.titleListItemSearch;
+      }
+
+      if (!listData || !listData.edges) {
+        logger.warn(
+          'Could not find titleListItemSearch in __NEXT_DATA__ (tried both list and predefinedList structures)',
+          {
+            label: 'IMDb Collections',
+            configName,
+          }
+        );
         return null;
       }
 

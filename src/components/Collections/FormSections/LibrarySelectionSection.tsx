@@ -150,7 +150,7 @@ interface LibrarySelectionSectionProps {
   isEnhancedForm?: boolean;
   isVisible?: boolean;
   filteredLibraries?: Library[];
-  detectedMediaType?: 'movie' | 'tv' | 'both';
+  detectedMediaType?: 'movie' | 'tv' | 'both' | 'mixed';
   isDetectingMediaType?: boolean;
 }
 
@@ -185,7 +185,7 @@ const LibrarySelectionSection = ({
     }
 
     // Show success message if both types detected
-    if (detectedMediaType === 'both') {
+    if (detectedMediaType === 'both' || detectedMediaType === 'mixed') {
       return {
         message: 'List contains both Movies and TV Shows.',
         type: 'success',

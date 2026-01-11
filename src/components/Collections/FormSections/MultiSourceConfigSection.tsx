@@ -425,7 +425,7 @@ const MultiSourceConfigSection = ({
     });
   }, [sources, setFieldValue]);
 
-  // Validate a source URL using the existing /fetch-title endpoint
+  // Validate a source URL using SSE endpoint
   const validateSourceUrl = React.useCallback(
     async (sourceId: string, url: string, type: string) => {
       if (!url?.trim()) return;
@@ -443,50 +443,82 @@ const MultiSourceConfigSection = ({
         },
       }));
 
-      try {
-        const response = await fetch('/api/v1/collections/fetch-title', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url, type }),
-        });
+      return new Promise<void>((resolve, reject) => {
+        const eventSource = new EventSource(
+          `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+            url
+          )}&type=${type}`
+        );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || `Failed to validate ${type} URL`
-          );
-        }
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-        const data = await response.json();
+            if (data.status === 'success') {
+              // Update validation state with results
+              setSourceValidations((prev) => ({
+                ...prev,
+                [sourceId]: {
+                  isValidating: false,
+                  isValid: true,
+                  title: data.title || null,
+                  mediaType: data.mediaType || null,
+                  contentTypes: data.contentTypes || [],
+                  error: null,
+                },
+              }));
+              eventSource.close();
+              resolve();
+            } else if (data.status === 'error') {
+              // Update validation state with error
+              setSourceValidations((prev) => ({
+                ...prev,
+                [sourceId]: {
+                  isValidating: false,
+                  isValid: false,
+                  title: null,
+                  mediaType: null,
+                  contentTypes: [],
+                  error: data.message || 'Validation failed',
+                },
+              }));
+              eventSource.close();
+              reject(new Error(data.message));
+            }
+            // Ignore progress messages - just wait for success/error
+          } catch (parseError) {
+            setSourceValidations((prev) => ({
+              ...prev,
+              [sourceId]: {
+                isValidating: false,
+                isValid: false,
+                title: null,
+                mediaType: null,
+                contentTypes: [],
+                error: 'Failed to parse response',
+              },
+            }));
+            eventSource.close();
+            reject(parseError);
+          }
+        };
 
-        // Update validation state with results
-        setSourceValidations((prev) => ({
-          ...prev,
-          [sourceId]: {
-            isValidating: false,
-            isValid: true,
-            title: data.title || null,
-            mediaType: data.mediaType || null,
-            contentTypes: data.contentTypes || [],
-            error: null,
-          },
-        }));
-      } catch (error) {
-        // Update validation state with error
-        setSourceValidations((prev) => ({
-          ...prev,
-          [sourceId]: {
-            isValidating: false,
-            isValid: false,
-            title: null,
-            mediaType: null,
-            contentTypes: [],
-            error: error instanceof Error ? error.message : 'Validation failed',
-          },
-        }));
-      }
+        eventSource.onerror = () => {
+          setSourceValidations((prev) => ({
+            ...prev,
+            [sourceId]: {
+              isValidating: false,
+              isValid: false,
+              title: null,
+              mediaType: null,
+              contentTypes: [],
+              error: `Connection error while validating ${type} URL`,
+            },
+          }));
+          eventSource.close();
+          reject(new Error('Connection error'));
+        };
+      });
     },
     []
   );

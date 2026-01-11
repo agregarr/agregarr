@@ -49,6 +49,14 @@ interface CustomUrlSectionProps {
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => Promise<void>;
+  titleFetchProgress?: {
+    trakt?: string;
+    tmdb?: string;
+    imdb?: string;
+    letterboxd?: string;
+    mdblist?: string;
+    anilist?: string;
+  };
 }
 
 const CustomUrlSection = ({
@@ -60,6 +68,7 @@ const CustomUrlSection = ({
   fetchLetterboxdTitle,
   fetchMdblistTitle,
   fetchAnilistTitle,
+  titleFetchProgress,
 }: CustomUrlSectionProps) => {
   const intl = useIntl();
   const [isLoadingTitle, setIsLoadingTitle] = useState({
@@ -96,6 +105,9 @@ const CustomUrlSection = ({
       } else if (type === 'anilist' && fetchAnilistTitle) {
         await fetchAnilistTitle(url, setFieldValue);
       }
+    } catch (error) {
+      // Error is already handled by the fetch functions (toasts shown)
+      // Just silently catch here to prevent unhandled rejection
     } finally {
       setIsLoadingTitle((prev) => ({ ...prev, [type]: false }));
     }
@@ -138,6 +150,11 @@ const CustomUrlSection = ({
           component="div"
           className="mt-1 text-sm text-red-500"
         />
+        {titleFetchProgress?.trakt && (
+          <p className="mt-1 text-sm text-orange-400">
+            {titleFetchProgress.trakt}
+          </p>
+        )}
         <p className="mt-1 text-xs text-gray-400">
           Examples: https://trakt.tv/users/username/lists/listname or
           https://trakt.tv/lists/official/jurassic-park-collection
@@ -183,6 +200,11 @@ const CustomUrlSection = ({
           component="div"
           className="mt-1 text-sm text-red-500"
         />
+        {titleFetchProgress?.tmdb && (
+          <p className="mt-1 text-sm text-orange-400">
+            {titleFetchProgress.tmdb}
+          </p>
+        )}
         <p className="mt-1 text-xs text-gray-400">
           Examples: Collection (https://www.themoviedb.org/collection/12345),
           List (https://www.themoviedb.org/list/310), Network
@@ -209,7 +231,7 @@ const CustomUrlSection = ({
             type="url"
             id="imdbCustomListUrl"
             name="imdbCustomListUrl"
-            placeholder="https://www.imdb.com/list/ls123456789/"
+            placeholder="https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist"
             className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchImdbTitle && (
@@ -230,9 +252,14 @@ const CustomUrlSection = ({
           component="div"
           className="mt-1 text-sm text-red-500"
         />
+        {titleFetchProgress?.imdb && (
+          <p className="mt-1 text-sm text-orange-400">
+            {titleFetchProgress.imdb}
+          </p>
+        )}
         <p className="mt-1 text-xs text-gray-400">
-          Example: https://www.imdb.com/list/ls123456789/ or
-          https://www.imdb.com/user/ur12345678/lists/
+          Examples: List (https://www.imdb.com/list/ls123456789/) or Watchlist
+          (https://www.imdb.com/user/ur12345678/watchlist)
         </p>
       </div>
     );
