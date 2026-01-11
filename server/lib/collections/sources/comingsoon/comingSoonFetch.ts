@@ -1063,14 +1063,20 @@ export async function fetchTmdbComingSoonShows(
 }
 
 /**
- * Enrich items with TMDB release dates and filter out already-released items
+ * Enrich items with TMDB release dates and optionally filter out already-released items
  * Adds 3-month estimate for items with only theatrical releases
- * Filters out items where the earliest digital/physical release has already passed
+ * When filterReleased is true (default), filters out items where the release date
+ * has already passed or is too far in the future
  * Modifies the array in place
+ *
+ * @param items - Array of items to enrich
+ * @param maxDaysAway - Maximum days in future to include (default 360)
+ * @param filterReleased - When true, filter out already-released items (default true for Coming Soon behaviour)
  */
 export async function enrichWithTMDBReleaseDates(
   items: ComingSoonSourceData[],
-  maxDaysAway = 360
+  maxDaysAway = 360,
+  filterReleased = true
 ): Promise<void> {
   const TmdbAPI = (await import('@server/api/themoviedb')).default;
   const tmdbClient = new TmdbAPI();
@@ -1164,29 +1170,32 @@ export async function enrichWithTMDBReleaseDates(
           }
 
           // Filter: only include if release date is in the future and within window
-          const earliestReleaseDate = releaseDateResult
-            ? new Date(releaseDateResult.releaseDate)
-            : extracted.earliestReleaseDate || null;
+          // Skip filtering if filterReleased is false (for non-Coming Soon collections)
+          if (filterReleased) {
+            const earliestReleaseDate = releaseDateResult
+              ? new Date(releaseDateResult.releaseDate)
+              : extracted.earliestReleaseDate || null;
 
-          if (
-            !earliestReleaseDate ||
-            earliestReleaseDate < today ||
-            earliestReleaseDate > maxDate
-          ) {
-            logger.debug(
-              'Filtering out movie (already released, no date, or too far away)',
-              {
-                label: 'Coming Soon Collections',
-                title: item.title,
-                earliestReleaseDate: earliestReleaseDate?.toISOString(),
-                reason: !earliestReleaseDate
-                  ? 'no date'
-                  : earliestReleaseDate < today
-                  ? 'already released'
-                  : 'too far away',
-              }
-            );
-            return { index, shouldRemove: true };
+            if (
+              !earliestReleaseDate ||
+              earliestReleaseDate < today ||
+              earliestReleaseDate > maxDate
+            ) {
+              logger.debug(
+                'Filtering out movie (already released, no date, or too far away)',
+                {
+                  label: 'Coming Soon Collections',
+                  title: item.title,
+                  earliestReleaseDate: earliestReleaseDate?.toISOString(),
+                  reason: !earliestReleaseDate
+                    ? 'no date'
+                    : earliestReleaseDate < today
+                    ? 'already released'
+                    : 'too far away',
+                }
+              );
+              return { index, shouldRemove: true };
+            }
           }
         } else if (item.mediaType === 'tv') {
           // Only enrich airDate if not already set (Sonarr already provides season-specific dates)
@@ -1236,25 +1245,28 @@ export async function enrichWithTMDBReleaseDates(
           }
 
           // Filter TV shows: check if air date is in the future and within window (timezone-aware)
-          if (item.airDate) {
-            if (!isDateWithinDays(item.airDate, maxDaysAway)) {
-              logger.debug(
-                'Filtering out TV show (already aired or too far away)',
-                {
-                  label: 'Coming Soon Collections',
-                  title: item.title,
-                  airDate: item.airDate,
-                }
-              );
+          // Skip filtering if filterReleased is false (for non-Coming Soon collections)
+          if (filterReleased) {
+            if (item.airDate) {
+              if (!isDateWithinDays(item.airDate, maxDaysAway)) {
+                logger.debug(
+                  'Filtering out TV show (already aired or too far away)',
+                  {
+                    label: 'Coming Soon Collections',
+                    title: item.title,
+                    airDate: item.airDate,
+                  }
+                );
+                return { index, shouldRemove: true };
+              }
+            } else {
+              // No air date found, filter out
+              logger.debug('Filtering out TV show (no air date)', {
+                label: 'Coming Soon Collections',
+                title: item.title,
+              });
               return { index, shouldRemove: true };
             }
-          } else {
-            // No air date found, filter out
-            logger.debug('Filtering out TV show (no air date)', {
-              label: 'Coming Soon Collections',
-              title: item.title,
-            });
-            return { index, shouldRemove: true };
           }
         }
 

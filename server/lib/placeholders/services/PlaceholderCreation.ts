@@ -64,14 +64,27 @@ export async function processPlaceholdersForMissingItems(
     '@server/lib/collections/sources/comingsoon/comingSoonFetch'
   );
   const daysAhead = getDaysAhead(config);
-  await enrichWithTMDBReleaseDates(sourceData, daysAhead);
+  // Only filter out already-released items for Coming Soon collections
+  // Other collection types (MDBlist, IMDb, etc.) should keep placeholders for released content
+  await enrichWithTMDBReleaseDates(
+    sourceData,
+    daysAhead,
+    isComingSoonCollection
+  );
 
   // Filter by days ahead - only create placeholders for items releasing within the configured window
+  // For non-Coming Soon collections, skip the date filter to allow placeholders for released content
   const { isDateWithinDays, determineReleaseDate } = await import(
     '@server/utils/dateHelpers'
   );
 
   const filteredSourceData = sourceData.filter((item) => {
+    // For non-Coming Soon collections, skip the date filtering entirely
+    // These collections want placeholders for content they don't have, regardless of release date
+    if (!isComingSoonCollection) {
+      return true;
+    }
+
     // Determine the effective release date to check
     let releaseDateToCheck: string | undefined;
 
