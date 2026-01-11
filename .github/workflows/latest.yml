@@ -42,6 +42,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: semantic-release
     if: needs.semantic-release.outputs.new_release_published == 'true'
+    permissions:
+      packages: write
+      contents: read
     strategy:
       matrix:
         include:
@@ -93,6 +96,9 @@ jobs:
     needs:
       - semantic-release
       - build_and_push
+    permissions:
+      packages: write
+      contents: read
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
