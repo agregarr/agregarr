@@ -62,6 +62,9 @@ const messages = defineMessages({
   webAppUrl: '<WebAppLink>Web App</WebAppLink> URL',
   webAppUrlTip:
     'Optionally direct users to the web app on your server instead of the "hosted" web app',
+  autoEmptyTrash: 'Auto Empty Trash',
+  autoEmptyTrashTip:
+    'Automatically empty Plex library trash after placeholder cleanup to remove ghost entries',
 });
 
 interface Library {
@@ -246,6 +249,7 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
           useSsl: data?.useSsl,
           selectedPreset: undefined,
           webAppUrl: data?.webAppUrl,
+          autoEmptyTrash: data?.autoEmptyTrash !== false,
         }}
         validationSchema={PlexSettingsSchema}
         onSubmit={async (values) => {
@@ -266,6 +270,7 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
               port: Number(values.port),
               useSsl: values.useSsl,
               webAppUrl: values.webAppUrl,
+              autoEmptyTrash: values.autoEmptyTrash,
             } as PlexSettings);
 
             syncLibraries();
@@ -474,6 +479,25 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
                     typeof errors.webAppUrl === 'string' && (
                       <div className="error">{errors.webAppUrl}</div>
                     )}
+                </div>
+              </div>
+              <div className="form-row">
+                <label htmlFor="autoEmptyTrash" className="checkbox-label">
+                  {intl.formatMessage(messages.autoEmptyTrash)}
+                  <SettingsBadge badgeType="advanced" className="ml-2" />
+                  <span className="label-tip">
+                    {intl.formatMessage(messages.autoEmptyTrashTip)}
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <Field
+                    type="checkbox"
+                    id="autoEmptyTrash"
+                    name="autoEmptyTrash"
+                    onChange={() => {
+                      setFieldValue('autoEmptyTrash', !values.autoEmptyTrash);
+                    }}
+                  />
                 </div>
               </div>
               <div className="actions">
