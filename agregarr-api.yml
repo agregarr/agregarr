@@ -10518,6 +10518,87 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/User'
+  /user/{userId}/settings/main:
+    get:
+      summary: Get user settings
+      description: Returns the main settings for a specific user.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          description: The user ID.
+          schema:
+            type: number
+            example: 1
+      responses:
+        '200':
+          description: User settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    type: string
+                    nullable: true
+                  displayName:
+                    type: string
+                    nullable: true
+                  email:
+                    type: string
+                    nullable: true
+        '404':
+          description: User not found
+    post:
+      summary: Update user settings
+      description: Updates the main settings for a specific user.
+      tags:
+        - users
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          description: The user ID.
+          schema:
+            type: number
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  nullable: true
+                displayName:
+                  type: string
+                  nullable: true
+                email:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Updated user settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    type: string
+                    nullable: true
+                  displayName:
+                    type: string
+                    nullable: true
+                  email:
+                    type: string
+                    nullable: true
+        '404':
+          description: User not found
   /movie/{movieId}:
     get:
       summary: Get movie details
