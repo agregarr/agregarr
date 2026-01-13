@@ -17,7 +17,7 @@ import axios from 'axios';
 import { Field, Formik } from 'formik';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, FormattedMessage, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
@@ -47,7 +47,7 @@ const messages = defineMessages({
   traktBasicDescription:
     'Use public Trakt features like trending, popular, and public custom lists. Just enter your Client ID.',
   traktBasicTip:
-    'Create an application at https://trakt.tv/oauth/applications/new with redirect URI urn:ietf:wg:oauth:2.0:oob and copy the Client ID.',
+    'Create an application at <code>https://trakt.tv/oauth/applications/new</code> with redirect URI <code>urn:ietf:wg:oauth:2.0:oob</code> and copy the Client ID.',
   traktOAuthSetup: 'Advanced OAuth Setup (Optional)',
   traktOAuthDescription: 'Enable Trakt OAuth for access to private lists',
   traktOAuthBenefits: 'Access private lists, watchlists, and recommendations.',
@@ -57,16 +57,12 @@ const messages = defineMessages({
   traktClientId: 'Trakt Client ID',
   traktClientSecret: 'Trakt Client Secret',
   traktAccessToken: 'Trakt Access Token',
-  traktCredentialsTip:
-    'Create an application at https://trakt.tv/oauth/applications/new and copy the Client ID, Client Secret, and personal Access Token.',
-  traktAccessTokenTip:
-    'The access token is fetched via OAuth and auto-refreshed.',
   traktStatusLabel: 'Status',
   traktStatusConnected: 'Connected',
   traktStatusPending: 'Not tested',
   traktStatusMissing: 'Not configured',
   traktCredsHint:
-    '(redirect URI: urn:ietf:wg:oauth:2.0:oob) and copy the Client ID above, and Client Secret below.',
+    'Copy the Client Secret from your Trakt application at <code>https://trakt.tv/oauth/applications</code> (redirect URI: <code>urn:ietf:wg:oauth:2.0:oob</code>).',
   traktReconnect: 'Reconnect',
   traktDisconnect: 'Disconnect',
   traktDisconnected: 'Disconnected from Trakt',
@@ -118,6 +114,29 @@ const messages = defineMessages({
   testing: 'Testing...',
   save: 'Save Changes',
   saving: 'Saving…',
+  oauthTokensAutoRefresh:
+    'OAuth tokens are saved and will auto-refresh. Reconnect to update, or disconnect to remove them.',
+  configureBasicSetupFirst: 'Configure Basic Setup First',
+  configureBasicSetupMessage:
+    'You must configure and save your Trakt Client ID in the Basic Setup section above before setting up OAuth.',
+  connectWithTrakt: 'Connect with Trakt',
+  traktCodeModalTitle: 'Enter Trakt Code',
+  traktCodeModalSubtitle: 'Paste the code from the Trakt authorization window.',
+  traktCodeExchangeButton: 'Exchange Code',
+  traktCodeInstructions:
+    'After approving access in the Trakt window, copy the code shown and paste it here to finish connecting.',
+  mdblistApiKeyTip:
+    'Get your API key from <code>https://mdblist.com/preferences/</code> and generate a new API key.',
+  myanimelistApiKeyTip:
+    'Get your API key from <code>https://myanimelist.net/apiconfig</code> and copy the <code>Client ID</code>. Critical fields: App Type - <code>Web</code>, App Redirect URL - <code>http://localhost/</code>, Homepage URL - <code>https://github.com/agregarr/agregarr</code>, <code>Non-Commercial</code>, <code>Hobbyist</code>.',
+  overseerrDownloadsPageInfo:
+    'To use Overseerr Requests as a collection source, Radarr/Sonarr tags and "Coming Soon" collections, or to enable automatic downloading of missing items, configure these services on the <strong>Downloads</strong> page (next step in setup).',
+  overseerrDownloadsPageInfoSettings:
+    'To use Overseerr Requests as a collection source, Radarr/Sonarr tags and "Coming Soon" collections, or to enable automatic downloading of missing items, configure these services on the <strong>Settings → Downloads</strong> page.',
+  overseerrDownloadsTitle:
+    'Overseerr, Radarr, and Sonarr are configured on the next page',
+  overseerrDownloadsTitleSettings:
+    'Overseerr, Radarr, and Sonarr are configured on the Downloads page',
 });
 
 interface SettingsSourcesProps {
@@ -411,7 +430,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 <label htmlFor="traktClientId" className="text-label">
                   {intl.formatMessage(messages.traktClientId)}
                   <span className="label-tip">
-                    {intl.formatMessage(messages.traktBasicTip)}
+                    <FormattedMessage
+                      {...messages.traktBasicTip}
+                      values={{
+                        code: (chunks) => <code>{chunks}</code>,
+                      }}
+                    />
                   </span>
                 </label>
                 <div className="form-input-area">
@@ -670,8 +694,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                           {intl.formatMessage(messages.traktStatusConnected)}
                         </Badge>
                         <p className="text-sm text-gray-300">
-                          OAuth tokens are saved and will auto-refresh.
-                          Reconnect to update, or disconnect to remove them.
+                          {intl.formatMessage(messages.oauthTokensAutoRefresh)}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -703,16 +726,27 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 ) : (
                   <form onSubmit={handleSubmit}>
                     {!hasClientId && (
-                      <Alert title="Configure Basic Setup First" type="warning">
-                        You must configure and save your Trakt Client ID in the
-                        Basic Setup section above before setting up OAuth.
+                      <Alert
+                        title={intl.formatMessage(
+                          messages.configureBasicSetupFirst
+                        )}
+                        type="warning"
+                      >
+                        {intl.formatMessage(
+                          messages.configureBasicSetupMessage
+                        )}
                       </Alert>
                     )}
                     <div className="form-row">
                       <label htmlFor="traktClientSecret" className="text-label">
                         {intl.formatMessage(messages.traktClientSecret)}
                         <span className="label-tip">
-                          {intl.formatMessage(messages.traktCredsHint)}
+                          <FormattedMessage
+                            {...messages.traktCredsHint}
+                            values={{
+                              code: (chunks) => <code>{chunks}</code>,
+                            }}
+                          />
                         </span>
                       </label>
                       <div className="form-input-area">
@@ -728,7 +762,9 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                       </div>
                     </div>
                     <div className="form-row">
-                      <div className="text-label">Connect with Trakt</div>
+                      <div className="text-label">
+                        {intl.formatMessage(messages.connectWithTrakt)}
+                      </div>
                       <div className="form-input-area">
                         <Button
                           buttonType="primary"
@@ -750,8 +786,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
 
               {showTraktCodeModal && (
                 <Modal
-                  title="Enter Trakt Code"
-                  subTitle="Paste the code from the Trakt authorization window."
+                  title={intl.formatMessage(messages.traktCodeModalTitle)}
+                  subTitle={intl.formatMessage(messages.traktCodeModalSubtitle)}
                   onCancel={() => {
                     setShowTraktCodeModal(false);
                     setTraktCode('');
@@ -760,14 +796,13 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                     e?.preventDefault();
                     exchangeTraktCode();
                   }}
-                  okText="Exchange Code"
+                  okText={intl.formatMessage(messages.traktCodeExchangeButton)}
                   okDisabled={!traktCode.trim()}
                   loading={isExchangingCode}
                 >
                   <div className="space-y-3">
                     <p className="text-sm text-gray-300">
-                      After approving access in the Trakt window, copy the code
-                      shown and paste it here to finish connecting.
+                      {intl.formatMessage(messages.traktCodeInstructions)}
                     </p>
                     <input
                       type="text"
@@ -894,9 +929,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 <label htmlFor="mdblistApiKey" className="text-label">
                   {intl.formatMessage(messages.mdblistApiKey)}
                   <span className="label-tip mb-2">
-                    Get your API key from
-                    <code>https://mdblist.com/preferences/</code> and generate a
-                    new API key.
+                    <FormattedMessage
+                      {...messages.mdblistApiKeyTip}
+                      values={{
+                        code: (chunks) => <code>{chunks}</code>,
+                      }}
+                    />
                   </span>
                 </label>
                 <div className="form-input-area">
@@ -1371,13 +1409,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
                 <label htmlFor="myanimelistApiKey" className="text-label">
                   {intl.formatMessage(messages.myanimelistApiKey)}
                   <span className="label-tip mb-2">
-                    Get your API key from{' '}
-                    <code>https://myanimelist.net/apiconfig</code> copy the{' '}
-                    <code>Client ID</code>. Critical fields: App Type -{' '}
-                    <code>Web</code>, App Redirect URL -{' '}
-                    <code>http://localhost/</code>, Homepage URL -{' '}
-                    <code>https://github.com/agregarr/agregarr</code>,{' '}
-                    <code>Non-Commerical</code>, <code>Hobbyist</code>
+                    <FormattedMessage
+                      {...messages.myanimelistApiKeyTip}
+                      values={{
+                        code: (chunks) => <code>{chunks}</code>,
+                      }}
+                    />
                   </span>
                 </label>
                 <div className="form-input-area">
@@ -1743,27 +1780,27 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
       {/* Helper info for Downloads page */}
       <div className="section mt-10">
         <Alert
-          title={
+          title={intl.formatMessage(
             isSetupMode
-              ? 'Overseerr, Radarr, and Sonarr are configured on the next page'
-              : 'Overseerr, Radarr, and Sonarr are configured on the Downloads page'
-          }
+              ? messages.overseerrDownloadsTitle
+              : messages.overseerrDownloadsTitleSettings
+          )}
           type="info"
         >
           {isSetupMode ? (
-            <>
-              To use Overseerr Requests as a collection source, Radarr/Sonarr
-              tags and &ldquo;Coming Soon&rdquo; collections, or to enable
-              automatic downloading of missing items, configure these services
-              on the <strong>Downloads</strong> page (next step in setup).
-            </>
+            <FormattedMessage
+              {...messages.overseerrDownloadsPageInfo}
+              values={{
+                strong: (chunks) => <strong>{chunks}</strong>,
+              }}
+            />
           ) : (
-            <>
-              To use Overseerr Requests as a collection source, Radarr/Sonarr
-              tags and &ldquo;Coming Soon&rdquo; collections, or to enable
-              automatic downloading of missing items, configure these services
-              on the <strong>Settings → Downloads</strong> page.
-            </>
+            <FormattedMessage
+              {...messages.overseerrDownloadsPageInfoSettings}
+              values={{
+                strong: (chunks) => <strong>{chunks}</strong>,
+              }}
+            />
           )}
         </Alert>
       </div>

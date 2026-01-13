@@ -65,6 +65,15 @@ const messages = defineMessages({
   noCollections: 'No collections available',
   overseerrMode: 'Overseerr',
   directMode: 'Direct',
+  yes: 'Yes',
+  no: 'No',
+  defaultSort: 'Default',
+  reverseSort: 'Reverse',
+  randomSort: 'Random',
+  firstSeason: 'First',
+  latestSeason: 'Latest',
+  airingSeason: 'Airing',
+  noCollectionsSelected: 'No collections selected',
 });
 
 interface BulkEditModalProps {
@@ -471,7 +480,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
   // Save changes
   const handleSave = async () => {
     if (selectedIds.size === 0) {
-      addToast('No collections selected', {
+      addToast(intl.formatMessage(messages.noCollectionsSelected), {
         appearance: 'error',
         autoDismiss: true,
       });
@@ -1397,8 +1406,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1426,8 +1439,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1455,8 +1472,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1498,8 +1519,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1517,9 +1542,15 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="default">Default</option>
-                        <option value="reverse">Reverse</option>
-                        <option value="random">Random</option>
+                        <option value="default">
+                          {intl.formatMessage(messages.defaultSort)}
+                        </option>
+                        <option value="reverse">
+                          {intl.formatMessage(messages.reverseSort)}
+                        </option>
+                        <option value="random">
+                          {intl.formatMessage(messages.randomSort)}
+                        </option>
                         <option value="imdb_rating_desc">IMDb ↓</option>
                         <option value="imdb_rating_asc">IMDb ↑</option>
                       </select>
@@ -1568,8 +1599,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1593,8 +1628,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1618,8 +1657,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1643,8 +1686,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1699,9 +1746,15 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="first">First</option>
-                        <option value="latest">Latest</option>
-                        <option value="airing">Airing</option>
+                        <option value="first">
+                          {intl.formatMessage(messages.firstSeason)}
+                        </option>
+                        <option value="latest">
+                          {intl.formatMessage(messages.latestSeason)}
+                        </option>
+                        <option value="airing">
+                          {intl.formatMessage(messages.airingSeason)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1822,8 +1875,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                     <td className="px-3 py-2">
@@ -1847,8 +1904,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         className="w-full rounded border border-gray-600 bg-stone-700 px-2 py-1 text-xs text-white"
                       >
                         <option value="">-</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
+                        <option value="true">
+                          {intl.formatMessage(messages.yes)}
+                        </option>
+                        <option value="false">
+                          {intl.formatMessage(messages.no)}
+                        </option>
                       </select>
                     </td>
                   </tr>

@@ -17,16 +17,9 @@ import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
-  edit: 'Edit',
-  duplicate: 'Duplicate',
-  delete: 'Delete',
-  confirmDelete: 'Are you sure you want to delete this poster?',
-  deletePoster: 'Delete Poster',
   cancel: 'Cancel',
   noPosters: 'No saved posters found',
   createFirstPoster: 'Create your first poster to get started',
-  createPoster: 'Create Poster',
-  lastUpdated: 'Last updated',
   selectAll: 'Select All',
   deselectAll: 'Deselect All',
   deleteSelected: 'Delete Selected ({count})',
@@ -42,6 +35,11 @@ const messages = defineMessages({
     'The following posters are currently in use. Do you want to delete them anyway?',
   deleteUnusedOnly: 'Delete Unused Only',
   deleteAllAnyway: 'Delete All Anyway',
+  selected: '{count} selected',
+  deleteAction: 'Delete',
+  fileSource: 'File',
+  unusedDeleted:
+    '{count} unused {count, plural, one {poster} other {posters}} have already been deleted.',
 });
 
 interface SavedPoster {
@@ -385,7 +383,9 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
           </Button>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-sm text-stone-400">
-              {selectedPosters.size} selected
+              {intl.formatMessage(messages.selected, {
+                count: selectedPosters.size,
+              })}
             </span>
             <Button
               buttonType="danger"
@@ -522,7 +522,9 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
                     }
                   >
                     {deleteConfirmId === poster.id ? (
-                      <span className="text-xs">Delete</span>
+                      <span className="text-xs">
+                        {intl.formatMessage(messages.deleteAction)}
+                      </span>
                     ) : (
                       <TrashIcon className="h-3 w-3" />
                     )}
@@ -534,7 +536,7 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
               <div className="absolute top-1 right-1">
                 {!poster.isEditable && (
                   <Badge badgeType="warning" className="text-xs">
-                    File
+                    {intl.formatMessage(messages.fileSource)}
                   </Badge>
                 )}
               </div>
@@ -618,8 +620,9 @@ const SavedPosterGrid: React.FC<SavedPosterGridProps> = ({
             </p>
             {bulkDeleteUsageModal.unusedPosterIds.length > 0 && (
               <p className="mb-4 text-green-400">
-                {bulkDeleteUsageModal.unusedPosterIds.length} unused poster(s)
-                have already been deleted.
+                {intl.formatMessage(messages.unusedDeleted, {
+                  count: bulkDeleteUsageModal.unusedPosterIds.length,
+                })}
               </p>
             )}
             <div className="max-h-96 space-y-3 overflow-y-auto">

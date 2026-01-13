@@ -17,7 +17,6 @@ const messages = defineMessages({
   logs: 'Logs',
   exportButton: 'Export',
   cancel: 'Cancel',
-  exporting: 'Preparing export...',
   exportSuccess: 'Debug export downloaded successfully',
   exportFailed: 'Failed to export debug information',
   noItemsSelected: 'Please select at least one item to export',

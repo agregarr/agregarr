@@ -30,9 +30,7 @@ const messages = defineMessages({
   populateFromPlexDescription:
     'Download all current Plex posters and save them to local folders. Great for migrating from Plex posters to local posters.',
   generatingFoldersTitle: 'Generating Folder Structure',
-  generatingFoldersDescription: 'Creating folders for all library items...',
   populatingTitle: 'Populating from Plex',
-  populatingDescription: 'Downloading Plex posters to local folders...',
   operationComplete: 'Operation Complete',
   cancelOperation: 'Cancel Operation',
   cancel: 'Cancel',
@@ -49,16 +47,15 @@ const messages = defineMessages({
   downloadingDescription:
     'Downloading posters from your Plex libraries for overlay processing...',
   downloadComplete: 'Download Complete',
-  downloadFailed: 'Download Failed',
   cancelDownload: 'Cancel Download',
   runInBackground: 'Run in Background',
-  close: 'Close',
   itemsFailed: '{count} items failed (no poster available)',
-  itemsSkipped: '{count} items skipped (no TMDB ID)',
-  savingSettings: 'Saving settings...',
   settingsSaved: 'Settings saved successfully',
   settingsFailed: 'Failed to save settings',
   confirm: 'Confirm',
+  redownloadInstructions:
+    'Only re-download if you have reset all your Plex posters to clean versions (Plex Dance or Manual)',
+  utilityButtons: 'Utility buttons to help manage local posters:',
 });
 
 interface PosterSourceSetupModalProps {
@@ -541,17 +538,7 @@ const PosterSourceSetupModal: React.FC<PosterSourceSetupModalProps> = ({
             !showRedownloadConfirm && (
               <div className="rounded-lg border-2 border-gray-600 bg-gray-600 bg-opacity-10 p-4">
                 <p className="mb-3 text-sm text-gray-200">
-                  Only re-download if you have reset all your Plex posters to
-                  clean versions (
-                  <a
-                    href="https://forums.plex.tv/t/the-plex-dance/197064"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-yellow-100"
-                  >
-                    Plex Dance
-                  </a>{' '}
-                  or Manual)
+                  {intl.formatMessage(messages.redownloadInstructions)}
                 </p>
                 <Button
                   buttonType="warning"
@@ -610,7 +597,7 @@ const PosterSourceSetupModal: React.FC<PosterSourceSetupModalProps> = ({
           {selectedSource === 'local' && !showRedownloadConfirm && (
             <div className="space-y-3 rounded-lg border-2 border-gray-600 bg-gray-600 bg-opacity-10 p-4">
               <p className="mb-3 text-sm text-gray-200">
-                Utility buttons to help manage local posters:
+                {intl.formatMessage(messages.utilityButtons)}
               </p>
               <div className="space-y-4">
                 {/* Generate Folders Section */}

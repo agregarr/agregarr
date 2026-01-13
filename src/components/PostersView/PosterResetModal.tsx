@@ -5,7 +5,6 @@ import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 
 const messages = defineMessages({
-  title: 'Reset All Posters',
   confirmTitle: 'Confirm Poster Reset',
   confirmDescription:
     'This will reset ALL posters in "{libraryName}" to their base versions (without overlays). The poster source setting ({posterSource}) will be respected.',
@@ -22,7 +21,6 @@ const messages = defineMessages({
   resetFailed: 'Reset Failed',
   cancelReset: 'Cancel Reset',
   runInBackground: 'Run in Background',
-  close: 'Close',
   itemsFailed: '{count} items failed',
   libraryLabel: 'Library: {name}',
   progressLabel: '{current} / {total}',

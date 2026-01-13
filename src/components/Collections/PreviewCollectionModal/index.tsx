@@ -16,11 +16,8 @@ import { useToasts } from 'react-toast-notifications';
 
 const messages = defineMessages({
   previewCollection: 'Preview Collection',
-  loadingPreview: 'Loading preview...',
   errorLoadingPreview: 'Failed to load preview',
   noItems: 'No items found',
-  inLibrary: 'In Library',
-  missing: 'Missing',
   placeholder: 'Placeholder',
   downloadViaRadarr: 'Download via Radarr',
   downloadViaSonarr: 'Download via Sonarr',
@@ -37,6 +34,7 @@ const messages = defineMessages({
   itemExcluded: 'Item excluded from all collections',
   excludeError: 'Failed to exclude item',
   viewExclusions: 'View Exclusions',
+  noPoster: 'No Poster',
 });
 
 interface PreviewItem {
@@ -683,7 +681,7 @@ const PreviewCollectionModal = ({
                         ) : (
                           <div className="flex h-full w-full items-center justify-center bg-gray-800">
                             <span className="text-xs text-gray-500">
-                              No Poster
+                              {intl.formatMessage(messages.noPoster)}
                             </span>
                           </div>
                         )}

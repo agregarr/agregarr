@@ -39,7 +39,7 @@ import axios from 'axios';
 import { useRouter } from 'next/router';
 // ID generation is now handled by the backend using sequential numbers
 import React, { useMemo, useState } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, FormattedMessage, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 
@@ -47,6 +47,43 @@ const messages = defineMessages({
   collectionConfigSaved: 'Collection configuration saved successfully!',
   collectionConfigError: 'Failed to save collection configuration.',
   collectionConfigDeleted: 'Collection configuration deleted successfully!',
+  addCollection: 'Add Collection',
+  cleanUpMissingCollections: 'Clean Up Missing Collections ({count})',
+  changeSchedule: 'Change Schedule',
+  placeholderWarning:
+    'You have at least one collection with <strong>Create placeholders for missing items</strong> enabled. The following default hubs are enabled but will show placeholder items:',
+  disableVisibilityFilteredHub:
+    'Disable visibility on this default hub (you have a <strong>{filteredHubType}</strong> filtered hub)',
+  createFilteredHub:
+    'Create a <strong>{filteredHubType}</strong> filtered hub to exclude placeholders',
+  home: 'Home',
+  recommended: 'Recommended',
+  library: 'Library',
+  orderingExplanation:
+    'Collections in <strong>Home & Recommended</strong> share the same ordering (controls Plex home screen position), while <strong>Library</strong> has independent ordering for library tabs.',
+  clickToSeeInactive: 'Click here to see inactive Collections',
+  failedLoadPlexLibraries:
+    'Failed to load Plex libraries. Please check your Plex connection.',
+  noCollectionsFound: 'No Collections found. Click Discover to get started!',
+  usersHomeUnlocked: 'Users Home collections unlocked!',
+  failedUnlockUsersHome: 'Failed to unlock Users Home collections',
+  collectionsSyncStarted: 'Collections sync started successfully!',
+  failedStartSync: 'Failed to start collections sync. Please try again.',
+  hubConfigSaved: 'Hub configuration saved successfully!',
+  failedSaveHubConfig: 'Failed to save hub configuration.',
+  preExistingConfigSaved:
+    'Pre-existing collection configuration saved successfully!',
+  failedSavePreExistingConfig:
+    'Failed to save pre-existing collection configuration.',
+  collectionNotFound: 'Collection not found',
+  lastCollectionDeleted: 'Last collection deleted - final cleanup completed.',
+  failedSaveCollectionConfig: 'Failed to save collection configuration',
+  failedCleanupMissing: 'Failed to cleanup missing collections',
+  collectionPromoted: 'Collection promoted to top section successfully!',
+  failedPromoteCollection: 'Failed to promote collection',
+  collectionMovedToAlphabetical:
+    'Collection moved to alphabetical section successfully!',
+  failedDemoteCollection: 'Failed to demote collection',
 });
 
 interface HubIssue {
@@ -374,14 +411,14 @@ const CollectionSettings = ({
         })
           .then(() => {
             revalidate();
-            addToast('Users Home collections unlocked! 🏠✨', {
+            addToast(`${intl.formatMessage(messages.usersHomeUnlocked)} 🏠✨`, {
               autoDismiss: true,
               appearance: 'success',
             });
             setBadgeClickCount(0);
           })
           .catch(() => {
-            addToast('Failed to unlock Users Home collections', {
+            addToast(intl.formatMessage(messages.failedUnlockUsersHome), {
               autoDismiss: true,
               appearance: 'error',
             });
@@ -662,14 +699,14 @@ const CollectionSettings = ({
         refreshSyncStatus();
       }
 
-      addToast('Collections sync started successfully!', {
+      addToast(intl.formatMessage(messages.collectionsSyncStarted), {
         autoDismiss: true,
         appearance: 'success',
       });
       // Clear starting state after a short delay to allow real status to come through
       setTimeout(() => setSyncStarting(false), 2000);
     } catch (error) {
-      addToast('Failed to start collections sync. Please try again.', {
+      addToast(intl.formatMessage(messages.failedStartSync), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -895,14 +932,14 @@ const CollectionSettings = ({
       };
       await axios.put(`/api/v1/defaulthubs/${config.id}/settings`, payload);
       await revalidateDefaultHubs();
-      addToast('Hub configuration saved successfully!', {
+      addToast(intl.formatMessage(messages.hubConfigSaved), {
         autoDismiss: true,
         appearance: 'success',
       });
       setShowHubForm(false);
       setEditingHubConfig(null);
     } catch (error) {
-      addToast('Failed to save hub configuration.', {
+      addToast(intl.formatMessage(messages.failedSaveHubConfig), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -977,14 +1014,14 @@ const CollectionSettings = ({
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
       await revalidatePreExisting();
-      addToast('Pre-existing collection configuration saved successfully!', {
+      addToast(intl.formatMessage(messages.preExistingConfigSaved), {
         autoDismiss: true,
         appearance: 'success',
       });
       setShowPreExistingForm(false);
       setEditingPreExistingConfig(null);
     } catch (error) {
-      addToast('Failed to save pre-existing collection configuration.', {
+      addToast(intl.formatMessage(messages.failedSavePreExistingConfig), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1178,7 +1215,7 @@ const CollectionSettings = ({
       (c: CollectionFormConfig) => c.id === configId
     );
     if (!configToDelete) {
-      addToast('Collection not found', {
+      addToast(intl.formatMessage(messages.collectionNotFound), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1236,7 +1273,7 @@ const CollectionSettings = ({
             webAppUrl: data.webAppUrl,
           });
 
-          addToast('Last collection deleted - final cleanup completed.', {
+          addToast(intl.formatMessage(messages.lastCollectionDeleted), {
             autoDismiss: true,
             appearance: 'success',
           });
@@ -1348,7 +1385,7 @@ const CollectionSettings = ({
             // Save the single updated hub config
             await saveIndividualConfigs([updatedHubConfigs[existingHubIndex]]);
 
-            addToast('Hub configuration saved successfully!', {
+            addToast(intl.formatMessage(messages.hubConfigSaved), {
               autoDismiss: true,
               appearance: 'success',
             });
@@ -1357,7 +1394,7 @@ const CollectionSettings = ({
 
         revalidateAll();
       } catch (error) {
-        addToast('Failed to save hub configuration.', {
+        addToast(intl.formatMessage(messages.failedSaveHubConfig), {
           autoDismiss: true,
           appearance: 'error',
         });
@@ -1475,7 +1512,7 @@ const CollectionSettings = ({
       setShowConfigForm(false);
       setEditingConfig(null);
     } catch (error) {
-      addToast('Failed to save collection configuration', {
+      addToast(intl.formatMessage(messages.failedSaveCollectionConfig), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1680,7 +1717,7 @@ const CollectionSettings = ({
         }
       );
     } catch (error) {
-      addToast('Failed to cleanup missing collections', {
+      addToast(intl.formatMessage(messages.failedCleanupMissing), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1705,12 +1742,12 @@ const CollectionSettings = ({
       // Revalidate all data
       revalidateAll();
 
-      addToast('Collection promoted to top section successfully!', {
+      addToast(intl.formatMessage(messages.collectionPromoted), {
         autoDismiss: true,
         appearance: 'success',
       });
     } catch (error) {
-      addToast('Failed to promote collection', {
+      addToast(intl.formatMessage(messages.failedPromoteCollection), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1734,12 +1771,12 @@ const CollectionSettings = ({
       // Revalidate all data
       revalidateAll();
 
-      addToast('Collection moved to alphabetical section successfully!', {
+      addToast(intl.formatMessage(messages.collectionMovedToAlphabetical), {
         autoDismiss: true,
         appearance: 'success',
       });
     } catch (error) {
-      addToast('Failed to demote collection', {
+      addToast(intl.formatMessage(messages.failedDemoteCollection), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1765,12 +1802,12 @@ const CollectionSettings = ({
       // Revalidate all data
       revalidateAll();
 
-      addToast('Collection promoted to top section successfully!', {
+      addToast(intl.formatMessage(messages.collectionPromoted), {
         autoDismiss: true,
         appearance: 'success',
       });
     } catch (error) {
-      addToast('Failed to promote collection', {
+      addToast(intl.formatMessage(messages.failedPromoteCollection), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1796,12 +1833,12 @@ const CollectionSettings = ({
       // Revalidate all data
       revalidateAll();
 
-      addToast('Collection moved to alphabetical section successfully!', {
+      addToast(intl.formatMessage(messages.collectionMovedToAlphabetical), {
         autoDismiss: true,
         appearance: 'success',
       });
     } catch (error) {
-      addToast('Failed to demote collection', {
+      addToast(intl.formatMessage(messages.failedDemoteCollection), {
         autoDismiss: true,
         appearance: 'error',
       });
@@ -1829,7 +1866,7 @@ const CollectionSettings = ({
             }
           >
             <PlusIcon className="h-4 w-4" />
-            <span>Add Collection</span>
+            <span>{intl.formatMessage(messages.addCollection)}</span>
           </Button>
 
           {/* First-time setup discovery hint */}
@@ -1880,7 +1917,11 @@ const CollectionSettings = ({
               className="flex items-center space-x-2"
             >
               <ExclamationTriangleIcon className="h-4 w-4" />
-              <span>Clean Up Missing Collections ({missingCount})</span>
+              <span>
+                {intl.formatMessage(messages.cleanUpMissingCollections, {
+                  count: missingCount,
+                })}
+              </span>
             </Button>
           )}
         </div>
@@ -1940,7 +1981,7 @@ const CollectionSettings = ({
                                   : 'text-gray-300'
                               } block w-full px-4 py-2 text-left text-sm`}
                             >
-                              Change Schedule
+                              {intl.formatMessage(messages.changeSchedule)}
                             </button>
                           )}
                         </Menu.Item>
@@ -1959,10 +2000,12 @@ const CollectionSettings = ({
         <Alert type="warning" title="Filtered Hubs Recommended">
           <div className="space-y-2">
             <p>
-              You have at least one collection with{' '}
-              <strong>Create placeholders for missing items</strong> enabled.
-              The following default hubs are enabled but will show placeholder
-              items:
+              <FormattedMessage
+                {...messages.placeholderWarning}
+                values={{
+                  strong: (chunks) => <strong>{chunks}</strong>,
+                }}
+              />
             </p>
             {libraryIssues.map((issue) => (
               <div key={issue.libraryName} className="ml-4">
@@ -1972,17 +2015,23 @@ const CollectionSettings = ({
                 <ul className="ml-4 list-disc space-y-1">
                   {issue.problematicHubs.map((hub) => (
                     <li key={hub.hubName}>
-                      <strong>{hub.hubName}</strong> -{' '}
+                      {hub.hubName} -{' '}
                       {hub.hasFilteredHub ? (
-                        <>
-                          Disable visibility on this default hub (you have a{' '}
-                          <strong>{hub.filteredHubType}</strong> filtered hub)
-                        </>
+                        <FormattedMessage
+                          {...messages.disableVisibilityFilteredHub}
+                          values={{
+                            filteredHubType: hub.filteredHubType,
+                            strong: (chunks) => <strong>{chunks}</strong>,
+                          }}
+                        />
                       ) : (
-                        <>
-                          Create a <strong>{hub.filteredHubType}</strong>{' '}
-                          filtered hub to exclude placeholders
-                        </>
+                        <FormattedMessage
+                          {...messages.createFilteredHub}
+                          values={{
+                            filteredHubType: hub.filteredHubType,
+                            strong: (chunks) => <strong>{chunks}</strong>,
+                          }}
+                        />
                       )}
                     </li>
                   ))}
@@ -2013,7 +2062,7 @@ const CollectionSettings = ({
                   : 'border-transparent text-gray-400 hover:border-gray-300 hover:text-gray-300'
               }`}
             >
-              Home
+              {intl.formatMessage(messages.home)}
             </button>
             <button
               onClick={() => {
@@ -2031,7 +2080,7 @@ const CollectionSettings = ({
                   : 'border-transparent text-gray-400 hover:border-gray-300 hover:text-gray-300'
               }`}
             >
-              Recommended
+              {intl.formatMessage(messages.recommended)}
             </button>
             <button
               onClick={() => {
@@ -2049,15 +2098,18 @@ const CollectionSettings = ({
                   : 'border-transparent text-gray-400 hover:border-gray-300 hover:text-gray-300'
               }`}
             >
-              Library
+              {intl.formatMessage(messages.library)}
             </button>
           </nav>
 
           {/* Ordering Explanation */}
           <div className="bg-stone-800/30 px-4 py-2 text-center text-xs text-gray-500">
-            Collections in <strong>Home & Recommended</strong> share the same
-            ordering (controls Plex home screen position), while{' '}
-            <strong>Library</strong> has independent ordering for library tabs.
+            <FormattedMessage
+              {...messages.orderingExplanation}
+              values={{
+                strong: (chunks) => <strong>{chunks}</strong>,
+              }}
+            />
           </div>
         </div>
       )}
@@ -2093,7 +2145,7 @@ const CollectionSettings = ({
               <div className="absolute right-full top-1/2 z-50 mr-3 -translate-y-1/2 transform">
                 <div className="relative animate-pulse whitespace-nowrap rounded-lg border border-orange-500 bg-orange-900/95 px-3 py-1 text-sm text-orange-100 shadow-sm">
                   <span className="font-semibold">
-                    Click here to see inactive Collections
+                    {intl.formatMessage(messages.clickToSeeInactive)}
                   </span>
                   {/* Arrow pointing to the button */}
                   <div className="absolute left-full top-1/2 h-0 w-0 -translate-y-1/2 transform border-t-4 border-b-4 border-l-4 border-t-transparent border-b-transparent border-l-orange-500"></div>
@@ -2153,7 +2205,7 @@ const CollectionSettings = ({
       {librariesError ? (
         <div className="py-8 text-center">
           <p className="text-red-400">
-            Failed to load Plex libraries. Please check your Plex connection.
+            {intl.formatMessage(messages.failedLoadPlexLibraries)}
           </p>
         </div>
       ) : libraries.length === 0 ? (
@@ -2163,7 +2215,7 @@ const CollectionSettings = ({
       ) : allLibraryIds.size === 0 ? (
         <div className="py-8 text-center">
           <p className="text-gray-400">
-            No Collections found. Click Discover to get started!
+            {intl.formatMessage(messages.noCollectionsFound)}
           </p>
         </div>
       ) : (

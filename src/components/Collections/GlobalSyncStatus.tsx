@@ -2,7 +2,17 @@ import Spinner from '@app/assets/spinner.svg';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import React, { useCallback } from 'react';
+import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
+
+const messages = defineMessages({
+  lastSyncFailed: 'Last sync failed',
+  collectionsNeedingSync:
+    '{count, plural, one {# collection pending} other {# collections pending}}',
+  lastSync: 'Last sync: {time}',
+  nextSync: 'Next sync: {time}',
+  noSyncYet: 'No sync yet',
+});
 
 interface GlobalSyncStatusResponse {
   running: boolean;
@@ -27,6 +37,7 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
   onSyncStart,
   onSyncComplete,
 }) => {
+  const intl = useIntl();
   const { data: syncStatus, mutate } = useSWR<GlobalSyncStatusResponse>(
     '/api/v1/collections/sync/status',
     (url: string) => axios.get(url).then((res) => res.data),
@@ -154,7 +165,9 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
       {!syncStatus?.running && syncStatus?.globalSyncError && (
         <div className="flex items-center space-x-1">
           <ExclamationTriangleIcon className="h-3 w-3" />
-          <span title={syncStatus.globalSyncError}>Last sync failed</span>
+          <span title={syncStatus.globalSyncError}>
+            {intl.formatMessage(messages.lastSyncFailed)}
+          </span>
         </div>
       )}
 
@@ -163,8 +176,9 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
         !syncStatus?.globalSyncError &&
         (syncStatus?.collectionsNeedingSync || 0) > 0 && (
           <span>
-            {syncStatus.collectionsNeedingSync} collection
-            {syncStatus.collectionsNeedingSync === 1 ? '' : 's'} pending
+            {intl.formatMessage(messages.collectionsNeedingSync, {
+              count: syncStatus.collectionsNeedingSync,
+            })}
           </span>
         )}
 
@@ -175,11 +189,17 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
         syncStatus?.lastGlobalSyncAt && (
           <div className="flex flex-col">
             <span>
-              Last sync: {formatRelativeTime(syncStatus.lastGlobalSyncAt)}
+              {intl.formatMessage(messages.lastSync, {
+                time: formatRelativeTime(syncStatus.lastGlobalSyncAt),
+              })}
             </span>
             {/* Next Sync Time - Only show if we have a next sync time */}
             {syncStatus?.nextSyncAt && (
-              <span>Next sync: {formatFutureTime(syncStatus.nextSyncAt)}</span>
+              <span>
+                {intl.formatMessage(messages.nextSync, {
+                  time: formatFutureTime(syncStatus.nextSyncAt),
+                })}
+              </span>
             )}
           </div>
         )}
@@ -190,10 +210,14 @@ const GlobalSyncStatus: React.FC<GlobalSyncStatusProps> = ({
         (syncStatus?.collectionsNeedingSync || 0) === 0 &&
         !syncStatus?.lastGlobalSyncAt && (
           <div className="flex flex-col">
-            <span>No sync yet</span>
+            <span>{intl.formatMessage(messages.noSyncYet)}</span>
             {/* Next Sync Time - Only show if we have a next sync time */}
             {syncStatus?.nextSyncAt && (
-              <span>Next sync: {formatFutureTime(syncStatus.nextSyncAt)}</span>
+              <span>
+                {intl.formatMessage(messages.nextSync, {
+                  time: formatFutureTime(syncStatus.nextSyncAt),
+                })}
+              </span>
             )}
           </div>
         )}

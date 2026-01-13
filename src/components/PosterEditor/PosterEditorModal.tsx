@@ -37,9 +37,6 @@ const messages = defineMessages({
   selectCollection: 'Select a collection...',
   sampleCollectionHelp:
     'Choose a collection to see how your template will look with real data. This is for preview only - templates save as reusable designs.',
-  undo: 'Undo',
-  redo: 'Redo',
-  snapToGuides: 'Snap to Guides',
 });
 
 export type EditorMode =

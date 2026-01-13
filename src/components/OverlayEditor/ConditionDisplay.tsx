@@ -1,5 +1,10 @@
 import type { ApplicationCondition } from '@server/entity/OverlayTemplate';
+import { defineMessages, useIntl } from 'react-intl';
 import { CONDITION_FIELD_CATEGORIES } from './types';
+
+const messages = defineMessages({
+  alwaysApply: 'Always apply (no condition)',
+});
 
 // Operator display labels
 const OPERATOR_LABELS: Record<string, string> = {
@@ -33,10 +38,12 @@ interface ConditionDisplayProps {
 export const ConditionDisplay: React.FC<ConditionDisplayProps> = ({
   condition,
 }) => {
+  const intl = useIntl();
+
   if (!condition || !condition.sections || condition.sections.length === 0) {
     return (
       <div className="rounded bg-stone-800 px-2 py-1 text-xs italic text-stone-500">
-        Always apply (no condition)
+        {intl.formatMessage(messages.alwaysApply)}
       </div>
     );
   }

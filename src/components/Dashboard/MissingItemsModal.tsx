@@ -54,13 +54,14 @@ const messages = defineMessages({
   requestedVia: 'via {source}',
   autoRequest: 'Auto',
   manualRequest: 'Manual',
-  itemsPerPage: 'Items per page',
   showing: 'Showing {start} to {end} of {total} items',
   previous: 'Previous',
   next: 'Next',
   refreshing: 'Refreshing...',
   syncStatus: 'Sync Status',
   syncing: 'Syncing...',
+  failedToLoad: 'Failed to load missing items',
+  requestedBy: 'by {name}',
 });
 
 interface MissingItem {
@@ -442,7 +443,7 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
             {error ? (
               <div className="py-8 text-center">
                 <p className="mb-2 text-red-400">
-                  Failed to load missing items
+                  {intl.formatMessage(messages.failedToLoad)}
                 </p>
                 <p className="text-sm text-gray-400">{error.message}</p>
               </div>
@@ -545,7 +546,9 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
                       </div>
                       {item.requestedBy && (
                         <div className="mt-1 text-xs text-gray-500">
-                          by {item.requestedBy.displayName}
+                          {intl.formatMessage(messages.requestedBy, {
+                            name: item.requestedBy.displayName,
+                          })}
                         </div>
                       )}
                     </div>

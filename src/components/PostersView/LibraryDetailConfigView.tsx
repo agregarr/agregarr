@@ -147,28 +147,18 @@ const ConditionDisplay: React.FC<{ condition: string }> = ({ condition }) => {
 
 const messages = defineMessages({
   configureOverlays: 'Configure Overlays',
-  availableOverlays: 'Available Overlays',
-  comingSoonForced:
-    'Coming Soon overlays are automatically applied to placeholder items',
-  ratings: 'Ratings',
-  metadata: 'TMDB Metadata',
-  mediaInfo: 'Media Info',
-  status: 'Status',
-  generic: 'General Purpose',
   save: 'Save Configuration',
   cancel: 'Cancel',
-  saving: 'Saving...',
-  worksOn: 'Works on',
-  placeholders: 'Placeholders',
-  realItems: 'Real items',
-  both: 'Both',
-  comingSoon: 'Coming Soon (Auto-applied)',
-  optionalStatus: 'Status Overlays (Coming Soon/Placeholder items)',
-  editDesign: 'Edit design in Templates tab',
-  configure: 'Configure',
-  savedSuccessfully: 'Library configuration saved',
   saveFailed: 'Failed to save configuration',
   alwaysApply: 'Always apply',
+  preview: 'Preview',
+  cyclePoster: 'Cycle Poster',
+  selectOverlaysPreview: 'Select overlays to see preview',
+  dragToReorder:
+    'Drag to reorder • Top overlays render on top of bottom overlays',
+  tmdbPosterLanguage: 'TMDB Poster Language:',
+  useGlobalSetting: 'Use global setting',
+  languageDescription: 'Language for fetching poster metadata from TMDB',
 });
 
 interface Template {
@@ -627,7 +617,9 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
             {/* Large Preview Panel - Main Focus */}
             <div className="flex flex-shrink-0 flex-col">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Preview</h3>
+                <h3 className="text-sm font-semibold text-white">
+                  {intl.formatMessage(messages.preview)}
+                </h3>
                 {previewUrl && !previewLoading && (
                   <button
                     onClick={handleCyclePoster}
@@ -635,7 +627,7 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
                     title="Cycle poster"
                   >
                     <ArrowPathIcon className="h-3.5 w-3.5" />
-                    Cycle
+                    {intl.formatMessage(messages.cyclePoster)}
                   </button>
                 )}
               </div>
@@ -653,7 +645,9 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-center text-sm text-stone-500">
-                    <span>Select overlays to see preview</span>
+                    <span>
+                      {intl.formatMessage(messages.selectOverlaysPreview)}
+                    </span>
                   </div>
                 )}
               </div>
@@ -662,7 +656,7 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
             {/* Overlay Selection - Drag & Drop Scrollable List */}
             <div className="min-w-0 flex-1 overflow-y-auto pr-2">
               <div className="mb-3 text-xs text-stone-400">
-                Drag to reorder • Top overlays render on top of bottom overlays
+                {intl.formatMessage(messages.dragToReorder)}
               </div>
               <DndContext
                 sensors={sensors}
@@ -704,7 +698,7 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
                   htmlFor="tmdbLanguage"
                   className="text-sm font-medium text-white"
                 >
-                  TMDB Poster Language:
+                  {intl.formatMessage(messages.tmdbPosterLanguage)}
                 </label>
                 <select
                   id="tmdbLanguage"
@@ -712,7 +706,9 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
                   onChange={(e) => setTmdbLanguage(e.target.value || undefined)}
                   className="rounded-md border-stone-600 bg-stone-700 px-3 py-1.5 text-sm text-white"
                 >
-                  <option value="">Use global setting</option>
+                  <option value="">
+                    {intl.formatMessage(messages.useGlobalSetting)}
+                  </option>
                   {TMDB_LANGUAGES.map((lang) => (
                     <option key={lang.code} value={lang.code}>
                       {lang.name}
@@ -720,7 +716,7 @@ const LibraryDetailConfigView: React.FC<LibraryDetailConfigViewProps> = ({
                   ))}
                 </select>
                 <span className="text-xs text-stone-400">
-                  Language for fetching poster metadata from TMDB
+                  {intl.formatMessage(messages.languageDescription)}
                 </span>
               </div>
             </div>

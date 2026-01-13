@@ -7,24 +7,11 @@ import useSWR from 'swr';
 import PosterSelectionPopover from './PosterSelectionPopover';
 
 const messages = defineMessages({
-  customPoster: 'Custom Poster',
-  customPosters: 'Posters',
-  addPoster: 'Add Poster',
-  addPosters: 'Add Posters',
-  uploading: 'Uploading poster...',
-  remove: 'Remove',
-  posterSize: '1000x1500px',
-  posterUploadHelp:
-    'Upload a custom poster image for this collection (JPEG, PNG, or WebP, max 10MB). Poster will be applied to Plex during the next collection sync.',
   posterUploadHelpMulti:
     'Upload custom poster images for each selected library. Posters will be applied to Plex collections during the next sync.',
   posterRemoveConfirm: 'Poster will be removed on next collection sync',
   posterUploadSuccess:
     'Poster uploaded successfully. Will be applied on next collection sync.',
-  posterUploadErrorSize: 'File size must be less than 10MB',
-  posterUploadErrorType: 'Only JPEG, PNG, and WebP files are allowed',
-  posterUploadErrorGeneric: 'Upload failed',
-  posterUploadErrorNetwork: 'Network error occurred',
   autoPoster: 'Auto-generate Collection posters',
   autoPosterHelp:
     'Automatically generate posters using the collection name during sync. Uncheck to manually upload custom posters instead.',
@@ -32,7 +19,6 @@ const messages = defineMessages({
   applyOverlaysDuringSyncHelp:
     'Apply overlays to collection items immediately after sync completes. Otherwise, overlays will be applied during the regular overlays sync job.',
   selectTemplate: 'Select Template',
-  defaultTemplate: 'Default Template',
   templateHelp: 'Choose a template for auto-generated posters.',
   useTmdbFranchisePoster: 'Use TMDB Franchise Poster',
   useTmdbFranchisePosterHelp:
@@ -40,6 +26,7 @@ const messages = defineMessages({
   hideIndividualItems: 'Hide Individual Items in Collection',
   hideIndividualItemsHelp:
     'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
+  selectLibrariesFirst: 'Select libraries first to upload custom posters.',
 });
 
 interface Library {
@@ -228,7 +215,7 @@ const PosterUploadSection = ({
   if (selectedLibraryIds.length === 0) {
     return (
       <div className="label-tip">
-        Select libraries first to upload custom posters.
+        {intl.formatMessage(messages.selectLibrariesFirst)}
       </div>
     );
   }

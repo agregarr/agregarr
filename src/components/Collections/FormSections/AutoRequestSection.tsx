@@ -101,6 +101,13 @@ const messages = defineMessages({
   noTagOptions: 'No tags.',
   selectOverseerrRadarrTags: 'Radarr Tags (Movies)',
   selectOverseerrSonarrTags: 'Sonarr Tags (TV Shows)',
+  contentProcessing: 'Content Processing',
+  enableProcessingForApproval:
+    'Enable movie or TV processing above to configure auto-approval options.',
+  enableProcessingForOverseerr:
+    'Enable movie or TV processing above to configure server options.',
+  enableProcessingForDirect:
+    'Enable movie or TV processing above to configure server and profile options.',
 });
 
 interface AutoRequestSectionProps {
@@ -423,7 +430,7 @@ const AutoRequestSection = ({
           {/* Media Type Processing Options */}
           <div className="mb-6">
             <div className="mb-3 text-sm font-medium text-gray-200">
-              Content Processing
+              {intl.formatMessage(messages.contentProcessing)}
             </div>
             <div className="space-y-3">
               {/* Movies - only show if library supports movies */}
@@ -850,8 +857,7 @@ const AutoRequestSection = ({
                   {/* Ensure at least one child exists to avoid empty div */}
                   {!values.searchMissingMovies && !values.searchMissingTV && (
                     <div className="text-sm text-gray-400">
-                      Enable movie or TV processing above to configure
-                      auto-approval options.
+                      {intl.formatMessage(messages.enableProcessingForApproval)}
                     </div>
                   )}
                 </>
@@ -1267,8 +1273,9 @@ const AutoRequestSection = ({
                   {/* Show message if no processing options are enabled */}
                   {!values.searchMissingMovies && !values.searchMissingTV && (
                     <div className="text-sm text-gray-400">
-                      Enable movie or TV processing above to configure server
-                      options.
+                      {intl.formatMessage(
+                        messages.enableProcessingForOverseerr
+                      )}
                     </div>
                   )}
                 </div>
@@ -1662,8 +1669,7 @@ const AutoRequestSection = ({
                 {/* Show message if no processing options are enabled */}
                 {!values.searchMissingMovies && !values.searchMissingTV && (
                   <div className="text-sm text-gray-400">
-                    Enable movie or TV processing above to configure server and
-                    profile options.
+                    {intl.formatMessage(messages.enableProcessingForDirect)}
                   </div>
                 )}
               </div>
