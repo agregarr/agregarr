@@ -1052,6 +1052,8 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
     switch (subtype) {
       case 'top_250':
         return mediaType === 'tv' ? '/chart/toptv/' : '/chart/top/';
+      case 'top_250_english':
+        return '/chart/top-english-movies/';
       case 'popular':
         return mediaType === 'tv' ? '/chart/tvmeter/' : '/chart/moviemeter/';
       case 'boxoffice':

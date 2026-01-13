@@ -264,6 +264,12 @@ const CollectionTypeSection = ({
             description: 'Highest rated movies/TV shows on IMDb',
           },
           {
+            value: 'top_250_english',
+            label: 'Top 250 English',
+            description:
+              'Highest rated English-language movies on IMDb (movies only)',
+          },
+          {
             value: 'popular',
             label: 'Popular (Meter)',
             description: 'Most viewed by IMDb users based on page views',
@@ -494,6 +500,9 @@ const CollectionTypeSection = ({
                 setFieldValue('mediaType', 'movie');
               }
               if (values.type === 'imdb' && newSubtype === 'boxoffice') {
+                setFieldValue('mediaType', 'movie');
+              }
+              if (values.type === 'imdb' && newSubtype === 'top_250_english') {
                 setFieldValue('mediaType', 'movie');
               }
 

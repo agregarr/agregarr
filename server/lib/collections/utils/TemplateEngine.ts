@@ -759,6 +759,8 @@ export class TemplateEngine {
     switch (subtype) {
       case 'top_250':
         return 'Top 250';
+      case 'top_250_english':
+        return 'Top 250 English';
       case 'popular':
         return 'Popular';
       case 'most_popular':
