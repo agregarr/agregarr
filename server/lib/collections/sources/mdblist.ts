@@ -239,11 +239,49 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
 
       return mdblistData;
     } catch (error) {
+      // Extract a meaningful error message
+      let errorMessage: string;
+      let originalError: Error;
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        originalError = error;
+      } else if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error &&
+        typeof (error as { message: unknown }).message === 'string'
+      ) {
+        errorMessage = (error as { message: string }).message;
+        originalError = new Error(errorMessage);
+      } else if (typeof error === 'object' && error !== null) {
+        // Try to serialize the error object
+        try {
+          errorMessage = JSON.stringify(error);
+          originalError = new Error(errorMessage);
+        } catch {
+          errorMessage = 'Unknown error (could not serialize error object)';
+          originalError = new Error(errorMessage);
+        }
+      } else {
+        errorMessage = String(error);
+        originalError = new Error(errorMessage);
+      }
+
+      logger.error(`MDBList API error: ${errorMessage}`, {
+        label: 'MDBList Collections',
+        listType,
+        mediaType,
+        url: config.mdblistCustomListUrl,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error,
+      });
+
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
         `Failed to fetch data from MDBList API`,
         { listType, mediaType },
-        error instanceof Error ? error : new Error(String(error))
+        originalError
       );
     }
   }
