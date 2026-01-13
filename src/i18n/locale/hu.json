@@ -525,7 +525,7 @@
   "components.Settings.maintainerrHostname": "Gazdagépnév vagy IP-cím",
   "components.Settings.SettingsLogs.exportDebugInfo": "Hibakeresési információk exportálása",
   "components.OverlayEditor.fontSize": "Betűméret",
-  "components.PostersView.cyclePoster": "",
+  "components.PostersView.cyclePoster": "Cycle Poster",
   "components.Settings.downloadsDescription": "Automatikusan megszerzed a hiányzó tárgyakat a Radarr, a Sonarr vagy az Overseerr segítségével.",
   "components.PostersView.generateFolders": "Mappastruktúra generálása",
   "components.PostersView.exportSourceColors": "Forrásszínek exportálása",
