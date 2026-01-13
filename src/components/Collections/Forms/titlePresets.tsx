@@ -1044,6 +1044,22 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
+      case 'top_250_english':
+        return [
+          {
+            label: 'IMDb Top 250 English Movies',
+            value: 'IMDb Top 250 English Movies',
+          },
+          {
+            label: 'Best English Movies',
+            value: 'Best English Movies',
+          },
+          {
+            label: 'Top English Films',
+            value: 'Top English Films',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
       case 'popular':
         return [
           {
