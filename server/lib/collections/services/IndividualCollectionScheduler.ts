@@ -279,6 +279,36 @@ export class IndividualCollectionScheduler {
             intervalHours
           );
 
+          // If firstSyncAt is very recent (within 60 seconds), trigger immediate sync
+          // This handles the "startNow" case where user expects immediate execution
+          const firstSyncDate = new Date(firstSyncAt);
+          const now = new Date();
+          const timeSinceFirstSync = now.getTime() - firstSyncDate.getTime();
+          const immediateWindowMs = 60 * 1000; // 60 second grace window
+
+          if (
+            timeSinceFirstSync >= 0 &&
+            timeSinceFirstSync <= immediateWindowMs
+          ) {
+            logger.info(
+              `Triggering immediate sync for newly scheduled collection (startNow)`,
+              {
+                label: 'Individual Collection Scheduler',
+                collectionId,
+                intervalHours,
+                firstSyncAt,
+                timeSinceFirstSyncMs: timeSinceFirstSync,
+              }
+            );
+            // Queue immediate sync (don't await to avoid blocking scheduler setup)
+            this.queueCollectionSync(collectionId).catch((err) => {
+              logger.error(`Failed to queue immediate sync: ${err}`, {
+                label: 'Individual Collection Scheduler',
+                collectionId,
+              });
+            });
+          }
+
           // Create a one-time job for the next calculated run, then reschedule
           const job = schedule.scheduleJob(nextRunTime, async () => {
             await this.queueCollectionSync(collectionId);
@@ -555,14 +585,9 @@ export class IndividualCollectionScheduler {
         return;
       }
 
-      // Wait for API access before proceeding
-      const apiType = collectionConfig.type;
-      await this.waitForApiAccess(
-        apiType,
-        collectionId,
-        collectionConfig.name,
-        collectionConfig.libraryId
-      );
+      // Note: API lock is acquired in processLibraryQueue() just before execution,
+      // not here. Acquiring it here causes deadlock when scheduled sync triggers
+      // during full sync (both waiting on same lock).
 
       const libraryId = collectionConfig.libraryId;
 
@@ -668,6 +693,32 @@ export class IndividualCollectionScheduler {
         }
 
         libraryQueue.currentCollection = nextSync.collectionName;
+
+        // Acquire API lock here, just before execution, not at queue time.
+        // This prevents deadlock when scheduled sync triggers during full sync.
+        const settings = getSettings();
+        const collectionConfig = settings.plex.collectionConfigs?.find(
+          (config) => config.id === nextSync.collectionId
+        );
+
+        if (!collectionConfig) {
+          logger.warn(
+            `Collection config not found during queue processing: ${nextSync.collectionId}`,
+            {
+              label: 'Individual Collection Scheduler',
+              collectionId: nextSync.collectionId,
+            }
+          );
+          continue;
+        }
+
+        const apiType = collectionConfig.type;
+        await this.waitForApiAccess(
+          apiType,
+          nextSync.collectionId,
+          nextSync.collectionName,
+          nextSync.libraryId
+        );
 
         logger.info(
           `Processing queued collection sync: ${nextSync.collectionName} (${libraryQueue.queue.length} remaining in queue)`,
