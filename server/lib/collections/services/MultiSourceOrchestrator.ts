@@ -549,15 +549,38 @@ export class MultiSourceOrchestrator {
           : config.name;
 
       // Extract the original error message for surfacing to UI
-      const originalErrorMessage =
-        error instanceof Error ? error.message : String(error);
+      // Handle CollectionSyncError objects (structured errors) properly
+      let originalErrorMessage: string;
+      let originalError: Error | undefined;
+
+      if (error instanceof Error) {
+        originalErrorMessage = error.message;
+        originalError = error;
+      } else if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        // CollectionSyncError or similar structured error
+        const structuredError = error as {
+          message: string;
+          type?: string;
+          details?: Record<string, unknown>;
+          originalError?: Error;
+        };
+        originalErrorMessage = structuredError.message;
+        originalError = structuredError.originalError;
+      } else {
+        originalErrorMessage = String(error);
+        originalError = undefined;
+      }
 
       // 4. Error Handling - use standard pipeline utilities
       const syncError = createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
         `Failed to process multi-source collection ${safeName}`,
         { configId: config.id, configName: safeName },
-        error instanceof Error ? error : new Error(String(error))
+        originalError || new Error(originalErrorMessage)
       );
 
       logger.error(syncError.message, {
@@ -773,6 +796,10 @@ export class MultiSourceOrchestrator {
       ...(source.type === 'letterboxd' &&
         source.customUrl && {
           letterboxdCustomListUrl: source.customUrl,
+        }),
+      ...(source.type === 'mdblist' &&
+        source.customUrl && {
+          mdblistCustomListUrl: source.customUrl,
         }),
       ...(source.type === 'anilist' &&
         source.customUrl && {

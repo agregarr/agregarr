@@ -174,9 +174,41 @@ class MDBListAPI {
       };
     }
 
-    // Not an Axios error
+    // Not an Axios error - handle other error types
     if (error instanceof Error) {
       return { message: error.message };
+    }
+
+    // Handle plain objects with message property
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'message' in error &&
+      typeof (error as { message: unknown }).message === 'string'
+    ) {
+      return { message: (error as { message: string }).message };
+    }
+
+    // Handle plain objects - try to extract useful information
+    if (typeof error === 'object' && error !== null) {
+      try {
+        const errorObj = error as Record<string, unknown>;
+        // Try common error property names
+        if (errorObj.error && typeof errorObj.error === 'string') {
+          return { message: errorObj.error };
+        }
+        if (errorObj.msg && typeof errorObj.msg === 'string') {
+          return { message: errorObj.msg };
+        }
+        if (errorObj.detail && typeof errorObj.detail === 'string') {
+          return { message: errorObj.detail };
+        }
+        // Fall back to JSON stringification
+        return { message: JSON.stringify(error) };
+      } catch {
+        // JSON.stringify can fail on circular references
+        return { message: 'Unknown error (could not serialize error object)' };
+      }
     }
 
     return { message: String(error) };
