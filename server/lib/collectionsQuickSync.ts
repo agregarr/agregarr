@@ -391,33 +391,56 @@ class CollectionsQuickSync {
         continue;
       }
 
-      // Real content detected - delete placeholder for ALL collections
-      logger.info(
-        'Real content detected - deleting placeholder(s) for all collections',
-        {
-          label: 'Collections Quick Sync',
-          title: recentItem.title,
-          tmdbId,
-          placeholderCount: matchedPlaceholders.length,
-        }
-      );
+      // Real content detected - delete placeholders for THIS LIBRARY only
+      // Scope deletion to configIds to avoid cross-library deletion
+      // Also filter by mediaType to prevent movie/TV ID collisions
 
-      // Get ALL placeholder records for this TMDB ID across all collections
-      const allPlaceholderRecords = await placeholderRepository.find({
-        where: { tmdbId },
-      });
+      // Get placeholder records for this TMDB ID scoped to this library's configs
+      const mediaType = recentItem.type === 'movie' ? 'movie' : 'tv';
+      const scopedPlaceholderRecords = await placeholderRepository
+        .createQueryBuilder('placeholder')
+        .where('placeholder.tmdbId = :tmdbId', { tmdbId })
+        .andWhere('placeholder.configId IN (:...configIds)', { configIds })
+        .andWhere('placeholder.mediaType = :mediaType', { mediaType })
+        .getMany();
 
-      if (allPlaceholderRecords.length === 0) {
+      if (scopedPlaceholderRecords.length === 0) {
+        logger.debug(
+          'Real content detected but no placeholders to remove for this library',
+          {
+            label: 'Collections Quick Sync',
+            title: recentItem.title,
+            tmdbId,
+            libraryId,
+          }
+        );
         continue;
       }
 
-      // Get the placeholder file path (should be same for all records)
-      const placeholderPath = allPlaceholderRecords[0].placeholderPath;
-      const mediaType = allPlaceholderRecords[0].mediaType;
+      logger.info('Real content detected - cleaning up placeholders', {
+        label: 'Collections Quick Sync',
+        title: recentItem.title,
+        tmdbId,
+        recordsToDelete: scopedPlaceholderRecords.length,
+        configIds: scopedPlaceholderRecords.map((r) => r.configId),
+      });
 
-      // Delete the placeholder file once
+      // Get the placeholder file path
+      const placeholderPath = scopedPlaceholderRecords[0].placeholderPath;
+
+      // Check if other libraries/configs still need this placeholder file
+      // Only delete the file if no other records exist for this TMDB ID
+      const otherRecordsCount = await placeholderRepository
+        .createQueryBuilder('placeholder')
+        .where('placeholder.tmdbId = :tmdbId', { tmdbId })
+        .andWhere('placeholder.mediaType = :mediaType', { mediaType })
+        .andWhere('placeholder.configId NOT IN (:...configIds)', { configIds })
+        .getCount();
+
       let fileDeleted = false;
-      if (placeholderPath) {
+      const shouldDeleteFile = otherRecordsCount === 0;
+
+      if (placeholderPath && shouldDeleteFile) {
         const { getPlaceholderRootFolder } = await import(
           '@server/lib/placeholders/helpers/placeholderPathHelpers'
         );
@@ -444,7 +467,6 @@ class CollectionsQuickSync {
             label: 'Collections Quick Sync',
             title: recentItem.title,
             path: placeholderPath,
-            affectedCollections: allPlaceholderRecords.length,
           });
         } catch (error) {
           if (error instanceof Error && error.message.includes('ENOENT')) {
@@ -468,25 +490,31 @@ class CollectionsQuickSync {
             continue; // Keep ALL database records if file deletion failed
           }
         }
+      } else if (!shouldDeleteFile) {
+        // File preserved for other libraries/configs
+        fileDeleted = true; // Proceed with deleting DB records for this library only
+        logger.debug('Keeping placeholder file for other libraries/configs', {
+          label: 'Collections Quick Sync',
+          title: recentItem.title,
+          otherRecordsCount,
+        });
       } else {
         fileDeleted = true; // No file to delete
       }
 
-      // Delete ALL database records for this placeholder across ALL collections
-      if (fileDeleted) {
+      // Delete database records for this library's configs only
+      if (fileDeleted && scopedPlaceholderRecords.length > 0) {
         try {
-          await placeholderRepository.remove(allPlaceholderRecords);
-          deletedCount += allPlaceholderRecords.length;
-          logger.info(
-            'Deleted placeholder records for all collections (real content exists)',
-            {
-              label: 'Collections Quick Sync',
-              title: recentItem.title,
-              tmdbId,
-              recordsDeleted: allPlaceholderRecords.length,
-              collections: allPlaceholderRecords.map((r) => r.configId),
-            }
-          );
+          await placeholderRepository.remove(scopedPlaceholderRecords);
+          deletedCount += scopedPlaceholderRecords.length;
+          logger.info('Deleted placeholder records (real content exists)', {
+            label: 'Collections Quick Sync',
+            title: recentItem.title,
+            tmdbId,
+            recordsDeleted: scopedPlaceholderRecords.length,
+            otherLibraryRecords: otherRecordsCount,
+            deletedConfigIds: scopedPlaceholderRecords.map((r) => r.configId),
+          });
         } catch (error) {
           logger.error('Failed to delete placeholder database records', {
             label: 'Collections Quick Sync',
