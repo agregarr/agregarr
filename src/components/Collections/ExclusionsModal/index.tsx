@@ -17,6 +17,7 @@ const messages = defineMessages({
   exclusionRemoveError: 'Failed to remove exclusion',
   loading: 'Loading exclusions...',
   close: 'Close',
+  loadError: 'Failed to load exclusions',
 });
 
 interface EnrichedMovie {
@@ -136,7 +137,7 @@ const ExclusionsModal = ({ onCancel }: ExclusionsModalProps) => {
 
         {error && (
           <div className="flex h-96 items-center justify-center text-red-500">
-            Failed to load exclusions
+            {intl.formatMessage(messages.loadError)}
           </div>
         )}
 

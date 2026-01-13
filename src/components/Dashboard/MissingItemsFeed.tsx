@@ -37,6 +37,10 @@ const messages = defineMessages({
   statusPartiallyAvailable: 'Partially Available',
   autoRequest: 'Auto',
   manualRequest: 'Manual',
+  failedToLoad: 'Failed to load missing items',
+  requestsCount: '{total} {mediaType} requests',
+  showingRecent: 'Showing recent missing item requests',
+  lastUpdatedNow: 'Last updated: {time}',
 });
 
 interface MissingItem {
@@ -185,7 +189,9 @@ const MissingItemsFeed: React.FC = () => {
           </h3>
         </div>
         <div className="p-6 text-center">
-          <p className="mb-2 text-red-400">Failed to load missing items</p>
+          <p className="mb-2 text-red-400">
+            {intl.formatMessage(messages.failedToLoad)}
+          </p>
           <p className="text-sm text-gray-400">{error.message}</p>
         </div>
       </div>
@@ -203,8 +209,10 @@ const MissingItemsFeed: React.FC = () => {
           {missingItemsData && (
             <p className="flex items-center text-sm text-gray-400">
               <CalendarDaysIcon className="mr-1 h-4 w-4" />
-              {missingItemsData.total} {activeTab === 'movies' ? 'movie' : 'TV'}{' '}
-              requests
+              {intl.formatMessage(messages.requestsCount, {
+                total: missingItemsData.total,
+                mediaType: activeTab === 'movies' ? 'movie' : 'TV',
+              })}
             </p>
           )}
         </div>
@@ -335,8 +343,12 @@ const MissingItemsFeed: React.FC = () => {
             <div className="border-t border-gray-700 pt-4">
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">
-                  <div>Showing recent missing item requests</div>
-                  <div>Last updated: {new Date().toLocaleString()}</div>
+                  <div>{intl.formatMessage(messages.showingRecent)}</div>
+                  <div>
+                    {intl.formatMessage(messages.lastUpdatedNow, {
+                      time: new Date().toLocaleString(),
+                    })}
+                  </div>
                 </div>
                 <div className="flex space-x-2">
                   <Button

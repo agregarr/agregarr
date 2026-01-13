@@ -19,21 +19,17 @@ type OptionType = {
 
 const messages = defineMessages({
   createsonarr: 'Add New Sonarr Server',
-  create4ksonarr: 'Add New 4K Sonarr Server',
   editsonarr: 'Edit Sonarr Server',
-  edit4ksonarr: 'Edit 4K Sonarr Server',
   validationNameRequired: 'You must provide a server name',
   validationHostnameRequired: 'You must provide a valid hostname or IP address',
   validationPortRequired: 'You must provide a valid port number',
   validationApiKeyRequired: 'You must provide an API key',
   validationRootFolderRequired: 'You must select a root folder',
   validationProfileRequired: 'You must select a quality profile',
-  validationLanguageProfileRequired: 'You must select a language profile',
   toastSonarrTestSuccess: 'Sonarr connection established successfully!',
   toastSonarrTestFailure: 'Failed to connect to Sonarr.',
   add: 'Add Server',
   defaultserver: 'Default Server',
-  default4kserver: 'Default 4K Server',
   servername: 'Server Name',
   hostname: 'Hostname or IP Address',
   port: 'Port',
@@ -41,31 +37,20 @@ const messages = defineMessages({
   apiKey: 'API Key',
   baseUrl: 'URL Base',
   qualityprofile: 'Quality Profile',
-  languageprofile: 'Language Profile',
   rootfolder: 'Root Folder',
   seriesType: 'Series Type',
-  animeSeriesType: 'Anime Series Type',
-  animequalityprofile: 'Anime Quality Profile',
-  animelanguageprofile: 'Anime Language Profile',
-  animerootfolder: 'Anime Root Folder',
   seasonfolders: 'Season Folders',
   monitorByDefault: 'Monitor by Default',
   searchOnAdd: 'Search on Add',
-  server4k: '4K Server',
   selectQualityProfile: 'Select quality profile',
   selectRootFolder: 'Select root folder',
-  selectLanguageProfile: 'Select language profile',
   loadingprofiles: 'Loading quality profiles…',
   testFirstQualityProfiles: 'Test connection to load quality profiles',
   loadingrootfolders: 'Loading root folders…',
   testFirstRootFolders: 'Test connection to load root folders',
-  loadinglanguageprofiles: 'Loading language profiles…',
-  testFirstLanguageProfiles: 'Test connection to load language profiles',
   loadingTags: 'Loading tags…',
   testFirstTags: 'Test connection to load tags',
-  syncEnabled: 'Enable Scan',
   externalUrl: 'External URL',
-  enableSearch: 'Enable Automatic Search',
   tagRequests: 'Automatic Tag Mode',
   tagRequestsInfo:
     'Choose how Agregarr tags Sonarr downloads (tags are created if they do not exist).',
@@ -78,9 +63,11 @@ const messages = defineMessages({
   validationBaseUrlLeadingSlash: 'Base URL must have a leading slash',
   validationBaseUrlTrailingSlash: 'Base URL must not end in a trailing slash',
   tags: 'Tags',
-  animeTags: 'Anime Tags',
   notagoptions: 'No tags.',
   selecttags: 'Select tags',
+  seriesTypeStandard: 'Standard',
+  seriesTypeDaily: 'Daily',
+  seriesTypeAnime: 'Anime',
 });
 
 interface TestResponse {
@@ -515,9 +502,15 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                         name="seriesType"
                         disabled={!isValidated || isTesting}
                       >
-                        <option value="standard">Standard</option>
-                        <option value="daily">Daily</option>
-                        <option value="anime">Anime</option>
+                        <option value="standard">
+                          {intl.formatMessage(messages.seriesTypeStandard)}
+                        </option>
+                        <option value="daily">
+                          {intl.formatMessage(messages.seriesTypeDaily)}
+                        </option>
+                        <option value="anime">
+                          {intl.formatMessage(messages.seriesTypeAnime)}
+                        </option>
                       </Field>
                     </div>
                   </div>

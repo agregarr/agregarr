@@ -13,7 +13,7 @@ const messages = defineMessages({
   loading: 'Loading directories...',
   errorLoading: 'Failed to load directories',
   noDirectories: 'No subdirectories found',
-  goToParent: 'Go to parent directory',
+  parentDirectory: '.. (Parent Directory)',
   goToRoot: 'Go to Root',
   select: 'Select',
   cancel: 'Cancel',
@@ -134,7 +134,7 @@ const FolderBrowser = ({
               onClick={handleParentClick}
               disabled={isLoading}
             >
-              <span>.. (Parent Directory)</span>
+              <span>{intl.formatMessage(messages.parentDirectory)}</span>
             </Button>
           )}
           <Button

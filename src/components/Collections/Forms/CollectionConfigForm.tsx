@@ -17,7 +17,7 @@ import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
 import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
 import { useMemo, useState } from 'react';
-import { defineMessages, useIntl } from 'react-intl';
+import { defineMessages, FormattedMessage, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import * as Yup from 'yup';
@@ -85,6 +85,139 @@ const messages = defineMessages({
   youtubeCookiesConfigured: 'YouTube Cookies Configured',
   youtubeCookiesConfiguredMessage:
     'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
+  overseerrUserCollectionsDescription:
+    "Creates a collection for each Overseerr user based off their Overseerr requests, and uses labels and restrictions to ensure only the requesting user can see their requests. Because server owners can't have restrictions, all collections will be visible to them.",
+  autoFranchiseDescription:
+    'Automatically discovers and creates a collection for each movie franchise in your library (e.g., Die Hard 1, 2, 3 → "Die Hard Collection"). Only franchises with 2+ movies in your library will be created.',
+  franchiseTemplateNote:
+    "<strong>Note:</strong> Your title template must include <code>'{franchiseName}'</code> (e.g., \"<code>'{franchiseName}'</code>\" or \"Movies from the <code>'{franchiseName}'</code>\").",
+  actorDirectorDescription:
+    'Automatically finds top {personType} in this Plex library and creates a smart collection for each (up to your limits). These collections stay synced via Plex smart filters and exclude trailer placeholders. Managed here as a single "Auto {personTypeCapitalized} Collections" config.',
+  actorTemplateNote:
+    "<strong>Note:</strong> Your title template must include <code>'{actor}'</code> (e.g., \"<code>'{actor}'</code>\" or \"Movies by <code>'{actor}'</code>\").",
+  directorTemplateNote:
+    "<strong>Note:</strong> Your title template must include <code>'{director}'</code> (e.g., \"<code>'{director}'</code>\" or \"Movies by <code>'{director}'</code>\").",
+  // Validation messages
+  validationCollectionTypeRequired: 'Collection type is required',
+  validationCollectionSubtypeRequired: 'Collection sub-type is required',
+  validationPersonMinimumItemsRequired: 'Minimum items is required',
+  validationPersonMinimumItemsMin: 'Minimum items must be at least 2',
+  validationSeparatorTitleRequired: 'Separator title is required',
+  validationSeparatorTitleMin: 'Separator title must be at least 2 characters',
+  validationLibraryMin: 'Please select at least one library',
+  validationLibraryRequired: 'Please select at least one library',
+  validationRadarrInstanceRequired: 'Radarr instance is required',
+  validationRadarrTagRequired: 'Radarr tag is required',
+  validationSonarrInstanceRequired: 'Sonarr instance is required',
+  validationSonarrTagRequired: 'Sonarr tag is required',
+  validationMovieTemplateRequired: 'Movie template is required',
+  validationTvTemplateRequired: 'TV template is required',
+  validationCustomDaysRequired: 'Number of days is required',
+  validationCustomDaysMin: 'Number of days must be at least 1',
+  validationCustomDaysMax: 'Number of days cannot exceed 365',
+  validationComingSoonDaysMin: 'Days ahead must be at least 1',
+  validationComingSoonDaysMax: 'Days ahead cannot exceed 730',
+  validationComingSoonReleasedDaysMin: 'Days after release must be at least 1',
+  validationComingSoonReleasedDaysMax: 'Days after release cannot exceed 30',
+  validationTraktUrlRequired: 'Trakt list URL is required',
+  validationTmdbUrlRequired:
+    'TMDB collection/list/network/company URL is required',
+  validationImdbUrlRequired: 'IMDb list URL is required',
+  validationLetterboxdUrlRequired: 'Letterboxd list URL is required',
+  validationLetterboxdWatchlistUrlRequired:
+    'Letterboxd watchlist URL is required',
+  validationAnilistUrlRequired: 'AniList list URL is required',
+  validationMaxItemsMin: 'Max items must be at least 1',
+  validationMaxItemsMax: 'Max items cannot exceed 9999',
+  validationMinimumPlaysMin: 'Minimum play count must be at least 1',
+  validationMinimumPlaysMax: 'Minimum play count cannot exceed 100',
+  validationMinimumPlaysRequired: 'Minimum plays is required',
+  validationMaxSeasonsMin:
+    'Max seasons to request must be 0 or greater (0 = no limit)',
+  validationMaxSeasonsMax: 'Max seasons to request cannot exceed 50',
+  validationSeasonsPerShowMin:
+    'Seasons per show limit must be 0 or greater (0 = all seasons)',
+  validationSeasonsPerShowMax: 'Seasons per show limit cannot exceed 50',
+  validationTraktUrlInvalid:
+    'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)',
+  validationTmdbUrlInvalid:
+    'Please enter a valid TMDB URL (collection, list, network, or company page)',
+  validationImdbUrlInvalid:
+    'Please enter a valid IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)',
+  validationLetterboxdUrlInvalid:
+    'Please enter a valid Letterboxd URL (e.g., https://letterboxd.com/username/list/list-name/ or https://letterboxd.com/username/films/rated/4.5-5/)',
+  validationLetterboxdWatchlistUrlInvalid:
+    'Please enter a valid Letterboxd watchlist URL (e.g., https://letterboxd.com/username/watchlist/)',
+  validationAnilistUrlInvalid:
+    'Please enter a valid AniList URL (e.g., user lists, search pages, or anime pages)',
+  validationSourceIdRequired: 'Source ID is required',
+  validationSourceTypeRequired: 'Source type is required',
+  validationSourcePriorityRequired: 'Source priority is required',
+  collectionTitleTemplate: 'Collection Title Template',
+  itemOrder: 'Item Order',
+  defaultOrder: 'Default order (as provided by source)',
+  reverseOrder: 'Reverse order',
+  randomOrder: 'Random order (shuffled each sync)',
+  imdbRatingDesc: 'IMDb Rating (Highest to Lowest)',
+  imdbRatingAsc: 'IMDb Rating (Lowest to Highest)',
+  releaseDateDesc: 'Release Date (Newest to Oldest)',
+  releaseDateAsc: 'Release Date (Oldest to Newest)',
+  dateAddedDesc: 'Date Added to Plex (Most Recent)',
+  dateAddedAsc: 'Date Added to Plex (Least Recent)',
+  alphabeticalAsc: 'Alphabetical (A-Z)',
+  alphabeticalDesc: 'Alphabetical (Z-A)',
+  shufflePositionLabel: 'Shuffle position on Home/Recommended screens',
+  shufflePositionHelp:
+    "When enabled, this collection's position will be randomly shuffled with other collections that have this option enabled during each sync. Custom scheduling for shuffling can be set on the Jobs page.",
+  limitCollectionItems:
+    'Limit the Collection to this many items{smartCollectionNote}',
+  limitCollectionItemsSmartNote: ' (applies to smart collection)',
+  smartCollectionDescription:
+    'When enabled, creates a smart collection with the unwatched filter to show only unwatched items for the user viewing the collection. The original collection will be pushed to the bottom in the Collections Tab.',
+  smartCollectionSortNote:
+    'Choose how items in the smart collection should be sorted. Due to Plex limitations, the original list order cannot be preserved when using smart collections.',
+  placeholderCreation: 'Placeholder Creation',
+  createPlaceholdersForMissing: 'Create placeholders for missing items',
+  placeholderCreationHelp:
+    'Creates placeholder files in Plex for items not yet available, with countdown overlays showing release dates.',
+  placeholderFoldersNotConfigured:
+    'The following {pluralLibrary} {pluralNeed} placeholder root folders configured: <strong>{namesText}</strong>. Please configure placeholder folders for {libraryCount} in Settings > Downloads.',
+  theseLibraries: 'these libraries',
+  thisLibrary: 'this library',
+  daysAhead: 'Days Ahead',
+  daysAheadHelp:
+    'Create placeholders for items releasing within this many days',
+  orphanedItemWindow: 'Orphaned Item Window',
+  orphanedItemWindowHelp:
+    'Days to keep placeholders after they fall off the source list (from release date if released, otherwise from creation date)',
+  filteredPlexHubInfo:
+    'Use Filtered Plex Hubs to keep placeholder items out of Recently Added etc',
+  filteredPlexHubDescription:
+    'Create Filtered Plex Hub collection type to replace default Plex hubs (Recently Added, Recently Released, Recently Released Episodes) with filtered versions that automatically exclude placeholder items. You can also Enable Collection Exclusion on other collections to exclude placeholders from them.',
+  randomizeHomeOrder: 'Randomize Home Order',
+  shuffleHubCollectionHelp:
+    "When enabled, this {itemType}'s position will be randomly shuffled with other collections that have this option enabled during each sync. Custom scheduling for shuffling can be set on the Jobs page.",
+  pleaseFixErrors: 'Please fix the following errors:',
+  failedFetchTraktTitle: 'Failed to fetch Trakt list title',
+  failedFetchTmdbTitle: 'Failed to fetch TMDB title',
+  failedFetchImdbTitle: 'Failed to fetch IMDb list title',
+  failedFetchLetterboxdTitle: 'Failed to fetch Letterboxd list title',
+  failedFetchMdblistTitle: 'Failed to fetch MDBList title',
+  failedFetchAnilistTitle: 'Failed to fetch AniList title',
+  failedParseResponse: 'Failed to parse server response',
+  connectionErrorTrakt:
+    'Connection error while fetching Trakt list title. Please check your connection and try again.',
+  connectionErrorTmdb:
+    'Connection error while fetching TMDB title. Please check your connection and try again.',
+  connectionErrorImdb:
+    'Connection error while fetching IMDb list title. Please check your connection and try again.',
+  connectionErrorLetterboxd:
+    'Connection error while fetching Letterboxd list title. Please check your connection and try again.',
+  connectionErrorMdblist:
+    'Connection error while fetching MDBList title. Please check your connection and try again.',
+  connectionErrorAnilist:
+    'Connection error while fetching AniList title. Please check your connection and try again.',
+  connectionError: 'Connection error',
 });
 
 const CollectionFormConfigForm = ({
@@ -293,7 +426,10 @@ const CollectionFormConfigForm = ({
         !hubIdentifier &&
         collectionType !== 'default_plex_hub' &&
         collectionType !== 'pre_existing', // Only required if not a hub or pre-existing
-      then: (schema) => schema.required('Collection type is required'),
+      then: (schema) =>
+        schema.required(
+          intl.formatMessage(messages.validationCollectionTypeRequired)
+        ),
       otherwise: (schema) => schema,
     }),
     subtype: Yup.string().when(['hubIdentifier', 'collectionType', 'type'], {
@@ -306,7 +442,10 @@ const CollectionFormConfigForm = ({
         type !== 'radarrtag' &&
         type !== 'sonarrtag' &&
         type !== 'filtered_hub', // Only required if not a hub, pre-existing, multi-source, tag-based, or recently_added
-      then: (schema) => schema.required('Collection sub-type is required'),
+      then: (schema) =>
+        schema.required(
+          intl.formatMessage(messages.validationCollectionSubtypeRequired)
+        ),
       otherwise: (schema) => schema.notRequired(),
     }),
     personMinimumItems: Yup.number()
@@ -325,8 +464,13 @@ const CollectionFormConfigForm = ({
           type === 'plex' && (subtype === 'actors' || subtype === 'directors'),
         then: (schema) =>
           schema
-            .required('Minimum items is required')
-            .min(2, 'Minimum items must be at least 2'),
+            .required(
+              intl.formatMessage(messages.validationPersonMinimumItemsRequired)
+            )
+            .min(
+              2,
+              intl.formatMessage(messages.validationPersonMinimumItemsMin)
+            ),
         otherwise: (schema) => schema.notRequired(),
       }),
     useSeparator: Yup.boolean(),
@@ -339,8 +483,10 @@ const CollectionFormConfigForm = ({
           (subtype === 'actors' || subtype === 'directors'),
         then: (schema) =>
           schema
-            .required('Separator title is required')
-            .min(2, 'Separator title must be at least 2 characters'),
+            .required(
+              intl.formatMessage(messages.validationSeparatorTitleRequired)
+            )
+            .min(2, intl.formatMessage(messages.validationSeparatorTitleMin)),
         otherwise: (schema) => schema.notRequired(),
       }),
 
@@ -351,8 +497,8 @@ const CollectionFormConfigForm = ({
         is: (libraryId: string) => !libraryId, // Only required if no single libraryId
         then: (schema) =>
           schema
-            .min(1, 'Please select at least one library')
-            .required('Please select at least one library'),
+            .min(1, intl.formatMessage(messages.validationLibraryMin))
+            .required(intl.formatMessage(messages.validationLibraryRequired)),
         otherwise: (schema) => schema,
       }),
     libraryId: Yup.string(), // Allow single libraryId for hubs/pre-existing
@@ -370,7 +516,9 @@ const CollectionFormConfigForm = ({
         then: (schema) =>
           schema
             .typeError('Radarr instance is required')
-            .required('Radarr instance is required'),
+            .required(
+              intl.formatMessage(messages.validationRadarrInstanceRequired)
+            ),
         otherwise: (schema) => schema,
       }),
     radarrTagId: Yup.number()
@@ -387,7 +535,7 @@ const CollectionFormConfigForm = ({
         then: (schema) =>
           schema
             .typeError('Radarr tag is required')
-            .required('Radarr tag is required'),
+            .required(intl.formatMessage(messages.validationRadarrTagRequired)),
         otherwise: (schema) => schema,
       }),
     sonarrInstanceId: Yup.number()
@@ -404,7 +552,9 @@ const CollectionFormConfigForm = ({
         then: (schema) =>
           schema
             .typeError('Sonarr instance is required')
-            .required('Sonarr instance is required'),
+            .required(
+              intl.formatMessage(messages.validationSonarrInstanceRequired)
+            ),
         otherwise: (schema) => schema,
       }),
     sonarrTagId: Yup.number()
@@ -421,7 +571,7 @@ const CollectionFormConfigForm = ({
         then: (schema) =>
           schema
             .typeError('Sonarr tag is required')
-            .required('Sonarr tag is required'),
+            .required(intl.formatMessage(messages.validationSonarrTagRequired)),
         otherwise: (schema) => schema,
       }),
     // Template validation - only check when it exists
@@ -441,7 +591,10 @@ const CollectionFormConfigForm = ({
           return library?.type === 'movie';
         });
       },
-      then: (schema) => schema.required('Movie template is required'),
+      then: (schema) =>
+        schema.required(
+          intl.formatMessage(messages.validationMovieTemplateRequired)
+        ),
       otherwise: (schema) => schema,
     }),
 
@@ -454,7 +607,10 @@ const CollectionFormConfigForm = ({
           return library?.type === 'show';
         });
       },
-      then: (schema) => schema.required('TV template is required'),
+      then: (schema) =>
+        schema.required(
+          intl.formatMessage(messages.validationTvTemplateRequired)
+        ),
       otherwise: (schema) => schema,
     }),
 
@@ -462,9 +618,9 @@ const CollectionFormConfigForm = ({
       is: 'tautulli',
       then: (schema) =>
         schema
-          .required('Number of days is required')
-          .min(1, 'Must be at least 1 day')
-          .max(365, 'Cannot exceed 365 days'),
+          .required(intl.formatMessage(messages.validationCustomDaysRequired))
+          .min(1, intl.formatMessage(messages.validationCustomDaysMin))
+          .max(365, intl.formatMessage(messages.validationCustomDaysMax)),
       otherwise: (schema) => schema,
     }),
 
@@ -472,8 +628,8 @@ const CollectionFormConfigForm = ({
       is: 'comingsoon',
       then: (schema) =>
         schema
-          .min(1, 'Must be at least 1 day')
-          .max(730, 'Cannot exceed 730 days'),
+          .min(1, intl.formatMessage(messages.validationComingSoonDaysMin))
+          .max(730, intl.formatMessage(messages.validationComingSoonDaysMax)),
       otherwise: (schema) => schema,
     }),
 
@@ -481,8 +637,14 @@ const CollectionFormConfigForm = ({
       is: 'comingsoon',
       then: (schema) =>
         schema
-          .min(1, 'Must be at least 1 day')
-          .max(30, 'Cannot exceed 30 days'),
+          .min(
+            1,
+            intl.formatMessage(messages.validationComingSoonReleasedDaysMin)
+          )
+          .max(
+            30,
+            intl.formatMessage(messages.validationComingSoonReleasedDaysMax)
+          ),
       otherwise: (schema) => schema,
     }),
 
@@ -491,10 +653,10 @@ const CollectionFormConfigForm = ({
         type === 'trakt' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('Trakt list URL is required')
+          .required(intl.formatMessage(messages.validationTraktUrlRequired))
           .matches(
             /trakt\.tv\/(users\/[^/]+\/lists\/[^/?]+|lists\/official\/[^/?]+)/,
-            'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
+            intl.formatMessage(messages.validationTraktUrlInvalid)
           ),
       otherwise: (schema) => schema,
     }),
@@ -504,10 +666,10 @@ const CollectionFormConfigForm = ({
         type === 'tmdb' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('TMDB collection/list/network/company URL is required')
+          .required(intl.formatMessage(messages.validationTmdbUrlRequired))
           .matches(
             /themoviedb\.org\/(collection\/\d+|list\/\d+|network\/\d+|company\/\d+(?:-[^/]+)?\/(?:movie|tv))/,
-            'Please enter a valid TMDB URL (collection, list, network, or company page)'
+            intl.formatMessage(messages.validationTmdbUrlInvalid)
           ),
       otherwise: (schema) => schema,
     }),
@@ -517,10 +679,10 @@ const CollectionFormConfigForm = ({
         type === 'imdb' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('IMDb list URL is required')
+          .required(intl.formatMessage(messages.validationImdbUrlRequired))
           .matches(
             /(imdb\.com\/list\/ls\d+|imdb\.com\/user\/ur\d+\/watchlist)/,
-            'Please enter a valid IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
+            intl.formatMessage(messages.validationImdbUrlInvalid)
           ),
       otherwise: (schema) => schema,
     }),
@@ -530,10 +692,12 @@ const CollectionFormConfigForm = ({
         type === 'letterboxd' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('Letterboxd list URL is required')
+          .required(
+            intl.formatMessage(messages.validationLetterboxdUrlRequired)
+          )
           .matches(
             /letterboxd\.com\/[^/]+\/(list\/[^/?]+|films\/.*)/,
-            'Please enter a valid Letterboxd URL (e.g., https://letterboxd.com/username/list/list-name/ or https://letterboxd.com/username/films/rated/4.5-5/)'
+            intl.formatMessage(messages.validationLetterboxdUrlInvalid)
           ),
       otherwise: (schema) =>
         schema.when(['type', 'subtype'], {
@@ -541,10 +705,16 @@ const CollectionFormConfigForm = ({
             type === 'letterboxd' && subtype === 'watchlist',
           then: (schema) =>
             schema
-              .required('Letterboxd watchlist URL is required')
+              .required(
+                intl.formatMessage(
+                  messages.validationLetterboxdWatchlistUrlRequired
+                )
+              )
               .matches(
                 /letterboxd\.com\/[^/]+\/watchlist\/?/,
-                'Please enter a valid Letterboxd watchlist URL (e.g., https://letterboxd.com/username/watchlist/)'
+                intl.formatMessage(
+                  messages.validationLetterboxdWatchlistUrlInvalid
+                )
               ),
           otherwise: (schema) => schema,
         }),
@@ -555,24 +725,27 @@ const CollectionFormConfigForm = ({
         type === 'anilist' && subtype === 'custom',
       then: (schema) =>
         schema
-          .required('AniList list URL is required')
+          .required(intl.formatMessage(messages.validationAnilistUrlRequired))
           .matches(
             /anilist\.co\/(?:user\/[^/]+\/(?:animelist|list)\/[^/?]+|(?:animelist|list)\/[^/?]+|search\/anime(?:\/[^/?]+)?|anime\/?\d+)/,
-            'Please enter a valid AniList URL (e.g., user lists, search pages, or anime pages)'
+            intl.formatMessage(messages.validationAnilistUrlInvalid)
           ),
       otherwise: (schema) => schema,
     }),
 
     maxItems: Yup.number()
-      .min(1, 'Must be at least 1 item')
-      .max(9999, 'Cannot exceed 9999 items'),
+      .min(1, intl.formatMessage(messages.validationMaxItemsMin))
+      .max(9999, intl.formatMessage(messages.validationMaxItemsMax)),
 
     minimumPlays: Yup.number()
-      .min(1, 'Must be at least 1 play')
-      .max(100, 'Cannot exceed 100 plays')
+      .min(1, intl.formatMessage(messages.validationMinimumPlaysMin))
+      .max(100, intl.formatMessage(messages.validationMinimumPlaysMax))
       .when('type', {
         is: 'tautulli',
-        then: (schema) => schema.required('Minimum plays is required'),
+        then: (schema) =>
+          schema.required(
+            intl.formatMessage(messages.validationMinimumPlaysRequired)
+          ),
         otherwise: (schema) => schema.notRequired(),
       }),
 
@@ -580,8 +753,8 @@ const CollectionFormConfigForm = ({
       is: (searchMissingTV: boolean) => searchMissingTV,
       then: (schema) =>
         schema
-          .min(0, 'Must be 0 or greater (0 = no limit)')
-          .max(50, 'Cannot exceed 50 seasons'),
+          .min(0, intl.formatMessage(messages.validationMaxSeasonsMin))
+          .max(50, intl.formatMessage(messages.validationMaxSeasonsMax)),
       otherwise: (schema) => schema,
     }),
 
@@ -589,8 +762,8 @@ const CollectionFormConfigForm = ({
       is: (searchMissingTV: boolean) => searchMissingTV,
       then: (schema) =>
         schema
-          .min(0, 'Must be 0 or greater (0 = all seasons)')
-          .max(50, 'Cannot exceed 50 seasons'),
+          .min(0, intl.formatMessage(messages.validationSeasonsPerShowMin))
+          .max(50, intl.formatMessage(messages.validationSeasonsPerShowMax)),
       otherwise: (schema) => schema,
     }),
 
@@ -666,12 +839,18 @@ const CollectionFormConfigForm = ({
       .nullable(),
     sources: Yup.array().of(
       Yup.object().shape({
-        id: Yup.string().required('Source ID is required'),
-        type: Yup.string().required('Source type is required'),
+        id: Yup.string().required(
+          intl.formatMessage(messages.validationSourceIdRequired)
+        ),
+        type: Yup.string().required(
+          intl.formatMessage(messages.validationSourceTypeRequired)
+        ),
         subtype: Yup.string(),
         customUrl: Yup.string(),
         timePeriod: Yup.string().oneOf(['daily', 'weekly', 'monthly', 'all']),
-        priority: Yup.number().required('Source priority is required'),
+        priority: Yup.number().required(
+          intl.formatMessage(messages.validationSourcePriorityRequired)
+        ),
         isExpanded: Yup.boolean(),
         customDays: Yup.number().min(1).max(365),
         minimumPlays: Yup.number().min(1).max(100),
@@ -820,10 +999,14 @@ const CollectionFormConfigForm = ({
             resolve();
           } else if (data.status === 'error') {
             // Error - show toast and cleanup
-            addToast(data.message || 'Failed to fetch Trakt list title', {
-              appearance: 'error',
-              autoDismiss: true,
-            });
+            addToast(
+              data.message ||
+                intl.formatMessage(messages.failedFetchTraktTitle),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
             eventSource.close();
             setFetchingTitle((prev) => ({ ...prev, trakt: false }));
             setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
@@ -833,7 +1016,7 @@ const CollectionFormConfigForm = ({
             setTitleFetchProgress((prev) => ({ ...prev, trakt: data.message }));
           }
         } catch (parseError) {
-          addToast('Failed to parse server response', {
+          addToast(intl.formatMessage(messages.failedParseResponse), {
             appearance: 'error',
             autoDismiss: true,
           });
@@ -845,17 +1028,14 @@ const CollectionFormConfigForm = ({
       };
 
       eventSource.onerror = () => {
-        addToast(
-          'Connection error while fetching Trakt list title. Please check your connection and try again.',
-          {
-            appearance: 'error',
-            autoDismiss: true,
-          }
-        );
+        addToast(intl.formatMessage(messages.connectionErrorTrakt), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
         eventSource.close();
         setFetchingTitle((prev) => ({ ...prev, trakt: false }));
         setTitleFetchProgress((prev) => ({ ...prev, trakt: undefined }));
-        reject(new Error('Connection error'));
+        reject(new Error(intl.formatMessage(messages.connectionError)));
       };
     });
   };
@@ -903,10 +1083,13 @@ const CollectionFormConfigForm = ({
             resolve();
           } else if (data.status === 'error') {
             // Error - show toast and cleanup
-            addToast(data.message || 'Failed to fetch TMDB title', {
-              appearance: 'error',
-              autoDismiss: true,
-            });
+            addToast(
+              data.message || intl.formatMessage(messages.failedFetchTmdbTitle),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
             eventSource.close();
             setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
             setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
@@ -916,7 +1099,7 @@ const CollectionFormConfigForm = ({
             setTitleFetchProgress((prev) => ({ ...prev, tmdb: data.message }));
           }
         } catch (parseError) {
-          addToast('Failed to parse server response', {
+          addToast(intl.formatMessage(messages.failedParseResponse), {
             appearance: 'error',
             autoDismiss: true,
           });
@@ -928,17 +1111,14 @@ const CollectionFormConfigForm = ({
       };
 
       eventSource.onerror = () => {
-        addToast(
-          'Connection error while fetching TMDB title. Please check your connection and try again.',
-          {
-            appearance: 'error',
-            autoDismiss: true,
-          }
-        );
+        addToast(intl.formatMessage(messages.connectionErrorTmdb), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
         eventSource.close();
         setFetchingTitle((prev) => ({ ...prev, tmdb: false }));
         setTitleFetchProgress((prev) => ({ ...prev, tmdb: undefined }));
-        reject(new Error('Connection error'));
+        reject(new Error(intl.formatMessage(messages.connectionError)));
       };
     });
   };
@@ -990,10 +1170,13 @@ const CollectionFormConfigForm = ({
             resolve();
           } else if (data.status === 'error') {
             // Error - show toast and cleanup
-            addToast(data.message || 'Failed to fetch IMDb list title', {
-              appearance: 'error',
-              autoDismiss: true,
-            });
+            addToast(
+              data.message || intl.formatMessage(messages.failedFetchImdbTitle),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
             eventSource.close();
             setFetchingTitle((prev) => ({ ...prev, imdb: false }));
             setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
@@ -1003,7 +1186,7 @@ const CollectionFormConfigForm = ({
             setTitleFetchProgress((prev) => ({ ...prev, imdb: data.message }));
           }
         } catch (parseError) {
-          addToast('Failed to parse server response', {
+          addToast(intl.formatMessage(messages.failedParseResponse), {
             appearance: 'error',
             autoDismiss: true,
           });
@@ -1015,17 +1198,14 @@ const CollectionFormConfigForm = ({
       };
 
       eventSource.onerror = () => {
-        addToast(
-          'Connection error while fetching IMDb list title. Please check your connection and try again.',
-          {
-            appearance: 'error',
-            autoDismiss: true,
-          }
-        );
+        addToast(intl.formatMessage(messages.connectionErrorImdb), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
         eventSource.close();
         setFetchingTitle((prev) => ({ ...prev, imdb: false }));
         setTitleFetchProgress((prev) => ({ ...prev, imdb: undefined }));
-        reject(new Error('Connection error'));
+        reject(new Error(intl.formatMessage(messages.connectionError)));
       };
     });
   };
@@ -1073,10 +1253,14 @@ const CollectionFormConfigForm = ({
             }));
             resolve();
           } else if (data.status === 'error') {
-            addToast(data.message || 'Failed to fetch Letterboxd list title', {
-              appearance: 'error',
-              autoDismiss: true,
-            });
+            addToast(
+              data.message ||
+                intl.formatMessage(messages.failedFetchLetterboxdTitle),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
             eventSource.close();
             setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
             setTitleFetchProgress((prev) => ({
@@ -1091,7 +1275,7 @@ const CollectionFormConfigForm = ({
             }));
           }
         } catch (parseError) {
-          addToast('Failed to parse server response', {
+          addToast(intl.formatMessage(messages.failedParseResponse), {
             appearance: 'error',
             autoDismiss: true,
           });
@@ -1103,17 +1287,14 @@ const CollectionFormConfigForm = ({
       };
 
       eventSource.onerror = () => {
-        addToast(
-          'Connection error while fetching Letterboxd list title. Please check your connection and try again.',
-          {
-            appearance: 'error',
-            autoDismiss: true,
-          }
-        );
+        addToast(intl.formatMessage(messages.connectionErrorLetterboxd), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
         eventSource.close();
         setFetchingTitle((prev) => ({ ...prev, letterboxd: false }));
         setTitleFetchProgress((prev) => ({ ...prev, letterboxd: undefined }));
-        reject(new Error('Connection error'));
+        reject(new Error(intl.formatMessage(messages.connectionError)));
       };
     });
   };
@@ -1158,10 +1339,14 @@ const CollectionFormConfigForm = ({
             setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
             resolve();
           } else if (data.status === 'error') {
-            addToast(data.message || 'Failed to fetch MDBList title', {
-              appearance: 'error',
-              autoDismiss: true,
-            });
+            addToast(
+              data.message ||
+                intl.formatMessage(messages.failedFetchMdblistTitle),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
             eventSource.close();
             setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
             setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
@@ -1173,7 +1358,7 @@ const CollectionFormConfigForm = ({
             }));
           }
         } catch (parseError) {
-          addToast('Failed to parse server response', {
+          addToast(intl.formatMessage(messages.failedParseResponse), {
             appearance: 'error',
             autoDismiss: true,
           });
@@ -1185,17 +1370,14 @@ const CollectionFormConfigForm = ({
       };
 
       eventSource.onerror = () => {
-        addToast(
-          'Connection error while fetching MDBList title. Please check your connection and try again.',
-          {
-            appearance: 'error',
-            autoDismiss: true,
-          }
-        );
+        addToast(intl.formatMessage(messages.connectionErrorMdblist), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
         eventSource.close();
         setFetchingTitle((prev) => ({ ...prev, mdblist: false }));
         setTitleFetchProgress((prev) => ({ ...prev, mdblist: undefined }));
-        reject(new Error('Connection error'));
+        reject(new Error(intl.formatMessage(messages.connectionError)));
       };
     });
   };
@@ -1240,10 +1422,14 @@ const CollectionFormConfigForm = ({
             setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
             resolve();
           } else if (data.status === 'error') {
-            addToast(data.message || 'Failed to fetch AniList title', {
-              appearance: 'error',
-              autoDismiss: true,
-            });
+            addToast(
+              data.message ||
+                intl.formatMessage(messages.failedFetchAnilistTitle),
+              {
+                appearance: 'error',
+                autoDismiss: true,
+              }
+            );
             eventSource.close();
             setFetchingTitle((prev) => ({ ...prev, anilist: false }));
             setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
@@ -1255,7 +1441,7 @@ const CollectionFormConfigForm = ({
             }));
           }
         } catch (parseError) {
-          addToast('Failed to parse server response', {
+          addToast(intl.formatMessage(messages.failedParseResponse), {
             appearance: 'error',
             autoDismiss: true,
           });
@@ -1267,17 +1453,14 @@ const CollectionFormConfigForm = ({
       };
 
       eventSource.onerror = () => {
-        addToast(
-          'Connection error while fetching AniList title. Please check your connection and try again.',
-          {
-            appearance: 'error',
-            autoDismiss: true,
-          }
-        );
+        addToast(intl.formatMessage(messages.connectionErrorAnilist), {
+          appearance: 'error',
+          autoDismiss: true,
+        });
         eventSource.close();
         setFetchingTitle((prev) => ({ ...prev, anilist: false }));
         setTitleFetchProgress((prev) => ({ ...prev, anilist: undefined }));
-        reject(new Error('Connection error'));
+        reject(new Error(intl.formatMessage(messages.connectionError)));
       };
     });
   };
@@ -2249,13 +2432,9 @@ const CollectionFormConfigForm = ({
                               </svg>
                               <div>
                                 <p className="text-sm text-gray-400">
-                                  Creates a collection for each Overseerr user
-                                  based off their Overseerr requests, and uses
-                                  labels and restrictions to ensure only the
-                                  requesting user can see their requests.
-                                  Because server owners can&apos;t have
-                                  restrictions, all collections will be visible
-                                  to them.
+                                  {intl.formatMessage(
+                                    messages.overseerrUserCollectionsDescription
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -2281,21 +2460,24 @@ const CollectionFormConfigForm = ({
                               </svg>
                               <div>
                                 <p className="text-sm text-gray-400">
-                                  Automatically discovers and creates a
-                                  collection for each movie franchise in your
-                                  library (e.g., Die Hard 1, 2, 3 → &quot;Die
-                                  Hard Collection&quot;). Only franchises with
-                                  2+ movies in your library will be created.
+                                  {intl.formatMessage(
+                                    messages.autoFranchiseDescription
+                                  )}
                                 </p>
                                 <p className="mt-2 text-sm text-orange-400">
-                                  <strong>Note:</strong> Your title template
-                                  must include{' '}
-                                  <code className="rounded bg-gray-700 px-1">
-                                    {'{franchiseName}'}
-                                  </code>{' '}
-                                  (e.g., &quot;{'{franchiseName}'}&quot; or
-                                  &quot;Movies from the {'{franchiseName}'}
-                                  &quot;).
+                                  <FormattedMessage
+                                    {...messages.franchiseTemplateNote}
+                                    values={{
+                                      strong: (chunks) => (
+                                        <strong>{chunks}</strong>
+                                      ),
+                                      code: (chunks) => (
+                                        <code className="rounded bg-gray-700 px-1">
+                                          {chunks}
+                                        </code>
+                                      ),
+                                    }}
+                                  />
                                 </p>
                               </div>
                             </div>
@@ -2321,37 +2503,36 @@ const CollectionFormConfigForm = ({
                               </svg>
                               <div>
                                 <p className="text-sm text-gray-400">
-                                  Automatically finds top{' '}
-                                  {values.subtype === 'actors'
-                                    ? 'actors'
-                                    : 'directors'}{' '}
-                                  in this Plex library and creates a smart
-                                  collection for each (up to your limits). These
-                                  collections stay synced via Plex smart filters
-                                  and exclude trailer placeholders. Managed here
-                                  as a single &quot;Auto{' '}
-                                  {values.subtype === 'actors'
-                                    ? 'Actor'
-                                    : 'Director'}{' '}
-                                  Collections&quot; config.
+                                  {intl.formatMessage(
+                                    messages.actorDirectorDescription,
+                                    {
+                                      personType:
+                                        values.subtype === 'actors'
+                                          ? 'actors'
+                                          : 'directors',
+                                      personTypeCapitalized:
+                                        values.subtype === 'actors'
+                                          ? 'Actor'
+                                          : 'Director',
+                                    }
+                                  )}
                                 </p>
                                 <p className="mt-2 text-sm text-orange-400">
-                                  <strong>Note:</strong> Your title template
-                                  must include{' '}
-                                  <code className="rounded bg-gray-700 px-1">
-                                    {values.subtype === 'actors'
-                                      ? '{actor}'
-                                      : '{director}'}
-                                  </code>{' '}
-                                  (e.g., &quot;
-                                  {values.subtype === 'actors'
-                                    ? '{actor}'
-                                    : '{director}'}
-                                  &quot; or &quot;Movies by{' '}
-                                  {values.subtype === 'actors'
-                                    ? '{actor}'
-                                    : '{director}'}
-                                  &quot;).
+                                  <FormattedMessage
+                                    {...(values.subtype === 'actors'
+                                      ? messages.actorTemplateNote
+                                      : messages.directorTemplateNote)}
+                                    values={{
+                                      strong: (chunks) => (
+                                        <strong>{chunks}</strong>
+                                      ),
+                                      code: (chunks) => (
+                                        <code className="rounded bg-gray-700 px-1">
+                                          {chunks}
+                                        </code>
+                                      ),
+                                    }}
+                                  />
                                 </p>
                               </div>
                             </div>
@@ -2488,7 +2669,9 @@ const CollectionFormConfigForm = ({
                                 htmlFor="collectionTemplate"
                                 className="text-label"
                               >
-                                Collection Title Template
+                                {intl.formatMessage(
+                                  messages.collectionTitleTemplate
+                                )}
                                 <span className="label-required">*</span>
                               </label>
                               <div className="form-input-area">
@@ -2530,7 +2713,7 @@ const CollectionFormConfigForm = ({
                                     htmlFor="sortOrder"
                                     className="text-label"
                                   >
-                                    Item Order
+                                    {intl.formatMessage(messages.itemOrder)}
                                   </label>
                                   <div className="form-input-area">
                                     <div className="form-input-field">
@@ -2551,39 +2734,63 @@ const CollectionFormConfigForm = ({
                                           );
                                         }}
                                       >
-                                        <option value="default">
-                                          Default order (as provided by source)
-                                        </option>
-                                        <option value="reverse">
-                                          Reverse order
-                                        </option>
-                                        <option value="random">
-                                          Random order (shuffled each sync)
-                                        </option>
-                                        <option value="imdb_rating_desc">
-                                          IMDb Rating (Highest to Lowest)
-                                        </option>
-                                        <option value="imdb_rating_asc">
-                                          IMDb Rating (Lowest to Highest)
-                                        </option>
-                                        <option value="release_date_desc">
-                                          Release Date (Newest to Oldest)
-                                        </option>
-                                        <option value="release_date_asc">
-                                          Release Date (Oldest to Newest)
-                                        </option>
-                                        <option value="date_added_desc">
-                                          Date Added to Plex (Most Recent)
-                                        </option>
-                                        <option value="date_added_asc">
-                                          Date Added to Plex (Least Recent)
-                                        </option>
-                                        <option value="alphabetical_asc">
-                                          Alphabetical (A-Z)
-                                        </option>
-                                        <option value="alphabetical_desc">
-                                          Alphabetical (Z-A)
-                                        </option>
+                                        <>
+                                          <option value="default">
+                                            {intl.formatMessage(
+                                              messages.defaultOrder
+                                            )}
+                                          </option>
+                                          <option value="reverse">
+                                            {intl.formatMessage(
+                                              messages.reverseOrder
+                                            )}
+                                          </option>
+                                          <option value="random">
+                                            {intl.formatMessage(
+                                              messages.randomOrder
+                                            )}
+                                          </option>
+                                          <option value="imdb_rating_desc">
+                                            {intl.formatMessage(
+                                              messages.imdbRatingDesc
+                                            )}
+                                          </option>
+                                          <option value="imdb_rating_asc">
+                                            {intl.formatMessage(
+                                              messages.imdbRatingAsc
+                                            )}
+                                          </option>
+                                          <option value="release_date_desc">
+                                            {intl.formatMessage(
+                                              messages.releaseDateDesc
+                                            )}
+                                          </option>
+                                          <option value="release_date_asc">
+                                            {intl.formatMessage(
+                                              messages.releaseDateAsc
+                                            )}
+                                          </option>
+                                          <option value="date_added_desc">
+                                            {intl.formatMessage(
+                                              messages.dateAddedDesc
+                                            )}
+                                          </option>
+                                          <option value="date_added_asc">
+                                            {intl.formatMessage(
+                                              messages.dateAddedAsc
+                                            )}
+                                          </option>
+                                          <option value="alphabetical_asc">
+                                            {intl.formatMessage(
+                                              messages.alphabeticalAsc
+                                            )}
+                                          </option>
+                                          <option value="alphabetical_desc">
+                                            {intl.formatMessage(
+                                              messages.alphabeticalDesc
+                                            )}
+                                          </option>
+                                        </>
                                       </Field>
                                     </div>
                                   </div>
@@ -2592,7 +2799,9 @@ const CollectionFormConfigForm = ({
 
                             {/* Collection Visibility */}
                             <div className="form-row">
-                              <div className="text-label">Visibility</div>
+                              <div className="text-label">
+                                {intl.formatMessage(messages.visibility)}
+                              </div>
                               <div className="form-input-area">
                                 <VisibilitySection
                                   values={typedValues as CollectionFormConfig}
@@ -2629,15 +2838,15 @@ const CollectionFormConfigForm = ({
                                   htmlFor="randomizeHomeOrder"
                                   className="ml-2 text-sm text-gray-300"
                                 >
-                                  Shuffle position on Home/Recommended screens
+                                  {intl.formatMessage(
+                                    messages.shufflePositionLabel
+                                  )}
                                 </label>
                               </div>
                               <div className="label-tip mt-2">
-                                When enabled, this collection&apos;s position
-                                will be randomly shuffled with other collections
-                                that have this option enabled during each sync.
-                                Custom scheduling for shuffling can be set on
-                                the Jobs page.
+                                {intl.formatMessage(
+                                  messages.shufflePositionHelp
+                                )}
                               </div>
                             </div>
 
@@ -2647,7 +2856,7 @@ const CollectionFormConfigForm = ({
                                 htmlFor="collectionMaxItems"
                                 className="text-label"
                               >
-                                Max Items
+                                {intl.formatMessage(messages.maxItems)}
                               </label>
                               <div className="form-input-area">
                                 <div className="form-input-field">
@@ -2665,9 +2874,17 @@ const CollectionFormConfigForm = ({
                                   </div>
                                 )}
                                 <div className="label-tip">
-                                  Limit the Collection to this many items
-                                  {values.type === 'filtered_hub' &&
-                                    ' (applies to smart collection)'}
+                                  {intl.formatMessage(
+                                    messages.limitCollectionItems,
+                                    {
+                                      smartCollectionNote:
+                                        values.type === 'filtered_hub'
+                                          ? intl.formatMessage(
+                                              messages.limitCollectionItemsSmartNote
+                                            )
+                                          : '',
+                                    }
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -2706,12 +2923,9 @@ const CollectionFormConfigForm = ({
                                       </label>
                                     </div>
                                     <div className="mt-2 text-xs text-gray-400">
-                                      When enabled, creates a smart collection
-                                      with the unwatched filter to show only
-                                      unwatched items for the user viewing the
-                                      collection. The original collection will
-                                      be pushed to the bottom in the Collections
-                                      Tab.
+                                      {intl.formatMessage(
+                                        messages.smartCollectionDescription
+                                      )}
                                     </div>
                                     {/* Smart Collection Sort Order - only show when showUnwatchedOnly is enabled */}
                                     {values.showUnwatchedOnly && (
@@ -2766,11 +2980,9 @@ const CollectionFormConfigForm = ({
                                             </Field>
                                           </div>
                                           <div className="mt-2 text-xs text-gray-400">
-                                            Choose how items in the smart
-                                            collection should be sorted. Due to
-                                            Plex limitations, the original list
-                                            order cannot be preserved when using
-                                            smart collections.
+                                            {intl.formatMessage(
+                                              messages.smartCollectionSortNote
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -2980,7 +3192,9 @@ const CollectionFormConfigForm = ({
                                     htmlFor="createPlaceholdersForMissing"
                                     className="text-label"
                                   >
-                                    Placeholder Creation
+                                    {intl.formatMessage(
+                                      messages.placeholderCreation
+                                    )}
                                   </label>
                                   <div className="form-input-area">
                                     <div className="flex items-center">
@@ -3009,13 +3223,15 @@ const CollectionFormConfigForm = ({
                                             : 'text-gray-300'
                                         }`}
                                       >
-                                        Create placeholders for missing items
+                                        {intl.formatMessage(
+                                          messages.createPlaceholdersForMissing
+                                        )}
                                       </span>
                                     </div>
                                     <p className="mt-1 text-xs text-gray-400">
-                                      Creates placeholder files in Plex for
-                                      items not yet available, with countdown
-                                      overlays showing release dates.
+                                      {intl.formatMessage(
+                                        messages.placeholderCreationHelp
+                                      )}
                                     </p>
 
                                     {/* Warning when placeholder creation enabled but no root folders configured */}
@@ -3064,10 +3280,6 @@ const CollectionFormConfigForm = ({
                                       const count = missingLibraryNames.length;
                                       const namesText =
                                         missingLibraryNames.join(', ');
-                                      const pluralLibrary =
-                                        count > 1 ? 'libraries' : 'library';
-                                      const pluralNeed =
-                                        count > 1 ? 'need' : 'needs';
 
                                       return (
                                         <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
@@ -3094,16 +3306,27 @@ const CollectionFormConfigForm = ({
                                                 )}
                                               </p>
                                               <p className="mt-1 text-xs text-yellow-200">
-                                                The following {pluralLibrary}{' '}
-                                                {pluralNeed} placeholder root
-                                                folders configured:{' '}
-                                                <strong>{namesText}</strong>.
-                                                Please configure placeholder
-                                                folders for{' '}
-                                                {count > 1
-                                                  ? 'these libraries'
-                                                  : 'this library'}{' '}
-                                                in Settings &gt; Downloads.
+                                                <FormattedMessage
+                                                  {...messages.placeholderFoldersNotConfigured}
+                                                  values={{
+                                                    pluralLibrary:
+                                                      count > 1
+                                                        ? 'libraries'
+                                                        : 'library',
+                                                    pluralNeed:
+                                                      count > 1
+                                                        ? 'need'
+                                                        : 'needs',
+                                                    namesText,
+                                                    libraryCount:
+                                                      count > 1
+                                                        ? 'these libraries'
+                                                        : 'this library',
+                                                    strong: (chunks) => (
+                                                      <strong>{chunks}</strong>
+                                                    ),
+                                                  }}
+                                                />
                                               </p>
                                               <div className="mt-2">
                                                 <a
@@ -3230,24 +3453,14 @@ const CollectionFormConfigForm = ({
                                       <div className="mt-3">
                                         <Alert type="info">
                                           <p className="font-medium">
-                                            Use Filtered Plex Hubs to keep
-                                            placeholders out of Recently Added
-                                            etc
+                                            {intl.formatMessage(
+                                              messages.filteredPlexHubInfo
+                                            )}
                                           </p>
                                           <p className="mt-1.5">
-                                            Create{' '}
-                                            <span className="font-semibold">
-                                              Filtered Plex Hub
-                                            </span>{' '}
-                                            collection type to replace default
-                                            Plex hubs (Recently Added, Recently
-                                            Released, Recently Released
-                                            Episodes) with filtered versions
-                                            that automatically exclude
-                                            placeholder items. You can also
-                                            Enable Collection Exclusion on other
-                                            collections to exclude placeholders
-                                            from them.
+                                            {intl.formatMessage(
+                                              messages.filteredPlexHubDescription
+                                            )}
                                           </p>
                                         </Alert>
                                       </div>
@@ -3261,7 +3474,9 @@ const CollectionFormConfigForm = ({
                                             htmlFor="placeholderDaysAhead"
                                             className="block text-sm font-medium text-gray-300"
                                           >
-                                            Days Ahead
+                                            {intl.formatMessage(
+                                              messages.daysAhead
+                                            )}
                                           </label>
                                           <Field
                                             type="number"
@@ -3273,8 +3488,9 @@ const CollectionFormConfigForm = ({
                                             className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
                                           />
                                           <p className="mt-1 text-xs text-gray-400">
-                                            Create placeholders for items
-                                            releasing within this many days
+                                            {intl.formatMessage(
+                                              messages.daysAheadHelp
+                                            )}
                                           </p>
                                         </div>
                                         <div className="flex-1">
@@ -3282,7 +3498,9 @@ const CollectionFormConfigForm = ({
                                             htmlFor="placeholderReleasedDays"
                                             className="block text-sm font-medium text-gray-300"
                                           >
-                                            Orphaned Item Window
+                                            {intl.formatMessage(
+                                              messages.orphanedItemWindow
+                                            )}
                                           </label>
                                           <Field
                                             type="number"
@@ -3294,10 +3512,9 @@ const CollectionFormConfigForm = ({
                                             className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
                                           />
                                           <p className="mt-1 text-xs text-gray-400">
-                                            Days to keep placeholders after they
-                                            fall off the source list (from
-                                            release date if released, otherwise
-                                            from creation date)
+                                            {intl.formatMessage(
+                                              messages.orphanedItemWindowHelp
+                                            )}
                                           </p>
                                         </div>
                                       </div>
@@ -3437,7 +3654,9 @@ const CollectionFormConfigForm = ({
                         <>
                           {/* Visibility Section */}
                           <div className="form-row">
-                            <div className="text-label">Visibility</div>
+                            <div className="text-label">
+                              {intl.formatMessage(messages.visibility)}
+                            </div>
                             <div className="form-input-area">
                               <VisibilitySection
                                 values={typedValues as CollectionFormConfig}
@@ -3456,7 +3675,7 @@ const CollectionFormConfigForm = ({
                               htmlFor="randomizeHomeOrder"
                               className="text-label"
                             >
-                              Randomize Home Order
+                              {intl.formatMessage(messages.randomizeHomeOrder)}
                             </label>
                             <div className="form-input-area">
                               <div className="flex items-center">
@@ -3470,16 +3689,18 @@ const CollectionFormConfigForm = ({
                                   htmlFor="randomizeHomeOrder"
                                   className="ml-2 text-sm text-gray-300"
                                 >
-                                  Shuffle position on Home/Recommended screens
+                                  {intl.formatMessage(
+                                    messages.shufflePositionLabel
+                                  )}
                                 </label>
                               </div>
                               <div className="label-tip mt-2">
-                                When enabled, this{' '}
-                                {isHub ? 'hub' : 'collection'}
-                                &apos;s position will be randomly shuffled with
-                                other collections that have this option enabled
-                                during each sync. Custom scheduling for
-                                shuffling can be set on the Jobs page.
+                                {intl.formatMessage(
+                                  messages.shuffleHubCollectionHelp,
+                                  {
+                                    itemType: isHub ? 'hub' : 'collection',
+                                  }
+                                )}
                               </div>
                             </div>
                           </div>
@@ -3672,39 +3893,15 @@ const CollectionFormConfigForm = ({
                       {!isValid && Object.keys(errors).length > 0 && (
                         <div className="mt-3 space-y-1">
                           <div className="text-xs font-medium text-red-400">
-                            Please fix the following errors:
+                            {intl.formatMessage(messages.pleaseFixErrors)}
                           </div>
                           {Object.entries(errors).map(([field, error]) => {
                             // Skip nested object errors - they should be handled by their specific components
                             if (typeof error === 'object') return null;
 
-                            // Convert field names to user-friendly labels
-                            const fieldLabels: Record<string, string> = {
-                              type: 'Collection Type',
-                              subtype: 'Collection Sub-Type',
-                              template: 'Collection Title Template',
-                              libraryIds: 'Library Selection',
-                              libraryId: 'Library Selection',
-                              maxItems: 'Max Items',
-                              customDays: 'Number of Days',
-                              customMovieTemplate: 'Custom Movie Template',
-                              customTVTemplate: 'Custom TV Template',
-                              traktCustomListUrl: 'Trakt List URL',
-                              tmdbCustomCollectionUrl:
-                                'TMDB Collection/List/Network/Company URL',
-                              imdbCustomListUrl: 'IMDb List URL',
-                              anilistCustomListUrl: 'AniList List URL',
-                              letterboxdCustomListUrl: 'Letterboxd List URL',
-                              maxSeasonsToRequest: 'Max Seasons to Request',
-                              seasonsPerShowLimit: 'Seasons Per Show Limit',
-                              timePeriod: 'Time Period',
-                            };
-
-                            const fieldLabel = fieldLabels[field] || field;
-
                             return (
                               <div key={field} className="text-xs text-red-300">
-                                • {fieldLabel}: {String(error)}
+                                • {String(error)}
                               </div>
                             );
                           })}

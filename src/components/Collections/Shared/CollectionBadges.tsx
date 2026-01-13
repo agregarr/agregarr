@@ -13,6 +13,17 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 import type React from 'react';
+import { defineMessages, useIntl } from 'react-intl';
+
+const messages = defineMessages({
+  plexDefault: 'Plex Default',
+  preExisting: 'Pre-Existing',
+  items: 'Items: {maxItems}',
+  grabMissingItems: 'Grab Missing Items',
+  timeRestrictionsSet: 'Time Restrictions Set',
+  unwatched: 'Unwatched',
+  createPlaceholders: 'Create Placeholders',
+});
 
 // This file contains shared badge and UI components used across LibraryCollectionGroup and AllCollectionsView
 
@@ -460,11 +471,14 @@ export const getTypeLabel = (type: string): string => {
 };
 
 // Collection Type Badge - for Plex Default Hubs
-export const PlexDefaultBadge: React.FC = () => (
-  <Badge badgeType="default" className="text-xs">
-    Plex Default
-  </Badge>
-);
+export const PlexDefaultBadge: React.FC = () => {
+  const intl = useIntl();
+  return (
+    <Badge badgeType="default" className="text-xs">
+      {intl.formatMessage(messages.plexDefault)}
+    </Badge>
+  );
+};
 
 // Collection Type Badge - for Pre-Existing Collections
 interface PreExistingBadgeProps {
@@ -473,18 +487,21 @@ interface PreExistingBadgeProps {
 
 export const PreExistingBadge: React.FC<PreExistingBadgeProps> = ({
   withBorder = false,
-}) => (
-  <Badge
-    badgeType={withBorder ? 'default' : 'warning'}
-    className={
-      withBorder
-        ? '!border !border-orange-500 !bg-stone-600/20 text-xs !text-stone-300'
-        : 'text-xs'
-    }
-  >
-    Pre-Existing
-  </Badge>
-);
+}) => {
+  const intl = useIntl();
+  return (
+    <Badge
+      badgeType={withBorder ? 'default' : 'warning'}
+      className={
+        withBorder
+          ? '!border !border-orange-500 !bg-stone-600/20 text-xs !text-stone-300'
+          : 'text-xs'
+      }
+    >
+      {intl.formatMessage(messages.preExisting)}
+    </Badge>
+  );
+};
 
 // Enhanced Source & Subtype Badge
 interface SourceSubtypeBadgeProps {
@@ -519,12 +536,13 @@ export const ItemCountBadge: React.FC<ItemCountBadgeProps> = ({
   maxItems,
   onBadgeClick,
 }) => {
+  const intl = useIntl();
   // Easter egg handling for maxItems === 69
   if (maxItems === 69 && onBadgeClick) {
     return (
       <button type="button" onClick={onBadgeClick} className="cursor-pointer">
         <Badge badgeType="success" className="!bg-opacity-40">
-          Items: {maxItems}
+          {intl.formatMessage(messages.items, { maxItems })}
         </Badge>
       </button>
     );
@@ -532,7 +550,7 @@ export const ItemCountBadge: React.FC<ItemCountBadgeProps> = ({
 
   return (
     <Badge badgeType="default" className="!bg-opacity-30">
-      Items: {maxItems}
+      {intl.formatMessage(messages.items, { maxItems })}
     </Badge>
   );
 };
@@ -547,13 +565,14 @@ export const MissingItemsBadge: React.FC<MissingItemsBadgeProps> = ({
   searchMissingMovies,
   searchMissingTV,
 }) => {
+  const intl = useIntl();
   const hasGrabMissing = searchMissingMovies || searchMissingTV;
 
   if (!hasGrabMissing) return null;
 
   return (
     <Badge badgeType="default" className="!bg-opacity-30">
-      Grab Missing Items
+      {intl.formatMessage(messages.grabMissingItems)}
     </Badge>
   );
 };
@@ -568,11 +587,12 @@ interface TimeRestrictionsBadgeProps {
 export const TimeRestrictionsBadge: React.FC<TimeRestrictionsBadgeProps> = ({
   timeRestriction,
 }) => {
+  const intl = useIntl();
   if (!timeRestriction || timeRestriction.alwaysActive) return null;
 
   return (
     <Badge badgeType="default" className="!bg-opacity-30">
-      Time Restrictions Set
+      {intl.formatMessage(messages.timeRestrictionsSet)}
     </Badge>
   );
 };
@@ -604,11 +624,12 @@ interface UnwatchedBadgeProps {
 export const UnwatchedBadge: React.FC<UnwatchedBadgeProps> = ({
   showUnwatchedOnly,
 }) => {
+  const intl = useIntl();
   if (!showUnwatchedOnly) return null;
 
   return (
     <Badge badgeType="default" className="!bg-opacity-30">
-      Unwatched
+      {intl.formatMessage(messages.unwatched)}
     </Badge>
   );
 };
@@ -621,11 +642,12 @@ interface PlaceholdersBadgeProps {
 export const PlaceholdersBadge: React.FC<PlaceholdersBadgeProps> = ({
   createPlaceholdersForMissing,
 }) => {
+  const intl = useIntl();
   if (!createPlaceholdersForMissing) return null;
 
   return (
     <Badge badgeType="default" className="!bg-opacity-30">
-      Create Placeholders
+      {intl.formatMessage(messages.createPlaceholders)}
     </Badge>
   );
 };

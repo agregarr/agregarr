@@ -3,6 +3,11 @@ import type { Permission } from '@server/lib/permissions';
 import { hasPermission } from '@server/lib/permissions';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { defineMessages, useIntl } from 'react-intl';
+
+const messages = defineMessages({
+  selectTab: 'Select a Tab',
+});
 
 export interface SettingsRoute {
   text: string;
@@ -77,12 +82,13 @@ const SettingsTabs = ({
 }) => {
   const router = useRouter();
   const { user: currentUser } = useUser();
+  const intl = useIntl();
 
   return (
     <>
       <div className="sm:hidden">
         <label htmlFor="tabs" className="sr-only">
-          Select a Tab
+          {intl.formatMessage(messages.selectTab)}
         </label>
         <select
           onChange={(e) => {

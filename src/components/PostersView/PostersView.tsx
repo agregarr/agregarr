@@ -31,14 +31,11 @@ const messages = defineMessages({
   importTemplate: 'Import Template',
   importSourceColors: 'Import Source Colors',
   exportSourceColors: 'Export Source Colors',
-  loading: 'Loading...',
   error: 'Failed to load data',
   importSuccess: 'Template imported successfully',
   importError: 'Failed to import file',
   sourceColorsExportSuccess: 'Source colors exported successfully',
   sourceColorsExportError: 'Failed to export source colors',
-  invalidFileFormat:
-    'Invalid file format. Please select a valid template or source colors JSON file.',
 });
 
 interface PosterTemplate {

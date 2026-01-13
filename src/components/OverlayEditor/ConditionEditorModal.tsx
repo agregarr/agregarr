@@ -59,6 +59,8 @@ const messages = defineMessages({
   opExists: 'exists',
   and: 'AND',
   or: 'OR',
+  true: 'true',
+  false: 'false',
 });
 
 // List of numeric fields
@@ -309,8 +311,8 @@ const RuleItem: React.FC<RuleItemProps> = ({
           }}
           className="flex-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-sm text-white"
         >
-          <option value="true">true</option>
-          <option value="false">false</option>
+          <option value="true">{intl.formatMessage(messages.true)}</option>
+          <option value="false">{intl.formatMessage(messages.false)}</option>
         </select>
       ) : isTagField ? (
         <select

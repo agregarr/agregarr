@@ -9,14 +9,11 @@ import useSWR from 'swr';
 
 const messages = defineMessages({
   selectSeasons: 'Select Seasons',
-  selectSeasonsDescription: 'Choose which seasons to download',
   season: 'Season',
   seasonnumber: 'Season {number}',
   download: 'Download',
   cancel: 'Cancel',
   loadingSeasons: 'Loading seasons...',
-  selectAll: 'Select All',
-  deselectAll: 'Deselect All',
   selectServer: 'Select Server',
   selectProfile: 'Select Quality Profile',
   selectRootFolder: 'Select Root Folder',

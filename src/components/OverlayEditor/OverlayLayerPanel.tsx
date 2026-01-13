@@ -113,6 +113,9 @@ const messages = defineMessages({
   opRegex: 'matches regex',
   opBegins: 'begins with',
   opEnds: 'ends with',
+  locked: 'Locked',
+  unlocked: 'Unlocked',
+  unknownElement: 'Unknown element type: {type}',
 });
 
 interface FontInfo {
@@ -701,23 +704,23 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                 props.borderRadius !== undefined ? (
                   <>
                     <LockClosedIcon className="h-3 w-3" />
-                    <span>Locked</span>
+                    <span>{intl.formatMessage(messages.locked)}</span>
                   </>
                 ) : (
                   <>
                     <LockOpenIcon className="h-3 w-3" />
-                    <span>Unlocked</span>
+                    <span>{intl.formatMessage(messages.unlocked)}</span>
                   </>
                 )
               ) : props.lockCorners ? (
                 <>
                   <LockClosedIcon className="h-3 w-3" />
-                  <span>Locked</span>
+                  <span>{intl.formatMessage(messages.locked)}</span>
                 </>
               ) : (
                 <>
                   <LockOpenIcon className="h-3 w-3" />
-                  <span>Unlocked</span>
+                  <span>{intl.formatMessage(messages.unlocked)}</span>
                 </>
               )}
             </button>
@@ -1610,7 +1613,9 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         default:
           return (
             <p className="text-xs text-stone-400">
-              Unknown element type: {selectedElement.type}
+              {intl.formatMessage(messages.unknownElement, {
+                type: selectedElement.type,
+              })}
             </p>
           );
       }

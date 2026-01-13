@@ -10,8 +10,9 @@ const messages = defineMessages({
     'Automatically exclude items that exist in other collections. Items from selected collections will be removed from this collection during sync. Note: Exclusions only apply if the excluded collection is active in Plex.',
   enableExclusion: 'Enable collection exclusion',
   selectCollections: 'Select collections to exclude items from',
-  noCollectionsAvailable: 'No other collections available for exclusion',
   collectionPlaceholder: 'Select collections...',
+  collectionsSelected:
+    '{count, plural, one {# collection selected for exclusion} other {# collections selected for exclusion}}',
 });
 
 interface CollectionExclusionSectionProps {
@@ -209,9 +210,9 @@ const CollectionExclusionSection: React.FC<CollectionExclusionSectionProps> = ({
             />
             {selectedExclusions.length > 0 && (
               <div className="mt-2 text-xs text-gray-400">
-                {selectedExclusions.length} collection
-                {selectedExclusions.length !== 1 ? 's' : ''} selected for
-                exclusion
+                {intl.formatMessage(messages.collectionsSelected, {
+                  count: selectedExclusions.length,
+                })}
               </div>
             )}
           </div>

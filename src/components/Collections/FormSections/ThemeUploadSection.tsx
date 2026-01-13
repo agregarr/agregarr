@@ -5,14 +5,7 @@ import { useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
-  customTheme: 'Custom Theme Music',
-  addTheme: 'Add Theme',
   uploading: 'Uploading theme...',
-  remove: 'Remove',
-  play: 'Play',
-  pause: 'Pause',
-  themeUploadHelp:
-    'Upload a custom theme music file for this collection (MP3, WAV, FLAC, OGG, AAC, or M4A, max 10MB). Theme will be applied to Plex during the next collection sync.',
   themeUploadHelpMulti:
     'Upload custom theme music files for each selected library. Themes will be applied to Plex collections during the next sync.',
   themeRemoveConfirm: 'Theme will be removed on next collection sync',
@@ -23,6 +16,7 @@ const messages = defineMessages({
     'Only MP3, WAV, FLAC, OGG, AAC, and M4A files are allowed',
   themeUploadErrorGeneric: 'Upload failed',
   themeUploadErrorNetwork: 'Network error occurred',
+  selectLibrariesFirst: 'Select libraries first to upload custom themes.',
 });
 
 interface Library {
@@ -224,7 +218,7 @@ const ThemeUploadSection = ({
   if (selectedLibraryIds.length === 0) {
     return (
       <div className="label-tip">
-        Select libraries first to upload custom themes.
+        {intl.formatMessage(messages.selectLibrariesFirst)}
       </div>
     );
   }

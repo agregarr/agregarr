@@ -10,14 +10,17 @@ type VisibilityConfig = {
 };
 
 const messages = defineMessages({
-  visibility: 'Visibility',
-  visibilityDescription: 'Control where this collection appears in Plex',
   usersHome: 'Users Home',
-  usersHomeDescription: 'Show on user home screens',
   serverOwnerHome: 'Server Owner Home',
-  serverOwnerHomeDescription: 'Show on server owner home screen',
   libraryRecommended: 'Library Recommended',
-  libraryRecommendedDescription: 'Show in library recommended section',
+  userRequestCollectionsRestricted:
+    "Individual user request collections are restricted to Library Tab Only visibility due a Plex bug that doesn't respect label restrictions on the Home/Recommended screens. TMDB Franchise Collections and Plex Library Auto Director Collections are hidden so that you don't clog up your home/recommended screens.",
+  serverOwnerOnlyRestricted:
+    "Server owner request collections can only appear on the server owner's home screen.",
+  noVisibilityHubWarning:
+    'No visibility options selected. Hub will be completely hidden.',
+  noVisibilityCollectionWarning:
+    'No visibility options selected. Collection will only appear in library tab.',
 });
 
 interface VisibilitySectionProps {
@@ -79,19 +82,14 @@ const VisibilitySection = ({
       {/* Show restriction notice for collections restricted to library only */}
       {restrictToLibraryOnly && (
         <div className="mb-3 rounded border border-orange-500/20 bg-orange-500/10 p-3 text-sm text-orange-300">
-          Individual user request collections are restricted to Library Tab Only
-          visibility due a Plex bug that doesn&apos;t respect label restrictions
-          on the Home/Recommended screens. TMDB Franchise Collections and Plex
-          Library Auto Director Collections are hidden so that you don&apos;t
-          clog up your home/recommended screens.
+          {intl.formatMessage(messages.userRequestCollectionsRestricted)}
         </div>
       )}
 
       {/* Show restriction notice for overseerr server owner collections */}
       {restrictToServerOwnerOnly && (
         <div className="mb-3 rounded border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-300">
-          Server owner request collections can only appear on the server
-          owner&apos;s home screen.
+          {intl.formatMessage(messages.serverOwnerOnlyRestricted)}
         </div>
       )}
 
@@ -170,17 +168,10 @@ const VisibilitySection = ({
         !visibilityConfig?.serverOwnerHome &&
         !visibilityConfig?.libraryRecommended && (
           <div className="mt-3 rounded border border-orange-500/20 bg-orange-500/10 p-2 text-xs text-orange-300">
-            {isDefaultPlexHub ? (
-              <>
-                ⚠️ No visibility options selected. Hub will be completely
-                hidden.
-              </>
-            ) : (
-              <>
-                ⚠️ No visibility options selected. Collection will only appear
-                in library tab.
-              </>
-            )}
+            ⚠️{' '}
+            {isDefaultPlexHub
+              ? intl.formatMessage(messages.noVisibilityHubWarning)
+              : intl.formatMessage(messages.noVisibilityCollectionWarning)}
           </div>
         )}
     </div>

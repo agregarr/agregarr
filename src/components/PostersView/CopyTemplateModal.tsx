@@ -18,7 +18,6 @@ const messages = defineMessages({
   deselectAll: 'Deselect All',
   copyElements: 'Copy {elementCount} elements to {templateCount} templates',
   cancel: 'Cancel',
-  copied: 'Elements copied successfully',
   copyFailed: 'Failed to copy elements',
   noElementsSelected: 'Select at least one element',
   noTemplatesSelected: 'Select at least one template',
@@ -27,6 +26,9 @@ const messages = defineMessages({
   elementVariable: 'Variable',
   elementRaster: 'Image',
   elementSvg: 'Icon',
+  copyingFrom: 'Copying from:',
+  noElementsInTemplate: 'No elements in template',
+  noTemplatesAvailable: 'No templates available',
 });
 
 interface Template {
@@ -200,7 +202,9 @@ const CopyTemplateModal: React.FC<CopyTemplateModalProps> = ({
         </div>
 
         <div className="rounded-lg bg-stone-800 p-3">
-          <div className="text-xs text-stone-500">Copying from:</div>
+          <div className="text-xs text-stone-500">
+            {intl.formatMessage(messages.copyingFrom)}
+          </div>
           <div className="mt-1 font-medium text-white">
             {sourceTemplate.name}
           </div>
@@ -226,7 +230,7 @@ const CopyTemplateModal: React.FC<CopyTemplateModalProps> = ({
             <div className="max-h-96 space-y-2 overflow-y-auto rounded-lg border border-stone-700 p-3">
               {sourceElements.length === 0 ? (
                 <div className="py-8 text-center text-sm text-stone-500">
-                  No elements in template
+                  {intl.formatMessage(messages.noElementsInTemplate)}
                 </div>
               ) : (
                 sourceElements.map((element) => (
@@ -277,7 +281,7 @@ const CopyTemplateModal: React.FC<CopyTemplateModalProps> = ({
             <div className="max-h-96 space-y-2 overflow-y-auto rounded-lg border border-stone-700 p-3">
               {availableTemplates.length === 0 ? (
                 <div className="py-8 text-center text-sm text-stone-500">
-                  No templates available
+                  {intl.formatMessage(messages.noTemplatesAvailable)}
                 </div>
               ) : (
                 availableTemplates.map((template) => (

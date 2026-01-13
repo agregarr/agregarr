@@ -46,7 +46,6 @@ const messages = defineMessages({
   allCollectionsTitle: 'All Collections',
   allCollectionsDescription:
     'Complete list of all Agregarr Collections, Default Plex Hubs, and Pre-existing Collections.',
-  loading: 'Loading collections...',
   noCollections: 'No collections found.',
   agregarrCollections: 'Agregarr Collections',
   plexHubs: 'Plex Hubs',
@@ -57,6 +56,13 @@ const messages = defineMessages({
   nameAZ: 'Name (A-Z)',
   nameZA: 'Name (Z-A)',
   bulkEdit: 'Bulk Edit',
+  errorLoadingCollections: 'Error Loading Collections',
+  errorLoadingDescription:
+    'Failed to load collection data. Please try refreshing the page.',
+  ofTotal: 'of {total}',
+  sortType: 'Type',
+  sortLibrary: 'Library',
+  titleWillUpdate: 'Title will be updated on Collection Sync',
 });
 
 // Interfaces for clean collection data display - no conversion needed
@@ -289,10 +295,10 @@ const AllCollectionsView: React.FC = () => {
     return (
       <div className="text-center">
         <h3 className="text-lg font-medium text-red-400">
-          Error Loading Collections
+          {intl.formatMessage(messages.errorLoadingCollections)}
         </h3>
         <p className="mt-2 text-gray-500">
-          Failed to load collection data. Please try refreshing the page.
+          {intl.formatMessage(messages.errorLoadingDescription)}
         </p>
       </div>
     );
@@ -541,7 +547,9 @@ const AllCollectionsView: React.FC = () => {
                 filteredAndSortedCollections.length && (
                 <span className="text-gray-500">
                   {' '}
-                  of {allCollections.length}
+                  {intl.formatMessage(messages.ofTotal, {
+                    total: allCollections.length,
+                  })}
                 </span>
               )}
             </p>
@@ -593,10 +601,18 @@ const AllCollectionsView: React.FC = () => {
               onChange={(e) => setSortType(e.target.value)}
               className="rounded-md border border-gray-600 bg-stone-700 px-3 py-1 text-sm text-white focus:border-orange-400 focus:ring-2 focus:ring-orange-400"
             >
-              <option value="name-asc">Name (A-Z)</option>
-              <option value="name-desc">Name (Z-A)</option>
-              <option value="type">Type</option>
-              <option value="library">Library</option>
+              <option value="name-asc">
+                {intl.formatMessage(messages.nameAZ)}
+              </option>
+              <option value="name-desc">
+                {intl.formatMessage(messages.nameZA)}
+              </option>
+              <option value="type">
+                {intl.formatMessage(messages.sortType)}
+              </option>
+              <option value="library">
+                {intl.formatMessage(messages.sortLibrary)}
+              </option>
             </select>
           </div>
         </div>
@@ -665,7 +681,9 @@ const AllCollectionsView: React.FC = () => {
                     <div className="mb-2">
                       <h5 className="text-base font-medium text-white">
                         {collection.name === 'DYNAMIC_RANDOM_TITLE' ? (
-                          <em>Title will be updated on Collection Sync</em>
+                          <em>
+                            {intl.formatMessage(messages.titleWillUpdate)}
+                          </em>
                         ) : isCollection &&
                           originalCollectionConfig?.type === 'plex' &&
                           (originalCollectionConfig?.subtype === 'directors' ||

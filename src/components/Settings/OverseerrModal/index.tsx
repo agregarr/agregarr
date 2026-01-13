@@ -23,6 +23,9 @@ const messages = defineMessages({
   validationApiKeyRequired: 'You must provide an API key',
   toastOverseerrTestSuccess: 'Overseerr connection established successfully!',
   toastOverseerrTestFailure: 'Failed to connect to Overseerr.',
+  connectionRefused: 'Connection refused. Check hostname and port.',
+  hostNotFound: 'Host not found. Check hostname.',
+  connectionTimeout: 'Connection timeout. Check network connectivity.',
   add: 'Add Connection',
   hostname: 'Hostname or IP Address',
   port: 'Port',
@@ -31,12 +34,6 @@ const messages = defineMessages({
   apiKeyTip: 'Get your API key from Overseerr Settings > General > API Key',
   urlBase: 'URL Base',
   externalUrl: 'External URL',
-  serverId: 'Default Server',
-  serverIdTip: 'Default Radarr/Sonarr server for requests',
-  profileId: 'Default Quality Profile',
-  profileIdTip: 'Default quality profile for requests',
-  rootFolder: 'Default Root Folder',
-  rootFolderTip: 'Default root folder for requests',
   tags: 'Default Tags',
   tagsTip: 'Default tags for requests',
   selectServer: 'Select a server',
@@ -44,8 +41,6 @@ const messages = defineMessages({
   selectRootFolder: 'Select a root folder',
   selectTags: 'Select tags',
   loadingServers: 'Loading servers…',
-  loadingProfiles: 'Loading quality profiles…',
-  loadingRootFolders: 'Loading root folders…',
   loadingTags: 'Loading tags…',
   testFirstServers: 'Test connection to load servers',
   testFirstProfiles: 'Select a server first',
@@ -57,6 +52,26 @@ const messages = defineMessages({
   validationUrlBaseLeadingSlash: 'URL base must have a leading slash',
   validationUrlBaseTrailingSlash: 'URL base must not end in a trailing slash',
   granularUsers: 'Create Overseerr users for Requests',
+  moviesRadarrDefaults: 'Movies (Radarr) Defaults',
+  defaultRadarrServer: 'Default Radarr Server',
+  defaultServerForMovieRequests: 'Default server for movie requests',
+  defaultMovieProfile: 'Default Movie Profile',
+  defaultQualityProfileForMovieRequests:
+    'Default quality profile for movie requests',
+  defaultMovieRootFolder: 'Default Movie Root Folder',
+  defaultRootFolderForMovieRequests: 'Default root folder for movie requests',
+  tvShowsSonarrDefaults: 'TV Shows (Sonarr) Defaults',
+  defaultSonarrServer: 'Default Sonarr Server',
+  defaultServerForTvShowRequests: 'Default server for TV show requests',
+  defaultTvProfile: 'Default TV Profile',
+  defaultQualityProfileForTvShowRequests:
+    'Default quality profile for TV show requests',
+  defaultTvRootFolder: 'Default TV Root Folder',
+  defaultRootFolderForTvShowRequests:
+    'Default root folder for TV show requests',
+  singleUser: 'Single user (Agregarr)',
+  perService: 'Per service (TraktAgregarr, TMDbAgregarr)',
+  granular: 'Granular (TraktTrendingAgregarr, TMDbPopularAgregarr)',
 });
 
 interface TestResponse {
@@ -225,12 +240,15 @@ const OverseerrModal = ({
           // If no server message, provide client-side diagnostics
           if (!e.response?.data?.message) {
             if (e.code === 'ECONNREFUSED') {
-              errorMessage += ' - Connection refused. Check hostname and port.';
+              errorMessage += ` - ${intl.formatMessage(
+                messages.connectionRefused
+              )}`;
             } else if (e.code === 'ENOTFOUND') {
-              errorMessage += ' - Host not found. Check hostname.';
+              errorMessage += ` - ${intl.formatMessage(messages.hostNotFound)}`;
             } else if (e.code === 'ETIMEDOUT') {
-              errorMessage +=
-                ' - Connection timeout. Check network connectivity.';
+              errorMessage += ` - ${intl.formatMessage(
+                messages.connectionTimeout
+              )}`;
             } else if (e.message) {
               errorMessage += ` - ${e.message}`;
             }
@@ -539,15 +557,17 @@ const OverseerrModal = ({
                 {/* Movies (Radarr) Defaults */}
                 <div className="form-row">
                   <div className="text-label font-semibold">
-                    Movies (Radarr) Defaults
+                    {intl.formatMessage(messages.moviesRadarrDefaults)}
                   </div>
                 </div>
 
                 <div className="form-row">
                   <label htmlFor="radarrServerId" className="text-label">
-                    Default Radarr Server
+                    {intl.formatMessage(messages.defaultRadarrServer)}
                     <span className="label-tip">
-                      Default server for movie requests
+                      {intl.formatMessage(
+                        messages.defaultServerForMovieRequests
+                      )}
                     </span>
                   </label>
                   <div className="form-input-area">
@@ -582,12 +602,13 @@ const OverseerrModal = ({
                     </div>
                   </div>
                 </div>
-
                 <div className="form-row">
                   <label htmlFor="radarrProfileId" className="text-label">
-                    Default Movie Profile
+                    {intl.formatMessage(messages.defaultMovieProfile)}
                     <span className="label-tip">
-                      Default quality profile for movie requests
+                      {intl.formatMessage(
+                        messages.defaultQualityProfileForMovieRequests
+                      )}
                     </span>
                   </label>
                   <div className="form-input-area">
@@ -629,9 +650,11 @@ const OverseerrModal = ({
 
                 <div className="form-row">
                   <label htmlFor="radarrRootFolder" className="text-label">
-                    Default Movie Root Folder
+                    {intl.formatMessage(messages.defaultMovieRootFolder)}
                     <span className="label-tip">
-                      Default root folder for movie requests
+                      {intl.formatMessage(
+                        messages.defaultRootFolderForMovieRequests
+                      )}
                     </span>
                   </label>
                   <div className="form-input-area">
@@ -746,15 +769,17 @@ const OverseerrModal = ({
                 {/* TV Shows (Sonarr) Defaults */}
                 <div className="form-row">
                   <div className="text-label font-semibold">
-                    TV Shows (Sonarr) Defaults
+                    {intl.formatMessage(messages.tvShowsSonarrDefaults)}
                   </div>
                 </div>
 
                 <div className="form-row">
                   <label htmlFor="sonarrServerId" className="text-label">
-                    Default Sonarr Server
+                    {intl.formatMessage(messages.defaultSonarrServer)}
                     <span className="label-tip">
-                      Default server for TV show requests
+                      {intl.formatMessage(
+                        messages.defaultServerForTvShowRequests
+                      )}
                     </span>
                   </label>
                   <div className="form-input-area">
@@ -792,9 +817,11 @@ const OverseerrModal = ({
 
                 <div className="form-row">
                   <label htmlFor="sonarrProfileId" className="text-label">
-                    Default TV Profile
+                    {intl.formatMessage(messages.defaultTvProfile)}
                     <span className="label-tip">
-                      Default quality profile for TV show requests
+                      {intl.formatMessage(
+                        messages.defaultQualityProfileForTvShowRequests
+                      )}
                     </span>
                   </label>
                   <div className="form-input-area">
@@ -836,9 +863,11 @@ const OverseerrModal = ({
 
                 <div className="form-row">
                   <label htmlFor="sonarrRootFolder" className="text-label">
-                    Default TV Root Folder
+                    {intl.formatMessage(messages.defaultTvRootFolder)}
                     <span className="label-tip">
-                      Default root folder for TV show requests
+                      {intl.formatMessage(
+                        messages.defaultRootFolderForTvShowRequests
+                      )}
                     </span>
                   </label>
                   <div className="form-input-area">
@@ -962,12 +991,14 @@ const OverseerrModal = ({
                         id="userCreationMode"
                         name="userCreationMode"
                       >
-                        <option value="single">Single user (Agregarr)</option>
+                        <option value="single">
+                          {intl.formatMessage(messages.singleUser)}
+                        </option>
                         <option value="per-service">
-                          Per service (TraktAgregarr, TMDbAgregarr)
+                          {intl.formatMessage(messages.perService)}
                         </option>
                         <option value="granular">
-                          Granular (TraktTrendingAgregarr, TMDbPopularAgregarr)
+                          {intl.formatMessage(messages.granular)}
                         </option>
                       </Field>
                     </div>

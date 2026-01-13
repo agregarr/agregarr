@@ -41,7 +41,6 @@ const messages = defineMessages({
   default4k: 'Default 4K',
   is4k: '4K',
   address: 'Address',
-  activeProfile: 'Active Profile',
   addoverseerr: 'Add Overseerr Connection',
   addradarr: 'Add Radarr Server',
   addsonarr: 'Add Sonarr Server',
@@ -57,43 +56,8 @@ const messages = defineMessages({
   overseerrSettings: 'Overseerr Settings',
   overseerrSettingsDescription:
     'Configure connection to add missing items as Requests in Overseerr.',
-  overseerrHostname: 'Hostname or IP Address',
-  overseerrPort: 'Port',
-  overseerrApiKey: 'API Key',
-  overseerrApiKeyTip:
-    'Get your API key from Overseerr Settings > General > API Key',
-  overseerrUseSsl: 'Use SSL',
-  overseerrUrlBase: 'URL Base',
-  overseerrExternalUrl: 'External URL',
-  overseerrServerId: 'Default Server',
-  overseerrServerIdTip: 'Default Radarr/Sonarr server for requests',
-  overseerrProfileId: 'Default Quality Profile',
-  overseerrProfileIdTip: 'Default quality profile for requests',
-  overseerrRootFolder: 'Default Root Folder',
-  overseerrRootFolderTip: 'Default root folder for requests',
-  testOverseerrConnection: 'Test Connection',
-  overseerrConnectionSuccess: 'Connected to Overseerr successfully!',
-  overseerrConnectionFailure: 'Failed to connect to Overseerr',
-  toastOverseerrSettingsSuccess: 'Overseerr settings saved successfully!',
-  toastOverseerrSettingsFailure:
-    'Something went wrong while saving Overseerr settings.',
   save: 'Save Changes',
   saving: 'Saving…',
-  testing: 'Testing…',
-  validationHostnameRequired: 'You must provide a valid hostname or IP address',
-  validationPortRequired: 'You must provide a valid port number',
-  validationApiKey: 'You must provide an API key',
-  validationUrl: 'You must provide a valid URL',
-  validationUrlTrailingSlash: 'URL must not end in a trailing slash',
-  validationUrlBaseLeadingSlash: 'URL base must have a leading slash',
-  validationUrlBaseTrailingSlash: 'URL base must not end in a trailing slash',
-  serviceUserSettings: 'Service User Settings',
-  serviceUserSettingsDescription:
-    'Configure how Agregarr creates users in Overseerr for tracking requests.',
-  granularUsers: 'Create Overseerr users for Requests',
-  toastServiceUserSettingsSuccess: 'Service user settings saved successfully!',
-  toastServiceUserSettingsFailure:
-    'Something went wrong while saving service user settings.',
   placeholderSettings: 'Placeholder Root Folders',
   placeholderSettingsDescription:
     'Configure root folders for placeholder files for each library. These paths should match the mounted Plex library paths inside the Agregarr container.',
@@ -107,8 +71,6 @@ const messages = defineMessages({
   youtubeSettings: 'YouTube Cookie Configuration',
   youtubeSettingsDescription:
     'Recommended: Set up YouTube cookies to prevent bot detection and IP bans when downloading trailers for placeholder feature. Once banned, adding cookies may not be enough to unban you (from downloading youtube videos without being signed in)',
-  youtubeSettingsInstructions:
-    'To set up cookies: 1) Install a browser extension to export cookies {firefoxLink} / {chromeLink}. 2) Visit YouTube while logged in. 3) Export cookies and save as {cookiesPath} in your Agregarr config directory.',
   firefoxExtension: 'Firefox',
   chromeExtension: 'Chrome',
   youtubeCookiesNotFound: 'YouTube cookies file not found',
@@ -123,6 +85,7 @@ const messages = defineMessages({
   youtubeSetupStep2: 'Visit YouTube while logged in to your account',
   youtubeSetupStep3:
     'Export cookies and save as {cookiesPath} in your Agregarr config directory',
+  noLibrariesFound: 'No libraries found. Configure your Plex connection first.',
 });
 
 interface ServerInstanceProps {
@@ -827,7 +790,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                 </div>
               ) : (
                 <div className="text-sm text-stone-400">
-                  No libraries found. Configure your Plex connection first.
+                  {intl.formatMessage(messages.noLibrariesFound)}
                 </div>
               )}
 

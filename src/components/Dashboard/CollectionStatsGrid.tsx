@@ -15,9 +15,6 @@ import useSWR from 'swr';
 
 const messages = defineMessages({
   collectionStatistics: 'Collection Statistics',
-  topCollections: 'Top Collections',
-  mostPlayed: 'Most Played',
-  mostWatched: 'Most Watched (Duration)',
   noData: 'No collection data available',
   tautulliRequired: 'Tautulli Setup Required',
   tautulliDescription:
@@ -26,10 +23,15 @@ const messages = defineMessages({
   plays: 'plays',
   hours: 'hours',
   items: 'items',
-  lastPlayed: 'Last played',
-  never: 'Never',
-  viewAll: 'View All',
   refresh: 'Refresh',
+  failedToLoad: 'Failed to load collection statistics',
+  daysLabel: 'Days:',
+  playsButton: 'Plays',
+  durationButton: 'Duration',
+  emptyState:
+    'Create some collections and start watching to see statistics here.',
+  viewerCount: '{count} {count, plural, one {viewer} other {viewers}}',
+  lastUpdated: 'Last updated: {time}',
 });
 
 interface CollectionStats {
@@ -134,7 +136,7 @@ const CollectionStatsGrid: React.FC = () => {
         </div>
         <div className="p-6 text-center">
           <p className="mb-2 text-red-400">
-            Failed to load collection statistics
+            {intl.formatMessage(messages.failedToLoad)}
           </p>
           <p className="text-sm text-gray-400">{error.message}</p>
         </div>
@@ -154,7 +156,7 @@ const CollectionStatsGrid: React.FC = () => {
             {/* Days input */}
             <div className="flex items-center space-x-2">
               <label htmlFor="days-input" className="text-sm text-gray-400">
-                Days:
+                {intl.formatMessage(messages.daysLabel)}
               </label>
               <input
                 id="days-input"
@@ -176,7 +178,7 @@ const CollectionStatsGrid: React.FC = () => {
                 onClick={() => setStatType('plays')}
               >
                 <PlayIcon className="mr-1 h-4 w-4" />
-                Plays
+                {intl.formatMessage(messages.playsButton)}
               </Button>
               <Button
                 buttonSize="sm"
@@ -184,7 +186,7 @@ const CollectionStatsGrid: React.FC = () => {
                 onClick={() => setStatType('duration')}
               >
                 <ClockIcon className="mr-1 h-4 w-4" />
-                Duration
+                {intl.formatMessage(messages.durationButton)}
               </Button>
             </div>
           </div>
@@ -203,7 +205,7 @@ const CollectionStatsGrid: React.FC = () => {
               {intl.formatMessage(messages.noData)}
             </p>
             <p className="text-sm text-gray-500">
-              Create some collections and start watching to see statistics here.
+              {intl.formatMessage(messages.emptyState)}
             </p>
           </div>
         ) : (
@@ -241,8 +243,9 @@ const CollectionStatsGrid: React.FC = () => {
                       <>
                         <span>•</span>
                         <span>
-                          {collection.user_stats.length} viewer
-                          {collection.user_stats.length !== 1 ? 's' : ''}
+                          {intl.formatMessage(messages.viewerCount, {
+                            count: collection.user_stats.length,
+                          })}
                         </span>
                       </>
                     )}
@@ -266,10 +269,11 @@ const CollectionStatsGrid: React.FC = () => {
               <div className="mt-3 border-t border-gray-700 pt-3">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500">
-                    Last updated:{' '}
-                    {new Date(
-                      collectionStats.metadata.timestamp
-                    ).toLocaleString()}
+                    {intl.formatMessage(messages.lastUpdated, {
+                      time: new Date(
+                        collectionStats.metadata.timestamp
+                      ).toLocaleString(),
+                    })}
                   </p>
                   <Button
                     buttonSize="sm"

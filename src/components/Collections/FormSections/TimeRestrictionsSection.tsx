@@ -14,7 +14,6 @@ type VisibilityConfig = {
 };
 
 const messages = defineMessages({
-  timeRestrictions: 'Time Restrictions',
   alwaysActive: 'Always Active',
   removeFromPlex: 'Remove from Plex when inactive',
   dateRangesTitle: 'Date Ranges',
@@ -31,9 +30,6 @@ const messages = defineMessages({
     'When the collection is inactive (outside time restrictions), control where it appears in Plex.',
   customSyncSchedule: 'Custom Sync Schedule',
   customSyncEnabled: 'Enable custom sync timing',
-  customSyncInterval: 'Sync every (hours)',
-  customSyncHelp:
-    'Override the default sync schedule for this collection. This will also cycle the list for Random Lists and Multi-Source Collections in "Cycle Lists" mode. Note: Manual sync always works regardless of schedule timing.',
   customSyncPreset: 'Schedule',
   customSyncCustomCron: 'Custom cron expression',
   customSyncCustomCronHelp:
@@ -45,6 +41,10 @@ const messages = defineMessages({
     'Uncheck to set a specific date/time for the sync cycle to be based off (e.g. "Best Movies This Year" collection that should be updated on January 1st). You can still use Manual Sync to populate the collection before the scheduled time.',
   customSyncStartDate: 'Start date',
   customSyncStartTime: 'Start time',
+  to: 'to',
+  customCronExpression: 'Custom Cron Expression',
+  dateFormatHint: 'DD-MM format',
+  timeFormatHint: 'HH:MM format (e.g., 09:00, 23:30)',
 });
 
 interface DateRange {
@@ -286,7 +286,9 @@ const TimeRestrictionsSection = ({
                     className="w-20 text-sm"
                     maxLength={5}
                   />
-                  <span className="text-gray-400">to</span>
+                  <span className="text-gray-400">
+                    {intl.formatMessage(messages.to)}
+                  </span>
                   <input
                     type="text"
                     placeholder="DD-MM"
@@ -439,7 +441,9 @@ const TimeRestrictionsSection = ({
                           {preset.label}
                         </option>
                       ))}
-                      <option value="custom">Custom Cron Expression</option>
+                      <option value="custom">
+                        {intl.formatMessage(messages.customCronExpression)}
+                      </option>
                     </Field>
                     <p className="mt-2 text-xs text-gray-400">
                       {intl.formatMessage(messages.customSyncPresetHelp)}
@@ -503,7 +507,7 @@ const TimeRestrictionsSection = ({
                                 className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                               />
                               <p className="mt-1 text-xs text-gray-400">
-                                DD-MM format
+                                {intl.formatMessage(messages.dateFormatHint)}
                               </p>
                             </div>
                             <div>
@@ -519,7 +523,7 @@ const TimeRestrictionsSection = ({
                                 className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                               />
                               <p className="mt-1 text-xs text-gray-400">
-                                HH:MM format (e.g., 09:00, 23:30)
+                                {intl.formatMessage(messages.timeFormatHint)}
                               </p>
                             </div>
                           </div>
