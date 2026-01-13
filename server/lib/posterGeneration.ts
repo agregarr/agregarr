@@ -1302,6 +1302,11 @@ async function embedSVGIconInSVG(
 
     // Only process SVG files in this function
     if (!filename.toLowerCase().endsWith('.svg')) {
+      logger.warn('Icon is not an SVG file, cannot embed in poster', {
+        iconPath,
+        filename,
+        hint: 'Custom icons must be SVG format for poster templates',
+      });
       return null;
     }
 
@@ -1330,6 +1335,21 @@ async function embedSVGIconInSVG(
       const heightMatch = svgContent.match(/height=["']?([^"'\s>]+)/i);
       if (widthMatch) svgWidth = parseFloat(widthMatch[1]);
       if (heightMatch) svgHeight = parseFloat(heightMatch[1]);
+    }
+
+    // Validate SVG dimensions - prevent division by zero or NaN
+    if (
+      !Number.isFinite(svgWidth) ||
+      !Number.isFinite(svgHeight) ||
+      svgWidth <= 0 ||
+      svgHeight <= 0
+    ) {
+      logger.warn('Invalid SVG dimensions, cannot embed icon', {
+        iconPath,
+        svgWidth,
+        svgHeight,
+      });
+      return null;
     }
 
     // Calculate scale to fit the element dimensions while maintaining aspect ratio
