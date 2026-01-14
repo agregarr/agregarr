@@ -146,14 +146,17 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   sonarrtag: 'sonarr.svg', // Sonarr tag collections use Sonarr logo
   // Streaming Platform Logo Mappings
   netflix: 'netflix.svg',
-  hbo: 'hbo.svg',
+  hbo: 'max.svg', // Networks uses 'hbo'
+  max: 'max.svg', // Originals uses 'max' (HBO Max rebranded)
   disney: 'disney.svg',
-  'amazon-prime': 'amazon-prime.svg',
+  amazon: 'amazon-prime.svg', // Networks uses 'amazon'
+  'amazon-prime': 'amazon-prime.svg', // Originals uses 'amazon-prime'
   'apple-tv': 'apple-tv.svg',
   paramount: 'paramount.svg',
   peacock: 'peacock.svg',
   crunchyroll: 'crunchyroll.svg',
-  'discovery-plus': 'discovery-plus.svg',
+  discovery: 'discovery.svg', // Originals uses 'discovery'
+  'discovery-plus': 'discovery.svg', // Networks uses 'discovery-plus'
   hulu: 'hulu.svg',
 };
 
