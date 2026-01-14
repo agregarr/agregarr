@@ -1,0 +1,69 @@
+name: 🔌 New List Source Request
+description: Request support for a new list provider
+labels: ['enhancement', 'new-source', 'awaiting-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new list source for Agregarr!
+
+  - type: input
+    id: source-name
+    attributes:
+      label: Source Name
+      placeholder: e.g., Simkl, Metacritic, Plex Watchlist, Anilist
+    validations:
+      required: true
+
+  - type: input
+    id: source-url
+    attributes:
+      label: Source Website
+      placeholder: https://example.com
+    validations:
+      required: true
+
+  - type: textarea
+    id: example-lists
+    attributes:
+      label: Example List URLs
+      description: Provide one or more example list URLs you'd like to import. If the site has multiple URL formats, please provide one of each.
+      placeholder: |
+        https://example.com/user/lists/my-list
+        https://example.com/trending
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: source-attributes
+    attributes:
+      label: Source Attributes
+      description: Check all that apply
+      options:
+        - label: Has a public API
+        - label: Requires API key (free)
+        - label: Requires API key (paid/premium)
+        - label: Requires OAuth or account login
+        - label: No API available (would need web scraping)
+        - label: Lists are publicly viewable without login
+        - label: Provides TMDb or TVDb IDs
+
+  - type: input
+    id: api-docs
+    attributes:
+      label: API Documentation URL (if available)
+      placeholder: https://example.com/api/docs
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What does this source provide that current sources don't?
+      placeholder: e.g., Unique lists, better metadata, anime-specific content, regional content...
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Information
+      description: Any other details that might help

@@ -33,6 +33,18 @@ body:
     validations:
       required: true
   - type: textarea
+    id: list-links
+    attributes:
+      label: List Links
+      description: |
+        If this bug is related to a collection or list, please provide the relevant link(s)/preset:
+        - For custom URL's, paste all relevant list URLs
+        - For default/preset lists: specify which preset you used (e.g. Trakt Trending)
+      placeholder: |
+        https://trakt.tv/users/example/lists/my-list
+        https://www.imdb.com/list/ls000000000/
+        Or: "Trakt Trending"
+  - type: textarea
     id: screenshots
     attributes:
       label: Screenshots
