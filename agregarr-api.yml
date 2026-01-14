@@ -1844,7 +1844,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
+          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://app.trakt.tv/users/username/lists/list-name)'
           example: 'https://trakt.tv/users/username/lists/my-list'
           nullable: true
         tmdbCustomCollectionUrl:

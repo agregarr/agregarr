@@ -257,19 +257,23 @@ https://letterboxd.com/cinema/list/criterion-collection/
             onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
           });
 
-          // Parse the URL to extract username and list slug
+          // Parse the URL to extract username and list slug (supports both trakt.tv and app.trakt.tv)
           const userListMatch = url.match(
-            /trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
+            /(?:app\.)?trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
           );
           const officialListMatch = url.match(
-            /trakt\.tv\/lists\/official\/([^/?]+)/
+            /(?:app\.)?trakt\.tv\/lists\/official\/([^/?]+)/
           );
 
           try {
             if (userListMatch) {
               const [, username, listSlug] = userListMatch;
+              // Extract domain to preserve original URL format (trakt.tv or app.trakt.tv)
+              const domain = url.includes('app.trakt.tv')
+                ? 'app.trakt.tv'
+                : 'trakt.tv';
               const listMetadata = await traktClient.getListMetadata(
-                `https://trakt.tv/users/${username}/lists/${listSlug}`
+                `https://${domain}/users/${username}/lists/${listSlug}`
               );
               return listMetadata.name || 'Trakt List';
             } else if (officialListMatch) {
@@ -1378,7 +1382,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
         onTokenRefreshed: (tokens) => persistTraktTokens(settings, tokens),
       });
 
-      // Extract list slug from URL (e.g., https://trakt.tv/users/username/lists/listname)
+      // Extract list slug from URL (e.g., https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname)
       const match = url.match(/\/users\/([^/]+)\/lists\/([^/?]+)/);
       if (!match) {
         return false;
@@ -1387,7 +1391,9 @@ https://letterboxd.com/cinema/list/criterion-collection/
       const [, username, listSlug] = match;
 
       // Get list items with limit to check media types
-      const listUrl = `https://trakt.tv/users/${username}/lists/${listSlug}`;
+      // Preserve original domain (trakt.tv or app.trakt.tv)
+      const domain = url.includes('app.trakt.tv') ? 'app.trakt.tv' : 'trakt.tv';
+      const listUrl = `https://${domain}/users/${username}/lists/${listSlug}`;
       const listItems = await traktClient.getCustomList(
         listUrl,
         Math.min(maxItems, 50)
