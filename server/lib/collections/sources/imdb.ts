@@ -409,19 +409,36 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
 
       return sourceData;
     } catch (error) {
+      // Check if it's already a CollectionSyncError (has type and message properties)
+      const isCollectionSyncError =
+        error &&
+        typeof error === 'object' &&
+        'type' in error &&
+        'message' in error;
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : isCollectionSyncError
+          ? (error as { message: string }).message
+          : 'Unknown error';
+
       logger.error(`Failed to fetch IMDb data for ${config.name}`, {
         label: 'IMDb Collections',
         configName: config.name,
         subtype: config.subtype,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
       });
 
+      // Re-throw CollectionSyncError objects directly
+      if (isCollectionSyncError) {
+        throw error;
+      }
+
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
-        `Failed to fetch IMDb list data: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`,
+        `Failed to fetch IMDb list data: ${errorMessage}`,
         { subtype: config.subtype, mediaType: getCollectionMediaType(config) },
         error instanceof Error ? error : new Error(String(error))
       );
