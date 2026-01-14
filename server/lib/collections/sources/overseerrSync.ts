@@ -107,7 +107,12 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
             libraryCache
           );
           const { items: allItems, missingItems: allMissingItems } =
-            await this.mapSourceDataToItems(requests, config);
+            await this.mapSourceDataToItems(
+              requests,
+              config,
+              plexClient,
+              libraryCache
+            );
 
           let result: SyncResult;
           switch (config.subtype) {
@@ -252,7 +257,12 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
         libraryCache
       );
       const { items: allItems, missingItems: allMissingItems } =
-        await this.mapSourceDataToItems(requests, config);
+        await this.mapSourceDataToItems(
+          requests,
+          config,
+          plexClient,
+          libraryCache
+        );
 
       // Process based on subtype using pre-fetched data
       switch (config.subtype) {
