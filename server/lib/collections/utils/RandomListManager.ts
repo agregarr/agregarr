@@ -1604,10 +1604,8 @@ https://letterboxd.com/cinema/list/criterion-collection/
             : item.type === 'tv';
         });
 
-        // Check if list has enough items of target type to fill the collection
-        if (targetItems.length < maxItems) {
-          return false;
-        }
+        // Skip maxItems validation - let the normal collection filtering handle it
+        // This allows smaller lists that would still produce valid collections
 
         // Build efficient TMDB ID lookup set from library cache
         const userTmdbIds = new Set<number>();
@@ -1709,10 +1707,8 @@ https://letterboxd.com/cinema/list/criterion-collection/
           Math.min(maxItems, 50)
         );
 
-        // Check if list has enough items to fill the collection (all are movies)
-        if (letterboxdItems.length < maxItems) {
-          return false;
-        }
+        // Skip maxItems validation - let the normal collection filtering handle it
+        // This allows smaller lists that would still produce valid collections
 
         // Build efficient lookup sets from library cache
         const userTmdbIds = new Set<number>();

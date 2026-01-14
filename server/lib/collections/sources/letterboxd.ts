@@ -329,21 +329,34 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
 
       return sourceData;
     } catch (error) {
+      // Check if it's already a CollectionSyncError (has type and message properties)
+      const isCollectionSyncError =
+        error &&
+        typeof error === 'object' &&
+        'type' in error &&
+        'message' in error;
+
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : isCollectionSyncError
+          ? (error as { message: string }).message
+          : 'Unknown error';
+
       logger.error('Error fetching Letterboxd source data:', {
         label: 'Letterboxd Collections',
         configName: config.name,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       });
 
-      if (error instanceof Error && error.name === 'CollectionSyncError') {
+      // Re-throw CollectionSyncError objects directly
+      if (isCollectionSyncError) {
         throw error;
       }
 
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
-        `Failed to fetch Letterboxd data: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+        `Failed to fetch Letterboxd data: ${errorMessage}`
       );
     }
   }
