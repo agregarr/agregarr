@@ -33,9 +33,9 @@ jobs:
         run: yarn
       - name: Release
         id: semantic
+        uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
 
   build_and_push:
     name: Build ${{ matrix.platform }}
@@ -146,3 +146,39 @@ jobs:
         run: |
           docker buildx imagetools inspect ghcr.io/agregarr/agregarr:latest
           docker buildx imagetools inspect agregarr/agregarr:latest
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+    needs:
+      - semantic-release
+      - merge
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.semantic-release.outputs.new_release_version }}
+          fetch-depth: 0
+
+      - name: Get release notes from tag
+        id: notes
+        run: |
+          # Get the release notes from CHANGELOG.md for this version
+          VERSION="v${{ needs.semantic-release.outputs.new_release_version }}"
+          echo "Creating release for ${VERSION}"
+
+          # Extract notes between this version and the previous one
+          NOTES=$(awk "/^## \[${VERSION#v}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+
+          # Write to file for gh release
+          echo "$NOTES" > /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ needs.semantic-release.outputs.new_release_version }}" \
+            --title "v${{ needs.semantic-release.outputs.new_release_version }}" \
+            --notes-file /tmp/release-notes.md

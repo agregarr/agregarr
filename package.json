@@ -233,12 +233,6 @@
           ],
           "message": "chore(release): ${nextRelease.version}"
         }
-      ],
-      [
-        "@semantic-release/github",
-        {
-          "addReleases": "bottom"
-        }
       ]
     ],
     "branches": [
