@@ -366,6 +366,27 @@ class OverseerrAPI {
   }
 
   /**
+   * Disable all notifications for a user
+   * Used for service users to prevent notification spam
+   */
+  async disableUserNotifications(userId: number): Promise<void> {
+    await this.axios.post(`/user/${userId}/settings/notifications`, {
+      notificationTypes: {
+        discord: 0,
+        email: 0,
+        gotify: 0,
+        lunasea: 0,
+        pushbullet: 0,
+        pushover: 0,
+        slack: 0,
+        telegram: 0,
+        webpush: 0,
+        webhook: 0,
+      },
+    });
+  }
+
+  /**
    * Get current authenticated user (admin check)
    */
   async getCurrentUser(): Promise<OverseerrUser> {
