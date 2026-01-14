@@ -166,16 +166,18 @@ export class MissingItemFilterService {
         if (imdbRatingsMap.has(item.tmdbId)) {
           const rating = imdbRatingsMap.get(item.tmdbId);
 
-          // If rating is null or undefined (no rating found), allow the item
+          // If rating is null or undefined (no rating found), exclude the item
           if (rating === null || rating === undefined) {
             logger.debug(
-              `No IMDb rating found for ${item.title}, allowing item`,
+              `No IMDb rating found for ${item.title}, excluding item`,
               {
                 label: serviceLabel,
                 tmdbId: item.tmdbId,
                 title: item.title,
               }
             );
+            lowRatedItems.push(item.title);
+            continue;
           } else if (rating < config.minimumImdbRating) {
             // Rating exists but below threshold
             logger.debug(
@@ -192,8 +194,16 @@ export class MissingItemFilterService {
             continue;
           }
           // else: rating >= minimum, allow the item (continue processing)
+        } else {
+          // If not in map (no IMDb ID found), exclude the item
+          logger.debug(`No IMDb ID found for ${item.title}, excluding item`, {
+            label: serviceLabel,
+            tmdbId: item.tmdbId,
+            title: item.title,
+          });
+          lowRatedItems.push(item.title);
+          continue;
         }
-        // If not in map (no IMDb ID found), allow the item (continue processing)
       }
 
       // Check Rotten Tomatoes critics rating filter using cached ratings
@@ -204,16 +214,18 @@ export class MissingItemFilterService {
         if (rtRatingsMap.has(item.tmdbId)) {
           const score = rtRatingsMap.get(item.tmdbId);
 
-          // If score is null or undefined (no rating found), allow the item
+          // If score is null or undefined (no rating found), exclude the item
           if (score === null || score === undefined) {
             logger.debug(
-              `No Rotten Tomatoes critics rating found for ${item.title}, allowing item`,
+              `No Rotten Tomatoes critics rating found for ${item.title}, excluding item`,
               {
                 label: serviceLabel,
                 tmdbId: item.tmdbId,
                 title: item.title,
               }
             );
+            lowRatedRTItems.push(item.title);
+            continue;
           } else if (score < config.minimumRottenTomatoesRating) {
             // Score exists but below threshold
             logger.debug(
@@ -230,8 +242,19 @@ export class MissingItemFilterService {
             continue;
           }
           // else: score >= minimum, allow the item (continue processing)
+        } else {
+          // If not in map (no RT rating found), exclude the item
+          logger.debug(
+            `No Rotten Tomatoes critics rating found for ${item.title}, excluding item`,
+            {
+              label: serviceLabel,
+              tmdbId: item.tmdbId,
+              title: item.title,
+            }
+          );
+          lowRatedRTItems.push(item.title);
+          continue;
         }
-        // If not in map (no RT rating found), allow the item (continue processing)
       }
 
       // Check Rotten Tomatoes audience rating filter using cached ratings
@@ -242,16 +265,18 @@ export class MissingItemFilterService {
         if (rtAudienceRatingsMap.has(item.tmdbId)) {
           const score = rtAudienceRatingsMap.get(item.tmdbId);
 
-          // If score is null or undefined (no rating found), allow the item
+          // If score is null or undefined (no rating found), exclude the item
           if (score === null || score === undefined) {
             logger.debug(
-              `No Rotten Tomatoes audience rating found for ${item.title}, allowing item`,
+              `No Rotten Tomatoes audience rating found for ${item.title}, excluding item`,
               {
                 label: serviceLabel,
                 tmdbId: item.tmdbId,
                 title: item.title,
               }
             );
+            lowRatedRTAudienceItems.push(item.title);
+            continue;
           } else if (score < config.minimumRottenTomatoesAudienceRating) {
             // Score exists but below threshold
             logger.debug(
@@ -268,8 +293,19 @@ export class MissingItemFilterService {
             continue;
           }
           // else: score >= minimum, allow the item (continue processing)
+        } else {
+          // If not in map (no RT rating found), exclude the item
+          logger.debug(
+            `No Rotten Tomatoes audience rating found for ${item.title}, excluding item`,
+            {
+              label: serviceLabel,
+              tmdbId: item.tmdbId,
+              title: item.title,
+            }
+          );
+          lowRatedRTAudienceItems.push(item.title);
+          continue;
         }
-        // If not in map (no RT rating found), allow the item (continue processing)
       }
 
       // Check genre filter (supports both include and exclude modes)

@@ -1,6 +1,7 @@
 import React from 'react';
 
 export type AvailableLocale =
+  | 'da'
   | 'de'
   | 'en'
   | 'es'
@@ -9,7 +10,8 @@ export type AvailableLocale =
   | 'it'
   | 'nl'
   | 'pt-BR'
-  | 'ru';
+  | 'ru'
+  | 'sv';
 
 type AvailableLanguageObject = Record<
   string,
@@ -20,6 +22,10 @@ export const availableLanguages: AvailableLanguageObject = {
   en: {
     code: 'en',
     display: 'English',
+  },
+  da: {
+    code: 'da',
+    display: 'Dansk',
   },
   de: {
     code: 'de',
@@ -52,6 +58,10 @@ export const availableLanguages: AvailableLanguageObject = {
   ru: {
     code: 'ru',
     display: 'Русский',
+  },
+  sv: {
+    code: 'sv',
+    display: 'Svenska',
   },
 };
 

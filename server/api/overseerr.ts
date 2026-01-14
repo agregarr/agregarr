@@ -154,21 +154,113 @@ class OverseerrAPI {
       timeout: 30000,
     });
 
-    // Add response/error logging
+    // Add response/error logging (with sensitive data redacted)
     this.axios.interceptors.response.use(
       (response) => {
         return response;
       },
       (error) => {
+        // Sanitize URL - strip sensitive query parameters
+        let safeUrl: string | undefined;
+        if (error.config?.url) {
+          try {
+            const url = new URL(
+              error.config.url,
+              error.config.baseURL || 'http://localhost'
+            );
+            // Remove sensitive query params
+            const sensitiveParams = [
+              'api_key',
+              'apikey',
+              'token',
+              'key',
+              'secret',
+              'password',
+              'X-Plex-Token',
+            ];
+            sensitiveParams.forEach((param) => {
+              url.searchParams.delete(param);
+              url.searchParams.delete(param.toLowerCase());
+            });
+            safeUrl = url.pathname + (url.search || '');
+          } catch {
+            // If URL parsing fails, just use the path portion or redact entirely
+            safeUrl = error.config.url.split('?')[0] + '?[params redacted]';
+          }
+        }
+
+        // Redact sensitive headers using whitelist approach (safer than blacklist)
+        // Only log headers we explicitly know are safe
+        const safeHeaderKeys = [
+          'content-type',
+          'accept',
+          'user-agent',
+          'content-length',
+        ];
+        const safeHeaders: Record<string, unknown> = {};
+        if (error.config?.headers) {
+          // Flatten any nested header structures (Axios can nest headers)
+          const flatHeaders =
+            typeof error.config.headers.toJSON === 'function'
+              ? error.config.headers.toJSON()
+              : error.config.headers;
+
+          Object.entries(flatHeaders).forEach(([key, value]) => {
+            if (safeHeaderKeys.includes(key.toLowerCase())) {
+              safeHeaders[key] = value;
+            }
+          });
+        }
+
+        // Sanitize response data with try/catch to handle circular refs and large payloads
+        let safeResponseData: string | undefined;
+        if (error.response?.data) {
+          try {
+            let dataStr: string;
+            if (typeof error.response.data === 'string') {
+              // Pre-truncate strings to avoid processing huge payloads
+              dataStr =
+                error.response.data.length > 2000
+                  ? error.response.data.substring(0, 2000)
+                  : error.response.data;
+            } else if (Buffer.isBuffer(error.response.data)) {
+              dataStr = '[Binary data]';
+            } else {
+              // Limit stringify to avoid memory issues with large objects
+              const limited = JSON.stringify(error.response.data, null, 0);
+              dataStr =
+                limited.length > 2000 ? limited.substring(0, 2000) : limited;
+            }
+            // Redact common sensitive patterns
+            const redacted = dataStr
+              .replace(/[Bb]earer\s+[^\s"']+/g, 'Bearer [REDACTED]')
+              .replace(
+                /["']?[Aa]pi[_-]?[Kk]ey["']?\s*[=:]\s*["']?[^"'\s,}]+["']?/gi,
+                'apiKey=[REDACTED]'
+              )
+              .replace(
+                /["']?[Tt]oken["']?\s*[=:]\s*["']?[^"'\s,}]+["']?/gi,
+                'token=[REDACTED]'
+              );
+            // Final truncate for logs
+            safeResponseData =
+              redacted.length > 500
+                ? redacted.substring(0, 500) + '... [truncated]'
+                : redacted;
+          } catch {
+            safeResponseData = '[Unable to serialize response data]';
+          }
+        }
+
         logger.error(`Overseerr API Error: ${error.message}`, {
           label: 'OverseerrAPI',
-          url: error.config?.url,
+          url: safeUrl,
           method: error.config?.method?.toUpperCase(),
           status: error.response?.status,
           statusText: error.response?.statusText,
-          responseData: error.response?.data,
-          requestHeaders: error.config?.headers,
-          requestData: error.config?.data,
+          responseData: safeResponseData,
+          requestHeaders: safeHeaders,
+          // requestData omitted entirely to prevent PII leaks
         });
         throw error;
       }
@@ -270,6 +362,27 @@ class OverseerrAPI {
   ): Promise<void> {
     await this.axios.post(`/user/${userId}/settings/permissions`, {
       permissions: permissions,
+    });
+  }
+
+  /**
+   * Disable all notifications for a user
+   * Used for service users to prevent notification spam
+   */
+  async disableUserNotifications(userId: number): Promise<void> {
+    await this.axios.post(`/user/${userId}/settings/notifications`, {
+      notificationTypes: {
+        discord: 0,
+        email: 0,
+        gotify: 0,
+        lunasea: 0,
+        pushbullet: 0,
+        pushover: 0,
+        slack: 0,
+        telegram: 0,
+        webpush: 0,
+        webhook: 0,
+      },
     });
   }
 

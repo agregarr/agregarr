@@ -1,16 +1,27 @@
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import fs from 'fs/promises';
 import path from 'path';
 import type { PlaceholderOptions, PlaceholderResult } from './types';
 
 /**
- * Sanitize filename to remove invalid characters
+ * Sanitize filename to remove invalid characters and decode HTML entities
  */
 function sanitizeFilename(filename: string): string {
-  return filename
-    .replace(/[<>:"/\\|?*]/g, '') // Remove invalid chars
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim();
+  return (
+    filename
+      // Decode HTML entities (from Trakt, Sonarr, etc.)
+      .replace(/&apos;/g, "'") // Decode apostrophe
+      .replace(/&quot;/g, '"') // Decode quote (then removed below)
+      .replace(/&amp;/g, '&') // Decode ampersand
+      .replace(/&lt;/g, '<') // Decode less-than (then removed below)
+      .replace(/&gt;/g, '>') // Decode greater-than (then removed below)
+      .replace(/&#39;/g, "'") // Numeric apostrophe
+      .replace(/&#x27;/g, "'") // Hex apostrophe
+      .replace(/[<>:"/\\|?*]/g, '') // Remove invalid chars
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim()
+  );
 }
 
 /**
@@ -32,7 +43,7 @@ async function createMoviePlaceholder(
   const destinationPath = path.join(movieFolder, filename);
 
   logger.debug('Creating movie placeholder', {
-    label: 'Coming Soon Placeholder',
+    label: 'PlaceholderService',
     title,
     filename,
     movieFolder,
@@ -49,19 +60,19 @@ async function createMoviePlaceholder(
   try {
     await fs.unlink(trailerPath);
     logger.debug('Cleaned up temporary trailer file', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       path: trailerPath,
     });
   } catch (error) {
     logger.warn('Failed to clean up temporary trailer file', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       path: trailerPath,
       error: error instanceof Error ? error.message : String(error),
     });
   }
 
   logger.info('Created movie placeholder', {
-    label: 'Coming Soon Placeholder',
+    label: 'PlaceholderService',
     title,
     filename,
   });
@@ -87,7 +98,7 @@ async function createTVPlaceholder(
   const seasonDir = path.join(showDir, 'Season 00');
 
   logger.debug('Creating TV show placeholder', {
-    label: 'Coming Soon Placeholder',
+    label: 'PlaceholderService',
     title,
     showDir,
     seasonDir,
@@ -105,12 +116,12 @@ async function createTVPlaceholder(
   try {
     await fs.unlink(trailerPath);
     logger.debug('Cleaned up temporary trailer file', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       path: trailerPath,
     });
   } catch (error) {
     logger.warn('Failed to clean up temporary trailer file', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       path: trailerPath,
       error: error instanceof Error ? error.message : String(error),
     });
@@ -131,7 +142,7 @@ async function createTVPlaceholder(
   );
 
   logger.info('Created TV show placeholder', {
-    label: 'Coming Soon Placeholder',
+    label: 'PlaceholderService',
     title,
     filename: destinationPath,
   });
@@ -158,7 +169,7 @@ export async function createPlaceholder(
     }
   } catch (error) {
     logger.error('Failed to create placeholder', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       error: error instanceof Error ? error.message : String(error),
       title: options.title,
       mediaType: options.mediaType,
@@ -175,6 +186,82 @@ export async function removePlaceholder(
   mediaType: 'movie' | 'tv'
 ): Promise<void> {
   try {
+    // Security: Validate path is within configured library roots to prevent path traversal
+    const settings = getSettings();
+    const libraryRoots =
+      mediaType === 'movie'
+        ? settings.main.placeholderMovieRootFolders
+        : settings.main.placeholderTVRootFolders;
+
+    if (!libraryRoots || Object.keys(libraryRoots).length === 0) {
+      throw new Error(
+        `Placeholder ${mediaType} library root not configured - cannot safely delete`
+      );
+    }
+
+    // Resolve both paths to real paths (following symlinks) to prevent symlink escape attacks
+    // This ensures even if an attacker creates a symlink inside the library pointing outside,
+    // we check the actual destination, not the symlink path
+    // NOTE: We fail hard on realpath errors - no unsafe fallback to path.resolve()
+    let realPath: string;
+
+    try {
+      realPath = await fs.realpath(placeholderPath);
+    } catch (realpathError) {
+      // File doesn't exist or can't be resolved - this is a security issue, fail hard
+      logger.error('Cannot resolve real path for placeholder deletion', {
+        label: 'PlaceholderService',
+        requestedPath: placeholderPath,
+        error:
+          realpathError instanceof Error
+            ? realpathError.message
+            : String(realpathError),
+      });
+      throw new Error(
+        'Cannot resolve placeholder path - file may not exist or permissions denied'
+      );
+    }
+
+    // Find which configured library root contains this placeholder
+    let matchedRoot: string | undefined;
+    for (const libraryRoot of Object.values(libraryRoots)) {
+      try {
+        const realRoot = await fs.realpath(libraryRoot);
+        if (realPath.startsWith(realRoot + path.sep) || realPath === realRoot) {
+          matchedRoot = realRoot;
+          break;
+        }
+      } catch (rootRealpathError) {
+        // This library root can't be resolved, skip it
+        logger.warn('Cannot resolve library root path', {
+          label: 'PlaceholderService',
+          libraryRoot,
+          error:
+            rootRealpathError instanceof Error
+              ? rootRealpathError.message
+              : String(rootRealpathError),
+        });
+        continue;
+      }
+    }
+
+    // Validate the resolved path is within one of the configured library roots
+    if (!matchedRoot) {
+      logger.error(
+        'Path traversal attempt detected - refusing to delete file outside library roots',
+        {
+          label: 'PlaceholderService',
+          requestedPath: placeholderPath,
+          realPath,
+          configuredRoots: Object.values(libraryRoots),
+          mediaType,
+        }
+      );
+      throw new Error(
+        'Invalid placeholder path - path traversal detected, file is outside configured library roots'
+      );
+    }
+
     // Safety check: Verify path contains placeholder marker (supports both old and new format)
     if (
       !placeholderPath.includes('{edition-Trailer}') &&
@@ -185,7 +272,7 @@ export async function removePlaceholder(
       logger.warn(
         'Refusing to delete - path does not appear to be a placeholder',
         {
-          label: 'Coming Soon Placeholder',
+          label: 'PlaceholderService',
           path: placeholderPath,
           mediaType,
         }
@@ -194,7 +281,7 @@ export async function removePlaceholder(
     }
 
     logger.debug('Removing placeholder', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       path: placeholderPath,
       mediaType,
     });
@@ -202,8 +289,42 @@ export async function removePlaceholder(
     // Delete the file
     await fs.unlink(placeholderPath);
 
-    // For TV shows, also clean up parent directories if empty
-    if (mediaType === 'tv') {
+    // Clean up associated .trickplay directory (Jellyfin creates these for video thumbnails)
+    // Pattern: "Movie {tmdb-123} {edition-Trailer}.mp4" -> "Movie {tmdb-123} {edition-Trailer}.trickplay"
+    if (placeholderPath.endsWith('.mp4')) {
+      const trickplayPath = placeholderPath.replace(/\.mp4$/, '.trickplay');
+      try {
+        const trickplayStat = await fs.stat(trickplayPath);
+        if (trickplayStat.isDirectory()) {
+          await fs.rm(trickplayPath, { recursive: true });
+          logger.debug('Removed associated trickplay directory', {
+            label: 'PlaceholderService',
+            path: trickplayPath,
+          });
+        }
+      } catch {
+        // Trickplay directory doesn't exist, that's fine
+      }
+    }
+
+    // Clean up parent directories if empty
+    if (mediaType === 'movie') {
+      const movieDir = path.dirname(placeholderPath);
+
+      // Try to remove movie directory if it's empty
+      try {
+        const files = await fs.readdir(movieDir);
+        if (files.length === 0) {
+          await fs.rmdir(movieDir);
+          logger.debug('Removed empty movie directory', {
+            label: 'PlaceholderService',
+            path: movieDir,
+          });
+        }
+      } catch {
+        // Directory not empty or other error, ignore
+      }
+    } else if (mediaType === 'tv') {
       const seasonDir = path.dirname(placeholderPath);
       const showDir = path.dirname(seasonDir);
 
@@ -221,7 +342,7 @@ export async function removePlaceholder(
         if (files.length === 0) {
           await fs.rmdir(seasonDir);
           logger.debug('Removed empty season directory', {
-            label: 'Coming Soon Placeholder',
+            label: 'PlaceholderService',
             path: seasonDir,
           });
 
@@ -230,7 +351,7 @@ export async function removePlaceholder(
           if (showFiles.length === 0) {
             await fs.rmdir(showDir);
             logger.debug('Removed empty show directory', {
-              label: 'Coming Soon Placeholder',
+              label: 'PlaceholderService',
               path: showDir,
             });
           }
@@ -241,12 +362,12 @@ export async function removePlaceholder(
     }
 
     logger.info('Removed placeholder successfully', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       path: placeholderPath,
     });
   } catch (error) {
     logger.error('Failed to remove placeholder', {
-      label: 'Coming Soon Placeholder',
+      label: 'PlaceholderService',
       error: error instanceof Error ? error.message : String(error),
       path: placeholderPath,
     });

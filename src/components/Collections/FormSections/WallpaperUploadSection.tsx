@@ -5,13 +5,7 @@ import { useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
-  customWallpaper: 'Custom Wallpaper',
-  addWallpaper: 'Add Wallpaper',
   uploading: 'Uploading wallpaper...',
-  remove: 'Remove',
-  wallpaperSize: '1920x1080px (landscape)',
-  wallpaperUploadHelp:
-    'Upload a custom wallpaper/art image for this collection (JPEG, PNG, or WebP, max 10MB). Wallpaper will be applied to Plex during the next collection sync.',
   wallpaperUploadHelpMulti:
     'Upload custom wallpaper images for each selected library. Wallpapers will be applied to Plex collections during the next sync.',
   wallpaperRemoveConfirm: 'Wallpaper will be removed on next collection sync',
@@ -21,6 +15,7 @@ const messages = defineMessages({
   wallpaperUploadErrorType: 'Only JPEG, PNG, and WebP files are allowed',
   wallpaperUploadErrorGeneric: 'Upload failed',
   wallpaperUploadErrorNetwork: 'Network error occurred',
+  selectLibrariesFirst: 'Select libraries first to upload custom wallpapers.',
 });
 
 interface Library {
@@ -182,7 +177,7 @@ const WallpaperUploadSection = ({
   if (selectedLibraryIds.length === 0) {
     return (
       <div className="label-tip">
-        Select libraries first to upload custom wallpapers.
+        {intl.formatMessage(messages.selectLibrariesFirst)}
       </div>
     );
   }

@@ -92,9 +92,9 @@ export class CollectionSyncService {
     tv: DiscoveredPlaceholder[];
     movies: DiscoveredMoviePlaceholder[];
   }> {
-    const settings = getSettings();
-    const tvLibraryPath = settings.main.placeholderTVRootFolder;
-    const movieLibraryPath = settings.main.placeholderMovieRootFolder;
+    const { getPlaceholderRootFolder } = await import(
+      '@server/lib/placeholders/helpers/placeholderPathHelpers'
+    );
 
     let tv: DiscoveredPlaceholder[] = [];
     let movies: DiscoveredMoviePlaceholder[] = [];
@@ -124,6 +124,9 @@ export class CollectionSyncService {
     )?.libraryId;
 
     // Discover TV placeholders
+    const tvLibraryPath = tvLibraryId
+      ? getPlaceholderRootFolder(tvLibraryId, 'tv')
+      : undefined;
     if (tvLibraryPath && tvLibraryId) {
       try {
         logger.info('Running global TV placeholder discovery', {
@@ -183,6 +186,45 @@ export class CollectionSyncService {
           cleanedUp,
           titlesFixes,
         });
+
+        // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
+        if (cleanedUp > 0 && tvLibraryId) {
+          const libraryId = tvLibraryId;
+          logger.info(
+            'Triggering Plex scan to clean up deleted TV placeholders',
+            {
+              label: 'Collection Sync Service',
+              libraryId,
+              placeholdersDeleted: cleanedUp,
+            }
+          );
+          // Fire-and-forget: don't block sync while Plex processes
+          const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
+          void (async () => {
+            try {
+              await plexClient.scanLibrary(libraryId);
+              if (autoEmptyTrash) {
+                // Brief delay for scan to detect missing files
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                await plexClient.emptyTrash(libraryId);
+              }
+              logger.info('Plex placeholder cleanup complete', {
+                label: 'Collection Sync Service',
+                libraryId,
+                trashedEmptied: autoEmptyTrash,
+              });
+            } catch (cleanupError) {
+              logger.warn('Failed to complete Plex placeholder cleanup', {
+                label: 'Collection Sync Service',
+                libraryId,
+                error:
+                  cleanupError instanceof Error
+                    ? cleanupError.message
+                    : String(cleanupError),
+              });
+            }
+          })();
+        }
       } catch (error) {
         logger.warn('Failed to run global TV placeholder discovery', {
           label: 'Collection Sync Service',
@@ -198,6 +240,9 @@ export class CollectionSyncService {
     )?.libraryId;
 
     // Discover movie placeholders
+    const movieLibraryPath = movieLibraryId
+      ? getPlaceholderRootFolder(movieLibraryId, 'movie')
+      : undefined;
     if (movieLibraryPath && movieLibraryId) {
       try {
         logger.info('Running global movie placeholder discovery', {
@@ -240,6 +285,45 @@ export class CollectionSyncService {
           label: 'Collection Sync Service',
           cleanedUp: moviesCleanedUp,
         });
+
+        // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
+        if (moviesCleanedUp > 0 && movieLibraryId) {
+          const libraryId = movieLibraryId;
+          logger.info(
+            'Triggering Plex scan to clean up deleted movie placeholders',
+            {
+              label: 'Collection Sync Service',
+              libraryId,
+              placeholdersDeleted: moviesCleanedUp,
+            }
+          );
+          // Fire-and-forget: don't block sync while Plex processes
+          const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
+          void (async () => {
+            try {
+              await plexClient.scanLibrary(libraryId);
+              if (autoEmptyTrash) {
+                // Brief delay for scan to detect missing files
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                await plexClient.emptyTrash(libraryId);
+              }
+              logger.info('Plex placeholder cleanup complete', {
+                label: 'Collection Sync Service',
+                libraryId,
+                trashedEmptied: autoEmptyTrash,
+              });
+            } catch (cleanupError) {
+              logger.warn('Failed to complete Plex placeholder cleanup', {
+                label: 'Collection Sync Service',
+                libraryId,
+                error:
+                  cleanupError instanceof Error
+                    ? cleanupError.message
+                    : String(cleanupError),
+              });
+            }
+          })();
+        }
       } catch (error) {
         logger.warn('Failed to run global movie placeholder discovery', {
           label: 'Collection Sync Service',
@@ -518,6 +602,11 @@ export class CollectionSyncService {
               // Smart collection settings (unwatched filter feature)
               showUnwatchedOnly: config.showUnwatchedOnly,
               smartCollectionSort: config.smartCollectionSort,
+              // Placeholder creation settings
+              createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+              placeholderDaysAhead: config.placeholderDaysAhead,
+              placeholderReleasedDays: config.placeholderReleasedDays,
+              applyOverlaysDuringSync: config.applyOverlaysDuringSync,
             };
 
             result = await orchestrator.processMultiSourceCollection(
@@ -542,6 +631,22 @@ export class CollectionSyncService {
 
           created += result.created || 0;
           updated += result.updated || 0;
+
+          // Check if the sync returned an error (e.g., from multi-source orchestrator)
+          if (result.error) {
+            logger.warn(
+              `Collection sync returned error for ${config.name}: ${result.error}`,
+              {
+                label: 'Collection Sync Service',
+                configId: config.id,
+              }
+            );
+            // Persist error for UI display
+            settings.setCollectionSyncError(config.id, result.error);
+          } else {
+            // Mark collection as successfully synced (clears any previous error)
+            settings.markCollectionSynced(config.id, 'collection');
+          }
         }
 
         totalCreated += created;
@@ -556,18 +661,20 @@ export class CollectionSyncService {
           );
         }
 
-        // Mark collection as successfully synced
-        settings.markCollectionSynced(config.id, 'collection');
-
         // Update progress count
         processedCount++;
         onProgress?.(processedCount);
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         logger.error(`Failed to process collection ${config.name}: ${error}`, {
           label: 'Collection Sync Service',
           configId: config.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
+
+        // Persist error for UI display
+        settings.setCollectionSyncError(config.id, errorMessage);
 
         // Still increment counter to avoid getting stuck
         processedCount++;

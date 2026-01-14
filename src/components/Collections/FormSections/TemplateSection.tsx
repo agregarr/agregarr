@@ -7,13 +7,19 @@ import type {
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
 import { memo, useMemo } from 'react';
+import { defineMessages, useIntl } from 'react-intl';
+
+const messages = defineMessages({
+  previewUnavailable: 'Preview unavailable',
+  preview: 'Preview:',
+});
 
 interface FetchedTitles {
   [key: string]: string;
 }
 
 interface DetectedMediaTypes {
-  [key: string]: 'movie' | 'tv' | 'both' | null;
+  [key: string]: 'movie' | 'tv' | 'both' | 'mixed' | null;
 }
 
 interface TemplateSectionProps {
@@ -58,6 +64,7 @@ const TemplatePreviewItem = memo(function TemplatePreviewItem({
   subtype?: string;
   customDays?: number;
 }) {
+  const intl = useIntl();
   const { preview, loading, error } = useTemplatePreview({
     template,
     mediaType,
@@ -67,7 +74,12 @@ const TemplatePreviewItem = memo(function TemplatePreviewItem({
   });
 
   if (loading) return <span className="text-gray-400">Loading...</span>;
-  if (error) return <span className="text-gray-500">Preview unavailable</span>;
+  if (error)
+    return (
+      <span className="text-gray-500">
+        {intl.formatMessage(messages.previewUnavailable)}
+      </span>
+    );
 
   return (
     <span className="text-gray-300">
@@ -88,6 +100,7 @@ const TemplateSection = ({
   isVisible = true,
   libraries = [],
 }: TemplateSectionProps) => {
+  const intl = useIntl();
   // Memoize the template-relevant values to prevent unnecessary API calls
   const templateRelevantValues = useMemo(() => {
     const effectiveSubtype =
@@ -240,7 +253,9 @@ const TemplateSection = ({
 
       {/* Template preview */}
       <div className="mt-3 rounded-md border border-gray-600 bg-stone-800 p-3">
-        <h5 className="mb-2 text-sm font-medium text-gray-200">Preview:</h5>
+        <h5 className="mb-2 text-sm font-medium text-gray-200">
+          {intl.formatMessage(messages.preview)}
+        </h5>
         <div className="text-sm text-gray-300">
           {(() => {
             // Get the actual template being used (same logic as dropdown)

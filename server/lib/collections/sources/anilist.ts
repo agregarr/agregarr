@@ -1100,7 +1100,10 @@ export class AnilistCollectionSync extends BaseCollectionSync<'anilist'> {
                       raw?.coverImage?.extraLarge ||
                       raw?.coverImage?.large ||
                       undefined,
-                    metadata: { libraryKey: hit.libraryKey },
+                    metadata: {
+                      libraryKey: hit.libraryKey,
+                      originalPosition: i + 1,
+                    },
                   });
                   matched = true;
                   break;
@@ -1123,7 +1126,10 @@ export class AnilistCollectionSync extends BaseCollectionSync<'anilist'> {
                       raw?.coverImage?.extraLarge ||
                       raw?.coverImage?.large ||
                       undefined,
-                    metadata: { libraryKey: normalizedLibraryId },
+                    metadata: {
+                      libraryKey: normalizedLibraryId,
+                      originalPosition: i + 1,
+                    },
                   });
                   matched = true;
                   break;
@@ -1144,7 +1150,10 @@ export class AnilistCollectionSync extends BaseCollectionSync<'anilist'> {
                       raw?.coverImage?.extraLarge ||
                       raw?.coverImage?.large ||
                       undefined,
-                    metadata: { libraryKey: normalizedLibraryId },
+                    metadata: {
+                      libraryKey: normalizedLibraryId,
+                      originalPosition: i + 1,
+                    },
                   });
                   matched = true;
                   break;

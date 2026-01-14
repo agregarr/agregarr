@@ -148,6 +148,44 @@ export const PRESET_TEMPLATES: {
     },
   },
 
+  {
+    name: 'Rotten Tomatoes Certified Fresh',
+    description: 'Shows RT Certified Fresh logo in bottom-right corner',
+    type: 'rating',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            {
+              field: 'rtCertifiedFresh',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'rt-certified-fresh-logo',
+          layerOrder: 0,
+          type: 'raster',
+          x: 787,
+          y: 1285,
+          width: 200,
+          height: 200,
+          properties: {
+            imagePath: '/api/v1/posters/icons/system/rt_certified_fresh.png',
+            opacity: 100,
+          },
+        },
+      ],
+    },
+  },
+
   // ========================================
   // PLACEHOLDER OVERLAY (applies to all placeholder items)
   // ========================================

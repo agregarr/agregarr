@@ -129,7 +129,8 @@ export class RadarrTagCollectionSync extends BaseCollectionSync<'radarrtag'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(
@@ -378,9 +379,12 @@ export class RadarrTagCollectionSync extends BaseCollectionSync<'radarrtag'> {
             type: 'movie',
             tmdbId: lookup.tmdbId,
             year: lookup.year,
+            addedAt: plexItem.addedAt,
+            releaseDate: plexItem.releaseDate,
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,
+              originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
             },
           });
         } else {

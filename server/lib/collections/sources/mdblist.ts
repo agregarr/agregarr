@@ -135,7 +135,8 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       // Log detailed error information before rethrowing
@@ -238,11 +239,49 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
 
       return mdblistData;
     } catch (error) {
+      // Extract a meaningful error message
+      let errorMessage: string;
+      let originalError: Error;
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        originalError = error;
+      } else if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error &&
+        typeof (error as { message: unknown }).message === 'string'
+      ) {
+        errorMessage = (error as { message: string }).message;
+        originalError = new Error(errorMessage);
+      } else if (typeof error === 'object' && error !== null) {
+        // Try to serialize the error object
+        try {
+          errorMessage = JSON.stringify(error);
+          originalError = new Error(errorMessage);
+        } catch {
+          errorMessage = 'Unknown error (could not serialize error object)';
+          originalError = new Error(errorMessage);
+        }
+      } else {
+        errorMessage = String(error);
+        originalError = new Error(errorMessage);
+      }
+
+      logger.error(`MDBList API error: ${errorMessage}`, {
+        label: 'MDBList Collections',
+        listType,
+        mediaType,
+        url: config.mdblistCustomListUrl,
+        errorType:
+          error instanceof Error ? error.constructor.name : typeof error,
+      });
+
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
         `Failed to fetch data from MDBList API`,
         { listType, mediaType },
-        error instanceof Error ? error : new Error(String(error))
+        originalError
       );
     }
   }
@@ -321,7 +360,13 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
     // Use direct Plex queries instead of Media table
     let plexLookup: Map<
       string,
-      { ratingKey: string; title: string; libraryKey: string }
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
     > = new Map();
 
     if (plexClient) {
@@ -354,8 +399,11 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
           title: plexItem.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
           metadata: {
             libraryKey: plexItem.libraryKey,
+            originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
           },
         };
 

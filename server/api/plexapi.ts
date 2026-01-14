@@ -27,9 +27,11 @@ export interface PlexLibraryItem {
   lastViewedAt?: number;
   viewCount?: number;
   year?: number;
+  originallyAvailableAt?: string; // Original release date (YYYY-MM-DD format)
   index?: number;
   parentIndex?: number;
   editionTitle?: string;
+  userRating?: number; // User rating from server admin/user (0-10 scale where 10 = 5 stars)
   Guid?: {
     id: string;
   }[];
@@ -63,6 +65,7 @@ export interface PlexMetadata {
   guid: string;
   type: 'movie' | 'show' | 'season' | 'episode';
   title: string;
+  thumb?: string;
   Guid: {
     id: string;
   }[];
@@ -555,7 +558,11 @@ class PlexAPI {
     const allCollections: PlexCollection[] = [];
 
     try {
-      const libraries = await this.getLibraries();
+      const allLibraries = await this.getLibraries();
+      // Filter to only movie and show libraries - we don't manage music, photo, or other library types
+      const libraries = allLibraries.filter(
+        (library) => library.type === 'movie' || library.type === 'show'
+      );
       logger.debug('Processing collections across libraries', {
         label: 'Plex API',
         libraryCount: libraries.length,
@@ -2100,6 +2107,34 @@ class PlexAPI {
       });
     } catch (error) {
       logger.error('Failed to trigger Plex library scan', {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Empty trash for a Plex library section
+   * Removes items that Plex has detected as missing/unavailable
+   * @param libraryId - The library section ID to empty trash for
+   */
+  public async emptyTrash(libraryId: string): Promise<void> {
+    try {
+      logger.debug('Emptying Plex library trash', {
+        label: 'Plex API',
+        libraryId,
+      });
+
+      await this.safePutQuery(`/library/sections/${libraryId}/emptyTrash`);
+
+      logger.info('Plex library trash emptied', {
+        label: 'Plex API',
+        libraryId,
+      });
+    } catch (error) {
+      logger.error('Failed to empty Plex library trash', {
         label: 'Plex API',
         libraryId,
         error: error instanceof Error ? error.message : String(error),

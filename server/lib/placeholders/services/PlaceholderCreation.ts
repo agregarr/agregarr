@@ -11,7 +11,7 @@ import type {
   MissingItem,
   PlaceholderSourceData,
 } from '@server/lib/collections/core/types';
-import type { CollectionConfig } from '@server/lib/settings';
+import type { CollectionConfig, Library } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import path from 'path';
@@ -58,11 +58,21 @@ export async function processPlaceholdersForMissingItems(
     return [];
   }
 
-  // Filter by days ahead - only create placeholders for items releasing within the configured window
-  const daysAhead = getDaysAhead(config);
-  const { isDateWithinDays, determineReleaseDate } = await import(
-    '@server/utils/dateHelpers'
+  // Enrich source data with TMDB release dates for items that don't have them
+  // This is critical for regular collections (IMDb, Trakt, Letterboxd) which don't populate release dates
+  const { enrichWithTMDBReleaseDates } = await import(
+    '@server/lib/collections/sources/comingsoon/comingSoonFetch'
   );
+  const daysAhead = getDaysAhead(config);
+  const releasedDays = getReleasedDays(config);
+  await enrichWithTMDBReleaseDates(sourceData, daysAhead, releasedDays);
+
+  // Filter by date window - only create placeholders for items within the configured window
+  // When includeAllReleasedItems is true: include all past items, only filter by daysAhead for future
+  // When includeAllReleasedItems is false: use window from releasedDays in past to daysAhead in future
+  const { isDateWithinDays, isDateWithinFutureDays, determineReleaseDate } =
+    await import('@server/utils/dateHelpers');
+  const includeAllReleased = config.includeAllReleasedItems ?? true; // Default true for new configs
 
   const filteredSourceData = sourceData.filter((item) => {
     // Determine the effective release date to check
@@ -89,22 +99,40 @@ export async function processPlaceholdersForMissingItems(
       releaseDateToCheck = item.airDate;
     }
 
-    // If no release date, include the item (can't filter what we don't know)
+    // If no release date after TMDB enrichment, exclude the item
+    // This prevents creating placeholders for items with unknown release dates
+    // when user has specified a specific date window
     if (!releaseDateToCheck) {
-      return true;
+      logger.debug(
+        'Skipping placeholder creation - no release date available after TMDB enrichment',
+        {
+          label: 'PlaceholderService',
+          title: item.title,
+          tmdbId: item.tmdbId,
+          mediaType: item.mediaType,
+          configName: config.name,
+        }
+      );
+      return false;
     }
 
     // Check if release date is within the configured window
-    const withinWindow = isDateWithinDays(releaseDateToCheck, daysAhead);
+    // When includeAllReleased is true: only check future limit (all past items included)
+    // When includeAllReleased is false: check both past and future limits
+    const withinWindow = includeAllReleased
+      ? isDateWithinFutureDays(releaseDateToCheck, daysAhead)
+      : isDateWithinDays(releaseDateToCheck, daysAhead, releasedDays);
 
     if (!withinWindow) {
       logger.debug(
-        'Skipping placeholder creation - release date too far ahead',
+        'Skipping placeholder creation - release date outside configured window',
         {
           label: 'PlaceholderService',
           title: item.title,
           releaseDate: releaseDateToCheck,
           daysAhead,
+          releasedDays,
+          includeAllReleased,
           configName: config.name,
         }
       );
@@ -117,14 +145,15 @@ export async function processPlaceholdersForMissingItems(
 
   if (filteredSourceData.length === 0) {
     logger.info(
-      'No items within configured days ahead window for placeholder creation',
+      'No items within configured date window for placeholder creation',
       {
         label: 'PlaceholderService',
         configName: config.name,
         originalCount: missingItems.length,
-        skippedNoReleaseDate: missingItems.length - sourceData.length,
+        skippedNoReleaseDateMetadata: missingItems.length - sourceData.length,
         skippedByDateFilter,
         daysAhead,
+        releasedDays,
         collectionType: config.type,
       }
     );
@@ -135,9 +164,10 @@ export async function processPlaceholdersForMissingItems(
     label: 'PlaceholderService',
     configName: config.name,
     itemCount: filteredSourceData.length,
-    skippedNoReleaseDate: missingItems.length - sourceData.length,
+    skippedNoReleaseDateMetadata: missingItems.length - sourceData.length,
     skippedByDateFilter,
     daysAhead,
+    releasedDays,
     collectionType: config.type,
   });
 
@@ -234,7 +264,8 @@ function missingItemsToPlaceholderSourceData(
  * Returns the path to the created file
  */
 async function createPlaceholderFile(
-  sourceItem: ComingSoonSourceData
+  sourceItem: ComingSoonSourceData,
+  libraryKey: string
 ): Promise<string> {
   const { downloadTrailer } = await import(
     '@server/lib/placeholders/trailerDownload'
@@ -250,44 +281,38 @@ async function createPlaceholderFile(
     sourceItem.mediaType
   );
 
-  // 2. Get library path from placeholder root folder settings
-  const settings = getSettings();
-  let libraryPath: string | undefined;
+  // 2. Get library-specific placeholder root folder
+  const { getPlaceholderRootFolder } = await import(
+    '@server/lib/placeholders/helpers/placeholderPathHelpers'
+  );
 
-  if (sourceItem.mediaType === 'movie') {
-    libraryPath = settings.main.placeholderMovieRootFolder;
-
-    if (!libraryPath) {
-      throw new Error(
-        `Placeholder movie root folder not configured. Please set it in Settings > Downloads.`
-      );
-    }
-
-    logger.debug(
-      'Using configured movie root folder for placeholder creation',
-      {
-        label: 'PlaceholderService',
-        rootFolder: libraryPath,
-      }
-    );
-  } else if (sourceItem.mediaType === 'tv') {
-    libraryPath = settings.main.placeholderTVRootFolder;
-
-    if (!libraryPath) {
-      throw new Error(
-        `Placeholder TV root folder not configured. Please set it in Settings > Downloads.`
-      );
-    }
-
-    logger.debug('Using configured TV root folder for placeholder creation', {
-      label: 'PlaceholderService',
-      rootFolder: libraryPath,
-    });
-  }
+  const libraryPath = getPlaceholderRootFolder(
+    libraryKey,
+    sourceItem.mediaType
+  );
 
   if (!libraryPath) {
-    throw new Error(`Could not determine library path for ${sourceItem.title}`);
+    // Get library name for better error message
+    const settings = getSettings();
+    const library = settings.plex.libraries?.find(
+      (lib: Library) => lib.key === libraryKey
+    );
+    const libraryName = library?.name || `Library ${libraryKey}`;
+    const mediaTypeLabel = sourceItem.mediaType === 'movie' ? 'Movie' : 'TV';
+
+    throw new Error(
+      `${mediaTypeLabel} placeholder root folder not configured for "${libraryName}". Please configure it in Settings > Downloads > ${mediaTypeLabel} Placeholder Folders.`
+    );
   }
+
+  logger.debug(
+    `Using configured ${sourceItem.mediaType} root folder for placeholder creation`,
+    {
+      label: 'PlaceholderService',
+      libraryKey,
+      rootFolder: libraryPath,
+    }
+  );
 
   // 3. Create placeholder file in library
   const result = await createPlaceholder({
@@ -566,11 +591,21 @@ async function waitForPlexDiscovery(
   }[],
   config: CollectionConfig,
   plexClient: PlexAPI
-): Promise<Map<number, { ratingKey: string; title: string }>> {
+): Promise<{
+  discovered: Map<number, { ratingKey: string; title: string }>;
+  excludedUnmatched: Set<number>;
+}> {
   const sourceItems = placeholders.map((p) => p.sourceItem);
   const discovered = new Map<number, { ratingKey: string; title: string }>();
   const excludedUnmatched = new Set<number>(); // Track items found by title but unmatched
-  const maxAttempts = 30; // 30 attempts * 10 seconds = 5 minutes max
+
+  // Calculate max attempts based on item count
+  // Base: 5 minutes (30 attempts), plus 2 seconds per item beyond 50
+  const baseAttempts = 30;
+  const itemCount = placeholders.length;
+  const extraSeconds = Math.max(0, (itemCount - 50) * 2); // 2 seconds per item for large batches
+  const extraAttempts = Math.ceil(extraSeconds / 10); // Convert to 10-second intervals
+  const maxAttempts = baseAttempts + extraAttempts; // No cap - let the calculation determine timeout
   const pollInterval = 10000; // 10 seconds
 
   // Build a map of tmdbId -> placeholderPath for cleanup
@@ -583,7 +618,7 @@ async function waitForPlexDiscovery(
   let itemsStartedAppearing = false;
   let consecutiveNoDiscovery = 0; // Count of consecutive polls with no new discoveries
   const minTimeBeforeFallback = 60000; // 60 seconds (6 attempts) - optimized for faster detection
-  const waitCyclesAfterStop = 1; // Wait 1 more cycle after items stop - reduced wait time
+  const waitCyclesAfterStop = 2; // Wait 2 more cycles after items stop appearing
 
   logger.info('Polling Plex for placeholder discovery', {
     label: 'PlaceholderService',
@@ -748,6 +783,119 @@ async function waitForPlexDiscovery(
       missing: sourceItems.length - discovered.size - excludedUnmatched.size,
     });
   }
+
+  return { discovered, excludedUnmatched };
+}
+
+/**
+ * Verify that discovered placeholders have posters in Plex
+ * If Plex has no poster but TMDB does, apply the TMDB poster directly
+ */
+async function verifyPlexPosters(
+  discovered: Map<number, { ratingKey: string; title: string }>,
+  config: CollectionConfig,
+  plexClient: PlexAPI,
+  placeholderPathMap: Map<number, string>,
+  sourceMap: Map<number, ComingSoonSourceData>
+): Promise<Map<number, { ratingKey: string; title: string }>> {
+  const TmdbAPI = (await import('@server/api/themoviedb')).default;
+  const tmdbClient = new TmdbAPI();
+
+  let postersApplied = 0;
+  let postersAlreadyPresent = 0;
+
+  logger.info('Verifying Plex posters for discovered placeholders', {
+    label: 'PlaceholderService',
+    itemCount: discovered.size,
+  });
+
+  // Check each discovered item for poster
+  for (const [tmdbId, plexItem] of discovered) {
+    try {
+      const metadata = await plexClient.getMetadata(plexItem.ratingKey);
+
+      if (!metadata.thumb) {
+        const sourceItem = sourceMap.get(tmdbId);
+
+        if (sourceItem) {
+          logger.info(
+            'Placeholder has no poster in Plex - applying TMDB poster',
+            {
+              label: 'PlaceholderService',
+              title: plexItem.title,
+              tmdbId,
+              ratingKey: plexItem.ratingKey,
+              mediaType: sourceItem.mediaType,
+            }
+          );
+
+          // Fetch TMDB poster URL
+          let posterPath: string | undefined;
+
+          if (sourceItem.mediaType === 'movie') {
+            const movieDetails = await tmdbClient.getMovie({
+              movieId: tmdbId,
+            });
+            posterPath = movieDetails.poster_path;
+          } else {
+            const showDetails = await tmdbClient.getTvShow({
+              tvId: tmdbId,
+            });
+            posterPath = showDetails.poster_path;
+          }
+
+          if (posterPath) {
+            const tmdbPosterUrl = `https://image.tmdb.org/t/p/original${posterPath}`;
+
+            // Apply TMDB poster to Plex item
+            const posterManager = plexClient['posterManager'];
+            await posterManager.uploadPosterFromUrl(
+              plexItem.ratingKey,
+              tmdbPosterUrl
+            );
+
+            postersApplied++;
+
+            logger.info('Successfully applied TMDB poster to placeholder', {
+              label: 'PlaceholderService',
+              title: plexItem.title,
+              tmdbId,
+              ratingKey: plexItem.ratingKey,
+            });
+          } else {
+            // This shouldn't happen since we pre-filter for TMDB posters,
+            // but log it just in case
+            logger.warn(
+              'TMDB has no poster for item (unexpected - pre-filter should have caught this)',
+              {
+                label: 'PlaceholderService',
+                title: plexItem.title,
+                tmdbId,
+                mediaType: sourceItem.mediaType,
+              }
+            );
+          }
+        }
+      } else {
+        postersAlreadyPresent++;
+      }
+    } catch (error) {
+      logger.error('Failed to verify/apply poster', {
+        label: 'PlaceholderService',
+        title: plexItem.title,
+        tmdbId,
+        ratingKey: plexItem.ratingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  logger.info('Poster verification complete', {
+    label: 'PlaceholderService',
+    totalChecked: discovered.size,
+    postersAlreadyPresent,
+    postersApplied,
+  });
 
   return discovered;
 }
@@ -979,11 +1127,15 @@ async function createPlaceholders(
             const { removePlaceholder } = await import(
               '@server/lib/placeholders/placeholderManager'
             );
-            const settings = getSettings();
-            const libraryPath =
-              itemExtended.type === 'movie'
-                ? settings.main.placeholderMovieRootFolder
-                : settings.main.placeholderTVRootFolder;
+            const { getPlaceholderRootFolder } = await import(
+              '@server/lib/placeholders/helpers/placeholderPathHelpers'
+            );
+            const mediaType: 'movie' | 'tv' =
+              itemExtended.type === 'movie' ? 'movie' : 'tv';
+            const libraryPath = getPlaceholderRootFolder(
+              config.libraryId,
+              mediaType
+            );
 
             if (libraryPath) {
               // Extract relative path from Plex path by taking last N parts
@@ -1206,17 +1358,20 @@ async function createPlaceholders(
         }
 
         // Verify file exists in our library
-        const settings = getSettings();
-        const libraryPath =
-          sourceItem.mediaType === 'movie'
-            ? settings.main.placeholderMovieRootFolder
-            : settings.main.placeholderTVRootFolder;
+        const { getPlaceholderRootFolder } = await import(
+          '@server/lib/placeholders/helpers/placeholderPathHelpers'
+        );
+        const libraryPath = getPlaceholderRootFolder(
+          config.libraryId,
+          sourceItem.mediaType
+        );
 
         if (!libraryPath) {
           logger.warn('Placeholder library path not configured', {
             label: 'PlaceholderService',
             title: item.title,
             mediaType: sourceItem.mediaType,
+            libraryId: config.libraryId,
           });
           continue;
         }
@@ -1314,7 +1469,10 @@ async function createPlaceholders(
     }
 
     try {
-      const placeholderPath = await createPlaceholderFile(sourceItem);
+      const placeholderPath = await createPlaceholderFile(
+        sourceItem,
+        config.libraryId
+      );
 
       createdPlaceholders.push({ sourceItem, placeholderPath });
 
@@ -1348,6 +1506,7 @@ async function createPlaceholders(
     number,
     { ratingKey: string; title: string }
   >();
+  let excludedUnmatchedSet = new Set<number>(); // Track items already deleted by fallback
 
   if (createdPlaceholders.length > 0) {
     logger.info('Triggering Plex library scan for newly created placeholders', {
@@ -1359,11 +1518,13 @@ async function createPlaceholders(
     await plexClient.scanLibrary(config.libraryId);
 
     // Step 3: Poll for ALL items to be discovered
-    discoveredItemsMap = await waitForPlexDiscovery(
+    const discoveryResult = await waitForPlexDiscovery(
       createdPlaceholders,
       config,
       plexClient
     );
+    discoveredItemsMap = discoveryResult.discovered;
+    excludedUnmatchedSet = discoveryResult.excludedUnmatched;
   }
 
   // Add orphaned placeholders to discovered map (they're already in Plex)
@@ -1371,11 +1532,33 @@ async function createPlaceholders(
     discoveredItemsMap.set(orphaned.sourceItem.tmdbId, orphaned.plexItem);
   }
 
+  // Build maps for poster verification
+  const placeholderPathMap = new Map<number, string>();
+  for (const { sourceItem, placeholderPath } of [
+    ...createdPlaceholders,
+    ...orphanedPlaceholders,
+  ]) {
+    placeholderPathMap.set(sourceItem.tmdbId, placeholderPath);
+  }
+
+  // Verify that discovered placeholders have posters in Plex
+  // If Plex has no poster (common for future releases), apply the TMDB poster directly
+  discoveredItemsMap = await verifyPlexPosters(
+    discoveredItemsMap,
+    config,
+    plexClient,
+    placeholderPathMap,
+    sourceMap
+  );
+
   const matchedPlaceholders = createdPlaceholders.filter((placeholder) =>
     discoveredItemsMap.has(placeholder.sourceItem.tmdbId)
   );
+  // Filter out items already deleted by the fallback handler during polling
   const unmatchedPlaceholders = createdPlaceholders.filter(
-    (placeholder) => !discoveredItemsMap.has(placeholder.sourceItem.tmdbId)
+    (placeholder) =>
+      !discoveredItemsMap.has(placeholder.sourceItem.tmdbId) &&
+      !excludedUnmatchedSet.has(placeholder.sourceItem.tmdbId)
   );
 
   if (unmatchedPlaceholders.length > 0) {
@@ -1439,11 +1622,13 @@ async function createPlaceholders(
       });
 
       // Convert absolute path to relative path before storing
-      const settings = getSettings();
-      const libraryPath =
-        sourceItem.mediaType === 'movie'
-          ? settings.main.placeholderMovieRootFolder
-          : settings.main.placeholderTVRootFolder;
+      const { getPlaceholderRootFolder } = await import(
+        '@server/lib/placeholders/helpers/placeholderPathHelpers'
+      );
+      const libraryPath = getPlaceholderRootFolder(
+        config.libraryId,
+        sourceItem.mediaType
+      );
 
       let relativePath = placeholderPath;
       if (libraryPath && placeholderPath.startsWith(libraryPath)) {

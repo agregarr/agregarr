@@ -139,7 +139,8 @@ export interface ConditionRule {
     | 'contains' // string contains
     | 'regex' // regex match
     | 'begins' // string begins with
-    | 'ends'; // string ends with
+    | 'ends' // string ends with
+    | 'exists'; // field exists (has non-null/undefined value)
   value: string | number | boolean | (string | number)[];
 }
 
@@ -149,12 +150,14 @@ export interface ConditionRule {
  * Matches server/lib/overlays/OverlayTemplateRenderer.ts OverlayRenderContext
  */
 export interface OverlayRenderContext {
-  // Ratings (from IMDb API / RT API)
+  // Ratings (from IMDb API / RT API / Plex)
   imdbRating?: number;
   imdbTop250Rank?: number; // IMDb Top 250 ranking (1-250 for movies, 1-250 for TV)
   isImdbTop250?: boolean; // True if item is in IMDb Top 250 list
   rtCriticsScore?: number;
   rtAudienceScore?: number;
+  rtCertifiedFresh?: boolean; // True if Rotten Tomatoes Certified Fresh
+  plexUserRating?: number; // Plex user rating (0-10 scale where 10 = 5 stars)
   // metacriticScore?: number; // TODO: Implement Metacritic integration
 
   // TMDB Metadata
@@ -165,6 +168,7 @@ export interface OverlayRenderContext {
   network?: string; // For TV shows
   genre?: string;
   runtime?: number;
+  runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
 
   // Plex Media Info (from actual file analysis)
@@ -199,6 +203,8 @@ export interface OverlayRenderContext {
   viewCount?: number; // Number of times played
   lastPlayed?: Date; // Last playback date
   dateAdded?: Date; // Date added to Plex
+  daysSinceAdded?: number; // Days since item was added to Plex
+  daysSinceLastPlayed?: number; // Days since item was last played
 
   // Status fields (for Coming Soon / New Release)
   // PRIMARY RELEASE DATE - Smart calculated field
@@ -225,6 +231,8 @@ export interface OverlayRenderContext {
   inRadarr?: boolean;
   inSonarr?: boolean;
   downloaded?: boolean;
+  radarrTags?: string[]; // Array of Radarr tag names
+  sonarrTags?: string[]; // Array of Sonarr tag names
 
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
@@ -237,7 +245,7 @@ export interface OverlayRenderContext {
   status?: string;
 
   // Allow additional fields
-  [key: string]: string | number | boolean | Date | undefined;
+  [key: string]: string | number | boolean | Date | string[] | undefined;
 }
 
 /**
@@ -251,6 +259,8 @@ export const AVAILABLE_VARIABLES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
+    { field: 'rtCertifiedFresh', label: 'RT Certified Fresh', example: 'true' },
+    { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   metadata: [
@@ -261,6 +271,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'network', label: 'Network (TV)', example: 'AMC' },
     { field: 'genre', label: 'Genre', example: 'Sci-Fi' },
     { field: 'runtime', label: 'Runtime (min)', example: '136' },
+    { field: 'runtimeHHMM', label: 'Runtime (HHMM)', example: '2h 16m' },
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
@@ -309,6 +320,12 @@ export const AVAILABLE_VARIABLES = {
     { field: 'viewCount', label: 'View Count', example: '5' },
     { field: 'lastPlayed', label: 'Last Played', example: '2024-01-15' },
     { field: 'dateAdded', label: 'Date Added', example: '2024-01-01' },
+    { field: 'daysSinceAdded', label: 'Days Since Added', example: '14' },
+    {
+      field: 'daysSinceLastPlayed',
+      label: 'Days Since Last Played',
+      example: '7',
+    },
   ],
   'coming-soon': [
     { field: 'releaseDate', label: 'Release Date', example: 'JAN 15' },
@@ -361,6 +378,8 @@ export const AVAILABLE_VARIABLES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
+    { field: 'radarrTags', label: 'Radarr Tags', example: 'english-audio' },
+    { field: 'sonarrTags', label: 'Sonarr Tags', example: 'german-audio' },
     {
       field: 'daysUntilAction',
       label: 'Days Until Maintainerr Action',
@@ -382,6 +401,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'network', label: 'Network (TV)', example: 'AMC' },
     { field: 'genre', label: 'Genre', example: 'Sci-Fi' },
     { field: 'runtime', label: 'Runtime (min)', example: '136' },
+    { field: 'runtimeHHMM', label: 'Runtime (HHMM)', example: '2h 16m' },
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
@@ -424,6 +444,12 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'viewCount', label: 'View Count', example: '5' },
     { field: 'lastPlayed', label: 'Last Played', example: '2024-01-15' },
     { field: 'dateAdded', label: 'Date Added', example: '2024-01-01' },
+    { field: 'daysSinceAdded', label: 'Days Since Added', example: '14' },
+    {
+      field: 'daysSinceLastPlayed',
+      label: 'Days Since Last Played',
+      example: '7',
+    },
   ],
   Ratings: [
     { field: 'imdbRating', label: 'IMDb Rating', example: '8.7' },
@@ -431,6 +457,8 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'isImdbTop250', label: 'Is IMDb Top 250', example: 'true' },
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
+    { field: 'rtCertifiedFresh', label: 'RT Certified Fresh', example: 'true' },
+    { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
   Status: [
@@ -478,6 +506,8 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'inRadarr', label: 'In Radarr', example: 'true' },
     { field: 'inSonarr', label: 'In Sonarr', example: 'true' },
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
+    { field: 'radarrTags', label: 'Radarr Tags', example: 'english-audio' },
+    { field: 'sonarrTags', label: 'Sonarr Tags', example: 'german-audio' },
     {
       field: 'daysUntilAction',
       label: 'Days Until Maintainerr Action',
@@ -535,6 +565,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 88,
     rtAudienceScore: 85,
+    rtCertifiedFresh: true,
+    plexUserRating: 8,
     // metacriticScore: 73, // TODO: Implement Metacritic integration
     director: 'Lana Wachowski',
     studio: 'Warner Bros.',
@@ -559,9 +591,12 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitrate: 15000,
     fileSize: 4500000000,
     viewCount: 5,
+    daysSinceAdded: 14,
+    daysSinceLastPlayed: 3,
     releaseDate: '2025-02-15', // Primary release date (digital)
     daysUntilRelease: 14,
     runtime: 136,
+    runtimeHHMM: '2h 16m',
     isMonitored: true,
     inRadarr: true,
     downloaded: false,
@@ -577,12 +612,16 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     isImdbTop250: true,
     rtCriticsScore: 96,
     rtAudienceScore: 98,
+    // rtCertifiedFresh not included - TV shows don't have Certified Fresh in RT API
+    plexUserRating: 10,
     // metacriticScore: 96, // TODO: Implement Metacritic integration
     seasonNumber: 5,
     episodeNumber: 16,
     episodeLabel: 'SERIES FINALE',
     network: 'AMC',
     genre: 'Drama',
+    runtime: 47,
+    runtimeHHMM: '47m',
     tmdbStatus: 'ENDED',
     resolution: '1080p',
     width: 1920,
@@ -600,6 +639,8 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     bitrate: 8000,
     fileSize: 3000000000,
     viewCount: 12,
+    daysSinceAdded: 120,
+    daysSinceLastPlayed: 7,
     releaseDate: '2008-01-20', // Series premiere (NOT next episode)
     nextEpisodeAirDate: '2025-01-22', // Next episode (any episode, including mid-season)
     daysUntilNextEpisode: 7, // Days until next episode

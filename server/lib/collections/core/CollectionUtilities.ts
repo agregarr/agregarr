@@ -322,7 +322,11 @@ export function createCollectionLabel(
  */
 export function parseConfigIdFromLabel(label: string): string | null {
   // Match pattern: Agregarr[Source][ConfigId] or Agregarr[Source][ConfigId]user[UserId]
-  const match = label.match(/^Agregarr([A-Za-z]+)([a-f0-9-]+)(?:user\d+)?$/i);
+  // Source can contain hyphens/underscores (e.g., multi-source, filtered_hub)
+  // ConfigId starts with a digit (numeric ID or UUID)
+  const match = label.match(
+    /^Agregarr([A-Za-z]+(?:[-_][A-Za-z]+)*)([0-9][a-f0-9-]*)(?:user\d+)?$/i
+  );
   return match ? match[2] : null;
 }
 
@@ -1496,10 +1500,20 @@ function extractTmdbIdFromGuids(guids: { id: string }[]): number | null {
 async function getAllLibraryItems(
   plexClient: PlexAPI,
   libraryKey: string
-): Promise<{ ratingKey: string; title: string; Guid?: { id: string }[] }[]> {
+): Promise<
+  {
+    ratingKey: string;
+    title: string;
+    addedAt?: number;
+    releaseDate?: number;
+    Guid?: { id: string }[];
+  }[]
+> {
   const allItems: {
     ratingKey: string;
     title: string;
+    addedAt?: number;
+    releaseDate?: number;
     Guid?: { id: string }[];
   }[] = [];
   let offset = 0;
@@ -1512,7 +1526,25 @@ async function getAllLibraryItems(
       size: pageSize,
     });
 
-    allItems.push(...response.items);
+    // Map items to include date fields, converting originallyAvailableAt to Unix timestamp
+    const itemsWithDates = response.items.map((item) => {
+      // Convert originallyAvailableAt from "YYYY-MM-DD" to Unix timestamp
+      let releaseDate: number | undefined;
+      if (item.originallyAvailableAt) {
+        const date = new Date(item.originallyAvailableAt);
+        releaseDate = Math.floor(date.getTime() / 1000);
+      }
+
+      return {
+        ratingKey: item.ratingKey,
+        title: item.title,
+        addedAt: item.addedAt,
+        releaseDate,
+        Guid: item.Guid,
+      };
+    });
+
+    allItems.push(...itemsWithDates);
 
     // If we got fewer items than requested, we've reached the end
     if (response.items.length < pageSize) {
@@ -1530,6 +1562,8 @@ export interface LibraryItemsCache {
   [libraryKey: string]: {
     ratingKey: string;
     title: string;
+    addedAt?: number;
+    releaseDate?: number; // Converted from originallyAvailableAt string to Unix timestamp
     Guid?: { id: string }[];
   }[];
 }
@@ -1630,11 +1664,26 @@ export async function findPlexItemsByTmdbIds(
   libraryCache?: LibraryItemsCache,
   forDuplicateDetection = false
 ): Promise<
-  Map<string, { ratingKey: string; title: string; libraryKey: string }>
+  Map<
+    string,
+    {
+      ratingKey: string;
+      title: string;
+      libraryKey: string;
+      addedAt?: number;
+      releaseDate?: number;
+    }
+  >
 > {
   const results = new Map<
     string,
-    { ratingKey: string; title: string; libraryKey: string }
+    {
+      ratingKey: string;
+      title: string;
+      libraryKey: string;
+      addedAt?: number;
+      releaseDate?: number;
+    }
   >();
 
   if (tmdbLookups.length === 0) {
@@ -1698,7 +1747,7 @@ export async function findPlexItemsByTmdbIds(
             (lib) => lib.key === targetLibraryId
           );
           if (movieLibraries.length === 0) {
-            logger.warn(
+            logger.debug(
               `Target library ${targetLibraryId} not found or is not a movie library`,
               {
                 label: 'Plex Search',
@@ -1733,6 +1782,8 @@ export async function findPlexItemsByTmdbIds(
         let items: {
           ratingKey: string;
           title: string;
+          addedAt?: number;
+          releaseDate?: number;
           Guid?: { id: string }[];
         }[];
 
@@ -1769,6 +1820,8 @@ export async function findPlexItemsByTmdbIds(
                   ratingKey: item.ratingKey,
                   title: item.title,
                   libraryKey: library.key,
+                  addedAt: item.addedAt,
+                  releaseDate: item.releaseDate,
                 });
               }
             }
@@ -1794,7 +1847,7 @@ export async function findPlexItemsByTmdbIds(
             (lib) => lib.key === targetLibraryId
           );
           if (tvLibraries.length === 0) {
-            logger.warn(
+            logger.debug(
               `Target library ${targetLibraryId} not found or is not a TV library`,
               {
                 label: 'Plex Search',
@@ -1829,6 +1882,8 @@ export async function findPlexItemsByTmdbIds(
         let items: {
           ratingKey: string;
           title: string;
+          addedAt?: number;
+          releaseDate?: number;
           Guid?: { id: string }[];
         }[];
 
@@ -1872,6 +1927,8 @@ export async function findPlexItemsByTmdbIds(
                   ratingKey: item.ratingKey,
                   title: item.title,
                   libraryKey: library.key,
+                  addedAt: item.addedAt,
+                  releaseDate: item.releaseDate,
                 });
               } else {
                 // Check if this show has episodes we need to find
@@ -1912,10 +1969,21 @@ export async function findPlexItemsByTmdbIds(
                               guid.id === `tmdb://${episodeLookup.tmdbId}`
                           )
                         ) {
+                          // Convert originallyAvailableAt from string to Unix timestamp
+                          let releaseDate: number | undefined;
+                          if (episode.originallyAvailableAt) {
+                            const date = new Date(
+                              episode.originallyAvailableAt
+                            );
+                            releaseDate = Math.floor(date.getTime() / 1000);
+                          }
+
                           results.set(key, {
                             ratingKey: episode.ratingKey,
                             title: episode.title,
                             libraryKey: library.key,
+                            addedAt: episode.addedAt,
+                            releaseDate,
                           });
 
                           foundCount++;

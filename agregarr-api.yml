@@ -170,12 +170,26 @@ components:
         newPlexLogin:
           type: boolean
           example: true
-        placeholderMovieRootFolder:
-          type: string
-          example: /data/media/movies
-        placeholderTVRootFolder:
-          type: string
-          example: /data/media/tv
+        placeholderMovieRootFolders:
+          type: object
+          additionalProperties:
+            type: string
+          description: Per-library movie placeholder root folders (libraryKey -> path)
+          example:
+            '1': /data/media/movies
+            '3': /data/media/movies-4k
+        placeholderTVRootFolders:
+          type: object
+          additionalProperties:
+            type: string
+          description: Per-library TV placeholder root folders (libraryKey -> path)
+          example:
+            '2': /data/media/tv
+            '4': /data/media/anime
+        skipYoutubeTrailerDownloads:
+          type: boolean
+          description: If true, skip YouTube trailer downloads and use hardcoded placeholder video only (speeds up sync)
+          example: false
     PlexLibrary:
       type: object
       properties:
@@ -445,6 +459,11 @@ components:
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
           nullable: true
+        includeAllReleasedItems:
+          type: boolean
+          description: 'If true, include all released items regardless of release date (default: true for new configs)'
+          example: true
+          nullable: true
         comingSoonDays:
           type: integer
           description: 'DEPRECATED: Use placeholderDaysAhead instead'
@@ -585,7 +604,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
+          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://app.trakt.tv/users/username/lists/list-name)'
           example: 'https://trakt.tv/users/username/lists/my-list'
           nullable: true
         tmdbCustomCollectionUrl:
@@ -595,7 +614,7 @@ components:
           nullable: true
         imdbCustomListUrl:
           type: string
-          description: 'Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           example: 'https://www.imdb.com/list/ls123456789/'
           nullable: true
         mdblistCustomListUrl:
@@ -611,6 +630,12 @@ components:
             - random
             - imdb_rating_desc
             - imdb_rating_asc
+            - release_date_desc
+            - release_date_asc
+            - date_added_desc
+            - date_added_asc
+            - alphabetical_asc
+            - alphabetical_desc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -999,6 +1024,11 @@ components:
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
           nullable: true
+        includeAllReleasedItems:
+          type: boolean
+          description: 'If true, include all released items regardless of release date (default: true for new configs)'
+          example: true
+          nullable: true
         minimumPlays:
           type: integer
           description: 'Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)'
@@ -1127,7 +1157,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
+          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://app.trakt.tv/users/username/lists/list-name)'
           example: 'https://trakt.tv/users/username/lists/my-list'
           nullable: true
         tmdbCustomCollectionUrl:
@@ -1137,7 +1167,7 @@ components:
           nullable: true
         imdbCustomListUrl:
           type: string
-          description: 'Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           example: 'https://www.imdb.com/list/ls123456789/'
           nullable: true
         mdblistCustomListUrl:
@@ -1153,6 +1183,12 @@ components:
             - random
             - imdb_rating_desc
             - imdb_rating_asc
+            - release_date_desc
+            - release_date_asc
+            - date_added_desc
+            - date_added_asc
+            - alphabetical_asc
+            - alphabetical_desc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -1688,6 +1724,11 @@ components:
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
           nullable: true
+        includeAllReleasedItems:
+          type: boolean
+          description: 'If true, include all released items regardless of release date (default: true for new configs)'
+          example: true
+          nullable: true
         minimumPlays:
           type: integer
           description: 'Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)'
@@ -1822,7 +1863,7 @@ components:
           nullable: true
         traktCustomListUrl:
           type: string
-          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)'
+          description: 'Custom Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://app.trakt.tv/users/username/lists/list-name)'
           example: 'https://trakt.tv/users/username/lists/my-list'
           nullable: true
         tmdbCustomCollectionUrl:
@@ -1832,7 +1873,7 @@ components:
           nullable: true
         imdbCustomListUrl:
           type: string
-          description: 'Custom IMDb list URL (e.g., https://www.imdb.com/list/ls123456789/)'
+          description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
           example: 'https://www.imdb.com/list/ls123456789/'
           nullable: true
         mdblistCustomListUrl:
@@ -1858,6 +1899,12 @@ components:
             - random
             - imdb_rating_desc
             - imdb_rating_asc
+            - release_date_desc
+            - release_date_asc
+            - date_added_desc
+            - date_added_asc
+            - alphabetical_asc
+            - alphabetical_desc
           description: 'Sort order for collection items'
           example: 'default'
           default: 'default'
@@ -6367,61 +6414,51 @@ paths:
         '500':
           description: Failed to generate template preview
   /collections/fetch-title:
-    post:
-      summary: Quick validation and title extraction from external collection URL
-      description: Performs quick validation (first 10 items) and extracts the title from external collection URLs (Trakt, TMDB, IMDb, Letterboxd). Returns immediately with basic media type detection for fast UX. For comprehensive media type analysis, use the /collections/detect-media-type endpoint.
+    get:
+      summary: Fetch title with real-time progress updates via SSE
+      description: Fetches title from external collection URL with Server-Sent Events for real-time progress updates. Particularly useful for IMDb which requires WAF challenge solving (10-20 seconds on first request).
       tags:
         - collections-utility
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                url:
-                  type: string
-                  example: 'https://trakt.tv/users/username/lists/my-list'
-                type:
-                  type: string
-                  enum:
-                    [
-                      trakt,
-                      tmdb,
-                      imdb,
-                      mdblist,
-                      letterboxd,
-                      anilist,
-                      myanimelist,
-                    ]
-                  example: 'trakt'
-              required:
-                - url
-                - type
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+          example: 'https://www.imdb.com/list/ls123456789/'
+          description: External collection URL
+        - in: query
+          name: type
+          required: true
+          schema:
+            type: string
+            enum: [trakt, tmdb, imdb, letterboxd, mdblist, anilist]
+          example: 'imdb'
+          description: Collection source type
       responses:
         '200':
-          description: Title fetched successfully
+          description: Server-Sent Events stream with progress updates
           content:
-            application/json:
+            text/event-stream:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: 'success'
-                  title:
-                    type: string
-                    example: 'My List'
-                  mediaType:
-                    type: string
-                    enum: [movie, tv, both]
-                    example: 'movie'
+                type: string
+                description: SSE messages with progress updates and final result
+              example: |
+                data: {"stage":"connecting","message":"Connecting to IMDb..."}
+
+                data: {"stage":"challenge","message":"Solving IMDb bot protection challenge... (first request takes 10-20 seconds)"}
+
+                data: {"stage":"parsing","message":"Extracting list information..."}
+
+                data: {"stage":"complete","message":"Complete!"}
+
+                data: {"status":"success","title":"My IMDb List","mediaType":"movie","contentTypes":["movies"]}
         '400':
-          description: Bad request - invalid URL or unsupported type
+          description: Bad request - missing or invalid parameters
         '429':
           description: Too many requests - rate limited
         '500':
-          description: Failed to fetch title
+          description: Internal server error
   /collections/detect-media-type:
     post:
       summary: Comprehensive media type detection from external collection URL
@@ -8175,6 +8212,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MainSettings'
+  /settings/youtube-cookies-status:
+    get:
+      summary: Check YouTube cookies file status
+      description: Checks if the youtube-cookies.txt file exists in the config directory.
+      tags:
+        - settings-general
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exists:
+                    type: boolean
+                    description: Whether the youtube-cookies.txt file exists
+                    example: true
   /settings/reset:
     post:
       summary: Reset all Agregarr collections
@@ -9169,6 +9224,18 @@ paths:
                 $ref: '#/components/schemas/OverseerrSettings'
         '500':
           description: 'Connection test failed'
+    delete:
+      summary: Delete Overseerr settings
+      description: Clears all Overseerr connection settings.
+      tags:
+        - settings-integrations
+      responses:
+        '200':
+          description: 'Settings were successfully cleared'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverseerrSettings'
   /overseerr/test:
     post:
       summary: Test Overseerr connection
@@ -9444,6 +9511,21 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ServiceProfile'
+  /settings/radarr/alltags:
+    get:
+      summary: Get all Radarr tags from all instances
+      description: Returns a deduplicated list of tags from all configured Radarr instances.
+      tags:
+        - settings-services
+      responses:
+        '200':
+          description: List of tags from all Radarr instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/radarr/{radarrId}:
     put:
       summary: Update Radarr instance
@@ -9671,6 +9753,21 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ServiceProfile'
+  /settings/sonarr/alltags:
+    get:
+      summary: Get all Sonarr tags from all instances
+      description: Returns a deduplicated list of tags from all configured Sonarr instances.
+      tags:
+        - settings-services
+      responses:
+        '200':
+          description: List of tags from all Sonarr instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServarrTag'
   /settings/sonarr/{sonarrId}:
     put:
       summary: Update Sonarr instance

@@ -38,6 +38,7 @@ interface NetworksCollectionItem extends CollectionItem {
       spriteUrl: string;
       position: string;
     };
+    originalPosition?: number;
   };
 }
 
@@ -140,7 +141,8 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(
@@ -465,11 +467,14 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
             year: lookup.year, // Include year for poster generation
             rank: lookup.rank,
             platform: lookup.platform,
+            addedAt: plexItem.addedAt,
+            releaseDate: plexItem.releaseDate,
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,
               flixpatrolUrl: lookup.flixpatrolUrl,
               platformLogo: lookup.platformLogo, // Include platform logo metadata
+              originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
             },
           });
         } else {

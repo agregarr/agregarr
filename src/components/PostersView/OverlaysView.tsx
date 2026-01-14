@@ -36,7 +36,6 @@ const messages = defineMessages({
   importTemplate: 'Import Template',
   importSuccess: 'Overlay template imported successfully',
   importError: 'Failed to import overlay template',
-  loading: 'Loading...',
   error: 'Failed to load overlay data',
   templatesDescription:
     'Design reusable overlay templates for ratings, metadata, and more',
@@ -48,6 +47,7 @@ const messages = defineMessages({
   overlaySyncQueued:
     'Per-library syncs are running. Full sync will start when they complete.',
   overlaySyncError: 'Failed to start overlay sync',
+  testItem: 'Test Item',
 });
 
 interface OverlayTemplate {
@@ -336,7 +336,7 @@ const OverlaysView: React.FC = () => {
                 className="flex items-center space-x-2"
               >
                 <BeakerIcon className="h-4 w-4" />
-                <span>Test Item</span>
+                <span>{intl.formatMessage(messages.testItem)}</span>
               </Button>
               <Button
                 buttonType="ghost"

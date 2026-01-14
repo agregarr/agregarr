@@ -10,6 +10,7 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
@@ -31,17 +32,14 @@ const messages = defineMessages({
   networksPlatform: 'Streaming Platform',
   selectCountry: 'Select country...',
   selectPlatform: 'Select platform...',
-  loadingCountries: 'Loading countries...',
   loadingPlatforms: 'Loading platforms...',
   customUrl: 'Custom URL',
   customUrlPlaceholder: 'Enter custom list URL',
   timePeriod: 'Time Period',
   customDays: 'Number of Days',
   minimumPlays: 'Minimum Play Count',
-  comingSoonDays: 'Days to Look Ahead',
   combineMode: 'Combine Mode',
   addSource: 'Add Source',
-  removeSource: 'Remove',
   validateUrl: 'Validate URL',
   validatingUrl: 'Validating...',
   urlValid: 'Valid',
@@ -58,6 +56,36 @@ const messages = defineMessages({
   selectTag: 'Select tag...',
   loadingTags: 'Loading tags...',
   selectInstanceFirst: 'Select an instance first',
+  loadPlatformsError: 'Failed to load platforms. Please try again.',
+  loadInstancesError: 'Failed to load instances. Please try again.',
+  loadTagsError: 'Failed to load tags. Please try again.',
+  sources: 'Sources ({count})',
+  noSourcesConfigured:
+    'No sources configured. Click Add Source to get started.',
+  sourceNumber: 'Source {number}',
+  remove: 'Remove',
+  overseerrRequests: 'Overseerr Requests',
+  tautulliStatistics: 'Tautulli Statistics',
+  traktLists: 'Trakt Lists',
+  letterboxdLists: 'Letterboxd Lists',
+  tmdbLists: 'TMDB Lists',
+  imdbLists: 'IMDb Lists',
+  mdblistLists: 'MDBList Lists',
+  networks: 'Networks',
+  streamingOriginals: 'Streaming Originals',
+  radarrTags: 'Radarr Tags',
+  sonarrTags: 'Sonarr Tags',
+  anilist: 'AniList',
+  myAnimeList: 'MyAnimeList',
+  comingSoon: 'Coming Soon',
+  contains: 'Contains: {types}',
+  global: 'Global',
+  daily: 'Daily',
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  allTime: 'All Time',
+  detectedContentTypes: 'Detected content types: {types}',
+  disabledMixedContent: '(Disabled - mixed content detected)',
 });
 
 interface SubtypeOption {
@@ -133,7 +161,7 @@ const NetworksPlatformSelect = ({
       </Field>
       {platformsError && (
         <p className="mt-1 text-xs text-red-400">
-          Failed to load platforms. Please try again.
+          {intl.formatMessage(messages.loadPlatformsError)}
         </p>
       )}
     </>
@@ -296,7 +324,7 @@ const ArrTagSelect = ({
         </Field>
         {instanceError && (
           <p className="mt-1 text-xs text-red-400">
-            Failed to load instances. Please try again.
+            {intl.formatMessage(messages.loadInstancesError)}
           </p>
         )}
       </div>
@@ -340,7 +368,7 @@ const ArrTagSelect = ({
         </Field>
         {tagsError && (
           <p className="mt-1 text-xs text-red-400">
-            Failed to load tags. Please try again.
+            {intl.formatMessage(messages.loadTagsError)}
           </p>
         )}
       </div>
@@ -381,6 +409,7 @@ const MultiSourceConfigSection = ({
 
   // Fetch API settings for validation
   const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
+  const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -423,7 +452,7 @@ const MultiSourceConfigSection = ({
     });
   }, [sources, setFieldValue]);
 
-  // Validate a source URL using the existing /fetch-title endpoint
+  // Validate a source URL using SSE endpoint
   const validateSourceUrl = React.useCallback(
     async (sourceId: string, url: string, type: string) => {
       if (!url?.trim()) return;
@@ -441,50 +470,82 @@ const MultiSourceConfigSection = ({
         },
       }));
 
-      try {
-        const response = await fetch('/api/v1/collections/fetch-title', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url, type }),
-        });
+      return new Promise<void>((resolve, reject) => {
+        const eventSource = new EventSource(
+          `/api/v1/collections/fetch-title?url=${encodeURIComponent(
+            url
+          )}&type=${type}`
+        );
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || `Failed to validate ${type} URL`
-          );
-        }
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
 
-        const data = await response.json();
+            if (data.status === 'success') {
+              // Update validation state with results
+              setSourceValidations((prev) => ({
+                ...prev,
+                [sourceId]: {
+                  isValidating: false,
+                  isValid: true,
+                  title: data.title || null,
+                  mediaType: data.mediaType || null,
+                  contentTypes: data.contentTypes || [],
+                  error: null,
+                },
+              }));
+              eventSource.close();
+              resolve();
+            } else if (data.status === 'error') {
+              // Update validation state with error
+              setSourceValidations((prev) => ({
+                ...prev,
+                [sourceId]: {
+                  isValidating: false,
+                  isValid: false,
+                  title: null,
+                  mediaType: null,
+                  contentTypes: [],
+                  error: data.message || 'Validation failed',
+                },
+              }));
+              eventSource.close();
+              reject(new Error(data.message));
+            }
+            // Ignore progress messages - just wait for success/error
+          } catch (parseError) {
+            setSourceValidations((prev) => ({
+              ...prev,
+              [sourceId]: {
+                isValidating: false,
+                isValid: false,
+                title: null,
+                mediaType: null,
+                contentTypes: [],
+                error: 'Failed to parse response',
+              },
+            }));
+            eventSource.close();
+            reject(parseError);
+          }
+        };
 
-        // Update validation state with results
-        setSourceValidations((prev) => ({
-          ...prev,
-          [sourceId]: {
-            isValidating: false,
-            isValid: true,
-            title: data.title || null,
-            mediaType: data.mediaType || null,
-            contentTypes: data.contentTypes || [],
-            error: null,
-          },
-        }));
-      } catch (error) {
-        // Update validation state with error
-        setSourceValidations((prev) => ({
-          ...prev,
-          [sourceId]: {
-            isValidating: false,
-            isValid: false,
-            title: null,
-            mediaType: null,
-            contentTypes: [],
-            error: error instanceof Error ? error.message : 'Validation failed',
-          },
-        }));
-      }
+        eventSource.onerror = () => {
+          setSourceValidations((prev) => ({
+            ...prev,
+            [sourceId]: {
+              isValidating: false,
+              isValid: false,
+              title: null,
+              mediaType: null,
+              contentTypes: [],
+              error: `Connection error while validating ${type} URL`,
+            },
+          }));
+          eventSource.close();
+          reject(new Error('Connection error'));
+        };
+      });
     },
     []
   );
@@ -755,6 +816,12 @@ const MultiSourceConfigSection = ({
             description: 'Highest rated movies/TV shows on IMDb',
           },
           {
+            value: 'top_250_english',
+            label: 'Top 250 English',
+            description:
+              'Highest rated English-language movies on IMDb (movies only)',
+          },
+          {
             value: 'popular',
             label: 'Popular (Meter)',
             description: 'Most viewed by IMDb users based on page views',
@@ -887,12 +954,12 @@ const MultiSourceConfigSection = ({
     <div className="space-y-6">
       <div className="space-y-4">
         <h4 className="text-md font-medium text-gray-100">
-          Sources ({sources.length})
+          {intl.formatMessage(messages.sources, { count: sources.length })}
         </h4>
 
         {sources.length === 0 && (
           <div className="py-6 text-center text-gray-400">
-            No sources configured. Click Add Source to get started.
+            {intl.formatMessage(messages.noSourcesConfigured)}
           </div>
         )}
 
@@ -903,7 +970,9 @@ const MultiSourceConfigSection = ({
           >
             <div className="flex items-center justify-between">
               <h5 className="text-sm font-medium text-gray-200">
-                Source {index + 1}
+                {intl.formatMessage(messages.sourceNumber, {
+                  number: index + 1,
+                })}
               </h5>
               {sources.length > 1 && (
                 <Button
@@ -911,7 +980,7 @@ const MultiSourceConfigSection = ({
                   buttonType="danger"
                   buttonSize="sm"
                 >
-                  Remove
+                  {intl.formatMessage(messages.remove)}
                 </Button>
               )}
             </div>
@@ -965,20 +1034,48 @@ const MultiSourceConfigSection = ({
                 <option value="">
                   {intl.formatMessage(messages.selectSource)}
                 </option>
-                <option value="overseerr">Overseerr Requests</option>
-                <option value="tautulli">Tautulli Statistics</option>
-                <option value="trakt">Trakt Lists</option>
-                <option value="letterboxd">Letterboxd Lists</option>
-                <option value="tmdb">TMDB Lists</option>
-                <option value="imdb">IMDb Lists</option>
-                <option value="mdblist">MDBList Lists</option>
-                <option value="networks">Networks</option>
-                <option value="originals">Streaming Originals</option>
-                <option value="radarrtag">Radarr Tags</option>
-                <option value="sonarrtag">Sonarr Tags</option>
-                <option value="anilist">AniList</option>
-                <option value="myanimelist">MyAnimeList</option>
-                <option value="comingsoon">Coming Soon</option>
+                <option value="overseerr">
+                  {intl.formatMessage(messages.overseerrRequests)}
+                </option>
+                <option value="tautulli">
+                  {intl.formatMessage(messages.tautulliStatistics)}
+                </option>
+                <option value="trakt">
+                  {intl.formatMessage(messages.traktLists)}
+                </option>
+                <option value="letterboxd">
+                  {intl.formatMessage(messages.letterboxdLists)}
+                </option>
+                <option value="tmdb">
+                  {intl.formatMessage(messages.tmdbLists)}
+                </option>
+                <option value="imdb">
+                  {intl.formatMessage(messages.imdbLists)}
+                </option>
+                <option value="mdblist">
+                  {intl.formatMessage(messages.mdblistLists)}
+                </option>
+                <option value="networks">
+                  {intl.formatMessage(messages.networks)}
+                </option>
+                <option value="originals">
+                  {intl.formatMessage(messages.streamingOriginals)}
+                </option>
+                <option value="radarrtag">
+                  {intl.formatMessage(messages.radarrTags)}
+                </option>
+                <option value="sonarrtag">
+                  {intl.formatMessage(messages.sonarrTags)}
+                </option>
+                <option value="anilist">
+                  {intl.formatMessage(messages.anilist)}
+                </option>
+                <option value="myanimelist">
+                  {intl.formatMessage(messages.myAnimeList)}
+                </option>
+                <option value="comingsoon">
+                  {intl.formatMessage(messages.comingSoon)}
+                </option>
               </Field>
 
               {/* API Key Warning for this source */}
@@ -990,6 +1087,7 @@ const MultiSourceConfigSection = ({
                     sourceType,
                     {
                       main: mainSettings,
+                      plex: plexSettings,
                       trakt: traktSettings,
                       mdblist: mdblistSettings,
                       tautulli: tautulliSettings,
@@ -998,8 +1096,7 @@ const MultiSourceConfigSection = ({
                       radarr: radarrSettings,
                       sonarr: sonarrSettings,
                     },
-                    sourceSubtype,
-                    values.createPlaceholdersForMissing
+                    sourceSubtype
                   );
                   return <ApiKeyWarning validation={apiKeyValidation} />;
                 })()}
@@ -1142,7 +1239,9 @@ const MultiSourceConfigSection = ({
                             </p>
                             {validation.contentTypes.length > 0 && (
                               <p className="text-xs text-green-300">
-                                Contains: {validation.contentTypes.join(', ')}
+                                {intl.formatMessage(messages.contains, {
+                                  types: validation.contentTypes.join(', '),
+                                })}
                               </p>
                             )}
                           </div>
@@ -1229,7 +1328,9 @@ const MultiSourceConfigSection = ({
                     </option>
 
                     {/* Global option - always available */}
-                    <option value="global">Global</option>
+                    <option value="global">
+                      {intl.formatMessage(messages.global)}
+                    </option>
 
                     {/* Separator */}
                     <option disabled style={{ borderTop: '1px solid #4a5568' }}>
@@ -1294,10 +1395,18 @@ const MultiSourceConfigSection = ({
                       );
                     }}
                   >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="all">All Time</option>
+                    <option value="daily">
+                      {intl.formatMessage(messages.daily)}
+                    </option>
+                    <option value="weekly">
+                      {intl.formatMessage(messages.weekly)}
+                    </option>
+                    <option value="monthly">
+                      {intl.formatMessage(messages.monthly)}
+                    </option>
+                    <option value="all">
+                      {intl.formatMessage(messages.allTime)}
+                    </option>
                   </Field>
                 </div>
               )}
@@ -1357,7 +1466,7 @@ const MultiSourceConfigSection = ({
 
         <div className="flex justify-end pt-4">
           <Button onClick={addSource} buttonSize="sm">
-            Add Source
+            {intl.formatMessage(messages.addSource)}
           </Button>
         </div>
       </div>
@@ -1387,8 +1496,9 @@ const MultiSourceConfigSection = ({
                   {intl.formatMessage(messages.mixedContentWarning)}
                 </p>
                 <p className="mt-1 text-xs text-orange-300">
-                  Detected content types:{' '}
-                  {mixedContentInfo.allContentTypes.join(', ')}
+                  {intl.formatMessage(messages.detectedContentTypes, {
+                    types: mixedContentInfo.allContentTypes.join(', '),
+                  })}
                 </p>
               </div>
             </div>
@@ -1419,7 +1529,7 @@ const MultiSourceConfigSection = ({
                   {option.label}
                   {option.disabled && (
                     <span className="ml-2 text-xs text-orange-500">
-                      (Disabled - mixed content detected)
+                      {intl.formatMessage(messages.disabledMixedContent)}
                     </span>
                   )}
                 </div>

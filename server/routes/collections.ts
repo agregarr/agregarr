@@ -77,7 +77,7 @@ export function validateExternalUrl(
 
     // Validate allowed domains based on collection type
     const allowedDomains = {
-      trakt: ['trakt.tv'],
+      trakt: ['trakt.tv', 'app.trakt.tv'],
       tmdb: ['www.themoviedb.org', 'themoviedb.org'],
       imdb: ['www.imdb.com', 'imdb.com'],
       mdblist: ['mdblist.com', 'www.mdblist.com'],
@@ -105,7 +105,7 @@ export function validateExternalUrl(
           return {
             isValid: false,
             error:
-              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name',
+              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname',
           };
         }
         break;
@@ -123,11 +123,14 @@ export function validateExternalUrl(
         }
         break;
       case 'imdb':
-        if (!urlObj.pathname.match(/^\/list\/ls\d+\/?$/)) {
+        if (
+          !urlObj.pathname.match(/^\/list\/ls\d+\/?$/) &&
+          !urlObj.pathname.match(/^\/user\/ur\d+\/watchlist\/?$/)
+        ) {
           return {
             isValid: false,
             error:
-              'Invalid IMDb list URL format. Expected: https://www.imdb.com/list/ls123456789',
+              'Invalid IMDb URL format. Expected: https://www.imdb.com/list/ls123456789 or https://www.imdb.com/user/ur12345678/watchlist',
           };
         }
         break;
@@ -143,12 +146,13 @@ export function validateExternalUrl(
       case 'letterboxd':
         if (
           !urlObj.pathname.match(/^\/[^/]+\/list\/[^/?]+\/?$/) &&
-          !urlObj.pathname.match(/^\/[^/]+\/watchlist\/?$/)
+          !urlObj.pathname.match(/^\/[^/]+\/watchlist\/?$/) &&
+          !urlObj.pathname.match(/^\/[^/]+\/films\/.*/)
         ) {
           return {
             isValid: false,
             error:
-              'Invalid Letterboxd list URL format. Expected: https://letterboxd.com/username/list/listname or https://letterboxd.com/username/watchlist/',
+              'Invalid Letterboxd URL format. Expected: https://letterboxd.com/username/list/listname, https://letterboxd.com/username/watchlist/, or https://letterboxd.com/username/films/...',
           };
         }
         break;
@@ -413,6 +417,27 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
           }
         }
 
+        // Extract per-library wallpaper if available
+        let customWallpaperForNewLibrary: string | undefined;
+        if (req.body.customWallpaper) {
+          if (typeof req.body.customWallpaper === 'string') {
+            customWallpaperForNewLibrary = req.body.customWallpaper;
+          } else if (typeof req.body.customWallpaper === 'object') {
+            customWallpaperForNewLibrary =
+              req.body.customWallpaper[libraryId] || '';
+          }
+        }
+
+        // Extract per-library theme if available
+        let customThemeForNewLibrary: string | undefined;
+        if (req.body.customTheme) {
+          if (typeof req.body.customTheme === 'string') {
+            customThemeForNewLibrary = req.body.customTheme;
+          } else if (typeof req.body.customTheme === 'object') {
+            customThemeForNewLibrary = req.body.customTheme[libraryId] || '';
+          }
+        }
+
         // Generate new ID for this config
         const { IdGenerator } = await import('@server/utils/idGenerator');
         const newConfigId = IdGenerator.generateId();
@@ -425,8 +450,9 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
           name: processedName,
           libraryId: libraryId,
           libraryName: library.name,
-          mediaType: libraryMediaType,
           customPoster: customPosterForNewLibrary || '',
+          customWallpaper: customWallpaperForNewLibrary || '',
+          customTheme: customThemeForNewLibrary || '',
           isLinked: true,
           linkId: existingConfig.linkId,
           isActive: false, // Will be computed by sync service
@@ -594,22 +620,65 @@ collectionsRoutes.put('/:id/settings', isAuthenticated(), async (req, res) => {
         }
       }
 
+      // Handle per-library wallpaper extraction for linked collections
+      let customWallpaperForThisLibrary: string | undefined;
+      if (req.body.customWallpaper) {
+        if (typeof req.body.customWallpaper === 'string') {
+          customWallpaperForThisLibrary = req.body.customWallpaper;
+        } else if (typeof req.body.customWallpaper === 'object') {
+          customWallpaperForThisLibrary =
+            req.body.customWallpaper[configToUpdate.libraryId] || '';
+        }
+      }
+
+      // Handle per-library theme extraction for linked collections
+      let customThemeForThisLibrary: string | undefined;
+      if (req.body.customTheme) {
+        if (typeof req.body.customTheme === 'string') {
+          customThemeForThisLibrary = req.body.customTheme;
+        } else if (typeof req.body.customTheme === 'object') {
+          customThemeForThisLibrary =
+            req.body.customTheme[configToUpdate.libraryId] || '';
+        }
+      }
+
       // Merge settings while preserving computed fields and library-specific fields
       const updatedConfig: CollectionConfig = {
         ...configToUpdate, // Preserve all existing fields including computed ones
         ...req.body, // Apply user changes
         name: processedName, // Use processed template name
-        // Override customPoster with library-specific value
+        // Override per-library media fields with library-specific values
         customPoster:
           customPosterForThisLibrary !== undefined
             ? customPosterForThisLibrary
             : configToUpdate.customPoster,
+        customWallpaper:
+          customWallpaperForThisLibrary !== undefined
+            ? customWallpaperForThisLibrary
+            : configToUpdate.customWallpaper,
+        customTheme:
+          customThemeForThisLibrary !== undefined
+            ? customThemeForThisLibrary
+            : configToUpdate.customTheme,
         // Ensure computed fields stay computed:
         id: configToUpdate.id, // ID never changes
         isActive: configToUpdate.isActive, // Preserve sync service's isActive calculation
         // For linked collections, preserve library-specific fields
         libraryId: configToUpdate.libraryId, // Don't change the library assignment
         libraryName: configToUpdate.libraryName, // Don't change the library name
+        // Preserve library-specific Plex state fields (CRITICAL: prevents cross-library ratingKey bugs)
+        collectionRatingKey: configToUpdate.collectionRatingKey, // Plex collection rating key is library-specific
+        smartCollectionRatingKey: configToUpdate.smartCollectionRatingKey, // Legacy smart collection rating key is library-specific
+        sortOrderHome: configToUpdate.sortOrderHome, // Home screen position is library-specific
+        sortOrderLibrary: configToUpdate.sortOrderLibrary, // Library tab position is library-specific
+        isLibraryPromoted: configToUpdate.isLibraryPromoted, // Library promotion status is library-specific
+        everLibraryPromoted: configToUpdate.everLibraryPromoted, // Library promotion history is library-specific
+        isPromotedToHub: configToUpdate.isPromotedToHub, // Hub promotion status is library-specific
+        // Preserve library-specific sync tracking fields (each library syncs independently)
+        lastSyncedAt: configToUpdate.lastSyncedAt, // Last sync timestamp is per-library
+        lastSyncError: configToUpdate.lastSyncError, // Sync errors are per-library
+        lastSyncErrorAt: configToUpdate.lastSyncErrorAt, // Sync error timestamp is per-library
+        missing: configToUpdate.missing, // Missing status is per-library (can exist in one library but not another)
       };
 
       // Handle firstSyncAt for custom sync schedules
@@ -1111,10 +1180,13 @@ collectionsRoutes.delete('/:id', isAuthenticated(), async (req, res) => {
 
               if (otherCollectionRecords.length === 0) {
                 // No other collections use this file - safe to delete
-                const libraryPath =
-                  record.mediaType === 'movie'
-                    ? settings.main.placeholderMovieRootFolder
-                    : settings.main.placeholderTVRootFolder;
+                const { getPlaceholderRootFolder } = await import(
+                  '@server/lib/placeholders/helpers/placeholderPathHelpers'
+                );
+                const libraryPath = getPlaceholderRootFolder(
+                  deletedConfig.libraryId,
+                  record.mediaType
+                );
 
                 if (libraryPath) {
                   const fullPath = path.join(
@@ -1842,9 +1914,23 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
           );
         }
 
-        // Mark collection as synced (update needsSync status)
-        settings.markCollectionSynced(id, 'collection');
-        settings.save();
+        // Check if the sync returned an error (e.g., from multi-source orchestrator)
+        if (result.error) {
+          logger.warn(
+            `Individual collection sync returned error for ${collectionConfig.name}: ${result.error}`,
+            {
+              label: 'Individual Collection Sync',
+              collectionId: id,
+            }
+          );
+          // Persist error for UI display
+          settings.setCollectionSyncError(id, result.error);
+          settings.save();
+        } else {
+          // Mark collection as synced (update needsSync status, clears any previous error)
+          settings.markCollectionSynced(id, 'collection');
+          settings.save();
+        }
 
         // Sync Plex collection ordering after collection sync
         const { HubSyncService } = await import(
@@ -1859,19 +1945,25 @@ collectionsRoutes.post('/:id/sync', isAuthenticated(), async (req, res) => {
             label: 'Individual Collection Sync',
             collectionId: id,
             result,
+            hasError: !!result.error,
           }
         );
 
         return result;
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         logger.error(
           `Individual collection sync failed for ${collectionConfig.name}: ${error}`,
           {
             label: 'Individual Collection Sync',
             collectionId: id,
-            error: error instanceof Error ? error.message : String(error),
+            error: errorMessage,
           }
         );
+        // Persist error for UI display
+        settings.setCollectionSyncError(id, errorMessage);
+        settings.save();
         throw error;
       }
     })();

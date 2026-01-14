@@ -1,6 +1,7 @@
 import type PlexAPI from '@server/api/plexapi';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  findPlexItemsByTmdbIds,
   getCollectionMediaType,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -10,6 +11,7 @@ import type {
   CollectionSyncError,
   CollectionSyncOptions,
   FilteringStats,
+  ItemProducingSource,
   MissingItem,
   OverseerrMediaRequest,
   OverseerrTemplateContext,
@@ -17,7 +19,6 @@ import type {
   PlexCollection,
   PlexLabel,
   SyncResult,
-  UserCollections,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import type { CollectionConfig } from '@server/lib/settings';
@@ -30,10 +31,15 @@ interface OverseerrCollectionItem extends CollectionItem {
   createdAt: string;
 }
 
+interface OverseerrMissingItem extends MissingItem {
+  userId: number; // Track which user requested this item
+}
+
 interface OverseerrUserCollections {
   user: OverseerrUser;
   movies: OverseerrCollectionItem[];
   tv: OverseerrCollectionItem[];
+  missingItems: OverseerrMissingItem[]; // Missing items for this specific user
 }
 
 interface UserCollectionsMap {
@@ -100,16 +106,20 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
             options,
             libraryCache
           );
-          const { items: allItems } = await this.mapSourceDataToItems(
-            requests,
-            config
-          );
+          const { items: allItems, missingItems: allMissingItems } =
+            await this.mapSourceDataToItems(
+              requests,
+              config,
+              plexClient,
+              libraryCache
+            );
 
           let result: SyncResult;
           switch (config.subtype) {
             case 'users':
               result = await this.processUserCollections(
                 allItems as OverseerrCollectionItem[],
+                (allMissingItems as OverseerrMissingItem[]) || [],
                 config,
                 plexClient,
                 allCollections,
@@ -246,16 +256,20 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
         options,
         libraryCache
       );
-      const { items: allItems } = await this.mapSourceDataToItems(
-        requests,
-        config
-      );
+      const { items: allItems, missingItems: allMissingItems } =
+        await this.mapSourceDataToItems(
+          requests,
+          config,
+          plexClient,
+          libraryCache
+        );
 
       // Process based on subtype using pre-fetched data
       switch (config.subtype) {
         case 'users':
           return await this.processUserCollections(
             allItems as OverseerrCollectionItem[],
+            (allMissingItems as OverseerrMissingItem[]) || [],
             config,
             plexClient,
             allCollections,
@@ -366,18 +380,10 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
         }
       }
 
-      // Check for valid rating keys
-      const hasValidRatingKey = request.is4k
-        ? request.media.ratingKey4k &&
-          request.media.ratingKey4k !== '' &&
-          request.media.ratingKey4k !== 'null' &&
-          request.media.ratingKey4k !== 'undefined'
-        : request.media.ratingKey &&
-          request.media.ratingKey !== '' &&
-          request.media.ratingKey !== 'null' &&
-          request.media.ratingKey !== 'undefined';
-
-      if (!hasValidRatingKey) return false;
+      // Don't filter by ratingKey here - let mapSourceDataToItems decide
+      // Items WITH ratingKey → go to collection
+      // Items WITHOUT ratingKey → go to missing items for Quick Sync
+      // This allows PENDING/APPROVED requests to become missing items
 
       return true;
     });
@@ -423,47 +429,118 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
    */
   public async mapSourceDataToItems(
     sourceData: OverseerrMediaRequest[],
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    config: CollectionConfig
+    config: CollectionConfig,
+    plexClient?: PlexAPI,
+    libraryCache?: LibraryItemsCache
   ): Promise<{
     items: OverseerrCollectionItem[];
-    missingItems?: MissingItem[];
+    missingItems?: OverseerrMissingItem[];
     stats?: FilteringStats;
   }> {
     const mappedItems: OverseerrCollectionItem[] = [];
+    const missingItems: OverseerrMissingItem[] = [];
+
+    // Build lookups from Overseerr requests with TMDB IDs
+    const tmdbLookups: {
+      tmdbId: number;
+      mediaType: 'movie' | 'tv';
+      title: string;
+      year?: number;
+      requestId: number;
+      userId: number;
+      createdAt: string;
+    }[] = [];
 
     for (const request of sourceData) {
-      const ratingKey = request.is4k
-        ? request.media?.ratingKey4k
-        : request.media?.ratingKey;
+      if (!request.requestedBy) continue;
 
-      if (!ratingKey || !request.requestedBy) continue;
+      if (request.media?.tmdbId) {
+        tmdbLookups.push({
+          tmdbId: request.media.tmdbId,
+          mediaType: request.type as 'movie' | 'tv',
+          title: request.media.title || 'Unknown',
+          year: request.media.year,
+          requestId: request.id,
+          userId: request.requestedBy.id,
+          createdAt: request.createdAt,
+        });
+      }
+    }
 
-      mappedItems.push({
-        ratingKey: ratingKey.toString(),
-        title: request.media?.title || 'Unknown',
-        type: request.type as 'movie' | 'tv',
-        requestId: request.id,
-        userId: request.requestedBy.id,
-        tmdbId: request.media?.tmdbId,
-        createdAt: request.createdAt,
+    // Use standard findPlexItemsByTmdbIds to get items with addedAt/releaseDate
+    let plexLookup: Map<
+      string,
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
+    > = new Map();
+
+    if (plexClient) {
+      const targetLibraryId = Array.isArray(config.libraryId)
+        ? config.libraryId[0]
+        : config.libraryId;
+
+      plexLookup = await findPlexItemsByTmdbIds(
+        plexClient,
+        tmdbLookups,
+        targetLibraryId,
+        libraryCache,
+        false
+      );
+    } else {
+      logger.warn('No Plex client provided to mapSourceDataToItems', {
+        label: 'Overseerr Collections',
       });
     }
 
-    // Don't limit here - apply limits later during collection creation
+    // Map results to collection items with date fields
+    for (const lookup of tmdbLookups) {
+      const key = `${lookup.tmdbId}-${lookup.mediaType}`;
+      const plexItem = plexLookup.get(key);
+
+      if (plexItem) {
+        mappedItems.push({
+          ratingKey: plexItem.ratingKey,
+          title: plexItem.title,
+          type: lookup.mediaType,
+          requestId: lookup.requestId,
+          userId: lookup.userId,
+          tmdbId: lookup.tmdbId,
+          createdAt: lookup.createdAt,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
+        });
+      } else {
+        // Item not in Plex - track as missing
+        missingItems.push({
+          tmdbId: lookup.tmdbId,
+          mediaType: lookup.mediaType,
+          title: lookup.title,
+          year: lookup.year,
+          originalPosition: missingItems.length + 1,
+          source: 'tmdb' as ItemProducingSource,
+          userId: lookup.userId,
+        });
+      }
+    }
+
     const stats = this.createFilteringStats(
       sourceData.length,
       mappedItems.length,
       {
-        'missing rating key or user': sourceData.length - mappedItems.length,
+        'missing rating key or user':
+          sourceData.length - mappedItems.length - missingItems.length,
       }
     );
 
     return {
       items: mappedItems,
       stats,
-      // Overseerr doesn't have missing items (all items are already available)
-      missingItems: [],
+      missingItems,
     };
   }
 
@@ -478,7 +555,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     allCollections: PlexCollection[],
     config: CollectionConfig,
     processedCollectionKeys?: Set<string>,
-    userOverride?: OverseerrUser
+    userOverride?: OverseerrUser,
+    missingItems?: MissingItem[]
   ): Promise<CollectionOperationResult> {
     try {
       // Use userOverride for user collections, otherwise create context based on subtype
@@ -544,7 +622,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
         {
           userId: userContext?.plexId || userContext?.id,
           customLabel,
-        }
+        },
+        missingItems // Pass missing items for Quick Sync
       );
 
       // Handle smart collection cleanup if user disabled showUnwatchedOnly
@@ -577,6 +656,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
 
   private async processUserCollections(
     allItems: OverseerrCollectionItem[],
+    allMissingItems: OverseerrMissingItem[],
     config: CollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
@@ -585,7 +665,10 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     options?: CollectionSyncOptions
   ): Promise<SyncResult> {
     // Group by user first
-    const userCollectionsMap = await this.groupItemsByUser(allItems);
+    const userCollectionsMap = await this.groupItemsByUser(
+      allItems,
+      allMissingItems
+    );
 
     let totalCreated = 0;
     let totalUpdated = 0;
@@ -737,7 +820,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
   }
 
   private async processUserCollection(
-    userCollections: UserCollections,
+    userCollections: OverseerrUserCollections,
     config: CollectionConfig,
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
@@ -772,6 +855,11 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     // Apply maxItems
     const limitedItems = mediaItems.slice(0, this.getMaxItems(config));
 
+    // Filter missing items for this media type
+    const userMissingItems = userCollections.missingItems.filter(
+      (item) => item.mediaType === collectionMediaType
+    );
+
     // Process the collection (simple, direct approach)
     if (limitedItems.length > 0) {
       const collectionName = await this.createUserCollectionName(
@@ -788,7 +876,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
         allCollections,
         config,
         processedCollectionKeys,
-        userCollections.user // Pass the real user for user collections
+        userCollections.user, // Pass the real user for user collections
+        userMissingItems // Pass user-specific missing items for Quick Sync
       );
 
       totalCreated += result.created;
@@ -1451,7 +1540,8 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
   }
 
   private async groupItemsByUser(
-    items: OverseerrCollectionItem[]
+    items: OverseerrCollectionItem[],
+    missingItems: OverseerrMissingItem[]
   ): Promise<UserCollectionsMap> {
     const userCollectionsMap: UserCollectionsMap = {};
 
@@ -1461,6 +1551,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     // Create map for efficient lookup
     const usersById = new Map(allUsers.map((user) => [user.id, user]));
 
+    // Group items by user
     for (const item of items) {
       if (!userCollectionsMap[item.userId]) {
         const user = usersById.get(item.userId);
@@ -1473,6 +1564,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
           user: user,
           movies: [],
           tv: [],
+          missingItems: [],
         };
       }
 
@@ -1482,6 +1574,26 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
       } else {
         userCollections.tv.push(item);
       }
+    }
+
+    // Group missing items by user
+    for (const missingItem of missingItems) {
+      if (!userCollectionsMap[missingItem.userId]) {
+        const user = usersById.get(missingItem.userId);
+        if (!user) {
+          // Skip missing items for users that don't exist
+          continue;
+        }
+
+        userCollectionsMap[missingItem.userId] = {
+          user: user,
+          movies: [],
+          tv: [],
+          missingItems: [],
+        };
+      }
+
+      userCollectionsMap[missingItem.userId].missingItems.push(missingItem);
     }
 
     return userCollectionsMap;

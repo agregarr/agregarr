@@ -24,6 +24,10 @@ const messages = defineMessages({
   // Mode toggle
   modeExclude: 'Exclude',
   modeInclude: 'Include',
+
+  // Select all/none
+  selectAll: 'Select All',
+  deselectAll: 'Deselect All',
 });
 
 interface FilterOption {
@@ -76,6 +80,15 @@ const FilterWithMode = ({
       ? newSelectedOptions.map((option) => option.value)
       : [];
     onValuesChange(values);
+  };
+
+  const handleSelectAll = () => {
+    const allValues = options.map((option) => option.value);
+    onValuesChange(allValues);
+  };
+
+  const handleDeselectAll = () => {
+    onValuesChange([]);
   };
 
   // Get localized messages based on filter type
@@ -134,6 +147,27 @@ const FilterWithMode = ({
             {intl.formatMessage(messages.modeInclude)}
           </button>
         </div>
+      </div>
+
+      {/* Select All / Deselect All buttons */}
+      <div className="mb-2 flex gap-2">
+        <button
+          type="button"
+          onClick={handleSelectAll}
+          disabled={disabled || !data || data.length === 0}
+          className="text-xs text-gray-400 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {intl.formatMessage(messages.selectAll)}
+        </button>
+        <span className="text-xs text-gray-600">|</span>
+        <button
+          type="button"
+          onClick={handleDeselectAll}
+          disabled={disabled || selectedValues.length === 0}
+          className="text-xs text-gray-400 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {intl.formatMessage(messages.deselectAll)}
+        </button>
       </div>
 
       <Select

@@ -898,6 +898,16 @@ settingsRoutes.post('/overseerr', async (req, res) => {
   return res.status(200).json(settings.overseerr);
 });
 
+settingsRoutes.delete('/overseerr', (req, res) => {
+  const settings = getSettings();
+
+  // Clear all Overseerr settings
+  settings.overseerr = {};
+  settings.save();
+
+  return res.status(200).json(settings.overseerr);
+});
+
 settingsRoutes.get('/serviceuser', (_req, res) => {
   const settings = getSettings();
   res.status(200).json(settings.serviceUser);
@@ -1351,18 +1361,25 @@ settingsRoutes.post('/reset', async (_req, res, next) => {
 
         let filesRemoved = 0;
         const filesToDelete = new Set<string>(); // Track unique file paths
+        const { getPlaceholderRootFolder } = await import(
+          '@server/lib/placeholders/helpers/placeholderPathHelpers'
+        );
 
-        // Collect unique file paths to delete
+        // Collect unique file paths to delete from ALL libraries
         for (const record of allPlaceholders) {
           if (record.placeholderPath) {
-            const libraryPath =
-              record.mediaType === 'movie'
-                ? settings.main.placeholderMovieRootFolder
-                : settings.main.placeholderTVRootFolder;
+            // Try to find placeholder in any library with configured folder
+            for (const library of settings.plex.libraries) {
+              if (library.type !== record.mediaType) continue;
 
-            if (libraryPath) {
-              const fullPath = path.join(libraryPath, record.placeholderPath);
-              filesToDelete.add(fullPath);
+              const libraryPath = getPlaceholderRootFolder(
+                library.key,
+                record.mediaType
+              );
+              if (libraryPath) {
+                const fullPath = path.join(libraryPath, record.placeholderPath);
+                filesToDelete.add(fullPath);
+              }
             }
           }
         }
@@ -1375,10 +1392,8 @@ settingsRoutes.post('/reset', async (_req, res, next) => {
 
           for (const fullPath of filesToDelete) {
             try {
-              // Determine media type from path
-              const mediaType = fullPath.includes(
-                settings.main.placeholderMovieRootFolder || 'movies'
-              )
+              // Determine media type from filename pattern
+              const mediaType = fullPath.includes('{edition-Trailer}')
                 ? 'movie'
                 : 'tv';
               await removePlaceholder(fullPath, mediaType);
@@ -1541,6 +1556,14 @@ settingsRoutes.post('/export-debug', (req, res, next) => {
     });
     next(error);
   }
+});
+
+// Check if youtube-cookies.txt file exists
+settingsRoutes.get('/youtube-cookies-status', (_req, res) => {
+  const cookiesPath = path.join(process.cwd(), 'config', 'youtube-cookies.txt');
+  const exists = fs.existsSync(cookiesPath);
+
+  res.status(200).json({ exists });
 });
 
 export default settingsRoutes;

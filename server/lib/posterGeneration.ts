@@ -146,14 +146,17 @@ const SERVICE_LOGO_MAP: Record<string, string> = {
   sonarrtag: 'sonarr.svg', // Sonarr tag collections use Sonarr logo
   // Streaming Platform Logo Mappings
   netflix: 'netflix.svg',
-  hbo: 'hbo.svg',
+  hbo: 'max.svg', // Networks uses 'hbo'
+  max: 'max.svg', // Originals uses 'max' (HBO Max rebranded)
   disney: 'disney.svg',
-  'amazon-prime': 'amazon-prime.svg',
+  amazon: 'amazon-prime.svg', // Networks uses 'amazon'
+  'amazon-prime': 'amazon-prime.svg', // Originals uses 'amazon-prime'
   'apple-tv': 'apple-tv.svg',
   paramount: 'paramount.svg',
   peacock: 'peacock.svg',
   crunchyroll: 'crunchyroll.svg',
-  'discovery-plus': 'discovery-plus.svg',
+  discovery: 'discovery.svg', // Originals uses 'discovery'
+  'discovery-plus': 'discovery.svg', // Networks uses 'discovery-plus'
   hulu: 'hulu.svg',
 };
 
@@ -311,13 +314,19 @@ async function fetchTMDbPosterUrls(
       logger.debug(`No TMDB ID available for ${item.title}`);
     }
 
-    itemsWithPosters.push({ ...item, posterUrl });
+    // Only include items that have a valid poster URL
+    // Items without posters are excluded so next items in list can fill the grid
+    if (posterUrl) {
+      itemsWithPosters.push({ ...item, posterUrl });
+    } else {
+      logger.debug(
+        `Excluding ${item.title} from poster grid - no poster available from TMDb`
+      );
+    }
   }
 
   logger.debug(
-    `Returning ${itemsWithPosters.length} items, ${
-      itemsWithPosters.filter((i) => i.posterUrl).length
-    } with posters`
+    `Returning ${itemsWithPosters.length} items with valid posters (from ${items.length} total items)`
   );
   return itemsWithPosters;
 }
@@ -1296,6 +1305,11 @@ async function embedSVGIconInSVG(
 
     // Only process SVG files in this function
     if (!filename.toLowerCase().endsWith('.svg')) {
+      logger.warn('Icon is not an SVG file, cannot embed in poster', {
+        iconPath,
+        filename,
+        hint: 'Custom icons must be SVG format for poster templates',
+      });
       return null;
     }
 
@@ -1324,6 +1338,21 @@ async function embedSVGIconInSVG(
       const heightMatch = svgContent.match(/height=["']?([^"'\s>]+)/i);
       if (widthMatch) svgWidth = parseFloat(widthMatch[1]);
       if (heightMatch) svgHeight = parseFloat(heightMatch[1]);
+    }
+
+    // Validate SVG dimensions - prevent division by zero or NaN
+    if (
+      !Number.isFinite(svgWidth) ||
+      !Number.isFinite(svgHeight) ||
+      svgWidth <= 0 ||
+      svgHeight <= 0
+    ) {
+      logger.warn('Invalid SVG dimensions, cannot embed icon', {
+        iconPath,
+        svgWidth,
+        svgHeight,
+      });
+      return null;
     }
 
     // Calculate scale to fit the element dimensions while maintaining aspect ratio
@@ -1753,10 +1782,16 @@ export async function generatePosterSVG(
         }
       }
 
-      itemsWithPosters = await fetchTMDbPosterUrls(
-        items.slice(0, maxItems),
+      // Fetch more items than needed to account for items without posters
+      // This ensures we fill the grid even if some items don't have TMDb posters
+      const fetchLimit = Math.min(items.length, maxItems * 2);
+      const allFetchedItems = await fetchTMDbPosterUrls(
+        items.slice(0, fetchLimit),
         config.libraryId
       );
+
+      // Take only the items we need for the grid (already filtered to have posters)
+      itemsWithPosters = allFetchedItems.slice(0, maxItems);
 
       // Download and convert images to base64 for embedding
       for (const item of itemsWithPosters) {

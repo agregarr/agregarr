@@ -169,7 +169,8 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(
@@ -450,9 +451,12 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
             type: lookup.mediaType,
             tmdbId: lookup.tmdbId,
             year: lookup.year,
+            addedAt: plexItem.addedAt,
+            releaseDate: plexItem.releaseDate,
             metadata: {
               libraryKey: plexItem.libraryKey,
               tmdbId: lookup.tmdbId,
+              originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
             },
           });
         } else {

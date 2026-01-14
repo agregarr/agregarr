@@ -21,6 +21,9 @@ const messages = defineMessages({
   selectPlatform: 'Select platform...',
   loadingCountries: 'Loading countries...',
   loadingPlatforms: 'Loading platforms...',
+  global: 'Global',
+  loadCountriesError: 'Failed to load countries. Please try again.',
+  loadPlatformsError: 'Failed to load platforms. Please try again.',
 });
 
 interface NetworksConfigSectionProps {
@@ -89,9 +92,18 @@ const NetworksConfigSection = ({
             const newCountry = e.target.value;
             setFieldValue('networksCountry', newCountry);
 
+            // Also update sources[0].networksCountry if sources exist (for existing collections)
+            if (values.sources && values.sources.length > 0) {
+              setFieldValue('sources[0].networksCountry', newCountry);
+            }
+
             // Reset platform selection when country changes
             if (newCountry !== values.networksCountry) {
               setFieldValue('subtype', '');
+              // Also reset sources[0].subtype if sources exist
+              if (values.sources && values.sources.length > 0) {
+                setFieldValue('sources[0].subtype', '');
+              }
             }
           }}
           disabled={false}
@@ -99,7 +111,7 @@ const NetworksConfigSection = ({
           <option value="">{intl.formatMessage(messages.selectCountry)}</option>
 
           {/* Global option - always available */}
-          <option value="global">Global</option>
+          <option value="global">{intl.formatMessage(messages.global)}</option>
 
           {/* Separator */}
           <option disabled style={{ borderTop: '1px solid #4a5568' }}>
@@ -124,7 +136,7 @@ const NetworksConfigSection = ({
         </Field>
         {countriesError && (
           <p className="mt-1 text-xs text-red-400">
-            Failed to load countries. Please try again.
+            {intl.formatMessage(messages.loadCountriesError)}
           </p>
         )}
       </div>
@@ -172,7 +184,7 @@ const NetworksConfigSection = ({
           </Field>
           {platformsError && (
             <p className="mt-1 text-xs text-red-400">
-              Failed to load platforms. Please try again.
+              {intl.formatMessage(messages.loadPlatformsError)}
             </p>
           )}
         </div>

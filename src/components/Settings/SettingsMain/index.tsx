@@ -9,7 +9,7 @@ import SettingsBadge from '@app/components/Settings/SettingsBadge';
 import type { AvailableLocale } from '@app/context/LanguageContext';
 import { availableLanguages } from '@app/context/LanguageContext';
 import useLocale from '@app/hooks/useLocale';
-import { Permission, useUser, type UserSettings } from '@app/hooks/useUser';
+import { Permission, useUser } from '@app/hooks/useUser';
 import globalMessages from '@app/i18n/globalMessages';
 import { ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
@@ -36,7 +36,6 @@ const messages = defineMessages({
   toastApiKeyFailure: 'Something went wrong while generating a new API key.',
   toastSettingsSuccess: 'Settings saved successfully!',
   toastSettingsFailure: 'Something went wrong while saving settings.',
-  hideAvailable: 'Hide Available Media',
   csrfProtection: 'Enable CSRF Protection',
   csrfProtectionTip: 'Set external API access to read-only (requires HTTPS)',
   csrfProtectionHoverTip:
@@ -47,10 +46,12 @@ const messages = defineMessages({
   validationApplicationTitle: 'You must provide an application title',
   validationApplicationUrl: 'You must provide a valid URL',
   validationApplicationUrlTrailingSlash: 'URL must not end in a trailing slash',
-  partialRequestsEnabled: 'Allow Partial Series Requests',
   locale: 'Display Language',
   tmdbLanguage: 'TMDB Language',
   tmdbLanguageTip: 'Language for TMDB posters',
+  enableTmdbPosterCache: 'Enable TMDB Poster Cache',
+  enableTmdbPosterCacheTip:
+    'Cache TMDB posters for 7 days to reduce API calls and improve performance (recommended)',
   resetAgregarr: 'Reset',
   resetAgregarrDescription:
     'Remove all Agregarr collections from Plex and clear all user labels.',
@@ -65,7 +66,7 @@ const messages = defineMessages({
 
 const SettingsMain = () => {
   const { addToast } = useToasts();
-  const { user: currentUser, hasPermission: userHasPermission } = useUser();
+  const { hasPermission: userHasPermission } = useUser();
   const intl = useIntl();
   const { setLocale } = useLocale();
   const [isResetting, setIsResetting] = useState(false);
@@ -74,9 +75,6 @@ const SettingsMain = () => {
     error,
     mutate: revalidate,
   } = useSWR<MainSettings>('/api/v1/settings/main');
-  const { data: userData } = useSWR<UserSettings>(
-    currentUser ? `/api/v1/user/${currentUser.id}/settings/main` : null
-  );
 
   const MainSettingsSchema = Yup.object().shape({
     applicationTitle: Yup.string().required(
@@ -155,6 +153,7 @@ const SettingsMain = () => {
             csrfProtection: data?.csrfProtection,
             locale: data?.locale ?? 'en',
             tmdbLanguage: data?.tmdbLanguage ?? 'en',
+            enableTmdbPosterCache: data?.enableTmdbPosterCache ?? true,
             trustProxy: data?.trustProxy,
           }}
           enableReinitialize
@@ -167,17 +166,14 @@ const SettingsMain = () => {
                 csrfProtection: values.csrfProtection,
                 locale: values.locale,
                 tmdbLanguage: values.tmdbLanguage,
+                enableTmdbPosterCache: values.enableTmdbPosterCache,
                 trustProxy: values.trustProxy,
               });
               mutate('/api/v1/settings/public');
               mutate('/api/v1/status');
 
               if (setLocale) {
-                setLocale(
-                  (userData?.locale
-                    ? userData.locale
-                    : values.locale) as AvailableLocale
-                );
+                setLocale(values.locale as AvailableLocale);
               }
 
               addToast(intl.formatMessage(messages.toastSettingsSuccess), {
@@ -315,6 +311,32 @@ const SettingsMain = () => {
                         ))}
                       </Field>
                     </div>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label
+                    htmlFor="enableTmdbPosterCache"
+                    className="checkbox-label"
+                  >
+                    <span className="mr-2">
+                      {intl.formatMessage(messages.enableTmdbPosterCache)}
+                    </span>
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.enableTmdbPosterCacheTip)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="enableTmdbPosterCache"
+                      name="enableTmdbPosterCache"
+                      onChange={() => {
+                        setFieldValue(
+                          'enableTmdbPosterCache',
+                          !values.enableTmdbPosterCache
+                        );
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="form-row">

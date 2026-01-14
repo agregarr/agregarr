@@ -8,7 +8,6 @@ import logger from '@server/logger';
 import fs from 'fs/promises';
 import path from 'path';
 import { Like, Not } from 'typeorm';
-import { getReleasedDays } from './PlaceholderCreation';
 
 /**
  * Helper function to clean up a placeholder when real content is detected
@@ -250,11 +249,33 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
   try {
     const repository = getRepository(ComingSoonItem);
     const settings = getSettings();
+    const { getPlaceholderRootFolder } = await import(
+      '@server/lib/placeholders/helpers/placeholderPathHelpers'
+    );
 
-    const movieLibraryPath = settings.main.placeholderMovieRootFolder;
-    const tvLibraryPath = settings.main.placeholderTVRootFolder;
+    // Get all library-specific placeholder folders
+    const libraryPaths: {
+      path: string;
+      type: 'movie' | 'tv';
+      libraryKey: string;
+    }[] = [];
 
-    if (!movieLibraryPath && !tvLibraryPath) {
+    for (const library of settings.plex.libraries) {
+      if (library.type !== 'movie' && library.type !== 'show') continue;
+
+      const mediaType: 'movie' | 'tv' =
+        library.type === 'movie' ? 'movie' : 'tv';
+      const placeholderPath = getPlaceholderRootFolder(library.key, mediaType);
+      if (placeholderPath) {
+        libraryPaths.push({
+          path: placeholderPath,
+          type: mediaType,
+          libraryKey: library.key,
+        });
+      }
+    }
+
+    if (libraryPaths.length === 0) {
       logger.debug(
         'No placeholder library paths configured, skipping file cleanup',
         {
@@ -277,91 +298,35 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
 
     let filesRemoved = 0;
 
-    // Scan movie library for orphaned files
-    if (movieLibraryPath) {
+    // Scan each library's placeholder folder for orphaned files
+    for (const libraryInfo of libraryPaths) {
       try {
-        const movieFolders = await fs.readdir(movieLibraryPath);
+        if (libraryInfo.type === 'movie') {
+          // Scan movie library for orphaned files
+          const movieFolders = await fs.readdir(libraryInfo.path);
 
-        for (const folder of movieFolders) {
-          const folderPath = path.join(movieLibraryPath, folder);
+          for (const folder of movieFolders) {
+            const folderPath = path.join(libraryInfo.path, folder);
 
-          try {
-            const stats = await fs.stat(folderPath);
-            if (!stats.isDirectory()) continue;
+            try {
+              const stats = await fs.stat(folderPath);
+              if (!stats.isDirectory()) continue;
 
-            const files = await fs.readdir(folderPath);
-            for (const file of files) {
-              // Check if this is a placeholder file (contains edition-Trailer)
-              if (!file.includes('{edition-Trailer}')) continue;
-
-              const filePath = path.join(folderPath, file);
-              const relativePath = path.join(folder, file);
-
-              // Check if any DB record references this file
-              if (!trackedPaths.has(relativePath)) {
-                // Orphaned file - delete it
-                try {
-                  const { removePlaceholder } = await import(
-                    '@server/lib/placeholders/placeholderManager'
-                  );
-                  await removePlaceholder(filePath, 'movie');
-                  filesRemoved++;
-                  logger.info('Removed orphaned placeholder file', {
-                    label: 'PlaceholderService',
-                    path: relativePath,
-                    mediaType: 'movie',
-                  });
-                } catch (error) {
-                  logger.warn('Failed to remove orphaned placeholder file', {
-                    label: 'PlaceholderService',
-                    path: relativePath,
-                    error:
-                      error instanceof Error ? error.message : String(error),
-                  });
-                }
-              }
-            }
-          } catch (error) {
-            // Folder access error, skip
-            continue;
-          }
-        }
-      } catch (error) {
-        logger.warn('Failed to scan movie library for orphaned files', {
-          label: 'PlaceholderService',
-          path: movieLibraryPath,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    // Scan TV library for orphaned files
-    if (tvLibraryPath) {
-      try {
-        const showFolders = await fs.readdir(tvLibraryPath);
-
-        for (const showFolder of showFolders) {
-          const showPath = path.join(tvLibraryPath, showFolder);
-
-          try {
-            const stats = await fs.stat(showPath);
-            if (!stats.isDirectory()) continue;
-
-            const seasonFolders = await fs.readdir(showPath);
-            for (const seasonFolder of seasonFolders) {
-              if (seasonFolder !== 'Season 00') continue; // Only check Season 00
-
-              const seasonPath = path.join(showPath, seasonFolder);
-              const seasonStats = await fs.stat(seasonPath);
-              if (!seasonStats.isDirectory()) continue;
-
-              const files = await fs.readdir(seasonPath);
+              const files = await fs.readdir(folderPath);
               for (const file of files) {
-                // Check if this is a placeholder file (S00E00.Trailer.mp4)
-                if (file !== 'S00E00.Trailer.mp4') continue;
+                // Check if this is a placeholder file (contains edition-Trailer)
+                if (!file.includes('{edition-Trailer}')) continue;
 
-                const filePath = path.join(seasonPath, file);
-                const relativePath = path.join(showFolder, seasonFolder, file);
+                const filePath = path.join(folderPath, file);
+
+                // Skip directories (Plex creates .trickplay folders with same base name)
+                try {
+                  const fileStat = await fs.stat(filePath);
+                  if (!fileStat.isFile()) continue;
+                } catch {
+                  continue; // Can't stat, skip
+                }
+                const relativePath = path.join(folder, file);
 
                 // Check if any DB record references this file
                 if (!trackedPaths.has(relativePath)) {
@@ -370,12 +335,13 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
                     const { removePlaceholder } = await import(
                       '@server/lib/placeholders/placeholderManager'
                     );
-                    await removePlaceholder(filePath, 'tv');
+                    await removePlaceholder(filePath, 'movie');
                     filesRemoved++;
                     logger.info('Removed orphaned placeholder file', {
                       label: 'PlaceholderService',
                       path: relativePath,
-                      mediaType: 'tv',
+                      mediaType: 'movie',
+                      libraryKey: libraryInfo.libraryKey,
                     });
                   } catch (error) {
                     logger.warn('Failed to remove orphaned placeholder file', {
@@ -387,16 +353,85 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
                   }
                 }
               }
+            } catch (error) {
+              // Folder access error, skip
+              continue;
             }
-          } catch (error) {
-            // Folder access error, skip
-            continue;
+          }
+        } else if (libraryInfo.type === 'tv') {
+          // Scan TV library for orphaned files
+          const showFolders = await fs.readdir(libraryInfo.path);
+
+          for (const showFolder of showFolders) {
+            const showPath = path.join(libraryInfo.path, showFolder);
+
+            try {
+              const stats = await fs.stat(showPath);
+              if (!stats.isDirectory()) continue;
+
+              const seasonFolders = await fs.readdir(showPath);
+              for (const seasonFolder of seasonFolders) {
+                if (seasonFolder !== 'Season 00') continue; // Only check Season 00
+
+                const seasonPath = path.join(showPath, seasonFolder);
+                const seasonStats = await fs.stat(seasonPath);
+                if (!seasonStats.isDirectory()) continue;
+
+                const files = await fs.readdir(seasonPath);
+                for (const file of files) {
+                  // Check if this is a placeholder file (S00E00.Trailer.mp4)
+                  if (file !== 'S00E00.Trailer.mp4') continue;
+
+                  const filePath = path.join(seasonPath, file);
+                  const relativePath = path.join(
+                    showFolder,
+                    seasonFolder,
+                    file
+                  );
+
+                  // Check if any DB record references this file
+                  if (!trackedPaths.has(relativePath)) {
+                    // Orphaned file - delete it
+                    try {
+                      const { removePlaceholder } = await import(
+                        '@server/lib/placeholders/placeholderManager'
+                      );
+                      await removePlaceholder(filePath, 'tv');
+                      filesRemoved++;
+                      logger.info('Removed orphaned placeholder file', {
+                        label: 'PlaceholderService',
+                        path: relativePath,
+                        mediaType: 'tv',
+                        libraryKey: libraryInfo.libraryKey,
+                      });
+                    } catch (error) {
+                      logger.warn(
+                        'Failed to remove orphaned placeholder file',
+                        {
+                          label: 'PlaceholderService',
+                          path: relativePath,
+                          error:
+                            error instanceof Error
+                              ? error.message
+                              : String(error),
+                        }
+                      );
+                    }
+                  }
+                }
+              }
+            } catch (error) {
+              // Folder access error, skip
+              continue;
+            }
           }
         }
       } catch (error) {
-        logger.warn('Failed to scan TV library for orphaned files', {
+        logger.warn('Failed to scan library for orphaned files', {
           label: 'PlaceholderService',
-          path: tvLibraryPath,
+          path: libraryInfo.path,
+          libraryKey: libraryInfo.libraryKey,
+          mediaType: libraryInfo.type,
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -477,8 +512,9 @@ export async function cleanupPlaceholdersForConfig(
   // NOTE: Title fixing and real content cleanup now happens globally during discovery
   // This function only handles collection-specific orphaned/stale item cleanup
 
-  // Get released window from general config (not Coming Soon specific!)
-  const releasedWindowDays = getReleasedDays(config);
+  // Fixed grace period for orphaned items - items that fall off the source list
+  // are removed after this many days. Not user-configurable to keep UX simple.
+  const ORPHANED_GRACE_PERIOD_DAYS = 7;
 
   // Check for orphaned items (not in source) and stale items (too old)
   if (sourceTmdbIds && sourceTmdbIds.size > 0) {
@@ -533,8 +569,8 @@ export async function cleanupPlaceholdersForConfig(
             (Date.now() - windowStartDate.getTime()) / (24 * 60 * 60 * 1000)
           );
 
-          if (daysSinceWindowStart > releasedWindowDays) {
-            const reason = `orphaned (${daysSinceWindowStart} days since ${windowType}, window: ${releasedWindowDays} days)`;
+          if (daysSinceWindowStart > ORPHANED_GRACE_PERIOD_DAYS) {
+            const reason = `orphaned (${daysSinceWindowStart} days since ${windowType}, window: ${ORPHANED_GRACE_PERIOD_DAYS} days)`;
 
             logger.info('Removing orphaned placeholder past window', {
               label: 'PlaceholderService',
@@ -543,7 +579,7 @@ export async function cleanupPlaceholdersForConfig(
               reason,
               windowType,
               daysSinceWindowStart,
-              releasedWindowDays,
+              ORPHANED_GRACE_PERIOD_DAYS,
               releaseDate: context.releaseDate,
             });
 
@@ -553,11 +589,13 @@ export async function cleanupPlaceholdersForConfig(
               const { removePlaceholder } = await import(
                 '@server/lib/placeholders/placeholderManager'
               );
-              const settings = getSettings();
-              const libraryPath =
-                placeholder.mediaType === 'movie'
-                  ? settings.main.placeholderMovieRootFolder
-                  : settings.main.placeholderTVRootFolder;
+              const { getPlaceholderRootFolder } = await import(
+                '@server/lib/placeholders/helpers/placeholderPathHelpers'
+              );
+              const libraryPath = getPlaceholderRootFolder(
+                config.libraryId,
+                placeholder.mediaType
+              );
 
               if (!libraryPath) {
                 logger.error(
@@ -566,6 +604,7 @@ export async function cleanupPlaceholdersForConfig(
                     label: 'PlaceholderService',
                     title: placeholder.title,
                     mediaType: placeholder.mediaType,
+                    libraryId: config.libraryId,
                   }
                 );
                 continue;
@@ -683,11 +722,13 @@ export async function cleanupPlaceholdersForConfig(
             const { removePlaceholder } = await import(
               '@server/lib/placeholders/placeholderManager'
             );
-            const settings = getSettings();
-            const libraryPath =
-              placeholder.mediaType === 'movie'
-                ? settings.main.placeholderMovieRootFolder
-                : settings.main.placeholderTVRootFolder;
+            const { getPlaceholderRootFolder } = await import(
+              '@server/lib/placeholders/helpers/placeholderPathHelpers'
+            );
+            const libraryPath = getPlaceholderRootFolder(
+              config.libraryId,
+              placeholder.mediaType
+            );
 
             if (!libraryPath) {
               logger.error(
@@ -696,6 +737,7 @@ export async function cleanupPlaceholdersForConfig(
                   label: 'PlaceholderService',
                   title: placeholder.title,
                   mediaType: placeholder.mediaType,
+                  libraryId: config.libraryId,
                 }
               );
               continue;

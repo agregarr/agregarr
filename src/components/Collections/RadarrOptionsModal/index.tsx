@@ -8,7 +8,6 @@ import useSWR from 'swr';
 
 const messages = defineMessages({
   radarrOptions: 'Radarr Download Options',
-  radarrOptionsDescription: 'Configure download settings for this movie',
   selectServer: 'Select Server',
   selectProfile: 'Select Quality Profile',
   selectRootFolder: 'Select Root Folder',

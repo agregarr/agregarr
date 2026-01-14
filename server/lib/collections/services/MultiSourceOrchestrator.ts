@@ -16,7 +16,6 @@ import {
   createSyncError,
   getCollectionSyncCounter,
   getMediaTypeFromLibrary,
-  handleRateLimit,
   incrementCollectionSyncCounter,
   parseConfigIdFromLabel,
   processMissingItemsWithMode,
@@ -116,7 +115,7 @@ export class MultiSourceOrchestrator {
     processedCollectionKeys?: Set<string>,
     libraryCache?: LibraryItemsCache,
     options?: CollectionSyncOptions
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise<{ created: number; updated: number; error?: string }> {
     let configForSync: MultiSourceCollectionConfig = config;
     let collectionNameForSync = config.name;
 
@@ -151,10 +150,23 @@ export class MultiSourceOrchestrator {
       logger.info(`Processing multi-source collection: ${config.name}`, {
         label: 'Multi-Source Orchestrator',
         configId: config.id,
-        sourceCount: config.sources.length,
+        sourceCount: config.sources?.length ?? 0,
         combineMode: config.combineMode,
         isActive: timeRestrictionResult.isActive,
       });
+
+      // Validate sources array is not empty (prevents division by zero in cycle_lists mode)
+      if (!config.sources || config.sources.length === 0) {
+        logger.error(
+          `Multi-source collection ${config.name} has no sources configured`,
+          {
+            label: 'Multi-Source Orchestrator',
+            configId: config.id,
+            combineMode: config.combineMode,
+          }
+        );
+        return { created: 0, updated: 0 };
+      }
 
       // Increment sync counter for cycle_lists mode
       if (config.combineMode === 'cycle_lists') {
@@ -238,11 +250,6 @@ export class MultiSourceOrchestrator {
         const source = sourcesToFetch[i];
 
         try {
-          // Apply rate limiting between source fetches
-          if (i > 0) {
-            await handleRateLimit(1, 'Multi-Source');
-          }
-
           const { items, missingItems } = await this.fetchItemsFromSource(
             source,
             config,
@@ -541,18 +548,46 @@ export class MultiSourceOrchestrator {
           ? collectionNameForSync
           : config.name;
 
+      // Extract the original error message for surfacing to UI
+      // Handle CollectionSyncError objects (structured errors) properly
+      let originalErrorMessage: string;
+      let originalError: Error | undefined;
+
+      if (error instanceof Error) {
+        originalErrorMessage = error.message;
+        originalError = error;
+      } else if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        // CollectionSyncError or similar structured error
+        const structuredError = error as {
+          message: string;
+          type?: string;
+          details?: Record<string, unknown>;
+          originalError?: Error;
+        };
+        originalErrorMessage = structuredError.message;
+        originalError = structuredError.originalError;
+      } else {
+        originalErrorMessage = String(error);
+        originalError = undefined;
+      }
+
       // 4. Error Handling - use standard pipeline utilities
       const syncError = createSyncError(
         CollectionSyncErrorType.COLLECTION_ERROR,
         `Failed to process multi-source collection ${safeName}`,
         { configId: config.id, configName: safeName },
-        error instanceof Error ? error : new Error(String(error))
+        originalError || new Error(originalErrorMessage)
       );
 
       logger.error(syncError.message, {
         label: 'Multi-Source Orchestrator',
         configId: config.id,
         error: syncError.details,
+        originalError: originalErrorMessage,
       });
 
       // Call error callback if provided
@@ -560,7 +595,8 @@ export class MultiSourceOrchestrator {
         options.onError(syncError);
       }
 
-      return { created: 0, updated: 0 };
+      // Return error message so callers can persist it for UI display
+      return { created: 0, updated: 0, error: originalErrorMessage };
     }
   }
 
@@ -653,6 +689,18 @@ export class MultiSourceOrchestrator {
       // Note: We no longer add "released" items for Coming Soon
       // When real content is detected, placeholder is deleted immediately
       // Real items appear naturally if still in the source list
+
+      // CRITICAL: Sort items by originalPosition to maintain source order
+      // This is essential for proper interleaving on subsequent syncs where some
+      // items already exist in Plex (and may be returned in cache/Plex order)
+      // while others are newly created placeholders (returned in source order)
+      items.sort((a, b) => {
+        const posA =
+          (a.metadata?.originalPosition as number | undefined) || Infinity;
+        const posB =
+          (b.metadata?.originalPosition as number | undefined) || Infinity;
+        return posA - posB;
+      });
 
       logger.debug(
         `Successfully fetched ${items.length} items from ${source.type}`,
@@ -748,6 +796,10 @@ export class MultiSourceOrchestrator {
       ...(source.type === 'letterboxd' &&
         source.customUrl && {
           letterboxdCustomListUrl: source.customUrl,
+        }),
+      ...(source.type === 'mdblist' &&
+        source.customUrl && {
+          mdblistCustomListUrl: source.customUrl,
         }),
       ...(source.type === 'anilist' &&
         source.customUrl && {

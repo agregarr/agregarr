@@ -76,6 +76,12 @@ const messages: { [messageName: string]: MessageDescriptor } = defineMessages({
   imagecachesize: 'Total Cache Size',
   toastCollectionsSyncSkipped:
     'Plex collections sync skipped - collections are disabled. Enable collections in Plex settings to run this job.',
+  followingExecutionMinutes:
+    'Following execution in {count} {count, plural, one {minute} other {minutes}}',
+  followingExecutionHours:
+    'Following execution in {count} {count, plural, one {hour} other {hours}}',
+  followingExecutionDays:
+    'Following execution in {count} {count, plural, one {day} other {days}}',
 });
 
 interface Job {
@@ -667,22 +673,34 @@ const SettingsJobs = () => {
                       if (hoursUntil < 1) {
                         return (
                           <div className="text-xs leading-4 text-gray-400">
-                            Following execution in {minutesUntil} minute
-                            {minutesUntil !== 1 ? 's' : ''}
+                            {intl.formatMessage(
+                              messages.followingExecutionMinutes,
+                              {
+                                count: minutesUntil,
+                              }
+                            )}
                           </div>
                         );
                       } else if (hoursUntil <= 48) {
                         return (
                           <div className="text-xs leading-4 text-gray-400">
-                            Following execution in {hoursUntil} hour
-                            {hoursUntil !== 1 ? 's' : ''}
+                            {intl.formatMessage(
+                              messages.followingExecutionHours,
+                              {
+                                count: hoursUntil,
+                              }
+                            )}
                           </div>
                         );
                       } else {
                         return (
                           <div className="text-xs leading-4 text-gray-400">
-                            Following execution in {daysUntil} day
-                            {daysUntil !== 1 ? 's' : ''}
+                            {intl.formatMessage(
+                              messages.followingExecutionDays,
+                              {
+                                count: daysUntil,
+                              }
+                            )}
                           </div>
                         );
                       }

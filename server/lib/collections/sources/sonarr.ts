@@ -131,7 +131,8 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
         allCollections,
         processedCollectionKeys,
         undefined, // userInfo
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       throw this.createSyncError(
@@ -425,10 +426,13 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
               tvdbId: lookup.tvdbId,
               tmdbId: lookup.tmdbId,
               year: lookup.year,
+              addedAt: plexItem.addedAt,
+              releaseDate: plexItem.releaseDate,
               metadata: {
                 libraryKey: plexItem.libraryKey,
                 tvdbId: lookup.tvdbId,
                 tmdbId: lookup.tmdbId,
+                originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
               },
             });
           } else if (lookup.tmdbId) {

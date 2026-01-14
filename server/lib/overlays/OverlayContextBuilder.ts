@@ -164,6 +164,11 @@ export async function buildRenderContext(
     downloaded: !isPlaceholder, // Real items in Plex are downloaded, placeholders are not
   };
 
+  // Extract Plex user rating if available
+  if (item.userRating !== undefined) {
+    context.plexUserRating = item.userRating;
+  }
+
   // Extract TMDb ID from GUID
   let tmdbId: number | undefined;
 
@@ -241,11 +246,14 @@ export async function buildRenderContext(
           if (rtRating) {
             context.rtCriticsScore = rtRating.criticsScore;
             context.rtAudienceScore = rtRating.audienceScore;
+            context.rtCertifiedFresh =
+              rtRating.criticsRating === 'Certified Fresh';
             logger.debug('Fetched RT ratings', {
               label: 'OverlayContextBuilder',
               title: context.title,
               criticsScore: rtRating.criticsScore,
               audienceScore: rtRating.audienceScore,
+              certifiedFresh: context.rtCertifiedFresh,
             });
           } else {
             logger.debug('RT rating not found', {
@@ -281,6 +289,11 @@ export async function buildRenderContext(
         context.studio = tmdbData.production_companies[0].name;
       }
 
+      // Network (TV shows)
+      if ('networks' in tmdbData && tmdbData.networks?.[0]) {
+        context.network = tmdbData.networks[0].name;
+      }
+
       // Genre (concatenate all genres for matching)
       if (
         'genres' in tmdbData &&
@@ -295,12 +308,35 @@ export async function buildRenderContext(
       // Runtime
       if (mediaType === 'movie' && 'runtime' in tmdbData) {
         context.runtime = tmdbData.runtime;
+        // Format runtime as "2h 16m" or "47m"
+        if (tmdbData.runtime) {
+          const hours = Math.floor(tmdbData.runtime / 60);
+          const minutes = tmdbData.runtime % 60;
+          if (hours > 0) {
+            context.runtimeHHMM =
+              minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+          } else {
+            context.runtimeHHMM = `${minutes}m`;
+          }
+        }
       } else if (
         mediaType === 'show' &&
         'episode_run_time' in tmdbData &&
         tmdbData.episode_run_time?.[0]
       ) {
         context.runtime = tmdbData.episode_run_time[0];
+        // Format runtime as "2h 16m" or "47m"
+        const runtimeValue = tmdbData.episode_run_time[0];
+        if (runtimeValue) {
+          const hours = Math.floor(runtimeValue / 60);
+          const minutes = runtimeValue % 60;
+          if (hours > 0) {
+            context.runtimeHHMM =
+              minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+          } else {
+            context.runtimeHHMM = `${minutes}m`;
+          }
+        }
       }
 
       // TMDB Status (TV shows only) - using Kometa's user-friendly mapping
@@ -460,9 +496,19 @@ export async function buildRenderContext(
   }
   if (item.lastViewedAt) {
     context.lastPlayed = new Date(item.lastViewedAt * 1000);
+    // Calculate days since last played
+    const daysSinceLastPlayed = Math.floor(
+      (Date.now() - item.lastViewedAt * 1000) / (1000 * 60 * 60 * 24)
+    );
+    context.daysSinceLastPlayed = daysSinceLastPlayed;
   }
   if (item.addedAt) {
     context.dateAdded = new Date(item.addedAt * 1000);
+    // Calculate days since added
+    const daysSinceAdded = Math.floor(
+      (Date.now() - item.addedAt * 1000) / (1000 * 60 * 60 * 24)
+    );
+    context.daysSinceAdded = daysSinceAdded;
   }
 
   // TV-specific
@@ -556,6 +602,7 @@ export async function fetchReleaseDateInfo(
       nextEpisodeAirDate?: string;
       nextSeasonAirDate?: string;
       seasonNumber?: number;
+      episodeNumber?: number;
     }
   | undefined
 > {
@@ -613,6 +660,7 @@ export async function fetchReleaseDateInfo(
           nextEpisodeAirDate: nextEpisode.air_date,
           nextSeasonAirDate,
           seasonNumber,
+          episodeNumber,
         };
       }
 
@@ -655,6 +703,8 @@ export async function checkMonitoringStatus(
   inSonarr?: boolean;
   isMonitored?: boolean;
   hasFile?: boolean;
+  radarrTags?: string[];
+  sonarrTags?: string[];
 }> {
   try {
     const settings = getSettings();
@@ -675,16 +725,47 @@ export async function checkMonitoringStatus(
           const movie = movies.find((m) => m.tmdbId === tmdbId);
 
           if (movie) {
+            // Fetch tags if movie has any
+            let tagNames: string[] = [];
+            if (movie.tags && movie.tags.length > 0) {
+              try {
+                const RadarrAPI = (await import('@server/api/servarr/radarr'))
+                  .default;
+                const radarr = new RadarrAPI({
+                  url: `${radarrSettings.useSsl ? 'https' : 'http'}://${
+                    radarrSettings.hostname
+                  }:${radarrSettings.port}${
+                    radarrSettings.baseUrl || ''
+                  }/api/v3`,
+                  apiKey: radarrSettings.apiKey,
+                });
+                const allTags = await radarr.getTags();
+                tagNames = movie.tags
+                  .map((tagId) => allTags.find((t) => t.id === tagId)?.label)
+                  .filter((label): label is string => label !== undefined);
+              } catch (tagError) {
+                logger.debug('Failed to fetch Radarr tags', {
+                  label: 'OverlayContextBuilder',
+                  error:
+                    tagError instanceof Error
+                      ? tagError.message
+                      : String(tagError),
+                });
+              }
+            }
+
             logger.debug('Found movie in Radarr', {
               label: 'OverlayContextBuilder',
               tmdbId,
               monitored: movie.monitored,
               hasFile: movie.hasFile,
+              tags: tagNames,
             });
             return {
               inRadarr: true,
               isMonitored: movie.monitored,
               hasFile: movie.hasFile,
+              radarrTags: tagNames.length > 0 ? tagNames : undefined,
             };
           }
         } catch (error) {
@@ -750,6 +831,35 @@ export async function checkMonitoringStatus(
           if (series) {
             const hasFile = (series.statistics?.episodeFileCount || 0) > 0;
 
+            // Fetch tags if series has any
+            let tagNames: string[] = [];
+            if (series.tags && series.tags.length > 0) {
+              try {
+                const SonarrAPI = (await import('@server/api/servarr/sonarr'))
+                  .default;
+                const sonarr = new SonarrAPI({
+                  url: `${sonarrSettings.useSsl ? 'https' : 'http'}://${
+                    sonarrSettings.hostname
+                  }:${sonarrSettings.port}${
+                    sonarrSettings.baseUrl || ''
+                  }/api/v3`,
+                  apiKey: sonarrSettings.apiKey,
+                });
+                const allTags = await sonarr.getTags();
+                tagNames = series.tags
+                  .map((tagId) => allTags.find((t) => t.id === tagId)?.label)
+                  .filter((label): label is string => label !== undefined);
+              } catch (tagError) {
+                logger.debug('Failed to fetch Sonarr tags', {
+                  label: 'OverlayContextBuilder',
+                  error:
+                    tagError instanceof Error
+                      ? tagError.message
+                      : String(tagError),
+                });
+              }
+            }
+
             logger.debug('Found series in Sonarr', {
               label: 'OverlayContextBuilder',
               tmdbId,
@@ -761,12 +871,14 @@ export async function checkMonitoringStatus(
               monitored: series.monitored,
               episodeFileCount: series.statistics?.episodeFileCount,
               hasFile,
+              tags: tagNames,
             });
 
             return {
               inSonarr: true,
               isMonitored: series.monitored,
               hasFile,
+              sonarrTags: tagNames.length > 0 ? tagNames : undefined,
             };
           }
         } catch (error) {

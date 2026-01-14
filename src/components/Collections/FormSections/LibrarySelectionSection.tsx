@@ -7,6 +7,15 @@ const messages = defineMessages({
   librarySelection: 'Library Selection',
   selectLibraries: 'Select Libraries',
   allLibraries: 'All Libraries',
+  analyzingListContent: 'Analyzing list content to detect media types...',
+  bothMediaTypes: 'List contains both Movies and TV Shows.',
+  movies: 'Movies',
+  tvShows: 'TV Shows',
+  detectedSingleMediaType:
+    'Detected {mediaTypeLabel} only. {oppositeTypeLabel} collections will be empty until matching content is added.',
+  noLibrariesSelected: 'No libraries selected',
+  librarySelectionHelper:
+    'Select the libraries where collections should be created',
 });
 
 interface LibraryCheckboxDropdownProps {
@@ -150,7 +159,7 @@ interface LibrarySelectionSectionProps {
   isEnhancedForm?: boolean;
   isVisible?: boolean;
   filteredLibraries?: Library[];
-  detectedMediaType?: 'movie' | 'tv' | 'both';
+  detectedMediaType?: 'movie' | 'tv' | 'both' | 'mixed';
   isDetectingMediaType?: boolean;
 }
 
@@ -179,15 +188,15 @@ const LibrarySelectionSection = ({
     // Show loading state if currently detecting
     if (isDetectingMediaType) {
       return {
-        message: 'Analyzing list content to detect media types...',
+        message: intl.formatMessage(messages.analyzingListContent),
         type: 'info',
       };
     }
 
     // Show success message if both types detected
-    if (detectedMediaType === 'both') {
+    if (detectedMediaType === 'both' || detectedMediaType === 'mixed') {
       return {
-        message: 'List contains both Movies and TV Shows.',
+        message: intl.formatMessage(messages.bothMediaTypes),
         type: 'success',
       };
     }
@@ -195,12 +204,19 @@ const LibrarySelectionSection = ({
     // Show warning if specific media type detected
     if (detectedMediaType === 'movie' || detectedMediaType === 'tv') {
       const mediaTypeLabel =
-        detectedMediaType === 'movie' ? 'Movies' : 'TV Shows';
+        detectedMediaType === 'movie'
+          ? intl.formatMessage(messages.movies)
+          : intl.formatMessage(messages.tvShows);
       const oppositeTypeLabel =
-        detectedMediaType === 'movie' ? 'TV Shows' : 'Movies';
+        detectedMediaType === 'movie'
+          ? intl.formatMessage(messages.tvShows)
+          : intl.formatMessage(messages.movies);
 
       return {
-        message: `Detected ${mediaTypeLabel} only. ${oppositeTypeLabel} collections will be empty until matching content is added.`,
+        message: intl.formatMessage(messages.detectedSingleMediaType, {
+          mediaTypeLabel,
+          oppositeTypeLabel,
+        }),
         type: 'warning',
       };
     }
@@ -228,7 +244,7 @@ const LibrarySelectionSection = ({
             {values.libraryIds && Array.isArray(values.libraryIds) ? (
               values.libraryIds.includes('all') ? (
                 <span className="font-medium text-orange-300">
-                  All Libraries
+                  {intl.formatMessage(messages.allLibraries)}
                 </span>
               ) : (
                 values.libraryIds.map((id: string, index: number) => {
@@ -250,7 +266,7 @@ const LibrarySelectionSection = ({
               })()
             ) : (
               <span className="italic text-gray-500">
-                No libraries selected
+                {intl.formatMessage(messages.noLibrariesSelected)}
               </span>
             )}
           </div>
@@ -306,7 +322,7 @@ const LibrarySelectionSection = ({
 
       {/* Helper text */}
       <p className="mt-2 text-xs text-gray-400">
-        Select the libraries where collections should be created
+        {intl.formatMessage(messages.librarySelectionHelper)}
       </p>
 
       {/* Note: Warning for "both" media type removed - no longer supported */}

@@ -18,15 +18,14 @@ const messages = defineMessages({
   collectionPlays: 'Collection Views',
   movieCollectionPlays: 'Movie Collection Views',
   tvCollectionPlays: 'TV Collection Views',
-  agregarrCollections: 'Agregarr',
   preExistingCollections: 'Pre-existing',
-  fromCollections: 'from collections',
   totalServer: 'total',
   thisWeek: 'this week',
   tautulliRequired: 'Tautulli Setup Required',
   tautulliDescription:
     'Configure Tautulli in your settings to view play statistics from your Plex server.',
   configureTautulli: 'Configure Tautulli',
+  failedToLoad: 'Failed to load dashboard statistics',
 });
 
 interface DashboardData {
@@ -98,7 +97,9 @@ const DashboardStats: React.FC = () => {
     return (
       <div className="rounded-lg bg-stone-800 p-6 shadow-sm">
         <div className="text-center">
-          <p className="text-red-400">Failed to load dashboard statistics</p>
+          <p className="text-red-400">
+            {intl.formatMessage(messages.failedToLoad)}
+          </p>
           <p className="mt-1 text-sm text-gray-500">{error.message}</p>
         </div>
       </div>

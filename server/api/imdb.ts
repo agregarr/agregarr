@@ -36,6 +36,7 @@ export interface ImdbList {
  */
 export enum ImdbTopList {
   TOP_250_MOVIES = 'top250movies',
+  TOP_250_ENGLISH_MOVIES = 'top250englishmovies',
   TOP_250_TV = 'top250tv',
   POPULAR_MOVIES = 'popularmovies',
   POPULAR_TV = 'populartv',
@@ -98,6 +99,10 @@ class ImdbAPI extends ExternalAPI {
       switch (listType) {
         case ImdbTopList.TOP_250_MOVIES:
           url = '/chart/top/';
+          expectedType = 'movie';
+          break;
+        case ImdbTopList.TOP_250_ENGLISH_MOVIES:
+          url = '/chart/top-english-movies/';
           expectedType = 'movie';
           break;
         case ImdbTopList.TOP_250_TV:
@@ -355,6 +360,8 @@ class ImdbAPI extends ExternalAPI {
     switch (listType) {
       case ImdbTopList.TOP_250_MOVIES:
         return 'Top 250 Movies';
+      case ImdbTopList.TOP_250_ENGLISH_MOVIES:
+        return 'Top 250 English Movies';
       case ImdbTopList.TOP_250_TV:
         return 'Top 250 TV Shows';
       case ImdbTopList.POPULAR_MOVIES:

@@ -186,12 +186,38 @@ class CollectionsQuickSync {
             itemCount: recentItems.length,
           });
 
+          // Fetch full metadata for each item to get external GUIDs (TMDB, IMDB, TVDB)
+          // The recentlyAdded endpoint only returns internal Plex GUIDs
+          logger.debug('Fetching full metadata for external GUIDs...', {
+            label: 'Collections Quick Sync',
+            libraryName: library.name,
+          });
+          const itemsWithMetadata: PlexLibraryItem[] = [];
+          const isShowLibrary = library.type === 'show';
+          for (const item of recentItems) {
+            try {
+              // For TV shows, include children so isPlaceholderItem() can check Season 00
+              const fullMetadata = await plexClient.getMetadata(
+                item.ratingKey,
+                { includeChildren: isShowLibrary }
+              );
+              itemsWithMetadata.push(fullMetadata);
+            } catch (error) {
+              logger.warn('Failed to fetch metadata for item, skipping', {
+                label: 'Collections Quick Sync',
+                ratingKey: item.ratingKey,
+                title: item.title,
+                error: error instanceof Error ? error.message : String(error),
+              });
+            }
+          }
+
           // Clean up placeholders for recently added real items
           this.setStage(
             `Checking placeholders for library: ${library.name}...`
           );
           const cleanupResult = await this.cleanupPlaceholdersForRecentItems(
-            recentItems,
+            itemsWithMetadata,
             library.key
           );
 
@@ -202,7 +228,7 @@ class CollectionsQuickSync {
 
           // Process these items (match and add to collections)
           const result = await this.processRecentItems(
-            recentItems,
+            itemsWithMetadata,
             library.key,
             plexClient
           );
@@ -397,16 +423,17 @@ class CollectionsQuickSync {
       // Delete the placeholder file once
       let fileDeleted = false;
       if (placeholderPath) {
-        const libraryPath =
-          mediaType === 'movie'
-            ? settings.main.placeholderMovieRootFolder
-            : settings.main.placeholderTVRootFolder;
+        const { getPlaceholderRootFolder } = await import(
+          '@server/lib/placeholders/helpers/placeholderPathHelpers'
+        );
+        const libraryPath = getPlaceholderRootFolder(libraryId, mediaType);
 
         if (!libraryPath) {
           logger.warn('Library path not configured - skipping file deletion', {
             label: 'Collections Quick Sync',
             title: recentItem.title,
             mediaType,
+            libraryId,
           });
           continue;
         }
@@ -526,20 +553,23 @@ class CollectionsQuickSync {
     // Group matches by collection for efficient processing
     const matchesByCollection = new Map<string, MissingItemMatch[]>();
     for (const match of matches) {
-      const collectionId = match.missingItem.collectionId;
-      if (!matchesByCollection.has(collectionId)) {
-        matchesByCollection.set(collectionId, []);
+      const collectionRatingKey = match.missingItem.collectionRatingKey;
+      if (!matchesByCollection.has(collectionRatingKey)) {
+        matchesByCollection.set(collectionRatingKey, []);
       }
-      matchesByCollection.get(collectionId)?.push(match);
+      matchesByCollection.get(collectionRatingKey)?.push(match);
     }
 
     // Process each collection
-    for (const [collectionId, collectionMatches] of matchesByCollection) {
+    for (const [
+      collectionRatingKey,
+      collectionMatches,
+    ] of matchesByCollection) {
       if (this.cancelled) break;
 
       try {
         const added = await this.addItemsToCollection(
-          collectionId,
+          collectionRatingKey,
           collectionMatches,
           plexClient
         );
@@ -551,7 +581,7 @@ class CollectionsQuickSync {
       } catch (error) {
         logger.error('Failed to add items to collection', {
           label: 'Collections Quick Sync',
-          collectionId,
+          collectionRatingKey,
           error: error instanceof Error ? error.message : String(error),
         });
         // Continue with next collection
@@ -669,32 +699,18 @@ class CollectionsQuickSync {
    * Add matched items to a collection at correct position
    */
   private async addItemsToCollection(
-    collectionId: string,
+    collectionRatingKey: string,
     matches: MissingItemMatch[],
     plexClient: PlexAPI
   ): Promise<number> {
-    // Get collection config
+    // Optionally get collection config for logging (configId may be null for multi-collection patterns)
     const settings = getSettings();
-    const config = settings.plex.collectionConfigs?.find(
-      (c) => c.id === collectionId
-    );
-
-    if (!config) {
-      logger.warn('Collection config not found, skipping', {
-        label: 'Collections Quick Sync',
-        collectionId,
-      });
-      return 0;
-    }
-
-    if (!config.collectionRatingKey) {
-      logger.warn('Collection has no rating key, skipping', {
-        label: 'Collections Quick Sync',
-        collectionName: config.name,
-        collectionId,
-      });
-      return 0;
-    }
+    const firstMatch = matches[0]?.missingItem;
+    const config = firstMatch?.configId
+      ? settings.plex.collectionConfigs?.find(
+          (c) => c.id === firstMatch.configId
+        )
+      : null;
 
     // Sort matches by original position for correct ordering
     const sortedMatches = matches.sort(
@@ -707,12 +723,13 @@ class CollectionsQuickSync {
       title: m.plexItem.title,
     }));
 
-    await plexClient.addItemsToCollection(config.collectionRatingKey, newItems);
+    await plexClient.addItemsToCollection(collectionRatingKey, newItems);
 
     logger.info('Added items to collection', {
       label: 'Collections Quick Sync',
-      collectionName: config.name,
-      collectionId,
+      collectionName: config?.name || 'Unknown Collection',
+      collectionRatingKey,
+      configId: firstMatch?.configId,
       itemsAdded: newItems.length,
       titles: sortedMatches.map((m) => m.missingItem.title),
     });
@@ -759,7 +776,7 @@ class CollectionsQuickSync {
       });
     }
 
-    // Delete items for collections that no longer exist
+    // Delete items for deleted configs (both single and multi-collection patterns)
     try {
       const settings = getSettings();
       const activeCollectionIds =
@@ -769,7 +786,7 @@ class CollectionsQuickSync {
         const orphanResult = await repository
           .createQueryBuilder()
           .delete()
-          .where('collectionId NOT IN (:...activeIds)', {
+          .where('configId NOT IN (:...activeIds)', {
             activeIds: activeCollectionIds,
           })
           .execute();
@@ -781,6 +798,7 @@ class CollectionsQuickSync {
           logger.info('Deleted orphaned missing items', {
             label: 'Collections Quick Sync',
             count: orphanDeleted,
+            note: 'Removed items for deleted parent configs',
           });
         }
       }

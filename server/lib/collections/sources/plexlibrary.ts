@@ -289,7 +289,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
               itemLimit
             );
 
-      const mappedItems = plexItems.map((item) => {
+      const mappedItems = plexItems.map((item, index) => {
         const tmdbId = this.extractTmdbIdFromGuids(item.Guid);
         return {
           ratingKey: item.ratingKey,
@@ -299,6 +299,7 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
           tmdbId: tmdbId ?? undefined,
           metadata: {
             libraryKey: config.libraryId,
+            originalPosition: index + 1, // CRITICAL: Preserve source order for multi-source interleaving
           },
         } as CollectionItem;
       });

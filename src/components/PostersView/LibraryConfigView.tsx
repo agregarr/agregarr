@@ -17,8 +17,6 @@ import LibraryDetailConfigView from './LibraryDetailConfigView';
 import PosterResetModal from './PosterResetModal';
 
 const messages = defineMessages({
-  libraryConfig: 'Library Configuration',
-  selectLibrary: 'Select a library to configure overlays',
   loading: 'Loading libraries...',
   noLibraries: 'No libraries found',
   configure: 'Configure',
@@ -29,6 +27,8 @@ const messages = defineMessages({
   syncOverlaysConfirm: 'Confirm?',
   overlaySyncStarted: 'Overlay sync started for {libraryName}',
   overlaySyncError: 'Failed to start overlay sync',
+  failedToLoad: 'Failed to load libraries',
+  noOverlays: 'No overlays configured',
 });
 
 interface PlexLibrary {
@@ -323,7 +323,9 @@ const LibraryConfigView: React.FC = () => {
   if (librariesError) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-red-400">Failed to load libraries</div>
+        <div className="text-red-400">
+          {intl.formatMessage(messages.failedToLoad)}
+        </div>
       </div>
     );
   }
@@ -399,7 +401,9 @@ const LibraryConfigView: React.FC = () => {
                           d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                         />
                       </svg>
-                      <p className="mt-2 text-xs">No overlays configured</p>
+                      <p className="mt-2 text-xs">
+                        {intl.formatMessage(messages.noOverlays)}
+                      </p>
                     </div>
                   </div>
                 )}

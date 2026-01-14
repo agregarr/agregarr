@@ -8,12 +8,15 @@ on:
 jobs:
   semantic-release:
     name: Tag and release latest version
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
       issues: write
       pull-requests: write
       packages: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,28 +26,159 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          cache: 'yarn'
+      - name: Install dependencies
+        env:
+          HUSKY: 0
+        run: yarn
+      - name: Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_push:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    needs: semantic-release
+    if: needs.semantic-release.outputs.new_release_published == 'true'
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-22.04
+          - platform: linux/arm64
+            runner: [self-hosted, linux, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install dependencies
-        env:
-          HUSKY: 0
-        run: yarn
-      - name: Release
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            COMMIT_TAG=${{ github.sha }}
+          outputs: type=image,name=ghcr.io/agregarr/agregarr,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          rm -rf /tmp/digests
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Create multi-platform manifest
+    runs-on: ubuntu-22.04
+    needs:
+      - semantic-release
+      - build_and_push
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          path: /tmp/digests
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Create manifest on GHCR
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/agregarr/agregarr:latest \
+            -t ghcr.io/agregarr/agregarr:v${{ needs.semantic-release.outputs.new_release_version }} \
+            $(printf 'ghcr.io/agregarr/agregarr@sha256:%s ' *)
+
+      - name: Install regctl
+        run: |
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 >/tmp/regctl
+          chmod +x /tmp/regctl
+
+      - name: Copy to Docker Hub
+        run: |
+          /tmp/regctl image copy ghcr.io/agregarr/agregarr:latest agregarr/agregarr:latest
+          /tmp/regctl image copy ghcr.io/agregarr/agregarr:v${{ needs.semantic-release.outputs.new_release_version }} agregarr/agregarr:v${{ needs.semantic-release.outputs.new_release_version }}
+
+      - name: Inspect images
+        run: |
+          docker buildx imagetools inspect ghcr.io/agregarr/agregarr:latest
+          docker buildx imagetools inspect agregarr/agregarr:latest
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+    needs:
+      - semantic-release
+      - merge
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.semantic-release.outputs.new_release_version }}
+          fetch-depth: 0
+
+      - name: Get release notes from tag
+        id: notes
+        run: |
+          # Get the release notes from CHANGELOG.md for this version
+          VERSION="v${{ needs.semantic-release.outputs.new_release_version }}"
+          echo "Creating release for ${VERSION}"
+
+          # Extract notes between this version and the previous one
+          NOTES=$(awk "/^## \[${VERSION#v}\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+
+          # Write to file for gh release
+          echo "$NOTES" > /tmp/release-notes.md
+
+      - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_TOKEN }}
-        run: npx semantic-release
+        run: |
+          gh release create "v${{ needs.semantic-release.outputs.new_release_version }}" \
+            --title "v${{ needs.semantic-release.outputs.new_release_version }}" \
+            --notes-file /tmp/release-notes.md

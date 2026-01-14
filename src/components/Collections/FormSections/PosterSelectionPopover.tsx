@@ -21,13 +21,10 @@ const messages = defineMessages({
   invalidUrl: 'Please enter a valid URL',
   downloadingPoster: 'Downloading poster...',
   posterDownloadError: 'Failed to download poster from URL',
-  deletePoster: 'Delete Poster',
   noPosterAvailable: 'No posters available',
   uploading: 'Uploading...',
   generating: 'Generating...',
-  deleting: 'Deleting...',
   posterUploadSuccess: 'Poster uploaded successfully',
-  posterGenerateSuccess: 'Poster generated successfully',
   posterDeleteSuccess: 'Poster deleted successfully',
   posterUploadError: 'Failed to upload poster',
   posterGenerateError: 'Failed to generate poster',
@@ -38,6 +35,7 @@ const messages = defineMessages({
     'This poster is currently being used by the following collections:',
   deleteAnyway: 'Delete Anyway',
   cancel: 'Cancel',
+  forLibrary: 'for {libraryName}',
 });
 
 interface Poster {
@@ -430,7 +428,7 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
             {intl.formatMessage(messages.selectPoster)}
             {libraryName && (
               <span className="ml-1 text-xs font-normal text-stone-400">
-                for {libraryName}
+                {intl.formatMessage(messages.forLibrary, { libraryName })}
               </span>
             )}
           </h3>

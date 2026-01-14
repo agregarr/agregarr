@@ -16,6 +16,7 @@ import { PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
 import type {
   MainSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
 } from '@server/lib/settings';
@@ -40,7 +41,6 @@ const messages = defineMessages({
   default4k: 'Default 4K',
   is4k: '4K',
   address: 'Address',
-  activeProfile: 'Active Profile',
   addoverseerr: 'Add Overseerr Connection',
   addradarr: 'Add Radarr Server',
   addsonarr: 'Add Sonarr Server',
@@ -56,51 +56,14 @@ const messages = defineMessages({
   overseerrSettings: 'Overseerr Settings',
   overseerrSettingsDescription:
     'Configure connection to add missing items as Requests in Overseerr.',
-  overseerrHostname: 'Hostname or IP Address',
-  overseerrPort: 'Port',
-  overseerrApiKey: 'API Key',
-  overseerrApiKeyTip:
-    'Get your API key from Overseerr Settings > General > API Key',
-  overseerrUseSsl: 'Use SSL',
-  overseerrUrlBase: 'URL Base',
-  overseerrExternalUrl: 'External URL',
-  overseerrServerId: 'Default Server',
-  overseerrServerIdTip: 'Default Radarr/Sonarr server for requests',
-  overseerrProfileId: 'Default Quality Profile',
-  overseerrProfileIdTip: 'Default quality profile for requests',
-  overseerrRootFolder: 'Default Root Folder',
-  overseerrRootFolderTip: 'Default root folder for requests',
-  testOverseerrConnection: 'Test Connection',
-  overseerrConnectionSuccess: 'Connected to Overseerr successfully!',
-  overseerrConnectionFailure: 'Failed to connect to Overseerr',
-  toastOverseerrSettingsSuccess: 'Overseerr settings saved successfully!',
-  toastOverseerrSettingsFailure:
-    'Something went wrong while saving Overseerr settings.',
   save: 'Save Changes',
   saving: 'Saving…',
-  testing: 'Testing…',
-  validationHostnameRequired: 'You must provide a valid hostname or IP address',
-  validationPortRequired: 'You must provide a valid port number',
-  validationApiKey: 'You must provide an API key',
-  validationUrl: 'You must provide a valid URL',
-  validationUrlTrailingSlash: 'URL must not end in a trailing slash',
-  validationUrlBaseLeadingSlash: 'URL base must have a leading slash',
-  validationUrlBaseTrailingSlash: 'URL base must not end in a trailing slash',
-  serviceUserSettings: 'Service User Settings',
-  serviceUserSettingsDescription:
-    'Configure how Agregarr creates users in Overseerr for tracking requests.',
-  granularUsers: 'Create Overseerr users for Requests',
-  toastServiceUserSettingsSuccess: 'Service user settings saved successfully!',
-  toastServiceUserSettingsFailure:
-    'Something went wrong while saving service user settings.',
   placeholderSettings: 'Placeholder Root Folders',
   placeholderSettingsDescription:
-    'Configure root folders for placeholder files. These paths should match the mounted Plex library paths inside the Agregarr container.',
-  placeholderMovieRootFolder: 'Movie Placeholder Root Folder',
-  placeholderTVRootFolder: 'TV Placeholder Root Folder',
-  placeholderMovieRootFolderTip:
-    'Path where movie placeholder files will be created',
-  placeholderTVRootFolderTip: 'Path where TV placeholder files will be created',
+    'Configure root folders for placeholder files for each library. These paths should match the mounted Plex library paths inside the Agregarr container.',
+  libraryPlaceholderFolder: 'Placeholder Folder for {libraryName}',
+  libraryPlaceholderFolderTip:
+    'Path where placeholder files will be created for this library',
   browse: 'Browse',
   toastPlaceholderSettingsSuccess: 'Placeholder settings saved successfully!',
   toastPlaceholderSettingsFailure:
@@ -108,10 +71,31 @@ const messages = defineMessages({
   youtubeSettings: 'YouTube Cookie Configuration',
   youtubeSettingsDescription:
     'Recommended: Set up YouTube cookies to prevent bot detection and IP bans when downloading trailers for placeholder feature. Once banned, adding cookies may not be enough to unban you (from downloading youtube videos without being signed in)',
-  youtubeSettingsInstructions:
-    'To set up cookies: 1) Install a browser extension to export cookies {firefoxLink} / {chromeLink}. 2) Visit YouTube while logged in. 3) Export cookies and save as {cookiesPath} in your Agregarr config directory.',
   firefoxExtension: 'Firefox',
   chromeExtension: 'Chrome',
+  youtubeCookiesNotFound: 'YouTube cookies file not found',
+  youtubeCookiesNotFoundMessage:
+    'The {cookiesPath} file was not found in your config directory. Without this file, YouTube trailer downloads may fail due to bot detection.',
+  youtubeCookiesFound: 'YouTube cookies file found',
+  youtubeCookiesFoundMessage:
+    'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
+  youtubeCookiesFoundButDisabled:
+    'YouTube cookies are configured, but YouTube trailer downloads are disabled below',
+  youtubeCookiesFoundButDisabledMessage:
+    'The {cookiesPath} file is configured, but the "Skip YouTube Trailer Downloads" option is enabled. YouTube trailers will not be downloaded even though cookies are available.',
+  youtubeSetupInstructionsTitle: 'Setup Instructions:',
+  youtubeSetupStep1:
+    'Install a browser extension to export cookies: {firefoxLink} / {chromeLink}',
+  youtubeSetupStep2: 'Visit YouTube while logged in to your account',
+  youtubeSetupStep3:
+    'Export cookies and save as {cookiesPath} in your Agregarr config directory',
+  noLibrariesFound: 'No libraries found. Configure your Plex connection first.',
+  skipYoutubeTrailerDownloads: 'Skip YouTube Trailer Downloads',
+  skipYoutubeTrailerDownloadsDescription:
+    'Use only the hardcoded placeholder video instead of downloading YouTube trailers. This dramatically speeds up placeholder creation, but placeholders will use a generic video instead of actual trailers.',
+  toastYoutubeSettingsSuccess: 'YouTube settings saved successfully!',
+  toastYoutubeSettingsFailure:
+    'Something went wrong while saving YouTube settings.',
 });
 
 interface ServerInstanceProps {
@@ -260,7 +244,8 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const [folderBrowser, setFolderBrowser] = useState<{
     isOpen: boolean;
     type: 'movie' | 'tv' | null;
-  }>({ isOpen: false, type: null });
+    libraryKey: string | null;
+  }>({ isOpen: false, type: null, libraryKey: null });
   const [editOverseerrModal, setEditOverseerrModal] = useState<{
     open: boolean;
   }>({
@@ -280,6 +265,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const { data: dataMain, mutate: revalidateMain } = useSWR<MainSettings>(
     '/api/v1/settings/main'
   );
+  const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
   const [editRadarrModal, setEditRadarrModal] = useState<{
     open: boolean;
     radarr: RadarrSettings | null;
@@ -296,7 +282,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   });
   const [deleteServerModal, setDeleteServerModal] = useState<{
     open: boolean;
-    type: 'radarr' | 'sonarr';
+    type: 'radarr' | 'sonarr' | 'overseerr';
     serverId: number | null;
   }>({
     open: false,
@@ -307,14 +293,25 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
   const { data: dataOverseerr, mutate: revalidateOverseerr } =
     useSWR<OverseerrSettings>('/api/v1/settings/overseerr');
 
+  const { data: youtubeCookiesStatus } = useSWR<{ exists: boolean }>(
+    '/api/v1/settings/youtube-cookies-status'
+  );
+
   const deleteServer = async () => {
-    await axios.delete(
-      `/api/v1/settings/${deleteServerModal.type}/${deleteServerModal.serverId}`
-    );
-    setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
-    revalidateRadarr();
-    revalidateSonarr();
-    mutate('/api/v1/settings/public');
+    if (deleteServerModal.type === 'overseerr') {
+      await axios.delete('/api/v1/settings/overseerr');
+      setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
+      revalidateOverseerr();
+      mutate('/api/v1/settings/public');
+    } else {
+      await axios.delete(
+        `/api/v1/settings/${deleteServerModal.type}/${deleteServerModal.serverId}`
+      );
+      setDeleteServerModal({ open: false, serverId: null, type: 'radarr' });
+      revalidateRadarr();
+      revalidateSonarr();
+      mutate('/api/v1/settings/public');
+    }
   };
 
   return (
@@ -387,7 +384,11 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
           }
           title={intl.formatMessage(messages.deleteServer, {
             serverType:
-              deleteServerModal.type === 'radarr' ? 'Radarr' : 'Sonarr',
+              deleteServerModal.type === 'radarr'
+                ? 'Radarr'
+                : deleteServerModal.type === 'sonarr'
+                ? 'Sonarr'
+                : 'Overseerr',
           })}
         >
           {intl.formatMessage(messages.deleteserverconfirm)}
@@ -427,22 +428,23 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
               isOverseerr={true}
               externalUrl={dataOverseerr.externalUrl}
               onEdit={() => setEditOverseerrModal({ open: true })}
-              onDelete={() => {
-                // We can't actually delete Overseerr, just clear the settings
-                // For now, disable the delete button by not providing the handler
-              }}
+              onDelete={() =>
+                setDeleteServerModal({
+                  open: true,
+                  serverId: null,
+                  type: 'overseerr',
+                })
+              }
             />
           ) : (
-            <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
-              <div className="flex h-full w-full items-center justify-center">
-                <Button
-                  buttonType="ghost"
-                  onClick={() => setEditOverseerrModal({ open: true })}
-                >
-                  <PlusIcon />
-                  <span>{intl.formatMessage(messages.addoverseerr)}</span>
-                </Button>
-              </div>
+            <li className="col-span-1 min-h-[160px] rounded-lg border-2 border-dashed border-stone-400 shadow">
+              <button
+                onClick={() => setEditOverseerrModal({ open: true })}
+                className="flex h-full w-full items-center justify-center gap-2 text-stone-400 transition hover:text-white"
+              >
+                <PlusIcon className="h-6 w-6" />
+                <span>{intl.formatMessage(messages.addoverseerr)}</span>
+              </button>
             </li>
           )}
         </ul>
@@ -518,18 +520,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   }
                 />
               ))}
-              <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
-                <div className="flex h-full w-full items-center justify-center">
-                  <Button
-                    buttonType="ghost"
-                    onClick={() =>
-                      setEditRadarrModal({ open: true, radarr: null })
-                    }
-                  >
-                    <PlusIcon />
-                    <span>{intl.formatMessage(messages.addradarr)}</span>
-                  </Button>
-                </div>
+              <li className="col-span-1 min-h-[160px] rounded-lg border-2 border-dashed border-stone-400 shadow">
+                <button
+                  onClick={() =>
+                    setEditRadarrModal({ open: true, radarr: null })
+                  }
+                  className="flex h-full w-full items-center justify-center gap-2 text-stone-400 transition hover:text-white"
+                >
+                  <PlusIcon className="h-6 w-6" />
+                  <span>{intl.formatMessage(messages.addradarr)}</span>
+                </button>
               </li>
             </ul>
           </>
@@ -607,18 +607,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                   }
                 />
               ))}
-              <li className="col-span-1 rounded-lg border-2 border-dashed border-stone-400 shadow">
-                <div className="flex h-full w-full items-center justify-center">
-                  <Button
-                    buttonType="ghost"
-                    onClick={() =>
-                      setEditSonarrModal({ open: true, sonarr: null })
-                    }
-                  >
-                    <PlusIcon />
-                    <span>{intl.formatMessage(messages.addsonarr)}</span>
-                  </Button>
-                </div>
+              <li className="col-span-1 min-h-[160px] rounded-lg border-2 border-dashed border-stone-400 shadow">
+                <button
+                  onClick={() =>
+                    setEditSonarrModal({ open: true, sonarr: null })
+                  }
+                  className="flex h-full w-full items-center justify-center gap-2 text-stone-400 transition hover:text-white"
+                >
+                  <PlusIcon className="h-6 w-6" />
+                  <span>{intl.formatMessage(messages.addsonarr)}</span>
+                </button>
               </li>
             </ul>
           </>
@@ -637,16 +635,16 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
         </div>
         <Formik
           initialValues={{
-            placeholderMovieRootFolder:
-              dataMain?.placeholderMovieRootFolder || '',
-            placeholderTVRootFolder: dataMain?.placeholderTVRootFolder || '',
+            placeholderMovieRootFolders:
+              dataMain?.placeholderMovieRootFolders || {},
+            placeholderTVRootFolders: dataMain?.placeholderTVRootFolders || {},
           }}
           enableReinitialize
           onSubmit={async (values) => {
             try {
               await axios.post('/api/v1/settings/main', {
-                placeholderMovieRootFolder: values.placeholderMovieRootFolder,
-                placeholderTVRootFolder: values.placeholderTVRootFolder,
+                placeholderMovieRootFolders: values.placeholderMovieRootFolders,
+                placeholderTVRootFolders: values.placeholderTVRootFolders,
               });
 
               addToast(
@@ -671,102 +669,140 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
         >
           {({ values, handleSubmit, setFieldValue, isSubmitting }) => (
             <form className="section" onSubmit={handleSubmit}>
-              {/* Folder Browser Modals */}
-              {folderBrowser.isOpen && folderBrowser.type === 'movie' && (
+              {/* Folder Browser Modal */}
+              {folderBrowser.isOpen && folderBrowser.libraryKey && (
                 <FolderBrowser
                   isOpen={true}
                   onClose={() =>
-                    setFolderBrowser({ isOpen: false, type: null })
+                    setFolderBrowser({
+                      isOpen: false,
+                      type: null,
+                      libraryKey: null,
+                    })
                   }
                   onSelect={(path) => {
-                    setFieldValue('placeholderMovieRootFolder', path);
+                    if (folderBrowser.libraryKey) {
+                      const fieldName =
+                        folderBrowser.type === 'movie'
+                          ? 'placeholderMovieRootFolders'
+                          : 'placeholderTVRootFolders';
+                      setFieldValue(fieldName, {
+                        ...values[fieldName],
+                        [folderBrowser.libraryKey]: path,
+                      });
+                    }
                   }}
-                  initialPath={values.placeholderMovieRootFolder || '/'}
-                  title={intl.formatMessage(
-                    messages.placeholderMovieRootFolder
-                  )}
-                />
-              )}
-              {folderBrowser.isOpen && folderBrowser.type === 'tv' && (
-                <FolderBrowser
-                  isOpen={true}
-                  onClose={() =>
-                    setFolderBrowser({ isOpen: false, type: null })
+                  initialPath={
+                    folderBrowser.libraryKey
+                      ? (folderBrowser.type === 'movie'
+                          ? values.placeholderMovieRootFolders?.[
+                              folderBrowser.libraryKey
+                            ]
+                          : values.placeholderTVRootFolders?.[
+                              folderBrowser.libraryKey
+                            ]) || '/'
+                      : '/'
                   }
-                  onSelect={(path) => {
-                    setFieldValue('placeholderTVRootFolder', path);
-                  }}
-                  initialPath={values.placeholderTVRootFolder || '/'}
-                  title={intl.formatMessage(messages.placeholderTVRootFolder)}
+                  title={
+                    folderBrowser.libraryKey
+                      ? intl.formatMessage(messages.libraryPlaceholderFolder, {
+                          libraryName:
+                            plexSettings?.libraries.find(
+                              (lib) => lib.key === folderBrowser.libraryKey
+                            )?.name || folderBrowser.libraryKey,
+                        })
+                      : 'Browse'
+                  }
                 />
               )}
 
-              {/* Movie Root Folder */}
-              <div className="form-row">
-                <label
-                  htmlFor="placeholderMovieRootFolder"
-                  className="text-label"
-                >
-                  {intl.formatMessage(messages.placeholderMovieRootFolder)}
-                  <span className="label-tip">
-                    {intl.formatMessage(messages.placeholderMovieRootFolderTip)}
-                  </span>
-                </label>
-                <div className="form-input-area">
-                  <div className="flex space-x-2">
-                    <div className="form-input-field flex-1">
-                      <Field
-                        id="placeholderMovieRootFolder"
-                        name="placeholderMovieRootFolder"
-                        type="text"
-                        placeholder="/data/media/movies"
-                      />
-                    </div>
-                    <Button
-                      buttonType="default"
-                      type="button"
-                      onClick={() =>
-                        setFolderBrowser({ isOpen: true, type: 'movie' })
-                      }
-                    >
-                      <FolderIcon className="h-5 w-5" />
-                      <span>{intl.formatMessage(messages.browse)}</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              {/* Per-Library Configuration */}
+              {plexSettings?.libraries && plexSettings.libraries.length > 0 ? (
+                <div className="space-y-4">
+                  {plexSettings.libraries
+                    .filter(
+                      (lib) => lib.type === 'movie' || lib.type === 'show'
+                    )
+                    .map((library) => {
+                      const isMovie = library.type === 'movie';
+                      const fieldName = isMovie
+                        ? 'placeholderMovieRootFolders'
+                        : 'placeholderTVRootFolders';
+                      const currentValue =
+                        (isMovie
+                          ? values.placeholderMovieRootFolders?.[library.key]
+                          : values.placeholderTVRootFolders?.[library.key]) ||
+                        '';
 
-              {/* TV Root Folder */}
-              <div className="form-row">
-                <label htmlFor="placeholderTVRootFolder" className="text-label">
-                  {intl.formatMessage(messages.placeholderTVRootFolder)}
-                  <span className="label-tip">
-                    {intl.formatMessage(messages.placeholderTVRootFolderTip)}
-                  </span>
-                </label>
-                <div className="form-input-area">
-                  <div className="flex space-x-2">
-                    <div className="form-input-field flex-1">
-                      <Field
-                        id="placeholderTVRootFolder"
-                        name="placeholderTVRootFolder"
-                        type="text"
-                        placeholder="/data/media/tv"
-                      />
-                    </div>
-                    <Button
-                      buttonType="default"
-                      type="button"
-                      onClick={() =>
-                        setFolderBrowser({ isOpen: true, type: 'tv' })
-                      }
-                    >
-                      <FolderIcon className="h-5 w-5" />
-                      <span>{intl.formatMessage(messages.browse)}</span>
-                    </Button>
-                  </div>
+                      return (
+                        <div key={library.key} className="form-row">
+                          <label
+                            htmlFor={`placeholder-${library.key}`}
+                            className="text-label"
+                          >
+                            {intl.formatMessage(
+                              messages.libraryPlaceholderFolder,
+                              {
+                                libraryName: library.name,
+                              }
+                            )}
+                            <span className="label-tip">
+                              {intl.formatMessage(
+                                messages.libraryPlaceholderFolderTip
+                              )}
+                            </span>
+                          </label>
+                          <div className="form-input-area">
+                            <div className="flex space-x-2">
+                              <div className="form-input-field flex-1">
+                                <Field
+                                  id={`placeholder-${library.key}`}
+                                  name={`${fieldName}.${library.key}`}
+                                  type="text"
+                                  placeholder={
+                                    isMovie
+                                      ? '/data/media/movies'
+                                      : '/data/media/tv'
+                                  }
+                                  value={currentValue}
+                                  onChange={(
+                                    e: React.ChangeEvent<HTMLInputElement>
+                                  ) => {
+                                    setFieldValue(fieldName, {
+                                      ...values[fieldName],
+                                      [library.key]: e.target.value,
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <Button
+                                buttonType="default"
+                                type="button"
+                                onClick={() =>
+                                  setFolderBrowser({
+                                    isOpen: true,
+                                    type:
+                                      library.type === 'movie' ? 'movie' : 'tv',
+                                    libraryKey: library.key,
+                                  })
+                                }
+                              >
+                                <FolderIcon className="h-5 w-5" />
+                                <span>
+                                  {intl.formatMessage(messages.browse)}
+                                </span>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
-              </div>
+              ) : (
+                <div className="text-sm text-stone-400">
+                  {intl.formatMessage(messages.noLibrariesFound)}
+                </div>
+              )}
 
               <div className="actions">
                 <div className="flex justify-end">
@@ -801,36 +837,224 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
             {intl.formatMessage(messages.youtubeSettingsDescription)}
           </p>
         </div>
-        <Alert
-          title={intl.formatMessage(messages.youtubeSettingsInstructions, {
-            cookiesPath: (
-              <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
-                youtube-cookies.txt
-              </code>
-            ),
-            firefoxLink: (
-              <a
-                href="https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-orange-500 hover:underline"
-              >
-                {intl.formatMessage(messages.firefoxExtension)}
-              </a>
-            ),
-            chromeLink: (
-              <a
-                href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-orange-500 hover:underline"
-              >
-                {intl.formatMessage(messages.chromeExtension)}
-              </a>
-            ),
-          })}
-          type="info"
-        />
+        {youtubeCookiesStatus && !youtubeCookiesStatus.exists && (
+          <Alert
+            title={intl.formatMessage(messages.youtubeCookiesNotFound)}
+            type="warning"
+          >
+            <p>
+              {intl.formatMessage(messages.youtubeCookiesNotFoundMessage, {
+                cookiesPath: (
+                  <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
+                    youtube-cookies.txt
+                  </code>
+                ),
+              })}
+            </p>
+          </Alert>
+        )}
+        {youtubeCookiesStatus && youtubeCookiesStatus.exists && (
+          <div className="mb-4 rounded-md bg-stone-800 p-4 ring-1 ring-stone-600">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className={`h-5 w-5 ${
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? 'text-yellow-400'
+                      : 'text-green-400'
+                  }`}
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  {dataMain?.skipYoutubeTrailerDownloads ? (
+                    <path
+                      fillRule="evenodd"
+                      d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                      clipRule="evenodd"
+                    />
+                  ) : (
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                      clipRule="evenodd"
+                    />
+                  )}
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <p
+                  className={`text-sm font-medium ${
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? 'text-yellow-300'
+                      : 'text-stone-300'
+                  }`}
+                >
+                  {intl.formatMessage(
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? messages.youtubeCookiesFoundButDisabled
+                      : messages.youtubeCookiesFound
+                  )}
+                </p>
+                <p
+                  className={`mt-1 text-sm ${
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? 'text-yellow-200'
+                      : 'text-stone-400'
+                  }`}
+                >
+                  {intl.formatMessage(
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? messages.youtubeCookiesFoundButDisabledMessage
+                      : messages.youtubeCookiesFoundMessage,
+                    {
+                      cookiesPath: (
+                        <code
+                          className={`rounded px-1 py-0.5 font-mono text-sm ${
+                            dataMain?.skipYoutubeTrailerDownloads
+                              ? 'bg-yellow-950'
+                              : 'bg-stone-700'
+                          }`}
+                        >
+                          youtube-cookies.txt
+                        </code>
+                      ),
+                    }
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* YouTube Trailer Download Toggle */}
+        <Formik
+          initialValues={{
+            skipYoutubeTrailerDownloads:
+              dataMain?.skipYoutubeTrailerDownloads || false,
+          }}
+          enableReinitialize
+          onSubmit={async (values) => {
+            try {
+              await axios.post('/api/v1/settings/main', {
+                skipYoutubeTrailerDownloads: values.skipYoutubeTrailerDownloads,
+              });
+
+              addToast(
+                intl.formatMessage(messages.toastYoutubeSettingsSuccess),
+                {
+                  appearance: 'success',
+                  autoDismiss: true,
+                }
+              );
+            } catch (e) {
+              addToast(
+                intl.formatMessage(messages.toastYoutubeSettingsFailure),
+                {
+                  appearance: 'error',
+                  autoDismiss: true,
+                }
+              );
+            } finally {
+              revalidateMain();
+            }
+          }}
+        >
+          {({ values, handleSubmit, setFieldValue, isSubmitting }) => (
+            <form onSubmit={handleSubmit}>
+              <div className="form-row">
+                <label
+                  htmlFor="skipYoutubeTrailerDownloads"
+                  className="checkbox-label"
+                >
+                  <span className="mr-2">
+                    {intl.formatMessage(messages.skipYoutubeTrailerDownloads)}
+                  </span>
+                  <span className="label-tip">
+                    {intl.formatMessage(
+                      messages.skipYoutubeTrailerDownloadsDescription
+                    )}
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <Field
+                    type="checkbox"
+                    id="skipYoutubeTrailerDownloads"
+                    name="skipYoutubeTrailerDownloads"
+                    checked={values.skipYoutubeTrailerDownloads}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue(
+                        'skipYoutubeTrailerDownloads',
+                        e.target.checked
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={isSubmitting}
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(messages.saving)
+                          : intl.formatMessage(messages.save)}
+                      </span>
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            </form>
+          )}
+        </Formik>
+
+        <div className="space-y-3 text-sm text-stone-400">
+          <p className="font-medium text-stone-300">
+            {intl.formatMessage(messages.youtubeSetupInstructionsTitle)}
+          </p>
+          <ol className="ml-4 list-decimal space-y-2">
+            <li>
+              {intl.formatMessage(messages.youtubeSetupStep1, {
+                firefoxLink: (
+                  <a
+                    href="https://addons.mozilla.org/en-US/firefox/addon/export-cookies-txt/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-500 hover:underline"
+                  >
+                    {intl.formatMessage(messages.firefoxExtension)}
+                  </a>
+                ),
+                chromeLink: (
+                  <a
+                    href="https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-orange-500 hover:underline"
+                  >
+                    {intl.formatMessage(messages.chromeExtension)}
+                  </a>
+                ),
+              })}
+            </li>
+            <li>{intl.formatMessage(messages.youtubeSetupStep2)}</li>
+            <li>
+              {intl.formatMessage(messages.youtubeSetupStep3, {
+                cookiesPath: (
+                  <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
+                    youtube-cookies.txt
+                  </code>
+                ),
+              })}
+            </li>
+          </ol>
+        </div>
       </div>
 
       {/* Plex Watchlist Sync Settings */}

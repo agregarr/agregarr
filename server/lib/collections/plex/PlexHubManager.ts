@@ -205,7 +205,11 @@ class PlexHubManager {
    */
   public async getAllLibraryHubs(): Promise<{ [sectionId: string]: unknown }> {
     try {
-      const libraries = await this.plexApi.getLibraries();
+      const allLibraries = await this.plexApi.getLibraries();
+      // Filter to only movie and show libraries - we don't manage music, photo, or other library types
+      const libraries = allLibraries.filter(
+        (library) => library.type === 'movie' || library.type === 'show'
+      );
       const allHubs: { [sectionId: string]: unknown } = {};
 
       for (const library of libraries) {
@@ -619,11 +623,25 @@ class PlexHubManager {
 
       await this.plexApi['safeDeleteQuery'](url);
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      // 404 means hub is already deleted - treat as success
+      if (errorMessage.includes('404')) {
+        logger.debug(
+          `Hub item ${hubId} already deleted from library section ${sectionId}`,
+          {
+            label: 'Plex API',
+            sectionId,
+            hubId,
+          }
+        );
+        return;
+      }
       logger.error(
         `Error deleting hub item ${hubId} from library section ${sectionId}`,
         {
           label: 'Plex API',
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
           sectionId,
           hubId,
         }

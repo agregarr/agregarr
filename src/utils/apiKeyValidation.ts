@@ -3,6 +3,7 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
@@ -29,6 +30,7 @@ export function validateApiKeysForCollectionType(
   collectionType: string,
   settings: {
     main?: MainSettings;
+    plex?: PlexSettings;
     trakt?: TraktSettings;
     mdblist?: MDBListSettings;
     tautulli?: TautulliSettings;
@@ -37,8 +39,7 @@ export function validateApiKeysForCollectionType(
     radarr?: RadarrSettings[];
     sonarr?: SonarrSettings[];
   },
-  subtype?: string,
-  createPlaceholdersForMissing?: boolean
+  subtype?: string
 ): ApiKeyValidationResult {
   const requirements: ApiKeyRequirement[] = [];
   // Trakt can work with just clientId (basic mode) OR full OAuth
@@ -177,29 +178,6 @@ export function validateApiKeysForCollectionType(
     default:
       // No API key requirements
       break;
-  }
-
-  // Check if placeholder creation is enabled and requires root folders configured
-  if (createPlaceholdersForMissing) {
-    const hasMovieRootFolder = !!settings.main?.placeholderMovieRootFolder;
-    const hasTVRootFolder = !!settings.main?.placeholderTVRootFolder;
-
-    if (!hasMovieRootFolder) {
-      requirements.push({
-        service: 'Movie Placeholder Root Folder',
-        required: true,
-        configured: false,
-        settingsPath: '/settings/downloads',
-      });
-    }
-    if (!hasTVRootFolder) {
-      requirements.push({
-        service: 'TV Placeholder Root Folder',
-        required: true,
-        configured: false,
-        settingsPath: '/settings/downloads',
-      });
-    }
   }
 
   const missingServices = requirements

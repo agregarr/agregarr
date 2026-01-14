@@ -27,7 +27,13 @@ export type CollectionSortOrder =
   | 'reverse' // Reverse source order
   | 'random' // Fisher-Yates shuffle
   | 'imdb_rating_desc' // Highest to lowest IMDb rating
-  | 'imdb_rating_asc'; // Lowest to highest IMDb rating
+  | 'imdb_rating_asc' // Lowest to highest IMDb rating
+  | 'release_date_desc' // Newest to oldest release date
+  | 'release_date_asc' // Oldest to newest release date
+  | 'date_added_desc' // Most recently added to Plex
+  | 'date_added_asc' // Least recently added to Plex
+  | 'alphabetical_asc' // A-Z alphabetical order
+  | 'alphabetical_desc'; // Z-A alphabetical order
 
 export interface Library {
   readonly key: string;
@@ -80,6 +86,8 @@ export interface CollectionConfig {
   readonly lastSyncedAt?: string; // ISO string timestamp of last successful sync to Plex
   readonly lastModifiedAt?: string; // ISO string timestamp when config was last modified
   readonly needsSync?: boolean; // true if modified since last sync
+  readonly lastSyncError?: string; // Error message from last failed sync (cleared on success)
+  readonly lastSyncErrorAt?: string; // ISO string timestamp of when the sync error occurred
   readonly maxItems: number;
   readonly customDays?: number; // Number of days for Tautulli collections (required for Tautulli type)
   readonly minimumPlays?: number; // Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)
@@ -204,6 +212,7 @@ export interface CollectionConfig {
   readonly createPlaceholdersForMissing?: boolean; // If true, create placeholder files in Plex for missing items instead of auto-requesting
   readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
   readonly placeholderDaysAhead?: number; // Number of days to look ahead for release dates (default: 360)
+  readonly includeAllReleasedItems?: boolean; // If true, include all released items regardless of release date (default: true for new configs)
   // Legacy Coming Soon fields (for backward compatibility during migration)
   readonly comingSoonReleasedDays?: number; // @deprecated Use placeholderReleasedDays
   readonly comingSoonDays?: number; // @deprecated Use placeholderDaysAhead
@@ -399,6 +408,7 @@ export interface PlexSettings {
   hubConfigs?: PlexHubConfig[]; // Plex built-in hub configurations
   preExistingCollectionConfigs?: PreExistingCollectionConfig[]; // Pre-existing Plex collections discovered by hub discovery
   usersHomeUnlocked?: boolean; // Secret unlock for Users Home collections
+  autoEmptyTrash?: boolean; // Auto-empty Plex trash after placeholder cleanup (default: true)
 }
 
 export interface TraktSettings {
@@ -539,6 +549,7 @@ export interface MainSettings {
   trustProxy: boolean;
   locale: string;
   tmdbLanguage?: string; // Language for TMDB API calls (poster metadata, etc.) - defaults to 'en'
+  enableTmdbPosterCache?: boolean; // Enable 7-day file cache for TMDB posters to reduce API calls - defaults to true
   nextConfigId?: number; // Next sequential ID for collection configs (starts at 10000)
   // Global sync status tracking
   lastGlobalSyncAt?: string; // ISO string timestamp of last full collections sync
@@ -554,9 +565,11 @@ export interface MainSettings {
   externalApplicationTitle?: string; // External Overseerr title
   // Overseerr user label state tracking
   overseerrLabelsApplied?: boolean; // True if Overseerr user filter labels are currently applied to Plex users
-  // Placeholder root folders
-  placeholderMovieRootFolder?: string; // Root folder path for movie placeholders
-  placeholderTVRootFolder?: string; // Root folder path for TV show placeholders
+  // Placeholder root folders (per-library)
+  placeholderMovieRootFolders?: Record<string, string>; // libraryKey -> movie placeholder path mapping
+  placeholderTVRootFolders?: Record<string, string>; // libraryKey -> TV placeholder path mapping
+  // YouTube trailer download settings
+  skipYoutubeTrailerDownloads?: boolean; // If true, skip YouTube trailer downloads and use hardcoded placeholder video only (speeds up sync)
 }
 
 interface PublicSettings {
@@ -641,6 +654,7 @@ class Settings {
         trustProxy: false,
         locale: 'en',
         tmdbLanguage: 'en',
+        enableTmdbPosterCache: true,
       },
       plex: {
         name: '',
@@ -1156,7 +1170,7 @@ class Settings {
   }
 
   /**
-   * Mark a collection as successfully synced
+   * Mark a collection as successfully synced (clears any previous error)
    */
   public markCollectionSynced(
     collectionId: string,
@@ -1172,7 +1186,12 @@ class Settings {
             (c) => c.id === collectionId
           );
           if (config) {
-            Object.assign(config, { needsSync: false, lastSyncedAt: now });
+            Object.assign(config, {
+              needsSync: false,
+              lastSyncedAt: now,
+              lastSyncError: undefined,
+              lastSyncErrorAt: undefined,
+            });
           }
         }
         break;
@@ -1203,6 +1222,27 @@ class Settings {
     }
 
     this.save();
+  }
+
+  /**
+   * Set a sync error for a specific collection
+   */
+  public setCollectionSyncError(collectionId: string, error: string): void {
+    const now = new Date().toISOString();
+
+    if (this.data.plex.collectionConfigs) {
+      const config = this.data.plex.collectionConfigs.find(
+        (c) => c.id === collectionId
+      );
+      if (config) {
+        Object.assign(config, {
+          lastSyncError: error,
+          lastSyncErrorAt: now,
+          needsSync: true, // Keep marked as needing sync since it failed
+        });
+        this.save();
+      }
+    }
   }
 
   /**
@@ -1730,6 +1770,69 @@ class Settings {
   }
 
   /**
+   * Migrate global placeholder settings to per-library format
+   * One-time migration: copies global settings to each library, then removes global settings
+   */
+  public migratePlaceholderSettingsToPerLibrary(): void {
+    const migrationId = 'placeholder-settings-per-library-v1';
+
+    // Initialize completedMigrations if it doesn't exist
+    if (!this.data.completedMigrations) {
+      this.data.completedMigrations = [];
+    }
+
+    // Skip if already completed
+    if (this.data.completedMigrations.includes(migrationId)) {
+      return;
+    }
+
+    let migratedCount = 0;
+
+    // Initialize per-library maps if they don't exist
+    if (!this.data.main.placeholderMovieRootFolders) {
+      this.data.main.placeholderMovieRootFolders = {};
+    }
+    if (!this.data.main.placeholderTVRootFolders) {
+      this.data.main.placeholderTVRootFolders = {};
+    }
+
+    // Get legacy global settings (access via index signature for backwards compatibility)
+    type LegacyMainSettings = MainSettings & {
+      placeholderMovieRootFolder?: string;
+      placeholderTVRootFolder?: string;
+    };
+    const mainSettings = this.data.main as LegacyMainSettings;
+    const globalMovieFolder = mainSettings.placeholderMovieRootFolder;
+    const globalTVFolder = mainSettings.placeholderTVRootFolder;
+
+    // Copy global settings to all libraries
+    if (globalMovieFolder || globalTVFolder) {
+      for (const library of this.data.plex.libraries) {
+        if (library.type === 'movie' && globalMovieFolder) {
+          this.data.main.placeholderMovieRootFolders[library.key] =
+            globalMovieFolder;
+          migratedCount++;
+        } else if (library.type === 'show' && globalTVFolder) {
+          this.data.main.placeholderTVRootFolders[library.key] = globalTVFolder;
+          migratedCount++;
+        }
+      }
+
+      // Delete global settings after migration
+      delete mainSettings.placeholderMovieRootFolder;
+      delete mainSettings.placeholderTVRootFolder;
+
+      logger.info(
+        `Migrated ${migratedCount} library placeholder folder setting(s) from global to per-library format`,
+        { label: 'Settings Migration' }
+      );
+    }
+
+    this.data.completedMigrations.push(migrationId);
+    this.save();
+  }
+
+  /**
    * Normalize pre-existing configs with pre-existing collection business rules
    */
   private normalizePreExistingConfigs(): number {
@@ -2056,6 +2159,7 @@ export interface MultiSourceCollectionConfig {
   readonly createPlaceholdersForMissing?: boolean; // Enable placeholder creation for missing items
   readonly placeholderDaysAhead?: number; // How many days ahead to create placeholders
   readonly placeholderReleasedDays?: number; // How many days after release to keep placeholders
+  readonly includeAllReleasedItems?: boolean; // If true, include all released items regardless of release date
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;

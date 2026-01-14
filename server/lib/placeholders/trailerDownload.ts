@@ -45,7 +45,7 @@ async function getYoutubeSearch() {
  */
 async function copyPlaceholderVideo(outputPath: string): Promise<void> {
   logger.debug('Using static placeholder video', {
-    label: 'Coming Soon Trailer',
+    label: 'PlaceholderService',
     outputPath,
   });
 
@@ -60,12 +60,12 @@ async function copyPlaceholderVideo(outputPath: string): Promise<void> {
     await fsPromises.copyFile(placeholderPath, outputPath);
 
     logger.info('Copied static placeholder video', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       outputPath,
     });
   } catch (error) {
     logger.error('Failed to copy placeholder video', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       error: error instanceof Error ? error.message : String(error),
     });
     throw error;
@@ -84,7 +84,7 @@ async function downloadWithYtDlp(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     logger.debug('Downloading with yt-dlp', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       videoUrl,
       outputPath,
       maxDuration,
@@ -114,7 +114,7 @@ async function downloadWithYtDlp(
       fs.accessSync(cookiesPath);
       args.push('--cookies', cookiesPath);
       logger.debug('Using YouTube cookies for download', {
-        label: 'Coming Soon Trailer',
+        label: 'PlaceholderService',
         cookiesPath,
       });
     } catch {
@@ -122,7 +122,7 @@ async function downloadWithYtDlp(
       logger.debug(
         'No YouTube cookies file found, proceeding without cookies',
         {
-          label: 'Coming Soon Trailer',
+          label: 'PlaceholderService',
           expectedPath: cookiesPath,
         }
       );
@@ -147,7 +147,7 @@ async function downloadWithYtDlp(
     ytdlp.on('close', (code) => {
       if (code === 0) {
         logger.info('Successfully downloaded trailer with yt-dlp', {
-          label: 'Coming Soon Trailer',
+          label: 'PlaceholderService',
           outputPath,
         });
         resolve();
@@ -164,14 +164,14 @@ async function downloadWithYtDlp(
           const videoTitle = titleMatch ? titleMatch[1] : 'Video';
 
           logger.info('Video rejected by duration filter (over 3.5 minutes)', {
-            label: 'Coming Soon Trailer',
+            label: 'PlaceholderService',
             videoTitle,
             maxDuration: maxDuration,
           });
         } else {
           // Actual error (network, bot detection, etc.)
           logger.error('yt-dlp download failed', {
-            label: 'Coming Soon Trailer',
+            label: 'PlaceholderService',
             code,
             stdout: stdoutOutput,
             stderr: stderrOutput,
@@ -184,7 +184,7 @@ async function downloadWithYtDlp(
 
     ytdlp.on('error', (error) => {
       logger.error('yt-dlp spawn error', {
-        label: 'Coming Soon Trailer',
+        label: 'PlaceholderService',
         error: error.message,
       });
       reject(error);
@@ -201,7 +201,7 @@ async function searchAndDownloadTrailer(
   const { title, year, outputPath } = options;
 
   logger.info('Searching for YouTube trailer', {
-    label: 'Coming Soon Trailer',
+    label: 'PlaceholderService',
     title,
     year,
   });
@@ -210,7 +210,7 @@ async function searchAndDownloadTrailer(
     // Search YouTube for official trailer
     const searchQuery = `${title}${year ? ` ${year}` : ''} official trailer`;
     logger.debug('YouTube search query', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       query: searchQuery,
     });
 
@@ -220,7 +220,7 @@ async function searchAndDownloadTrailer(
 
     if (!searchResults || searchResults.length === 0) {
       logger.warn('No YouTube trailers found, using fallback', {
-        label: 'Coming Soon Trailer',
+        label: 'PlaceholderService',
         title,
       });
       await copyPlaceholderVideo(outputPath);
@@ -233,7 +233,7 @@ async function searchAndDownloadTrailer(
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     logger.info('Found YouTube trailer', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       title,
       videoTitle: firstResult.snippet.title,
       videoId,
@@ -242,7 +242,7 @@ async function searchAndDownloadTrailer(
     // Download trailer with yt-dlp (includes duration filter to reject videos over 3.5 minutes)
     const maxDuration = options.maxDuration || 210; // Default: 3.5 minutes
     logger.info('Downloading YouTube trailer with yt-dlp', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       title,
       maxDuration,
     });
@@ -250,7 +250,7 @@ async function searchAndDownloadTrailer(
     await downloadWithYtDlp(videoUrl, outputPath, maxDuration);
 
     logger.info('Successfully downloaded 1080p trailer', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       title,
       outputPath,
     });
@@ -265,14 +265,14 @@ async function searchAndDownloadTrailer(
       logger.info(
         'Trailer video too long (over 3.5 minutes), using placeholder instead',
         {
-          label: 'Coming Soon Trailer',
+          label: 'PlaceholderService',
           title,
         }
       );
     } else {
       // Actual error (network, bot detection, etc.)
       logger.error('Failed to download YouTube trailer, using fallback', {
-        label: 'Coming Soon Trailer',
+        label: 'PlaceholderService',
         error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined,
         title,
@@ -310,7 +310,7 @@ export async function downloadTrailer(
     try {
       await fsPromises.access(outputPath);
       logger.debug('Trailer already exists in cache', {
-        label: 'Coming Soon Trailer',
+        label: 'PlaceholderService',
         title,
         outputPath,
       });
@@ -319,8 +319,29 @@ export async function downloadTrailer(
       // Trailer doesn't exist, download it
     }
 
+    // Check if YouTube trailer downloads are disabled
+    const { getSettings } = await import('@server/lib/settings');
+    const settings = getSettings();
+    const skipYoutubeDownload = settings.main.skipYoutubeTrailerDownloads;
+
+    if (skipYoutubeDownload) {
+      logger.info(
+        'YouTube trailer downloads disabled - using hardcoded placeholder video',
+        {
+          label: 'PlaceholderService',
+          title,
+          year,
+          mediaType,
+        }
+      );
+
+      // Copy hardcoded placeholder video directly
+      await copyPlaceholderVideo(outputPath);
+      return outputPath;
+    }
+
     logger.info('Downloading trailer', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       title,
       year,
       mediaType,
@@ -336,7 +357,7 @@ export async function downloadTrailer(
     return outputPath;
   } catch (error) {
     logger.error('Failed to download trailer', {
-      label: 'Coming Soon Trailer',
+      label: 'PlaceholderService',
       error: error instanceof Error ? error.message : String(error),
       title,
       year,

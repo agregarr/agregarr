@@ -186,7 +186,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         allCollections,
         processedCollectionKeys,
         undefined,
-        libraryCache
+        libraryCache,
+        missingItems
       );
     } catch (error) {
       logger.error('Coming Soon collection processing failed', {
@@ -312,7 +313,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         // Enrich monitored items with TMDB release dates (adds 3-month estimate for theatrical-only releases)
         await enrichWithTMDBReleaseDates(
           upcomingItems,
-          config.placeholderDaysAhead || config.comingSoonDays || 360
+          config.placeholderDaysAhead || config.comingSoonDays || 360,
+          config.placeholderReleasedDays || config.comingSoonReleasedDays || 7
         );
         break;
       }
@@ -333,7 +335,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         // Cross-reference with Radarr/Sonarr to mark monitored status
         await markMonitoredStatus(
           upcomingItems,
-          config.placeholderDaysAhead || config.comingSoonDays || 360
+          config.placeholderDaysAhead || config.comingSoonDays || 360,
+          config.placeholderReleasedDays || config.comingSoonReleasedDays || 7
         );
         break;
       }
@@ -354,7 +357,8 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         // Cross-reference with Radarr/Sonarr to mark monitored status
         await markMonitoredStatus(
           upcomingItems,
-          config.placeholderDaysAhead || config.comingSoonDays || 360
+          config.placeholderDaysAhead || config.comingSoonDays || 360,
+          config.placeholderReleasedDays || config.comingSoonReleasedDays || 7
         );
         break;
       }

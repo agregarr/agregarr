@@ -14,7 +14,23 @@ import {
 } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import { Fragment, useState } from 'react';
+import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
+
+const messages = defineMessages({
+  search: 'Search',
+  cancel: 'Cancel',
+  testOverlay: 'Test Overlay',
+  renderedPoster: 'Rendered Poster',
+  library: 'Library: {name}',
+  templateResults: 'Template Results',
+  noConditions: 'No conditions (always applies)',
+  conditionEvaluation: 'Condition Evaluation:',
+  actual: '(actual: {value})',
+  contextVariables: 'Context Variables ({count})',
+  undefined: 'undefined',
+  noPoster: 'No Poster',
+});
 
 interface TestItemModalProps {
   isOpen: boolean;
@@ -22,6 +38,7 @@ interface TestItemModalProps {
 }
 
 const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
+  const intl = useIntl();
   const { addToast } = useToasts();
   const [stage, setStage] = useState<'search' | 'results'>('search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -158,7 +175,9 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                 buttonType="primary"
               >
                 <MagnifyingGlassIcon className="h-5 w-5" />
-                <span className="ml-2">Search</span>
+                <span className="ml-2">
+                  {intl.formatMessage(messages.search)}
+                </span>
               </Button>
             </div>
 
@@ -189,7 +208,7 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                           />
                         ) : (
                           <div className="flex h-full items-center justify-center bg-stone-800 text-stone-500">
-                            No Poster
+                            {intl.formatMessage(messages.noPoster)}
                           </div>
                         )}
                       </div>
@@ -208,14 +227,14 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                 {/* Action Buttons */}
                 <div className="flex justify-end space-x-2 border-t border-stone-700 pt-4">
                   <Button buttonType="ghost" onClick={handleClose}>
-                    Cancel
+                    {intl.formatMessage(messages.cancel)}
                   </Button>
                   <Button
                     buttonType="primary"
                     onClick={handleTest}
                     disabled={!selectedItem || isTesting}
                   >
-                    Test Overlay
+                    {intl.formatMessage(messages.testOverlay)}
                   </Button>
                 </div>
               </>
@@ -228,7 +247,7 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
             {/* Left Column: Poster with Overlays */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-white">
-                Rendered Poster
+                {intl.formatMessage(messages.renderedPoster)}
               </h3>
               {isTesting ? (
                 <div className="flex h-96 items-center justify-center rounded-lg bg-stone-900">
@@ -250,7 +269,11 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                       </strong>{' '}
                       {testResults.item.year && `(${testResults.item.year})`}
                     </p>
-                    <p>Library: {testResults.item.libraryName}</p>
+                    <p>
+                      {intl.formatMessage(messages.library, {
+                        name: testResults.item.libraryName,
+                      })}
+                    </p>
                   </div>
                 </>
               ) : null}
@@ -263,7 +286,7 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                   {/* Templates Section */}
                   <div className="flex min-h-0 flex-1 flex-col">
                     <h3 className="mb-3 text-lg font-semibold text-white">
-                      Template Results
+                      {intl.formatMessage(messages.templateResults)}
                     </h3>
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
                       {testResults.templates.map((template) => (
@@ -308,12 +331,14 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                                 {template.conditionResults.sectionResults
                                   .length === 0 ? (
                                   <p className="text-xs text-stone-500">
-                                    No conditions (always applies)
+                                    {intl.formatMessage(messages.noConditions)}
                                   </p>
                                 ) : (
                                   <div className="space-y-2">
                                     <p className="text-xs font-semibold text-stone-400">
-                                      Condition Evaluation:
+                                      {intl.formatMessage(
+                                        messages.conditionEvaluation
+                                      )}
                                     </p>
                                     {template.conditionResults.sectionResults.map(
                                       (section, sIdx) => (
@@ -355,11 +380,14 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                                                       )}
                                                     </span>
                                                     <span className="ml-2 text-stone-500">
-                                                      (actual:{' '}
-                                                      {JSON.stringify(
-                                                        rule.actualValue
+                                                      {intl.formatMessage(
+                                                        messages.actual,
+                                                        {
+                                                          value: JSON.stringify(
+                                                            rule.actualValue
+                                                          ),
+                                                        }
                                                       )}
-                                                      )
                                                     </span>
                                                   </div>
                                                 </div>
@@ -381,8 +409,9 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                   {/* Context Variables Section */}
                   <div className="flex min-h-0 flex-1 flex-col">
                     <h3 className="mb-3 text-lg font-semibold text-white">
-                      Context Variables (
-                      {Object.keys(testResults.context).length})
+                      {intl.formatMessage(messages.contextVariables, {
+                        count: Object.keys(testResults.context).length,
+                      })}
                     </h3>
                     <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-stone-700 bg-stone-800">
                       <div className="divide-y divide-stone-700">
@@ -398,7 +427,7 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                               <span className="ml-4 font-mono text-white">
                                 {value === undefined || value === null ? (
                                   <span className="text-stone-600">
-                                    undefined
+                                    {intl.formatMessage(messages.undefined)}
                                   </span>
                                 ) : value instanceof Date ? (
                                   value.toISOString()

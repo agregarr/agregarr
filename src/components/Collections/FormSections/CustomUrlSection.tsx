@@ -12,10 +12,19 @@ const messages = defineMessages({
   customAnilistListUrl: 'Custom AniList List URL',
   fetchTitle: 'Validate',
   fetching: 'Fetching...',
-  fetchedTitle: 'Fetched Title',
-  enterUrl: 'Enter URL...',
-  urlRequired: 'URL is required for custom lists',
-  validUrl: 'Please enter a valid URL',
+  traktUrlExamples:
+    'Examples: https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname',
+  tmdbUrlExamples:
+    'Examples: Collection (https://www.themoviedb.org/collection/12345), List (https://www.themoviedb.org/list/310), Network (https://www.themoviedb.org/network/213), Company (https://www.themoviedb.org/company/7505/movie or /tv)',
+  imdbUrlExamples:
+    'Examples: List (https://www.imdb.com/list/ls123456789/) or Watchlist (https://www.imdb.com/user/ur12345678/watchlist)',
+  letterboxdListUrlExample:
+    'Example: https://letterboxd.com/username/list/listname/',
+  letterboxdWatchlistUrl: 'Letterboxd Watchlist URL',
+  letterboxdWatchlistHelp: 'Enter the full URL to your Letterboxd watchlist.',
+  anilistUrlExample:
+    'Example: https://anilist.co/animelist/listname or https://anilist.co/user/username/animelist/listname',
+  mdblistUrlExample: 'Example: https://mdblist.com/lists/username/list-name',
 });
 
 interface CustomUrlSectionProps {
@@ -49,6 +58,14 @@ interface CustomUrlSectionProps {
     url: string,
     setFieldValue?: (field: string, value: string) => void
   ) => Promise<void>;
+  titleFetchProgress?: {
+    trakt?: string;
+    tmdb?: string;
+    imdb?: string;
+    letterboxd?: string;
+    mdblist?: string;
+    anilist?: string;
+  };
 }
 
 const CustomUrlSection = ({
@@ -60,6 +77,7 @@ const CustomUrlSection = ({
   fetchLetterboxdTitle,
   fetchMdblistTitle,
   fetchAnilistTitle,
+  titleFetchProgress,
 }: CustomUrlSectionProps) => {
   const intl = useIntl();
   const [isLoadingTitle, setIsLoadingTitle] = useState({
@@ -96,6 +114,9 @@ const CustomUrlSection = ({
       } else if (type === 'anilist' && fetchAnilistTitle) {
         await fetchAnilistTitle(url, setFieldValue);
       }
+    } catch (error) {
+      // Error is already handled by the fetch functions (toasts shown)
+      // Just silently catch here to prevent unhandled rejection
     } finally {
       setIsLoadingTitle((prev) => ({ ...prev, [type]: false }));
     }
@@ -117,7 +138,7 @@ const CustomUrlSection = ({
             type="url"
             id="traktCustomListUrl"
             name="traktCustomListUrl"
-            placeholder="https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name"
+            placeholder="https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname"
             className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTraktTitle && (
@@ -138,9 +159,13 @@ const CustomUrlSection = ({
           component="div"
           className="mt-1 text-sm text-red-500"
         />
+        {titleFetchProgress?.trakt && (
+          <p className="mt-1 text-sm text-orange-400">
+            {titleFetchProgress.trakt}
+          </p>
+        )}
         <p className="mt-1 text-xs text-gray-400">
-          Examples: https://trakt.tv/users/username/lists/listname or
-          https://trakt.tv/lists/official/jurassic-park-collection
+          {intl.formatMessage(messages.traktUrlExamples)}
         </p>
       </div>
     );
@@ -183,11 +208,13 @@ const CustomUrlSection = ({
           component="div"
           className="mt-1 text-sm text-red-500"
         />
+        {titleFetchProgress?.tmdb && (
+          <p className="mt-1 text-sm text-orange-400">
+            {titleFetchProgress.tmdb}
+          </p>
+        )}
         <p className="mt-1 text-xs text-gray-400">
-          Examples: Collection (https://www.themoviedb.org/collection/12345),
-          List (https://www.themoviedb.org/list/310), Network
-          (https://www.themoviedb.org/network/213), Company
-          (https://www.themoviedb.org/company/7505/movie or /tv)
+          {intl.formatMessage(messages.tmdbUrlExamples)}
         </p>
       </div>
     );
@@ -209,7 +236,7 @@ const CustomUrlSection = ({
             type="url"
             id="imdbCustomListUrl"
             name="imdbCustomListUrl"
-            placeholder="https://www.imdb.com/list/ls123456789/"
+            placeholder="https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist"
             className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchImdbTitle && (
@@ -230,9 +257,13 @@ const CustomUrlSection = ({
           component="div"
           className="mt-1 text-sm text-red-500"
         />
+        {titleFetchProgress?.imdb && (
+          <p className="mt-1 text-sm text-orange-400">
+            {titleFetchProgress.imdb}
+          </p>
+        )}
         <p className="mt-1 text-xs text-gray-400">
-          Example: https://www.imdb.com/list/ls123456789/ or
-          https://www.imdb.com/user/ur12345678/lists/
+          {intl.formatMessage(messages.imdbUrlExamples)}
         </p>
       </div>
     );
@@ -279,7 +310,7 @@ const CustomUrlSection = ({
             className="mt-1 text-sm text-red-500"
           />
           <p className="mt-1 text-xs text-gray-400">
-            Example: https://letterboxd.com/username/list/listname/
+            {intl.formatMessage(messages.letterboxdListUrlExample)}
           </p>
         </div>
       );
@@ -290,7 +321,8 @@ const CustomUrlSection = ({
             htmlFor="letterboxdCustomListUrl"
             className="mb-2 block text-sm text-gray-300"
           >
-            Letterboxd Watchlist URL <span className="text-red-500">*</span>
+            {intl.formatMessage(messages.letterboxdWatchlistUrl)}{' '}
+            <span className="text-red-500">*</span>
           </label>
           <div className="flex gap-2">
             <Field
@@ -321,7 +353,7 @@ const CustomUrlSection = ({
             className="mt-1 text-sm text-red-500"
           />
           <p className="mt-1 text-xs text-gray-400">
-            Enter the full URL to your Letterboxd watchlist.
+            {intl.formatMessage(messages.letterboxdWatchlistHelp)}
           </p>
         </div>
       );
@@ -366,8 +398,7 @@ const CustomUrlSection = ({
           className="mt-1 text-sm text-red-500"
         />
         <p className="mt-1 text-xs text-gray-400">
-          Example: https://anilist.co/animelist/listname or
-          https://anilist.co/user/username/animelist/listname
+          {intl.formatMessage(messages.anilistUrlExample)}
         </p>
       </div>
     );
@@ -411,7 +442,7 @@ const CustomUrlSection = ({
           className="mt-1 text-sm text-red-500"
         />
         <p className="mt-1 text-xs text-gray-400">
-          Example: https://mdblist.com/lists/username/list-name
+          {intl.formatMessage(messages.mdblistUrlExample)}
         </p>
       </div>
     );

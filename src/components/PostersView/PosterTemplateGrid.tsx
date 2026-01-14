@@ -29,8 +29,8 @@ const messages = defineMessages({
   cancel: 'Cancel',
   noTemplates: 'No templates found',
   createFirstTemplate: 'Create your first template to get started',
-  createTemplate: 'Create Template',
   lastUpdated: 'Last updated',
+  previewUnavailable: 'Preview unavailable',
 });
 
 interface PosterTemplate {
@@ -285,7 +285,9 @@ const PosterTemplateGrid: React.FC<PosterTemplateGridProps> = ({
               <div className="absolute inset-0 flex hidden items-center justify-center bg-stone-700 text-stone-400">
                 <div className="text-center">
                   <div className="text-sm font-medium">{template.name}</div>
-                  <div className="text-xs">Preview unavailable</div>
+                  <div className="text-xs">
+                    {intl.formatMessage(messages.previewUnavailable)}
+                  </div>
                 </div>
               </div>
             </div>

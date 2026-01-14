@@ -27,9 +27,11 @@ import type {
 
 const messages = defineMessages({
   layers: 'Layers',
-  addText: 'Add Text',
+  addCustomText: 'Add Custom Text',
+  addCollectionTitle: 'Add Collection Title',
   addImage: 'Add Image',
-  addIcon: 'Add Icon',
+  addSourceLogo: 'Add Source Logo',
+  addCustomSVGIcon: 'Add Custom SVG Icon',
   addGrid: 'Add Grid',
   moveUp: 'Move Up',
   moveDown: 'Move Down',
@@ -43,6 +45,8 @@ const messages = defineMessages({
   customIcon: 'Custom Icon',
   contentGrid: 'Content Grid',
   noElementSelected: 'Select an element to edit its properties',
+  elements: 'Elements',
+  noElementsAdded: 'No elements added yet',
   // Text properties
   fontSize: 'Font Size',
   fontFamily: 'Font Family',
@@ -50,11 +54,7 @@ const messages = defineMessages({
   fontStyle: 'Font Style',
   textTransform: 'Text Transform',
   textColor: 'Text Color',
-  textAlign: 'Text Align',
   maxLines: 'Max Lines',
-  left: 'Left',
-  center: 'Center',
-  right: 'Right',
   normal: 'Normal',
   bold: 'Bold',
   italic: 'Italic',
@@ -78,18 +78,32 @@ const messages = defineMessages({
   // Background properties
   background: 'Background',
   backgroundType: 'Type',
+  backgroundColors: 'Background Colors',
   color: 'Color',
   gradient: 'Gradient',
   radial: 'Radial Gradient',
   intensity: 'Intensity',
+  primary: 'Primary',
+  secondary: 'Secondary',
   primaryColor: 'Primary Color',
   secondaryColor: 'Secondary Color',
   useSourceColors: 'Use Source Colors',
+  disabledUsingSourceColors: 'Disabled - using source colors',
   sourceType: 'Source Type',
+  sourceTypeForText: 'Source Type for Text',
+  text: 'Text',
+  collectionTitleNote:
+    "This text will automatically display the collection's name when used.",
+  useSourceTextColors: 'Use Source Text Colors',
+  disabledUsingSourceTextColors: 'Disabled - using source text colors',
+  sourceLogoNote:
+    "This logo will automatically change based on the collection's source when used.",
   customizeColors: 'Customize Colors',
-  setSourceColors: 'Set Source Colors',
   saveSourceColors: 'Save Colors',
-  sourceColorsSaved: 'Colors Saved!',
+  pixelsUnit: 'px',
+  linesUnit: 'lines',
+  pixelsAutoLabel: 'px - Auto',
+  lockedToAspectRatio: 'Locked to poster aspect ratio (2:3)',
 });
 
 interface FontInfo {
@@ -900,7 +914,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       {/* Background Colors */}
                       <div className="space-y-2">
                         <h6 className="text-xs font-medium text-stone-400">
-                          Background Colors
+                          {intl.formatMessage(messages.backgroundColors)}
                         </h6>
                         <div className="grid grid-cols-2 gap-2">
                           <div>
@@ -908,7 +922,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                               htmlFor={`primary-color-${selectedSourceType}`}
                               className="mb-1 block text-xs text-stone-400"
                             >
-                              Primary
+                              {intl.formatMessage(messages.primary)}
                             </label>
                             <input
                               id={`primary-color-${selectedSourceType}`}
@@ -938,7 +952,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                               htmlFor={`secondary-color-${selectedSourceType}`}
                               className="mb-1 block text-xs text-stone-400"
                             >
-                              Secondary
+                              {intl.formatMessage(messages.secondary)}
                             </label>
                             <input
                               id={`secondary-color-${selectedSourceType}`}
@@ -970,7 +984,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             htmlFor={`text-color-${selectedSourceType}`}
                             className="mb-1 block text-xs text-stone-400"
                           >
-                            Text Color
+                            {intl.formatMessage(messages.textColor)}
                           </label>
                           <input
                             id={`text-color-${selectedSourceType}`}
@@ -1040,7 +1054,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
               />
               {isTemplate && posterData.background.useSourceColors && (
                 <p className="mt-1 text-xs text-stone-500">
-                  Disabled - using source colors
+                  {intl.formatMessage(messages.disabledUsingSourceColors)}
                 </p>
               )}
             </div>
@@ -1068,7 +1082,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 />
                 {isTemplate && posterData.background.useSourceColors && (
                   <p className="mt-1 text-xs text-stone-500">
-                    Disabled - using source colors
+                    {intl.formatMessage(messages.disabledUsingSourceColors)}
                   </p>
                 )}
               </div>
@@ -1090,7 +1104,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 className="flex w-full items-center justify-center gap-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
               >
                 <PlusIcon className="h-3 w-3" />
-                Add Custom Text
+                {intl.formatMessage(messages.addCustomText)}
               </button>
               {isTemplate && (
                 <button
@@ -1099,7 +1113,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   className="mt-1 flex w-full items-center justify-center gap-1 rounded border border-orange-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
                 >
                   <PlusIcon className="h-3 w-3" />
-                  Add Collection Title
+                  {intl.formatMessage(messages.addCollectionTitle)}
                 </button>
               )}
             </div>
@@ -1122,7 +1136,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 className="flex w-full items-center justify-center gap-1 rounded border border-orange-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
               >
                 <PlusIcon className="h-3 w-3" />
-                Add Source Logo
+                {intl.formatMessage(messages.addSourceLogo)}
               </button>
               <button
                 type="button"
@@ -1130,7 +1144,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                 className="mt-1 flex w-full items-center justify-center gap-1 rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white hover:bg-stone-600"
               >
                 <PlusIcon className="h-3 w-3" />
-                Add Custom SVG Icon
+                {intl.formatMessage(messages.addCustomSVGIcon)}
               </button>
             </div>
 
@@ -1148,11 +1162,13 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
 
         {/* 3. Element List Section */}
         <div className="space-y-3 border-b border-stone-700 pb-4">
-          <h3 className="text-sm font-medium text-stone-300">Elements</h3>
+          <h3 className="text-sm font-medium text-stone-300">
+            {intl.formatMessage(messages.elements)}
+          </h3>
           <div className="space-y-1">
             {sortedElements.length === 0 ? (
               <div className="py-4 text-center text-xs text-stone-500">
-                No elements added yet
+                {intl.formatMessage(messages.noElementsAdded)}
               </div>
             ) : (
               sortedElements.map((element) => {
@@ -1265,7 +1281,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           className="rounded border-stone-600 bg-stone-800 text-orange-600 focus:ring-orange-500"
                         />
                         <span className="text-xs text-stone-300">
-                          Use Source Text Colors
+                          {intl.formatMessage(messages.useSourceTextColors)}
                         </span>
                       </label>
 
@@ -1278,7 +1294,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                                 htmlFor={`source-type-text-${selectedElement.id}`}
                                 className="mb-1 block text-xs text-stone-400"
                               >
-                                Source Type for Text
+                                {intl.formatMessage(messages.sourceTypeForText)}
                               </label>
                               <select
                                 id={`source-type-text-${selectedElement.id}`}
@@ -1319,7 +1335,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         htmlFor={`text-input-${selectedElement.id}`}
                         className="mb-1 block text-xs text-stone-400"
                       >
-                        Text
+                        {intl.formatMessage(messages.text)}
                       </label>
                       <input
                         id={`text-input-${selectedElement.id}`}
@@ -1348,8 +1364,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       .elementType === 'collection-title' ? (
                     <div>
                       <p className="mt-1 rounded bg-orange-100 px-2 py-1 text-xs text-orange-800">
-                        This text will automatically display the
-                        collection&apos;s name when used.
+                        {intl.formatMessage(messages.collectionTitleNote)}
                       </p>
                     </div>
                   ) : null}
@@ -1360,8 +1375,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       {intl.formatMessage(messages.fontSize)} (
                       {localSliderValues[`fontSize-${selectedElement.id}`] ??
                         (selectedElement.properties as TextElementProps)
-                          .fontSize}
-                      px)
+                          .fontSize}{' '}
+                      {intl.formatMessage(messages.pixelsUnit)})
                     </label>
                     <input
                       type="range"
@@ -1450,7 +1465,9 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       (selectedElement.properties as TextElementProps)
                         .useSourceColors && (
                         <p className="mt-1 text-xs text-stone-500">
-                          Disabled - using source text colors
+                          {intl.formatMessage(
+                            messages.disabledUsingSourceTextColors
+                          )}
                         </p>
                       )}
                   </div>
@@ -1555,7 +1572,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         ((selectedElement.properties as TextElementProps)
                           .maxLines ||
                           1)}{' '}
-                      lines)
+                      {intl.formatMessage(messages.linesUnit)})
                     </label>
                     <input
                       type="range"
@@ -1608,9 +1625,29 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       }
                       filter="raster"
                       onChange={(imagePath) => {
-                        updateElementProperties(selectedElement.id, {
-                          imagePath,
-                        });
+                        // Auto-size raster element to match image dimensions
+                        const img = new window.Image();
+                        img.onload = () => {
+                          // Update image path AND element dimensions in ONE call
+                          updateElement(selectedElement.id, {
+                            width: img.width,
+                            height: img.height,
+                            properties: {
+                              ...selectedElement.properties,
+                              imagePath,
+                            },
+                          });
+                        };
+                        img.onerror = () => {
+                          // If image fails to load, just update the image path
+                          updateElement(selectedElement.id, {
+                            properties: {
+                              ...selectedElement.properties,
+                              imagePath,
+                            },
+                          });
+                        };
+                        img.src = imagePath;
                       }}
                       addToast={addToast}
                     />
@@ -1642,8 +1679,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       <label className="mb-1 block text-xs text-stone-400">
                         {intl.formatMessage(messages.width)} (
                         {localSliderValues[`width-${selectedElement.id}`] ??
-                          selectedElement.width}
-                        px)
+                          selectedElement.width}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -1708,8 +1745,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       <label className="mb-1 block text-xs text-stone-400">
                         {intl.formatMessage(messages.height)} (
                         {localSliderValues[`height-${selectedElement.id}`] ??
-                          selectedElement.height}
-                        px)
+                          selectedElement.height}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -1841,8 +1878,7 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                   'source-logo' ? (
                     <div>
                       <p className="mt-1 rounded bg-orange-100 px-2 py-1 text-xs text-orange-800">
-                        This logo will automatically change based on the
-                        collection&apos;s source when used.
+                        {intl.formatMessage(messages.sourceLogoNote)}
                       </p>
                     </div>
                   ) : (
@@ -1861,20 +1897,25 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           // Load the image to get its width and height
                           const img = new window.Image();
                           img.onload = () => {
-                            // Update both icon path and element dimensions
-                            updateElementProperties(selectedElement.id, {
-                              iconPath,
-                            });
-                            // Update canvas element dimensions
+                            // Update icon path, icon type, AND element dimensions in ONE call
                             updateElement(selectedElement.id, {
                               width: img.width,
                               height: img.height,
+                              properties: {
+                                ...selectedElement.properties,
+                                iconType: 'custom-icon',
+                                iconPath,
+                              },
                             });
                           };
                           img.onerror = () => {
-                            // If image fails to load, just update the icon path
-                            updateElementProperties(selectedElement.id, {
-                              iconPath,
+                            // If image fails to load, just update the icon path and type
+                            updateElement(selectedElement.id, {
+                              properties: {
+                                ...selectedElement.properties,
+                                iconType: 'custom-icon',
+                                iconPath,
+                              },
                             });
                           };
                           img.src = iconPath;
@@ -1910,8 +1951,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       <label className="mb-1 block text-xs text-stone-400">
                         {intl.formatMessage(messages.width)} (
                         {localSliderValues[`width-${selectedElement.id}`] ??
-                          selectedElement.width}
-                        px)
+                          selectedElement.width}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -1976,8 +2017,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       <label className="mb-1 block text-xs text-stone-400">
                         {intl.formatMessage(messages.height)} (
                         {localSliderValues[`height-${selectedElement.id}`] ??
-                          selectedElement.height}
-                        px)
+                          selectedElement.height}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -2231,8 +2272,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                         {intl.formatMessage(messages.spacing)} (
                         {localSliderValues[`spacing-${selectedElement.id}`] ??
                           (selectedElement.properties as ContentGridProps)
-                            .spacing}
-                        px)
+                            .spacing}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -2337,8 +2378,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                           `cornerRadius-${selectedElement.id}`
                         ] ??
                           (selectedElement.properties as ContentGridProps)
-                            .cornerRadius}
-                        px)
+                            .cornerRadius}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -2385,8 +2426,8 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                       <label className="mb-1 block text-xs text-stone-400">
                         {intl.formatMessage(messages.width)} (
                         {localSliderValues[`width-${selectedElement.id}`] ??
-                          selectedElement.width}
-                        px)
+                          selectedElement.width}{' '}
+                        {intl.formatMessage(messages.pixelsUnit)})
                       </label>
                       <input
                         type="range"
@@ -2482,10 +2523,10 @@ export const LayerPanel: React.FC<LayerPanelProps> = ({
                             (currentRows - 1) * currentSpacing;
                           return Math.round(calculatedHeight);
                         })()}
-                        px - Auto)
+                        {intl.formatMessage(messages.pixelsAutoLabel)})
                       </label>
                       <div className="flex h-8 items-center justify-center rounded border border-stone-600 bg-stone-800 px-2 text-xs text-stone-400">
-                        Locked to poster aspect ratio (2:3)
+                        {intl.formatMessage(messages.lockedToAspectRatio)}
                       </div>
                     </div>
                   </div>

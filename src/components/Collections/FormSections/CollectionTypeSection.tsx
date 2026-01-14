@@ -6,6 +6,7 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   OverseerrSettings,
+  PlexSettings,
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
@@ -30,6 +31,22 @@ const messages = defineMessages({
   collectionSubtype: 'Collection Sub-Type',
   selectSource: 'Select Source...',
   selectSubtype: 'Select sub-type...',
+  comingSoonVolumesWarning:
+    'Coming Soon requires media volume mounts for placeholder creation',
+  seeSetupGuide: 'See setup guide',
+  minimumItems: 'Minimum Items',
+  minimumItemsHelp:
+    'Only create if this person has at least this many items (default: 5, minimum allowed: 2)',
+  useSeparator: 'Use Separator',
+  useSeparatorHelp:
+    'Create a simple separator collection to group your auto {type} collections.',
+  separatorTitle: 'Separator Title',
+  separatorTitleHelp:
+    'Defaults to {defaultTitle}. This title is used for the separator collection and poster.',
+  actorCollections: 'Actor Collections',
+  directorCollections: 'Director Collections',
+  numberOfDays: 'Number of Days',
+  minimumPlayCount: 'Minimum Play Count',
 });
 
 interface SubtypeOption {
@@ -60,6 +77,7 @@ const CollectionTypeSection = ({
 
   // Fetch API settings for validation
   const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
+  const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -87,6 +105,7 @@ const CollectionTypeSection = ({
     values.type || '',
     {
       main: mainSettings,
+      plex: plexSettings,
       trakt: traktSettings,
       mdblist: mdblistSettings,
       tautulli: tautulliSettings,
@@ -95,8 +114,7 @@ const CollectionTypeSection = ({
       radarr: radarrSettings,
       sonarr: sonarrSettings,
     },
-    values.subtype,
-    values.createPlaceholdersForMissing
+    values.subtype
   );
 
   const collectionTypes = [
@@ -244,6 +262,12 @@ const CollectionTypeSection = ({
             value: 'top_250',
             label: 'Top 250',
             description: 'Highest rated movies/TV shows on IMDb',
+          },
+          {
+            value: 'top_250_english',
+            label: 'Top 250 English',
+            description:
+              'Highest rated English-language movies on IMDb (movies only)',
           },
           {
             value: 'popular',
@@ -478,6 +502,9 @@ const CollectionTypeSection = ({
               if (values.type === 'imdb' && newSubtype === 'boxoffice') {
                 setFieldValue('mediaType', 'movie');
               }
+              if (values.type === 'imdb' && newSubtype === 'top_250_english') {
+                setFieldValue('mediaType', 'movie');
+              }
 
               // Auto-select the first template preset when subtype changes
               // For Trakt subtypes that require timePeriod, wait for timePeriod to be selected
@@ -537,15 +564,14 @@ const CollectionTypeSection = ({
         <Alert
           title={
             <>
-              Coming Soon requires media volume mounts for placeholder creation
-              -{' '}
+              {intl.formatMessage(messages.comingSoonVolumesWarning)} -{' '}
               <a
                 href="https://agregarr.org/docs/coming-soon-volumes"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400"
               >
-                See setup guide
+                {intl.formatMessage(messages.seeSetupGuide)}
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
               </a>
             </>
@@ -563,7 +589,7 @@ const CollectionTypeSection = ({
                 htmlFor="personMinimumItems"
                 className="mb-2 block text-sm text-gray-300"
               >
-                Minimum Items
+                {intl.formatMessage(messages.minimumItems)}
               </label>
               <Field
                 type="number"
@@ -575,8 +601,7 @@ const CollectionTypeSection = ({
                 className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
               <p className="mt-1 text-xs text-gray-400">
-                Only create if this person has at least this many items
-                (default: 5, minimum allowed: 2)
+                {intl.formatMessage(messages.minimumItemsHelp)}
               </p>
             </div>
             <div className="rounded-md border border-gray-500/20 bg-transparent p-4 md:col-span-2">
@@ -586,12 +611,12 @@ const CollectionTypeSection = ({
                     htmlFor="useSeparator"
                     className="text-sm font-medium text-gray-300"
                   >
-                    Use Separator
+                    {intl.formatMessage(messages.useSeparator)}
                   </label>
                   <p className="text-xs text-gray-400">
-                    Create a simple separator collection to group your auto{' '}
-                    {values.subtype === 'actors' ? 'actor' : 'director'}{' '}
-                    collections.
+                    {intl.formatMessage(messages.useSeparatorHelp, {
+                      type: values.subtype === 'actors' ? 'actor' : 'director',
+                    })}
                   </p>
                 </div>
                 <Field
@@ -624,7 +649,8 @@ const CollectionTypeSection = ({
                   htmlFor="separatorTitle"
                   className="mb-2 block text-sm text-gray-300"
                 >
-                  Separator Title <span className="text-red-500">*</span>
+                  {intl.formatMessage(messages.separatorTitle)}{' '}
+                  <span className="text-red-500">*</span>
                 </label>
                 <Field
                   type="text"
@@ -638,11 +664,13 @@ const CollectionTypeSection = ({
                   className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  Defaults to{' '}
-                  {values.subtype === 'actors'
-                    ? 'Actor Collections'
-                    : 'Director Collections'}
-                  . This title is used for the separator collection and poster.
+                  {intl.formatMessage(messages.separatorTitleHelp, {
+                    defaultTitle: intl.formatMessage(
+                      values.subtype === 'actors'
+                        ? messages.actorCollections
+                        : messages.directorCollections
+                    ),
+                  })}
                 </p>
               </div>
             )}
@@ -657,7 +685,8 @@ const CollectionTypeSection = ({
               htmlFor="customDays"
               className="mb-2 block text-sm text-gray-300"
             >
-              Number of Days <span className="text-red-500">*</span>
+              {intl.formatMessage(messages.numberOfDays)}{' '}
+              <span className="text-red-500">*</span>
             </label>
             <Field
               type="number"
@@ -674,7 +703,8 @@ const CollectionTypeSection = ({
               htmlFor="minimumPlays"
               className="mb-2 block text-sm text-gray-300"
             >
-              Minimum Play Count <span className="text-red-500">*</span>
+              {intl.formatMessage(messages.minimumPlayCount)}{' '}
+              <span className="text-red-500">*</span>
             </label>
             <Field
               type="number"

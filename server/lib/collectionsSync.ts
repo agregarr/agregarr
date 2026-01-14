@@ -427,38 +427,30 @@ class CollectionsSync {
       if (filesWereRemoved) {
         this.setStage('Scanning Plex libraries for removed placeholders...');
         try {
-          const settings = getSettings();
           const libraries = await plexClient.getLibraries();
+          const { getPlaceholderRootFolder } = await import(
+            '@server/lib/placeholders/helpers/placeholderPathHelpers'
+          );
 
-          // Scan movie libraries if configured
-          if (settings.main.placeholderMovieRootFolder) {
-            const movieLibraries = libraries.filter(
-              (lib) => lib.type === 'movie'
+          // Scan libraries that have placeholder folders configured
+          for (const lib of libraries) {
+            if (lib.type !== 'movie' && lib.type !== 'show') continue;
+
+            const mediaType: 'movie' | 'tv' =
+              lib.type === 'movie' ? 'movie' : 'tv';
+            const placeholderPath = getPlaceholderRootFolder(
+              lib.key,
+              mediaType
             );
-            for (const movieLib of movieLibraries) {
-              await plexClient.scanLibrary(movieLib.key);
+            if (placeholderPath) {
+              await plexClient.scanLibrary(lib.key);
               logger.info(
-                'Triggered scan for movie library after placeholder cleanup',
+                'Triggered scan for library after placeholder cleanup',
                 {
                   label: 'Collections Sync',
-                  libraryKey: movieLib.key,
-                  libraryTitle: movieLib.title,
-                }
-              );
-            }
-          }
-
-          // Scan TV libraries if configured
-          if (settings.main.placeholderTVRootFolder) {
-            const tvLibraries = libraries.filter((lib) => lib.type === 'show');
-            for (const tvLib of tvLibraries) {
-              await plexClient.scanLibrary(tvLib.key);
-              logger.info(
-                'Triggered scan for TV library after placeholder cleanup',
-                {
-                  label: 'Collections Sync',
-                  libraryKey: tvLib.key,
-                  libraryTitle: tvLib.title,
+                  libraryKey: lib.key,
+                  libraryTitle: lib.title,
+                  mediaType: lib.type,
                 }
               );
             }

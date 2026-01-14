@@ -565,7 +565,13 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     // Use direct Plex queries instead of Media table
     let plexLookup: Map<
       string,
-      { ratingKey: string; title: string; libraryKey: string }
+      {
+        ratingKey: string;
+        title: string;
+        libraryKey: string;
+        addedAt?: number;
+        releaseDate?: number;
+      }
     > = new Map();
 
     if (plexClient) {
@@ -597,8 +603,11 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: lookup.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
           metadata: {
             libraryKey: plexItem.libraryKey,
+            originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
           },
         });
       } else {
@@ -726,7 +735,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       allCollections,
       processedCollectionKeys,
       undefined, // userInfo
-      libraryCache
+      libraryCache,
+      missingItems
     );
   }
 
@@ -1210,7 +1220,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       processedCollectionKeys,
       {
         customLabel, // Enables findExistingCollection() to track by label
-      }
+      },
+      missingItems // Enable Quick Sync for franchise collections
     );
 
     // Handle poster upload and collection mode
@@ -1355,6 +1366,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: plexItem.title,
           type: 'movie',
           tmdbId: movie.tmdbId,
+          addedAt: plexItem.addedAt,
+          releaseDate: plexItem.releaseDate,
         });
       }
     }

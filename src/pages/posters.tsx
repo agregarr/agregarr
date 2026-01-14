@@ -11,11 +11,12 @@ const messages = defineMessages({
 
 const PostersPage: React.FC = () => {
   const intl = useIntl();
+  const pageTitle = `${intl.formatMessage(messages.posters)} - Agregarr`;
 
   return (
     <>
       <Head>
-        <title>{intl.formatMessage(messages.posters)} - Agregarr</title>
+        <title>{pageTitle}</title>
       </Head>
       <PageTitle title={intl.formatMessage(messages.posters)} />
       <div className="mb-6">

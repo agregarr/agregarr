@@ -25,6 +25,8 @@ const messages = defineMessages({
   selectTag: 'Select tag...',
   loadingTags: 'Loading tags...',
   selectInstanceFirst: 'Select an instance first',
+  loadInstancesError: 'Failed to load instances. Please try again.',
+  loadTagsError: 'Failed to load tags. Please try again.',
 });
 
 interface ArrTagConfigSectionProps {
@@ -181,7 +183,7 @@ const ArrTagConfigSection = ({
         />
         {instanceError && (
           <p className="mt-1 text-xs text-red-400">
-            Failed to load instances. Please try again.
+            {intl.formatMessage(messages.loadInstancesError)}
           </p>
         )}
       </div>
@@ -249,7 +251,7 @@ const ArrTagConfigSection = ({
           />
           {tagsError && (
             <p className="mt-1 text-xs text-red-400">
-              Failed to load tags. Please try again.
+              {intl.formatMessage(messages.loadTagsError)}
             </p>
           )}
         </div>

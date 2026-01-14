@@ -36,6 +36,9 @@ config/db/*.sqlite3*
 config/settings.json
 config/*.json
 
+# youtube cookies
+config/youtube-cookies.txt
+
 # random lists
 config/random-lists/*.txt
 
@@ -46,6 +49,7 @@ config/icons/*.*
 config/posters/*.*
 config/temp/*.*
 config/plex-base-posters/**
+config/tmdb-poster-cache/**
 
 # wallpaper storage
 config/wallpapers/*.*

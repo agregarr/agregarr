@@ -1,3 +1,4 @@
+import type { MaintainerrCollection } from '@server/api/maintainerr';
 import PlexAPI from '@server/api/plexapi';
 import { getRepository } from '@server/datasource';
 import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
@@ -181,11 +182,34 @@ overlayTestRouter.post('/', async (req, res) => {
       isPlaceholder,
     });
 
-    // Build base context
+    // Fetch Maintainerr collections for daysUntilAction context
+    const settings = getSettings();
+    let maintainerrCollections: MaintainerrCollection[] | undefined;
+
+    if (settings.maintainerr?.hostname && settings.maintainerr?.apiKey) {
+      try {
+        const MaintainerrAPI = (await import('@server/api/maintainerr'))
+          .default;
+        const maintainerrClient = new MaintainerrAPI(settings.maintainerr);
+        maintainerrCollections = await maintainerrClient.getCollections();
+        logger.debug('Fetched Maintainerr collections for overlay test', {
+          label: 'OverlayTest',
+          collectionsCount: maintainerrCollections.length,
+        });
+      } catch (error) {
+        logger.debug('Failed to fetch Maintainerr collections', {
+          label: 'OverlayTest',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // Build base context (includes Maintainerr daysUntilAction if configured)
     const baseContext = await buildRenderContext(
       item,
       actualMediaType,
-      isPlaceholder
+      isPlaceholder,
+      maintainerrCollections
     );
 
     // Fetch release date information if TMDB ID available
@@ -245,6 +269,7 @@ overlayTestRouter.post('/', async (req, res) => {
           daysUntilNextSeason,
           daysAgoNextSeason,
           seasonNumber: releaseDateInfo.seasonNumber,
+          episodeNumber: releaseDateInfo.episodeNumber,
         };
       }
     }
@@ -299,8 +324,7 @@ overlayTestRouter.post('/', async (req, res) => {
       };
     });
 
-    // Get poster source preference
-    const settings = getSettings();
+    // Get poster source preference (reuse settings from earlier)
     const posterSource = settings.overlays?.defaultPosterSource || 'tmdb';
 
     // Fetch base poster
