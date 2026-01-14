@@ -1070,7 +1070,8 @@ export async function fetchTmdbComingSoonShows(
  */
 export async function enrichWithTMDBReleaseDates(
   items: ComingSoonSourceData[],
-  maxDaysAway = 360
+  maxDaysAway = 360,
+  releasedDays = 0
 ): Promise<void> {
   const TmdbAPI = (await import('@server/api/themoviedb')).default;
   const tmdbClient = new TmdbAPI();
@@ -1079,12 +1080,16 @@ export async function enrichWithTMDBReleaseDates(
     '@server/utils/dateHelpers'
   );
   const today = getToday();
+  const minDate = new Date(
+    today.getTime() - releasedDays * 24 * 60 * 60 * 1000
+  );
   const maxDate = getFutureDateFromToday(maxDaysAway);
 
   logger.debug('Starting TMDB release date enrichment (parallel)', {
-    label: 'Coming Soon Collections',
+    label: 'PlaceholderService',
     itemCount: items.length,
     maxDaysAway,
+    releasedDays,
   });
 
   // Use SHARED helper functions - import once at the top
@@ -1099,7 +1104,7 @@ export async function enrichWithTMDBReleaseDates(
   const enrichmentResults = await Promise.all(
     items.map(async (item, index) => {
       logger.debug('Enriching item with fresh TMDB data', {
-        label: 'Coming Soon Collections',
+        label: 'PlaceholderService',
         title: item.title,
         source: item.source,
         tmdbId: item.tmdbId,
@@ -1140,7 +1145,7 @@ export async function enrichWithTMDBReleaseDates(
             item.isEstimatedDate = releaseDateResult.isEstimated;
 
             logger.debug('Updated release date from TMDB enrichment', {
-              label: 'Coming Soon Collections',
+              label: 'PlaceholderService',
               title: item.title,
               source: item.source,
               oldReleaseDate,
@@ -1155,7 +1160,7 @@ export async function enrichWithTMDBReleaseDates(
               logger.debug(
                 'Using estimated release date (theatrical + 90 days)',
                 {
-                  label: 'Coming Soon Collections',
+                  label: 'PlaceholderService',
                   title: item.title,
                   estimatedDate: item.releaseDate,
                 }
@@ -1163,27 +1168,27 @@ export async function enrichWithTMDBReleaseDates(
             }
           }
 
-          // Filter: only include if release date is in the future and within window
+          // Filter: only include if release date is within window (past to future)
           const earliestReleaseDate = releaseDateResult
             ? new Date(releaseDateResult.releaseDate)
             : extracted.earliestReleaseDate || null;
 
           if (
             !earliestReleaseDate ||
-            earliestReleaseDate < today ||
+            earliestReleaseDate < minDate ||
             earliestReleaseDate > maxDate
           ) {
             logger.debug(
-              'Filtering out movie (already released, no date, or too far away)',
+              'Filtering out movie (no date, too old, or too far away)',
               {
-                label: 'Coming Soon Collections',
+                label: 'PlaceholderService',
                 title: item.title,
                 earliestReleaseDate: earliestReleaseDate?.toISOString(),
                 reason: !earliestReleaseDate
                   ? 'no date'
-                  : earliestReleaseDate < today
-                  ? 'already released'
-                  : 'too far away',
+                  : earliestReleaseDate < minDate
+                  ? 'too old (beyond releasedDays window)'
+                  : 'too far away (beyond daysAhead window)',
               }
             );
             return { index, shouldRemove: true };
@@ -1222,7 +1227,7 @@ export async function enrichWithTMDBReleaseDates(
               item.isReturning = nextSeasonNumber > 1;
 
               logger.debug('Found upcoming season from TMDB for Trakt item', {
-                label: 'Coming Soon Collections',
+                label: 'PlaceholderService',
                 title: item.title,
                 seasonNumber: nextSeasonNumber,
                 airDate: nextSeasonAirDate,
@@ -1235,23 +1240,20 @@ export async function enrichWithTMDBReleaseDates(
             }
           }
 
-          // Filter TV shows: check if air date is in the future and within window (timezone-aware)
+          // Filter TV shows: check if air date is within window (past to future, timezone-aware)
           if (item.airDate) {
-            if (!isDateWithinDays(item.airDate, maxDaysAway)) {
-              logger.debug(
-                'Filtering out TV show (already aired or too far away)',
-                {
-                  label: 'Coming Soon Collections',
-                  title: item.title,
-                  airDate: item.airDate,
-                }
-              );
+            if (!isDateWithinDays(item.airDate, maxDaysAway, releasedDays)) {
+              logger.debug('Filtering out TV show (too old or too far away)', {
+                label: 'PlaceholderService',
+                title: item.title,
+                airDate: item.airDate,
+              });
               return { index, shouldRemove: true };
             }
           } else {
             // No air date found, filter out
             logger.debug('Filtering out TV show (no air date)', {
-              label: 'Coming Soon Collections',
+              label: 'PlaceholderService',
               title: item.title,
             });
             return { index, shouldRemove: true };
@@ -1259,7 +1261,7 @@ export async function enrichWithTMDBReleaseDates(
         }
 
         logger.debug('Enriched item with TMDB release date', {
-          label: 'Coming Soon Collections',
+          label: 'PlaceholderService',
           title: item.title,
           mediaType: item.mediaType,
           releaseDate: item.releaseDate || item.airDate,
@@ -1268,7 +1270,7 @@ export async function enrichWithTMDBReleaseDates(
         return { index, shouldRemove: false };
       } catch (error) {
         logger.warn('Failed to fetch TMDB release date for item', {
-          label: 'Coming Soon Collections',
+          label: 'PlaceholderService',
           title: item.title,
           tmdbId: item.tmdbId,
           error: error instanceof Error ? error.message : String(error),
@@ -1292,7 +1294,7 @@ export async function enrichWithTMDBReleaseDates(
   logger.debug(
     'Completed TMDB release date enrichment and filtering (parallel)',
     {
-      label: 'Coming Soon Collections',
+      label: 'PlaceholderService',
       originalCount: enrichmentResults.length,
       filteredOut: indicesToRemove.length,
       remainingCount: items.length,
@@ -1306,7 +1308,8 @@ export async function enrichWithTMDBReleaseDates(
  */
 export async function markMonitoredStatus(
   items: ComingSoonSourceData[],
-  maxDaysAway = 360
+  maxDaysAway = 360,
+  releasedDays = 0
 ): Promise<void> {
   const settings = getSettings();
 
@@ -1465,8 +1468,8 @@ export async function markMonitoredStatus(
 
   // Fetch fresh TMDB release dates for all items (except those already enriched by fetchTmdbComingSoon*)
   // This ensures monitored Radarr/Sonarr items get fresh TMDB data instead of stale *arr dates
-  // Also filters out already-released items
-  await enrichWithTMDBReleaseDates(items, maxDaysAway);
+  // Also filters out items outside the configured date window
+  await enrichWithTMDBReleaseDates(items, maxDaysAway, releasedDays);
 
   logger.debug('Enriched Trakt items with Radarr/Sonarr data', {
     label: 'Coming Soon Collections',

@@ -193,9 +193,14 @@ class CollectionsQuickSync {
             libraryName: library.name,
           });
           const itemsWithMetadata: PlexLibraryItem[] = [];
+          const isShowLibrary = library.type === 'show';
           for (const item of recentItems) {
             try {
-              const fullMetadata = await plexClient.getMetadata(item.ratingKey);
+              // For TV shows, include children so isPlaceholderItem() can check Season 00
+              const fullMetadata = await plexClient.getMetadata(
+                item.ratingKey,
+                { includeChildren: isShowLibrary }
+              );
               itemsWithMetadata.push(fullMetadata);
             } catch (error) {
               logger.warn('Failed to fetch metadata for item, skipping', {

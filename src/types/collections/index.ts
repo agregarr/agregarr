@@ -268,6 +268,7 @@ export interface CollectionFormConfig {
   readonly createPlaceholdersForMissing?: boolean; // Create placeholder files for missing items
   readonly placeholderReleasedDays?: number; // Days to keep orphaned placeholders after they fall off source list (from release date if released, otherwise from creation date) (default: 7)
   readonly placeholderDaysAhead?: number; // Days to look ahead for release dates (default: 360)
+  readonly includeAllReleasedItems?: boolean; // If true, include all released items regardless of release date (default: true for new configs)
   readonly applyOverlaysDuringSync?: boolean; // Apply overlays immediately after sync (default: true for Coming Soon)
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct'; // Download mode: overseerr (requests) or direct (*arr)
@@ -443,6 +444,7 @@ export interface CollectionConfigCreateRequest {
   readonly createPlaceholdersForMissing?: boolean;
   readonly placeholderReleasedDays?: number;
   readonly placeholderDaysAhead?: number;
+  readonly includeAllReleasedItems?: boolean;
   readonly applyOverlaysDuringSync?: boolean;
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct';
@@ -583,6 +585,7 @@ export const toCollectionCreateRequest = (
     createPlaceholdersForMissing: config.createPlaceholdersForMissing,
     placeholderReleasedDays: config.placeholderReleasedDays,
     placeholderDaysAhead: config.placeholderDaysAhead,
+    includeAllReleasedItems: config.includeAllReleasedItems,
     applyOverlaysDuringSync: config.applyOverlaysDuringSync,
     downloadMode: config.downloadMode,
     searchMissingMovies: config.searchMissingMovies,
@@ -1003,6 +1006,7 @@ export interface MultiSourceCollectionConfig {
   readonly createPlaceholdersForMissing?: boolean;
   readonly placeholderDaysAhead?: number;
   readonly placeholderReleasedDays?: number;
+  readonly includeAllReleasedItems?: boolean;
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;

@@ -64,12 +64,15 @@ export async function processPlaceholdersForMissingItems(
     '@server/lib/collections/sources/comingsoon/comingSoonFetch'
   );
   const daysAhead = getDaysAhead(config);
-  await enrichWithTMDBReleaseDates(sourceData, daysAhead);
+  const releasedDays = getReleasedDays(config);
+  await enrichWithTMDBReleaseDates(sourceData, daysAhead, releasedDays);
 
-  // Filter by days ahead - only create placeholders for items releasing within the configured window
-  const { isDateWithinDays, determineReleaseDate } = await import(
-    '@server/utils/dateHelpers'
-  );
+  // Filter by date window - only create placeholders for items within the configured window
+  // When includeAllReleasedItems is true: include all past items, only filter by daysAhead for future
+  // When includeAllReleasedItems is false: use window from releasedDays in past to daysAhead in future
+  const { isDateWithinDays, isDateWithinFutureDays, determineReleaseDate } =
+    await import('@server/utils/dateHelpers');
+  const includeAllReleased = config.includeAllReleasedItems ?? true; // Default true for new configs
 
   const filteredSourceData = sourceData.filter((item) => {
     // Determine the effective release date to check
@@ -98,7 +101,7 @@ export async function processPlaceholdersForMissingItems(
 
     // If no release date after TMDB enrichment, exclude the item
     // This prevents creating placeholders for items with unknown release dates
-    // when user has specified a specific days ahead window
+    // when user has specified a specific date window
     if (!releaseDateToCheck) {
       logger.debug(
         'Skipping placeholder creation - no release date available after TMDB enrichment',
@@ -114,16 +117,22 @@ export async function processPlaceholdersForMissingItems(
     }
 
     // Check if release date is within the configured window
-    const withinWindow = isDateWithinDays(releaseDateToCheck, daysAhead);
+    // When includeAllReleased is true: only check future limit (all past items included)
+    // When includeAllReleased is false: check both past and future limits
+    const withinWindow = includeAllReleased
+      ? isDateWithinFutureDays(releaseDateToCheck, daysAhead)
+      : isDateWithinDays(releaseDateToCheck, daysAhead, releasedDays);
 
     if (!withinWindow) {
       logger.debug(
-        'Skipping placeholder creation - release date too far ahead',
+        'Skipping placeholder creation - release date outside configured window',
         {
           label: 'PlaceholderService',
           title: item.title,
           releaseDate: releaseDateToCheck,
           daysAhead,
+          releasedDays,
+          includeAllReleased,
           configName: config.name,
         }
       );
@@ -136,7 +145,7 @@ export async function processPlaceholdersForMissingItems(
 
   if (filteredSourceData.length === 0) {
     logger.info(
-      'No items within configured days ahead window for placeholder creation',
+      'No items within configured date window for placeholder creation',
       {
         label: 'PlaceholderService',
         configName: config.name,
@@ -144,6 +153,7 @@ export async function processPlaceholdersForMissingItems(
         skippedNoReleaseDateMetadata: missingItems.length - sourceData.length,
         skippedByDateFilter,
         daysAhead,
+        releasedDays,
         collectionType: config.type,
       }
     );
@@ -157,6 +167,7 @@ export async function processPlaceholdersForMissingItems(
     skippedNoReleaseDateMetadata: missingItems.length - sourceData.length,
     skippedByDateFilter,
     daysAhead,
+    releasedDays,
     collectionType: config.type,
   });
 
@@ -580,11 +591,21 @@ async function waitForPlexDiscovery(
   }[],
   config: CollectionConfig,
   plexClient: PlexAPI
-): Promise<Map<number, { ratingKey: string; title: string }>> {
+): Promise<{
+  discovered: Map<number, { ratingKey: string; title: string }>;
+  excludedUnmatched: Set<number>;
+}> {
   const sourceItems = placeholders.map((p) => p.sourceItem);
   const discovered = new Map<number, { ratingKey: string; title: string }>();
   const excludedUnmatched = new Set<number>(); // Track items found by title but unmatched
-  const maxAttempts = 30; // 30 attempts * 10 seconds = 5 minutes max
+
+  // Calculate max attempts based on item count
+  // Base: 5 minutes (30 attempts), plus 2 seconds per item beyond 50
+  const baseAttempts = 30;
+  const itemCount = placeholders.length;
+  const extraSeconds = Math.max(0, (itemCount - 50) * 2); // 2 seconds per item for large batches
+  const extraAttempts = Math.ceil(extraSeconds / 10); // Convert to 10-second intervals
+  const maxAttempts = baseAttempts + extraAttempts; // No cap - let the calculation determine timeout
   const pollInterval = 10000; // 10 seconds
 
   // Build a map of tmdbId -> placeholderPath for cleanup
@@ -597,7 +618,7 @@ async function waitForPlexDiscovery(
   let itemsStartedAppearing = false;
   let consecutiveNoDiscovery = 0; // Count of consecutive polls with no new discoveries
   const minTimeBeforeFallback = 60000; // 60 seconds (6 attempts) - optimized for faster detection
-  const waitCyclesAfterStop = 1; // Wait 1 more cycle after items stop - reduced wait time
+  const waitCyclesAfterStop = 2; // Wait 2 more cycles after items stop appearing
 
   logger.info('Polling Plex for placeholder discovery', {
     label: 'PlaceholderService',
@@ -763,7 +784,7 @@ async function waitForPlexDiscovery(
     });
   }
 
-  return discovered;
+  return { discovered, excludedUnmatched };
 }
 
 /**
@@ -1485,6 +1506,7 @@ async function createPlaceholders(
     number,
     { ratingKey: string; title: string }
   >();
+  let excludedUnmatchedSet = new Set<number>(); // Track items already deleted by fallback
 
   if (createdPlaceholders.length > 0) {
     logger.info('Triggering Plex library scan for newly created placeholders', {
@@ -1496,11 +1518,13 @@ async function createPlaceholders(
     await plexClient.scanLibrary(config.libraryId);
 
     // Step 3: Poll for ALL items to be discovered
-    discoveredItemsMap = await waitForPlexDiscovery(
+    const discoveryResult = await waitForPlexDiscovery(
       createdPlaceholders,
       config,
       plexClient
     );
+    discoveredItemsMap = discoveryResult.discovered;
+    excludedUnmatchedSet = discoveryResult.excludedUnmatched;
   }
 
   // Add orphaned placeholders to discovered map (they're already in Plex)
@@ -1530,8 +1554,11 @@ async function createPlaceholders(
   const matchedPlaceholders = createdPlaceholders.filter((placeholder) =>
     discoveredItemsMap.has(placeholder.sourceItem.tmdbId)
   );
+  // Filter out items already deleted by the fallback handler during polling
   const unmatchedPlaceholders = createdPlaceholders.filter(
-    (placeholder) => !discoveredItemsMap.has(placeholder.sourceItem.tmdbId)
+    (placeholder) =>
+      !discoveredItemsMap.has(placeholder.sourceItem.tmdbId) &&
+      !excludedUnmatchedSet.has(placeholder.sourceItem.tmdbId)
   );
 
   if (unmatchedPlaceholders.length > 0) {

@@ -8,7 +8,6 @@ import logger from '@server/logger';
 import fs from 'fs/promises';
 import path from 'path';
 import { Like, Not } from 'typeorm';
-import { getReleasedDays } from './PlaceholderCreation';
 
 /**
  * Helper function to clean up a placeholder when real content is detected
@@ -513,8 +512,9 @@ export async function cleanupPlaceholdersForConfig(
   // NOTE: Title fixing and real content cleanup now happens globally during discovery
   // This function only handles collection-specific orphaned/stale item cleanup
 
-  // Get released window from general config (not Coming Soon specific!)
-  const releasedWindowDays = getReleasedDays(config);
+  // Fixed grace period for orphaned items - items that fall off the source list
+  // are removed after this many days. Not user-configurable to keep UX simple.
+  const ORPHANED_GRACE_PERIOD_DAYS = 7;
 
   // Check for orphaned items (not in source) and stale items (too old)
   if (sourceTmdbIds && sourceTmdbIds.size > 0) {
@@ -569,8 +569,8 @@ export async function cleanupPlaceholdersForConfig(
             (Date.now() - windowStartDate.getTime()) / (24 * 60 * 60 * 1000)
           );
 
-          if (daysSinceWindowStart > releasedWindowDays) {
-            const reason = `orphaned (${daysSinceWindowStart} days since ${windowType}, window: ${releasedWindowDays} days)`;
+          if (daysSinceWindowStart > ORPHANED_GRACE_PERIOD_DAYS) {
+            const reason = `orphaned (${daysSinceWindowStart} days since ${windowType}, window: ${ORPHANED_GRACE_PERIOD_DAYS} days)`;
 
             logger.info('Removing orphaned placeholder past window', {
               label: 'PlaceholderService',
@@ -579,7 +579,7 @@ export async function cleanupPlaceholdersForConfig(
               reason,
               windowType,
               daysSinceWindowStart,
-              releasedWindowDays,
+              ORPHANED_GRACE_PERIOD_DAYS,
               releaseDate: context.releaseDate,
             });
 
