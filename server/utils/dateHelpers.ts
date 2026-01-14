@@ -86,6 +86,31 @@ export function isDateInFuture(date: string | Date): boolean {
  */
 export function isDateWithinDays(
   date: string | Date,
+  maxDays: number,
+  releasedDays = 0
+): boolean {
+  const targetDate =
+    typeof date === 'string'
+      ? parseDate(date)
+      : getCalendarDateInTimezone(date);
+  const today = getNow();
+  const minDate = new Date(
+    today.getTime() - releasedDays * 24 * 60 * 60 * 1000
+  );
+  const maxDate = new Date(today.getTime() + maxDays * 24 * 60 * 60 * 1000);
+
+  return targetDate >= minDate && targetDate <= maxDate;
+}
+
+/**
+ * Check if a date is within a future-only window (no past restriction)
+ * Used when includeAllReleasedItems is true - includes all past items
+ * @param date - The date to check
+ * @param maxDays - Maximum days into the future
+ * @returns true if date is on or before maxDays from now (all past dates included)
+ */
+export function isDateWithinFutureDays(
+  date: string | Date,
   maxDays: number
 ): boolean {
   const targetDate =
@@ -95,7 +120,7 @@ export function isDateWithinDays(
   const today = getNow();
   const maxDate = new Date(today.getTime() + maxDays * 24 * 60 * 60 * 1000);
 
-  return targetDate >= today && targetDate <= maxDate;
+  return targetDate <= maxDate;
 }
 
 /**

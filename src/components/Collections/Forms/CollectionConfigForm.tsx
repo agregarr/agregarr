@@ -187,9 +187,14 @@ const messages = defineMessages({
   daysAhead: 'Days Ahead',
   daysAheadHelp:
     'Create placeholders for items releasing within this many days',
-  orphanedItemWindow: 'Orphaned Item Window',
-  orphanedItemWindowHelp:
-    'Days to keep placeholders after they fall off the source list (from release date if released, otherwise from creation date)',
+  releasedItems: 'Released Items',
+  includeAllReleasedItems: 'Include all released items',
+  includeAllReleasedItemsHelp:
+    'Create placeholders for all items regardless of when they were released',
+  onlyRecentlyReleased: 'Only include items released within',
+  onlyRecentlyReleasedHelp:
+    'Only create placeholders for items released within the specified number of days',
+  days: 'days',
   filteredPlexHubInfo:
     'Use Filtered Plex Hubs to keep placeholder items out of Recently Added etc',
   filteredPlexHubDescription:
@@ -256,6 +261,7 @@ const CollectionFormConfigForm = ({
   const { data: settingsData } = useSWR<{
     placeholderMovieRootFolders?: Record<string, string>;
     placeholderTVRootFolders?: Record<string, string>;
+    skipYoutubeTrailerDownloads?: boolean;
   }>('/api/v1/settings/main');
 
   // Check if youtube-cookies.txt file exists
@@ -1572,6 +1578,8 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).placeholderDaysAhead ||
             (config as CollectionFormConfig).comingSoonDays ||
             90,
+          includeAllReleasedItems:
+            (config as CollectionFormConfig).includeAllReleasedItems ?? true, // Default true for new configs
           applyOverlaysDuringSync:
             (config as CollectionFormConfig).applyOverlaysDuringSync ??
             (config as CollectionFormConfig).type === 'comingsoon', // Default true for Coming Soon
@@ -2013,6 +2021,9 @@ const CollectionFormConfigForm = ({
               ? values.placeholderDaysAhead
                 ? parseInt(values.placeholderDaysAhead.toString(), 10)
                 : 90
+              : undefined,
+            includeAllReleasedItems: values.createPlaceholdersForMissing
+              ? values.includeAllReleasedItems ?? true
               : undefined,
             applyOverlaysDuringSync:
               values.type === 'comingsoon'
@@ -3349,6 +3360,7 @@ const CollectionFormConfigForm = ({
 
                                     {/* YouTube cookies status */}
                                     {typedValues.createPlaceholdersForMissing &&
+                                      !settingsData?.skipYoutubeTrailerDownloads &&
                                       youtubeCookiesStatus &&
                                       !youtubeCookiesStatus.exists && (
                                         <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
@@ -3406,6 +3418,7 @@ const CollectionFormConfigForm = ({
 
                                     {/* YouTube cookies success message */}
                                     {typedValues.createPlaceholdersForMissing &&
+                                      !settingsData?.skipYoutubeTrailerDownloads &&
                                       youtubeCookiesStatus &&
                                       youtubeCookiesStatus.exists && (
                                         <div className="mt-3 rounded-md bg-stone-800 p-3 ring-1 ring-stone-600">
@@ -3468,8 +3481,9 @@ const CollectionFormConfigForm = ({
 
                                     {/* Placeholder options - show when enabled */}
                                     {typedValues.createPlaceholdersForMissing && (
-                                      <div className="mt-4 flex gap-4 rounded-lg bg-stone-800 p-4">
-                                        <div className="flex-1">
+                                      <div className="mt-4 space-y-4 rounded-lg bg-stone-800 p-4">
+                                        {/* Days Ahead */}
+                                        <div>
                                           <label
                                             htmlFor="placeholderDaysAhead"
                                             className="block text-sm font-medium text-gray-300"
@@ -3483,7 +3497,6 @@ const CollectionFormConfigForm = ({
                                             id="placeholderDaysAhead"
                                             name="placeholderDaysAhead"
                                             min="1"
-                                            max="730"
                                             placeholder="360"
                                             className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
                                           />
@@ -3493,28 +3506,87 @@ const CollectionFormConfigForm = ({
                                             )}
                                           </p>
                                         </div>
-                                        <div className="flex-1">
-                                          <label
-                                            htmlFor="placeholderReleasedDays"
-                                            className="block text-sm font-medium text-gray-300"
-                                          >
+
+                                        {/* Released Items section */}
+                                        <div>
+                                          <label className="block text-sm font-medium text-gray-300">
                                             {intl.formatMessage(
-                                              messages.orphanedItemWindow
+                                              messages.releasedItems
                                             )}
                                           </label>
-                                          <Field
-                                            type="number"
-                                            id="placeholderReleasedDays"
-                                            name="placeholderReleasedDays"
-                                            min="0"
-                                            max="30"
-                                            placeholder="7"
-                                            className="mt-1 w-24 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white"
-                                          />
+                                          <div className="mt-2 space-y-2">
+                                            <label className="flex items-center gap-2">
+                                              <Field
+                                                type="radio"
+                                                name="includeAllReleasedItems"
+                                                value="true"
+                                                checked={
+                                                  typedValues.includeAllReleasedItems ===
+                                                  true
+                                                }
+                                                onChange={() =>
+                                                  setFieldValue(
+                                                    'includeAllReleasedItems',
+                                                    true
+                                                  )
+                                                }
+                                                className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                              />
+                                              <span className="text-sm text-gray-300">
+                                                {intl.formatMessage(
+                                                  messages.includeAllReleasedItems
+                                                )}
+                                              </span>
+                                            </label>
+                                            <label className="flex items-center gap-2">
+                                              <Field
+                                                type="radio"
+                                                name="includeAllReleasedItems"
+                                                value="false"
+                                                checked={
+                                                  typedValues.includeAllReleasedItems ===
+                                                  false
+                                                }
+                                                onChange={() =>
+                                                  setFieldValue(
+                                                    'includeAllReleasedItems',
+                                                    false
+                                                  )
+                                                }
+                                                className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                              />
+                                              <span className="text-sm text-gray-300">
+                                                {intl.formatMessage(
+                                                  messages.onlyRecentlyReleased
+                                                )}
+                                              </span>
+                                              <Field
+                                                type="number"
+                                                id="placeholderReleasedDays"
+                                                name="placeholderReleasedDays"
+                                                min="0"
+                                                placeholder="7"
+                                                disabled={
+                                                  typedValues.includeAllReleasedItems !==
+                                                  false
+                                                }
+                                                className="w-20 rounded-md border border-stone-500 bg-stone-700 px-2 py-1 text-white disabled:opacity-50"
+                                              />
+                                              <span className="text-sm text-gray-300">
+                                                {intl.formatMessage(
+                                                  messages.days
+                                                )}
+                                              </span>
+                                            </label>
+                                          </div>
                                           <p className="mt-1 text-xs text-gray-400">
-                                            {intl.formatMessage(
-                                              messages.orphanedItemWindowHelp
-                                            )}
+                                            {typedValues.includeAllReleasedItems
+                                              ? intl.formatMessage(
+                                                  messages.includeAllReleasedItemsHelp
+                                                )
+                                              : intl.formatMessage(
+                                                  messages.onlyRecentlyReleasedHelp
+                                                )}
                                           </p>
                                         </div>
                                       </div>

@@ -602,6 +602,11 @@ export class CollectionSyncService {
               // Smart collection settings (unwatched filter feature)
               showUnwatchedOnly: config.showUnwatchedOnly,
               smartCollectionSort: config.smartCollectionSort,
+              // Placeholder creation settings
+              createPlaceholdersForMissing: config.createPlaceholdersForMissing,
+              placeholderDaysAhead: config.placeholderDaysAhead,
+              placeholderReleasedDays: config.placeholderReleasedDays,
+              applyOverlaysDuringSync: config.applyOverlaysDuringSync,
             };
 
             result = await orchestrator.processMultiSourceCollection(

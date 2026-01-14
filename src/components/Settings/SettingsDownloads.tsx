@@ -79,6 +79,10 @@ const messages = defineMessages({
   youtubeCookiesFound: 'YouTube cookies file found',
   youtubeCookiesFoundMessage:
     'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
+  youtubeCookiesFoundButDisabled:
+    'YouTube cookies are configured, but YouTube trailer downloads are disabled below',
+  youtubeCookiesFoundButDisabledMessage:
+    'The {cookiesPath} file is configured, but the "Skip YouTube Trailer Downloads" option is enabled. YouTube trailers will not be downloaded even though cookies are available.',
   youtubeSetupInstructionsTitle: 'Setup Instructions:',
   youtubeSetupStep1:
     'Install a browser extension to export cookies: {firefoxLink} / {chromeLink}',
@@ -86,6 +90,12 @@ const messages = defineMessages({
   youtubeSetupStep3:
     'Export cookies and save as {cookiesPath} in your Agregarr config directory',
   noLibrariesFound: 'No libraries found. Configure your Plex connection first.',
+  skipYoutubeTrailerDownloads: 'Skip YouTube Trailer Downloads',
+  skipYoutubeTrailerDownloadsDescription:
+    'Use only the hardcoded placeholder video instead of downloading YouTube trailers. This dramatically speeds up placeholder creation, but placeholders will use a generic video instead of actual trailers.',
+  toastYoutubeSettingsSuccess: 'YouTube settings saved successfully!',
+  toastYoutubeSettingsFailure:
+    'Something went wrong while saving YouTube settings.',
 });
 
 interface ServerInstanceProps {
@@ -848,36 +858,162 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg
-                  className="h-5 w-5 text-green-400"
+                  className={`h-5 w-5 ${
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? 'text-yellow-400'
+                      : 'text-green-400'
+                  }`}
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 20 20"
                   fill="currentColor"
                   aria-hidden="true"
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                    clipRule="evenodd"
-                  />
+                  {dataMain?.skipYoutubeTrailerDownloads ? (
+                    <path
+                      fillRule="evenodd"
+                      d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+                      clipRule="evenodd"
+                    />
+                  ) : (
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                      clipRule="evenodd"
+                    />
+                  )}
                 </svg>
               </div>
               <div className="ml-3 flex-1">
-                <p className="text-sm font-medium text-stone-300">
-                  {intl.formatMessage(messages.youtubeCookiesFound)}
+                <p
+                  className={`text-sm font-medium ${
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? 'text-yellow-300'
+                      : 'text-stone-300'
+                  }`}
+                >
+                  {intl.formatMessage(
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? messages.youtubeCookiesFoundButDisabled
+                      : messages.youtubeCookiesFound
+                  )}
                 </p>
-                <p className="mt-1 text-sm text-stone-400">
-                  {intl.formatMessage(messages.youtubeCookiesFoundMessage, {
-                    cookiesPath: (
-                      <code className="rounded bg-stone-700 px-1 py-0.5 font-mono text-sm">
-                        youtube-cookies.txt
-                      </code>
-                    ),
-                  })}
+                <p
+                  className={`mt-1 text-sm ${
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? 'text-yellow-200'
+                      : 'text-stone-400'
+                  }`}
+                >
+                  {intl.formatMessage(
+                    dataMain?.skipYoutubeTrailerDownloads
+                      ? messages.youtubeCookiesFoundButDisabledMessage
+                      : messages.youtubeCookiesFoundMessage,
+                    {
+                      cookiesPath: (
+                        <code
+                          className={`rounded px-1 py-0.5 font-mono text-sm ${
+                            dataMain?.skipYoutubeTrailerDownloads
+                              ? 'bg-yellow-950'
+                              : 'bg-stone-700'
+                          }`}
+                        >
+                          youtube-cookies.txt
+                        </code>
+                      ),
+                    }
+                  )}
                 </p>
               </div>
             </div>
           </div>
         )}
+
+        {/* YouTube Trailer Download Toggle */}
+        <Formik
+          initialValues={{
+            skipYoutubeTrailerDownloads:
+              dataMain?.skipYoutubeTrailerDownloads || false,
+          }}
+          enableReinitialize
+          onSubmit={async (values) => {
+            try {
+              await axios.post('/api/v1/settings/main', {
+                skipYoutubeTrailerDownloads: values.skipYoutubeTrailerDownloads,
+              });
+
+              addToast(
+                intl.formatMessage(messages.toastYoutubeSettingsSuccess),
+                {
+                  appearance: 'success',
+                  autoDismiss: true,
+                }
+              );
+            } catch (e) {
+              addToast(
+                intl.formatMessage(messages.toastYoutubeSettingsFailure),
+                {
+                  appearance: 'error',
+                  autoDismiss: true,
+                }
+              );
+            } finally {
+              revalidateMain();
+            }
+          }}
+        >
+          {({ values, handleSubmit, setFieldValue, isSubmitting }) => (
+            <form onSubmit={handleSubmit}>
+              <div className="form-row">
+                <label
+                  htmlFor="skipYoutubeTrailerDownloads"
+                  className="checkbox-label"
+                >
+                  <span className="mr-2">
+                    {intl.formatMessage(messages.skipYoutubeTrailerDownloads)}
+                  </span>
+                  <span className="label-tip">
+                    {intl.formatMessage(
+                      messages.skipYoutubeTrailerDownloadsDescription
+                    )}
+                  </span>
+                </label>
+                <div className="form-input-area">
+                  <Field
+                    type="checkbox"
+                    id="skipYoutubeTrailerDownloads"
+                    name="skipYoutubeTrailerDownloads"
+                    checked={values.skipYoutubeTrailerDownloads}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue(
+                        'skipYoutubeTrailerDownloads',
+                        e.target.checked
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="actions">
+                <div className="flex justify-end">
+                  <span className="inline-flex rounded-md shadow-sm">
+                    <Button
+                      buttonType="primary"
+                      type="submit"
+                      disabled={isSubmitting}
+                    >
+                      <ArrowDownOnSquareIcon />
+                      <span>
+                        {isSubmitting
+                          ? intl.formatMessage(messages.saving)
+                          : intl.formatMessage(messages.save)}
+                      </span>
+                    </Button>
+                  </span>
+                </div>
+              </div>
+            </form>
+          )}
+        </Formik>
+
         <div className="space-y-3 text-sm text-stone-400">
           <p className="font-medium text-stone-300">
             {intl.formatMessage(messages.youtubeSetupInstructionsTitle)}
