@@ -223,6 +223,7 @@ export class ServiceUserManager {
               newExternalUser.id,
               overseerrPermissions
             );
+            await overseerrAPI.disableUserNotifications(newExternalUser.id);
 
             logger.info(
               `Recreated external Overseerr user with new email for: ${config.displayName}`,
@@ -291,6 +292,9 @@ export class ServiceUserManager {
             await overseerrAPI.updateUserPermissions(
               serviceUser.externalOverseerrId,
               overseerrPermissions
+            );
+            await overseerrAPI.disableUserNotifications(
+              serviceUser.externalOverseerrId
             );
 
             logger.info(
@@ -438,6 +442,7 @@ export class ServiceUserManager {
         externalUser.id,
         overseerrPermissions
       );
+      await overseerrAPI.disableUserNotifications(externalUser.id);
 
       logger.debug(
         `Found existing external Overseerr user: ${config.username}`,
@@ -466,6 +471,7 @@ export class ServiceUserManager {
           externalUser.id,
           overseerrPermissions
         );
+        await overseerrAPI.disableUserNotifications(externalUser.id);
 
         logger.debug(`Created external Overseerr user: ${config.username}`, {
           label: 'Service User Manager',
@@ -582,6 +588,7 @@ export class ServiceUserManager {
           externalUser.id,
           overseerrPermissions
         );
+        await overseerrAPI.disableUserNotifications(externalUser.id);
       } catch (error) {
         logger.error(
           `Failed to set permissions for external user: ${config.username}`,
@@ -602,6 +609,7 @@ export class ServiceUserManager {
           user.externalOverseerrId,
           overseerrPermissions
         );
+        await overseerrAPI.disableUserNotifications(user.externalOverseerrId);
       } catch (error) {
         // If permission update fails (likely due to stale user ID), clear and recreate
         logger.warn(
@@ -657,6 +665,7 @@ export class ServiceUserManager {
           externalUser.id,
           overseerrPermissions
         );
+        await overseerrAPI.disableUserNotifications(externalUser.id);
       }
     }
   }
