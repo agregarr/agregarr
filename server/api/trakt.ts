@@ -573,12 +573,14 @@ class TraktAPI {
       // Parse the URL to extract username and list slug or official list slug
       // Expected formats:
       // - https://trakt.tv/users/{username}/lists/{list-slug}
+      // - https://app.trakt.tv/users/{username}/lists/{list-slug}
       // - https://trakt.tv/lists/official/{collection-name}
+      // - https://app.trakt.tv/lists/official/{collection-name}
       const userListMatch = listUrl.match(
-        /trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
+        /(?:app\.)?trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
       );
       const officialListMatch = listUrl.match(
-        /trakt\.tv\/lists\/official\/([^/?]+)/
+        /(?:app\.)?trakt\.tv\/lists\/official\/([^/?]+)/
       );
 
       let apiPath: string;
@@ -591,7 +593,7 @@ class TraktAPI {
         apiPath = `/lists/official/${collectionSlug}/items`;
       } else {
         throw new Error(
-          'Invalid Trakt list URL format. Expected: https://trakt.tv/users/{username}/lists/{list-name} or https://trakt.tv/lists/official/{collection-name}'
+          'Invalid Trakt list URL format. Expected: https://trakt.tv/users/{username}/lists/{list-name} or https://app.trakt.tv/users/{username}/lists/{list-name}'
         );
       }
 
@@ -681,12 +683,12 @@ class TraktAPI {
 
   public async getListMetadata(listUrl: string) {
     try {
-      // Parse the URL to extract username and list slug
+      // Parse the URL to extract username and list slug (supports both trakt.tv and app.trakt.tv)
       const userListMatch = listUrl.match(
-        /trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
+        /(?:app\.)?trakt\.tv\/users\/([^/]+)\/lists\/([^/?]+)/
       );
       const officialListMatch = listUrl.match(
-        /trakt\.tv\/lists\/official\/([^/?]+)/
+        /(?:app\.)?trakt\.tv\/lists\/official\/([^/?]+)/
       );
 
       let apiPath: string;

@@ -139,7 +139,7 @@ const messages = defineMessages({
     'Seasons per show limit must be 0 or greater (0 = all seasons)',
   validationSeasonsPerShowMax: 'Seasons per show limit cannot exceed 50',
   validationTraktUrlInvalid:
-    'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://trakt.tv/lists/official/collection-name)',
+    'Please enter a valid Trakt list URL (e.g., https://trakt.tv/users/username/lists/list-name or https://app.trakt.tv/users/username/lists/list-name)',
   validationTmdbUrlInvalid:
     'Please enter a valid TMDB URL (collection, list, network, or company page)',
   validationImdbUrlInvalid:
@@ -655,7 +655,7 @@ const CollectionFormConfigForm = ({
         schema
           .required(intl.formatMessage(messages.validationTraktUrlRequired))
           .matches(
-            /trakt\.tv\/(users\/[^/]+\/lists\/[^/?]+|lists\/official\/[^/?]+)/,
+            /(?:app\.)?trakt\.tv\/(users\/[^/]+\/lists\/[^/?]+|lists\/official\/[^/?]+)/,
             intl.formatMessage(messages.validationTraktUrlInvalid)
           ),
       otherwise: (schema) => schema,

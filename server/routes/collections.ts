@@ -77,7 +77,7 @@ export function validateExternalUrl(
 
     // Validate allowed domains based on collection type
     const allowedDomains = {
-      trakt: ['trakt.tv'],
+      trakt: ['trakt.tv', 'app.trakt.tv'],
       tmdb: ['www.themoviedb.org', 'themoviedb.org'],
       imdb: ['www.imdb.com', 'imdb.com'],
       mdblist: ['mdblist.com', 'www.mdblist.com'],
@@ -105,7 +105,7 @@ export function validateExternalUrl(
           return {
             isValid: false,
             error:
-              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name',
+              'Invalid Trakt list URL format. Expected: https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname',
           };
         }
         break;

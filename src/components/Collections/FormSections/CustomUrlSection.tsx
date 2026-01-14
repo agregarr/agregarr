@@ -13,7 +13,7 @@ const messages = defineMessages({
   fetchTitle: 'Validate',
   fetching: 'Fetching...',
   traktUrlExamples:
-    'Examples: https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/jurassic-park-collection',
+    'Examples: https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname',
   tmdbUrlExamples:
     'Examples: Collection (https://www.themoviedb.org/collection/12345), List (https://www.themoviedb.org/list/310), Network (https://www.themoviedb.org/network/213), Company (https://www.themoviedb.org/company/7505/movie or /tv)',
   imdbUrlExamples:
@@ -138,7 +138,7 @@ const CustomUrlSection = ({
             type="url"
             id="traktCustomListUrl"
             name="traktCustomListUrl"
-            placeholder="https://trakt.tv/users/username/lists/listname or https://trakt.tv/lists/official/collection-name"
+            placeholder="https://trakt.tv/users/username/lists/listname or https://app.trakt.tv/users/username/lists/listname"
             className="flex-1 rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           {fetchTraktTitle && (
