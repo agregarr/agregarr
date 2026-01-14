@@ -601,7 +601,7 @@ export interface LetterboxdSourceData {
   year: number;
   letterboxdUrl: string;
   tmdbId: number;
-  mediaType: 'movie';
+  mediaType: 'movie' | 'tv';
 }
 
 export interface AniListSourceData {
