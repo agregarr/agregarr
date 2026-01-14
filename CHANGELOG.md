@@ -1,3 +1,78 @@
+# [2.2.0](https://github.com/agregarr/agregarr/compare/v2.1.0...v2.2.0) (2026-01-14)
+
+
+### Bug Fixes
+
+* **api:** Sanitize error responses to prevent information disclosure ([#282](https://github.com/agregarr/agregarr/issues/282)) ([a4e6eba](https://github.com/agregarr/agregarr/commit/a4e6ebaecddad56d3e813d27074759df782c2b23))
+* **bulk-edit:** Fix Firefox bulk edit table rendering issue ([#271](https://github.com/agregarr/agregarr/issues/271)) ([47465ea](https://github.com/agregarr/agregarr/commit/47465ea6c7d75a507dafde5b0638e9dd783584e1)), closes [#270](https://github.com/agregarr/agregarr/issues/270)
+* **collection-posters:** exclude items without tmdb poster path in content grid ([8e105d9](https://github.com/agregarr/agregarr/commit/8e105d93c2e59acc8eb4bcf05784f0a5750cd570)), closes [#288](https://github.com/agregarr/agregarr/issues/288)
+* **collection-posters:** fixes custom icons not being saved correctly ([e370b71](https://github.com/agregarr/agregarr/commit/e370b712078ea52872badb57fc5b2aeace4eb93b)), closes [#308](https://github.com/agregarr/agregarr/issues/308)
+* **collection-posters:** fixes network logo mapping ([4573668](https://github.com/agregarr/agregarr/commit/4573668623efd11759fdafd12e5473890288706c)), closes [#361](https://github.com/agregarr/agregarr/issues/361)
+* **collections-quick-sync:** add overseerr and tmdb autoFranchise support. refactor to use ratingKey ([5ae10be](https://github.com/agregarr/agregarr/commit/5ae10be8ceaaa7f4b9d253dbf5a9ddc825acf24e)), closes [#295](https://github.com/agregarr/agregarr/issues/295)
+* **collections:** filter daily shows from Coming Soon collections ([#278](https://github.com/agregarr/agregarr/issues/278)) ([5daf4fe](https://github.com/agregarr/agregarr/commit/5daf4fe78e818e5f554c3b0d9fdd3926fd911b65))
+* **collections:** fixes incorrect ratingKey being saved when editing linked configs ([aadcbf4](https://github.com/agregarr/agregarr/commit/aadcbf4a530b9fd98358326a2cb59c1c9a8eb1c3)), closes [#120](https://github.com/agregarr/agregarr/issues/120)
+* **collections:** surface per-collection sync errors to UI ([#321](https://github.com/agregarr/agregarr/issues/321)) ([4541ea1](https://github.com/agregarr/agregarr/commit/4541ea145c1124d9ef4b46995216401e1ef4944c)), closes [#299](https://github.com/agregarr/agregarr/issues/299)
+* **collections:** sync networksCountry to sources array on change ([#304](https://github.com/agregarr/agregarr/issues/304)) ([be4e100](https://github.com/agregarr/agregarr/commit/be4e100ec817a3237dbec46847f21c32a9b3fef7)), closes [#296](https://github.com/agregarr/agregarr/issues/296)
+* **config:** fix undefined custom url react error, enhance toasts ([33ba3d8](https://github.com/agregarr/agregarr/commit/33ba3d8ca9914e3ce950e24432e658725be7f6ec))
+* **custom-lists:** refactor validation to include SSE messaging. fix fetch title for imdb ([d56d213](https://github.com/agregarr/agregarr/commit/d56d213d98befeeb6c1a0380f1f8925ea98b4568)), closes [#344](https://github.com/agregarr/agregarr/issues/344)
+* **github-actions:** integrate semantic-release-action and add GitHub release step ([52b266b](https://github.com/agregarr/agregarr/commit/52b266b3850705dd7c4f0d15d63817586dc46f13))
+* **imdb:** add AWS WAF challenge solver, fixing all IMDb lists ([459b9e3](https://github.com/agregarr/agregarr/commit/459b9e339ebe4cbf2352c71b2d068ac194f306de))
+* **imdb:** add watchlist support ([d9c6e2f](https://github.com/agregarr/agregarr/commit/d9c6e2f7f8d4f5e546e19e808c22115b63ef5267)), closes [#343](https://github.com/agregarr/agregarr/issues/343)
+* **imdb:** fix url validation ([56e046d](https://github.com/agregarr/agregarr/commit/56e046de12168b447c7c6b35e80d5e62dc67d794)), closes [#362](https://github.com/agregarr/agregarr/issues/362)
+* **item-ordering:** add A-Z and Z-A sort order options ([5e33c61](https://github.com/agregarr/agregarr/commit/5e33c6167dd296db825e5cc6f3d170e75c9405e1)), closes [#341](https://github.com/agregarr/agregarr/issues/341)
+* **item-ordering:** fix original plex order overriding source order ([b02e767](https://github.com/agregarr/agregarr/commit/b02e767e9a241572ca451198095d9a0cb605a47a)), closes [#225](https://github.com/agregarr/agregarr/issues/225)
+* **letterboxd:** add support for /{user}/films/ URL's ([44e6c16](https://github.com/agregarr/agregarr/commit/44e6c163f95d60e38f49a855a11a69006e7c5929)), closes [#311](https://github.com/agregarr/agregarr/issues/311)
+* **letterboxd:** fix mixed lists in letterboxd ([91f7484](https://github.com/agregarr/agregarr/commit/91f7484904da0c15fe359480f58d87abead78837)), closes [#236](https://github.com/agregarr/agregarr/issues/236)
+* **logging:** downgrade library mismatch message to debug level ([#305](https://github.com/agregarr/agregarr/issues/305)) ([027bf11](https://github.com/agregarr/agregarr/commit/027bf11474ade46fe2057e6e30ad0bdfe5a67dd2)), closes [#265](https://github.com/agregarr/agregarr/issues/265)
+* **mdblist:** fix mdblist for multi-source collections ([030c928](https://github.com/agregarr/agregarr/commit/030c9288445ad4c977d5a6451d818f4fd99f2e00)), closes [#299](https://github.com/agregarr/agregarr/issues/299)
+* **missing-item-filter:** change from include to exclude when ratings return null/undefined ([e8b4027](https://github.com/agregarr/agregarr/commit/e8b40272e1de76ef003eaeb23635e9c7f0ff8f8d))
+* **missing-items-filtering:** country and language dropdowns now include the full list ([7a5804e](https://github.com/agregarr/agregarr/commit/7a5804e73e3cd93793bbb39c2d69b2f566f13b5f)), closes [#337](https://github.com/agregarr/agregarr/issues/337)
+* multi-source label regex for collection matching ([#345](https://github.com/agregarr/agregarr/issues/345)) ([5150bc7](https://github.com/agregarr/agregarr/commit/5150bc790dd0d64c46cda5eff9bae9e19eed73e0))
+* **overlays:** add networks context ([da1095f](https://github.com/agregarr/agregarr/commit/da1095f9471847b8e3955ddcb88890b3646d8574)), closes [#286](https://github.com/agregarr/agregarr/issues/286)
+* **overlays:** add runtime HHMM (eg 2h 16m) ([30ab2fc](https://github.com/agregarr/agregarr/commit/30ab2fc4727d01c658a81763c9a35921e9b26e9d)), closes [#301](https://github.com/agregarr/agregarr/issues/301)
+* **overlays:** fetch Maintainerr collections in overlay test route ([#303](https://github.com/agregarr/agregarr/issues/303)) ([e33e641](https://github.com/agregarr/agregarr/commit/e33e641a2f9837554d0059cb6ca3c9e80219958f)), closes [#291](https://github.com/agregarr/agregarr/issues/291)
+* **overlays:** return episodeNumber from fetchReleaseDateInfo for countdown overlays ([#302](https://github.com/agregarr/agregarr/issues/302)) ([70eb909](https://github.com/agregarr/agregarr/commit/70eb9091cf9cec4597023597ba84c727863bf15c)), closes [#290](https://github.com/agregarr/agregarr/issues/290)
+* **overlays:** use uniform scaling for non-standard poster aspect ratios ([#306](https://github.com/agregarr/agregarr/issues/306)) ([5a19db7](https://github.com/agregarr/agregarr/commit/5a19db7efe51c662111dc98fc11a1f63dc5130e9)), closes [#297](https://github.com/agregarr/agregarr/issues/297)
+* **overseerr:** disable notifications for overseerr users ([e621b75](https://github.com/agregarr/agregarr/commit/e621b7554f87a0c558da8e474f2d3c59f98840e1)), closes [#240](https://github.com/agregarr/agregarr/issues/240)
+* **overseerr:** fix plexClient and libraryCache not being passed to sync ([9600cb2](https://github.com/agregarr/agregarr/commit/9600cb245bae5a2b2e5cb27ade414e89f6f15167)), closes [#363](https://github.com/agregarr/agregarr/issues/363)
+* **overseerr:** fixes delete button. minor UI changes ([720988f](https://github.com/agregarr/agregarr/commit/720988f6d221f4aa80f3824c850063c8bc7785eb)), closes [#318](https://github.com/agregarr/agregarr/issues/318)
+* **placeholders:** add check for plex poster, apply TMDB poster if not present ([af701fc](https://github.com/agregarr/agregarr/commit/af701fc0457ccc71a00747533438ca4587ba237f))
+* **placeholders:** add warning when placeholder creation is enabled without respective filtered hub ([6709810](https://github.com/agregarr/agregarr/commit/670981060180a1a04ce75ecce934e233bd107372))
+* **placeholders:** add youtube-cookies.txt setup feedback ([3f49633](https://github.com/agregarr/agregarr/commit/3f49633027091ec1fefcc045a7d882ce624ee945))
+* **placeholders:** ensure movie placeholder parent folders are deleted on cleanup ([9395447](https://github.com/agregarr/agregarr/commit/9395447089ff3948d48ff35886e394f6e82a7333))
+* **placeholders:** ensure placeholder days ahead is respected for non-coming soon collections ([e2ebf90](https://github.com/agregarr/agregarr/commit/e2ebf90db4e6a7bbb2e9e34e00789793e3c6f19e)), closes [#253](https://github.com/agregarr/agregarr/issues/253) [#268](https://github.com/agregarr/agregarr/issues/268)
+* **placeholders:** handle Jellyfin trickplay directories during cleanup ([#340](https://github.com/agregarr/agregarr/issues/340)) ([5806bbc](https://github.com/agregarr/agregarr/commit/5806bbc549aa7af283292b47a2702160c9afa035))
+* **placeholders:** improve date filtering UX/logic for general lists ([f124211](https://github.com/agregarr/agregarr/commit/f124211bda12581d7e71541f4a5209ad92093a3f)), closes [#336](https://github.com/agregarr/agregarr/issues/336) [#268](https://github.com/agregarr/agregarr/issues/268) [#253](https://github.com/agregarr/agregarr/issues/253) [#307](https://github.com/agregarr/agregarr/issues/307)
+* **placeholders:** trigger Plex scan and empty trash after cleanup ([#332](https://github.com/agregarr/agregarr/issues/332)) ([452a2be](https://github.com/agregarr/agregarr/commit/452a2be4a986a2a41d17090bfda1c5809207aa84))
+* **placeholders:** update to new library specific path ([b381e41](https://github.com/agregarr/agregarr/commit/b381e419e687ca2eeced5ad4219728ed126a8aed))
+* **plex-libraries:** fixes non-movie/show libraries being discovered inconsistently ([8073c34](https://github.com/agregarr/agregarr/commit/8073c3418c040799e56b19ceae034c5f0692f844)), closes [#255](https://github.com/agregarr/agregarr/issues/255)
+* **plex:** handle 404 gracefully when deleting hub items ([#356](https://github.com/agregarr/agregarr/issues/356)) ([287befa](https://github.com/agregarr/agregarr/commit/287befaa5092127fc9edb335ef5c5c487f1c0068))
+* **posters:** validate SVG icon dimensions and file type ([#350](https://github.com/agregarr/agregarr/issues/350)) ([be53722](https://github.com/agregarr/agregarr/commit/be53722678b8fcdd8846debc6756ef56d80c87c9))
+* **random-lists:** fixes letterboxd and imdb random lists ([76db41b](https://github.com/agregarr/agregarr/commit/76db41b2ac31ad605b938815e8348b252c2fded3)), closes [#324](https://github.com/agregarr/agregarr/issues/324)
+* **rt-ratings:** add roman numeral search support ([#334](https://github.com/agregarr/agregarr/issues/334)) ([7b21871](https://github.com/agregarr/agregarr/commit/7b2187108da99ef96639f1365a373764b3c138c5))
+* **rt-ratings:** fix year and title case mismatch ([33ac103](https://github.com/agregarr/agregarr/commit/33ac1038951558da4367ad644c0bf20660a0309e)), closes [#289](https://github.com/agregarr/agregarr/issues/289)
+* **scheduler:** startNow immediate sync and deadlock bugs ([#348](https://github.com/agregarr/agregarr/issues/348)) ([bcda04d](https://github.com/agregarr/agregarr/commit/bcda04dc64fb5dad7768602e8de2aca718934802))
+* **security:** harden API clients and file operations ([#300](https://github.com/agregarr/agregarr/issues/300)) ([7c6ff6b](https://github.com/agregarr/agregarr/commit/7c6ff6b0304ee32ca3833516af9e7a4af345552c))
+* **trakt:** add support for new app.trakt.tv urls ([193833c](https://github.com/agregarr/agregarr/commit/193833ce850b750df59a1c8f2816a067a2a17c7c))
+
+
+### Features
+
+* **imdb:** add Top 250 English Movies collection type ([#358](https://github.com/agregarr/agregarr/issues/358)) ([01f94d5](https://github.com/agregarr/agregarr/commit/01f94d5c1fc94adb85c22cd621bbb947f8c06054)), closes [agregarr/agregarr#330](https://github.com/agregarr/agregarr/issues/330)
+* **overlays:** add certified fresh overlay support, with preset ([b3f0a1e](https://github.com/agregarr/agregarr/commit/b3f0a1e561ae979065cc15eb784ccb780c0c2dfe)), closes [#346](https://github.com/agregarr/agregarr/issues/346)
+* **overlays:** add daysSinceAdded and daysSinceLastPlayed variables ([d32c041](https://github.com/agregarr/agregarr/commit/d32c041faff801e741a5e36a01cf4f667156e2c5)), closes [#315](https://github.com/agregarr/agregarr/issues/315)
+* **overlays:** add exists (null) boolean condition ([15d343e](https://github.com/agregarr/agregarr/commit/15d343e8eeefaaeca9a2b256debb227eb49adbb4)), closes [#285](https://github.com/agregarr/agregarr/issues/285)
+* **overlays:** add Plex User Rating condition/variable ([3aadbf0](https://github.com/agregarr/agregarr/commit/3aadbf0b443b500dc538415a9f1068aeaa046ccf)), closes [#254](https://github.com/agregarr/agregarr/issues/254)
+* **overlays:** add Radarr/Sonarr tag support for overlay conditions ([#276](https://github.com/agregarr/agregarr/issues/276)) ([cc9dc82](https://github.com/agregarr/agregarr/commit/cc9dc828d192d26b1fc72709c2130b537824c984)), closes [#272](https://github.com/agregarr/agregarr/issues/272)
+* **placeholders:** add option to skip youtube trailer downloads ([39c439b](https://github.com/agregarr/agregarr/commit/39c439bb80c9e98fa1c3713b2567d81fa039451f))
+* **placeholders:** placeholder folders can now be created per-library ([fecdfb8](https://github.com/agregarr/agregarr/commit/fecdfb8bbaeb0bc7bc84bd66ee654d29ee9d8f0c)), closes [#251](https://github.com/agregarr/agregarr/issues/251) [#252](https://github.com/agregarr/agregarr/issues/252)
+* **sort-order:** add release date and date added to plex as sort order options ([1c21a0e](https://github.com/agregarr/agregarr/commit/1c21a0e7b21d08ae42b68f2ae0d9698856c3515c)), closes [#187](https://github.com/agregarr/agregarr/issues/187) [#203](https://github.com/agregarr/agregarr/issues/203)
+
+
+### Performance Improvements
+
+* **overlays:** add TMDB poster caching and fix race conditions ([#277](https://github.com/agregarr/agregarr/issues/277)) ([3759140](https://github.com/agregarr/agregarr/commit/37591405efeef38e83dd254670641014bc189ee2))
+
 # [2.1.0](https://github.com/agregarr/agregarr/compare/v2.0.0...v2.1.0) (2026-01-02)
 
 
