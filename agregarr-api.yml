@@ -186,6 +186,10 @@ components:
           example:
             '2': /data/media/tv
             '4': /data/media/anime
+        skipYoutubeTrailerDownloads:
+          type: boolean
+          description: If true, skip YouTube trailer downloads and use hardcoded placeholder video only (speeds up sync)
+          example: false
     PlexLibrary:
       type: object
       properties:

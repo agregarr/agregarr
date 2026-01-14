@@ -3349,6 +3349,7 @@ const CollectionFormConfigForm = ({
 
                                     {/* YouTube cookies status */}
                                     {typedValues.createPlaceholdersForMissing &&
+                                      !settingsData?.skipYoutubeTrailerDownloads &&
                                       youtubeCookiesStatus &&
                                       !youtubeCookiesStatus.exists && (
                                         <div className="mt-3 rounded-md bg-yellow-900 bg-opacity-30 p-3 ring-1 ring-yellow-600">
@@ -3406,6 +3407,7 @@ const CollectionFormConfigForm = ({
 
                                     {/* YouTube cookies success message */}
                                     {typedValues.createPlaceholdersForMissing &&
+                                      !settingsData?.skipYoutubeTrailerDownloads &&
                                       youtubeCookiesStatus &&
                                       youtubeCookiesStatus.exists && (
                                         <div className="mt-3 rounded-md bg-stone-800 p-3 ring-1 ring-stone-600">

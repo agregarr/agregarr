@@ -567,6 +567,8 @@ export interface MainSettings {
   // Placeholder root folders (per-library)
   placeholderMovieRootFolders?: Record<string, string>; // libraryKey -> movie placeholder path mapping
   placeholderTVRootFolders?: Record<string, string>; // libraryKey -> TV placeholder path mapping
+  // YouTube trailer download settings
+  skipYoutubeTrailerDownloads?: boolean; // If true, skip YouTube trailer downloads and use hardcoded placeholder video only (speeds up sync)
 }
 
 interface PublicSettings {
