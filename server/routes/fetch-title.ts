@@ -318,9 +318,18 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
           }
 
           // Extract title - use list name if available, otherwise from page title
-          let rawTitle =
-            nextData?.props?.pageProps?.mainColumnData?.list?.name ||
+          // Note: IMDb's name field can be an object with originalText property
+          const listName =
+            nextData?.props?.pageProps?.mainColumnData?.list?.name;
+          const predefinedListName =
             nextData?.props?.pageProps?.mainColumnData?.predefinedList?.name;
+          let rawTitle: string | undefined =
+            (typeof listName === 'string'
+              ? listName
+              : listName?.originalText) ||
+            (typeof predefinedListName === 'string'
+              ? predefinedListName
+              : predefinedListName?.originalText);
 
           if (!rawTitle) {
             const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
@@ -329,7 +338,7 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
             }
           }
 
-          if (rawTitle) {
+          if (rawTitle && typeof rawTitle === 'string') {
             // Decode HTML entities (same as RandomListManager and Letterboxd)
             title = rawTitle
               .replace(/&lrm;/g, '') // Remove left-to-right mark
@@ -355,7 +364,7 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
           for (const edge of listData.edges) {
             const titleTypeId = edge.listItem?.titleType?.id;
 
-            if (titleTypeId === 'movie') {
+            if (titleTypeId === 'movie' || titleTypeId === 'tvMovie') {
               movieCount++;
             } else if (titleTypeId === 'tvEpisode') {
               episodeCount++;
