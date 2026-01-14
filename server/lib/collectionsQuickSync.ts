@@ -188,14 +188,20 @@ class CollectionsQuickSync {
 
           // Fetch full metadata for each item to get external GUIDs (TMDB, IMDB, TVDB)
           // The recentlyAdded endpoint only returns internal Plex GUIDs
+          // For TV shows, include children metadata so isPlaceholderItem() can check
+          // if only Season 00 exists (placeholder detection)
           logger.debug('Fetching full metadata for external GUIDs...', {
             label: 'Collections Quick Sync',
             libraryName: library.name,
           });
           const itemsWithMetadata: PlexLibraryItem[] = [];
+          const isShowLibrary = library.type === 'show';
           for (const item of recentItems) {
             try {
-              const fullMetadata = await plexClient.getMetadata(item.ratingKey);
+              const fullMetadata = await plexClient.getMetadata(
+                item.ratingKey,
+                { includeChildren: isShowLibrary }
+              );
               itemsWithMetadata.push(fullMetadata);
             } catch (error) {
               logger.warn('Failed to fetch metadata for item, skipping', {
