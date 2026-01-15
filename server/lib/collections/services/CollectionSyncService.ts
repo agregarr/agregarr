@@ -606,6 +606,7 @@ export class CollectionSyncService {
               createPlaceholdersForMissing: config.createPlaceholdersForMissing,
               placeholderDaysAhead: config.placeholderDaysAhead,
               placeholderReleasedDays: config.placeholderReleasedDays,
+              includeAllReleasedItems: config.includeAllReleasedItems,
               applyOverlaysDuringSync: config.applyOverlaysDuringSync,
             };
 
