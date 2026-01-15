@@ -55,6 +55,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Update version in package.json
+        run: npm version ${{ needs.version-check.outputs.new_release_version }} --no-git-tag-version
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
