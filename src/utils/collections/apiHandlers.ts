@@ -175,6 +175,9 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.placeholderReleasedDays !== undefined && {
           placeholderReleasedDays: collectionConfig.placeholderReleasedDays,
         }),
+        ...(collectionConfig.includeAllReleasedItems !== undefined && {
+          includeAllReleasedItems: collectionConfig.includeAllReleasedItems,
+        }),
         ...(collectionConfig.tautulliStatType && {
           tautulliStatType: collectionConfig.tautulliStatType,
         }),
