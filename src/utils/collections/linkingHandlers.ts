@@ -224,6 +224,7 @@ export const linkCollectionConfig = async (
               masterConfig.createPlaceholdersForMissing,
             placeholderDaysAhead: masterConfig.placeholderDaysAhead,
             placeholderReleasedDays: masterConfig.placeholderReleasedDays,
+            includeAllReleasedItems: masterConfig.includeAllReleasedItems,
             tautulliStatType: masterConfig.tautulliStatType,
             isMultiSource: masterConfig.isMultiSource,
             sources: masterConfig.sources,

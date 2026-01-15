@@ -1,7 +1,5 @@
-import ExternalAPI from '@server/api/externalapi';
-import cacheManager from '@server/lib/cache';
+import { ImdbAxiosClient } from '@server/lib/collections/utils/ImdbAxiosClient';
 import logger from '@server/logger';
-import { JSDOM } from 'jsdom';
 
 /**
  * IMDb List Item interface
@@ -55,35 +53,15 @@ export interface ImdbTop250Result {
 /**
  * IMDb API client for fetching lists and popular content
  *
- * Note: IMDb doesn't have a public API for lists, so this uses web scraping
- * for public IMDb lists. This is a best-effort implementation.
+ * Uses the shared ImdbAxiosClient which handles AWS WAF challenges
+ * and maintains cookies for reliable access to IMDb.
  */
-class ImdbAPI extends ExternalAPI {
+class ImdbAPI {
   // Cache for Top 250 lists (refreshed periodically)
   private top250MoviesCache: Map<string, number> = new Map();
   private top250TvCache: Map<string, number> = new Map();
   private top250LastRefresh: { movies?: number; tv?: number } = {};
   private readonly TOP250_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-  constructor() {
-    super(
-      'https://www.imdb.com',
-      {},
-      {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Content-Type': 'text/html; charset=utf-8',
-          Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate',
-          Connection: 'keep-alive',
-        },
-        nodeCache: cacheManager.getCache('imdb').data,
-      }
-    );
-  }
 
   /**
    * Get a predefined IMDb top list
@@ -98,41 +76,46 @@ class ImdbAPI extends ExternalAPI {
 
       switch (listType) {
         case ImdbTopList.TOP_250_MOVIES:
-          url = '/chart/top/';
+          url = 'https://www.imdb.com/chart/top/';
           expectedType = 'movie';
           break;
         case ImdbTopList.TOP_250_ENGLISH_MOVIES:
-          url = '/chart/top-english-movies/';
+          url = 'https://www.imdb.com/chart/top-english-movies/';
           expectedType = 'movie';
           break;
         case ImdbTopList.TOP_250_TV:
-          url = '/chart/toptv/';
+          url = 'https://www.imdb.com/chart/toptv/';
           expectedType = 'tv';
           break;
         case ImdbTopList.POPULAR_MOVIES:
-          url = '/chart/moviemeter/';
+          url = 'https://www.imdb.com/chart/moviemeter/';
           expectedType = 'movie';
           break;
         case ImdbTopList.POPULAR_TV:
-          url = '/chart/tvmeter/';
+          url = 'https://www.imdb.com/chart/tvmeter/';
           expectedType = 'tv';
           break;
         case ImdbTopList.MOST_POPULAR_MOVIES:
-          url = '/chart/boxoffice/';
+          url = 'https://www.imdb.com/chart/boxoffice/';
           expectedType = 'movie';
           break;
         case ImdbTopList.MOST_POPULAR_TV:
-          url = '/chart/tvpopular/';
+          url = 'https://www.imdb.com/chart/tvpopular/';
           expectedType = 'tv';
           break;
         default:
           throw new Error(`Unknown IMDb top list type: ${listType}`);
       }
 
-      const html = await this.get<string>(url, undefined, 30000);
+      // Use the shared ImdbAxiosClient with WAF handling
+      const axios = await ImdbAxiosClient.getInstance();
+      const response = await axios.get(url, { timeout: 30000 });
+      const html = response.data as string;
+
       return this.parseTopListHtml(html, expectedType, limit);
     } catch (error) {
       logger.error(`Failed to fetch IMDb top list ${listType}:`, {
+        label: 'IMDb API',
         error: error instanceof Error ? error.message : 'Unknown error',
         listType,
         stack: error instanceof Error ? error.stack : undefined,
@@ -146,204 +129,90 @@ class ImdbAPI extends ExternalAPI {
   }
 
   /**
-   * Get a custom IMDb list by URL
-   */
-  public async getCustomList(
-    listUrl: string,
-    limit = 9999
-  ): Promise<ImdbListItem[]> {
-    try {
-      // Extract list ID from URL
-      const listMatch = listUrl.match(/\/list\/(ls\d+)/);
-      if (!listMatch) {
-        throw new Error('Invalid IMDb list URL format');
-      }
-
-      const listId = listMatch[1];
-      const url = `/list/${listId}/`;
-
-      const html = await this.get<string>(url, undefined, 30000);
-      return this.parseCustomListHtml(html, limit);
-    } catch (error) {
-      logger.error(`Failed to fetch IMDb custom list ${listUrl}:`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        listUrl,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw new Error(
-        `Failed to fetch IMDb custom list: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
-      );
-    }
-  }
-
-  /**
    * Parse HTML for top lists (Top 250, Popular, etc.)
+   * Uses JSON-LD structured data which IMDb provides for all chart pages.
    */
   private parseTopListHtml(
     html: string,
     expectedType: 'movie' | 'tv',
     limit: number
   ): ImdbListItem[] {
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-    const items: ImdbListItem[] = [];
+    const items = this.parseJsonLd(html, expectedType, limit);
 
-    // Different selectors for different chart types
-    const itemSelectors = [
-      '.cli-item', // Top 250 movies/TV
-      '.titleColumn', // Some chart pages
-      '.ipc-title-link-wrapper', // Newer layout
-      '.titleListItem', // Fallback
-    ];
-
-    let itemElements: NodeListOf<Element> | null = null;
-
-    for (const selector of itemSelectors) {
-      itemElements = document.querySelectorAll(selector);
-      if (itemElements.length > 0) break;
+    if (items.length > 0) {
+      logger.debug('Parsed IMDb list from JSON-LD', {
+        label: 'IMDb API',
+        itemCount: items.length,
+        expectedType,
+      });
+    } else {
+      logger.warn('No items found in IMDb JSON-LD data', {
+        label: 'IMDb API',
+        expectedType,
+      });
     }
 
-    if (!itemElements || itemElements.length === 0) {
-      logger.warn('No items found in IMDb top list HTML');
-      return [];
-    }
+    return items;
+  }
 
-    for (let i = 0; i < Math.min(itemElements.length, limit); i++) {
-      const element = itemElements[i];
-      const imdbId = this.extractImdbId(element);
-      const title = this.extractTitle(element);
-      const year = this.extractYear(element);
+  /**
+   * Parse JSON-LD structured data from IMDb page
+   * IMDb includes ItemList schema with all items - much more reliable than HTML scraping
+   */
+  private parseJsonLd(
+    html: string,
+    expectedType: 'movie' | 'tv',
+    limit: number
+  ): ImdbListItem[] {
+    try {
+      // Look for ItemList JSON-LD script
+      const jsonLdMatch = html.match(
+        /<script type="application\/ld\+json">(\{"@type":"ItemList"[^<]+)<\/script>/
+      );
 
-      if (imdbId && title) {
+      if (!jsonLdMatch) {
+        return [];
+      }
+
+      const data = JSON.parse(jsonLdMatch[1]) as {
+        itemListElement?: {
+          item?: {
+            url?: string;
+            name?: string;
+          };
+        }[];
+      };
+
+      const itemListElement = data.itemListElement || [];
+      const items: ImdbListItem[] = [];
+
+      for (let i = 0; i < Math.min(itemListElement.length, limit); i++) {
+        const listItem = itemListElement[i];
+        const movie = listItem.item;
+
+        if (!movie?.url || !movie?.name) continue;
+
+        // Extract IMDb ID from URL (e.g., https://www.imdb.com/title/tt0111161/)
+        const urlMatch = movie.url.match(/\/title\/(tt\d+)/);
+        if (!urlMatch) continue;
+
+        const imdbId = urlMatch[1];
+
         items.push({
           imdbId,
-          title,
-          year,
+          title: movie.name,
           type: expectedType,
         });
       }
+
+      return items;
+    } catch (error) {
+      logger.debug('Failed to parse JSON-LD from IMDb page', {
+        label: 'IMDb API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
     }
-
-    return items;
-  }
-
-  /**
-   * Parse HTML for custom user lists
-   */
-  private parseCustomListHtml(html: string, limit: number): ImdbListItem[] {
-    const dom = new JSDOM(html);
-    const document = dom.window.document;
-    const items: ImdbListItem[] = [];
-
-    const itemElements = document.querySelectorAll('.lister-item, .ipc-title');
-
-    for (let i = 0; i < Math.min(itemElements.length, limit); i++) {
-      const element = itemElements[i];
-      const imdbId = this.extractImdbId(element);
-      const title = this.extractTitle(element);
-      const year = this.extractYear(element);
-      const type = this.inferType(element);
-
-      if (imdbId && title) {
-        items.push({
-          imdbId,
-          title,
-          year,
-          type,
-        });
-      }
-    }
-
-    return items;
-  }
-
-  /**
-   * Extract IMDb ID from an element
-   */
-  private extractImdbId(element: Element): string | null {
-    // Look for links with IMDb title patterns
-    const linkSelectors = ['a[href*="/title/"]', '[href*="/title/"]'];
-
-    for (const selector of linkSelectors) {
-      const link = element.querySelector(selector) || element.closest(selector);
-      if (link) {
-        const href = link.getAttribute('href');
-        const match = href?.match(/\/title\/(tt\d+)/);
-        if (match) return match[1];
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Extract title from an element
-   */
-  private extractTitle(element: Element): string | null {
-    const titleSelectors = [
-      '.cli-title a',
-      '.titleColumn a',
-      '.ipc-title__text',
-      '.titleListItem .title a',
-      'h3 a',
-      '.title a',
-      'a',
-    ];
-
-    for (const selector of titleSelectors) {
-      const titleElement = element.querySelector(selector);
-      if (titleElement?.textContent?.trim()) {
-        return titleElement.textContent.trim();
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Extract year from an element
-   */
-  private extractYear(element: Element): number | undefined {
-    const yearSelectors = [
-      '.cli-title-metadata .cli-title-metadata-item:first-child',
-      '.secondaryInfo',
-      '.lister-item-year',
-      '.year',
-    ];
-
-    for (const selector of yearSelectors) {
-      const yearElement = element.querySelector(selector);
-      if (yearElement?.textContent) {
-        const yearMatch = yearElement.textContent.match(/(\d{4})/);
-        if (yearMatch) {
-          return parseInt(yearMatch[1], 10);
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Infer media type from element content
-   */
-  private inferType(element: Element): 'movie' | 'tv' {
-    const text = element.textContent?.toLowerCase() || '';
-
-    // Look for TV indicators
-    if (
-      text.includes('tv series') ||
-      text.includes('tv mini series') ||
-      text.includes('episode') ||
-      text.includes('season')
-    ) {
-      return 'tv';
-    }
-
-    // Default to movie
-    return 'movie';
   }
 
   /**

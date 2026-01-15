@@ -458,6 +458,7 @@ const CollectionSettings = ({
           createPlaceholdersForMissing: config.createPlaceholdersForMissing,
           placeholderDaysAhead: config.placeholderDaysAhead,
           placeholderReleasedDays: config.placeholderReleasedDays,
+          includeAllReleasedItems: config.includeAllReleasedItems,
           tautulliStatType: config.tautulliStatType,
           minimumPlays: config.minimumPlays,
           searchMissingMovies: config.searchMissingMovies,
