@@ -1,3 +1,13 @@
+## [2.2.1](https://github.com/agregarr/agregarr/compare/v2.2.0...v2.2.1) (2026-01-15)
+
+
+### Bug Fixes
+
+* **imdb:** replace ExternalAPI with ImdbAxiosClient for improved list fetching ([4e4edb5](https://github.com/agregarr/agregarr/commit/4e4edb5f2a84a120b919822f1cb5953753042f50))
+* **placeholders:** add includeAllReleasedItems to sync and settings ([0783c06](https://github.com/agregarr/agregarr/commit/0783c0692ff731bc6ed5e0c7abdd75b606558f24))
+* **workflow:** improve release workflow with version check and discord notifications ([#369](https://github.com/agregarr/agregarr/issues/369)) ([1ed2520](https://github.com/agregarr/agregarr/commit/1ed2520587be713da2cc601f7345c47ce09335d2))
+* **workflows:** update version number in package.json before build and push ([2f0f6fa](https://github.com/agregarr/agregarr/commit/2f0f6fa4561202daad4f5b62dba8460e1f799289))
+
 # [2.2.0](https://github.com/agregarr/agregarr/compare/v2.1.0...v2.2.0) (2026-01-14)
 
 
