@@ -49,10 +49,17 @@ export function validateApiKeysForCollectionType(
 
   switch (collectionType) {
     case 'trakt':
-      // Recommendations subtype requires OAuth (access token), not just client ID
+      // Recommendations and Watchlist subtypes require OAuth (access token), not just client ID
       if (subtype === 'recommendations') {
         requirements.push({
           service: 'Trakt (OAuth required for Recommendations)',
+          required: true,
+          configured: !!settings.trakt?.accessToken,
+          settingsPath: '/settings/sources',
+        });
+      } else if (subtype === 'watchlist') {
+        requirements.push({
+          service: 'Trakt (OAuth required for Watchlist)',
           required: true,
           configured: !!settings.trakt?.accessToken,
           settingsPath: '/settings/sources',
