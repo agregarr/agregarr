@@ -178,6 +178,11 @@ const CollectionTypeSection = ({
               'Personalized Trakt recommendations (uses your library media type)',
           },
           {
+            value: 'watchlist',
+            label: 'Watchlist',
+            description: 'Your Trakt watchlist (requires OAuth)',
+          },
+          {
             value: 'played',
             label: 'Most Played',
             description: 'Most played content (supports time periods)',

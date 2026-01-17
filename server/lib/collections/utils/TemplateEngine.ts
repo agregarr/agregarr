@@ -651,6 +651,8 @@ export class TemplateEngine {
         return 'Box Office';
       case 'recommendations':
         return 'Recommendations';
+      case 'watchlist':
+        return 'Watchlist';
       case 'custom':
         return 'Custom List';
 
