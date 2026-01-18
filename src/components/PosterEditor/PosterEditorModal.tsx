@@ -134,6 +134,7 @@ export interface PreviewCollectionConfig {
   type?: string;
   mediaType?: 'movie' | 'tv';
   sourceName?: string;
+  posterUrls?: string[];
 }
 
 export interface PosterEditorModalProps {
@@ -246,6 +247,9 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
   const [internalPreviewConfig, setInternalPreviewConfig] = useState<
     PreviewCollectionConfig | undefined
   >(undefined);
+  const [selectedPreviewCollectionId, setSelectedPreviewCollectionId] =
+    useState<string>('');
+  const [previewPosterUrls, setPreviewPosterUrls] = useState<string[]>([]);
 
   // Use external config if provided, otherwise use internal state
   const rawPreviewCollectionConfig =
@@ -262,12 +266,11 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       sourceName:
         rawPreviewCollectionConfig.sourceName ||
         rawPreviewCollectionConfig.name,
+      posterUrls: previewPosterUrls,
     };
-  }, [rawPreviewCollectionConfig]);
+  }, [rawPreviewCollectionConfig, previewPosterUrls]);
   const setPreviewCollectionConfig =
     externalSetPreviewConfig || setInternalPreviewConfig;
-  const [selectedPreviewCollectionId, setSelectedPreviewCollectionId] =
-    useState<string>('');
 
   // Undo/Redo functions
   const canUndo = historyIndex > 0;
@@ -364,6 +367,40 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
     }[];
   }>(isOpen ? '/api/v1/collections' : null);
 
+  // Fetch pre-existing collections for preview
+  const { data: preExistingData } = useSWR<
+    {
+      id: string;
+      name: string;
+      mediaType?: 'movie' | 'tv';
+    }[]
+  >(isOpen ? '/api/v1/preexisting' : null);
+
+  // Combine both collection types for the dropdown
+  const allPreviewCollections = useMemo(() => {
+    const agregarrCollections = (collectionsData?.collectionConfigs || []).map(
+      (c) => ({
+        id: c.id || c.name,
+        name: c.name,
+        type: c.type || 'unknown',
+        subtype: c.subtype,
+        mediaType: c.mediaType || ('movie' as const),
+        source: 'agregarr' as const,
+      })
+    );
+
+    const preExisting = (preExistingData || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      type: 'plex',
+      subtype: undefined,
+      mediaType: c.mediaType || ('movie' as const),
+      source: 'preexisting' as const,
+    }));
+
+    return [...agregarrCollections, ...preExisting];
+  }, [collectionsData, preExistingData]);
+
   // Fetch source colors for background rendering
   const { data: sourceColorsData } = useSWR<{
     sourceColors: Record<
@@ -407,6 +444,43 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       setSelectedPreviewCollectionId('');
     }
   }, [previewCollectionConfig]);
+
+  // Fetch poster URLs when a collection is selected for preview
+  useEffect(() => {
+    if (!selectedPreviewCollectionId || !isOpen) {
+      setPreviewPosterUrls([]);
+      return;
+    }
+
+    // Find the selected collection to get its source type
+    const selected = allPreviewCollections.find(
+      (c) => c.id === selectedPreviewCollectionId
+    );
+    if (!selected) {
+      setPreviewPosterUrls([]);
+      return;
+    }
+
+    const fetchPosterUrls = async () => {
+      try {
+        const response = await fetch(
+          `/api/v1/posters/collection-posters/${encodeURIComponent(
+            selected.id
+          )}?source=${selected.source}&limit=12`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setPreviewPosterUrls(data.posterUrls || []);
+        } else {
+          setPreviewPosterUrls([]);
+        }
+      } catch (error) {
+        setPreviewPosterUrls([]);
+      }
+    };
+
+    fetchPosterUrls();
+  }, [selectedPreviewCollectionId, allPreviewCollections, isOpen]);
 
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
@@ -576,10 +650,8 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                         value={selectedPreviewCollectionId}
                         onChange={(e) => {
                           const selectedValue = e.target.value;
-                          const collectionConfigs =
-                            collectionsData?.collectionConfigs || [];
-                          const selected = collectionConfigs.find(
-                            (c) => (c.id || c.name) === selectedValue
+                          const selected = allPreviewCollections.find(
+                            (c) => c.id === selectedValue
                           );
                           if (selected && setPreviewCollectionConfig) {
                             const previewName =
@@ -591,9 +663,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                               type: selected.type,
                               mediaType: selected.mediaType || 'movie',
                             });
-                            setSelectedPreviewCollectionId(
-                              selected.id || selected.name
-                            );
+                            setSelectedPreviewCollectionId(selected.id);
                           } else if (
                             !selectedValue &&
                             setPreviewCollectionConfig
@@ -607,17 +677,15 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                         <option value="">
                           {intl.formatMessage(messages.selectCollection)}
                         </option>
-                        {(collectionsData?.collectionConfigs || []).map(
-                          (collection) => (
-                            <option
-                              key={collection.id || collection.name}
-                              value={collection.id || collection.name}
-                            >
-                              {buildPreviewCollectionName(collection)} (
-                              {collection.type || 'Unknown'})
-                            </option>
-                          )
-                        )}
+                        {allPreviewCollections.map((collection) => (
+                          <option key={collection.id} value={collection.id}>
+                            {buildPreviewCollectionName(collection)} (
+                            {collection.source === 'preexisting'
+                              ? 'Pre-existing'
+                              : collection.type || 'Unknown'}
+                            )
+                          </option>
+                        ))}
                       </select>
                       <p className="mt-1 text-xs text-stone-500">
                         {intl.formatMessage(messages.sampleCollectionHelp)}

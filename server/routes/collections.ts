@@ -230,8 +230,16 @@ export const posterUpload = multer({
  */
 collectionsRoutes.get('/', (_req, res) => {
   const settings = getSettings();
+  const configs = settings.plex.collectionConfigs || [];
+
+  logger.debug('Fetching collection configurations', {
+    label: 'Collections API',
+    count: configs.length,
+    collectionNames: configs.map((c) => c.name).slice(0, 10),
+  });
+
   return res.status(200).json({
-    collectionConfigs: settings.plex.collectionConfigs || [],
+    collectionConfigs: configs,
   });
 });
 

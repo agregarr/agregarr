@@ -12957,6 +12957,61 @@ paths:
         '500':
           description: Failed to serve icon file
 
+  /posters/collection-posters/{id}:
+    get:
+      summary: Get TMDB poster URLs for collection items
+      description: Fetches fresh TMDB poster URLs for items in an existing Plex collection. Used by the poster editor to display real posters in the content grid preview.
+      tags:
+        - poster-editor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID (Agregarr collection ID or pre-existing collection ID)
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [agregarr, preexisting]
+            default: agregarr
+          description: Source type of the collection
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 12
+          description: Maximum number of poster URLs to return
+      responses:
+        '200':
+          description: Poster URLs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posterUrls:
+                    type: array
+                    items:
+                      type: string
+                    description: Array of TMDB poster URLs
+                    example:
+                      - 'https://image.tmdb.org/t/p/w300_and_h450_face/poster1.jpg'
+                      - 'https://image.tmdb.org/t/p/w300_and_h450_face/poster2.jpg'
+                  totalItems:
+                    type: integer
+                    description: Total number of items in the collection
+                    example: 25
+        '400':
+          description: Collection ID required or Plex not configured
+        '404':
+          description: Collection not found or not synced to Plex yet
+        '500':
+          description: Failed to fetch collection item posters
+
   /source-colors:
     get:
       summary: Get all source colors

@@ -1263,4 +1263,151 @@ router.get('/source-colors', async (_req, res, next) => {
   }
 });
 
+// GET /api/v1/posters/collection-posters/:id - Get TMDB poster URLs for items in an existing collection
+router.get('/collection-posters/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { source, limit } = req.query;
+
+    if (!id) {
+      return res.status(400).json({
+        error: 'Collection ID is required',
+      });
+    }
+
+    // Dynamic imports to avoid circular dependencies
+    const PlexAPI = (await import('@server/api/plexapi')).default;
+    const TheMovieDb = (await import('@server/api/themoviedb')).default;
+    const { getRepository } = await import('@server/datasource');
+    const { User } = await import('@server/entity/User');
+    const { getSettings, getTmdbLanguage } = await import(
+      '@server/lib/settings'
+    );
+    const { preExistingCollectionConfigService } = await import(
+      '@server/lib/collections/services/PreExistingCollectionConfigService'
+    );
+
+    // Get Plex client
+    const userRepository = getRepository(User);
+    const admin = await userRepository.findOne({
+      select: { id: true, plexToken: true },
+      where: { id: 1 },
+    });
+
+    if (!admin || !admin.plexToken) {
+      return res.status(400).json({
+        error: 'Plex authentication not configured',
+      });
+    }
+
+    const plexClient = new PlexAPI({ plexToken: admin.plexToken });
+    let collectionRatingKey: string | undefined;
+    let libraryId: string | undefined;
+
+    // Find the collection's Plex ratingKey based on source type
+    if (source === 'preexisting') {
+      const preExistingConfigs =
+        preExistingCollectionConfigService.getConfigs();
+      const config = preExistingConfigs.find((c) => c.id === id);
+      if (config) {
+        collectionRatingKey = config.collectionRatingKey;
+        libraryId = config.libraryId;
+      }
+    } else {
+      // Agregarr collection - lookup by ID in settings
+      const settings = getSettings();
+      const collectionConfig = settings.plex.collectionConfigs?.find(
+        (c) => c.id === id
+      );
+      if (collectionConfig?.collectionRatingKey) {
+        collectionRatingKey = collectionConfig.collectionRatingKey;
+        libraryId = collectionConfig.libraryId;
+      }
+    }
+
+    if (!collectionRatingKey) {
+      return res.status(404).json({
+        error: 'Collection not found or not synced to Plex yet',
+      });
+    }
+
+    // Fetch collection items from Plex
+    const items = await plexClient.getCollectionItemsWithMetadata(
+      collectionRatingKey
+    );
+
+    // Limit items if specified
+    const maxItems = limit ? parseInt(limit as string, 10) : 12;
+    const limitedItems = items.slice(0, maxItems);
+
+    // Extract tmdbIds from Guid array
+    const extractTmdbId = (
+      guids: { id: string }[] | undefined
+    ): number | null => {
+      if (!guids || guids.length === 0) return null;
+      const tmdbGuid = guids.find((guid) => guid.id.startsWith('tmdb://'));
+      if (tmdbGuid) {
+        const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
+        return match ? parseInt(match[1], 10) : null;
+      }
+      return null;
+    };
+
+    // Get TMDB language for poster fetching
+    const language = await getTmdbLanguage(libraryId);
+    const tmdb = new TheMovieDb({ originalLanguage: language });
+
+    // Fetch TMDB posters for each item
+    const posterPromises = limitedItems.map(async (item) => {
+      const tmdbId = extractTmdbId(item.Guid);
+      if (!tmdbId) return null;
+
+      try {
+        const mediaType = item.type === 'movie' ? 'movie' : 'tv';
+
+        if (mediaType === 'movie') {
+          const movie = await tmdb.getMovie({ movieId: tmdbId });
+          if (movie.poster_path) {
+            // Try to get language-specific poster
+            const images = await tmdb.getMovieImages({ movieId: tmdbId });
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
+            const posterPath = poster?.file_path || movie.poster_path;
+            return `https://image.tmdb.org/t/p/w300_and_h450_face${posterPath}`;
+          }
+        } else {
+          const show = await tmdb.getTvShow({ tvId: tmdbId });
+          if (show.poster_path) {
+            // Try to get language-specific poster
+            const images = await tmdb.getTvShowImages({ tvId: tmdbId });
+            const poster = images.posters.find((p) => p.iso_639_1 === language);
+            const posterPath = poster?.file_path || show.poster_path;
+            return `https://image.tmdb.org/t/p/w300_and_h450_face${posterPath}`;
+          }
+        }
+      } catch (error) {
+        logger.debug(`Failed to fetch TMDB poster for tmdbId ${tmdbId}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return null;
+    });
+
+    const posterResults = await Promise.all(posterPromises);
+    const posterUrls = posterResults.filter(
+      (url): url is string => url !== null
+    );
+
+    return res.status(200).json({
+      posterUrls,
+      totalItems: items.length,
+    });
+  } catch (error) {
+    logger.error('Failed to fetch collection item posters:', error);
+    return next({
+      status: 500,
+      message: 'Failed to fetch collection item posters',
+    });
+  }
+});
+
 export default router;

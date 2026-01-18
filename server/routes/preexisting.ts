@@ -12,6 +12,13 @@ const preExistingRoutes = Router();
 preExistingRoutes.get('/', isAuthenticated(), async (req, res) => {
   try {
     const configs = preExistingCollectionConfigService.getConfigs();
+
+    logger.debug('Fetching pre-existing collection configurations', {
+      label: 'Pre-existing Collections API',
+      count: configs.length,
+      collectionNames: configs.map((c) => c.name).slice(0, 10),
+    });
+
     res.status(200).json(configs);
   } catch (error) {
     logger.error('Failed to get pre-existing collection configurations', {
