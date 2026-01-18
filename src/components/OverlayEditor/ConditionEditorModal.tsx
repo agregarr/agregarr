@@ -1,4 +1,4 @@
-import Modal from '@app/components/Common/Modal';
+import Button from '@app/components/Common/Button';
 import type { DragEndEvent } from '@dnd-kit/core';
 import {
   closestCenter,
@@ -16,6 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Dialog } from '@headlessui/react';
 import { Bars3Icon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import type {
   ApplicationCondition,
@@ -712,25 +713,45 @@ export const ConditionEditorModal: React.FC<ConditionEditorModalProps> = ({
   };
 
   return (
-    <Modal
-      title={intl.formatMessage(messages.title)}
-      onCancel={handleCancel}
-      onOk={handleSave}
-      okText={intl.formatMessage(messages.save)}
-      cancelText={intl.formatMessage(messages.cancel)}
-      backgroundClickable={false}
-      customMaxWidth="sm:max-w-4xl"
-    >
-      <div className="space-y-4">
-        <p className="text-sm text-stone-400">
-          {intl.formatMessage(messages.description)}
-        </p>
+    <Dialog open={isOpen} onClose={handleCancel} className="relative z-[60]">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/75" aria-hidden="true" />
 
-        <div className="max-h-[600px] overflow-y-auto rounded border border-stone-700 bg-stone-900 p-4">
-          <ConditionBuilder condition={condition} onChange={setCondition} />
-        </div>
+      {/* Full-screen container for centering */}
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="w-full max-w-4xl rounded-lg bg-stone-800 p-4 shadow-xl ring-1 ring-gray-700">
+          {/* Header */}
+          <Dialog.Title className="text-agregarr mb-4 text-2xl font-bold">
+            {intl.formatMessage(messages.title)}
+          </Dialog.Title>
+
+          {/* Content */}
+          <div className="space-y-4">
+            <p className="text-sm text-stone-400">
+              {intl.formatMessage(messages.description)}
+            </p>
+
+            <div className="max-h-[600px] overflow-y-auto rounded border border-stone-700 bg-stone-900 p-4">
+              <ConditionBuilder condition={condition} onChange={setCondition} />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-5 flex flex-row-reverse sm:mt-4">
+            <Button buttonType="primary" onClick={handleSave}>
+              {intl.formatMessage(messages.save)}
+            </Button>
+            <Button
+              buttonType="default"
+              onClick={handleCancel}
+              className="mr-3"
+            >
+              {intl.formatMessage(messages.cancel)}
+            </Button>
+          </div>
+        </Dialog.Panel>
       </div>
-    </Modal>
+    </Dialog>
   );
 };
 

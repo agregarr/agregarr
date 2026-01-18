@@ -529,68 +529,70 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
               </Transition.Child>
             </div>
           </div>
+
+          {/* Nested modals - INSIDE Dialog for StackProvider/FocusTrap access */}
+          {isPreviewSelectorOpen && (
+            <Modal
+              title={intl.formatMessage(messages.selectOverlaysForPreview)}
+              onCancel={() => setIsPreviewSelectorOpen(false)}
+              onOk={() => setIsPreviewSelectorOpen(false)}
+              okText="Done"
+              loading={false}
+              backgroundClickable={false}
+            >
+              <div className="max-h-96 overflow-y-auto">
+                {availableTemplates.length === 0 ? (
+                  <p className="text-center text-stone-400">
+                    {intl.formatMessage(messages.noOtherOverlays)}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {availableTemplates.map((template) => (
+                      <label
+                        key={template.id}
+                        className="flex cursor-pointer items-center space-x-3 rounded-md p-2 hover:bg-stone-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedPreviewIds.includes(template.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPreviewIds([
+                                ...selectedPreviewIds,
+                                template.id,
+                              ]);
+                            } else {
+                              setSelectedPreviewIds(
+                                selectedPreviewIds.filter(
+                                  (id) => id !== template.id
+                                )
+                              );
+                            }
+                          }}
+                          className="rounded border-stone-600 bg-stone-700 text-orange-600 focus:ring-orange-500"
+                        />
+                        <span className="text-sm text-white">
+                          {template.name}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Modal>
+          )}
+
+          {/* Condition Editor Modal */}
+          {isConditionEditorOpen && (
+            <ConditionEditorModal
+              isOpen={isConditionEditorOpen}
+              onClose={() => setIsConditionEditorOpen(false)}
+              initialCondition={condition}
+              onSave={setCondition}
+            />
+          )}
         </Dialog>
       </Transition>
-
-      {/* Preview Overlay Selection Modal - outside Transition to avoid Fragment prop issues */}
-      {isPreviewSelectorOpen && (
-        <Modal
-          title={intl.formatMessage(messages.selectOverlaysForPreview)}
-          onCancel={() => setIsPreviewSelectorOpen(false)}
-          onOk={() => setIsPreviewSelectorOpen(false)}
-          okText="Done"
-          loading={false}
-          backgroundClickable={false}
-        >
-          <div className="max-h-96 overflow-y-auto">
-            {availableTemplates.length === 0 ? (
-              <p className="text-center text-stone-400">
-                {intl.formatMessage(messages.noOtherOverlays)}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {availableTemplates.map((template) => (
-                  <label
-                    key={template.id}
-                    className="flex cursor-pointer items-center space-x-3 rounded-md p-2 hover:bg-stone-700"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedPreviewIds.includes(template.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedPreviewIds([
-                            ...selectedPreviewIds,
-                            template.id,
-                          ]);
-                        } else {
-                          setSelectedPreviewIds(
-                            selectedPreviewIds.filter(
-                              (id) => id !== template.id
-                            )
-                          );
-                        }
-                      }}
-                      className="rounded border-stone-600 bg-stone-700 text-orange-600 focus:ring-orange-500"
-                    />
-                    <span className="text-sm text-white">{template.name}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-
-      {/* Condition Editor Modal */}
-      {isConditionEditorOpen && (
-        <ConditionEditorModal
-          isOpen={isConditionEditorOpen}
-          onClose={() => setIsConditionEditorOpen(false)}
-          initialCondition={condition}
-          onSave={setCondition}
-        />
-      )}
     </>
   );
 };
