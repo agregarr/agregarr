@@ -89,7 +89,7 @@ const SidebarLinks: SidebarLinkProps[] = [
     href: '/posters',
     messagesKey: 'posters',
     svgIcon: <PhotoIcon className="mr-3 h-6 w-6" />,
-    activeRegExp: /^\/posters$/,
+    activeRegExp: /^\/posters/,
     dataTestId: 'sidebar-menu-posters',
   },
   {

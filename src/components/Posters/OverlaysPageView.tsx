@@ -2,7 +2,6 @@ import Spinner from '@app/assets/spinner.svg';
 import Button from '@app/components/Common/Button';
 import LoadingSpinner from '@app/components/Common/LoadingSpinner';
 import { OverlayEditorModal } from '@app/components/OverlayEditor';
-import { Tab } from '@headlessui/react';
 import {
   ArrowUpTrayIcon,
   BeakerIcon,
@@ -17,7 +16,8 @@ import type {
   OverlayTemplateType,
 } from '@server/entity/OverlayTemplate';
 import axios from 'axios';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
+import { useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
@@ -61,10 +61,17 @@ interface OverlayTemplate {
   updatedAt: string;
 }
 
-const OverlaysView: React.FC = () => {
+type TabKey = 'templates' | 'libraries';
+
+const OverlaysPageView: React.FC = () => {
   const intl = useIntl();
+  const router = useRouter();
   const { addToast } = useToasts();
-  const [selectedTab, setSelectedTab] = useState(0);
+
+  // Get active tab from query param, default to 'templates'
+  const activeTab = (router.query.tab as TabKey) || 'templates';
+  const isLibrariesTab = activeTab === 'libraries';
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
@@ -72,18 +79,24 @@ const OverlaysView: React.FC = () => {
   const fullSyncConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleTabChange = (tab: TabKey) => {
+    router.push({ pathname: router.pathname, query: { tab } }, undefined, {
+      shallow: true,
+    });
+  };
+
   // Poll jobs to check if overlay-application is running
   const { data: jobsData } = useSWR<{ id: string; running: boolean }[]>(
-    selectedTab === 1 ? '/api/v1/settings/jobs' : null,
+    isLibrariesTab ? '/api/v1/settings/jobs' : null,
     {
-      refreshInterval: 3000, // Poll every 3 seconds when on Library Configuration tab
+      refreshInterval: 3000,
     }
   );
 
   // Poll for running library overlays
   const { data: runningLibrariesData } = useSWR<{
     runningLibraries: { libraryId: string; libraryName: string }[];
-  }>(selectedTab === 1 ? '/api/v1/overlay-library-configs/status/all' : null, {
+  }>(isLibrariesTab ? '/api/v1/overlay-library-configs/status/all' : null, {
     refreshInterval: 3000,
   });
 
@@ -119,13 +132,13 @@ const OverlaysView: React.FC = () => {
   // Show setup modal when navigating to Library Configuration tab if setup not complete
   useEffect(() => {
     if (
-      selectedTab === 1 &&
+      isLibrariesTab &&
       overlaySettings &&
       !overlaySettings.initialSetupComplete
     ) {
       setIsSetupModalOpen(true);
     }
-  }, [selectedTab, overlaySettings]);
+  }, [isLibrariesTab, overlaySettings]);
 
   const handleSetupComplete = () => {
     setIsSetupModalOpen(false);
@@ -264,18 +277,29 @@ const OverlaysView: React.FC = () => {
     }
   };
 
-  const tabs = [
+  const tabs: {
+    key: TabKey;
+    name: string;
+    count?: number;
+    description: string;
+    icon?: React.ReactNode;
+  }[] = [
     {
+      key: 'templates',
       name: intl.formatMessage(messages.templatesTab),
       count: templates.length,
       description: intl.formatMessage(messages.templatesDescription),
     },
     {
+      key: 'libraries',
       name: intl.formatMessage(messages.librariesTab),
       count: undefined,
       description: intl.formatMessage(messages.librariesDescription),
+      icon: <Cog6ToothIcon className="h-4 w-4" />,
     },
   ];
+
+  const currentTabData = tabs.find((t) => t.key === activeTab) || tabs[0];
 
   if (templatesError) {
     return (
@@ -297,130 +321,128 @@ const OverlaysView: React.FC = () => {
         </p>
       </div>
 
-      <Tab.Group selectedIndex={selectedTab} onChange={setSelectedTab}>
-        <div className="flex items-center justify-between">
-          <Tab.List className="flex space-x-1 rounded-xl bg-stone-900/20 p-1">
-            {tabs.map((tab) => (
-              <Tab as={Fragment} key={tab.name}>
-                {({ selected }) => (
-                  <button
-                    className={`rounded-lg px-4 py-2.5 text-sm font-medium leading-5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-75 ${
-                      selected
-                        ? 'bg-white text-orange-700 shadow'
-                        : 'text-stone-100 hover:bg-white/10 hover:text-white'
+      <div className="flex items-center justify-between">
+        <div className="flex space-x-1 rounded-xl bg-stone-900/20 p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => handleTabChange(tab.key)}
+              className={`rounded-lg px-4 py-2.5 text-sm font-medium leading-5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-opacity-75 ${
+                activeTab === tab.key
+                  ? 'border border-orange-500 bg-orange-500 bg-opacity-80 text-white shadow'
+                  : 'border border-stone-600 text-stone-100 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <span className="flex items-center">
+                {tab.icon && <span className="mr-2">{tab.icon}</span>}
+                <span>{tab.name}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span
+                    className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-bold leading-none ${
+                      activeTab === tab.key
+                        ? 'bg-orange-100 text-orange-800'
+                        : 'bg-stone-700 text-stone-200'
                     }`}
                   >
-                    {tab.name}
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span
-                        className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-bold leading-none ${
-                          selected
-                            ? 'bg-orange-100 text-orange-800'
-                            : 'bg-stone-700 text-stone-200'
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
+                    {tab.count}
+                  </span>
                 )}
-              </Tab>
-            ))}
-          </Tab.List>
-
-          {selectedTab === 0 && (
-            <div className="flex items-center space-x-2">
-              <Button
-                buttonType="ghost"
-                onClick={() => setIsTestModalOpen(true)}
-                className="flex items-center space-x-2"
-              >
-                <BeakerIcon className="h-4 w-4" />
-                <span>{intl.formatMessage(messages.testItem)}</span>
-              </Button>
-              <Button
-                buttonType="ghost"
-                onClick={handleImportTemplate}
-                className="flex items-center space-x-2"
-              >
-                <ArrowUpTrayIcon className="h-4 w-4" />
-                <span>{intl.formatMessage(messages.importTemplate)}</span>
-              </Button>
-              <Button
-                buttonType="primary"
-                onClick={handleCreateTemplate}
-                className="flex items-center space-x-2"
-              >
-                <PlusIcon className="h-4 w-4" />
-                <span>{intl.formatMessage(messages.createTemplate)}</span>
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-          )}
-
-          {selectedTab === 1 && (
-            <div className="flex items-center space-x-2">
-              <Button
-                buttonType="ghost"
-                onClick={() => setIsSetupModalOpen(true)}
-                className="flex items-center space-x-2"
-              >
-                <Cog6ToothIcon className="h-5 w-5" />
-                <span>{intl.formatMessage(messages.overlaySettings)}</span>
-              </Button>
-              <Button
-                buttonType={fullSyncConfirmClicked ? 'warning' : 'primary'}
-                onClick={handleFullOverlaysSync}
-                disabled={isOverlaySyncRunning}
-                className="flex items-center space-x-2"
-              >
-                {isOverlaySyncRunning ? (
-                  <Spinner className="h-4 w-4" />
-                ) : fullSyncConfirmClicked ? (
-                  <ExclamationTriangleIcon className="h-4 w-4" />
-                ) : (
-                  <PlayIcon className="h-4 w-4" />
-                )}
-                <span>
-                  {fullSyncConfirmClicked
-                    ? intl.formatMessage(messages.fullOverlaysSyncConfirm)
-                    : intl.formatMessage(messages.fullOverlaysSync)}
-                </span>
-              </Button>
-            </div>
-          )}
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* Tab description */}
-        <div className="mt-2 text-sm text-stone-400">
-          {tabs[selectedTab].description}
-        </div>
+        {activeTab === 'templates' && (
+          <div className="flex items-center space-x-2">
+            <Button
+              buttonType="ghost"
+              onClick={() => setIsTestModalOpen(true)}
+              className="flex items-center space-x-2"
+            >
+              <BeakerIcon className="h-4 w-4" />
+              <span>{intl.formatMessage(messages.testItem)}</span>
+            </Button>
+            <Button
+              buttonType="ghost"
+              onClick={handleImportTemplate}
+              className="flex items-center space-x-2"
+            >
+              <ArrowUpTrayIcon className="h-4 w-4" />
+              <span>{intl.formatMessage(messages.importTemplate)}</span>
+            </Button>
+            <Button
+              buttonType="primary"
+              onClick={handleCreateTemplate}
+              className="flex items-center space-x-2"
+            >
+              <PlusIcon className="h-4 w-4" />
+              <span>{intl.formatMessage(messages.createTemplate)}</span>
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        )}
 
-        <Tab.Panels>
-          <Tab.Panel className="focus:outline-none">
-            {!templatesData ? (
-              <div className="flex h-96 items-center justify-center">
-                <LoadingSpinner />
-              </div>
-            ) : (
-              <OverlayTemplateGrid
-                templates={templates}
-                onTemplateUpdate={mutateTemplates}
-              />
-            )}
-          </Tab.Panel>
+        {activeTab === 'libraries' && (
+          <div className="flex items-center space-x-2">
+            <Button
+              buttonType="ghost"
+              onClick={() => setIsSetupModalOpen(true)}
+              className="flex items-center space-x-2"
+            >
+              <Cog6ToothIcon className="h-5 w-5" />
+              <span>{intl.formatMessage(messages.overlaySettings)}</span>
+            </Button>
+            <Button
+              buttonType={fullSyncConfirmClicked ? 'warning' : 'primary'}
+              onClick={handleFullOverlaysSync}
+              disabled={isOverlaySyncRunning}
+              className="flex items-center space-x-2"
+            >
+              {isOverlaySyncRunning ? (
+                <Spinner className="h-4 w-4" />
+              ) : fullSyncConfirmClicked ? (
+                <ExclamationTriangleIcon className="h-4 w-4" />
+              ) : (
+                <PlayIcon className="h-4 w-4" />
+              )}
+              <span>
+                {fullSyncConfirmClicked
+                  ? intl.formatMessage(messages.fullOverlaysSyncConfirm)
+                  : intl.formatMessage(messages.fullOverlaysSync)}
+              </span>
+            </Button>
+          </div>
+        )}
+      </div>
 
-          <Tab.Panel className="focus:outline-none">
-            <LibraryConfigView />
-          </Tab.Panel>
-        </Tab.Panels>
-      </Tab.Group>
+      {/* Tab description */}
+      <div className="mt-2 text-sm text-stone-400">
+        {currentTabData.description}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'templates' && (
+        <>
+          {!templatesData ? (
+            <div className="flex h-96 items-center justify-center">
+              <LoadingSpinner />
+            </div>
+          ) : (
+            <OverlayTemplateGrid
+              templates={templates}
+              onTemplateUpdate={mutateTemplates}
+            />
+          )}
+        </>
+      )}
+
+      {activeTab === 'libraries' && <LibraryConfigView />}
 
       <OverlayEditorModal
         isOpen={isModalOpen}
@@ -445,4 +467,4 @@ const OverlaysView: React.FC = () => {
   );
 };
 
-export default OverlaysView;
+export default OverlaysPageView;
