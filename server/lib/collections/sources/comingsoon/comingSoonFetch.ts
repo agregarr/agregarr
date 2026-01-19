@@ -734,11 +734,19 @@ export async function fetchTmdbComingSoonMovies(
           const inCinemas = extracted.inCinemas;
           let earliestReleaseDate = extracted.earliestReleaseDate || null;
 
-          // Determine release date using priority: Digital > Physical > Theatrical (+3 months)
+          // Determine release date: earliest of (Digital, Physical) > Theatrical (+3 months)
           let releaseDate: string | undefined;
           let isEstimatedDate = false;
 
-          if (digitalRelease) {
+          if (digitalRelease && physicalRelease) {
+            // Both exist - use earliest
+            const digitalDate = new Date(digitalRelease);
+            const physicalDate = new Date(physicalRelease);
+            releaseDate =
+              digitalDate < physicalDate
+                ? digitalRelease.split('T')[0]
+                : physicalRelease.split('T')[0];
+          } else if (digitalRelease) {
             releaseDate = digitalRelease.split('T')[0];
           } else if (physicalRelease) {
             releaseDate = physicalRelease.split('T')[0];
@@ -1132,7 +1140,7 @@ export async function enrichWithTMDBReleaseDates(
           const inCinemas =
             extracted.inCinemas || movieDetails.release_date || undefined;
 
-          // Use shared priority logic: Digital > Physical > Theatrical (+90 days)
+          // Use shared priority logic: earliest of (Digital, Physical) > Theatrical (+90 days)
           const releaseDateResult = determineReleaseDate(
             extracted.digitalRelease,
             extracted.physicalRelease,
