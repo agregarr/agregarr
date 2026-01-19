@@ -1220,7 +1220,7 @@ export class MultiSourceOrchestrator {
    *
    * Note: This uses releaseDateSortValue from the item's metadata which is
    * set by the Coming Soon collection sync based on the same priority logic
-   * as banner display (Digital > Physical > Theatrical > Generic)
+   * as banner display (earliest of Digital/Physical > Theatrical > Generic)
    *
    * Note: 360-day filtering is already applied by the Coming Soon source's applyCommonFiltering
    */

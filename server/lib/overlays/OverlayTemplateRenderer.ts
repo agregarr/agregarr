@@ -371,7 +371,7 @@ export interface OverlayRenderContext {
 
   // Status fields (for Coming Soon / New Release)
   // PRIMARY RELEASE DATE - Smart calculated field
-  // MOVIES: Digital > Physical > Theatrical (+90 days estimate)
+  // MOVIES: Earliest of Digital/Physical > Theatrical (+90 days estimate)
   // TV SHOWS: Series premiere date (NOT next episode!)
   releaseDate?: string;
   daysUntilRelease?: number; // Days until releaseDate

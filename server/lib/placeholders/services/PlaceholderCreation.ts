@@ -80,9 +80,8 @@ export async function processPlaceholdersForMissingItems(
 
     if (item.mediaType === 'movie') {
       // Use the shared determineReleaseDate function which handles:
-      // Priority 1: Digital release
-      // Priority 2: Physical release
-      // Priority 3: Theatrical + 90 days estimate
+      // Priority 1: Earliest of Digital or Physical release
+      // Priority 2: Theatrical + 90 days estimate
       const result = determineReleaseDate(
         item.digitalRelease,
         item.physicalRelease,
