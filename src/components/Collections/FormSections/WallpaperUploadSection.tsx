@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
-  uploading: 'Uploading wallpaper...',
+  uploadingWallpaper: 'Uploading wallpaper...',
   wallpaperUploadHelpMulti:
     'Upload custom wallpaper images for each selected library. Wallpapers will be applied to Plex collections during the next sync.',
   wallpaperRemoveConfirm: 'Wallpaper will be removed on next collection sync',
@@ -15,7 +15,8 @@ const messages = defineMessages({
   wallpaperUploadErrorType: 'Only JPEG, PNG, and WebP files are allowed',
   wallpaperUploadErrorGeneric: 'Upload failed',
   wallpaperUploadErrorNetwork: 'Network error occurred',
-  selectLibrariesFirst: 'Select libraries first to upload custom wallpapers.',
+  selectLibrariesForWallpapers:
+    'Select libraries first to upload custom wallpapers.',
 });
 
 interface Library {
@@ -177,7 +178,7 @@ const WallpaperUploadSection = ({
   if (selectedLibraryIds.length === 0) {
     return (
       <div className="label-tip">
-        {intl.formatMessage(messages.selectLibrariesFirst)}
+        {intl.formatMessage(messages.selectLibrariesForWallpapers)}
       </div>
     );
   }
@@ -246,7 +247,7 @@ const WallpaperUploadSection = ({
                   >
                     {isUploading ? (
                       <span className="text-xs text-gray-400">
-                        {intl.formatMessage(messages.uploading)}
+                        {intl.formatMessage(messages.uploadingWallpaper)}
                       </span>
                     ) : (
                       <PlusIcon className="h-6 w-6 text-gray-400" />

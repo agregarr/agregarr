@@ -60,7 +60,7 @@ const messages = defineMessages({
   refreshing: 'Refreshing...',
   syncStatus: 'Sync Status',
   syncing: 'Syncing...',
-  failedToLoad: 'Failed to load missing items',
+  failedToLoadMissingItems: 'Failed to load missing items',
   requestedBy: 'by {name}',
 });
 
@@ -443,7 +443,7 @@ const MissingItemsModal: React.FC<MissingItemsModalProps> = ({
             {error ? (
               <div className="py-8 text-center">
                 <p className="mb-2 text-red-400">
-                  {intl.formatMessage(messages.failedToLoad)}
+                  {intl.formatMessage(messages.failedToLoadMissingItems)}
                 </p>
                 <p className="text-sm text-gray-400">{error.message}</p>
               </div>

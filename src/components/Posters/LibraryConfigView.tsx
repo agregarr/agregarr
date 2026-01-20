@@ -25,7 +25,7 @@ const messages = defineMessages({
   cyclePoster: 'Cycle Poster',
   syncOverlays: 'Sync',
   syncOverlaysConfirm: 'Confirm?',
-  overlaySyncStarted: 'Overlay sync started for {libraryName}',
+  librarySyncStarted: 'Overlay sync started for {libraryName}',
   overlaySyncError: 'Failed to start overlay sync',
   failedToLoad: 'Failed to load libraries',
   noOverlays: 'No overlays configured',
@@ -270,7 +270,7 @@ const LibraryConfigView: React.FC = () => {
     try {
       await axios.post(`/api/v1/overlay-library-configs/${libraryId}/apply`);
       addToast(
-        intl.formatMessage(messages.overlaySyncStarted, { libraryName }),
+        intl.formatMessage(messages.librarySyncStarted, { libraryName }),
         {
           appearance: 'success',
           autoDismiss: true,

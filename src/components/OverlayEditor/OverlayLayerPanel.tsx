@@ -106,12 +106,12 @@ const messages = defineMessages({
   opEquals: 'equals',
   opNotEquals: 'not equals',
   opGreaterThan: 'greater than',
-  opGreaterOrEqual: 'at least',
+  opGreaterOrEqualDisplay: 'at least',
   opLessThan: 'less than',
-  opLessOrEqual: 'at most',
+  opLessOrEqualDisplay: 'at most',
   opContains: 'contains',
   opNotContains: 'does not contain',
-  opRegex: 'matches regex',
+  opRegexDisplay: 'matches regex',
   opBegins: 'begins with',
   opEnds: 'ends with',
   locked: 'Locked',
@@ -375,6 +375,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
       ...AVAILABLE_VARIABLES.metadata,
       ...AVAILABLE_VARIABLES.video,
       ...AVAILABLE_VARIABLES.audio,
+      ...AVAILABLE_VARIABLES.language,
       ...AVAILABLE_VARIABLES.file,
       ...AVAILABLE_VARIABLES.playback,
       ...AVAILABLE_VARIABLES['coming-soon'],
@@ -1124,6 +1125,13 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                       </optgroup>
                       <optgroup label="Audio">
                         {AVAILABLE_VARIABLES.audio.map((v) => (
+                          <option key={v.field} value={v.field}>
+                            {v.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Language">
+                        {AVAILABLE_VARIABLES.language.map((v) => (
                           <option key={v.field} value={v.field}>
                             {v.label}
                           </option>

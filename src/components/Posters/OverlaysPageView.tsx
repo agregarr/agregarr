@@ -27,23 +27,23 @@ import PosterSourceSetupModal from './PosterSourceSetupModal';
 import TestItemModal from './TestItemModal';
 
 const messages = defineMessages({
-  title: 'Overlay System',
-  description:
+  overlaySystemTitle: 'Overlay System',
+  overlaySystemDescription:
     'Create overlay templates and apply them to your Plex library posters',
   templatesTab: 'Overlay Templates',
   librariesTab: 'Library Configuration',
-  createTemplate: 'Create Overlay Template',
+  createOverlayTemplate: 'Create Overlay Template',
   importTemplate: 'Import Template',
-  importSuccess: 'Overlay template imported successfully',
-  importError: 'Failed to import overlay template',
-  error: 'Failed to load overlay data',
-  templatesDescription:
+  overlayImportSuccess: 'Overlay template imported successfully',
+  overlayImportError: 'Failed to import overlay template',
+  overlayLoadError: 'Failed to load overlay data',
+  overlayTemplatesDescription:
     'Design reusable overlay templates for ratings, metadata, and more',
   librariesDescription: 'Configure which overlays are applied to each library',
   overlaySettings: 'Posters Source',
   fullOverlaysSync: 'Full Overlays Sync',
   fullOverlaysSyncConfirm: 'Confirm Full Sync?',
-  overlaySyncStarted: 'Full overlay sync started',
+  fullOverlaySyncStarted: 'Full overlay sync started',
   overlaySyncQueued:
     'Per-library syncs are running. Full sync will start when they complete.',
   overlaySyncError: 'Failed to start overlay sync',
@@ -180,7 +180,7 @@ const OverlaysPageView: React.FC = () => {
       }
 
       mutateTemplates();
-      addToast(intl.formatMessage(messages.importSuccess), {
+      addToast(intl.formatMessage(messages.overlayImportSuccess), {
         appearance: 'success',
         autoDismiss: true,
       });
@@ -188,7 +188,7 @@ const OverlaysPageView: React.FC = () => {
       addToast(
         error instanceof Error
           ? error.message
-          : intl.formatMessage(messages.importError),
+          : intl.formatMessage(messages.overlayImportError),
         {
           appearance: 'error',
           autoDismiss: true,
@@ -264,7 +264,7 @@ const OverlaysPageView: React.FC = () => {
 
       // Show different message if queued vs started immediately
       if (!hasRunningLibraries) {
-        addToast(intl.formatMessage(messages.overlaySyncStarted), {
+        addToast(intl.formatMessage(messages.fullOverlaySyncStarted), {
           appearance: 'success',
           autoDismiss: true,
         });
@@ -288,7 +288,7 @@ const OverlaysPageView: React.FC = () => {
       key: 'templates',
       name: intl.formatMessage(messages.templatesTab),
       count: templates.length,
-      description: intl.formatMessage(messages.templatesDescription),
+      description: intl.formatMessage(messages.overlayTemplatesDescription),
     },
     {
       key: 'libraries',
@@ -304,7 +304,9 @@ const OverlaysPageView: React.FC = () => {
   if (templatesError) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="text-red-400">{intl.formatMessage(messages.error)}</div>
+        <div className="text-red-400">
+          {intl.formatMessage(messages.overlayLoadError)}
+        </div>
       </div>
     );
   }
@@ -314,10 +316,10 @@ const OverlaysPageView: React.FC = () => {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-white">
-          {intl.formatMessage(messages.title)}
+          {intl.formatMessage(messages.overlaySystemTitle)}
         </h2>
         <p className="mt-1 text-sm text-stone-400">
-          {intl.formatMessage(messages.description)}
+          {intl.formatMessage(messages.overlaySystemDescription)}
         </p>
       </div>
 
@@ -376,7 +378,7 @@ const OverlaysPageView: React.FC = () => {
               className="flex items-center space-x-2"
             >
               <PlusIcon className="h-4 w-4" />
-              <span>{intl.formatMessage(messages.createTemplate)}</span>
+              <span>{intl.formatMessage(messages.createOverlayTemplate)}</span>
             </Button>
             <input
               ref={fileInputRef}

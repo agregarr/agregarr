@@ -377,6 +377,17 @@ export interface OverlayRenderContext {
   audioChannelLayout?: string; // '5.1', '7.1', 'atmos'
   audioFormat?: string; // Full display title (e.g., 'English (Dolby TrueHD Atmos 7.1)')
 
+  // Audio language info
+  audioLanguage?: string; // Primary audio track language name (e.g., 'English', 'German')
+  audioLanguageCode?: string; // Primary audio track language code (e.g., 'en', 'de')
+  audioLanguages?: string[]; // Array of all audio track languages
+  audioLanguageCodes?: string[]; // Array of all audio track language codes
+
+  // Subtitle info
+  subtitleLanguages?: string[]; // Array of all subtitle languages
+  subtitleLanguageCodes?: string[]; // Array of all subtitle language codes
+  hasSubtitles?: boolean; // Whether any subtitle tracks are present
+
   // File info
   container?: string; // 'mkv', 'mp4'
   bitrate?: number; // In kbps
