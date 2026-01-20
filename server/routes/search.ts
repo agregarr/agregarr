@@ -1,9 +1,63 @@
 import type { PlexLibraryItem } from '@server/api/plexapi';
 import PlexAPI from '@server/api/plexapi';
+import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
+import axios from 'axios';
 import { Router } from 'express';
 
 const searchRouter = Router();
+
+/**
+ * Proxy Plex images to avoid CORS/mixed-content issues
+ * GET /api/v1/plex/image?path=/library/metadata/123/thumb/456
+ */
+searchRouter.get('/image', async (req, res) => {
+  try {
+    const imagePath = req.query.path as string;
+
+    if (!imagePath) {
+      return res.status(400).json({ error: 'Image path is required' });
+    }
+
+    // Get admin user for Plex API access
+    const { getAdminUser } = await import(
+      '@server/lib/collections/core/CollectionUtilities'
+    );
+    const admin = await getAdminUser();
+
+    if (!admin) {
+      return res.status(500).json({ error: 'No admin user found' });
+    }
+
+    // Get Plex settings
+    const settings = getSettings();
+    const plexSettings = settings.plex;
+    const protocol = plexSettings.useSsl ? 'https' : 'http';
+    const plexBaseUrl = `${protocol}://${plexSettings.ip}:${plexSettings.port}`;
+
+    // Fetch the image from Plex
+    const imageUrl = `${plexBaseUrl}${imagePath}?X-Plex-Token=${admin.plexToken}`;
+
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 10000,
+    });
+
+    // Set appropriate headers
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+
+    return res.send(Buffer.from(response.data));
+  } catch (error) {
+    logger.error('Failed to proxy Plex image', {
+      label: 'PlexImageProxy',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({ error: 'Failed to fetch image from Plex' });
+  }
+});
 
 interface PlexSearchResult {
   ratingKey: string;
@@ -38,16 +92,7 @@ searchRouter.get('/search', async (req, res) => {
       return res.status(500).json({ error: 'No admin user found' });
     }
 
-    // Get Plex settings to construct full image URLs
-    const { getSettings } = await import('@server/lib/settings');
-    const settings = getSettings();
-    const plexSettings = settings.plex;
-
     const plexApi = new PlexAPI({ plexToken: admin.plexToken });
-
-    // Construct base URL for Plex images
-    const protocol = plexSettings.useSsl ? 'https' : 'http';
-    const plexBaseUrl = `${protocol}://${plexSettings.ip}:${plexSettings.port}`;
 
     // Perform search using Plex's global search
     // Note: /hubs/search returns results grouped in "Hub" objects, each containing Metadata
@@ -116,10 +161,10 @@ searchRouter.get('/search', async (req, res) => {
         }
       }
 
-      // Construct full URL for thumb if available
+      // Construct proxy URL for thumb if available
       const thumbPath = (item as { thumb?: string }).thumb;
-      const fullThumbUrl = thumbPath
-        ? `${plexBaseUrl}${thumbPath}?X-Plex-Token=${admin.plexToken}`
+      const proxyThumbUrl = thumbPath
+        ? `/api/v1/plex/image?path=${encodeURIComponent(thumbPath)}`
         : undefined;
 
       filteredResults.push({
@@ -127,7 +172,7 @@ searchRouter.get('/search', async (req, res) => {
         title: item.title,
         year: item.year,
         type: item.type as 'movie' | 'show',
-        thumb: fullThumbUrl,
+        thumb: proxyThumbUrl,
         libraryId,
         libraryName,
       });

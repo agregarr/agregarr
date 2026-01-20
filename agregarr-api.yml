@@ -14586,6 +14586,40 @@ paths:
         '401':
           description: Authentication required
 
+  /plex/image:
+    get:
+      summary: Proxy Plex images
+      description: Proxies images from Plex to avoid CORS and mixed-content issues.
+      tags:
+        - overlays
+      parameters:
+        - in: query
+          name: path
+          required: true
+          allowReserved: true
+          schema:
+            type: string
+          description: The Plex image path (e.g., /library/metadata/123/thumb/456)
+          example: '/library/metadata/12345/thumb/1234567890'
+      responses:
+        '200':
+          description: Image data
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Missing image path parameter
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to fetch image from Plex
+
   /plex/search:
     get:
       summary: Search Plex libraries
