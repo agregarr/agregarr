@@ -1433,7 +1433,18 @@ components:
         directDownloadSonarrMonitorType:
           type: string
           description: "Override Sonarr monitor type for TV shows (when downloadMode is 'direct')"
-          enum: ['all', 'future', 'missing', 'existing', 'recent', 'pilot', 'firstSeason', 'lastSeason', 'none']
+          enum:
+            [
+              'all',
+              'future',
+              'missing',
+              'existing',
+              'recent',
+              'pilot',
+              'firstSeason',
+              'lastSeason',
+              'none',
+            ]
           example: 'all'
           nullable: true
         directDownloadSonarrSearchOnAdd:
@@ -2165,7 +2176,18 @@ components:
         directDownloadSonarrMonitorType:
           type: string
           description: "Override Sonarr monitor type for TV shows (when downloadMode is 'direct')"
-          enum: ['all', 'future', 'missing', 'existing', 'recent', 'pilot', 'firstSeason', 'lastSeason', 'none']
+          enum:
+            [
+              'all',
+              'future',
+              'missing',
+              'existing',
+              'recent',
+              'pilot',
+              'firstSeason',
+              'lastSeason',
+              'none',
+            ]
           example: 'all'
           nullable: true
         directDownloadSonarrSearchOnAdd:

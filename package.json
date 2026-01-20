@@ -205,7 +205,7 @@
       "prettier --write",
       "eslint"
     ],
-    "**/*.{json,md,css}": [
+    "**/*.{json,md,css,yml}": [
       "prettier --write"
     ]
   },
