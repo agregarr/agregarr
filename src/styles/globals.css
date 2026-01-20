@@ -367,47 +367,63 @@
   }
 
   .react-select-container .react-select__control {
-    @apply rounded-md border border-slate-500 bg-slate-700 text-white hover:border-slate-500;
+    @apply rounded-md border border-stone-500 bg-stone-700 text-white hover:border-stone-500;
   }
 
   .react-select-container-dark .react-select__control {
-    @apply border border-slate-700 bg-slate-800;
+    @apply border border-stone-700 bg-stone-800;
   }
 
   .react-select-container .react-select__control--is-focused {
-    @apply rounded-md border border-slate-500 bg-slate-700 text-white shadow;
+    @apply rounded-md border border-stone-500 bg-stone-700 text-white shadow;
   }
 
   .react-select-container-dark .react-select__control--is-focused {
-    @apply border-slate-600 bg-slate-800;
+    @apply border-stone-600 bg-stone-800;
   }
 
   .react-select-container .react-select__menu {
-    @apply bg-slate-700 text-slate-300;
+    @apply bg-stone-700 text-stone-300;
   }
 
   .react-select-container-dark .react-select__menu {
-    @apply bg-slate-800;
+    @apply bg-stone-800;
+  }
+
+  .react-select-container .react-select__option {
+    @apply flex cursor-pointer items-center bg-stone-700 pl-4 text-white;
+  }
+
+  .react-select-container .react-select__option::before {
+    content: '';
+    margin-right: 20px;
+  }
+
+  .react-select-container .react-select__option--is-selected::before {
+    content: '✓';
+    margin-right: 8px;
+    color: #6366f1;
+    font-weight: bold;
   }
 
   .react-select-container .react-select__option--is-focused {
-    @apply bg-slate-600 text-white;
+    @apply bg-stone-600 text-white;
   }
 
   .react-select-container-dark .react-select__option--is-focused {
-    @apply bg-slate-700;
+    @apply bg-stone-700;
   }
 
   .react-select-container .react-select__indicator-separator {
-    @apply bg-slate-500;
+    @apply bg-stone-500;
   }
 
   .react-select-container .react-select__indicator {
-    @apply text-slate-500;
+    @apply text-stone-500;
   }
 
   .react-select-container .react-select__placeholder {
-    @apply text-slate-400;
+    @apply text-stone-400;
   }
 
   .react-select-container .react-select__multi-value {
@@ -436,11 +452,11 @@
   }
 
   .react-select-container .react-select__single-value {
-    @apply text-sm text-slate-100;
+    @apply text-sm text-stone-100;
   }
 
   .react-select-container .react-select__placeholder {
-    @apply text-sm text-slate-500;
+    @apply text-sm text-stone-500;
   }
 
   .datepicker-wrapper > button {
