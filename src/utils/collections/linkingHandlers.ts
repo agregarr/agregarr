@@ -175,6 +175,8 @@ export const linkCollectionConfig = async (
             directDownloadSonarrTags: masterConfig.directDownloadSonarrTags,
             directDownloadSonarrMonitor:
               masterConfig.directDownloadSonarrMonitor,
+            directDownloadSonarrMonitorType:
+              masterConfig.directDownloadSonarrMonitorType,
             directDownloadSonarrSearchOnAdd:
               masterConfig.directDownloadSonarrSearchOnAdd,
             overseerrRadarrServerId: masterConfig.overseerrRadarrServerId,

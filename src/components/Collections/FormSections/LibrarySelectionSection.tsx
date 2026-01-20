@@ -71,78 +71,33 @@ const LibraryCheckboxDropdown = ({
       isDisabled={disabled}
       placeholder={intl.formatMessage(messages.selectLibraries)}
       menuPlacement="auto"
+      className="react-select-container"
       classNamePrefix="react-select"
       closeMenuOnSelect={false}
       hideSelectedOptions={false}
       styles={{
-        menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+        // Error state styling for control border
         control: (base, state) => ({
           ...base,
-          backgroundColor: '#44403c',
-          borderColor: error
-            ? '#ef4444'
-            : state.isFocused
-            ? '#ea580c'
-            : '#78716c',
-          '&:hover': {
-            borderColor: error ? '#ef4444' : '#ea580c',
-          },
-          boxShadow: state.isFocused
-            ? error
-              ? '0 0 0 1px #ef4444'
-              : '0 0 0 1px #ea580c'
-            : 'none',
+          ...(error && {
+            borderColor: '#ef4444',
+            '&:hover': {
+              borderColor: '#ef4444',
+            },
+            boxShadow: state.isFocused ? '0 0 0 1px #ef4444' : 'none',
+          }),
         }),
-        menu: (base) => ({
-          ...base,
-          backgroundColor: '#44403c',
-          border: '1px solid #4b5563',
-        }),
+        // Disabled option styling when "all" is selected
         option: (base, state) => {
-          const isDisabled =
+          const isOptionDisabled =
             selectedLibraries.includes('all') && state.data.value !== 'all';
+          if (!isOptionDisabled) return base;
           return {
             ...base,
-            backgroundColor: isDisabled
-              ? '#374151'
-              : state.isFocused
-              ? '#4b5563'
-              : '#374151',
-            color: isDisabled ? '#6b7280' : 'white',
-            cursor: isDisabled ? 'not-allowed' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            paddingLeft: '16px',
-            '&:before': state.isSelected
-              ? {
-                  content: '"✓"',
-                  marginRight: '8px',
-                  color: '#6366f1',
-                  fontWeight: 'bold',
-                }
-              : {
-                  content: '""',
-                  marginRight: '20px',
-                },
+            color: '#6b7280',
+            cursor: 'not-allowed',
           };
         },
-        multiValue: (base) => ({
-          ...base,
-          backgroundColor: '#57534e',
-          color: 'white',
-        }),
-        multiValueLabel: (base) => ({
-          ...base,
-          color: 'white',
-        }),
-        multiValueRemove: (base) => ({
-          ...base,
-          color: '#a8a29e',
-          '&:hover': {
-            backgroundColor: '#ef4444',
-            color: 'white',
-          },
-        }),
       }}
     />
   );

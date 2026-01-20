@@ -1,6 +1,20 @@
 import logger from '@server/logger';
 import ServarrBase from './base';
 
+/**
+ * Sonarr monitor types - determines which episodes are monitored when adding a series
+ */
+export type SonarrMonitorType =
+  | 'all' // Monitor all episodes except specials
+  | 'future' // Monitor episodes that have not aired yet
+  | 'missing' // Monitor episodes that do not have files or have not aired yet
+  | 'existing' // Monitor episodes that have files or have not aired yet
+  | 'recent' // Monitor episodes aired within the last 90 days and future episodes
+  | 'pilot' // Only monitor the first episode of the first season
+  | 'firstSeason' // Monitor all episodes of the first season
+  | 'lastSeason' // Monitor all episodes of the last season
+  | 'none'; // No episodes will be monitored
+
 export interface SonarrSeason {
   seasonNumber: number;
   monitored: boolean;
@@ -114,6 +128,7 @@ export interface AddSeriesOptions {
   tags?: number[];
   seriesType: SonarrSeries['seriesType'];
   monitored?: boolean;
+  monitorType?: SonarrMonitorType;
   searchNow?: boolean;
 }
 
@@ -321,7 +336,7 @@ class SonarrAPI extends ServarrBase<{
           rootFolderPath: options.rootFolderPath,
           seriesType: options.seriesType,
           addOptions: {
-            ignoreEpisodesWithFiles: true,
+            monitor: options.monitorType || 'all',
             searchForMissingEpisodes: options.searchNow,
           },
         } as Partial<SonarrSeries>

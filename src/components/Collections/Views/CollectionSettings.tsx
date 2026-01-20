@@ -535,6 +535,10 @@ const CollectionSettings = ({
           ...(config.directDownloadSonarrMonitor !== undefined && {
             directDownloadSonarrMonitor: config.directDownloadSonarrMonitor,
           }),
+          ...(config.directDownloadSonarrMonitorType !== undefined && {
+            directDownloadSonarrMonitorType:
+              config.directDownloadSonarrMonitorType,
+          }),
           ...(config.directDownloadSonarrSearchOnAdd !== undefined && {
             directDownloadSonarrSearchOnAdd:
               config.directDownloadSonarrSearchOnAdd,
@@ -683,6 +687,7 @@ const CollectionSettings = ({
       directDownloadSonarrRootFolder: defaultSonarr?.activeDirectory,
       directDownloadSonarrTags: defaultSonarr?.tags || [],
       directDownloadSonarrMonitor: defaultSonarr?.monitorByDefault ?? true,
+      directDownloadSonarrMonitorType: defaultSonarr?.monitorType,
       directDownloadSonarrSearchOnAdd: defaultSonarr?.searchOnAdd ?? true,
     };
     setEditingConfig(newConfig);
