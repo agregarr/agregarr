@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 
 const messages = defineMessages({
-  uploading: 'Uploading theme...',
+  uploadingTheme: 'Uploading theme...',
   themeUploadHelpMulti:
     'Upload custom theme music files for each selected library. Themes will be applied to Plex collections during the next sync.',
   themeRemoveConfirm: 'Theme will be removed on next collection sync',
@@ -16,7 +16,7 @@ const messages = defineMessages({
     'Only MP3, WAV, FLAC, OGG, AAC, and M4A files are allowed',
   themeUploadErrorGeneric: 'Upload failed',
   themeUploadErrorNetwork: 'Network error occurred',
-  selectLibrariesFirst: 'Select libraries first to upload custom themes.',
+  selectLibrariesForThemes: 'Select libraries first to upload custom themes.',
 });
 
 interface Library {
@@ -218,7 +218,7 @@ const ThemeUploadSection = ({
   if (selectedLibraryIds.length === 0) {
     return (
       <div className="label-tip">
-        {intl.formatMessage(messages.selectLibrariesFirst)}
+        {intl.formatMessage(messages.selectLibrariesForThemes)}
       </div>
     );
   }
@@ -306,7 +306,7 @@ const ThemeUploadSection = ({
                   >
                     {isUploading ? (
                       <span className="text-xs text-gray-400">
-                        {intl.formatMessage(messages.uploading)}
+                        {intl.formatMessage(messages.uploadingTheme)}
                       </span>
                     ) : (
                       <PlusIcon className="h-6 w-6 text-gray-400" />

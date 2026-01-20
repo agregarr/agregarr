@@ -17,14 +17,14 @@ const messages = defineMessages({
   collectionStatistics: 'Collection Statistics',
   noData: 'No collection data available',
   tautulliRequired: 'Tautulli Setup Required',
-  tautulliDescription:
+  tautulliDescriptionCollections:
     'Configure Tautulli in your settings to view detailed statistics about your collections, including play counts, watch time, and viewer activity.',
   configureTautulli: 'Configure Tautulli',
   plays: 'plays',
   hours: 'hours',
   items: 'items',
   refresh: 'Refresh',
-  failedToLoad: 'Failed to load collection statistics',
+  failedToLoadCollectionStats: 'Failed to load collection statistics',
   daysLabel: 'Days:',
   playsButton: 'Plays',
   durationButton: 'Duration',
@@ -111,7 +111,7 @@ const CollectionStatsGrid: React.FC = () => {
                 {intl.formatMessage(messages.tautulliRequired)}
               </h4>
               <p className="mb-6 max-w-md text-gray-400">
-                {intl.formatMessage(messages.tautulliDescription)}
+                {intl.formatMessage(messages.tautulliDescriptionCollections)}
               </p>
               <Link href="/settings/sources" passHref>
                 <Button as="a" buttonType="primary">
@@ -136,7 +136,7 @@ const CollectionStatsGrid: React.FC = () => {
         </div>
         <div className="p-6 text-center">
           <p className="mb-2 text-red-400">
-            {intl.formatMessage(messages.failedToLoad)}
+            {intl.formatMessage(messages.failedToLoadCollectionStats)}
           </p>
           <p className="text-sm text-gray-400">{error.message}</p>
         </div>

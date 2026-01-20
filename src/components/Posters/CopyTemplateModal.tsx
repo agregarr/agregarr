@@ -16,7 +16,8 @@ const messages = defineMessages({
   selectTemplates: 'Select templates to copy to:',
   selectAll: 'Select All',
   deselectAll: 'Deselect All',
-  copyElements: 'Copy {elementCount} elements to {templateCount} templates',
+  copyElementsConfirm:
+    'Copy {elementCount} elements to {templateCount} templates',
   cancel: 'Cancel',
   copyFailed: 'Failed to copy elements',
   noElementsSelected: 'Select at least one element',
@@ -184,7 +185,7 @@ const CopyTemplateModal: React.FC<CopyTemplateModalProps> = ({
       title={intl.formatMessage(messages.copyTemplate)}
       onCancel={onClose}
       onOk={handleCopy}
-      okText={intl.formatMessage(messages.copyElements, {
+      okText={intl.formatMessage(messages.copyElementsConfirm, {
         elementCount: selectedElementIds.length,
         templateCount: selectedTemplateIds.length,
       })}

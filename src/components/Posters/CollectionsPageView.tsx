@@ -22,8 +22,9 @@ import PosterTemplateGrid from './PosterTemplateGrid';
 import SavedPosterGrid from './SavedPosterGrid';
 
 const messages = defineMessages({
-  title: 'Collection Posters',
-  description: 'Create and manage poster templates for your collections',
+  collectionPostersTitle: 'Collection Posters',
+  collectionPostersDescription:
+    'Create and manage poster templates for your collections',
   templates: 'Collection Templates',
   savedPosters: 'Saved Posters',
   templatesDescription: 'Design reusable poster templates for your collections',
@@ -323,10 +324,10 @@ const CollectionsPageView: React.FC = () => {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-white">
-          {intl.formatMessage(messages.title)}
+          {intl.formatMessage(messages.collectionPostersTitle)}
         </h2>
         <p className="mt-1 text-sm text-stone-400">
-          {intl.formatMessage(messages.description)}
+          {intl.formatMessage(messages.collectionPostersDescription)}
         </p>
       </div>
 

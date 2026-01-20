@@ -23,14 +23,16 @@ const messages = defineMessages({
   duplicate: 'Duplicate',
   delete: 'Delete',
   export: 'Export',
-  exportSuccess: 'Overlay template exported successfully',
-  exportError: 'Failed to export overlay template',
-  confirmDelete: 'Are you sure you want to delete this overlay template?',
+  overlayExportSuccess: 'Overlay template exported successfully',
+  overlayExportError: 'Failed to export overlay template',
+  confirmDeleteOverlay:
+    'Are you sure you want to delete this overlay template?',
   deleteTemplate: 'Delete Template',
   cancel: 'Cancel',
-  noTemplates: 'No overlay templates found',
-  createFirstTemplate: 'Create your first overlay template to get started',
-  copyElements: 'Copy Elements',
+  noOverlayTemplates: 'No overlay templates found',
+  createFirstOverlayTemplate:
+    'Create your first overlay template to get started',
+  copyOverlayElements: 'Copy Elements',
   alwaysApply: 'Always apply',
 });
 
@@ -215,12 +217,12 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      addToast(intl.formatMessage(messages.exportSuccess), {
+      addToast(intl.formatMessage(messages.overlayExportSuccess), {
         appearance: 'success',
         autoDismiss: true,
       });
     } catch (error) {
-      addToast(intl.formatMessage(messages.exportError), {
+      addToast(intl.formatMessage(messages.overlayExportError), {
         appearance: 'error',
         autoDismiss: true,
       });
@@ -329,10 +331,10 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
             />
           </svg>
           <p className="mt-4 text-lg text-stone-300">
-            {intl.formatMessage(messages.noTemplates)}
+            {intl.formatMessage(messages.noOverlayTemplates)}
           </p>
           <p className="mt-2 text-stone-400">
-            {intl.formatMessage(messages.createFirstTemplate)}
+            {intl.formatMessage(messages.createFirstOverlayTemplate)}
           </p>
         </div>
       </div>
@@ -408,10 +410,10 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
                 <button
                   onClick={() => handleCopyElements(template)}
                   className="flex items-center rounded-md bg-stone-700 px-3 py-2 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white"
-                  title={intl.formatMessage(messages.copyElements)}
+                  title={intl.formatMessage(messages.copyOverlayElements)}
                 >
                   <DocumentDuplicateIcon className="mr-2 h-3 w-3" />
-                  {intl.formatMessage(messages.copyElements)}
+                  {intl.formatMessage(messages.copyOverlayElements)}
                 </button>
                 {!template.isDefault && (
                   <button
@@ -444,7 +446,7 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
                     {intl.formatMessage(messages.deleteTemplate)}
                   </h4>
                   <p className="mb-4 text-sm text-stone-300">
-                    {intl.formatMessage(messages.confirmDelete)}
+                    {intl.formatMessage(messages.confirmDeleteOverlay)}
                   </p>
                   <div className="flex space-x-2">
                     <Button

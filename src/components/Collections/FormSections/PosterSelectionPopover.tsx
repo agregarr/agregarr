@@ -22,7 +22,7 @@ const messages = defineMessages({
   downloadingPoster: 'Downloading poster...',
   posterDownloadError: 'Failed to download poster from URL',
   noPosterAvailable: 'No posters available',
-  uploading: 'Uploading...',
+  uploadingPoster: 'Uploading...',
   generating: 'Generating...',
   posterUploadSuccess: 'Poster uploaded successfully',
   posterDeleteSuccess: 'Poster deleted successfully',
@@ -566,7 +566,7 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
                 {uploading ? (
                   <>
                     <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-orange-600"></div>
-                    {intl.formatMessage(messages.uploading)}
+                    {intl.formatMessage(messages.uploadingPoster)}
                   </>
                 ) : (
                   <>

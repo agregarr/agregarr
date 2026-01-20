@@ -40,7 +40,7 @@ const messages = defineMessages({
   searchOnAdd: 'Search on add',
   seasonFolders: 'Season folders',
   save: 'Save Changes',
-  saving: 'Saving...',
+  saving: 'Saving…',
   lastSync: 'Last Sync',
   noRadarrConfigured: 'No Radarr servers configured',
   noSonarrConfigured: 'No Sonarr servers configured',
