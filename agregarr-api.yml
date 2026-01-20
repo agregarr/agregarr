@@ -3304,6 +3304,7 @@ components:
                               'lte',
                               'in',
                               'contains',
+                              'notContains',
                               'regex',
                               'begins',
                               'ends',

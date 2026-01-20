@@ -185,6 +185,11 @@ function evaluateRule(
     if (rule.operator === 'neq') {
       return conditionValue !== undefined && conditionValue !== null;
     }
+    // For 'notContains', missing/null doesn't contain anything, so return true
+    // e.g., "filePath does not contain '2005'" should match when filePath is undefined
+    if (rule.operator === 'notContains') {
+      return true;
+    }
     // For 'exists', we need to evaluate based on the presence/absence of value
     if (rule.operator === 'exists') {
       // value is null/undefined, so field does NOT exist
@@ -275,6 +280,20 @@ function evaluateRule(
         typeof value === 'string' &&
         typeof conditionValue === 'string' &&
         value.toLowerCase().includes(conditionValue.toLowerCase())
+      );
+    case 'notContains':
+      // For array fields, check if array does NOT contain the value
+      if (Array.isArray(value) && typeof conditionValue === 'string') {
+        return !value.some(
+          (item) =>
+            typeof item === 'string' &&
+            item.toLowerCase().includes(conditionValue.toLowerCase())
+        );
+      }
+      return (
+        typeof value === 'string' &&
+        typeof conditionValue === 'string' &&
+        !value.toLowerCase().includes(conditionValue.toLowerCase())
       );
     case 'regex':
       if (typeof value === 'string' && typeof conditionValue === 'string') {

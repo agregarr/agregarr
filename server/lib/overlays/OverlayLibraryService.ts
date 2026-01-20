@@ -756,6 +756,7 @@ class OverlayLibraryService {
 
       const overlayInputHash = calculateOverlayInputHash({
         templateIds: matchingTemplates.map((t) => t.id).sort(),
+        templateData: templateDataArray,
         usedFields: usedFields,
         context: context as Record<string, unknown>,
       });
