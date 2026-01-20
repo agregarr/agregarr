@@ -1,5 +1,5 @@
 import RadarrAPI from '@server/api/servarr/radarr';
-import SonarrAPI from '@server/api/servarr/sonarr';
+import SonarrAPI, { type SonarrMonitorType } from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
 import type {
   AutoRequestResult,
@@ -782,11 +782,31 @@ export class DirectDownloadService {
     const collectionTags = config.directDownloadSonarrTags || [];
     const finalTags = [...new Set([...tagsToSend, ...collectionTags])]; // Deduplicate
 
-    // Use per-collection overrides for monitor and searchOnAdd, fallback to server defaults
-    const monitored =
-      config.directDownloadSonarrMonitor !== undefined
-        ? config.directDownloadSonarrMonitor
-        : sonarrSettings.monitorByDefault ?? true;
+    // Use per-collection overrides for monitor type and searchOnAdd, fallback to server defaults
+    // Backwards compatibility: if monitorType is not set, check legacy monitorByDefault boolean
+    const getMonitorType = (): SonarrMonitorType => {
+      // First check collection-level override
+      if (config.directDownloadSonarrMonitorType) {
+        return config.directDownloadSonarrMonitorType;
+      }
+      // Then check server-level setting (sonarrSettings is guaranteed defined at this point)
+      if (sonarrSettings?.monitorType) {
+        return sonarrSettings.monitorType;
+      }
+      // Backwards compatibility: check legacy boolean settings
+      // Collection-level override takes precedence
+      if (config.directDownloadSonarrMonitor === false) {
+        return 'none';
+      }
+      if (sonarrSettings?.monitorByDefault === false) {
+        return 'none';
+      }
+      // Default to 'all'
+      return 'all';
+    };
+    const monitorType = getMonitorType();
+    // Derive monitored boolean from monitorType - matches Sonarr UI behavior
+    const monitored = monitorType !== 'none';
     const searchNow =
       config.directDownloadSonarrSearchOnAdd !== undefined
         ? config.directDownloadSonarrSearchOnAdd
@@ -801,6 +821,7 @@ export class DirectDownloadService {
       tags: finalTags,
       rootFolderPath,
       monitored,
+      monitorType,
       seasonFolder: sonarrSettings.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
       seriesType: sonarrSettings.seriesType || 'standard',
       searchNow,

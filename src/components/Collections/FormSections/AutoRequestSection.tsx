@@ -1,6 +1,7 @@
 import type {
   OverseerrSettings,
   RadarrSettings,
+  SonarrMonitorType,
   SonarrSettings,
 } from '@server/lib/settings';
 import axios from 'axios';
@@ -91,6 +92,17 @@ const messages = defineMessages({
   selectSonarrTags: 'Sonarr Tags (TV Shows)',
   sonarrMonitor: 'Monitor TV Shows',
   sonarrMonitorHelp: 'Monitor TV shows when added to Sonarr',
+  sonarrMonitorType: 'Monitor Type (TV Shows)',
+  sonarrMonitorTypeHelp: 'Which episodes to monitor when adding TV shows',
+  monitorTypeAll: 'All Episodes (except specials)',
+  monitorTypeFuture: 'Future Episodes (not yet aired)',
+  monitorTypeMissing: 'Missing Episodes (no files or not aired)',
+  monitorTypeExisting: 'Existing Episodes (have files or not aired)',
+  monitorTypeRecent: 'Recent Episodes (last 90 days + future)',
+  monitorTypePilot: 'Pilot Episode (first episode only)',
+  monitorTypeFirstSeason: 'First Season (all episodes)',
+  monitorTypeLastSeason: 'Last Season (all episodes)',
+  monitorTypeNone: 'None (no episodes monitored)',
   sonarrSearchOnAdd: 'Search on Add (TV Shows)',
   sonarrSearchOnAddHelp: 'Immediately search for TV shows when added to Sonarr',
   selectServer: 'Select server...',
@@ -143,6 +155,7 @@ interface AutoRequestSectionProps {
     directDownloadSonarrRootFolder?: string;
     directDownloadSonarrTags?: number[];
     directDownloadSonarrMonitor?: boolean;
+    directDownloadSonarrMonitorType?: SonarrMonitorType;
     directDownloadSonarrSearchOnAdd?: boolean;
     overseerrRadarrServerId?: number;
     overseerrRadarrProfileId?: number;
@@ -299,6 +312,76 @@ const AutoRequestSection = ({
     overseerrLoading,
     overseerrServerOptions.servers.sonarr,
     values.overseerrSonarrServerId,
+    setFieldValue,
+  ]);
+
+  // Auto-select default or single Radarr server and populate all defaults
+  useEffect(() => {
+    if (!radarrLoading && values.directDownloadRadarrServerId === undefined) {
+      const defaultServer =
+        radarrServers?.length === 1
+          ? radarrServers[0]
+          : radarrServers?.find((s) => s.isDefault);
+      if (defaultServer) {
+        setFieldValue?.('directDownloadRadarrServerId', defaultServer.id);
+        setFieldValue?.(
+          'directDownloadRadarrProfileId',
+          defaultServer.activeProfileId
+        );
+        setFieldValue?.(
+          'directDownloadRadarrRootFolder',
+          defaultServer.activeDirectory
+        );
+        setFieldValue?.('directDownloadRadarrTags', defaultServer.tags ?? []);
+        setFieldValue?.(
+          'directDownloadRadarrMonitor',
+          defaultServer.monitorByDefault ?? true
+        );
+        setFieldValue?.(
+          'directDownloadRadarrSearchOnAdd',
+          defaultServer.searchOnAdd ?? true
+        );
+      }
+    }
+  }, [
+    radarrLoading,
+    radarrServers,
+    values.directDownloadRadarrServerId,
+    setFieldValue,
+  ]);
+
+  // Auto-select default or single Sonarr server and populate all defaults
+  useEffect(() => {
+    if (!sonarrLoading && values.directDownloadSonarrServerId === undefined) {
+      const defaultServer =
+        sonarrServers?.length === 1
+          ? sonarrServers[0]
+          : sonarrServers?.find((s) => s.isDefault);
+      if (defaultServer) {
+        setFieldValue?.('directDownloadSonarrServerId', defaultServer.id);
+        setFieldValue?.(
+          'directDownloadSonarrProfileId',
+          defaultServer.activeProfileId
+        );
+        setFieldValue?.(
+          'directDownloadSonarrRootFolder',
+          defaultServer.activeDirectory
+        );
+        setFieldValue?.('directDownloadSonarrTags', defaultServer.tags ?? []);
+        setFieldValue?.(
+          'directDownloadSonarrMonitorType',
+          defaultServer.monitorType ?? 'all'
+        );
+        setFieldValue?.(
+          'directDownloadSonarrSearchOnAdd',
+          defaultServer.searchOnAdd ?? true
+        );
+      }
+    }
+  }, [
+    sonarrLoading,
+    sonarrServers,
+    values.directDownloadSonarrServerId,
     setFieldValue,
   ]);
 
@@ -1626,23 +1709,51 @@ const AutoRequestSection = ({
                       </div>
                     </div>
 
-                    {/* Sonarr Monitor checkbox */}
-                    <div className="flex items-center">
-                      <Field
-                        type="checkbox"
-                        id="directDownloadSonarrMonitor"
-                        name="directDownloadSonarrMonitor"
-                        className="rounded"
-                      />
-                      <label
-                        htmlFor="directDownloadSonarrMonitor"
-                        className="ml-2 text-sm font-medium text-gray-300"
-                      >
-                        {intl.formatMessage(messages.sonarrMonitor)}
-                        <span className="label-tip">
-                          {intl.formatMessage(messages.sonarrMonitorHelp)}
-                        </span>
-                      </label>
+                    {/* Sonarr Monitor Type dropdown */}
+                    <div className="mb-6">
+                      <div className="mb-2 text-sm font-medium text-gray-200">
+                        {intl.formatMessage(messages.sonarrMonitorType)}
+                      </div>
+                      <div className="form-input-field">
+                        <Field
+                          as="select"
+                          id="directDownloadSonarrMonitorType"
+                          name="directDownloadSonarrMonitorType"
+                        >
+                          <option value="all">
+                            {intl.formatMessage(messages.monitorTypeAll)}
+                          </option>
+                          <option value="future">
+                            {intl.formatMessage(messages.monitorTypeFuture)}
+                          </option>
+                          <option value="missing">
+                            {intl.formatMessage(messages.monitorTypeMissing)}
+                          </option>
+                          <option value="existing">
+                            {intl.formatMessage(messages.monitorTypeExisting)}
+                          </option>
+                          <option value="recent">
+                            {intl.formatMessage(messages.monitorTypeRecent)}
+                          </option>
+                          <option value="pilot">
+                            {intl.formatMessage(messages.monitorTypePilot)}
+                          </option>
+                          <option value="firstSeason">
+                            {intl.formatMessage(
+                              messages.monitorTypeFirstSeason
+                            )}
+                          </option>
+                          <option value="lastSeason">
+                            {intl.formatMessage(messages.monitorTypeLastSeason)}
+                          </option>
+                          <option value="none">
+                            {intl.formatMessage(messages.monitorTypeNone)}
+                          </option>
+                        </Field>
+                      </div>
+                      <div className="label-tip mt-2">
+                        {intl.formatMessage(messages.sonarrMonitorTypeHelp)}
+                      </div>
                     </div>
 
                     {/* Sonarr Search on Add checkbox */}

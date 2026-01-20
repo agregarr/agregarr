@@ -68,6 +68,16 @@ const messages = defineMessages({
   seriesTypeStandard: 'Standard',
   seriesTypeDaily: 'Daily',
   seriesTypeAnime: 'Anime',
+  monitorType: 'Monitor Type',
+  monitorTypeAll: 'All Episodes (except specials)',
+  monitorTypeFuture: 'Future Episodes (not yet aired)',
+  monitorTypeMissing: 'Missing Episodes (no files or not aired)',
+  monitorTypeExisting: 'Existing Episodes (have files or not aired)',
+  monitorTypeRecent: 'Recent Episodes (last 90 days + future)',
+  monitorTypePilot: 'Pilot Episode (first episode only)',
+  monitorTypeFirstSeason: 'First Season (all episodes)',
+  monitorTypeLastSeason: 'Last Season (all episodes)',
+  monitorTypeNone: 'None (no episodes monitored)',
 });
 
 interface TestResponse {
@@ -246,6 +256,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
             (sonarr?.tagRequests ? 'per-service' : 'off'),
           enableSeasonFolders: sonarr?.enableSeasonFolders ?? true, // Default to true (Sonarr's default behavior)
           monitorByDefault: sonarr?.monitorByDefault ?? true, // Default to true (monitor items when added)
+          monitorType: sonarr?.monitorType ?? 'all', // Default to 'all' (monitor all episodes)
           searchOnAdd: sonarr?.searchOnAdd ?? true, // Default to true (search immediately when added)
         }}
         validationSchema={SonarrSettingsSchema}
@@ -276,6 +287,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               tagRequestsMode: values.tagRequestsMode,
               enableSeasonFolders: values.enableSeasonFolders,
               monitorByDefault: values.monitorByDefault,
+              monitorType: values.monitorType,
               searchOnAdd: values.searchOnAdd,
             };
             if (!sonarr) {
@@ -672,15 +684,41 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                   </div>
                 </div>
                 <div className="form-row">
-                  <label htmlFor="monitorByDefault" className="checkbox-label">
-                    {intl.formatMessage(messages.monitorByDefault)}
+                  <label htmlFor="monitorType" className="text-label">
+                    {intl.formatMessage(messages.monitorType)}
                   </label>
                   <div className="form-input-area">
-                    <Field
-                      type="checkbox"
-                      id="monitorByDefault"
-                      name="monitorByDefault"
-                    />
+                    <div className="form-input-field">
+                      <Field as="select" id="monitorType" name="monitorType">
+                        <option value="all">
+                          {intl.formatMessage(messages.monitorTypeAll)}
+                        </option>
+                        <option value="future">
+                          {intl.formatMessage(messages.monitorTypeFuture)}
+                        </option>
+                        <option value="missing">
+                          {intl.formatMessage(messages.monitorTypeMissing)}
+                        </option>
+                        <option value="existing">
+                          {intl.formatMessage(messages.monitorTypeExisting)}
+                        </option>
+                        <option value="recent">
+                          {intl.formatMessage(messages.monitorTypeRecent)}
+                        </option>
+                        <option value="pilot">
+                          {intl.formatMessage(messages.monitorTypePilot)}
+                        </option>
+                        <option value="firstSeason">
+                          {intl.formatMessage(messages.monitorTypeFirstSeason)}
+                        </option>
+                        <option value="lastSeason">
+                          {intl.formatMessage(messages.monitorTypeLastSeason)}
+                        </option>
+                        <option value="none">
+                          {intl.formatMessage(messages.monitorTypeNone)}
+                        </option>
+                      </Field>
+                    </div>
                   </div>
                 </div>
                 <div className="form-row">

@@ -10,6 +10,7 @@ import type {
   MultiSourceCombineMode,
   MultiSourceType,
   PlexHubConfig,
+  SonarrMonitorType,
 } from '@app/types/collections';
 import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
@@ -823,6 +824,18 @@ const CollectionFormConfigForm = ({
     directDownloadSonarrRootFolder: Yup.string(),
     directDownloadSonarrTags: Yup.array().of(Yup.number().integer()),
     directDownloadSonarrMonitor: Yup.boolean(),
+    directDownloadSonarrMonitorType: Yup.string().oneOf([
+      '',
+      'all',
+      'future',
+      'missing',
+      'existing',
+      'recent',
+      'pilot',
+      'firstSeason',
+      'lastSeason',
+      'none',
+    ]),
     directDownloadSonarrSearchOnAdd: Yup.boolean(),
     overseerrRadarrServerId: Yup.number().integer().min(0),
     overseerrRadarrProfileId: Yup.number().positive().integer(),
@@ -1653,6 +1666,9 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).directDownloadSonarrTags ?? [],
           directDownloadSonarrMonitor: (config as CollectionFormConfig)
             .directDownloadSonarrMonitor,
+          directDownloadSonarrMonitorType:
+            (config as CollectionFormConfig).directDownloadSonarrMonitorType ??
+            '',
           directDownloadSonarrSearchOnAdd: (config as CollectionFormConfig)
             .directDownloadSonarrSearchOnAdd,
           overseerrRadarrServerId:
@@ -1879,6 +1895,11 @@ const CollectionFormConfigForm = ({
           const directSonarrMonitor = values.enableGrabMissingItems
             ? values.directDownloadSonarrMonitor
             : undefined;
+          const directSonarrMonitorType: SonarrMonitorType | undefined =
+            values.enableGrabMissingItems &&
+            values.directDownloadSonarrMonitorType
+              ? (values.directDownloadSonarrMonitorType as SonarrMonitorType)
+              : undefined;
           const directSonarrSearchOnAdd = values.enableGrabMissingItems
             ? values.directDownloadSonarrSearchOnAdd
             : undefined;
@@ -2105,6 +2126,7 @@ const CollectionFormConfigForm = ({
             directDownloadSonarrRootFolder: directSonarrRootFolder,
             directDownloadSonarrTags: directSonarrTags,
             directDownloadSonarrMonitor: directSonarrMonitor,
+            directDownloadSonarrMonitorType: directSonarrMonitorType,
             directDownloadSonarrSearchOnAdd: directSonarrSearchOnAdd,
             // Overseerr request configuration
             overseerrRadarrServerId: overseerrRadarrServerId,
