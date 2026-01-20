@@ -473,19 +473,68 @@ export async function buildRenderContext(
           context.bitDepth = parseInt(String(videoStream.bitDepth), 10);
         }
       }
-      // Find audio stream (streamType 2) - prefer first one
-      const audioStream = streams.find((s) => s.streamType === 2);
-      if (audioStream) {
+      // Find all audio streams (streamType 2)
+      const audioStreams = streams.filter((s) => s.streamType === 2);
+      if (audioStreams.length > 0) {
+        // Primary audio stream (first one)
+        const primaryAudio = audioStreams[0];
+
         // Detailed audio format from displayTitle
-        if (audioStream.displayTitle) {
-          context.audioFormat = audioStream.displayTitle;
+        if (primaryAudio.displayTitle) {
+          context.audioFormat = primaryAudio.displayTitle;
         }
         // Audio channel layout
-        if (audioStream.audioChannelLayout) {
-          context.audioChannelLayout = audioStream.audioChannelLayout;
+        if (primaryAudio.audioChannelLayout) {
+          context.audioChannelLayout = primaryAudio.audioChannelLayout;
         }
-        if (audioStream.channels) {
-          context.audioChannels = audioStream.channels;
+        if (primaryAudio.channels) {
+          context.audioChannels = primaryAudio.channels;
+        }
+
+        // Primary audio language
+        if (primaryAudio.language) {
+          context.audioLanguage = primaryAudio.language;
+        }
+        if (primaryAudio.languageCode) {
+          context.audioLanguageCode = primaryAudio.languageCode;
+        }
+
+        // Collect all audio track languages (unique values only)
+        const allAudioLanguages = audioStreams
+          .map((s) => s.language)
+          .filter((lang): lang is string => !!lang);
+        const allAudioLanguageCodes = audioStreams
+          .map((s) => s.languageCode)
+          .filter((code): code is string => !!code);
+
+        if (allAudioLanguages.length > 0) {
+          context.audioLanguages = [...new Set(allAudioLanguages)];
+        }
+        if (allAudioLanguageCodes.length > 0) {
+          context.audioLanguageCodes = [...new Set(allAudioLanguageCodes)];
+        }
+      }
+
+      // Find all subtitle streams (streamType 3)
+      const subtitleStreams = streams.filter((s) => s.streamType === 3);
+      context.hasSubtitles = subtitleStreams.length > 0;
+
+      if (subtitleStreams.length > 0) {
+        // Collect all subtitle languages (unique values only)
+        const allSubtitleLanguages = subtitleStreams
+          .map((s) => s.language)
+          .filter((lang): lang is string => !!lang);
+        const allSubtitleLanguageCodes = subtitleStreams
+          .map((s) => s.languageCode)
+          .filter((code): code is string => !!code);
+
+        if (allSubtitleLanguages.length > 0) {
+          context.subtitleLanguages = [...new Set(allSubtitleLanguages)];
+        }
+        if (allSubtitleLanguageCodes.length > 0) {
+          context.subtitleLanguageCodes = [
+            ...new Set(allSubtitleLanguageCodes),
+          ];
         }
       }
     }

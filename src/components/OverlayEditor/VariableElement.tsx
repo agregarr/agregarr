@@ -150,6 +150,7 @@ export const VariableElement: React.FC<VariableElementComponentProps> = ({
       ...AVAILABLE_VARIABLES.metadata,
       ...AVAILABLE_VARIABLES.video,
       ...AVAILABLE_VARIABLES.audio,
+      ...AVAILABLE_VARIABLES.language,
       ...AVAILABLE_VARIABLES.file,
       ...AVAILABLE_VARIABLES.playback,
       ...AVAILABLE_VARIABLES['coming-soon'],
