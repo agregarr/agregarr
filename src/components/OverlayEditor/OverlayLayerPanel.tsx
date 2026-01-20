@@ -110,6 +110,7 @@ const messages = defineMessages({
   opLessThan: 'less than',
   opLessOrEqual: 'at most',
   opContains: 'contains',
+  opNotContains: 'does not contain',
   opRegex: 'matches regex',
   opBegins: 'begins with',
   opEnds: 'ends with',

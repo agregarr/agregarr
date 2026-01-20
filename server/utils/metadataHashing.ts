@@ -164,11 +164,19 @@ export function calculateThemeInputHash(filename: string): string {
 
 /**
  * Calculate hash for overlay inputs
- * Only includes context fields that are actually used by the templates
- * This prevents unnecessary regeneration when unused fields change
+ * Includes:
+ * - Template IDs (which templates are applied)
+ * - Template data (design: positions, colors, icon/image paths, etc.)
+ * - Context fields actually used by the templates
+ *
+ * This ensures regeneration when:
+ * - Different templates match
+ * - Template design changes (including icon/image path changes)
+ * - Context values change
  */
 export function calculateOverlayInputHash(config: {
   templateIds: number[];
+  templateData: OverlayTemplateData[];
   usedFields: Set<string>;
   context: Record<string, unknown>;
 }): string {
@@ -180,6 +188,7 @@ export function calculateOverlayInputHash(config: {
 
   return calculateInputHash({
     templateIds: [...config.templateIds].sort(), // Ensure sorted for consistency
+    templateData: config.templateData, // Include template design (positions, colors, icon paths)
     context: relevantContext, // Only include fields actually used by templates
   });
 }

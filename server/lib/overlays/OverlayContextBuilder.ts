@@ -405,8 +405,8 @@ export async function buildRenderContext(
     }
   }
 
-  // Plex-specific metadata from Media (skip for placeholder items)
-  if (!isPlaceholder && item.Media?.[0]) {
+  // Plex-specific metadata from Media (extract if available, even for placeholders)
+  if (item.Media?.[0]) {
     const media = item.Media[0];
 
     // Resolution - use raw value from Plex (e.g., "720", "1080", "4k")
@@ -431,6 +431,16 @@ export async function buildRenderContext(
     // File info
     context.container = media.container;
     context.bitrate = media.bitrate;
+
+    // Extract file path and size from Part (independent of Stream data)
+    if (media.Part?.[0]) {
+      if (media.Part[0].file) {
+        context.filePath = media.Part[0].file;
+      }
+      if (media.Part[0].size) {
+        context.fileSize = media.Part[0].size;
+      }
+    }
 
     // Extract detailed info from Streams
     if (media.Part?.[0]?.Stream) {
@@ -477,15 +487,6 @@ export async function buildRenderContext(
         if (audioStream.channels) {
           context.audioChannels = audioStream.channels;
         }
-      }
-
-      // Get file path from Part
-      if (media.Part[0].file) {
-        context.filePath = media.Part[0].file;
-      }
-      // Get file size
-      if (media.Part[0].size) {
-        context.fileSize = media.Part[0].size;
       }
     }
   }

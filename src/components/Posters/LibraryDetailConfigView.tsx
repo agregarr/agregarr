@@ -45,6 +45,7 @@ const OPERATOR_LABELS: Record<string, string> = {
   lte: '≤',
   in: 'in',
   contains: 'contains',
+  notContains: '!contains',
 };
 
 // Get field label from AVAILABLE_VARIABLES

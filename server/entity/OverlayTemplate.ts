@@ -195,6 +195,7 @@ export interface ConditionRule {
     | 'lte' // less than or equal
     | 'in' // value in array
     | 'contains' // string contains
+    | 'notContains' // string does not contain
     | 'regex' // regex match
     | 'begins' // string begins with
     | 'ends' // string ends with
