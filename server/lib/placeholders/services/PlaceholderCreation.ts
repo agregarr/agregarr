@@ -65,14 +65,23 @@ export async function processPlaceholdersForMissingItems(
   );
   const daysAhead = getDaysAhead(config);
   const releasedDays = getReleasedDays(config);
-  await enrichWithTMDBReleaseDates(sourceData, daysAhead, releasedDays);
+  const includeAllReleased = config.includeAllReleasedItems ?? true;
+
+  // Skip date filtering in enrichment when includeAllReleasedItems is true for non-Coming-Soon collections
+  // The filtering will happen below with proper includeAllReleasedItems logic
+  const skipDateFilter = includeAllReleased && !isComingSoonCollection;
+  await enrichWithTMDBReleaseDates(
+    sourceData,
+    daysAhead,
+    releasedDays,
+    skipDateFilter
+  );
 
   // Filter by date window - only create placeholders for items within the configured window
   // When includeAllReleasedItems is true: include all past items, only filter by daysAhead for future
   // When includeAllReleasedItems is false: use window from releasedDays in past to daysAhead in future
   const { isDateWithinDays, isDateWithinFutureDays, determineReleaseDate } =
     await import('@server/utils/dateHelpers');
-  const includeAllReleased = config.includeAllReleasedItems ?? true; // Default true for new configs
 
   const filteredSourceData = sourceData.filter((item) => {
     // Determine the effective release date to check
