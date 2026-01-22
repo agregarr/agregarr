@@ -1,3 +1,28 @@
+# [2.3.0](https://github.com/agregarr/agregarr/compare/v2.2.1...v2.3.0) (2026-01-22)
+
+
+### Bug Fixes
+
+* **collection-posters:** add pre-existing collections to preview, add real posters to content grid ([92db735](https://github.com/agregarr/agregarr/commit/92db73514ee3861967a7a9efe25248f04e47ac60)), closes [#373](https://github.com/agregarr/agregarr/issues/373)
+* **collections:** don't double-estimate digital release dates ([#349](https://github.com/agregarr/agregarr/issues/349)) ([be758cb](https://github.com/agregarr/agregarr/commit/be758cbf659ebb7866ac49b2b6bfe704c8a56f14))
+* **deps:** downgrade @semantic-release/github to 11.0.6 for Node 20 compatibility ([84138da](https://github.com/agregarr/agregarr/commit/84138dab9cb1e71296bc71e9d54862704ac087eb))
+* **letterboxd:** add cloudflare solver for leterboxd ([bff75b8](https://github.com/agregarr/agregarr/commit/bff75b8111528a1283e85a7a1121f71d8a88bec2)), closes [#402](https://github.com/agregarr/agregarr/issues/402)
+* **letterboxd:** extract title from data-item-name instead of img alt ([#405](https://github.com/agregarr/agregarr/issues/405)) ([db4c17a](https://github.com/agregarr/agregarr/commit/db4c17a1bae154ec2a41c8db73017b272c5681d8))
+* **metadata:** fix incorrect release date for old releases with single modern digital release date ([cdb87f5](https://github.com/agregarr/agregarr/commit/cdb87f5eb9820d7e086f5dc9d5adf21d79dd6255)), closes [#374](https://github.com/agregarr/agregarr/issues/374)
+* **overlays:** add 'does not contain' string operator ([fad6454](https://github.com/agregarr/agregarr/commit/fad645485bb88dc3662455add641d3a9fdf54bd5)), closes [#367](https://github.com/agregarr/agregarr/issues/367)
+* **overlays:** add language and subtitle variables ([ea2e468](https://github.com/agregarr/agregarr/commit/ea2e468dfb8719d37780bcd9f9f668fb7cfdd473)), closes [#389](https://github.com/agregarr/agregarr/issues/389)
+* **overlays:** fixes focus issue in condition editor ([c093e60](https://github.com/agregarr/agregarr/commit/c093e60b671528efffe64040a93e04438439476b)), closes [#375](https://github.com/agregarr/agregarr/issues/375)
+* **overlays:** proxy plex posters through backend ([b285f29](https://github.com/agregarr/agregarr/commit/b285f290a7bfc33f6d01fa085dcb0acafc01a96e)), closes [#381](https://github.com/agregarr/agregarr/issues/381)
+* **placeholders:** empty Plex trash after placeholder cleanup ([#400](https://github.com/agregarr/agregarr/issues/400)) ([d17d872](https://github.com/agregarr/agregarr/commit/d17d8728e942a5d9924cde8d2c276250c3fbe634))
+* **placeholders:** skip date filtering for non-Coming-Soon collections with includeAllReleasedItems ([#387](https://github.com/agregarr/agregarr/issues/387)) ([56432fd](https://github.com/agregarr/agregarr/commit/56432fd273297615505cbc8e137e534e425418d1)), closes [#336](https://github.com/agregarr/agregarr/issues/336)
+* **settings:** add seasonGrabOrder and minimumRottenTomatoesAudienceRating to multi-source ([5af35df](https://github.com/agregarr/agregarr/commit/5af35df5a60a79f79f96ce7a500d3c345b85523d)), closes [#242](https://github.com/agregarr/agregarr/issues/242)
+* **sonarr:** add all sonarr mointoring options to main settings and collection config ([9087e84](https://github.com/agregarr/agregarr/commit/9087e84a9f6f121bd665e3d6ddf72e35f8288f4b)), closes [#397](https://github.com/agregarr/agregarr/issues/397)
+
+
+### Features
+
+* **trakt:** add Trakt watchlist support (via OAuth) ([8b1d1c6](https://github.com/agregarr/agregarr/commit/8b1d1c67a5cd997bbd8228b904f84d5d0c846a84)), closes [#377](https://github.com/agregarr/agregarr/issues/377)
+
 ## [2.2.1](https://github.com/agregarr/agregarr/compare/v2.2.0...v2.2.1) (2026-01-15)
 
 
