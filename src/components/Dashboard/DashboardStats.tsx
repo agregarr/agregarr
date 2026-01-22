@@ -22,10 +22,10 @@ const messages = defineMessages({
   totalServer: 'total',
   thisWeek: 'this week',
   tautulliRequired: 'Tautulli Setup Required',
-  tautulliDescription:
+  tautulliDescriptionPlayStats:
     'Configure Tautulli in your settings to view play statistics from your Plex server.',
   configureTautulli: 'Configure Tautulli',
-  failedToLoad: 'Failed to load dashboard statistics',
+  failedToLoadDashboardStats: 'Failed to load dashboard statistics',
 });
 
 interface DashboardData {
@@ -98,7 +98,7 @@ const DashboardStats: React.FC = () => {
       <div className="rounded-lg bg-stone-800 p-6 shadow-sm">
         <div className="text-center">
           <p className="text-red-400">
-            {intl.formatMessage(messages.failedToLoad)}
+            {intl.formatMessage(messages.failedToLoadDashboardStats)}
           </p>
           <p className="mt-1 text-sm text-gray-500">{error.message}</p>
         </div>
@@ -131,7 +131,7 @@ const DashboardStats: React.FC = () => {
             {intl.formatMessage(messages.tautulliRequired)}
           </h4>
           <p className="mb-6 max-w-md text-gray-400">
-            {intl.formatMessage(messages.tautulliDescription)}
+            {intl.formatMessage(messages.tautulliDescriptionPlayStats)}
           </p>
           <Link href="/settings/sources" passHref>
             <Button as="a" buttonType="primary">

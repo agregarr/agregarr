@@ -37,7 +37,7 @@ const messages = defineMessages({
   statusPartiallyAvailable: 'Partially Available',
   autoRequest: 'Auto',
   manualRequest: 'Manual',
-  failedToLoad: 'Failed to load missing items',
+  failedToLoadMissingItems: 'Failed to load missing items',
   requestsCount: '{total} {mediaType} requests',
   showingRecent: 'Showing recent missing item requests',
   lastUpdatedNow: 'Last updated: {time}',
@@ -190,7 +190,7 @@ const MissingItemsFeed: React.FC = () => {
         </div>
         <div className="p-6 text-center">
           <p className="mb-2 text-red-400">
-            {intl.formatMessage(messages.failedToLoad)}
+            {intl.formatMessage(messages.failedToLoadMissingItems)}
           </p>
           <p className="text-sm text-gray-400">{error.message}</p>
         </div>

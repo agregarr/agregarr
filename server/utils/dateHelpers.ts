@@ -339,7 +339,7 @@ export function extractReleaseDates(
 
 /**
  * Determine the best release date using priority logic:
- * Digital > Physical > Theatrical (+90 days estimate)
+ * Earliest of (Digital, Physical) > Theatrical (+90 days estimate)
  *
  * @param digitalRelease - Digital release date (ISO string)
  * @param physicalRelease - Physical release date (ISO string)
@@ -351,23 +351,31 @@ export function determineReleaseDate(
   physicalRelease?: string,
   theatricalRelease?: string
 ): { releaseDate: string; isEstimated: boolean } | undefined {
-  // Priority 1: Digital release
-  if (digitalRelease) {
+  // Priority 1: Earliest of digital or physical release
+  // This prevents picking a future re-release date over an existing physical release
+  if (digitalRelease && physicalRelease) {
+    // Both exist - use the earliest
+    const digitalDate = new Date(digitalRelease);
+    const physicalDate = new Date(physicalRelease);
+    const earliest =
+      digitalDate < physicalDate ? digitalRelease : physicalRelease;
+    return {
+      releaseDate: earliest.split('T')[0],
+      isEstimated: false,
+    };
+  } else if (digitalRelease) {
     return {
       releaseDate: digitalRelease.split('T')[0],
       isEstimated: false,
     };
-  }
-
-  // Priority 2: Physical release
-  if (physicalRelease) {
+  } else if (physicalRelease) {
     return {
       releaseDate: physicalRelease.split('T')[0],
       isEstimated: false,
     };
   }
 
-  // Priority 3: Theatrical + 90 days estimate
+  // Priority 2: Theatrical + 90 days estimate
   if (theatricalRelease) {
     const baseDate = new Date(theatricalRelease);
     baseDate.setDate(baseDate.getDate() + 90);

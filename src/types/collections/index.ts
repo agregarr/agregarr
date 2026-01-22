@@ -26,6 +26,20 @@ export type CollectionSortOrder =
   | 'alphabetical_asc' // A-Z alphabetical order
   | 'alphabetical_desc'; // Z-A alphabetical order
 
+/**
+ * Sonarr monitor types - determines which episodes are monitored when adding a series
+ */
+export type SonarrMonitorType =
+  | 'all' // Monitor all episodes except specials
+  | 'future' // Monitor episodes that have not aired yet
+  | 'missing' // Monitor episodes that do not have files or have not aired yet
+  | 'existing' // Monitor episodes that have files or have not aired yet
+  | 'recent' // Monitor episodes aired within the last 90 days and future episodes
+  | 'pilot' // Only monitor the first episode of the first season
+  | 'firstSeason' // Monitor all episodes of the first season
+  | 'lastSeason' // Monitor all episodes of the last season
+  | 'none'; // No episodes will be monitored
+
 export interface PlexHubConfig {
   id: string; // Generated unique identifier
   hubIdentifier: string; // Plex hub identifier (e.g., "movie.recentlyadded")
@@ -309,7 +323,8 @@ export interface CollectionFormConfig {
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
   readonly directDownloadSonarrTags?: number[]; // Selected Sonarr tags for TV shows
-  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows
+  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows (deprecated, use monitorType)
+  readonly directDownloadSonarrMonitorType?: SonarrMonitorType; // Override Sonarr monitor type for TV shows
   readonly directDownloadSonarrSearchOnAdd?: boolean; // Override Sonarr search on add setting for TV shows
   // Overseerr request configuration (for downloadMode: 'overseerr')
   readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
@@ -486,6 +501,7 @@ export interface CollectionConfigCreateRequest {
   readonly directDownloadSonarrRootFolder?: string;
   readonly directDownloadSonarrTags?: number[];
   readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrMonitorType?: SonarrMonitorType;
   readonly directDownloadSonarrSearchOnAdd?: boolean;
   // Overseerr request configuration (for downloadMode: 'overseerr')
   readonly overseerrRadarrServerId?: number;
@@ -613,6 +629,7 @@ export const toCollectionCreateRequest = (
     directDownloadSonarrRootFolder: config.directDownloadSonarrRootFolder,
     directDownloadSonarrTags: config.directDownloadSonarrTags,
     directDownloadSonarrMonitor: config.directDownloadSonarrMonitor,
+    directDownloadSonarrMonitorType: config.directDownloadSonarrMonitorType,
     directDownloadSonarrSearchOnAdd: config.directDownloadSonarrSearchOnAdd,
     overseerrRadarrServerId: config.overseerrRadarrServerId,
     overseerrRadarrProfileId: config.overseerrRadarrProfileId,
@@ -1043,6 +1060,7 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadSonarrRootFolder?: string;
   readonly directDownloadSonarrTags?: number[];
   readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrMonitorType?: SonarrMonitorType;
   readonly directDownloadSonarrSearchOnAdd?: boolean;
   readonly overseerrRadarrServerId?: number;
   readonly overseerrRadarrProfileId?: number;

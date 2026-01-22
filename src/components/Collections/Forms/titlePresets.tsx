@@ -788,6 +788,26 @@ export const getTemplatePresets = (
           },
           { label: 'Custom', value: 'custom' },
         ];
+      case 'watchlist':
+        return [
+          {
+            label: 'My Watchlist',
+            value: 'My Watchlist',
+          },
+          {
+            label: 'Trakt Watchlist',
+            value: 'Trakt Watchlist',
+          },
+          {
+            label: 'Watchlist {mediaType}s',
+            value: 'Watchlist {mediaType}s',
+          },
+          {
+            label: 'My {mediaType}s Watchlist',
+            value: 'My {mediaType}s Watchlist',
+          },
+          { label: 'Custom', value: 'custom' },
+        ];
       case 'custom':
         return getCustomUrlPresets(fetchedTitles?.trakt || '', 'trakt');
       case 'random':

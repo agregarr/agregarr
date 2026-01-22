@@ -447,10 +447,12 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
       }
 
       case 'letterboxd': {
-        // For Letterboxd, we'll need to scrape the title from the page
+        // For Letterboxd, we need Playwright to bypass Cloudflare protection
         sendProgress(res, 'connecting', 'Connecting to Letterboxd...');
 
-        const letterboxdAxios = (await import('axios')).default;
+        const { CloudflareSolver } = await import(
+          '@server/lib/collections/utils/CloudflareSolver'
+        );
 
         try {
           const watchlistMatch = sanitizedUrl.match(
@@ -473,15 +475,14 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
             return res.end();
           }
 
-          sendProgress(res, 'fetching', 'Fetching list information...');
+          sendProgress(
+            res,
+            'challenge',
+            'Bypassing Cloudflare protection... (may take a few seconds)'
+          );
 
-          const response = await letterboxdAxios.get(sanitizedUrl, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-            timeout: 15000,
-          });
+          // Use Playwright to bypass Cloudflare and get page content
+          const html = await CloudflareSolver.fetchPage(sanitizedUrl);
 
           sendProgress(res, 'parsing', 'Extracting list title...');
 
@@ -492,7 +493,8 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
             title = `${username}'s Watchlist`;
           } else {
             // Extract title from HTML and clean it up
-            const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+            const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+
             if (titleMatch) {
               let rawTitle = titleMatch[1];
 
@@ -541,14 +543,21 @@ fetchTitleRoutes.get('/', isAuthenticated(), async (req, res) => {
           // For Letterboxd, assume movies by default since it's primarily a film platform
           mediaType = 'movie';
         } catch (error) {
-          const isTimeout =
-            error.code === 'ECONNABORTED' || error.message?.includes('timeout');
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          const isTimeout = errorMessage?.includes('timeout');
+
+          logger.error('Letterboxd fetch error', {
+            label: 'Letterboxd Collections',
+            error: errorMessage,
+          });
+
           res.write(
             `data: ${JSON.stringify({
               status: 'error',
               message: isTimeout
                 ? 'Request timed out while fetching Letterboxd list'
-                : 'Could not fetch Letterboxd list title',
+                : `Could not fetch Letterboxd list title: ${errorMessage}`,
             })}\n\n`
           );
           return res.end();

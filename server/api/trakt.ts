@@ -565,6 +565,31 @@ class TraktAPI {
     }
   }
 
+  public async getWatchlist(
+    mediaType: 'movies' | 'shows',
+    limit = 9999
+  ): Promise<TraktListResponse[]> {
+    try {
+      return await this.retryRequest(async () => {
+        const response = await this.axios.get<TraktListResponse[]>(
+          `/sync/watchlist/${mediaType}`,
+          {
+            params: { limit },
+          }
+        );
+        return response.data;
+      });
+    } catch (e) {
+      logger.error('Something went wrong fetching watchlist from Trakt', {
+        label: 'Trakt API',
+        errorMessage: e.message,
+        mediaType,
+        limit,
+      });
+      throw new Error(`[Trakt] Failed to fetch watchlist: ${e.message}`);
+    }
+  }
+
   public async getCustomList(
     listUrl: string,
     limit = 9999

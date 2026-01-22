@@ -229,6 +229,10 @@ export const saveIndividualConfigs = async (
           directDownloadSonarrMonitor:
             collectionConfig.directDownloadSonarrMonitor,
         }),
+        ...(collectionConfig.directDownloadSonarrMonitorType !== undefined && {
+          directDownloadSonarrMonitorType:
+            collectionConfig.directDownloadSonarrMonitorType,
+        }),
         ...(collectionConfig.directDownloadSonarrSearchOnAdd !== undefined && {
           directDownloadSonarrSearchOnAdd:
             collectionConfig.directDownloadSonarrSearchOnAdd,

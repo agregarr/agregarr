@@ -16,6 +16,7 @@ const OPERATOR_LABELS: Record<string, string> = {
   lte: '≤',
   in: 'in',
   contains: 'contains',
+  notContains: '!contains',
   regex: 'regex',
   begins: 'begins',
   ends: 'ends',

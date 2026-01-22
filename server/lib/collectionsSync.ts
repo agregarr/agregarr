@@ -423,43 +423,78 @@ class CollectionsSync {
         });
       }
 
-      // Trigger Plex scan if we deleted placeholder files
+      // Trigger Plex scan and empty trash if we deleted placeholder files
+      // Note: emptyTrash removes ALL missing items in the library, not just placeholders.
+      // This is acceptable because placeholder folders are dedicated library paths.
       if (filesWereRemoved) {
         this.setStage('Scanning Plex libraries for removed placeholders...');
-        try {
-          const libraries = await plexClient.getLibraries();
-          const { getPlaceholderRootFolder } = await import(
-            '@server/lib/placeholders/helpers/placeholderPathHelpers'
-          );
+        const scannedLibraryKeys: string[] = [];
 
-          // Scan libraries that have placeholder folders configured
-          for (const lib of libraries) {
-            if (lib.type !== 'movie' && lib.type !== 'show') continue;
+        const libraries = await plexClient.getLibraries();
+        const { getPlaceholderRootFolder } = await import(
+          '@server/lib/placeholders/helpers/placeholderPathHelpers'
+        );
 
-            const mediaType: 'movie' | 'tv' =
-              lib.type === 'movie' ? 'movie' : 'tv';
-            const placeholderPath = getPlaceholderRootFolder(
-              lib.key,
-              mediaType
+        // Scan libraries that have placeholder folders configured
+        for (const lib of libraries) {
+          if (lib.type !== 'movie' && lib.type !== 'show') continue;
+
+          const mediaType: 'movie' | 'tv' =
+            lib.type === 'movie' ? 'movie' : 'tv';
+          const placeholderPath = getPlaceholderRootFolder(lib.key, mediaType);
+          if (!placeholderPath) continue;
+
+          try {
+            await plexClient.scanLibrary(lib.key);
+            scannedLibraryKeys.push(lib.key);
+            logger.info(
+              'Triggered scan for library after placeholder cleanup',
+              {
+                label: 'Collections Sync',
+                libraryKey: lib.key,
+                libraryTitle: lib.title,
+                mediaType: lib.type,
+              }
             );
-            if (placeholderPath) {
-              await plexClient.scanLibrary(lib.key);
-              logger.info(
-                'Triggered scan for library after placeholder cleanup',
-                {
-                  label: 'Collections Sync',
-                  libraryKey: lib.key,
-                  libraryTitle: lib.title,
-                  mediaType: lib.type,
-                }
-              );
+          } catch (scanError) {
+            logger.warn('Failed to scan library after placeholder cleanup', {
+              label: 'Collections Sync',
+              libraryKey: lib.key,
+              libraryTitle: lib.title,
+              error:
+                scanError instanceof Error
+                  ? scanError.message
+                  : String(scanError),
+            });
+          }
+        }
+
+        // Wait briefly for scans to detect missing files, then empty trash
+        // Note: Plex scan's file existence check is fast; the delay allows it to
+        // mark files as unavailable before we empty trash. Media analysis takes
+        // longer but isn't needed for trash cleanup.
+        if (scannedLibraryKeys.length > 0) {
+          this.setStage('Cleaning up Plex trash after placeholder removal...');
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+
+          for (const libraryKey of scannedLibraryKeys) {
+            try {
+              await plexClient.emptyTrash(libraryKey);
+              logger.info('Emptied Plex trash after placeholder cleanup', {
+                label: 'Collections Sync',
+                libraryKey,
+              });
+            } catch (trashError) {
+              logger.warn('Failed to empty Plex trash for library', {
+                label: 'Collections Sync',
+                libraryKey,
+                error:
+                  trashError instanceof Error
+                    ? trashError.message
+                    : String(trashError),
+              });
             }
           }
-        } catch (error) {
-          logger.warn('Failed to trigger Plex scan after placeholder cleanup', {
-            label: 'Collections Sync',
-            error: error instanceof Error ? error.message : String(error),
-          });
         }
       }
 

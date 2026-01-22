@@ -35,6 +35,20 @@ export type CollectionSortOrder =
   | 'alphabetical_asc' // A-Z alphabetical order
   | 'alphabetical_desc'; // Z-A alphabetical order
 
+/**
+ * Sonarr monitor types - determines which episodes are monitored when adding a series
+ */
+export type SonarrMonitorType =
+  | 'all' // Monitor all episodes except specials
+  | 'future' // Monitor episodes that have not aired yet
+  | 'missing' // Monitor episodes that do not have files or have not aired yet
+  | 'existing' // Monitor episodes that have files or have not aired yet
+  | 'recent' // Monitor episodes aired within the last 90 days and future episodes
+  | 'pilot' // Only monitor the first episode of the first season
+  | 'firstSeason' // Monitor all episodes of the first season
+  | 'lastSeason' // Monitor all episodes of the last season
+  | 'none'; // No episodes will be monitored
+
 export interface Library {
   readonly key: string;
   readonly name: string;
@@ -158,7 +172,8 @@ export interface CollectionConfig {
   readonly directDownloadSonarrProfileId?: number; // Selected Sonarr profile ID for TV shows
   readonly directDownloadSonarrRootFolder?: string; // Selected Sonarr root folder path for TV shows
   readonly directDownloadSonarrTags?: number[]; // Selected Sonarr tags for TV shows
-  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows
+  readonly directDownloadSonarrMonitor?: boolean; // Override Sonarr monitor setting for TV shows (deprecated, use monitorType)
+  readonly directDownloadSonarrMonitorType?: SonarrMonitorType; // Override Sonarr monitor type for TV shows
   readonly directDownloadSonarrSearchOnAdd?: boolean; // Override Sonarr search on add setting for TV shows
   // Overseerr request configuration (for downloadMode: 'overseerr')
   readonly overseerrRadarrServerId?: number; // Override Radarr server ID for Overseerr movie requests
@@ -509,6 +524,7 @@ export interface SonarrSettings extends DVRSettings {
   activeLanguageProfileId?: number;
   animeTags?: number[];
   enableSeasonFolders: boolean;
+  monitorType?: SonarrMonitorType; // Which episodes to monitor when adding series (defaults to 'all')
 }
 
 export interface WatchlistSyncSettings {
@@ -2168,10 +2184,12 @@ export interface MultiSourceCollectionConfig {
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly seasonsPerShowLimit?: number;
+  readonly seasonGrabOrder?: SeasonGrabOrder;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
   readonly minimumImdbRating?: number;
   readonly minimumRottenTomatoesRating?: number;
+  readonly minimumRottenTomatoesAudienceRating?: number;
   readonly excludedGenres?: number[];
   readonly excludedCountries?: string[];
   readonly excludedLanguages?: string[];
@@ -2200,6 +2218,7 @@ export interface MultiSourceCollectionConfig {
   readonly directDownloadSonarrRootFolder?: string;
   readonly directDownloadSonarrTags?: number[];
   readonly directDownloadSonarrMonitor?: boolean;
+  readonly directDownloadSonarrMonitorType?: SonarrMonitorType;
   readonly directDownloadSonarrSearchOnAdd?: boolean;
   readonly overseerrRadarrServerId?: number;
   readonly overseerrRadarrProfileId?: number;

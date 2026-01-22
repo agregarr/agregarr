@@ -10,7 +10,7 @@ const messages = defineMessages({
   posterUploadHelpMulti:
     'Upload custom poster images for each selected library. Posters will be applied to Plex collections during the next sync.',
   posterRemoveConfirm: 'Poster will be removed on next collection sync',
-  posterUploadSuccess:
+  posterUploadSuccessWithSyncNote:
     'Poster uploaded successfully. Will be applied on next collection sync.',
   autoPoster: 'Auto-generate Collection posters',
   autoPosterHelp:
@@ -26,7 +26,7 @@ const messages = defineMessages({
   hideIndividualItems: 'Hide Individual Items in Collection',
   hideIndividualItemsHelp:
     'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
-  selectLibrariesFirst: 'Select libraries first to upload custom posters.',
+  selectLibrariesForPosters: 'Select libraries first to upload custom posters.',
 });
 
 interface Library {
@@ -201,7 +201,7 @@ const PosterUploadSection = ({
     );
 
     // Show success message
-    addToast(intl.formatMessage(messages.posterUploadSuccess), {
+    addToast(intl.formatMessage(messages.posterUploadSuccessWithSyncNote), {
       appearance: 'success',
       autoDismiss: true,
     });
@@ -215,7 +215,7 @@ const PosterUploadSection = ({
   if (selectedLibraryIds.length === 0) {
     return (
       <div className="label-tip">
-        {intl.formatMessage(messages.selectLibrariesFirst)}
+        {intl.formatMessage(messages.selectLibrariesForPosters)}
       </div>
     );
   }

@@ -9,7 +9,8 @@
     "build": "yarn build:next && yarn build:server",
     "lint": "eslint \"./server/**/*.{ts,tsx}\" \"./src/**/*.{ts,tsx}\"",
     "start": "NODE_ENV=production node dist/index.js",
-    "i18n:extract": "extract-messages -l=en -o src/i18n/locale -d en --flat true --overwriteDefault true \"./src/**/!(*.test).{ts,tsx}\"",
+    "i18n:check-duplicates": "node scripts/check-i18n-duplicates.js",
+    "i18n:extract": "yarn i18n:check-duplicates && extract-messages -l=en -o src/i18n/locale -d en --flat true --overwriteDefault true \"./src/**/!(*.test).{ts,tsx}\"",
     "migration:generate": "ts-node -r tsconfig-paths/register --project server/tsconfig.json ./node_modules/typeorm/cli.js migration:generate -d server/datasource.ts",
     "migration:create": "ts-node -r tsconfig-paths/register --project server/tsconfig.json ./node_modules/typeorm/cli.js migration:create -d server/datasource.ts",
     "migration:run": "ts-node -r tsconfig-paths/register --project server/tsconfig.json ./node_modules/typeorm/cli.js migration:run -d server/datasource.ts",
@@ -55,7 +56,6 @@
     "connect-typeorm": "1.1.4",
     "cookie-parser": "1.4.6",
     "copy-to-clipboard": "3.3.3",
-    "country-flag-icons": "1.5.5",
     "cron-parser": "^5.4.0",
     "cronstrue": "2.23.0",
     "csurf": "1.11.0",
@@ -128,13 +128,13 @@
     "@semantic-release/commit-analyzer": "9.0.2",
     "@semantic-release/exec": "6.0.3",
     "@semantic-release/git": "10.0.1",
+    "@semantic-release/github": "11.0.6",
     "@tailwindcss/aspect-ratio": "0.4.2",
     "@tailwindcss/forms": "0.5.3",
     "@tailwindcss/typography": "0.5.9",
     "@types/archiver": "^6.0.3",
     "@types/bcrypt": "5.0.0",
     "@types/cookie-parser": "1.4.3",
-    "@types/country-flag-icons": "1.2.0",
     "@types/csurf": "1.11.2",
     "@types/email-templates": "8.0.4",
     "@types/express": "4.17.17",
@@ -204,7 +204,7 @@
       "prettier --write",
       "eslint"
     ],
-    "**/*.{json,md,css}": [
+    "**/*.{json,md,css,yml}": [
       "prettier --write"
     ]
   },
@@ -232,6 +232,12 @@
             "CHANGELOG.md"
           ],
           "message": "chore(release): ${nextRelease.version}"
+        }
+      ],
+      [
+        "@semantic-release/github",
+        {
+          "addReleases": "bottom"
         }
       ]
     ],
