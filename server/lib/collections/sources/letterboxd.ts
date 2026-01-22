@@ -129,8 +129,10 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         listUrl = config.letterboxdCustomListUrl;
       }
 
-      // Use the same approach as fetch-title endpoint
-      const axios = (await import('axios')).default;
+      // Use Playwright to bypass Cloudflare protection
+      const { CloudflareSolver } = await import(
+        '@server/lib/collections/utils/CloudflareSolver'
+      );
 
       logger.debug(`Fetching Letterboxd list: ${listUrl}`, {
         label: 'Letterboxd Collections',
@@ -160,25 +162,17 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
           totalFetched,
         });
 
-        const response = await axios.get(pageUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
-          timeout: 10000,
-        });
+        // Use Playwright to bypass Cloudflare and get page content
+        const html = await CloudflareSolver.fetchPage(pageUrl);
 
         // Store HTML from first page for later title extraction
         if (currentPage === 1) {
-          this.lastFetchedHtml = response.data;
+          this.lastFetchedHtml = html;
         }
 
         // Parse this page's HTML to extract movie items
         const remainingItems = 9999 - totalFetched;
-        const pageData = this.parseLetterboxdListHtml(
-          response.data,
-          remainingItems
-        );
+        const pageData = this.parseLetterboxdListHtml(html, remainingItems);
 
         if (pageData.length === 0) {
           logger.debug(
