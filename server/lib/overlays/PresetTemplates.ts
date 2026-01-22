@@ -34,7 +34,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: 0,
-          y: 0,
+          y: 311,
           width: 162,
           height: 155,
           properties: {
@@ -52,7 +52,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'variable',
           x: 16,
-          y: 59,
+          y: 369,
           width: 127,
           height: 108,
           properties: {
@@ -70,7 +70,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 2,
           type: 'svg',
           x: 16,
-          y: -18,
+          y: 292,
           width: 130,
           height: 130,
           properties: {
