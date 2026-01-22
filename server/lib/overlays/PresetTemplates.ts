@@ -576,7 +576,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'svg',
           x: 0,
-          y: 310.50617627005715,
+          y: 466,
           width: 163,
           height: 77,
           properties: {
@@ -611,7 +611,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: -5.5246784801583,
-          y: 390.50433315836005,
+          y: 546,
           width: 169,
           height: 85,
           properties: {
@@ -628,7 +628,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'raster',
           x: 5.9753215198417,
-          y: 384.50433315836005,
+          y: 540,
           width: 146,
           height: 97,
           properties: {
