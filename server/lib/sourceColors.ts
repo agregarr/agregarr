@@ -108,8 +108,8 @@ export const DEFAULT_SOURCE_COLORS: Record<string, SourceColorScheme> = {
     textColor: '#ffffff',
   },
   max: {
-    primaryColor: '#0024ff',
-    secondaryColor: '#0d1326',
+    primaryColor: '#1F2833',
+    secondaryColor: '#00030C',
     textColor: '#ffffff',
   },
   discovery: {
