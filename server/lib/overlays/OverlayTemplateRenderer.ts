@@ -1,6 +1,7 @@
 import type {
   ApplicationCondition,
   OverlayElement,
+  OverlayMappedIconElementProps,
   OverlayRasterElementProps,
   OverlaySVGElementProps,
   OverlayTemplateData,
@@ -9,6 +10,8 @@ import type {
   OverlayVariableElementProps,
 } from '@server/entity/OverlayTemplate';
 import logger from '@server/logger';
+import fs from 'fs';
+import path from 'path';
 import sharp from 'sharp';
 
 /**
@@ -356,6 +359,12 @@ export interface OverlayRenderContext {
   runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
 
+  // Country/Origin (ISO 3166-1 alpha-2 codes like "US", "GB", "DE")
+  originCountry?: string; // Primary country of origin
+  originCountries?: string[]; // All countries of origin
+  productionCountry?: string; // Primary production country
+  productionCountries?: string[]; // All production countries
+
   // Plex Media Info (from actual file analysis)
   resolution?: string; // '4K', '1080p', '720p'
   width?: number; // Video width in pixels
@@ -582,19 +591,17 @@ class OverlayTemplateRendererService {
 
           // Scale position from template coordinates to poster coordinates
           // Use uniform scaling with offsets to handle non-standard aspect ratios
-          const scaledElementWidth = Math.round(element.width * scale);
-          const scaledElementHeight = Math.round(element.height * scale);
 
-          // Calculate the center position where this element should be
-          // Apply offsets to center overlays on non-standard posters
+          // Use actual buffer dimensions for positioning (handles elements like mapped-icon
+          // where content size is determined by the element's settings, not element.width/height)
           const centerX = Math.round(
-            offsetX + element.x * scale + scaledElementWidth / 2
+            offsetX + element.x * scale + overlayWidth / 2
           );
           const centerY = Math.round(
-            offsetY + element.y * scale + scaledElementHeight / 2
+            offsetY + element.y * scale + overlayHeight / 2
           );
 
-          // Position the rotated buffer so its center aligns with the element center
+          // Position the buffer so its center aligns with the calculated center
           const left = centerX - Math.round(overlayWidth / 2);
           const top = centerY - Math.round(overlayHeight / 2);
 
@@ -718,6 +725,16 @@ class OverlayTemplateRendererService {
             posterHeight,
             templateWidth,
             templateHeight
+          );
+          break;
+        case 'mapped-icon':
+          buffer = await this.renderMappedIconElement(
+            element,
+            posterWidth,
+            posterHeight,
+            templateWidth,
+            templateHeight,
+            context
           );
           break;
         default:
@@ -1217,6 +1234,313 @@ class OverlayTemplateRendererService {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
+  }
+
+  /**
+   * Render mapped icon element
+   * Displays icons based on context field values with configurable layout
+   */
+  private async renderMappedIconElement(
+    element: OverlayElement,
+    posterWidth: number,
+    posterHeight: number,
+    templateWidth: number,
+    templateHeight: number,
+    context: OverlayRenderContext
+  ): Promise<Buffer | null> {
+    const props = element.properties as OverlayMappedIconElementProps;
+
+    // Get field value from context
+    const fieldValue = context[props.field];
+    if (fieldValue === undefined || fieldValue === null) {
+      return null; // No value, skip rendering
+    }
+
+    // Normalize to array (handles both single values and arrays)
+    const values: string[] = Array.isArray(fieldValue)
+      ? fieldValue.map(String)
+      : [String(fieldValue)];
+
+    // Match values against mappings (case-insensitive)
+    const matchedMappings: { value: string; iconPath: string }[] = [];
+    for (const value of values) {
+      const mapping = props.mappings.find(
+        (m) => m.value.toLowerCase() === value.toLowerCase()
+      );
+      if (mapping) {
+        matchedMappings.push(mapping);
+      }
+    }
+
+    // Apply maxIcons limit if specified
+    const maxIcons =
+      props.maxIcons && props.maxIcons > 0
+        ? props.maxIcons
+        : matchedMappings.length;
+    const iconsToRender = matchedMappings.slice(0, maxIcons);
+
+    // If no icons to render, return null
+    if (iconsToRender.length === 0) {
+      return null;
+    }
+
+    // Calculate uniform scale factor for poster
+    const posterScaleX = posterWidth / templateWidth;
+    const posterScaleY = posterHeight / templateHeight;
+    const posterScale = Math.min(posterScaleX, posterScaleY);
+
+    // Scale icon size and spacing to poster size
+    // Support both new spacingX/spacingY and legacy spacing field
+    const iconSize = Math.round(props.iconSize * posterScale);
+    const spacingX = Math.round((props.spacingX ?? props.spacing ?? 4) * posterScale);
+    const spacingY = Math.round((props.spacingY ?? props.spacing ?? 4) * posterScale);
+
+    // Calculate positions based on layout
+    const positions = this.calculateIconPositions(
+      iconsToRender.length,
+      iconSize,
+      spacingX,
+      spacingY,
+      props.layout,
+      props.gridColumns || 3
+    );
+
+    // Calculate canvas size to fit all icons (auto-size to content)
+    const totalWidth = this.calculateContentWidth(
+      iconsToRender.length,
+      iconSize,
+      spacingX,
+      props.layout,
+      props.gridColumns || 3
+    );
+    const totalHeight = this.calculateContentHeight(
+      iconsToRender.length,
+      iconSize,
+      spacingY,
+      props.layout,
+      props.gridColumns || 3
+    );
+
+    // Load all icons and composite them
+    const iconBuffers: { buffer: Buffer; x: number; y: number }[] = [];
+
+    for (let i = 0; i < iconsToRender.length; i++) {
+      const mapping = iconsToRender[i];
+      const position = positions[i];
+
+      try {
+        let iconBuffer: Buffer;
+
+        // Check if it's an API icon path or a static asset path
+        const apiMatch = mapping.iconPath.match(
+          /\/api\/v1\/posters\/icons\/(\w+)\/(.+)/
+        );
+        const assetMatch = mapping.iconPath.match(/\/assets\/(.+)/);
+
+        if (apiMatch) {
+          // Load from icon manager (user/system icons)
+          const [, iconType, filename] = apiMatch;
+          const { loadIconFile } = await import('@server/lib/iconManager');
+          iconBuffer = await loadIconFile(
+            filename,
+            iconType as 'user' | 'system'
+          );
+        } else if (assetMatch) {
+          // Load from public assets directory
+          const assetPath = path.join(
+            process.cwd(),
+            'public',
+            'assets',
+            assetMatch[1]
+          );
+          iconBuffer = await fs.promises.readFile(assetPath);
+        } else {
+          logger.warn('Icon path does not match expected format', {
+            label: 'OverlayRenderer',
+            iconPath: mapping.iconPath,
+          });
+          continue;
+        }
+
+        // Get original dimensions to preserve aspect ratio
+        const metadata = await sharp(iconBuffer).metadata();
+        const originalWidth = metadata.width || iconSize;
+        const originalHeight = metadata.height || iconSize;
+        const aspectRatio = originalWidth / originalHeight;
+
+        // Calculate dimensions that fit within iconSize while preserving aspect ratio
+        let targetWidth = iconSize;
+        let targetHeight = iconSize;
+
+        if (aspectRatio > 1) {
+          // Wider than tall - fit to width
+          targetHeight = Math.round(iconSize / aspectRatio);
+        } else if (aspectRatio < 1) {
+          // Taller than wide - fit to height
+          targetWidth = Math.round(iconSize * aspectRatio);
+        }
+
+        // Resize icon preserving aspect ratio
+        iconBuffer = await sharp(iconBuffer)
+          .resize(targetWidth, targetHeight, {
+            fit: 'fill',
+          })
+          .png()
+          .toBuffer();
+
+        // Apply grayscale if specified
+        if (props.grayscale) {
+          iconBuffer = await sharp(iconBuffer).grayscale().png().toBuffer();
+        }
+
+        // Center icon within its iconSize cell
+        const offsetX = Math.round((iconSize - targetWidth) / 2);
+        const offsetY = Math.round((iconSize - targetHeight) / 2);
+
+        iconBuffers.push({
+          buffer: iconBuffer,
+          x: position.x + offsetX,
+          y: position.y + offsetY,
+        });
+      } catch (error) {
+        logger.error('Failed to load icon for mapped-icon element', {
+          label: 'OverlayRenderer',
+          iconPath: mapping.iconPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // If no icons were loaded successfully, return null
+    if (iconBuffers.length === 0) {
+      return null;
+    }
+
+    // Create a transparent canvas and composite all icons
+    const compositeInputs: sharp.OverlayOptions[] = iconBuffers.map(
+      ({ buffer, x, y }) => ({
+        input: buffer,
+        left: x,
+        top: y,
+      })
+    );
+
+    // Create base canvas with transparent background
+    const result = await sharp({
+      create: {
+        width: totalWidth,
+        height: totalHeight,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite(compositeInputs)
+      .png()
+      .toBuffer();
+
+    // Apply opacity if specified
+    if (props.opacity !== undefined && props.opacity < 100) {
+      // Apply opacity by reducing alpha channel
+      return await sharp(result)
+        .ensureAlpha(props.opacity / 100)
+        .png()
+        .toBuffer();
+    }
+
+    return result;
+  }
+
+  /**
+   * Calculate icon positions based on layout type
+   */
+  private calculateIconPositions(
+    count: number,
+    iconSize: number,
+    spacingX: number,
+    spacingY: number,
+    layout: 'horizontal' | 'vertical' | 'grid',
+    gridColumns: number
+  ): { x: number; y: number }[] {
+    const positions: { x: number; y: number }[] = [];
+
+    for (let i = 0; i < count; i++) {
+      let x = 0;
+      let y = 0;
+
+      switch (layout) {
+        case 'horizontal':
+          x = i * (iconSize + spacingX);
+          y = 0;
+          break;
+        case 'vertical':
+          x = 0;
+          y = i * (iconSize + spacingY);
+          break;
+        case 'grid': {
+          const col = i % gridColumns;
+          const row = Math.floor(i / gridColumns);
+          x = col * (iconSize + spacingX);
+          y = row * (iconSize + spacingY);
+          break;
+        }
+      }
+
+      positions.push({ x, y });
+    }
+
+    return positions;
+  }
+
+  /**
+   * Calculate content width based on layout
+   */
+  private calculateContentWidth(
+    count: number,
+    iconSize: number,
+    spacingX: number,
+    layout: 'horizontal' | 'vertical' | 'grid',
+    gridColumns: number
+  ): number {
+    if (count === 0) return iconSize;
+
+    switch (layout) {
+      case 'horizontal':
+        return count * iconSize + (count - 1) * spacingX;
+      case 'vertical':
+        return iconSize;
+      case 'grid': {
+        const cols = Math.min(count, gridColumns);
+        return cols * iconSize + (cols - 1) * spacingX;
+      }
+      default:
+        return iconSize;
+    }
+  }
+
+  /**
+   * Calculate content height based on layout
+   */
+  private calculateContentHeight(
+    count: number,
+    iconSize: number,
+    spacingY: number,
+    layout: 'horizontal' | 'vertical' | 'grid',
+    gridColumns: number
+  ): number {
+    if (count === 0) return iconSize;
+
+    switch (layout) {
+      case 'horizontal':
+        return iconSize;
+      case 'vertical':
+        return count * iconSize + (count - 1) * spacingY;
+      case 'grid': {
+        const rows = Math.ceil(count / gridColumns);
+        return rows * iconSize + (rows - 1) * spacingY;
+      }
+      default:
+        return iconSize;
+    }
   }
 }
 

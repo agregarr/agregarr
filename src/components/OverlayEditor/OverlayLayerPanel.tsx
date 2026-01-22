@@ -5,6 +5,7 @@ import {
   ArrowUpIcon,
   CodeBracketSquareIcon,
   DocumentTextIcon,
+  LanguageIcon,
   LockClosedIcon,
   LockOpenIcon,
   PhotoIcon,
@@ -13,12 +14,15 @@ import {
   TrashIcon,
   VariableIcon,
 } from '@heroicons/react/24/outline';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
+import MappedIconMappingModal from './MappedIconMappingModal';
 import type {
+  IconMapping,
   OverlayElement,
+  OverlayMappedIconElementProps,
   OverlayRasterElementProps,
   OverlaySVGElementProps,
   OverlayTemplateData,
@@ -27,7 +31,7 @@ import type {
   OverlayVariableElementProps,
   OverlayVariableSegment,
 } from './types';
-import { AVAILABLE_VARIABLES } from './types';
+import { AVAILABLE_VARIABLES, isSingleValueField } from './types';
 
 const messages = defineMessages({
   layers: 'Layers',
@@ -36,6 +40,7 @@ const messages = defineMessages({
   addVariable: 'Variable',
   addImage: 'Image',
   addIcon: 'Icon',
+  addMappedIcon: 'Mapped',
   moveUp: 'Move Up',
   moveDown: 'Move Down',
   deleteElement: 'Delete Element',
@@ -117,6 +122,23 @@ const messages = defineMessages({
   locked: 'Locked',
   unlocked: 'Unlocked',
   unknownElement: 'Unknown element type: {type}',
+  // Mapped Icon properties
+  sourceField: 'Source Field',
+  iconMappings: 'Icon Mappings',
+  editMappings: 'Edit Mappings',
+  mappingsConfigured: '{count} mapping(s) configured',
+  noMappingsConfigured: 'No mappings configured',
+  layout: 'Layout',
+  layoutHorizontal: 'Horizontal',
+  layoutVertical: 'Vertical',
+  layoutGrid: 'Grid',
+  iconSize: 'Icon Size',
+  spacingX: 'Spacing X',
+  spacingY: 'Spacing Y',
+  maxIcons: 'Max Icons',
+  unlimited: 'unlimited',
+  gridColumns: 'Grid Columns',
+  ratingCountry: 'Rating Country',
 });
 
 interface FontInfo {
@@ -141,6 +163,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
 }) => {
   const intl = useIntl();
   const { addToast } = useToasts();
+  const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
 
   const { data: fontsData } = useSWR<{ fonts: FontInfo[]; count: number }>(
     '/api/v1/fonts'
@@ -288,6 +311,47 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
     onElementSelect(newElement.id);
   };
 
+  const handleAddMappedIcon = async () => {
+    const defaultField = 'audioLanguageCodes';
+
+    // Fetch default mappings for the initial field
+    let mappings: IconMapping[] = [];
+    try {
+      const response = await fetch(`/api/v1/overlay-mappings/${defaultField}`);
+      if (response.ok) {
+        const data = await response.json();
+        mappings = data.mappings || [];
+      }
+    } catch {
+      // Ignore errors, use empty mappings
+    }
+
+    const newElement: OverlayElement = {
+      id: generateId(),
+      layerOrder: elements.length,
+      type: 'mapped-icon',
+      x: 100,
+      y: 150,
+      width: 200,
+      height: 60,
+      properties: {
+        field: defaultField,
+        mappings,
+        layout: 'horizontal',
+        iconSize: 100,
+        spacingX: 4,
+        spacingY: 4,
+        maxIcons: 4,
+        gridColumns: 3,
+        opacity: 100,
+        grayscale: false,
+      },
+    };
+
+    updateElements([...elements, newElement]);
+    onElementSelect(newElement.id);
+  };
+
   const handleDeleteElement = (elementId: string) => {
     updateElements(elements.filter((el) => el.id !== elementId));
     onElementSelect(undefined);
@@ -342,6 +406,8 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         return '🎨';
       case 'raster':
         return '🖼️';
+      case 'mapped-icon':
+        return '🗺️';
       default:
         return '📦';
     }
@@ -364,6 +430,10 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         return 'SVG Icon';
       case 'raster':
         return 'Image';
+      case 'mapped-icon': {
+        const props = element.properties as OverlayMappedIconElementProps;
+        return `Mapped: {${props.field}}`;
+      }
       default:
         return 'Unknown';
     }
@@ -1527,6 +1597,424 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
     );
   };
 
+  const renderMappedIconProperties = (element: OverlayElement) => {
+    const props = element.properties as OverlayMappedIconElementProps;
+
+    // Handler for field change - fetches default mappings for the new field
+    const handleFieldChange = async (newField: string) => {
+      try {
+        const response = await fetch(`/api/v1/overlay-mappings/${newField}`);
+        if (response.ok) {
+          const data = await response.json();
+          handleUpdateElement(element.id, {
+            properties: {
+              ...props,
+              field: newField,
+              mappings: data.mappings || [],
+            },
+          });
+        } else {
+          // Fallback: just update the field with empty mappings
+          handleUpdateElement(element.id, {
+            properties: { ...props, field: newField, mappings: [] },
+          });
+        }
+      } catch {
+        // Fallback: just update the field with empty mappings
+        handleUpdateElement(element.id, {
+          properties: { ...props, field: newField, mappings: [] },
+        });
+      }
+    };
+
+    // Parse content rating field to extract base field and country
+    const isContentRating = props.field.startsWith('contentRating:');
+    const contentRatingCountry = isContentRating
+      ? props.field.split(':')[1]
+      : 'US';
+
+    // Define available fields grouped by category
+    // Note: Boolean fields (hdr, dolbyVision, downloaded, etc.) are excluded -
+    // use normal conditional visibility for those instead of mapped icons
+    const fieldCategories = {
+      video: {
+        label: 'Video',
+        fields: [
+          { field: 'resolution', label: 'Resolution' },
+          // TODO: Add default icon mappings for these fields
+          // { field: 'videoCodec', label: 'Video Codec' },
+          // { field: 'videoProfile', label: 'Video Profile' },
+          // { field: 'bitDepth', label: 'Bit Depth' },
+          // { field: 'colorTrc', label: 'Color Transfer' },
+          // { field: 'dolbyVisionProfile', label: 'Dolby Vision Profile' },
+        ],
+      },
+      audio: {
+        label: 'Audio',
+        fields: [
+          { field: 'audioCodec', label: 'Audio Codec' },
+          // TODO: Add default icon mappings for channel layout
+          // { field: 'audioChannelLayout', label: 'Channel Layout' },
+        ],
+      },
+      source: {
+        label: 'Network / Studio',
+        fields: [
+          { field: 'network', label: 'Network' },
+          { field: 'studio', label: 'Studio' },
+        ],
+      },
+      language: {
+        label: 'Languages',
+        fields: [
+          { field: 'audioLanguageCode', label: 'Audio Language' },
+          { field: 'audioLanguageCodes', label: 'Audio Languages (All)' },
+          { field: 'subtitleLanguageCodes', label: 'Subtitle Languages' },
+        ],
+      },
+      country: {
+        label: 'Countries',
+        fields: [
+          { field: 'originCountry', label: 'Origin Country' },
+          { field: 'originCountries', label: 'Origin Countries' },
+          { field: 'productionCountry', label: 'Production Country' },
+          { field: 'productionCountries', label: 'Production Countries' },
+        ],
+      },
+      contentRating: {
+        label: 'Content Rating',
+        fields: [
+          { field: 'contentRating', label: 'Content Rating' },
+        ],
+      },
+      // TODO: Add default icon mappings for these categories
+      // tags: {
+      //   label: 'Tags',
+      //   fields: [
+      //     { field: 'radarrTags', label: 'Radarr Tags' },
+      //     { field: 'sonarrTags', label: 'Sonarr Tags' },
+      //   ],
+      // },
+      // other: {
+      //   label: 'Other',
+      //   fields: [
+      //     { field: 'genre', label: 'Genre' },
+      //     { field: 'container', label: 'Container' },
+      //     { field: 'tmdbStatus', label: 'TMDB Status' },
+      //   ],
+      // },
+    };
+
+    const handleSaveMappings = (newMappings: IconMapping[]) => {
+      handleUpdateElement(element.id, {
+        properties: { ...props, mappings: newMappings },
+      });
+    };
+
+    // Handler for content rating country change
+    const handleCountryChange = async (newCountry: string) => {
+      const newField = `contentRating:${newCountry}`;
+      await handleFieldChange(newField);
+    };
+
+    // Common country codes for content rating dropdown
+    const contentRatingCountries = [
+      { code: 'US', label: 'United States' },
+      { code: 'GB', label: 'United Kingdom' },
+      { code: 'AU', label: 'Australia' },
+      { code: 'NZ', label: 'New Zealand' },
+      { code: 'CA', label: 'Canada' },
+      { code: 'DE', label: 'Germany' },
+      { code: 'FR', label: 'France' },
+      { code: 'JP', label: 'Japan' },
+      { code: 'KR', label: 'South Korea' },
+      { code: 'BR', label: 'Brazil' },
+      { code: 'IN', label: 'India' },
+      { code: 'IT', label: 'Italy' },
+      { code: 'ES', label: 'Spain' },
+      { code: 'SE', label: 'Sweden' },
+      { code: 'NL', label: 'Netherlands' },
+      { code: 'PH', label: 'Philippines' },
+      { code: 'RU', label: 'Russia' },
+      { code: 'TH', label: 'Thailand' },
+      { code: 'PT', label: 'Portugal' },
+      { code: 'DK', label: 'Denmark' },
+      { code: 'FI', label: 'Finland' },
+      { code: 'NO', label: 'Norway' },
+      { code: 'HK', label: 'Hong Kong' },
+      { code: 'SG', label: 'Singapore' },
+      { code: 'MY', label: 'Malaysia' },
+    ];
+
+    return (
+      <div className="space-y-3">
+        {/* Source Field Selector */}
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.sourceField)}
+          </label>
+          <select
+            value={isContentRating ? 'contentRating' : props.field || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === 'contentRating') {
+                // Default to US when first selecting content rating
+                handleFieldChange('contentRating:US');
+              } else {
+                handleFieldChange(value);
+              }
+            }}
+            className="w-full rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white"
+          >
+            {Object.entries(fieldCategories).map(([key, category]) => (
+              <optgroup key={key} label={category.label}>
+                {category.fields.map((f) => (
+                  <option key={f.field} value={f.field}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
+        {/* Content Rating Country Picker */}
+        {isContentRating && (
+          <div>
+            <label className="mb-1 block text-xs text-stone-300">
+              {intl.formatMessage(messages.ratingCountry)}
+            </label>
+            <select
+              value={contentRatingCountry}
+              onChange={(e) => handleCountryChange(e.target.value)}
+              className="w-full rounded border border-stone-600 bg-stone-700 px-2 py-1 text-xs text-white"
+            >
+              {contentRatingCountries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label} ({c.code})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Icon Mappings */}
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.iconMappings)}
+          </label>
+          <div className="flex items-center justify-between rounded border border-stone-600 bg-stone-800 px-2 py-1.5">
+            <span className="text-xs text-stone-400">
+              {props.mappings.length > 0
+                ? intl.formatMessage(messages.mappingsConfigured, {
+                    count: props.mappings.length,
+                  })
+                : intl.formatMessage(messages.noMappingsConfigured)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsMappingModalOpen(true)}
+              className="rounded bg-orange-600 px-2 py-0.5 text-xs text-white hover:bg-orange-700"
+            >
+              {intl.formatMessage(messages.editMappings)}
+            </button>
+          </div>
+        </div>
+
+        {/* Layout Toggle - only for array fields */}
+        {!isSingleValueField(props.field) && (
+          <div>
+            <label className="mb-1 block text-xs text-stone-300">
+              {intl.formatMessage(messages.layout)}
+            </label>
+            <div className="flex space-x-1">
+              {(['horizontal', 'vertical', 'grid'] as const).map((layout) => (
+                <button
+                  key={layout}
+                  type="button"
+                  onClick={() =>
+                    handleUpdateElement(element.id, {
+                      properties: { ...props, layout },
+                    })
+                  }
+                  className={`flex-1 rounded px-2 py-1 text-xs ${
+                    props.layout === layout
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-stone-700 text-stone-300 hover:bg-stone-600'
+                  }`}
+                >
+                  {layout === 'horizontal'
+                    ? intl.formatMessage(messages.layoutHorizontal)
+                    : layout === 'vertical'
+                    ? intl.formatMessage(messages.layoutVertical)
+                    : intl.formatMessage(messages.layoutGrid)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Grid Columns (only shown when grid layout and array field) */}
+        {props.layout === 'grid' &&
+          !isSingleValueField(props.field) && (
+            <div>
+              <label className="mb-1 block text-xs text-stone-300">
+                {intl.formatMessage(messages.gridColumns)} (
+                {props.gridColumns || 3})
+              </label>
+              <input
+                type="range"
+                min="2"
+                max="12"
+                value={props.gridColumns || 3}
+                onChange={(e) =>
+                  handleUpdateElement(element.id, {
+                    properties: {
+                      ...props,
+                      gridColumns: parseInt(e.target.value),
+                    },
+                  })
+                }
+                className="w-full"
+              />
+            </div>
+          )}
+
+        {/* Icon Size */}
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.iconSize)} ({props.iconSize}px)
+          </label>
+          <input
+            type="range"
+            min="16"
+            max="300"
+            step="2"
+            value={props.iconSize || 48}
+            onChange={(e) =>
+              handleUpdateElement(element.id, {
+                properties: { ...props, iconSize: parseInt(e.target.value) },
+              })
+            }
+            className="w-full"
+          />
+        </div>
+
+        {/* Spacing X and Y - only for array fields */}
+        {!isSingleValueField(props.field) && (
+          <>
+            <div>
+              <label className="mb-1 block text-xs text-stone-300">
+                {intl.formatMessage(messages.spacingX)} ({props.spacingX ?? props.spacing ?? 4}px)
+              </label>
+              <input
+                type="range"
+                min="-20"
+                max="100"
+                value={props.spacingX ?? props.spacing ?? 4}
+                onChange={(e) =>
+                  handleUpdateElement(element.id, {
+                    properties: { ...props, spacingX: parseInt(e.target.value) },
+                  })
+                }
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-stone-300">
+                {intl.formatMessage(messages.spacingY)} ({props.spacingY ?? props.spacing ?? 4}px)
+              </label>
+              <input
+                type="range"
+                min="-20"
+                max="100"
+                value={props.spacingY ?? props.spacing ?? 4}
+                onChange={(e) =>
+                  handleUpdateElement(element.id, {
+                    properties: { ...props, spacingY: parseInt(e.target.value) },
+                  })
+                }
+                className="w-full"
+              />
+            </div>
+          </>
+        )}
+
+        {/* Max Icons - only for array fields */}
+        {!isSingleValueField(props.field) && (
+          <div>
+            <label className="mb-1 block text-xs text-stone-300">
+              {intl.formatMessage(messages.maxIcons)} (
+              {props.maxIcons === 0
+                ? intl.formatMessage(messages.unlimited)
+                : props.maxIcons}
+              )
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              value={props.maxIcons || 0}
+              onChange={(e) =>
+                handleUpdateElement(element.id, {
+                  properties: { ...props, maxIcons: parseInt(e.target.value) },
+                })
+              }
+              className="w-full"
+            />
+          </div>
+        )}
+
+        {/* Opacity */}
+        <div>
+          <label className="mb-1 block text-xs text-stone-300">
+            {intl.formatMessage(messages.opacity)} ({props.opacity ?? 100}%)
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={props.opacity ?? 100}
+            onChange={(e) =>
+              handleUpdateElement(element.id, {
+                properties: { ...props, opacity: parseInt(e.target.value) },
+              })
+            }
+            className="w-full"
+          />
+        </div>
+
+        {/* Grayscale */}
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={props.grayscale || false}
+              onChange={(e) =>
+                handleUpdateElement(element.id, {
+                  properties: { ...props, grayscale: e.target.checked },
+                })
+              }
+              className="rounded border-stone-600 bg-stone-800 text-orange-600 focus:ring-orange-500"
+            />
+            <span className="text-xs text-stone-300">
+              {intl.formatMessage(messages.grayscale)}
+            </span>
+          </label>
+        </div>
+
+        {/* Mapping Modal */}
+        <MappedIconMappingModal
+          isOpen={isMappingModalOpen}
+          onClose={() => setIsMappingModalOpen(false)}
+          onSave={handleSaveMappings}
+          mappings={props.mappings}
+          fieldName={props.field}
+        />
+      </div>
+    );
+  };
+
   const renderPositionAndSizeProperties = (element: OverlayElement) => {
     return (
       <div className="mb-4 border-b border-stone-700 pb-4">
@@ -1619,6 +2107,8 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
           return renderSVGProperties(selectedElement);
         case 'raster':
           return renderRasterProperties(selectedElement);
+        case 'mapped-icon':
+          return renderMappedIconProperties(selectedElement);
         default:
           return (
             <p className="text-xs text-stone-400">
@@ -1640,7 +2130,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Add Element Buttons - 5 types */}
+      {/* Add Element Buttons - 6 types */}
       <div>
         <h4 className="mb-2 text-sm font-medium text-white">
           {intl.formatMessage(messages.layers)}
@@ -1686,6 +2176,13 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
           >
             <PhotoIcon className="mb-1 h-4 w-4" />
             {intl.formatMessage(messages.addImage)}
+          </button>
+          <button
+            onClick={handleAddMappedIcon}
+            className="flex flex-col items-center rounded-lg bg-stone-700 p-2 text-xs text-stone-200 transition-colors hover:bg-stone-600"
+          >
+            <LanguageIcon className="mb-1 h-4 w-4" />
+            {intl.formatMessage(messages.addMappedIcon)}
           </button>
         </div>
       </div>
