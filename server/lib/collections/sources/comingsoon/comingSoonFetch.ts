@@ -143,8 +143,9 @@ export async function fetchMonitoredMovies(
           continue;
         }
 
-        // Check if release date is within 360-day window
+        // Check if release date is within configured window
         // CRITICAL: Apply +3 month estimate for theatrical-only releases BEFORE filtering
+        // BUT only if Radarr hasn't already estimated a digital release date
         let releaseDate: Date | null = null;
         let isEstimated = false;
 
@@ -153,11 +154,31 @@ export async function fetchMonitoredMovies(
         } else if (movie.physicalRelease) {
           releaseDate = new Date(movie.physicalRelease);
         } else if (movie.releaseDate) {
-          // Only theatrical/generic - add 3 months estimate for filtering
           const baseDate = new Date(movie.releaseDate);
-          baseDate.setDate(baseDate.getDate() + 90);
-          releaseDate = baseDate;
-          isEstimated = true;
+
+          // Check if Radarr has already estimated a digital release date
+          // If releaseDate is significantly after inCinemas (30+ days), Radarr has already
+          // added an estimate - don't double-add 90 days
+          const inCinemasDate = movie.inCinemas
+            ? new Date(movie.inCinemas)
+            : null;
+          const daysDifference = inCinemasDate
+            ? Math.round(
+                (baseDate.getTime() - inCinemasDate.getTime()) /
+                  (24 * 60 * 60 * 1000)
+              )
+            : 0;
+
+          if (daysDifference >= 30) {
+            // Radarr has already estimated digital release, use as-is
+            releaseDate = baseDate;
+            isEstimated = false;
+          } else {
+            // releaseDate is same as or close to inCinemas - add 3 month estimate
+            baseDate.setDate(baseDate.getDate() + 90);
+            releaseDate = baseDate;
+            isEstimated = true;
+          }
         }
 
         if (releaseDate && releaseDate > maxDate) {
