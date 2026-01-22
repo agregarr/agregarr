@@ -135,12 +135,31 @@ export async function discoverPlaceholdersFromMarkers(
       libraryId
     );
 
+    // Batch check *arr download status for all markers
+    // This catches cases where content is downloaded but in a different Plex library
+    const arrLookups = tier1Markers
+      .filter((m) => m.tmdbId !== undefined)
+      .map((m) => ({
+        tmdbId: m.tmdbId as number,
+        tvdbId: m.tvdbId,
+        mediaType: 'tv' as const,
+      }));
+
+    const { showsByTvdbId } =
+      await placeholderContextService.batchCheckDownloadStatus(arrLookups);
+
     for (const marker of tier1Markers) {
       if (!marker.tmdbId) {
         continue;
       }
 
       const plexItem = plexMatches.get(`${marker.tmdbId}-tv`);
+
+      // Check if *arr reports content as downloaded (works even if content is in different Plex library)
+      const arrStatus = marker.tvdbId
+        ? showsByTvdbId.get(marker.tvdbId)
+        : undefined;
+      const isDownloadedInArr = arrStatus?.downloaded === true;
 
       // Verify it's still a placeholder (check if real content was added)
       let needsTitleFix = false;
@@ -151,7 +170,8 @@ export async function discoverPlaceholdersFromMarkers(
         );
         const isStillPlaceholder =
           placeholderContextService.isPlaceholderItem(plexMetadata);
-        needsTitleFix = isStillPlaceholder;
+        // Only needs title fix if Plex still shows placeholder AND *arr hasn't downloaded
+        needsTitleFix = isStillPlaceholder && !isDownloadedInArr;
 
         if (!isStillPlaceholder) {
           logger.info('Placeholder has real content now - skipping title fix', {
@@ -159,7 +179,30 @@ export async function discoverPlaceholdersFromMarkers(
             title: marker.title,
             ratingKey: plexItem.ratingKey,
           });
+        } else if (isDownloadedInArr) {
+          logger.info(
+            'Placeholder has content downloaded in Sonarr - triggering cleanup',
+            {
+              label: 'PlaceholderService',
+              title: marker.title,
+              tvdbId: marker.tvdbId,
+            }
+          );
         }
+      } else if (isDownloadedInArr) {
+        // No Plex item found but *arr says downloaded - still trigger cleanup
+        logger.info(
+          'No Plex item but content downloaded in Sonarr - triggering cleanup',
+          {
+            label: 'PlaceholderService',
+            title: marker.title,
+            tvdbId: marker.tvdbId,
+          }
+        );
+        // needsTitleFix stays false, which triggers cleanup
+      } else {
+        // No Plex item and *arr doesn't confirm downloaded - keep placeholder
+        needsTitleFix = true;
       }
 
       discovered.push({
@@ -204,6 +247,20 @@ export async function discoverPlaceholdersFromMarkers(
 
         const plexItem = plexMatches.get(`${dbRecord.tmdbId}-tv`);
 
+        // Check *arr download status
+        const arrStatus = dbRecord.tvdbId
+          ? (
+              await placeholderContextService.batchCheckDownloadStatus([
+                {
+                  tmdbId: dbRecord.tmdbId,
+                  tvdbId: dbRecord.tvdbId,
+                  mediaType: 'tv',
+                },
+              ])
+            ).showsByTvdbId.get(dbRecord.tvdbId)
+          : undefined;
+        const isDownloadedInArr = arrStatus?.downloaded === true;
+
         // Verify it's still a placeholder (check if real content was added)
         let needsTitleFix = false;
         if (plexItem) {
@@ -213,7 +270,8 @@ export async function discoverPlaceholdersFromMarkers(
           );
           const isStillPlaceholder =
             placeholderContextService.isPlaceholderItem(plexMetadata);
-          needsTitleFix = isStillPlaceholder;
+          // Only needs title fix if Plex still shows placeholder AND *arr hasn't downloaded
+          needsTitleFix = isStillPlaceholder && !isDownloadedInArr;
 
           if (!isStillPlaceholder) {
             logger.info(
@@ -224,7 +282,29 @@ export async function discoverPlaceholdersFromMarkers(
                 ratingKey: plexItem.ratingKey,
               }
             );
+          } else if (isDownloadedInArr) {
+            logger.info(
+              'Tier 2: Content downloaded in Sonarr - triggering cleanup',
+              {
+                label: 'PlaceholderService',
+                title: marker.title,
+                tvdbId: dbRecord.tvdbId,
+              }
+            );
           }
+        } else if (isDownloadedInArr) {
+          // No Plex item but *arr says downloaded - trigger cleanup
+          logger.info(
+            'Tier 2: No Plex item but content downloaded - triggering cleanup',
+            {
+              label: 'PlaceholderService',
+              title: marker.title,
+              tvdbId: dbRecord.tvdbId,
+            }
+          );
+        } else {
+          // No Plex item and *arr doesn't confirm downloaded - keep placeholder
+          needsTitleFix = true;
         }
 
         discovered.push({
@@ -418,9 +498,23 @@ export async function discoverMoviePlaceholdersFromFilenames(
     libraryId
   );
 
+  // Batch check *arr download status for all movies
+  // This catches cases where content is downloaded but in a different Plex library
+  const arrLookups = movies.map((m) => ({
+    tmdbId: m.tmdbId,
+    mediaType: 'movie' as const,
+  }));
+
+  const { moviesByTmdbId } =
+    await placeholderContextService.batchCheckDownloadStatus(arrLookups);
+
   // Step 3: Match filesystem placeholders to Plex items and verify they're still placeholders
   for (const movie of movies) {
     const plexItem = plexMatches.get(`${movie.tmdbId}-movie`);
+
+    // Check if *arr reports content as downloaded (works even if content is in different Plex library)
+    const arrStatus = moviesByTmdbId.get(movie.tmdbId);
+    const isDownloadedInArr = arrStatus?.downloaded === true;
 
     // Verify it's still a placeholder (check if real movie was added)
     let needsCleanup = false;
@@ -439,7 +533,28 @@ export async function discoverMoviePlaceholdersFromFilenames(
           ratingKey: plexItem.ratingKey,
         });
         needsCleanup = true; // Mark for cleanup - real movie exists
+      } else if (isDownloadedInArr) {
+        logger.info(
+          'Movie placeholder has content downloaded in Radarr - triggering cleanup',
+          {
+            label: 'PlaceholderService',
+            title: movie.title,
+            tmdbId: movie.tmdbId,
+          }
+        );
+        needsCleanup = true; // Mark for cleanup - Radarr has the file
       }
+    } else if (isDownloadedInArr) {
+      // No Plex item found but *arr says downloaded - still trigger cleanup
+      logger.info(
+        'No Plex item but content downloaded in Radarr - triggering cleanup',
+        {
+          label: 'PlaceholderService',
+          title: movie.title,
+          tmdbId: movie.tmdbId,
+        }
+      );
+      needsCleanup = true;
     }
 
     discovered.push({

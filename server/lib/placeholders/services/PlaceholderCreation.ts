@@ -187,10 +187,86 @@ export async function processPlaceholdersForMissingItems(
     tmdbIdsWithSourceData.has(item.tmdbId)
   );
 
+  // Check *arr download status before creating placeholders
+  // This prevents re-creating placeholders when content has been downloaded
+  // but Plex hasn't scanned it yet (race condition fix for issue #390)
+  // Uses batch lookup to fetch *arr libraries once instead of per-item
+  const { placeholderContextService } = await import(
+    '@server/lib/placeholders/services/PlaceholderContextService'
+  );
+
+  // Batch fetch download status from *arr (fetches libraries once)
+  const { moviesByTmdbId, showsByTvdbId } =
+    await placeholderContextService.batchCheckDownloadStatus(
+      filteredMissingItems.map((item) => ({
+        tmdbId: item.tmdbId,
+        tvdbId: item.tvdbId,
+        mediaType: item.mediaType,
+      }))
+    );
+
+  const itemsNotDownloaded: MissingItem[] = [];
+  let skippedAlreadyDownloaded = 0;
+
+  for (const item of filteredMissingItems) {
+    let isDownloaded = false;
+
+    if (item.mediaType === 'movie') {
+      const radarrStatus = moviesByTmdbId.get(item.tmdbId);
+      isDownloaded = radarrStatus?.downloaded ?? false;
+    } else if (item.mediaType === 'tv' && item.tvdbId) {
+      const sonarrStatus = showsByTvdbId.get(item.tvdbId);
+      isDownloaded = sonarrStatus?.downloaded ?? false;
+    }
+
+    if (isDownloaded) {
+      skippedAlreadyDownloaded++;
+      logger.debug(
+        'Skipping placeholder creation - content already downloaded in *arr',
+        {
+          label: 'PlaceholderService',
+          title: item.title,
+          tmdbId: item.tmdbId,
+          mediaType: item.mediaType,
+        }
+      );
+    } else {
+      itemsNotDownloaded.push(item);
+    }
+  }
+
+  if (skippedAlreadyDownloaded > 0) {
+    logger.info(
+      'Skipped placeholder creation for items already downloaded in *arr',
+      {
+        label: 'PlaceholderService',
+        configName: config.name,
+        skippedCount: skippedAlreadyDownloaded,
+        remainingCount: itemsNotDownloaded.length,
+      }
+    );
+  }
+
+  if (itemsNotDownloaded.length === 0) {
+    logger.info('No items need placeholders after *arr download check', {
+      label: 'PlaceholderService',
+      configName: config.name,
+      originalCount: missingItems.length,
+      skippedAlreadyDownloaded,
+    });
+    return [];
+  }
+
+  // Filter sourceData to match remaining items
+  const remainingTmdbIds = new Set(itemsNotDownloaded.map((i) => i.tmdbId));
+  const remainingSourceData = filteredSourceData.filter((s) =>
+    remainingTmdbIds.has(s.tmdbId)
+  );
+
   // Call the internal placeholder creation logic
   return createPlaceholders(
-    filteredMissingItems,
-    filteredSourceData,
+    itemsNotDownloaded,
+    remainingSourceData,
     config,
     plexClient
   );
