@@ -723,7 +723,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
       const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
-      const titleRegex = /<img[^>]*alt="([^"]+)"/;
+      const titleRegex = /data-item-name="([^"]+)"/;
 
       let matches: RegExpMatchArray[] = [];
       let patternUsed = 0;
@@ -776,6 +776,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
 
         // Decode HTML entities in the title
         let title = titleMatch[1];
+        // Strip year suffix like "(2004)" since year is extracted separately
+        title = title.replace(/\s*\(\d{4}\)$/, '');
         title = title
           .replace(/&lrm;/g, '') // Remove left-to-right mark
           .replace(/&rlm;/g, '') // Remove right-to-left mark
