@@ -2184,10 +2184,12 @@ export interface MultiSourceCollectionConfig {
   readonly autoApproveTV?: boolean;
   readonly maxSeasonsToRequest?: number;
   readonly seasonsPerShowLimit?: number;
+  readonly seasonGrabOrder?: SeasonGrabOrder;
   readonly maxPositionToProcess?: number;
   readonly minimumYear?: number;
   readonly minimumImdbRating?: number;
   readonly minimumRottenTomatoesRating?: number;
+  readonly minimumRottenTomatoesAudienceRating?: number;
   readonly excludedGenres?: number[];
   readonly excludedCountries?: string[];
   readonly excludedLanguages?: string[];
