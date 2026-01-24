@@ -195,6 +195,143 @@ router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
   }
 });
 
+router.get('/discover/watch-providers/movie', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const region = req.query.region ? String(req.query.region) : 'US';
+    const providers = await tmdb.getMovieWatchProviders({ watchRegion: region });
+
+    return res.status(200).json(providers);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving movie watch providers', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie watch providers.',
+    });
+  }
+});
+
+router.get('/discover/watch-providers/tv', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const region = req.query.region ? String(req.query.region) : 'US';
+    const providers = await tmdb.getTvWatchProviders({ watchRegion: region });
+
+    return res.status(200).json(providers);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TV watch providers', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TV watch providers.',
+    });
+  }
+});
+
+router.get('/discover/genres/movie', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const language = req.query.language ? String(req.query.language) : 'en-US';
+    const genres = await tmdb.getMovieGenres({ language });
+
+    return res.status(200).json({ genres });
+  } catch (e: any) {
+    logger.debug('Something went wrong retrieving movie genres', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie genres.',
+    });
+  }
+});
+
+router.get('/discover/genres/tv', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const language = req.query.language ? String(req.query.language) : 'en-US';
+    const genres = await tmdb.getTvGenres({ language });
+
+    return res.status(200).json({ genres });
+  } catch (e: any) {
+    logger.debug('Something went wrong retrieving TV genres', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TV genres.',
+    });
+  }
+});
+
+router.get('/configuration', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const configuration = await tmdb.getConfiguration();
+
+    return res.status(200).json(configuration);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TMDB configuration', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TMDB configuration.',
+    });
+  }
+});
+
+router.get('/countries', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const countries = await tmdb.getCountries();
+
+    return res.status(200).json(countries);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving countries', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve countries.',
+    });
+  }
+});
+
+router.get('/movie-certifications', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const certifications = await tmdb.getMovieCertifications();
+
+    return res.status(200).json(certifications);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving movie certifications', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie certifications.',
+    });
+  }
+});
+
 router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 

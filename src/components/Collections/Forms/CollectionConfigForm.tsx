@@ -40,6 +40,7 @@ import TemplateSection from '@app/components/Collections/FormSections/TemplateSe
 import ThemeUploadSection from '@app/components/Collections/FormSections/ThemeUploadSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
+import TmdbAdvancedFiltersSection from '@app/components/Collections/FormSections/TmdbAdvancedFiltersSection';
 import VisibilitySection from '@app/components/Collections/FormSections/VisibilitySection';
 import WallpaperUploadSection from '@app/components/Collections/FormSections/WallpaperUploadSection';
 import PreviewCollectionModal from '@app/components/Collections/PreviewCollectionModal';
@@ -2636,6 +2637,23 @@ const CollectionFormConfigForm = ({
                         />
                       )}
 
+                      {/* TMDB Advanced Filters Section - show only for TMDB advanced_custom_tmdb subtype */}
+                      {isCollection &&
+                        typedValues.type === 'tmdb' &&
+                        typedValues.subtype === 'advanced_custom_tmdb' && (
+                          <TmdbAdvancedFiltersSection
+                            values={typedValues as CollectionFormConfig}
+                            setFieldValue={setFieldValue}
+                            errors={
+                              errors as FormikErrors<CollectionFormConfig>
+                            }
+                            touched={
+                              touched as FormikTouched<CollectionFormConfig>
+                            }
+                            isVisible={true}
+                          />
+                        )}
+
                       {/* Library Selection - only show for regular collections */}
                       {isCollection && (
                         <LibrarySelectionSection
@@ -2789,93 +2807,306 @@ const CollectionFormConfigForm = ({
                             {/* Item Order - available for all collection types except multi-source and recently_added */}
                             {values.type !== 'multi-source' &&
                               values.type !== 'filtered_hub' && (
-                                <div className="form-row">
-                                  <label
-                                    htmlFor="sortOrder"
-                                    className="text-label"
-                                  >
-                                    {intl.formatMessage(messages.itemOrder)}
-                                  </label>
-                                  <div className="form-input-area">
-                                    <div className="form-input-field">
-                                      <Field
-                                        as="select"
-                                        id="sortOrder"
-                                        name="sortOrder"
-                                        value={
-                                          (values as CollectionFormConfig)
-                                            .sortOrder || 'default'
-                                        }
-                                        onChange={(
-                                          e: React.ChangeEvent<HTMLSelectElement>
-                                        ) => {
-                                          setFieldValue(
-                                            'sortOrder',
-                                            e.target.value
-                                          );
-                                        }}
-                                      >
-                                        <>
-                                          <option value="default">
-                                            {intl.formatMessage(
-                                              messages.defaultOrder
-                                            )}
-                                          </option>
-                                          <option value="reverse">
-                                            {intl.formatMessage(
-                                              messages.reverseOrder
-                                            )}
-                                          </option>
-                                          <option value="random">
-                                            {intl.formatMessage(
-                                              messages.randomOrder
-                                            )}
-                                          </option>
-                                          <option value="imdb_rating_desc">
-                                            {intl.formatMessage(
-                                              messages.imdbRatingDesc
-                                            )}
-                                          </option>
-                                          <option value="imdb_rating_asc">
-                                            {intl.formatMessage(
-                                              messages.imdbRatingAsc
-                                            )}
-                                          </option>
-                                          <option value="release_date_desc">
-                                            {intl.formatMessage(
-                                              messages.releaseDateDesc
-                                            )}
-                                          </option>
-                                          <option value="release_date_asc">
-                                            {intl.formatMessage(
-                                              messages.releaseDateAsc
-                                            )}
-                                          </option>
-                                          <option value="date_added_desc">
-                                            {intl.formatMessage(
-                                              messages.dateAddedDesc
-                                            )}
-                                          </option>
-                                          <option value="date_added_asc">
-                                            {intl.formatMessage(
-                                              messages.dateAddedAsc
-                                            )}
-                                          </option>
-                                          <option value="alphabetical_asc">
-                                            {intl.formatMessage(
-                                              messages.alphabeticalAsc
-                                            )}
-                                          </option>
-                                          <option value="alphabetical_desc">
-                                            {intl.formatMessage(
-                                              messages.alphabeticalDesc
-                                            )}
-                                          </option>
-                                        </>
-                                      </Field>
-                                    </div>
-                                  </div>
-                                </div>
+                                (() => {
+                                  const isTmdbAdvancedFilters =
+                                    typedValues.type === 'tmdb' &&
+                                    typedValues.subtype ===
+                                      'advanced_custom_tmdb';
+
+                                  if (!isTmdbAdvancedFilters) {
+                                    return (
+                                      <div className="form-row">
+                                        <label
+                                          htmlFor="sortOrder"
+                                          className="text-label"
+                                        >
+                                          {intl.formatMessage(messages.itemOrder)}
+                                        </label>
+                                        <div className="form-input-area">
+                                          <div className="form-input-field">
+                                            <Field
+                                              as="select"
+                                              id="sortOrder"
+                                              name="sortOrder"
+                                              value={
+                                                (values as CollectionFormConfig)
+                                                  .sortOrder || 'default'
+                                              }
+                                              onChange={(
+                                                e: React.ChangeEvent<HTMLSelectElement>
+                                              ) => {
+                                                setFieldValue(
+                                                  'sortOrder',
+                                                  e.target.value
+                                                );
+                                              }}
+                                            >
+                                              <>
+                                                <option value="default">
+                                                  {intl.formatMessage(
+                                                    messages.defaultOrder
+                                                  )}
+                                                </option>
+                                                <option value="reverse">
+                                                  {intl.formatMessage(
+                                                    messages.reverseOrder
+                                                  )}
+                                                </option>
+                                                <option value="random">
+                                                  {intl.formatMessage(
+                                                    messages.randomOrder
+                                                  )}
+                                                </option>
+                                                <option value="imdb_rating_desc">
+                                                  {intl.formatMessage(
+                                                    messages.imdbRatingDesc
+                                                  )}
+                                                </option>
+                                                <option value="imdb_rating_asc">
+                                                  {intl.formatMessage(
+                                                    messages.imdbRatingAsc
+                                                  )}
+                                                </option>
+                                                <option value="release_date_desc">
+                                                  {intl.formatMessage(
+                                                    messages.releaseDateDesc
+                                                  )}
+                                                </option>
+                                                <option value="release_date_asc">
+                                                  {intl.formatMessage(
+                                                    messages.releaseDateAsc
+                                                  )}
+                                                </option>
+                                                <option value="date_added_desc">
+                                                  {intl.formatMessage(
+                                                    messages.dateAddedDesc
+                                                  )}
+                                                </option>
+                                                <option value="date_added_asc">
+                                                  {intl.formatMessage(
+                                                    messages.dateAddedAsc
+                                                  )}
+                                                </option>
+                                                <option value="alphabetical_asc">
+                                                  {intl.formatMessage(
+                                                    messages.alphabeticalAsc
+                                                  )}
+                                                </option>
+                                                <option value="alphabetical_desc">
+                                                  {intl.formatMessage(
+                                                    messages.alphabeticalDesc
+                                                  )}
+                                                </option>
+                                              </>
+                                            </Field>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  const selectedLibraryIds =
+                                    (typedValues.libraryIds as string[]) || [];
+                                  const hasAllLibraries =
+                                    selectedLibraryIds.includes('all');
+
+                                  const selectedLibraries = hasAllLibraries
+                                    ? libraries
+                                    : selectedLibraryIds
+                                        .map((libId) =>
+                                          libraries.find((l) => l.key === libId)
+                                        )
+                                        .filter(
+                                          (l): l is NonNullable<typeof l> =>
+                                            Boolean(l)
+                                        );
+
+                                  const hasMovieLibraries =
+                                    selectedLibraries.some(
+                                      (l) => l.type === 'movie'
+                                    );
+                                  const hasTvLibraries = selectedLibraries.some(
+                                    (l) => l.type === 'show'
+                                  );
+
+                                  return (
+                                    <>
+                                      <div className="form-input-area">
+                                        <div className="flex items-center">
+                                          <Field
+                                            type="checkbox"
+                                            id="tmdbOnlyIncludeAvailableOnPlex"
+                                            name="tmdbOnlyIncludeAvailableOnPlex"
+                                            className="form-checkbox"
+                                          />
+                                          <label
+                                            htmlFor="tmdbOnlyIncludeAvailableOnPlex"
+                                            className="ml-2 text-sm text-gray-300"
+                                          >
+                                            Only Include Items Available on Plex
+                                          </label>
+                                        </div>
+                                        <div className="label-tip mt-2">
+                                          When enabled, Agregarr will skip items
+                                          that aren&apos;t currently in Plex and
+                                          keep the first matches (up to Max
+                                          Items) in the selected TMDB order.
+                                        </div>
+                                      </div>
+
+                                      {hasMovieLibraries && (
+                                        <div className="form-row">
+                                          <label
+                                            htmlFor="tmdbMovieSortBy"
+                                            className="text-label"
+                                          >
+                                            Movie Sort Order
+                                          </label>
+                                          <div className="form-input-area">
+                                            <div className="form-input-field">
+                                              <Field
+                                                as="select"
+                                                id="tmdbMovieSortBy"
+                                                name="tmdbMovieSortBy"
+                                                value={
+                                                  (values as any)
+                                                    .tmdbMovieSortBy ||
+                                                  'popularity.desc'
+                                                }
+                                                onChange={(
+                                                  e: React.ChangeEvent<HTMLSelectElement>
+                                                ) => {
+                                                  setFieldValue(
+                                                    'tmdbMovieSortBy',
+                                                    e.target.value
+                                                  );
+                                                }}
+                                              >
+                                                <option value="popularity.desc">
+                                                  Popularity (High to Low)
+                                                </option>
+                                                <option value="popularity.asc">
+                                                  Popularity (Low to High)
+                                                </option>
+                                                <option value="random">
+                                                  Random (from TMDB results)
+                                                </option>
+                                                <option value="primary_release_date.desc">
+                                                  Release Date (Newest First)
+                                                </option>
+                                                <option value="primary_release_date.asc">
+                                                  Release Date (Oldest First)
+                                                </option>
+                                                <option value="revenue.desc">
+                                                  Revenue (High to Low)
+                                                </option>
+                                                <option value="revenue.asc">
+                                                  Revenue (Low to High)
+                                                </option>
+                                                <option value="vote_average.desc">
+                                                  Rating (High to Low)
+                                                </option>
+                                                <option value="vote_average.asc">
+                                                  Rating (Low to High)
+                                                </option>
+                                                <option value="vote_count.desc">
+                                                  Vote Count (High to Low)
+                                                </option>
+                                                <option value="vote_count.asc">
+                                                  Vote Count (Low to High)
+                                                </option>
+                                                <option value="title.asc">
+                                                  Title (A to Z)
+                                                </option>
+                                                <option value="title.desc">
+                                                  Title (Z to A)
+                                                </option>
+                                                <option value="original_title.asc">
+                                                  Original Title (A to Z)
+                                                </option>
+                                                <option value="original_title.desc">
+                                                  Original Title (Z to A)
+                                                </option>
+                                              </Field>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {hasTvLibraries && (
+                                        <div className="form-row">
+                                          <label
+                                            htmlFor="tmdbTvSortBy"
+                                            className="text-label"
+                                          >
+                                            TV Sort Order
+                                          </label>
+                                          <div className="form-input-area">
+                                            <div className="form-input-field">
+                                              <Field
+                                                as="select"
+                                                id="tmdbTvSortBy"
+                                                name="tmdbTvSortBy"
+                                                value={
+                                                  (values as any).tmdbTvSortBy ||
+                                                  'popularity.desc'
+                                                }
+                                                onChange={(
+                                                  e: React.ChangeEvent<HTMLSelectElement>
+                                                ) => {
+                                                  setFieldValue(
+                                                    'tmdbTvSortBy',
+                                                    e.target.value
+                                                  );
+                                                }}
+                                              >
+                                                <option value="popularity.desc">
+                                                  Popularity (High to Low)
+                                                </option>
+                                                <option value="popularity.asc">
+                                                  Popularity (Low to High)
+                                                </option>
+                                                <option value="random">
+                                                  Random (from TMDB results)
+                                                </option>
+                                                <option value="first_air_date.desc">
+                                                  First Air Date (Newest First)
+                                                </option>
+                                                <option value="first_air_date.asc">
+                                                  First Air Date (Oldest First)
+                                                </option>
+                                                <option value="vote_average.desc">
+                                                  Rating (High to Low)
+                                                </option>
+                                                <option value="vote_average.asc">
+                                                  Rating (Low to High)
+                                                </option>
+                                                <option value="vote_count.desc">
+                                                  Vote Count (High to Low)
+                                                </option>
+                                                <option value="vote_count.asc">
+                                                  Vote Count (Low to High)
+                                                </option>
+                                                <option value="name.asc">
+                                                  Name (A to Z)
+                                                </option>
+                                                <option value="name.desc">
+                                                  Name (Z to A)
+                                                </option>
+                                                <option value="original_name.asc">
+                                                  Original Name (A to Z)
+                                                </option>
+                                                <option value="original_name.desc">
+                                                  Original Name (Z to A)
+                                                </option>
+                                              </Field>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()
                               )}
 
                             {/* Collection Visibility */}
@@ -4135,6 +4366,20 @@ const CollectionFormConfigForm = ({
                                 | undefined)
                             : undefined,
                         maxItems: values.maxItems,
+                        // TMDB streaming service + advanced discover fields
+                        tmdbAdvancedFilters: valuesRecord.tmdbAdvancedFilters as
+                          | Record<string, unknown>
+                          | undefined,
+                        tmdbMovieSortBy: valuesRecord.tmdbMovieSortBy as
+                          | string
+                          | undefined,
+                        tmdbTvSortBy: valuesRecord.tmdbTvSortBy as
+                          | string
+                          | undefined,
+                        tmdbOnlyIncludeAvailableOnPlex:
+                          valuesRecord.tmdbOnlyIncludeAvailableOnPlex as
+                            | boolean
+                            | undefined,
                         timePeriod: values.timePeriod,
                         minimumPlays: values.minimumPlays,
                         customDays: values.customDays,

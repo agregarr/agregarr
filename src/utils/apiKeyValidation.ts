@@ -7,6 +7,7 @@ import type {
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
+  TmdbSettings,
   TraktSettings,
 } from '@server/lib/settings';
 
@@ -31,6 +32,7 @@ export function validateApiKeysForCollectionType(
   settings: {
     main?: MainSettings;
     plex?: PlexSettings;
+    tmdb?: TmdbSettings;
     trakt?: TraktSettings;
     mdblist?: MDBListSettings;
     tautulli?: TautulliSettings;
@@ -174,9 +176,20 @@ export function validateApiKeysForCollectionType(
       });
       break;
 
+    case 'tmdb':
+      // Only the TMDB "advanced_custom_tmdb" subtype (Custom Advanced Filters) requires a TMDB API key.
+      if (subtype === 'advanced_custom_tmdb') {
+        requirements.push({
+          service: 'TMDB apikey',
+          required: true,
+          configured: !!settings.tmdb?.apiKey,
+          settingsPath: '/settings/sources#tmdb-api-key',
+        });
+      }
+      break;
+
     // These don't require API keys
     case 'imdb':
-    case 'tmdb':
     case 'letterboxd':
     case 'networks':
     case 'anilist':

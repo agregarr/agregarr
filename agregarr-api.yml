@@ -641,6 +641,54 @@ components:
           description: 'Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)'
           example: 'https://www.themoviedb.org/list/310-my-movie-list'
           nullable: true
+        tmdbMovieSortBy:
+          type: string
+          description: 'TMDB /discover/movie sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - original_title.asc
+            - original_title.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - revenue.asc
+            - revenue.desc
+            - primary_release_date.asc
+            - primary_release_date.desc
+            - title.asc
+            - title.desc
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbTvSortBy:
+          type: string
+          description: 'TMDB /discover/tv sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - first_air_date.asc
+            - first_air_date.desc
+            - name.asc
+            - name.desc
+            - original_name.asc
+            - original_name.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbOnlyIncludeAvailableOnPlex:
+          type: boolean
+          description: 'When enabled, only include items already available in Plex (keeps the first matches in the selected TMDB order)'
+          example: false
+          nullable: true
+        tmdbAdvancedFilters:
+          type: object
+          description: Advanced TMDB discover filters configuration
+          additionalProperties: true
+          nullable: true
         imdbCustomListUrl:
           type: string
           description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
@@ -1222,6 +1270,54 @@ components:
           type: string
           description: 'Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)'
           example: 'https://www.themoviedb.org/list/310-my-movie-list'
+          nullable: true
+        tmdbMovieSortBy:
+          type: string
+          description: 'TMDB /discover/movie sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - original_title.asc
+            - original_title.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - revenue.asc
+            - revenue.desc
+            - primary_release_date.asc
+            - primary_release_date.desc
+            - title.asc
+            - title.desc
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbTvSortBy:
+          type: string
+          description: 'TMDB /discover/tv sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - first_air_date.asc
+            - first_air_date.desc
+            - name.asc
+            - name.desc
+            - original_name.asc
+            - original_name.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbOnlyIncludeAvailableOnPlex:
+          type: boolean
+          description: 'When enabled, only include items already available in Plex (keeps the first matches in the selected TMDB order)'
+          example: false
+          nullable: true
+        tmdbAdvancedFilters:
+          type: object
+          description: Advanced TMDB discover filters configuration
+          additionalProperties: true
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -3763,6 +3859,14 @@ components:
           nullable: true
           deprecated: true
           description: 'Legacy Trakt client ID field (deprecated)'
+    TmdbSettings:
+      type: object
+      properties:
+        apiKey:
+          type: string
+          nullable: true
+          description: 'TMDB API key'
+          example: 'your-tmdb-api-key'
     MDBListSettings:
       type: object
       properties:
@@ -7188,6 +7292,53 @@ paths:
                   type: string
                   description: Provider name for originals collections
                   example: 'netflix'
+                tmdbAdvancedFilters:
+                  type: object
+                  description: Advanced TMDB discover filters configuration
+                  additionalProperties: true
+                tmdbMovieSortBy:
+                  type: string
+                  description: 'TMDB /discover/movie sort_by (only for TMDB Custom Advanced Filters)'
+                  enum:
+                    - original_title.asc
+                    - original_title.desc
+                    - popularity.asc
+                    - popularity.desc
+                    - random
+                    - revenue.asc
+                    - revenue.desc
+                    - primary_release_date.asc
+                    - primary_release_date.desc
+                    - title.asc
+                    - title.desc
+                    - vote_average.asc
+                    - vote_average.desc
+                    - vote_count.asc
+                    - vote_count.desc
+                  nullable: true
+                tmdbTvSortBy:
+                  type: string
+                  description: 'TMDB /discover/tv sort_by (only for TMDB Custom Advanced Filters)'
+                  enum:
+                    - first_air_date.asc
+                    - first_air_date.desc
+                    - name.asc
+                    - name.desc
+                    - original_name.asc
+                    - original_name.desc
+                    - popularity.asc
+                    - popularity.desc
+                    - random
+                    - vote_average.asc
+                    - vote_average.desc
+                    - vote_count.asc
+                    - vote_count.desc
+                  nullable: true
+                tmdbOnlyIncludeAvailableOnPlex:
+                  type: boolean
+                  description: 'When enabled, only include items already available in Plex (keeps the first matches in the selected TMDB order)'
+                  example: false
+                  nullable: true
                 isMultiSource:
                   type: boolean
                   description: Whether this is a multi-source collection
@@ -7257,6 +7408,10 @@ paths:
                         type: string
                         description: Country code for network sources
                         example: 'us'
+                      tmdbAdvancedFilters:
+                        type: object
+                        description: Advanced TMDB discover filters configuration
+                        additionalProperties: true
                 combineMode:
                   type: string
                   description: How to combine items from multiple sources
@@ -9027,6 +9182,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TraktSettings'
+  /settings/tmdb:
+    get:
+      summary: Get TMDB settings
+      description: Retrieves current TMDB settings.
+      tags:
+        - settings-integrations
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TmdbSettings'
+    post:
+      summary: Update TMDB settings
+      description: Updates TMDB settings with the provided values.
+      tags:
+        - settings-integrations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TmdbSettings'
+      responses:
+        '200':
+          description: 'Values were successfully updated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TmdbSettings'
   /settings/trakt/test:
     post:
       summary: Test Trakt connection
@@ -10777,6 +10963,59 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/User'
+  /discover/watch-providers/movie:
+    get:
+      summary: Get movie watch providers
+      security: []
+      description: Returns available streaming/watch providers for movies in a specified region.
+      tags:
+        - movies
+      parameters:
+        - in: query
+          name: region
+          description: The ISO 3166-1 country code for regional watch providers.
+          schema:
+            type: string
+            default: US
+            example: US
+      responses:
+        '200':
+          description: Movie watch providers list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        provider_id:
+                          type: integer
+                          example: 337
+                        provider_name:
+                          type: string
+                          example: Disney Plus
+                        logo_path:
+                          type: string
+                          example: /7rwgEs15tDrkDG2B6A8PlQ39L6
+                        display_priority:
+                          type: integer
+                          example: 10
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    example: 500
+                  message:
+                    type: string
+                    example: Unable to retrieve movie watch providers.
   /movie/{movieId}:
     get:
       summary: Get movie details

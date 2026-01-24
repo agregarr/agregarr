@@ -1,5 +1,7 @@
 import ExternalAPI from '@server/api/externalapi';
 import cacheManager from '@server/lib/cache';
+import { getSettings } from '@server/lib/settings';
+import logger from '@server/logger';
 import { sortBy } from 'lodash';
 import type {
   TmdbCollection,
@@ -39,6 +41,8 @@ interface SearchOptions {
 interface SingleSearchOptions extends SearchOptions {
   year?: number;
 }
+
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
 export type SortOptions =
   | 'popularity.asc'
@@ -108,14 +112,46 @@ interface DiscoverTvOptions {
 class TheMovieDb extends ExternalAPI {
   private region?: string;
   private originalLanguage?: string;
+
+  private buildUrlForLog(endpoint: string, params: Record<string, unknown>): string {
+    const redactedParams: Record<string, unknown> = { ...params };
+    delete (redactedParams as Record<string, unknown>).api_key;
+
+    const searchParams = new URLSearchParams();
+    for (const key of Object.keys(redactedParams).sort()) {
+      const value = redactedParams[key];
+      if (value === undefined || value === null || value === '') continue;
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (item === undefined || item === null || item === '') continue;
+          searchParams.append(key, String(item));
+        }
+        continue;
+      }
+
+      searchParams.append(key, String(value));
+    }
+
+    const query = searchParams.toString();
+    return `${TMDB_BASE_URL}${endpoint}${query ? `?${query}` : ''}`;
+  }
+
   constructor({
     region,
     originalLanguage,
   }: { region?: string; originalLanguage?: string } = {}) {
+    const settings = getSettings();
+    const apiKey =
+      settings.tmdb?.apiKey ||
+      settings.main?.tmdbApiKey ||
+      process.env.TMDB_API_KEY ||
+      '';
+
     super(
-      'https://api.themoviedb.org/3',
+      TMDB_BASE_URL,
       {
-        api_key: '74fc2350fc03cafb0ca5bffbff32e3b5',
+        api_key: apiKey,
       },
       {
         nodeCache: cacheManager.getCache('tmdb').data,
@@ -549,8 +585,8 @@ class TheMovieDb extends ExternalAPI {
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage
               : originalLanguage === 'all'
-              ? undefined
-              : this.originalLanguage,
+                ? undefined
+                : this.originalLanguage,
           // Set our release date values, but check if one is set and not the other,
           // so we can force a past date or a future date. TMDB Requires both values if one is set!
           'primary_release_date.gte':
@@ -582,6 +618,191 @@ class TheMovieDb extends ExternalAPI {
       return data;
     } catch (e) {
       throw new Error(`[TMDB] Failed to fetch discover movies: ${e.message}`);
+    }
+  };
+
+  public getAdvancedDiscoverMovies = async (filters: {
+    // Reference: https://developer.themoviedb.org/reference/discover-movie
+
+    // Basic parameters
+    page?: number;
+    language?: string;
+    region?: string;
+
+    // Sorting
+    sort_by?: string;
+
+    // Date filters
+    'primary_release_date.gte'?: string;
+    'primary_release_date.lte'?: string;
+    'primary_release_year'?: number;
+    'release_date.gte'?: string;
+    'release_date.lte'?: string;
+    year?: number;
+
+    // Rating filters
+    'vote_count.gte'?: number;
+    'vote_count.lte'?: number;
+    'vote_average.gte'?: number;
+    'vote_average.lte'?: number;
+
+    // Runtime filters
+    'with_runtime.gte'?: number;
+    'with_runtime.lte'?: number;
+
+    // Genre filters
+    with_genres?: string; // comma-separated for AND, pipe-separated for OR
+    without_genres?: string;
+
+    // Language and country
+    with_original_language?: string;
+    with_origin_country?: string;
+
+    // Watch providers
+    with_watch_providers?: string; // comma-separated for AND, pipe-separated for OR
+    with_watch_monetization_types?: string; // flatrate, free, ads, rent, buy
+    watch_region?: string;
+
+    // Cast and crew
+    with_cast?: string; // comma-separated for AND, pipe-separated for OR
+    with_crew?: string;
+    with_people?: string;
+
+    // Companies and keywords
+    with_companies?: string; // comma-separated for AND, pipe-separated for OR
+    without_companies?: string;
+    with_keywords?: string; // comma-separated for AND, pipe-separated for OR
+    without_keywords?: string;
+
+    // Release type
+    with_release_type?: string; // 1=Premiere,2=Theatrical(limited),3=Theatrical,4=Digital,5=Physical,6=TV
+
+    // Certification
+    certification?: string;
+    'certification.gte'?: string;
+    'certification.lte'?: string;
+    certification_country?: string;
+
+    // Content flags
+    include_adult?: boolean;
+    include_video?: boolean;
+  }): Promise<TmdbSearchMovieResponse> => {
+    try {
+      // Build params object, filtering out undefined values
+      const params: Record<string, any> = {};
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params[key] = value;
+        }
+      });
+
+      // Set defaults
+      if (!params.page) params.page = 1;
+      if (!params.language) params.language = 'en-US';
+      if (!params.include_adult) params.include_adult = false;
+      if (!params.include_video) params.include_video = false;
+      if (!params.sort_by) params.sort_by = 'popularity.desc';
+
+      logger.debug('TMDB request URL (api_key redacted)', {
+        label: 'TMDB',
+        url: this.buildUrlForLog('/discover/movie', params),
+      });
+
+      const data = await this.get<TmdbSearchMovieResponse>('/discover/movie', {
+        params,
+      });
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch advanced discover movies: ${e.message}`);
+    }
+  };
+
+  public getAdvancedDiscoverTv = async (filters: {
+    // Reference: https://developer.themoviedb.org/reference/discover-tv
+
+    // Basic parameters
+    page?: number;
+    language?: string;
+
+    // Sorting
+    sort_by?: string;
+
+    // Date filters
+    'first_air_date.gte'?: string;
+    'first_air_date.lte'?: string;
+    first_air_date_year?: number;
+    'air_date.gte'?: string;
+    'air_date.lte'?: string;
+
+    // Rating filters
+    'vote_count.gte'?: number;
+    'vote_count.lte'?: number;
+    'vote_average.gte'?: number;
+    'vote_average.lte'?: number;
+
+    // Runtime filters (episode runtime)
+    'with_runtime.gte'?: number;
+    'with_runtime.lte'?: number;
+
+    // Genre filters
+    with_genres?: string; // comma-separated for AND, pipe-separated for OR
+    without_genres?: string;
+
+    // Language and country
+    with_original_language?: string;
+    with_origin_country?: string;
+
+    // Watch providers
+    with_watch_providers?: string; // comma-separated for AND, pipe-separated for OR
+    with_watch_monetization_types?: string; // flatrate, free, ads, rent, buy
+    watch_region?: string;
+
+    // Cast and crew
+    with_cast?: string; // comma-separated for AND, pipe-separated for OR
+    with_crew?: string;
+    with_people?: string;
+
+    // Companies and keywords
+    with_companies?: string; // comma-separated for AND, pipe-separated for OR
+    without_companies?: string;
+    with_keywords?: string; // comma-separated for AND, pipe-separated for OR
+    without_keywords?: string;
+
+    // Networks
+    with_networks?: string;
+
+    // Content flags
+    include_adult?: boolean;
+    include_null_first_air_dates?: boolean;
+  }): Promise<TmdbSearchTvResponse> => {
+    try {
+      const params: Record<string, any> = {};
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params[key] = value;
+        }
+      });
+
+      if (!params.page) params.page = 1;
+      if (!params.language) params.language = 'en-US';
+      if (params.include_adult === undefined) params.include_adult = false;
+      if (!params.sort_by) params.sort_by = 'popularity.desc';
+
+      logger.debug('TMDB request URL (api_key redacted)', {
+        label: 'TMDB',
+        url: this.buildUrlForLog('/discover/tv', params),
+      });
+
+      const data = await this.get<TmdbSearchTvResponse>('/discover/tv', {
+        params,
+      });
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch advanced discover TV: ${e.message}`);
     }
   };
 
@@ -640,8 +861,8 @@ class TheMovieDb extends ExternalAPI {
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage
               : originalLanguage === 'all'
-              ? undefined
-              : this.originalLanguage,
+                ? undefined
+                : this.originalLanguage,
           include_null_first_air_dates: includeEmptyReleaseDate,
           with_genres: genre,
           with_networks: network,
@@ -768,15 +989,15 @@ class TheMovieDb extends ExternalAPI {
     language = 'en',
   }:
     | {
-        externalId: string;
-        type: 'imdb';
-        language?: string;
-      }
+      externalId: string;
+      type: 'imdb';
+      language?: string;
+    }
     | {
-        externalId: number;
-        type: 'tvdb';
-        language?: string;
-      }): Promise<TmdbExternalIdResponse> {
+      externalId: number;
+      type: 'tvdb';
+      language?: string;
+    }): Promise<TmdbExternalIdResponse> {
     try {
       const data = await this.get<TmdbExternalIdResponse>(
         `/find/${externalId}`,
@@ -1327,6 +1548,33 @@ class TheMovieDb extends ExternalAPI {
       throw new Error(
         `[TMDB] Failed to fetch TV watch providers: ${e.message}`
       );
+    }
+  }
+
+  public async getConfiguration() {
+    try {
+      const data = await this.get('/configuration', {}, 86400); // 24 hours cache
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch configuration: ${e.message}`);
+    }
+  }
+
+  public async getCountries() {
+    try {
+      const data = await this.get('/configuration/countries', {}, 86400);
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch countries: ${e.message}`);
+    }
+  }
+
+  public async getMovieCertifications() {
+    try {
+      const data = await this.get('/certification/movie/list', {}, 86400);
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to fetch movie certifications: ${e.message}`);
     }
   }
 }
