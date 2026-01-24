@@ -159,6 +159,32 @@ const messages = defineMessages({
   validationSourcePriorityRequired: 'Source priority is required',
   collectionTitleTemplate: 'Collection Title Template',
   itemOrder: 'Item Order',
+  tmdbOnlyIncludeAvailableOnPlex: 'Only Include Items Available on Plex',
+  tmdbOnlyIncludeAvailableOnPlexHelp:
+    "When enabled, Agregarr will skip items that aren't currently in Plex and keep the first matches (up to Max Items) in the selected TMDB order.",
+  tmdbMovieSortOrder: 'Movie Sort Order',
+  tmdbTvSortOrder: 'TV Sort Order',
+  tmdbSortPopularityDesc: 'Popularity (High to Low)',
+  tmdbSortPopularityAsc: 'Popularity (Low to High)',
+  tmdbSortRandom: 'Random (from TMDB results)',
+  tmdbSortMovieReleaseDateDesc: 'Release Date (Newest First)',
+  tmdbSortMovieReleaseDateAsc: 'Release Date (Oldest First)',
+  tmdbSortRevenueDesc: 'Revenue (High to Low)',
+  tmdbSortRevenueAsc: 'Revenue (Low to High)',
+  tmdbSortRatingDesc: 'Rating (High to Low)',
+  tmdbSortRatingAsc: 'Rating (Low to High)',
+  tmdbSortVoteCountDesc: 'Vote Count (High to Low)',
+  tmdbSortVoteCountAsc: 'Vote Count (Low to High)',
+  tmdbSortTitleAsc: 'Title (A to Z)',
+  tmdbSortTitleDesc: 'Title (Z to A)',
+  tmdbSortOriginalTitleAsc: 'Original Title (A to Z)',
+  tmdbSortOriginalTitleDesc: 'Original Title (Z to A)',
+  tmdbSortTvFirstAirDateDesc: 'First Air Date (Newest First)',
+  tmdbSortTvFirstAirDateAsc: 'First Air Date (Oldest First)',
+  tmdbSortNameAsc: 'Name (A to Z)',
+  tmdbSortNameDesc: 'Name (Z to A)',
+  tmdbSortOriginalNameAsc: 'Original Name (A to Z)',
+  tmdbSortOriginalNameDesc: 'Original Name (Z to A)',
   defaultOrder: 'Default order (as provided by source)',
   reverseOrder: 'Reverse order',
   randomOrder: 'Random order (shuffled each sync)',
@@ -2937,14 +2963,15 @@ const CollectionFormConfigForm = ({
                                             htmlFor="tmdbOnlyIncludeAvailableOnPlex"
                                             className="ml-2 text-sm text-gray-300"
                                           >
-                                            Only Include Items Available on Plex
+                                            {intl.formatMessage(
+                                              messages.tmdbOnlyIncludeAvailableOnPlex
+                                            )}
                                           </label>
                                         </div>
                                         <div className="label-tip mt-2">
-                                          When enabled, Agregarr will skip items that
-                                          aren&apos;t currently in Plex and keep the
-                                          first matches (up to Max Items) in the
-                                          selected TMDB order.
+                                          {intl.formatMessage(
+                                            messages.tmdbOnlyIncludeAvailableOnPlexHelp
+                                          )}
                                         </div>
                                       </div>
 
@@ -2954,7 +2981,9 @@ const CollectionFormConfigForm = ({
                                             htmlFor="tmdbMovieSortBy"
                                             className="text-label"
                                           >
-                                            Movie Sort Order
+                                            {intl.formatMessage(
+                                              messages.tmdbMovieSortOrder
+                                            )}
                                           </label>
                                           <div className="form-input-area">
                                             <div className="form-input-field">
@@ -2976,49 +3005,79 @@ const CollectionFormConfigForm = ({
                                                 }}
                                               >
                                                 <option value="popularity.desc">
-                                                  Popularity (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortPopularityDesc
+                                                  )}
                                                 </option>
                                                 <option value="popularity.asc">
-                                                  Popularity (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortPopularityAsc
+                                                  )}
                                                 </option>
                                                 <option value="random">
-                                                  Random (from TMDB results)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRandom
+                                                  )}
                                                 </option>
                                                 <option value="primary_release_date.desc">
-                                                  Release Date (Newest First)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortMovieReleaseDateDesc
+                                                  )}
                                                 </option>
                                                 <option value="primary_release_date.asc">
-                                                  Release Date (Oldest First)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortMovieReleaseDateAsc
+                                                  )}
                                                 </option>
                                                 <option value="revenue.desc">
-                                                  Revenue (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRevenueDesc
+                                                  )}
                                                 </option>
                                                 <option value="revenue.asc">
-                                                  Revenue (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRevenueAsc
+                                                  )}
                                                 </option>
                                                 <option value="vote_average.desc">
-                                                  Rating (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRatingDesc
+                                                  )}
                                                 </option>
                                                 <option value="vote_average.asc">
-                                                  Rating (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRatingAsc
+                                                  )}
                                                 </option>
                                                 <option value="vote_count.desc">
-                                                  Vote Count (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortVoteCountDesc
+                                                  )}
                                                 </option>
                                                 <option value="vote_count.asc">
-                                                  Vote Count (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortVoteCountAsc
+                                                  )}
                                                 </option>
                                                 <option value="title.asc">
-                                                  Title (A to Z)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortTitleAsc
+                                                  )}
                                                 </option>
                                                 <option value="title.desc">
-                                                  Title (Z to A)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortTitleDesc
+                                                  )}
                                                 </option>
                                                 <option value="original_title.asc">
-                                                  Original Title (A to Z)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortOriginalTitleAsc
+                                                  )}
                                                 </option>
                                                 <option value="original_title.desc">
-                                                  Original Title (Z to A)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortOriginalTitleDesc
+                                                  )}
                                                 </option>
                                               </Field>
                                             </div>
@@ -3032,7 +3091,9 @@ const CollectionFormConfigForm = ({
                                             htmlFor="tmdbTvSortBy"
                                             className="text-label"
                                           >
-                                            TV Sort Order
+                                            {intl.formatMessage(
+                                              messages.tmdbTvSortOrder
+                                            )}
                                           </label>
                                           <div className="form-input-area">
                                             <div className="form-input-field">
@@ -3054,43 +3115,69 @@ const CollectionFormConfigForm = ({
                                                 }}
                                               >
                                                 <option value="popularity.desc">
-                                                  Popularity (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortPopularityDesc
+                                                  )}
                                                 </option>
                                                 <option value="popularity.asc">
-                                                  Popularity (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortPopularityAsc
+                                                  )}
                                                 </option>
                                                 <option value="random">
-                                                  Random (from TMDB results)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRandom
+                                                  )}
                                                 </option>
                                                 <option value="first_air_date.desc">
-                                                  First Air Date (Newest First)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortTvFirstAirDateDesc
+                                                  )}
                                                 </option>
                                                 <option value="first_air_date.asc">
-                                                  First Air Date (Oldest First)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortTvFirstAirDateAsc
+                                                  )}
                                                 </option>
                                                 <option value="vote_average.desc">
-                                                  Rating (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRatingDesc
+                                                  )}
                                                 </option>
                                                 <option value="vote_average.asc">
-                                                  Rating (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortRatingAsc
+                                                  )}
                                                 </option>
                                                 <option value="vote_count.desc">
-                                                  Vote Count (High to Low)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortVoteCountDesc
+                                                  )}
                                                 </option>
                                                 <option value="vote_count.asc">
-                                                  Vote Count (Low to High)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortVoteCountAsc
+                                                  )}
                                                 </option>
                                                 <option value="name.asc">
-                                                  Name (A to Z)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortNameAsc
+                                                  )}
                                                 </option>
                                                 <option value="name.desc">
-                                                  Name (Z to A)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortNameDesc
+                                                  )}
                                                 </option>
                                                 <option value="original_name.asc">
-                                                  Original Name (A to Z)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortOriginalNameAsc
+                                                  )}
                                                 </option>
                                                 <option value="original_name.desc">
-                                                  Original Name (Z to A)
+                                                  {intl.formatMessage(
+                                                    messages.tmdbSortOriginalNameDesc
+                                                  )}
                                                 </option>
                                               </Field>
                                             </div>

@@ -8,7 +8,7 @@ import { AwsWafTokenSolver } from './AwsWafTokenSolver';
 declare module 'axios' {
   // axios-cookiejar-support augments this in its typings, but when dependencies
   // are missing/stale (e.g. in docker node_modules volume) TypeScript won't see
-  // that augmentation. Keeping this local augmentation makes the build robust.
+  // that augmentation.
   export interface CreateAxiosDefaults {
     jar?: CookieJar;
   }
