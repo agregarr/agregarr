@@ -109,8 +109,6 @@ const CollectionTypeSection = ({
       main: mainSettings,
       plex: plexSettings,
       tmdb: tmdbSettings,
-    plex: plexSettings,
-    tmdb: tmdbSettings,
       trakt: traktSettings,
       mdblist: mdblistSettings,
       tautulli: tautulliSettings,

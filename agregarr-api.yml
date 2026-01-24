@@ -5723,6 +5723,160 @@ components:
       name: X-Api-Key
 
 paths:
+  /discover/genres/movie:
+    get:
+      summary: Get movie genres (discover)
+      description: Returns TMDB movie genres wrapped in an object for discover/advanced filter UIs.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: language
+          required: false
+          schema:
+            type: string
+            example: en-US
+          description: Language to return genres in (TMDB locale).
+      responses:
+        '200':
+          description: Movie genres
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 28
+                        name:
+                          type: string
+                          example: Action
+        '500':
+          description: Unable to retrieve movie genres
+
+  /discover/genres/tv:
+    get:
+      summary: Get TV genres (discover)
+      description: Returns TMDB TV genres wrapped in an object for discover/advanced filter UIs.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: language
+          required: false
+          schema:
+            type: string
+            example: en-US
+          description: Language to return genres in (TMDB locale).
+      responses:
+        '200':
+          description: TV genres
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 10759
+                        name:
+                          type: string
+                          example: Action & Adventure
+        '500':
+          description: Unable to retrieve TV genres
+
+  /discover/watch-providers/movie:
+    get:
+      summary: Get movie watch providers (discover)
+      description: Returns TMDB movie watch providers for the specified region.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: region
+          required: false
+          schema:
+            type: string
+            example: US
+          description: ISO 3166-1 region code (defaults to US).
+      responses:
+        '200':
+          description: Movie watch providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    provider_id:
+                      type: integer
+                      example: 8
+                    provider_name:
+                      type: string
+                      example: Netflix
+                    logo_path:
+                      type: string
+                      nullable: true
+                      example: /9A1JSVmSxsyaBK4SUFsYVqbAYfW.jpg
+                    display_priority:
+                      type: integer
+                      nullable: true
+                      example: 1
+        '500':
+          description: Unable to retrieve movie watch providers
+
+  /discover/watch-providers/tv:
+    get:
+      summary: Get TV watch providers (discover)
+      description: Returns TMDB TV watch providers for the specified region.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: region
+          required: false
+          schema:
+            type: string
+            example: US
+          description: ISO 3166-1 region code (defaults to US).
+      responses:
+        '200':
+          description: TV watch providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    provider_id:
+                      type: integer
+                      example: 9
+                    provider_name:
+                      type: string
+                      example: Amazon Prime Video
+                    logo_path:
+                      type: string
+                      nullable: true
+                      example: /emthp39XA2YScoYL1p0sdbAH2WA.jpg
+                    display_priority:
+                      type: integer
+                      nullable: true
+                      example: 1
+        '500':
+          description: Unable to retrieve TV watch providers
+
   /genres/combined:
     get:
       summary: Get combined movie and TV genres
@@ -10963,59 +11117,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/User'
-  /discover/watch-providers/movie:
-    get:
-      summary: Get movie watch providers
-      security: []
-      description: Returns available streaming/watch providers for movies in a specified region.
-      tags:
-        - movies
-      parameters:
-        - in: query
-          name: region
-          description: The ISO 3166-1 country code for regional watch providers.
-          schema:
-            type: string
-            default: US
-            example: US
-      responses:
-        '200':
-          description: Movie watch providers list
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  results:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        provider_id:
-                          type: integer
-                          example: 337
-                        provider_name:
-                          type: string
-                          example: Disney Plus
-                        logo_path:
-                          type: string
-                          example: /7rwgEs15tDrkDG2B6A8PlQ39L6
-                        display_priority:
-                          type: integer
-                          example: 10
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: integer
-                    example: 500
-                  message:
-                    type: string
-                    example: Unable to retrieve movie watch providers.
   /movie/{movieId}:
     get:
       summary: Get movie details

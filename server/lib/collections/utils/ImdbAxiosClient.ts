@@ -1,11 +1,18 @@
 import logger from '@server/logger';
-import axios, { type AxiosInstance } from 'axios';
+import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 import { AwsWafTokenSolver } from './AwsWafTokenSolver';
 
 // Extend axios config to include our retry flag
 declare module 'axios' {
+  // axios-cookiejar-support augments this in its typings, but when dependencies
+  // are missing/stale (e.g. in docker node_modules volume) TypeScript won't see
+  // that augmentation. Keeping this local augmentation makes the build robust.
+  export interface CreateAxiosDefaults {
+    jar?: CookieJar;
+  }
+
   export interface InternalAxiosRequestConfig {
     _wafRetry?: boolean;
   }
@@ -73,7 +80,7 @@ export class ImdbAxiosClient {
     // Add response interceptor to handle WAF challenges
     // CRITICAL: 202 is a SUCCESS status, so we check in the success handler!
     client.interceptors.response.use(
-      async (response) => {
+      async (response: AxiosResponse) => {
         // Check if this is a WAF challenge (HTTP 202)
         if (
           response.status === 202 &&
@@ -123,7 +130,7 @@ export class ImdbAxiosClient {
 
         return response;
       },
-      async (error) => {
+      async (error: unknown) => {
         // Still handle actual errors (4xx, 5xx)
         return Promise.reject(error);
       }
