@@ -1,5 +1,6 @@
 import logger from '@server/logger';
-import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
+import type { AxiosInstance, AxiosResponse } from 'axios';
+import axios from 'axios';
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 import { AwsWafTokenSolver } from './AwsWafTokenSolver';

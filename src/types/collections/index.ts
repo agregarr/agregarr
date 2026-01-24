@@ -162,6 +162,19 @@ export interface PreExistingCollectionConfig {
 // Form metadata type for identifying config handling behavior
 export type FormConfigType = 'collection' | 'hub' | 'preExisting';
 
+export type TmdbAdvancedFilters = {
+  readonly filterGroups?: readonly {
+    readonly id: string;
+    readonly operator: 'and' | 'or'; // How this group combines with previous groups
+    readonly filters: readonly {
+      readonly id: string;
+      readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
+      readonly operator: 'and' | 'or'; // For multi-value fields (comma vs pipe)
+      readonly value: string | number | boolean;
+    }[];
+  }[];
+};
+
 export interface CollectionFormConfig {
   readonly id: string; // Generated unique identifier
   readonly name: string; // User-entered collection name
@@ -228,6 +241,7 @@ export interface CollectionFormConfig {
     | string[]
     | number[]
     | Record<string, string>
+    | TmdbAdvancedFilters
     | null
     | {
         usersHome: boolean;
@@ -347,18 +361,7 @@ export interface CollectionFormConfig {
   readonly tmdbTvSortBy?: string; // TMDB /discover/tv sort_by
   readonly tmdbOnlyIncludeAvailableOnPlex?: boolean;
   // TMDB advanced discover filters
-  readonly tmdbAdvancedFilters?: {
-    readonly filterGroups?: readonly {
-      readonly id: string;
-      readonly operator: 'and' | 'or'; // How this group combines with previous groups
-      readonly filters: readonly {
-        readonly id: string;
-        readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
-        readonly operator: 'and' | 'or'; // For multi-value fields (comma vs pipe)
-        readonly value: string | number | boolean;
-      }[];
-    }[];
-  };
+  readonly tmdbAdvancedFilters?: TmdbAdvancedFilters;
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
@@ -686,9 +689,9 @@ export const toCollectionCreateRequest = (
     tmdbMovieSortBy: config.tmdbMovieSortBy,
     tmdbTvSortBy: config.tmdbTvSortBy,
     tmdbOnlyIncludeAvailableOnPlex: config.tmdbOnlyIncludeAvailableOnPlex,
-    tmdbAdvancedFilters: (config.tmdbAdvancedFilters as unknown as
+    tmdbAdvancedFilters: config.tmdbAdvancedFilters as unknown as
       | Record<string, unknown>
-      | undefined),
+      | undefined,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,

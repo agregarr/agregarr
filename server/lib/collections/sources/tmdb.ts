@@ -532,7 +532,10 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           return movieAliases[trimmed] ?? trimmed;
         };
 
-        const coerceDiscoverValue = (field: string, value: unknown): unknown => {
+        const coerceDiscoverValue = (
+          field: string,
+          value: unknown
+        ): unknown => {
           if (typeof value === 'string') {
             const numericFields = new Set([
               'primary_release_year',
@@ -547,7 +550,12 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
             ]);
 
             const looksNumeric = /^-?\d+(?:\.\d+)?$/.test(value.trim());
-            if ((numericFields.has(field) || field.endsWith('.gte') || field.endsWith('.lte')) && looksNumeric) {
+            if (
+              (numericFields.has(field) ||
+                field.endsWith('.gte') ||
+                field.endsWith('.lte')) &&
+              looksNumeric
+            ) {
               const asNumber = Number(value);
               return Number.isFinite(asNumber) ? asNumber : value;
             }
@@ -568,9 +576,12 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           'with_watch_providers',
         ]);
 
-        type AdvancedDiscoverFilters = NonNullable<CollectionConfig['tmdbAdvancedFilters']>;
-        type AdvancedDiscoverFilterGroup =
-          NonNullable<NonNullable<AdvancedDiscoverFilters['filterGroups']>>[number];
+        type AdvancedDiscoverFilters = NonNullable<
+          CollectionConfig['tmdbAdvancedFilters']
+        >;
+        type AdvancedDiscoverFilterGroup = NonNullable<
+          NonNullable<AdvancedDiscoverFilters['filterGroups']>
+        >[number];
 
         // Base discover params for this subtype.
         // If providers are used, TMDB expects watch_region; default to US if omitted.
@@ -752,13 +763,13 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               const data =
                 mediaType === 'tv'
                   ? await this.tmdbClient.getAdvancedDiscoverTv({
-                    ...discoverFilters,
-                    page: currentPage,
-                  } as any)
+                      ...discoverFilters,
+                      page: currentPage,
+                    } as any)
                   : await this.tmdbClient.getAdvancedDiscoverMovies({
-                    ...discoverFilters,
-                    page: currentPage,
-                  } as any);
+                      ...discoverFilters,
+                      page: currentPage,
+                    } as any);
 
               if (!data.results || data.results.length === 0) {
                 hasMorePages = false;
@@ -813,7 +824,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
             label: 'Collection Sync',
             groupIndex,
             groupId: (group as any).id,
-            groupOperator: (group as any).groupOperator ?? (group as any).operator,
+            groupOperator:
+              (group as any).groupOperator ?? (group as any).operator,
             discoverParams,
           });
 
@@ -827,18 +839,24 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         // Start with the first group's ordering
         let combinedOrdered: TmdbSourceData[] = groupResults[0] ?? [];
         let combinedIds = new Set<number>(
-          combinedOrdered.map(getId).filter((id): id is number => typeof id === 'number')
+          combinedOrdered
+            .map(getId)
+            .filter((id): id is number => typeof id === 'number')
         );
 
         for (let i = 1; i < groupResults.length; i++) {
           const op =
-            normalizeLogicalOperator((effectiveGroups[i] as any).groupOperator) ??
+            normalizeLogicalOperator(
+              (effectiveGroups[i] as any).groupOperator
+            ) ??
             normalizeLogicalOperator((effectiveGroups[i] as any).operator) ??
             'and';
 
           const current = groupResults[i] ?? [];
           const currentIds = new Set<number>(
-            current.map(getId).filter((id): id is number => typeof id === 'number')
+            current
+              .map(getId)
+              .filter((id): id is number => typeof id === 'number')
           );
 
           if (op === 'or') {
@@ -858,7 +876,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               return id !== undefined && currentIds.has(id);
             });
             combinedIds = new Set<number>(
-              combinedOrdered.map(getId).filter((id): id is number => typeof id === 'number')
+              combinedOrdered
+                .map(getId)
+                .filter((id): id is number => typeof id === 'number')
             );
           }
         }
@@ -910,7 +930,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         const { field: sortField, direction: sortDirection } =
           parseSortBy(effectiveSortBy);
 
-        const getSortValue = (item: TmdbSourceData): number | string | undefined => {
+        const getSortValue = (
+          item: TmdbSourceData
+        ): number | string | undefined => {
           if (!sortField || !sortDirection) return undefined;
 
           switch (sortField) {
@@ -956,8 +978,14 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
             if (primary !== 0) return primary;
 
             // Tie-breakers to avoid starving later OR groups when many values are equal/undefined.
-            const ap = typeof (a as any).popularity === 'number' ? (a as any).popularity : undefined;
-            const bp = typeof (b as any).popularity === 'number' ? (b as any).popularity : undefined;
+            const ap =
+              typeof (a as any).popularity === 'number'
+                ? (a as any).popularity
+                : undefined;
+            const bp =
+              typeof (b as any).popularity === 'number'
+                ? (b as any).popularity
+                : undefined;
             const secondary = compareNullable(ap, bp, 'desc');
             if (secondary !== 0) return secondary;
 
@@ -1571,7 +1599,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     }
 
     logger.info(
-      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${tmdbIds.length - processedTmdbIds.size
+      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${
+        tmdbIds.length - processedTmdbIds.size
       } movies skipped)`,
       {
         label: 'TMDB Franchise',

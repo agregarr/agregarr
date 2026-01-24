@@ -1,10 +1,10 @@
 import type { CollectionFormConfig } from '@app/types/collections';
-import { PlusIcon, MinusIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
-import { useState, useCallback, useEffect, useRef } from 'react';
 
 interface TmdbGenre {
   id: number;
@@ -95,7 +95,11 @@ type FilterScope = 'both' | 'movie' | 'tv';
 // Available filter fields with their types and descriptions
 const FILTER_FIELDS = {
   // Streaming (for advanced_custom_tmdb subtype)
-  watch_region: { label: 'Region/Country', type: 'select', scope: 'both' as FilterScope },
+  watch_region: {
+    label: 'Region/Country',
+    type: 'select',
+    scope: 'both' as FilterScope,
+  },
   with_watch_providers: {
     label: 'Streaming Service',
     type: 'select',
@@ -118,15 +122,31 @@ const FILTER_FIELDS = {
   },
 
   // People / Companies / Keywords (multi-value)
-  with_cast: { label: 'Cast (TMDB person IDs)', type: 'select', scope: 'both' as FilterScope },
-  with_crew: { label: 'Crew (TMDB person IDs)', type: 'select', scope: 'both' as FilterScope },
-  with_people: { label: 'People (TMDB person IDs)', type: 'select', scope: 'both' as FilterScope },
+  with_cast: {
+    label: 'Cast (TMDB person IDs)',
+    type: 'select',
+    scope: 'both' as FilterScope,
+  },
+  with_crew: {
+    label: 'Crew (TMDB person IDs)',
+    type: 'select',
+    scope: 'both' as FilterScope,
+  },
+  with_people: {
+    label: 'People (TMDB person IDs)',
+    type: 'select',
+    scope: 'both' as FilterScope,
+  },
   with_companies: {
     label: 'Companies (TMDB company IDs)',
     type: 'select',
     scope: 'both' as FilterScope,
   },
-  with_keywords: { label: 'Keywords (TMDB keyword IDs)', type: 'select', scope: 'both' as FilterScope },
+  with_keywords: {
+    label: 'Keywords (TMDB keyword IDs)',
+    type: 'select',
+    scope: 'both' as FilterScope,
+  },
   // Common discover param (supported by both endpoints)
   without_keywords: {
     label: 'Exclude Keywords (TMDB keyword IDs)',
@@ -242,61 +262,137 @@ const FILTER_FIELDS = {
   },
 
   // Ratings
-  'vote_average.gte': { label: 'Rating at least', type: 'number', min: 0, max: 10, step: 0.1, scope: 'both' as FilterScope },
-  'vote_average.lte': { label: 'Rating at most', type: 'number', min: 0, max: 10, step: 0.1, scope: 'both' as FilterScope },
-  'vote_count.gte': { label: 'Vote count at least', type: 'number', min: 0, scope: 'both' as FilterScope },
-  'vote_count.lte': { label: 'Vote count at most', type: 'number', min: 0, scope: 'both' as FilterScope },
-  
+  'vote_average.gte': {
+    label: 'Rating at least',
+    type: 'number',
+    min: 0,
+    max: 10,
+    step: 0.1,
+    scope: 'both' as FilterScope,
+  },
+  'vote_average.lte': {
+    label: 'Rating at most',
+    type: 'number',
+    min: 0,
+    max: 10,
+    step: 0.1,
+    scope: 'both' as FilterScope,
+  },
+  'vote_count.gte': {
+    label: 'Vote count at least',
+    type: 'number',
+    min: 0,
+    scope: 'both' as FilterScope,
+  },
+  'vote_count.lte': {
+    label: 'Vote count at most',
+    type: 'number',
+    min: 0,
+    scope: 'both' as FilterScope,
+  },
+
   // Dates
-  primary_release_year: { label: 'Release Year', type: 'number', min: 1900, max: new Date().getFullYear() + 5, scope: 'movie' as FilterScope },
-  'primary_release_date.gte': { label: 'Released after', type: 'date', scope: 'movie' as FilterScope },
-  'primary_release_date.lte': { label: 'Released before', type: 'date', scope: 'movie' as FilterScope },
-  'release_date.gte': { label: 'Release Date after', type: 'date', scope: 'movie' as FilterScope },
-  'release_date.lte': { label: 'Release Date before', type: 'date', scope: 'movie' as FilterScope },
-  
+  primary_release_year: {
+    label: 'Release Year',
+    type: 'number',
+    min: 1900,
+    max: new Date().getFullYear() + 5,
+    scope: 'movie' as FilterScope,
+  },
+  'primary_release_date.gte': {
+    label: 'Released after',
+    type: 'date',
+    scope: 'movie' as FilterScope,
+  },
+  'primary_release_date.lte': {
+    label: 'Released before',
+    type: 'date',
+    scope: 'movie' as FilterScope,
+  },
+  'release_date.gte': {
+    label: 'Release Date after',
+    type: 'date',
+    scope: 'movie' as FilterScope,
+  },
+  'release_date.lte': {
+    label: 'Release Date before',
+    type: 'date',
+    scope: 'movie' as FilterScope,
+  },
+
   // Runtime
-  'with_runtime.gte': { label: 'Runtime at least (minutes)', type: 'number', min: 0, scope: 'both' as FilterScope },
-  'with_runtime.lte': { label: 'Runtime at most (minutes)', type: 'number', min: 0, scope: 'both' as FilterScope },
-  
+  'with_runtime.gte': {
+    label: 'Runtime at least (minutes)',
+    type: 'number',
+    min: 0,
+    scope: 'both' as FilterScope,
+  },
+  'with_runtime.lte': {
+    label: 'Runtime at most (minutes)',
+    type: 'number',
+    min: 0,
+    scope: 'both' as FilterScope,
+  },
+
   // Language and Country
-  with_original_language: { label: 'Original Language', type: 'select', scope: 'both' as FilterScope, options: [
-    { value: 'en', label: 'English' },
-    { value: 'es', label: 'Spanish' },
-    { value: 'fr', label: 'French' },
-    { value: 'de', label: 'German' },
-    { value: 'it', label: 'Italian' },
-    { value: 'pt', label: 'Portuguese' },
-    { value: 'ja', label: 'Japanese' },
-    { value: 'ko', label: 'Korean' },
-    { value: 'zh', label: 'Chinese' },
-    { value: 'hi', label: 'Hindi' },
-  ] },
-  with_origin_country: { label: 'Origin Country', type: 'select', scope: 'both' as FilterScope, options: [
-    { value: 'US', label: 'United States' },
-    { value: 'GB', label: 'United Kingdom' },
-    { value: 'CA', label: 'Canada' },
-    { value: 'AU', label: 'Australia' },
-    { value: 'DE', label: 'Germany' },
-    { value: 'FR', label: 'France' },
-    { value: 'IT', label: 'Italy' },
-    { value: 'ES', label: 'Spain' },
-    { value: 'JP', label: 'Japan' },
-    { value: 'KR', label: 'South Korea' },
-  ] },
-  
+  with_original_language: {
+    label: 'Original Language',
+    type: 'select',
+    scope: 'both' as FilterScope,
+    options: [
+      { value: 'en', label: 'English' },
+      { value: 'es', label: 'Spanish' },
+      { value: 'fr', label: 'French' },
+      { value: 'de', label: 'German' },
+      { value: 'it', label: 'Italian' },
+      { value: 'pt', label: 'Portuguese' },
+      { value: 'ja', label: 'Japanese' },
+      { value: 'ko', label: 'Korean' },
+      { value: 'zh', label: 'Chinese' },
+      { value: 'hi', label: 'Hindi' },
+    ],
+  },
+  with_origin_country: {
+    label: 'Origin Country',
+    type: 'select',
+    scope: 'both' as FilterScope,
+    options: [
+      { value: 'US', label: 'United States' },
+      { value: 'GB', label: 'United Kingdom' },
+      { value: 'CA', label: 'Canada' },
+      { value: 'AU', label: 'Australia' },
+      { value: 'DE', label: 'Germany' },
+      { value: 'FR', label: 'France' },
+      { value: 'IT', label: 'Italy' },
+      { value: 'ES', label: 'Spain' },
+      { value: 'JP', label: 'Japan' },
+      { value: 'KR', label: 'South Korea' },
+    ],
+  },
+
   // Certification
-  certification_country: { label: 'Certification Country', type: 'select', scope: 'movie' as FilterScope, options: [
-    { value: 'US', label: 'United States' },
-    { value: 'GB', label: 'United Kingdom' },
-    { value: 'CA', label: 'Canada' },
-  ] },
-  certification: { label: 'Certification', type: 'select', scope: 'movie' as FilterScope, options: [
-    { value: 'G', label: 'G' },
-    { value: 'PG', label: 'PG' },
-    { value: 'PG-13', label: 'PG-13' },
-    { value: 'R', label: 'R' },
-    { value: 'NC-17', label: 'NC-17' },
-  ] },
+  certification_country: {
+    label: 'Certification Country',
+    type: 'select',
+    scope: 'movie' as FilterScope,
+    options: [
+      { value: 'US', label: 'United States' },
+      { value: 'GB', label: 'United Kingdom' },
+      { value: 'CA', label: 'Canada' },
+    ],
+  },
+  certification: {
+    label: 'Certification',
+    type: 'select',
+    scope: 'movie' as FilterScope,
+    options: [
+      { value: 'G', label: 'G' },
+      { value: 'PG', label: 'PG' },
+      { value: 'PG-13', label: 'PG-13' },
+      { value: 'R', label: 'R' },
+      { value: 'NC-17', label: 'NC-17' },
+    ],
+  },
   'certification.gte': {
     label: 'Certification at least',
     type: 'select',
@@ -323,10 +419,18 @@ const FILTER_FIELDS = {
       { value: 'NC-17', label: 'NC-17' },
     ],
   },
-  
+
   // Content flags
-  include_adult: { label: 'Include Adult Content', type: 'boolean', scope: 'both' as FilterScope },
-  include_video: { label: 'Include Video Content', type: 'boolean', scope: 'movie' as FilterScope },
+  include_adult: {
+    label: 'Include Adult Content',
+    type: 'boolean',
+    scope: 'both' as FilterScope,
+  },
+  include_video: {
+    label: 'Include Video Content',
+    type: 'boolean',
+    scope: 'movie' as FilterScope,
+  },
 };
 
 const formatFieldLabel = (field: string): string => {
@@ -344,14 +448,21 @@ interface GenreMultiSelectProps {
   onChange: (selectedGenres: string[]) => void;
 }
 
-const GenreMultiSelect: React.FC<GenreMultiSelectProps> = ({ genres, value, onChange }) => {
+const GenreMultiSelect: React.FC<GenreMultiSelectProps> = ({
+  genres,
+  value,
+  onChange,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -362,29 +473,41 @@ const GenreMultiSelect: React.FC<GenreMultiSelectProps> = ({ genres, value, onCh
     };
   }, []);
 
-  const filteredGenres = genres.filter(genre =>
+  const filteredGenres = genres.filter((genre) =>
     genre.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedGenres = genres.filter(genre => value.includes(genre.id.toString()));
+  const selectedGenres = genres.filter((genre) =>
+    value.includes(genre.id.toString())
+  );
 
   const toggleGenre = (genreId: string) => {
     const newValue = value.includes(genreId)
-      ? value.filter(id => id !== genreId)
+      ? value.filter((id) => id !== genreId)
       : [...value, genreId];
     onChange(newValue);
   };
 
   const removeGenre = (genreId: string) => {
-    onChange(value.filter(id => id !== genreId));
+    onChange(value.filter((id) => id !== genreId));
   };
 
   return (
     <div className="relative" ref={containerRef}>
       {/* Selected genres display */}
-      <div 
-        className="min-h-[42px] w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus-within:border-orange-500 cursor-pointer"
-        onClick={() => setIsOpen(!isOpen)}
+      <div
+        className="min-h-[42px] w-full cursor-pointer rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus-within:border-orange-500"
+        role="button"
+        tabIndex={0}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((prev) => !prev)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen((prev) => !prev);
+          }
+        }}
       >
         {selectedGenres.length === 0 ? (
           <span className="text-gray-400">Select genres...</span>
@@ -426,27 +549,41 @@ const GenreMultiSelect: React.FC<GenreMultiSelectProps> = ({ genres, value, onCh
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          
+
           {/* Genre options */}
           <div className="max-h-48 overflow-y-auto">
             {filteredGenres.length === 0 ? (
-              <div className="px-3 py-2 text-gray-400 text-sm">No genres found</div>
+              <div className="px-3 py-2 text-sm text-gray-400">
+                No genres found
+              </div>
             ) : (
               filteredGenres.map((genre) => (
                 <div
                   key={genre.id}
-                  className={`flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-stone-600 ${
-                    value.includes(genre.id.toString()) ? 'bg-orange-900 text-orange-200' : 'text-white'
+                  className={`flex cursor-pointer items-center px-3 py-2 text-sm hover:bg-stone-600 ${
+                    value.includes(genre.id.toString())
+                      ? 'bg-orange-900 text-orange-200'
+                      : 'text-white'
                   }`}
+                  role="option"
+                  tabIndex={0}
+                  aria-selected={value.includes(genre.id.toString())}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleGenre(genre.id.toString());
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleGenre(genre.id.toString());
+                    }
                   }}
                 >
                   <input
                     type="checkbox"
                     checked={value.includes(genre.id.toString())}
-                    onChange={() => {}}
+                    readOnly
                     className="mr-2 rounded border-stone-500 bg-stone-700 text-orange-600 focus:ring-orange-500"
                   />
                   {genre.name}
@@ -480,7 +617,10 @@ const OptionMultiSelect: React.FC<OptionMultiSelectProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -511,8 +651,18 @@ const OptionMultiSelect: React.FC<OptionMultiSelectProps> = ({
   return (
     <div className="relative" ref={containerRef}>
       <div
-        className="min-h-[42px] w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus-within:border-orange-500 cursor-pointer"
-        onClick={() => setIsOpen(!isOpen)}
+        className="min-h-[42px] w-full cursor-pointer rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus-within:border-orange-500"
+        role="button"
+        tabIndex={0}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((prev) => !prev)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen((prev) => !prev);
+          }
+        }}
       >
         {selectedOptions.length === 0 ? (
           <span className="text-gray-400">{placeholder}</span>
@@ -555,25 +705,37 @@ const OptionMultiSelect: React.FC<OptionMultiSelectProps> = ({
 
           <div className="max-h-48 overflow-y-auto">
             {filteredOptions.length === 0 ? (
-              <div className="px-3 py-2 text-gray-400 text-sm">No options found</div>
+              <div className="px-3 py-2 text-sm text-gray-400">
+                No options found
+              </div>
             ) : (
               filteredOptions.map((opt) => (
                 <div
                   key={opt.value}
-                  className={`flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-stone-600 ${
+                  className={`flex cursor-pointer items-center px-3 py-2 text-sm hover:bg-stone-600 ${
                     value.includes(opt.value)
                       ? 'bg-orange-900 text-orange-200'
                       : 'text-white'
                   }`}
+                  role="option"
+                  tabIndex={0}
+                  aria-selected={value.includes(opt.value)}
                   onClick={(e) => {
                     e.stopPropagation();
                     toggle(opt.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggle(opt.value);
+                    }
                   }}
                 >
                   <input
                     type="checkbox"
                     checked={value.includes(opt.value)}
-                    onChange={() => undefined}
+                    readOnly
                     className="mr-2 h-4 w-4 rounded border-stone-500 bg-stone-800 text-orange-600"
                   />
                   {opt.label}
@@ -617,7 +779,10 @@ const FreeTextChipInput: React.FC<FreeTextChipInputProps> = ({
 
   const addTokensFromInput = () => {
     const raw = inputValue;
-    const parts = raw.split(/[\s,|]+/).map((p) => p.trim()).filter(Boolean);
+    const parts = raw
+      .split(/[\s,|]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (parts.length === 0) return;
 
     const next = [...value];
@@ -671,7 +836,7 @@ const FreeTextChipInput: React.FC<FreeTextChipInputProps> = ({
           {value.map((token) => (
             <span
               key={token}
-              className="inline-flex max-w-full items-center gap-1 rounded bg-orange-600 px-2 py-1 text-xs text-white whitespace-normal break-words"
+              className="inline-flex max-w-full items-center gap-1 whitespace-normal break-words rounded bg-orange-600 px-2 py-1 text-xs text-white"
             >
               {token}
               <button
@@ -709,25 +874,25 @@ const TmdbAdvancedFiltersSection = ({
 
   // Hardcoded genres as fallback
   const fallbackGenres: TmdbGenre[] = [
-    { id: 28, name: "Action" },
-    { id: 12, name: "Adventure" },
-    { id: 16, name: "Animation" },
-    { id: 35, name: "Comedy" },
-    { id: 80, name: "Crime" },
-    { id: 99, name: "Documentary" },
-    { id: 18, name: "Drama" },
-    { id: 10751, name: "Family" },
-    { id: 14, name: "Fantasy" },
-    { id: 36, name: "History" },
-    { id: 27, name: "Horror" },
-    { id: 10402, name: "Music" },
-    { id: 9648, name: "Mystery" },
-    { id: 10749, name: "Romance" },
-    { id: 878, name: "Science Fiction" },
-    { id: 10770, name: "TV Movie" },
-    { id: 53, name: "Thriller" },
-    { id: 10752, name: "War" },
-    { id: 37, name: "Western" }
+    { id: 28, name: 'Action' },
+    { id: 12, name: 'Adventure' },
+    { id: 16, name: 'Animation' },
+    { id: 35, name: 'Comedy' },
+    { id: 80, name: 'Crime' },
+    { id: 99, name: 'Documentary' },
+    { id: 18, name: 'Drama' },
+    { id: 10751, name: 'Family' },
+    { id: 14, name: 'Fantasy' },
+    { id: 36, name: 'History' },
+    { id: 27, name: 'Horror' },
+    { id: 10402, name: 'Music' },
+    { id: 9648, name: 'Mystery' },
+    { id: 10749, name: 'Romance' },
+    { id: 878, name: 'Science Fiction' },
+    { id: 10770, name: 'TV Movie' },
+    { id: 53, name: 'Thriller' },
+    { id: 10752, name: 'War' },
+    { id: 37, name: 'Western' },
   ];
 
   // Fetch genres for genre filters
@@ -751,19 +916,17 @@ const TmdbAdvancedFiltersSection = ({
     }
     return 'US';
   })();
-  const {
-    data: movieWatchProvidersData,
-    error: providersError,
-  } = useSWR<TmdbWatchProvider[]>(
-    `/api/v1/discover/watch-providers/movie?region=${encodeURIComponent(region)}`
+  const { data: movieWatchProvidersData, error: providersError } = useSWR<
+    TmdbWatchProvider[]
+  >(
+    `/api/v1/discover/watch-providers/movie?region=${encodeURIComponent(
+      region
+    )}`
   );
 
-  const {
-    data: tvWatchProvidersData,
-    error: tvProvidersError,
-  } = useSWR<TmdbWatchProvider[]>(
-    `/api/v1/discover/watch-providers/tv?region=${encodeURIComponent(region)}`
-  );
+  const { data: tvWatchProvidersData, error: tvProvidersError } = useSWR<
+    TmdbWatchProvider[]
+  >(`/api/v1/discover/watch-providers/tv?region=${encodeURIComponent(region)}`);
 
   const mergedProvidersMap = new Map<number, TmdbWatchProvider>();
   for (const p of movieWatchProvidersData || []) {
@@ -801,98 +964,126 @@ const TmdbAdvancedFiltersSection = ({
   const genres = mergedGenres.length ? mergedGenres : fallbackGenres;
 
   // Get current filter groups or initialize empty
-  const filterGroups: FilterGroup[] = values.tmdbAdvancedFilters?.filterGroups ? 
-    values.tmdbAdvancedFilters.filterGroups.map(g => ({
-      id: g.id,
-      operator: g.operator,
-      groupOperator: (g as any).groupOperator || g.operator,
-      filters: g.filters.map(f => ({
-        id: f.id,
-        field: f.field,
-        operator: f.operator,
-        value: f.value,
+  const filterGroups: FilterGroup[] = values.tmdbAdvancedFilters?.filterGroups
+    ? values.tmdbAdvancedFilters.filterGroups.map((g) => ({
+        id: g.id,
+        operator: g.operator,
+        groupOperator: (g as any).groupOperator || g.operator,
+        filters: g.filters.map((f) => ({
+          id: f.id,
+          field: f.field,
+          operator: f.operator,
+          value: f.value,
+        })),
       }))
-    })) : [];
+    : [];
 
-  const updateFilterGroups = useCallback((newGroups: FilterGroup[]) => {
-    setFieldValue('tmdbAdvancedFilters', {
-      filterGroups: newGroups,
-    });
-  }, [setFieldValue]);
+  const updateFilterGroups = useCallback(
+    (newGroups: FilterGroup[]) => {
+      setFieldValue('tmdbAdvancedFilters', {
+        filterGroups: newGroups,
+      });
+    },
+    [setFieldValue]
+  );
 
   const addFilterGroup = useCallback(() => {
     const newGroup: FilterGroup = {
       id: `group-${Date.now()}`,
       groupOperator: 'and',
-      filters: [{
-        id: `filter-${Date.now()}`,
-        field: '',
-        operator: 'and',
-        value: '',
-      }],
+      filters: [
+        {
+          id: `filter-${Date.now()}`,
+          field: '',
+          operator: 'and',
+          value: '',
+        },
+      ],
     };
     updateFilterGroups([...filterGroups, newGroup]);
   }, [filterGroups, updateFilterGroups]);
 
-  const removeFilterGroup = useCallback((groupId: string) => {
-    updateFilterGroups(filterGroups.filter(g => g.id !== groupId));
-  }, [filterGroups, updateFilterGroups]);
+  const removeFilterGroup = useCallback(
+    (groupId: string) => {
+      updateFilterGroups(filterGroups.filter((g) => g.id !== groupId));
+    },
+    [filterGroups, updateFilterGroups]
+  );
 
-  const updateFilterGroup = useCallback((groupId: string, updates: Partial<FilterGroup>) => {
-    updateFilterGroups(filterGroups.map(g => 
-      g.id === groupId ? { ...g, ...updates } : g
-    ));
-  }, [filterGroups, updateFilterGroups]);
+  const updateFilterGroup = useCallback(
+    (groupId: string, updates: Partial<FilterGroup>) => {
+      updateFilterGroups(
+        filterGroups.map((g) => (g.id === groupId ? { ...g, ...updates } : g))
+      );
+    },
+    [filterGroups, updateFilterGroups]
+  );
 
-  const addFilter = useCallback((groupId: string) => {
-    const group = filterGroups.find((g) => g.id === groupId);
-    if (!group) return;
+  const addFilter = useCallback(
+    (groupId: string) => {
+      const group = filterGroups.find((g) => g.id === groupId);
+      if (!group) return;
 
-    const totalFields = Object.keys(FILTER_FIELDS).length;
-    if (group.filters.length >= totalFields) return;
+      const totalFields = Object.keys(FILTER_FIELDS).length;
+      if (group.filters.length >= totalFields) return;
 
-    const usedFieldsInGroup = new Set(group.filters.map((f) => f.field).filter(Boolean));
-    const hasRemainingField = Object.keys(FILTER_FIELDS).some(
-      (field) => !usedFieldsInGroup.has(field)
-    );
-    if (!hasRemainingField) return;
+      const usedFieldsInGroup = new Set(
+        group.filters.map((f) => f.field).filter(Boolean)
+      );
+      const hasRemainingField = Object.keys(FILTER_FIELDS).some(
+        (field) => !usedFieldsInGroup.has(field)
+      );
+      if (!hasRemainingField) return;
 
-    const newFilter: Filter = {
-      id: `filter-${Date.now()}`,
-      field: '',
-      operator: 'and',
-      value: '',
-    };
-    updateFilterGroups(filterGroups.map(g => 
-      g.id === groupId 
-        ? { ...g, filters: [...g.filters, newFilter] }
-        : g
-    ));
-  }, [filterGroups, updateFilterGroups]);
+      const newFilter: Filter = {
+        id: `filter-${Date.now()}`,
+        field: '',
+        operator: 'and',
+        value: '',
+      };
+      updateFilterGroups(
+        filterGroups.map((g) =>
+          g.id === groupId ? { ...g, filters: [...g.filters, newFilter] } : g
+        )
+      );
+    },
+    [filterGroups, updateFilterGroups]
+  );
 
-  const removeFilter = useCallback((groupId: string, filterId: string) => {
-    updateFilterGroups(filterGroups.map(g => 
-      g.id === groupId 
-        ? { ...g, filters: g.filters.filter(f => f.id !== filterId) }
-        : g
-    ));
-  }, [filterGroups, updateFilterGroups]);
+  const removeFilter = useCallback(
+    (groupId: string, filterId: string) => {
+      updateFilterGroups(
+        filterGroups.map((g) =>
+          g.id === groupId
+            ? { ...g, filters: g.filters.filter((f) => f.id !== filterId) }
+            : g
+        )
+      );
+    },
+    [filterGroups, updateFilterGroups]
+  );
 
-  const updateFilter = useCallback((groupId: string, filterId: string, updates: Partial<Filter>) => {
-    updateFilterGroups(filterGroups.map(g => 
-      g.id === groupId 
-        ? { 
-            ...g, 
-            filters: g.filters.map(f => 
-              f.id === filterId ? { ...f, ...updates } : f
-            )
-          }
-        : g
-    ));
-  }, [filterGroups, updateFilterGroups]);
+  const updateFilter = useCallback(
+    (groupId: string, filterId: string, updates: Partial<Filter>) => {
+      updateFilterGroups(
+        filterGroups.map((g) =>
+          g.id === groupId
+            ? {
+                ...g,
+                filters: g.filters.map((f) =>
+                  f.id === filterId ? { ...f, ...updates } : f
+                ),
+              }
+            : g
+        )
+      );
+    },
+    [filterGroups, updateFilterGroups]
+  );
 
   const renderFilterInput = (groupId: string, filter: Filter) => {
-    const fieldConfig = FILTER_FIELDS[filter.field as keyof typeof FILTER_FIELDS];
+    const fieldConfig =
+      FILTER_FIELDS[filter.field as keyof typeof FILTER_FIELDS];
     if (!fieldConfig) return null;
 
     switch (fieldConfig.type) {
@@ -903,21 +1094,25 @@ const TmdbAdvancedFiltersSection = ({
             min={(fieldConfig as any).min}
             max={(fieldConfig as any).max}
             step={(fieldConfig as any).step || 1}
-            value={filter.value as number || ''}
-            onChange={(e) => updateFilter(groupId, filter.id, { 
-              value: e.target.value ? Number(e.target.value) : '' 
-            })}
+            value={(filter.value as number) || ''}
+            onChange={(e) =>
+              updateFilter(groupId, filter.id, {
+                value: e.target.value ? Number(e.target.value) : '',
+              })
+            }
             className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder={intl.formatMessage(messages.enterValue)}
           />
         );
-      
+
       case 'date':
         return (
           <input
             type="date"
-            value={filter.value as string || ''}
-            onChange={(e) => updateFilter(groupId, filter.id, { value: e.target.value })}
+            value={(filter.value as string) || ''}
+            onChange={(e) =>
+              updateFilter(groupId, filter.id, { value: e.target.value })
+            }
             className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
         );
@@ -925,10 +1120,23 @@ const TmdbAdvancedFiltersSection = ({
       case 'boolean':
         return (
           <select
-            value={filter.value === true ? 'true' : filter.value === false ? 'false' : ''}
-            onChange={(e) => updateFilter(groupId, filter.id, { 
-              value: e.target.value === 'true' ? true : e.target.value === 'false' ? false : '' 
-            })}
+            value={
+              filter.value === true
+                ? 'true'
+                : filter.value === false
+                ? 'false'
+                : ''
+            }
+            onChange={(e) =>
+              updateFilter(groupId, filter.id, {
+                value:
+                  e.target.value === 'true'
+                    ? true
+                    : e.target.value === 'false'
+                    ? false
+                    : '',
+              })
+            }
             className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           >
             <option value="">Select...</option>
@@ -947,7 +1155,9 @@ const TmdbAdvancedFiltersSection = ({
               }
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
-              <option value="">{intl.formatMessage(messages.selectRegion)}</option>
+              <option value="">
+                {intl.formatMessage(messages.selectRegion)}
+              </option>
               {STREAMING_REGIONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
@@ -1002,7 +1212,10 @@ const TmdbAdvancedFiltersSection = ({
         }
 
         // Option-based multi-select (release type, monetization types)
-        if ((fieldConfig as any).options && (fieldConfig as any).multiple === false) {
+        if (
+          (fieldConfig as any).options &&
+          (fieldConfig as any).multiple === false
+        ) {
           return (
             <select
               value={(filter.value as string) || ''}
@@ -1044,7 +1257,11 @@ const TmdbAdvancedFiltersSection = ({
 
           return (
             <FreeTextChipInput
-              value={filter.value ? filter.value.toString().split(/[,|]/).filter(Boolean) : []}
+              value={
+                filter.value
+                  ? filter.value.toString().split(/[,|]/).filter(Boolean)
+                  : []
+              }
               allowNonNumeric={allowNonNumeric}
               onChange={(selected: string[]) => {
                 const separator = filter.operator === 'or' ? '|' : ',';
@@ -1060,8 +1277,10 @@ const TmdbAdvancedFiltersSection = ({
         return (
           <input
             type="text"
-            value={filter.value as string || ''}
-            onChange={(e) => updateFilter(groupId, filter.id, { value: e.target.value })}
+            value={(filter.value as string) || ''}
+            onChange={(e) =>
+              updateFilter(groupId, filter.id, { value: e.target.value })
+            }
             className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             placeholder={intl.formatMessage(messages.enterValue)}
           />
@@ -1096,130 +1315,161 @@ const TmdbAdvancedFiltersSection = ({
           const hasRemainingField = Object.keys(FILTER_FIELDS).some(
             (field) => !usedFieldsInGroup.has(field)
           );
-          const canAddFilter = group.filters.length < totalFields && hasRemainingField;
+          const canAddFilter =
+            group.filters.length < totalFields && hasRemainingField;
 
           return (
             <div
               key={group.id}
               className="rounded-lg border border-stone-600 bg-stone-800 p-4"
             >
-            {/* Group header with operator selection */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                {groupIndex > 0 && (
-                  <select
-                    value={group.groupOperator || group.operator || 'and'}
-                    onChange={(e) => {
-                      updateFilterGroup(group.id, { 
-                        groupOperator: e.target.value as 'and' | 'or'
-                      });
-                    }}
-                    className="rounded-md border border-stone-500 bg-stone-700 px-2 py-1 text-sm text-white focus:border-orange-500"
-                  >
-                    <option value="and">{intl.formatMessage(messages.andOperator)}</option>
-                    <option value="or">{intl.formatMessage(messages.orOperator)}</option>
-                  </select>
-                )}
-                <span className="text-sm text-gray-300">
-                  {intl.formatMessage(messages.matchAllFollowing)}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeFilterGroup(group.id)}
-                className="flex items-center gap-1 text-sm text-red-400 hover:text-red-300"
-              >
-                <MinusIcon className="h-4 w-4" />
-                {intl.formatMessage(messages.removeFilterGroup)}
-              </button>
-            </div>
-
-            {/* Filters in this group */}
-            <div className="space-y-3">
-              {group.filters.map((filter, filterIndex) => (
-                <div key={filter.id} className="grid grid-cols-12 gap-3 items-center">
-                  {/* Field selection */}
-                  <div className="col-span-4">
+              {/* Group header with operator selection */}
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {groupIndex > 0 && (
                     <select
-                      value={filter.field}
-                      onChange={(e) => updateFilter(group.id, filter.id, { 
-                        field: e.target.value,
-                        value: '' // Reset value when field changes
-                      })}
-                      className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-sm text-white focus:border-orange-500"
+                      value={group.groupOperator || group.operator || 'and'}
+                      onChange={(e) => {
+                        updateFilterGroup(group.id, {
+                          groupOperator: e.target.value as 'and' | 'or',
+                        });
+                      }}
+                      className="rounded-md border border-stone-500 bg-stone-700 px-2 py-1 text-sm text-white focus:border-orange-500"
                     >
-                      <option value="">{intl.formatMessage(messages.selectField)}</option>
-                      {Object.entries(FILTER_FIELDS)
-                        .filter(([field]) => field === filter.field || !usedFieldsInGroup.has(field))
-                        .map(([field]) => (
-                          <option key={field} value={field}>
-                            {formatFieldLabel(field)}
-                          </option>
-                        ))}
+                      <option value="and">
+                        {intl.formatMessage(messages.andOperator)}
+                      </option>
+                      <option value="or">
+                        {intl.formatMessage(messages.orOperator)}
+                      </option>
                     </select>
-                  </div>
+                  )}
+                  <span className="text-sm text-gray-300">
+                    {intl.formatMessage(messages.matchAllFollowing)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeFilterGroup(group.id)}
+                  className="flex items-center gap-1 text-sm text-red-400 hover:text-red-300"
+                >
+                  <MinusIcon className="h-4 w-4" />
+                  {intl.formatMessage(messages.removeFilterGroup)}
+                </button>
+              </div>
 
-                  {/* AND/OR operator for multi-value fields */}
-                  {filter.field && MULTIVALUE_SEPARATOR_FIELDS.has(filter.field) && (
-                    <div className="col-span-2">
+              {/* Filters in this group */}
+              <div className="space-y-3">
+                {group.filters.map((filter) => (
+                  <div
+                    key={filter.id}
+                    className="grid grid-cols-12 items-center gap-3"
+                  >
+                    {/* Field selection */}
+                    <div className="col-span-4">
                       <select
-                        value={filter.operator}
-                        onChange={(e) => updateFilter(group.id, filter.id, { 
-                          operator: e.target.value as 'and' | 'or',
-                          // Update the value format when operator changes
-                          value: filter.value ? 
-                            filter.value.toString().replace(/[,|]/g, e.target.value === 'or' ? '|' : ',') :
-                            filter.value
-                        })}
-                        className="w-full rounded-md border border-stone-500 bg-stone-700 px-2 py-2 text-sm text-white focus:border-orange-500"
+                        value={filter.field}
+                        onChange={(e) =>
+                          updateFilter(group.id, filter.id, {
+                            field: e.target.value,
+                            value: '', // Reset value when field changes
+                          })
+                        }
+                        className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-sm text-white focus:border-orange-500"
                       >
-                        <option value="and">{intl.formatMessage(messages.matchAll)}</option>
-                        <option value="or">{intl.formatMessage(messages.matchAny)}</option>
+                        <option value="">
+                          {intl.formatMessage(messages.selectField)}
+                        </option>
+                        {Object.entries(FILTER_FIELDS)
+                          .filter(
+                            ([field]) =>
+                              field === filter.field ||
+                              !usedFieldsInGroup.has(field)
+                          )
+                          .map(([field]) => (
+                            <option key={field} value={field}>
+                              {formatFieldLabel(field)}
+                            </option>
+                          ))}
                       </select>
                     </div>
-                  )}
 
-                  {/* Value input */}
-                  <div className={`${
-                    filter.field && MULTIVALUE_SEPARATOR_FIELDS.has(filter.field)
-                      ? 'col-span-5' 
-                      : 'col-span-7'
-                  }`}>
-                    {renderFilterInput(group.id, filter)}
-                  </div>
+                    {/* AND/OR operator for multi-value fields */}
+                    {filter.field &&
+                      MULTIVALUE_SEPARATOR_FIELDS.has(filter.field) && (
+                        <div className="col-span-2">
+                          <select
+                            value={filter.operator}
+                            onChange={(e) =>
+                              updateFilter(group.id, filter.id, {
+                                operator: e.target.value as 'and' | 'or',
+                                // Update the value format when operator changes
+                                value: filter.value
+                                  ? filter.value
+                                      .toString()
+                                      .replace(
+                                        /[,|]/g,
+                                        e.target.value === 'or' ? '|' : ','
+                                      )
+                                  : filter.value,
+                              })
+                            }
+                            className="w-full rounded-md border border-stone-500 bg-stone-700 px-2 py-2 text-sm text-white focus:border-orange-500"
+                          >
+                            <option value="and">
+                              {intl.formatMessage(messages.matchAll)}
+                            </option>
+                            <option value="or">
+                              {intl.formatMessage(messages.matchAny)}
+                            </option>
+                          </select>
+                        </div>
+                      )}
 
-                  {/* Remove filter button */}
-                  <div className="col-span-1">
-                    <button
-                      type="button"
-                      onClick={() => removeFilter(group.id, filter.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-md text-red-400 hover:bg-red-900 hover:text-red-300"
-                      disabled={group.filters.length === 1}
+                    {/* Value input */}
+                    <div
+                      className={`${
+                        filter.field &&
+                        MULTIVALUE_SEPARATOR_FIELDS.has(filter.field)
+                          ? 'col-span-5'
+                          : 'col-span-7'
+                      }`}
                     >
-                      <MinusIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      {renderFilterInput(group.id, filter)}
+                    </div>
 
-            {/* Add filter button */}
-            <div className="mt-3 pt-3 border-t border-stone-600">
-              <button
-                type="button"
-                onClick={() => addFilter(group.id)}
-                disabled={!canAddFilter}
-                className={
-                  canAddFilter
-                    ? 'flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300'
-                    : 'flex items-center gap-2 text-sm text-stone-500 cursor-not-allowed'
-                }
-              >
-                <PlusIcon className="h-4 w-4" />
-                {intl.formatMessage(messages.addFilter)}
-              </button>
+                    {/* Remove filter button */}
+                    <div className="col-span-1">
+                      <button
+                        type="button"
+                        onClick={() => removeFilter(group.id, filter.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-red-400 hover:bg-red-900 hover:text-red-300"
+                        disabled={group.filters.length === 1}
+                      >
+                        <MinusIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add filter button */}
+              <div className="mt-3 border-t border-stone-600 pt-3">
+                <button
+                  type="button"
+                  onClick={() => addFilter(group.id)}
+                  disabled={!canAddFilter}
+                  className={
+                    canAddFilter
+                      ? 'flex items-center gap-2 text-sm text-orange-400 hover:text-orange-300'
+                      : 'flex cursor-not-allowed items-center gap-2 text-sm text-stone-500'
+                  }
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  {intl.formatMessage(messages.addFilter)}
+                </button>
+              </div>
             </div>
-          </div>
           );
         })}
       </div>
@@ -1227,11 +1477,11 @@ const TmdbAdvancedFiltersSection = ({
       {/* Initial state - show add filter group button if no groups */}
       {filterGroups.length === 0 && (
         <div className="rounded-lg border-2 border-dashed border-stone-600 bg-stone-800/50 p-8 text-center">
-          <p className="text-gray-400 mb-4">No advanced filters configured</p>
+          <p className="mb-4 text-gray-400">No advanced filters configured</p>
           <button
             type="button"
             onClick={addFilterGroup}
-            className="flex items-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-white hover:bg-orange-700 mx-auto"
+            className="mx-auto flex items-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-white hover:bg-orange-700"
           >
             <PlusIcon className="h-4 w-4" />
             {intl.formatMessage(messages.addFilterGroup)}

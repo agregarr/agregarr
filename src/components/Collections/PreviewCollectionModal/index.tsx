@@ -208,13 +208,18 @@ const PreviewCollectionModal = ({
     tmdbAdvancedFilters: previewConfig.tmdbAdvancedFilters,
     tmdbMovieSortBy: previewConfig.tmdbMovieSortBy,
     tmdbTvSortBy: previewConfig.tmdbTvSortBy,
-    tmdbOnlyIncludeAvailableOnPlex: previewConfig.tmdbOnlyIncludeAvailableOnPlex,
-    maxItems: previewConfig.maxItems ? Number(previewConfig.maxItems) : undefined,
+    tmdbOnlyIncludeAvailableOnPlex:
+      previewConfig.tmdbOnlyIncludeAvailableOnPlex,
+    maxItems: previewConfig.maxItems
+      ? Number(previewConfig.maxItems)
+      : undefined,
     timePeriod: previewConfig.timePeriod,
     minimumPlays: previewConfig.minimumPlays
       ? Number(previewConfig.minimumPlays)
       : undefined,
-    customDays: previewConfig.customDays ? Number(previewConfig.customDays) : undefined,
+    customDays: previewConfig.customDays
+      ? Number(previewConfig.customDays)
+      : undefined,
     network: previewConfig.network,
     country: previewConfig.country,
     provider: previewConfig.provider,

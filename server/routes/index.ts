@@ -200,7 +200,9 @@ router.get('/discover/watch-providers/movie', async (req, res, next) => {
 
   try {
     const region = req.query.region ? String(req.query.region) : 'US';
-    const providers = await tmdb.getMovieWatchProviders({ watchRegion: region });
+    const providers = await tmdb.getMovieWatchProviders({
+      watchRegion: region,
+    });
 
     return res.status(200).json(providers);
   } catch (e) {
@@ -313,24 +315,28 @@ router.get('/countries', isAuthenticated(), async (req, res, next) => {
   }
 });
 
-router.get('/movie-certifications', isAuthenticated(), async (req, res, next) => {
-  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+router.get(
+  '/movie-certifications',
+  isAuthenticated(),
+  async (req, res, next) => {
+    const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
-  try {
-    const certifications = await tmdb.getMovieCertifications();
+    try {
+      const certifications = await tmdb.getMovieCertifications();
 
-    return res.status(200).json(certifications);
-  } catch (e) {
-    logger.debug('Something went wrong retrieving movie certifications', {
-      label: 'API',
-      errorMessage: e.message,
-    });
-    return next({
-      status: 500,
-      message: 'Unable to retrieve movie certifications.',
-    });
+      return res.status(200).json(certifications);
+    } catch (e) {
+      logger.debug('Something went wrong retrieving movie certifications', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to retrieve movie certifications.',
+      });
+    }
   }
-});
+);
 
 router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });

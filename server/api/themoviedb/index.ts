@@ -113,7 +113,10 @@ class TheMovieDb extends ExternalAPI {
   private region?: string;
   private originalLanguage?: string;
 
-  private buildUrlForLog(endpoint: string, params: Record<string, unknown>): string {
+  private buildUrlForLog(
+    endpoint: string,
+    params: Record<string, unknown>
+  ): string {
     const redactedParams: Record<string, unknown> = { ...params };
     delete (redactedParams as Record<string, unknown>).api_key;
 
@@ -585,8 +588,8 @@ class TheMovieDb extends ExternalAPI {
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage
               : originalLanguage === 'all'
-                ? undefined
-                : this.originalLanguage,
+              ? undefined
+              : this.originalLanguage,
           // Set our release date values, but check if one is set and not the other,
           // so we can force a past date or a future date. TMDB Requires both values if one is set!
           'primary_release_date.gte':
@@ -635,7 +638,7 @@ class TheMovieDb extends ExternalAPI {
     // Date filters
     'primary_release_date.gte'?: string;
     'primary_release_date.lte'?: string;
-    'primary_release_year'?: number;
+    primary_release_year?: number;
     'release_date.gte'?: string;
     'release_date.lte'?: string;
     year?: number;
@@ -715,7 +718,9 @@ class TheMovieDb extends ExternalAPI {
 
       return data;
     } catch (e) {
-      throw new Error(`[TMDB] Failed to fetch advanced discover movies: ${e.message}`);
+      throw new Error(
+        `[TMDB] Failed to fetch advanced discover movies: ${e.message}`
+      );
     }
   };
 
@@ -802,7 +807,9 @@ class TheMovieDb extends ExternalAPI {
 
       return data;
     } catch (e) {
-      throw new Error(`[TMDB] Failed to fetch advanced discover TV: ${e.message}`);
+      throw new Error(
+        `[TMDB] Failed to fetch advanced discover TV: ${e.message}`
+      );
     }
   };
 
@@ -1574,7 +1581,9 @@ class TheMovieDb extends ExternalAPI {
       const data = await this.get('/certification/movie/list', {}, 86400);
       return data;
     } catch (e) {
-      throw new Error(`[TMDB] Failed to fetch movie certifications: ${e.message}`);
+      throw new Error(
+        `[TMDB] Failed to fetch movie certifications: ${e.message}`
+      );
     }
   }
 }
