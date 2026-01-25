@@ -19,13 +19,17 @@ export interface ImdbRatingResponse {
  */
 class ImdbRatingsAPI extends ExternalAPI {
   constructor() {
-    super('https://api.agregarr.org', {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      nodeCache: cacheManager.getCache('imdb').data,
-    });
+    super(
+      'https://api.agregarr.org',
+      {}, // URL params
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        nodeCache: cacheManager.getCache('imdb').data,
+      }
+    );
   }
 
   /**
