@@ -16,6 +16,7 @@ import {
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { Router } from 'express';
+import type sharp from 'sharp';
 
 const overlayTestRouter = Router();
 
@@ -366,19 +367,34 @@ overlayTestRouter.post('/', async (req, res) => {
 
     let posterBuffer = basePosterResult.posterBuffer;
 
-    // Apply matching overlays in order
+    // Apply matching overlays in order via batch rendering
     const matchingTemplates = sortedTemplates.filter(
       (template) => templateResults.find((tr) => tr.id === template.id)?.matched
     );
 
+    const { width: posterWidth, height: posterHeight } =
+      await overlayTemplateRenderer.getPosterDimensions(posterBuffer);
+    const allOverlays: sharp.OverlayOptions[] = [];
+
     for (const template of matchingTemplates) {
       const templateData = template.getTemplateData();
-      posterBuffer = await overlayTemplateRenderer.renderOverlay(
-        posterBuffer,
-        templateData,
-        context
-      );
+      const templateOverlays =
+        await overlayTemplateRenderer.renderOverlayElements(
+          posterWidth,
+          posterHeight,
+          templateData,
+          context
+        );
+
+      if (templateOverlays) {
+        allOverlays.push(...templateOverlays);
+      }
     }
+
+    posterBuffer = await overlayTemplateRenderer.compositeOverlays(
+      posterBuffer,
+      allOverlays
+    );
 
     // Return all context variables as a flat list (no grouping)
     const allContext: Record<string, unknown> = {};

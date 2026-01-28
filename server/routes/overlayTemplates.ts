@@ -16,6 +16,7 @@ import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 import * as fsPromises from 'fs/promises';
 import path from 'path';
+import type sharp from 'sharp';
 
 const router = Router();
 
@@ -976,7 +977,11 @@ router.post('/combined-preview', async (req, res, next) => {
       isPlaceholder: false,
     };
 
-    // Apply each template in order
+    // Batch render: collect all overlay elements, then composite once
+    const { width: posterWidth, height: posterHeight } =
+      await overlayTemplateRenderer.getPosterDimensions(posterBuffer);
+    const allOverlays: sharp.OverlayOptions[] = [];
+
     for (const template of orderedTemplates) {
       // Check before each expensive rendering operation
       if (!isLatestRequest()) {
@@ -988,12 +993,23 @@ router.post('/combined-preview', async (req, res, next) => {
       }
 
       const templateData = template.getTemplateData();
-      posterBuffer = await overlayTemplateRenderer.renderOverlay(
-        posterBuffer,
-        templateData,
-        sampleContext
-      );
+      const templateOverlays =
+        await overlayTemplateRenderer.renderOverlayElements(
+          posterWidth,
+          posterHeight,
+          templateData,
+          sampleContext
+        );
+
+      if (templateOverlays) {
+        allOverlays.push(...templateOverlays);
+      }
     }
+
+    posterBuffer = await overlayTemplateRenderer.compositeOverlays(
+      posterBuffer,
+      allOverlays
+    );
 
     // Final check before sending
     if (!isLatestRequest()) {

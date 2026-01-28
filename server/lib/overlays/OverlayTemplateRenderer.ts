@@ -479,33 +479,42 @@ class OverlayTemplateRendererService {
   }
 
   /**
-   * Render overlay template onto a poster
+   * Get poster dimensions from a buffer
    */
-  async renderOverlay(
-    posterBuffer: Buffer,
+  async getPosterDimensions(
+    posterBuffer: Buffer
+  ): Promise<{ width: number; height: number }> {
+    const metadata = await sharp(posterBuffer).metadata();
+    return {
+      width: metadata.width || 500,
+      height: metadata.height || 750,
+    };
+  }
+
+  /**
+   * Render overlay elements for a template without compositing.
+   * Returns positioned overlay buffers ready for batch compositing,
+   * or null if the template should be skipped (missing required variables).
+   */
+  async renderOverlayElements(
+    posterWidth: number,
+    posterHeight: number,
     templateData: OverlayTemplateData,
     context: OverlayRenderContext
-  ): Promise<Buffer> {
+  ): Promise<sharp.OverlayOptions[] | null> {
     try {
       const elements = templateData.elements;
 
       // Check if all required variables are available
-      // If any variable is missing, return original poster unchanged
       if (!this.hasRequiredVariables(elements, context)) {
         logger.debug('Skipping overlay - required data not available', {
           label: 'OverlayRenderer',
         });
-        return posterBuffer;
+        return null;
       }
-
-      // Get poster dimensions
-      const posterMetadata = await sharp(posterBuffer).metadata();
-      const posterWidth = posterMetadata.width || 500;
-      const posterHeight = posterMetadata.height || 750;
 
       // Calculate scale factors from template canvas to actual poster
       // Use uniform scaling to prevent overlay drift on non-standard aspect ratios
-      // (e.g., 1000x1426 instead of standard 2:3 ratio like 2000x3000)
       const scaleX = posterWidth / templateData.width;
       const scaleY = posterHeight / templateData.height;
       const scale = Math.min(scaleX, scaleY);
@@ -514,7 +523,7 @@ class OverlayTemplateRendererService {
       const offsetX = (posterWidth - templateData.width * scale) / 2;
       const offsetY = (posterHeight - templateData.height * scale) / 2;
 
-      logger.debug('Rendering overlay template', {
+      logger.debug('Rendering overlay elements', {
         label: 'OverlayRenderer',
         posterDimensions: `${posterWidth}x${posterHeight}`,
         templateDimensions: `${templateData.width}x${templateData.height}`,
@@ -522,9 +531,6 @@ class OverlayTemplateRendererService {
         offsets: `${offsetX.toFixed(1)},${offsetY.toFixed(1)}`,
         elementCount: elements.length,
       });
-
-      // Create base composite from poster
-      let composite = sharp(posterBuffer);
 
       // Sort elements by layer order (bottom to top)
       const sortedElements = [...elements].sort(
@@ -599,22 +605,57 @@ class OverlayTemplateRendererService {
         }
       }
 
-      // Apply all overlays
-      if (overlays.length > 0) {
-        composite = composite.composite(overlays);
-      }
-
-      // Convert to WebP with high quality for optimal file size
-      // WebP provides 25-35% better compression than JPEG at same quality
-      // (Plex has file size limits around 10-11MB)
-      return await composite.webp({ quality: 92 }).toBuffer();
+      return overlays;
     } catch (error) {
-      logger.error('Failed to render overlay template', {
+      logger.error('Failed to render overlay elements', {
         label: 'OverlayRenderer',
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
+  }
+
+  /**
+   * Composite all overlay elements onto a poster in a single operation
+   */
+  async compositeOverlays(
+    posterBuffer: Buffer,
+    overlays: sharp.OverlayOptions[]
+  ): Promise<Buffer> {
+    let composite = sharp(posterBuffer);
+
+    if (overlays.length > 0) {
+      composite = composite.composite(overlays);
+    }
+
+    // Convert to WebP with high quality for optimal file size
+    // WebP provides 25-35% better compression than JPEG at same quality
+    // (Plex has file size limits around 10-11MB)
+    return await composite.webp({ quality: 92 }).toBuffer();
+  }
+
+  /**
+   * Render overlay template onto a poster (single-template convenience method)
+   */
+  async renderOverlay(
+    posterBuffer: Buffer,
+    templateData: OverlayTemplateData,
+    context: OverlayRenderContext
+  ): Promise<Buffer> {
+    const { width, height } = await this.getPosterDimensions(posterBuffer);
+    const overlays = await this.renderOverlayElements(
+      width,
+      height,
+      templateData,
+      context
+    );
+
+    // If template was skipped (missing variables), return original poster
+    if (!overlays) {
+      return posterBuffer;
+    }
+
+    return await this.compositeOverlays(posterBuffer, overlays);
   }
 
   /**
