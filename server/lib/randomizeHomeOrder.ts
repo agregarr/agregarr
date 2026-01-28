@@ -2,11 +2,14 @@
  * Randomize Home Order Service
  *
  * Shuffles the home screen order of collections/hubs that have randomizeHomeOrder enabled.
- * Collections retain their sortOrderHome values but are randomly shuffled amongst other
- * randomized collections in their position range.
+ * All randomized items in a library swap positions with each other, regardless of whether
+ * they are contiguous. Static items (randomizeHomeOrder=false) stay at their positions.
  *
- * Example: If positions 4, 5, 6 have randomizeHomeOrder=true and positions 1-3, 7-8 are static,
- * then only positions 4-6 will be shuffled amongst themselves.
+ * IMPORTANT: Shuffling is done PER-LIBRARY because sortOrderHome is a per-library value.
+ *
+ * Example: If positions are [A(rand), B(static), C(rand), D(static), E(rand)]
+ * Then A, C, E shuffle amongst positions 1, 3, 5 while B stays at 2, D stays at 4.
+ * After shuffle, you might get: [E, B, A, D, C] or [C, B, E, D, A], etc.
  */
 
 import { getSettings } from '@server/lib/settings';
@@ -14,6 +17,7 @@ import logger from '@server/logger';
 
 interface CollectionItem {
   id: string;
+  libraryId: string;
   sortOrderHome: number;
   randomizeHomeOrder?: boolean;
   type: 'collection' | 'hub' | 'preexisting';
@@ -40,31 +44,74 @@ class RandomizeHomeOrder {
   }
 
   /**
-   * Find contiguous groups of randomized collections
-   * Returns array of groups where each group contains indices of collections to shuffle together
+   * Find all randomized items in the library
+   * Returns array of indices of items that should be shuffled together
+   * Items swap positions with each other regardless of whether they're contiguous
    */
-  private findRandomizedGroups(items: CollectionItem[]): number[][] {
-    const groups: number[][] = [];
-    let currentGroup: number[] = [];
+  private findRandomizedIndices(items: CollectionItem[]): number[] {
+    const indices: number[] = [];
 
     for (let i = 0; i < items.length; i++) {
       if (items[i].randomizeHomeOrder && items[i].sortOrderHome > 0) {
-        currentGroup.push(i);
-      } else {
-        // End current group if we have one
-        if (currentGroup.length > 0) {
-          groups.push(currentGroup);
-          currentGroup = [];
-        }
+        indices.push(i);
       }
     }
 
-    // Don't forget the last group
-    if (currentGroup.length > 0) {
-      groups.push(currentGroup);
+    return indices;
+  }
+
+  /**
+   * Shuffle items within a single library and return map of id -> new sortOrderHome
+   *
+   * All randomized items swap positions with each other regardless of contiguity.
+   * Static items stay at their positions.
+   *
+   * Example: If positions are [A(rand), B(static), C(rand), D(static), E(rand)]
+   * Then A, C, E shuffle amongst positions 1, 3, 5 while B stays at 2, D stays at 4.
+   */
+  private shuffleLibraryItems(
+    libraryItems: CollectionItem[]
+  ): Map<string, number> {
+    const newOrderMap = new Map<string, number>();
+
+    // Sort by current sortOrderHome to establish order
+    libraryItems.sort((a, b) => a.sortOrderHome - b.sortOrderHome);
+
+    // Find all randomized items (not just contiguous groups)
+    const randomizedIndices = this.findRandomizedIndices(libraryItems);
+
+    if (randomizedIndices.length <= 1) {
+      // No items to shuffle (0 or 1 randomized item)
+      libraryItems.forEach((item) => {
+        newOrderMap.set(`${item.type}:${item.id}`, item.sortOrderHome);
+      });
+      return newOrderMap;
     }
 
-    return groups;
+    // Get the randomized items and their original positions
+    const randomizedItems = randomizedIndices.map((idx) => libraryItems[idx]);
+    const originalPositions = randomizedIndices.map(
+      (idx) => libraryItems[idx].sortOrderHome
+    );
+
+    // Shuffle the items
+    const shuffledItems = this.shuffleArray(randomizedItems);
+
+    // Assign shuffled items back to the original positions
+    // (so they swap positions with each other)
+    randomizedIndices.forEach((idx, i) => {
+      libraryItems[idx] = {
+        ...shuffledItems[i],
+        sortOrderHome: originalPositions[i],
+      };
+    });
+
+    // Build the result map with final sortOrderHome values
+    libraryItems.forEach((item) => {
+      newOrderMap.set(`${item.type}:${item.id}`, item.sortOrderHome);
+    });
+
+    return newOrderMap;
   }
 
   /**
@@ -102,59 +149,121 @@ class RandomizeHomeOrder {
     try {
       const settings = getSettings();
 
-      // Gather all collections/hubs/preexisting into a unified list
-      const allItems: CollectionItem[] = [];
+      // Group items by library - sortOrderHome is per-library
+      const itemsByLibrary = new Map<string, CollectionItem[]>();
 
-      // Add Agregarr-created collections
+      // Add Agregarr-created collections (only those positioned on home screen)
       if (settings.plex.collectionConfigs) {
         settings.plex.collectionConfigs.forEach((config) => {
-          allItems.push({
-            id: config.id,
-            sortOrderHome: config.sortOrderHome || 0,
-            randomizeHomeOrder: config.randomizeHomeOrder,
-            type: 'collection',
-          });
+          const sortOrder = config.sortOrderHome || 0;
+          if (sortOrder > 0) {
+            if (!itemsByLibrary.has(config.libraryId)) {
+              itemsByLibrary.set(config.libraryId, []);
+            }
+            itemsByLibrary.get(config.libraryId)?.push({
+              id: config.id,
+              libraryId: config.libraryId,
+              sortOrderHome: sortOrder,
+              randomizeHomeOrder: config.randomizeHomeOrder,
+              type: 'collection',
+            });
+          }
         });
       }
 
-      // Add default Plex hubs
+      // Add default Plex hubs (only those positioned on home screen)
       if (settings.plex.hubConfigs) {
         settings.plex.hubConfigs.forEach((config) => {
-          allItems.push({
-            id: config.id,
-            sortOrderHome: config.sortOrderHome || 0,
-            randomizeHomeOrder: config.randomizeHomeOrder,
-            type: 'hub',
-          });
+          const sortOrder = config.sortOrderHome || 0;
+          if (sortOrder > 0) {
+            if (!itemsByLibrary.has(config.libraryId)) {
+              itemsByLibrary.set(config.libraryId, []);
+            }
+            itemsByLibrary.get(config.libraryId)?.push({
+              id: config.id,
+              libraryId: config.libraryId,
+              sortOrderHome: sortOrder,
+              randomizeHomeOrder: config.randomizeHomeOrder,
+              type: 'hub',
+            });
+          }
         });
       }
 
-      // Add pre-existing collections
+      // Add pre-existing collections (only those positioned on home screen)
       if (settings.plex.preExistingCollectionConfigs) {
         settings.plex.preExistingCollectionConfigs.forEach((config) => {
-          allItems.push({
-            id: config.id,
-            sortOrderHome: config.sortOrderHome || 0,
-            randomizeHomeOrder: config.randomizeHomeOrder,
-            type: 'preexisting',
-          });
+          const sortOrder = config.sortOrderHome || 0;
+          if (sortOrder > 0) {
+            if (!itemsByLibrary.has(config.libraryId)) {
+              itemsByLibrary.set(config.libraryId, []);
+            }
+            itemsByLibrary.get(config.libraryId)?.push({
+              id: config.id,
+              libraryId: config.libraryId,
+              sortOrderHome: sortOrder,
+              randomizeHomeOrder: config.randomizeHomeOrder,
+              type: 'preexisting',
+            });
+          }
         });
       }
 
-      if (allItems.length === 0) {
+      if (itemsByLibrary.size === 0) {
         logger.info('No collections/hubs found to randomize', {
           label: 'Randomize Home Order',
         });
         return;
       }
 
-      // Sort by current sortOrderHome to establish order
-      allItems.sort((a, b) => a.sortOrderHome - b.sortOrderHome);
+      // Process each library separately
+      const allNewOrders = new Map<string, number>();
+      let totalShuffled = 0;
+      let librariesWithRandomized = 0;
 
-      // Find groups of contiguous randomized items
-      const groups = this.findRandomizedGroups(allItems);
+      for (const [libraryId, libraryItems] of itemsByLibrary) {
+        if (this.cancelled) {
+          throw new Error('Randomize Home Order cancelled');
+        }
 
-      if (groups.length === 0) {
+        // Check if this library has any randomized items
+        const hasRandomized = libraryItems.some(
+          (item) => item.randomizeHomeOrder && item.sortOrderHome > 0
+        );
+
+        if (!hasRandomized) {
+          // Keep existing order for this library
+          libraryItems.forEach((item) => {
+            allNewOrders.set(`${item.type}:${item.id}`, item.sortOrderHome);
+          });
+          continue;
+        }
+
+        librariesWithRandomized++;
+
+        // Shuffle this library's items
+        const libraryNewOrders = this.shuffleLibraryItems(libraryItems);
+
+        // Count shuffled items (those with randomizeHomeOrder enabled)
+        const shuffledInLibrary = libraryItems.filter(
+          (item) => item.randomizeHomeOrder
+        ).length;
+        totalShuffled += shuffledInLibrary;
+
+        // Merge into all new orders
+        for (const [key, value] of libraryNewOrders) {
+          allNewOrders.set(key, value);
+        }
+
+        logger.debug(
+          `Library ${libraryId}: shuffled ${shuffledInLibrary} items`,
+          {
+            label: 'Randomize Home Order',
+          }
+        );
+      }
+
+      if (librariesWithRandomized === 0) {
         logger.info('No collections/hubs have randomizeHomeOrder enabled', {
           label: 'Randomize Home Order',
         });
@@ -162,54 +271,21 @@ class RandomizeHomeOrder {
       }
 
       logger.info(
-        `Found ${groups.length} group(s) of randomized collections/hubs`,
+        `Shuffled ${totalShuffled} collections/hubs across ${librariesWithRandomized} libraries`,
         {
           label: 'Randomize Home Order',
         }
       );
 
-      // Shuffle each group
-      let shuffledCount = 0;
-      for (const group of groups) {
-        if (this.cancelled) {
-          throw new Error('Randomize Home Order cancelled');
-        }
-
-        // Get the items in this group
-        const groupItems = group.map((idx) => allItems[idx]);
-
-        // Shuffle the items
-        const shuffledItems = this.shuffleArray(groupItems);
-
-        // Assign the shuffled items back to their positions
-        group.forEach((idx, i) => {
-          allItems[idx] = shuffledItems[i];
-        });
-
-        shuffledCount += group.length;
-      }
-
-      logger.info(`Shuffled ${shuffledCount} collections/hubs`, {
-        label: 'Randomize Home Order',
-      });
-
-      // Now update the sortOrderHome values in settings based on the new order
-      const newOrder = allItems.map((item, index) => ({
-        ...item,
-        sortOrderHome: index + 1, // 1-based indexing
-      }));
-
       // Apply the new order back to settings
       if (settings.plex.collectionConfigs) {
         settings.plex.collectionConfigs = settings.plex.collectionConfigs.map(
           (config) => {
-            const newItem = newOrder.find(
-              (item) => item.id === config.id && item.type === 'collection'
-            );
-            if (newItem) {
+            const newSortOrder = allNewOrders.get(`collection:${config.id}`);
+            if (newSortOrder !== undefined) {
               return {
                 ...config,
-                sortOrderHome: newItem.sortOrderHome,
+                sortOrderHome: newSortOrder,
               };
             }
             return config;
@@ -219,13 +295,11 @@ class RandomizeHomeOrder {
 
       if (settings.plex.hubConfigs) {
         settings.plex.hubConfigs = settings.plex.hubConfigs.map((config) => {
-          const newItem = newOrder.find(
-            (item) => item.id === config.id && item.type === 'hub'
-          );
-          if (newItem) {
+          const newSortOrder = allNewOrders.get(`hub:${config.id}`);
+          if (newSortOrder !== undefined) {
             return {
               ...config,
-              sortOrderHome: newItem.sortOrderHome,
+              sortOrderHome: newSortOrder,
             };
           }
           return config;
@@ -235,13 +309,11 @@ class RandomizeHomeOrder {
       if (settings.plex.preExistingCollectionConfigs) {
         settings.plex.preExistingCollectionConfigs =
           settings.plex.preExistingCollectionConfigs.map((config) => {
-            const newItem = newOrder.find(
-              (item) => item.id === config.id && item.type === 'preexisting'
-            );
-            if (newItem) {
+            const newSortOrder = allNewOrders.get(`preexisting:${config.id}`);
+            if (newSortOrder !== undefined) {
               return {
                 ...config,
-                sortOrderHome: newItem.sortOrderHome,
+                sortOrderHome: newSortOrder,
               };
             }
             return config;
