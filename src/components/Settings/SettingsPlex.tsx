@@ -205,7 +205,10 @@ const SettingsPlex = ({ onComplete }: SettingsPlexProps) => {
         ]}
       />
       <div className="mb-6">
-        <h3 className="heading">{intl.formatMessage(messages.plexsettings)}</h3>
+        <h3 className="heading flex items-center">
+          <img src="/services/plex-tile.svg" alt="" className="mr-2 h-7 w-7" />
+          {intl.formatMessage(messages.plexsettings)}
+        </h3>
         <p className="description">
           {intl.formatMessage(messages.plexsettingsDescription)}
         </p>
