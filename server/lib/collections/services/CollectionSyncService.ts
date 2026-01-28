@@ -499,14 +499,11 @@ export class CollectionSyncService {
         const hasCustomSchedule = config.customSyncSchedule?.enabled;
 
         if (hasCustomSchedule) {
-          // Skip content sync for custom scheduled collections - just ensure it's tracked
+          // Skip content sync for custom scheduled collections - cleanup handles them via label matching
           onProgress?.(
             processedCount,
             `Skipping content sync for "${config.name}" (custom scheduled)...`
           );
-
-          const collectionKey = `${config.libraryId}-${config.name}`;
-          processedCollectionKeys.add(collectionKey);
 
           logger.debug(
             `Skipped content sync for custom scheduled collection: ${config.name}`,
