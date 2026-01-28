@@ -731,6 +731,14 @@ const MultiSourceConfigSection = ({
             value: 'most_popular_duration',
             label: 'Most Popular (by Watch Duration)',
           },
+          {
+            value: 'most_watched_plays',
+            label: 'Most Watched (by Play Count)',
+          },
+          {
+            value: 'most_watched_duration',
+            label: 'Most Watched (by Watch Duration)',
+          },
         ];
       case 'trakt':
         return [
@@ -1441,29 +1449,33 @@ const MultiSourceConfigSection = ({
                     }}
                   />
                 </div>
-                <div>
-                  <label
-                    htmlFor={`source-plays-${index}`}
-                    className="mb-2 block text-sm text-gray-300"
-                  >
-                    {intl.formatMessage(messages.minimumPlays)}
-                  </label>
-                  <Field
-                    type="number"
-                    id={`source-plays-${index}`}
-                    name={`sources[${index}].minimumPlays`}
-                    placeholder="3"
-                    min="1"
-                    max="100"
-                    className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      setFieldValue(
-                        `sources[${index}].minimumPlays`,
-                        parseInt(e.target.value) || undefined
-                      );
-                    }}
-                  />
-                </div>
+                {values.sources?.[index]?.subtype?.startsWith(
+                  'most_popular_'
+                ) && (
+                  <div>
+                    <label
+                      htmlFor={`source-plays-${index}`}
+                      className="mb-2 block text-sm text-gray-300"
+                    >
+                      {intl.formatMessage(messages.minimumPlays)}
+                    </label>
+                    <Field
+                      type="number"
+                      id={`source-plays-${index}`}
+                      name={`sources[${index}].minimumPlays`}
+                      placeholder="3"
+                      min="1"
+                      max="100"
+                      className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        setFieldValue(
+                          `sources[${index}].minimumPlays`,
+                          parseInt(e.target.value) || undefined
+                        );
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

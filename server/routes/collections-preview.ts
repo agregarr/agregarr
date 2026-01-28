@@ -273,6 +273,8 @@ function getSourceDisplayName(source: {
       const subtypeNames: Record<string, string> = {
         most_popular_plays: 'Most Popular (Plays)',
         most_popular_duration: 'Most Popular (Duration)',
+        most_watched_plays: 'Most Watched (Plays)',
+        most_watched_duration: 'Most Watched (Duration)',
       };
       const baseName = `Tautulli ${
         subtypeNames[subtype || ''] || subtype || 'Stats'

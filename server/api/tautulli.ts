@@ -502,12 +502,19 @@ class TautulliAPI {
     mediaType: 'movie' | 'tv',
     timeRangeDays = 30,
     statType: 'plays' | 'duration' = 'plays',
-    collectionType: 'most_popular' = 'most_popular',
+    collectionType: 'most_popular' | 'most_watched' = 'most_popular',
     limit = 20
   ): Promise<TautulliHomeStatRow[]> {
     try {
-      // Use most_popular stat types only
-      const statId = mediaType === 'movie' ? 'popular_movies' : 'popular_tv';
+      // Map collection type + media type to Tautulli stat_id
+      const statId =
+        collectionType === 'most_watched'
+          ? mediaType === 'movie'
+            ? 'top_movies'
+            : 'top_tv'
+          : mediaType === 'movie'
+          ? 'popular_movies'
+          : 'popular_tv';
 
       const stats = await this.getHomeStats(
         timeRangeDays,

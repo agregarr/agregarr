@@ -2978,6 +2978,14 @@ export class MultiSourceOrchestrator {
           `Most Popular (by Watch Duration)${
             src.customDays ? ` - ${src.customDays} Days` : ''
           }`,
+        most_watched_plays: (src) =>
+          `Most Watched (by Play Count)${
+            src.customDays ? ` - ${src.customDays} Days` : ''
+          }`,
+        most_watched_duration: (src) =>
+          `Most Watched (by Watch Duration)${
+            src.customDays ? ` - ${src.customDays} Days` : ''
+          }`,
       },
       networks: {},
       originals: {

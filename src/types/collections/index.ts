@@ -183,7 +183,7 @@ export interface CollectionFormConfig {
     | 'sonarrtag'
     | 'comingsoon'
     | 'filtered_hub';
-  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
+  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_watched_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
   readonly template?: string; // Collection title template (for preset templates or single media type) - optional for hubs/pre-existing

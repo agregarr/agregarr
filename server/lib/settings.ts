@@ -85,7 +85,7 @@ export interface CollectionConfig {
     | 'sonarrtag'
     | 'comingsoon'
     | 'filtered_hub';
-  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', etc. Optional for types like recently_added
+  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_popular_duration', 'most_watched_plays', 'most_watched_duration', etc. Optional for types like recently_added
   readonly template: string; // Collection template
   readonly customMovieTemplate?: string; // Custom template for movie collections when mediaType is 'both'
   readonly customTVTemplate?: string; // Custom template for TV collections when mediaType is 'both'
