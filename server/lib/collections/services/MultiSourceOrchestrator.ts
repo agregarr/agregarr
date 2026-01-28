@@ -1833,13 +1833,21 @@ export class MultiSourceOrchestrator {
     options: MetadataUpdateOptions,
     items: CollectionItem[]
   ): Promise<void> {
-    // 1. Add proper Agregarr label (replaces any existing Agregarr labels)
+    // Add proper Agregarr label (replaces any existing Agregarr labels)
     await plexClient.addLabelToCollection(
       collectionRatingKey,
       options.customLabel
     );
 
-    // 2. Update visibility settings
+    // Update collection title to reflect any name changes
+    if (options.config.name) {
+      await plexClient.updateCollectionTitle(
+        collectionRatingKey,
+        options.config.name
+      );
+    }
+
+    // Update visibility settings
     const visibilityConfig = options.visibilityConfig;
     if (visibilityConfig) {
       const hasAnyVisibility =
@@ -1857,7 +1865,7 @@ export class MultiSourceOrchestrator {
       }
     }
 
-    // 3. Apply sortTitle for promoted collections and reordering
+    // Apply sortTitle for promoted collections and reordering
     if (options.sortOrderLibrary !== undefined) {
       await this.updateSortTitle(
         plexClient,
@@ -1867,7 +1875,7 @@ export class MultiSourceOrchestrator {
       );
     }
 
-    // 4. Generate poster if autoPoster is enabled
+    // Generate poster if autoPoster is enabled
     if (options.config.autoPoster !== false) {
       await this.generateMultiSourcePoster(
         options.config,
@@ -1877,7 +1885,7 @@ export class MultiSourceOrchestrator {
       );
     }
 
-    // 5. Update wallpaper/art if enabled and provided
+    // Update wallpaper/art if enabled and provided
     const customWallpaper = options.config?.customWallpaper;
     const enableCustomWallpaper =
       options.config?.enableCustomWallpaper ?? false;
@@ -1998,7 +2006,7 @@ export class MultiSourceOrchestrator {
       }
     }
 
-    // 6. Update summary if enabled and provided
+    // Update summary if enabled and provided
     const customSummary = options.config?.customSummary;
     const enableCustomSummary = options.config?.enableCustomSummary ?? false;
     if (enableCustomSummary && customSummary) {
@@ -2024,7 +2032,7 @@ export class MultiSourceOrchestrator {
       }
     }
 
-    // 7. Update theme if enabled and provided
+    // Update theme if enabled and provided
     const customTheme = options.config?.customTheme;
     const enableCustomTheme = options.config?.enableCustomTheme ?? false;
     if (enableCustomTheme && customTheme) {
