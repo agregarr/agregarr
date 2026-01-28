@@ -627,6 +627,9 @@ export class TemplateEngine {
       case 'most_popular_plays':
       case 'most_popular_duration':
         return 'Most Popular';
+      case 'most_watched_plays':
+      case 'most_watched_duration':
+        return 'Most Watched';
       default:
         return subtype;
     }
