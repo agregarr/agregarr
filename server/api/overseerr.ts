@@ -646,6 +646,42 @@ class OverseerrAPI {
   }
 
   /**
+   * Get full Radarr server config from Overseerr (including API key)
+   */
+  async getRadarrServerConfig(serverId: number): Promise<{
+    id: number;
+    name: string;
+    hostname: string;
+    port: number;
+    apiKey: string;
+    useSsl: boolean;
+    baseUrl?: string;
+  } | null> {
+    try {
+      const response = await this.axios.get('/settings/radarr');
+      const servers = response.data as {
+        id: number;
+        name: string;
+        hostname: string;
+        port: number;
+        apiKey: string;
+        useSsl: boolean;
+        baseUrl?: string;
+      }[];
+      return servers.find((s) => s.id === serverId) || null;
+    } catch (error) {
+      logger.error(
+        `Failed to get Radarr server config from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+          serverId,
+        }
+      );
+      return null;
+    }
+  }
+
+  /**
    * Get Sonarr servers from Overseerr
    */
   async getSonarrServers(): Promise<
@@ -669,6 +705,42 @@ class OverseerrAPI {
         }
       );
       return [];
+    }
+  }
+
+  /**
+   * Get full Sonarr server config from Overseerr (including API key)
+   */
+  async getSonarrServerConfig(serverId: number): Promise<{
+    id: number;
+    name: string;
+    hostname: string;
+    port: number;
+    apiKey: string;
+    useSsl: boolean;
+    baseUrl?: string;
+  } | null> {
+    try {
+      const response = await this.axios.get('/settings/sonarr');
+      const servers = response.data as {
+        id: number;
+        name: string;
+        hostname: string;
+        port: number;
+        apiKey: string;
+        useSsl: boolean;
+        baseUrl?: string;
+      }[];
+      return servers.find((s) => s.id === serverId) || null;
+    } catch (error) {
+      logger.error(
+        `Failed to get Sonarr server config from Overseerr: ${error.message}`,
+        {
+          label: 'OverseerrAPI',
+          serverId,
+        }
+      );
+      return null;
     }
   }
 

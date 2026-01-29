@@ -75,10 +75,18 @@ function slugifyTagSegment(segment?: string): string {
 }
 
 /**
+ * Minimal config required for tag generation
+ */
+export interface TagGenerationConfig {
+  subtype?: string;
+  name?: string;
+}
+
+/**
  * Generate the auto collection tag label based on source, config, and tag mode
  */
 export function generateCollectionTag(
-  config: CollectionConfig,
+  config: TagGenerationConfig,
   source: TagSource,
   mode: TagRequestsMode | undefined,
   legacyEnabled?: boolean
