@@ -78,6 +78,9 @@ const messages = defineMessages({
   monitorTypeFirstSeason: 'First Season (all episodes)',
   monitorTypeLastSeason: 'Last Season (all episodes)',
   monitorTypeNone: 'None (no episodes monitored)',
+  tagExistingItems: 'Tag Existing Items',
+  tagExistingItemsInfo:
+    'Apply collection tags to items that already exist in Sonarr during collection sync.',
 });
 
 interface TestResponse {
@@ -258,6 +261,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
           monitorByDefault: sonarr?.monitorByDefault ?? true, // Default to true (monitor items when added)
           monitorType: sonarr?.monitorType ?? 'all', // Default to 'all' (monitor all episodes)
           searchOnAdd: sonarr?.searchOnAdd ?? true, // Default to true (search immediately when added)
+          tagExistingItems: sonarr?.tagExistingItems ?? false, // Default to false
         }}
         validationSchema={SonarrSettingsSchema}
         onSubmit={async (values) => {
@@ -289,6 +293,7 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
               monitorByDefault: values.monitorByDefault,
               monitorType: values.monitorType,
               searchOnAdd: values.searchOnAdd,
+              tagExistingItems: values.tagExistingItems,
             };
             if (!sonarr) {
               await axios.post('/api/v1/settings/sonarr', submission);
@@ -730,6 +735,21 @@ const SonarrModal = ({ onClose, sonarr, onSave }: SonarrModalProps) => {
                       type="checkbox"
                       id="searchOnAdd"
                       name="searchOnAdd"
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="tagExistingItems" className="checkbox-label">
+                    {intl.formatMessage(messages.tagExistingItems)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.tagExistingItemsInfo)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="tagExistingItems"
+                      name="tagExistingItems"
                     />
                   </div>
                 </div>

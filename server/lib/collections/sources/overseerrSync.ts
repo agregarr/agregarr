@@ -115,6 +115,9 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
               libraryCache
             );
 
+          // Tag existing items in Radarr/Sonarr (if enabled)
+          await this.tagExistingItemsInArr(allItems, config);
+
           let result: SyncResult;
           switch (config.subtype) {
             case 'users':

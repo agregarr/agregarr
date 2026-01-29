@@ -961,6 +961,9 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
       );
       // Source data mapped to items
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
         items,

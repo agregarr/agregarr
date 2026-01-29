@@ -700,6 +700,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       });
     }
 
+    // Tag existing items in Radarr/Sonarr (if enabled)
+    await this.tagExistingItemsInArr(items, config);
+
     // Handle placeholder cleanup and process missing items
     const placeholderItems = await this.handlePlaceholdersAndMissingItems(
       items,
@@ -1163,6 +1166,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         }
       );
     }
+
+    // Tag existing items in Radarr/Sonarr (if enabled)
+    await this.tagExistingItemsInArr(plexItems, config);
 
     // Handle placeholder cleanup and process missing items
     const placeholderItems = await this.handlePlaceholdersAndMissingItems(

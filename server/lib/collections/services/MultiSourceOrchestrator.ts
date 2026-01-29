@@ -391,6 +391,28 @@ export class MultiSourceOrchestrator {
         }
       );
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      try {
+        const { existingItemTagService } = await import(
+          './ExistingItemTagService'
+        );
+        await existingItemTagService.tagExistingItems(
+          finalItems,
+          configForSync as unknown as CollectionConfig,
+          'multi-source'
+        );
+      } catch (tagError) {
+        // Log but don't fail the sync if tagging fails
+        logger.warn(
+          `Failed to tag existing items in Radarr/Sonarr for multi-source collection: ${collectionNameForSync}`,
+          {
+            label: 'Multi-Source Orchestrator',
+            error:
+              tagError instanceof Error ? tagError.message : String(tagError),
+          }
+        );
+      }
+
       // Handle placeholder cleanup for multi-source collection
       // If createPlaceholdersForMissing enabled: cleans up released/orphaned/stale items
       // If createPlaceholdersForMissing disabled: deletes all placeholder records

@@ -68,6 +68,9 @@ const messages = defineMessages({
   released: 'Released',
   monitorByDefault: 'Monitor by Default',
   searchOnAdd: 'Search on Add',
+  tagExistingItems: 'Tag Existing Items',
+  tagExistingItemsInfo:
+    'Apply collection tags to items that already exist in Radarr during collection sync.',
 });
 
 interface TestResponse {
@@ -244,6 +247,7 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
             (radarr?.tagRequests ? 'granular' : 'off'),
           monitorByDefault: radarr?.monitorByDefault ?? true, // Default to true (monitor items when added)
           searchOnAdd: radarr?.searchOnAdd ?? true, // Default to true (search immediately when added)
+          tagExistingItems: radarr?.tagExistingItems ?? false, // Default to false
         }}
         validationSchema={RadarrSettingsSchema}
         onSubmit={async (values) => {
@@ -273,6 +277,7 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
               tagRequestsMode: values.tagRequestsMode,
               monitorByDefault: values.monitorByDefault,
               searchOnAdd: values.searchOnAdd,
+              tagExistingItems: values.tagExistingItems,
             };
             if (!radarr) {
               await axios.post('/api/v1/settings/radarr', submission);
@@ -673,6 +678,21 @@ const RadarrModal = ({ onClose, radarr, onSave }: RadarrModalProps) => {
                       type="checkbox"
                       id="searchOnAdd"
                       name="searchOnAdd"
+                    />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <label htmlFor="tagExistingItems" className="checkbox-label">
+                    {intl.formatMessage(messages.tagExistingItems)}
+                    <span className="label-tip">
+                      {intl.formatMessage(messages.tagExistingItemsInfo)}
+                    </span>
+                  </label>
+                  <div className="form-input-area">
+                    <Field
+                      type="checkbox"
+                      id="tagExistingItems"
+                      name="tagExistingItems"
                     />
                   </div>
                 </div>

@@ -640,6 +640,9 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         missingItemsLength: missingItems?.length || 0,
       });
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
         items,

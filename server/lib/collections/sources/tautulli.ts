@@ -104,6 +104,9 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
         return { created: 0, updated: 0 };
       }
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Use the new media type processing strategy
       return await this.processWithMediaTypeStrategy(
         items,
