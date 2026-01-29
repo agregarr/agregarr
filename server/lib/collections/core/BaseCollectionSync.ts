@@ -1435,10 +1435,61 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
           collectionRatingKey = existingCollection.ratingKey;
 
           // Smart update: add new items, remove old ones
-          await plexClient.updateCollectionContents(
+          const updateResult = await plexClient.updateCollectionContents(
             collectionRatingKey,
             plexItems
           );
+
+          // Label items that fell out of the collection as stale
+          if (updateResult.removedKeys.length > 0) {
+            for (const removedKey of updateResult.removedKeys) {
+              try {
+                await plexClient.addLabelToItem(removedKey, 'agregarr-stale');
+              } catch (error) {
+                logger.warn(
+                  `Failed to add agregarr-stale label to item ${removedKey}`,
+                  {
+                    label: 'Collection Update',
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+              }
+            }
+            logger.info(
+              `Labeled ${updateResult.removedKeys.length} removed items as agregarr-stale in collection ${collectionName}`,
+              { label: 'Collection Update' }
+            );
+          }
+
+          // Clean up stale labels for items still in this collection
+          const currentPlexKeys = new Set(
+            plexItems.map((item) => item.ratingKey)
+          );
+          const staleItems = await plexClient.getItemsWithLabel(
+            libraryKey,
+            'agregarr-stale'
+          );
+          for (const staleKey of staleItems) {
+            if (currentPlexKeys.has(staleKey)) {
+              try {
+                await plexClient.removeLabelFromItem(
+                  staleKey,
+                  'agregarr-stale'
+                );
+              } catch (error) {
+                logger.warn(
+                  `Failed to remove agregarr-stale label from item ${staleKey}`,
+                  {
+                    label: 'Collection Update',
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+              }
+            }
+          }
+
           updated = 1;
         }
       }
