@@ -1,4 +1,8 @@
 import SonarrAPI from '@server/api/servarr/sonarr';
+import {
+  generateCollectionTag,
+  type TagSource,
+} from '@server/lib/collections/services/ArrTagUtils';
 import type { SonarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -208,6 +212,56 @@ sonarrRoutes.post<{ id: string }, unknown, { label: string }>(
     }
   }
 );
+
+sonarrRoutes.get<
+  { id: string },
+  { label: string | null },
+  unknown,
+  { source?: string; subtype?: string; name?: string }
+>('/:id/autotag', (req, res, next) => {
+  const settings = getSettings();
+
+  const sonarrSettings = settings.sonarr.find(
+    (s) => s.id === Number(req.params.id)
+  );
+
+  if (!sonarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const { source, subtype, name } = req.query;
+
+  // Validate source is a valid TagSource
+  const validSources: TagSource[] = [
+    'trakt',
+    'tmdb',
+    'imdb',
+    'letterboxd',
+    'anilist',
+    'myanimelist',
+    'mdblist',
+    'networks',
+    'originals',
+    'multi-source',
+    'tautulli',
+    'overseerr',
+    'radarrtag',
+    'sonarrtag',
+  ];
+
+  if (!source || !validSources.includes(source as TagSource)) {
+    return res.status(200).json({ label: null });
+  }
+
+  const label = generateCollectionTag(
+    { subtype, name },
+    source as TagSource,
+    sonarrSettings.tagRequestsMode,
+    sonarrSettings.tagRequests
+  );
+
+  return res.status(200).json({ label });
+});
 
 sonarrRoutes.delete<{ id: string }>('/:id', (req, res) => {
   const settings = getSettings();

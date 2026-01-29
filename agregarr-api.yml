@@ -9713,6 +9713,65 @@ paths:
           description: Radarr instance not found
         '500':
           description: Failed to create tag
+  /settings/radarr/{radarrId}/autotag:
+    get:
+      summary: Get auto-generated collection tag label
+      description: Returns the auto-generated tag label that would be applied to items from this collection based on the server's tag mode settings.
+      tags:
+        - settings-services
+      parameters:
+        - in: path
+          name: radarrId
+          required: true
+          schema:
+            type: integer
+          description: Radarr instance ID
+        - in: query
+          name: source
+          required: true
+          schema:
+            type: string
+            enum:
+              - trakt
+              - tmdb
+              - imdb
+              - letterboxd
+              - anilist
+              - myanimelist
+              - mdblist
+              - networks
+              - originals
+              - multi-source
+              - tautulli
+              - overseerr
+              - radarrtag
+              - sonarrtag
+          description: Collection source type
+        - in: query
+          name: subtype
+          schema:
+            type: string
+          description: Collection subtype (e.g., 'trending', 'popular')
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Collection name (used as fallback if subtype not provided)
+      responses:
+        '200':
+          description: Auto-generated tag label (null if tag mode is off)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label:
+                    type: string
+                    nullable: true
+                    description: The auto-generated tag label, or null if tagging is disabled
+                    example: trakt-trending-agregarr
+        '404':
+          description: Radarr instance not found
   /settings/sonarr:
     get:
       summary: Get Sonarr settings
@@ -9955,6 +10014,65 @@ paths:
           description: Sonarr instance not found
         '500':
           description: Failed to create tag
+  /settings/sonarr/{sonarrId}/autotag:
+    get:
+      summary: Get auto-generated collection tag label
+      description: Returns the auto-generated tag label that would be applied to items from this collection based on the server's tag mode settings.
+      tags:
+        - settings-services
+      parameters:
+        - in: path
+          name: sonarrId
+          required: true
+          schema:
+            type: integer
+          description: Sonarr instance ID
+        - in: query
+          name: source
+          required: true
+          schema:
+            type: string
+            enum:
+              - trakt
+              - tmdb
+              - imdb
+              - letterboxd
+              - anilist
+              - myanimelist
+              - mdblist
+              - networks
+              - originals
+              - multi-source
+              - tautulli
+              - overseerr
+              - radarrtag
+              - sonarrtag
+          description: Collection source type
+        - in: query
+          name: subtype
+          schema:
+            type: string
+          description: Collection subtype (e.g., 'trending', 'popular')
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Collection name (used as fallback if subtype not provided)
+      responses:
+        '200':
+          description: Auto-generated tag label (null if tag mode is off)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  label:
+                    type: string
+                    nullable: true
+                    description: The auto-generated tag label, or null if tagging is disabled
+                    example: trakt-trending-agregarr
+        '404':
+          description: Sonarr instance not found
   /settings/watchlistsync:
     get:
       summary: Get watchlist sync settings
