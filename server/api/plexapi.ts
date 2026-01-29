@@ -1805,6 +1805,7 @@ class PlexAPI {
   ): Promise<{
     added: number;
     removed: number;
+    removedKeys: string[];
     reordered: boolean;
     errors: string[];
   }> {
@@ -1887,10 +1888,16 @@ class PlexAPI {
         }
       }
 
-      return { added, removed, reordered, errors };
+      return { added, removed, removedKeys: toRemoveKeys, reordered, errors };
     } catch (error) {
       errors.push(`Collection update failed: ${(error as Error).message}`);
-      return { added: 0, removed: 0, reordered: false, errors };
+      return {
+        added: 0,
+        removed: 0,
+        removedKeys: [],
+        reordered: false,
+        errors,
+      };
     }
   }
 
