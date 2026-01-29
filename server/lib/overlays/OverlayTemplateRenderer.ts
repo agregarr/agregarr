@@ -341,6 +341,7 @@ export interface OverlayRenderContext {
   rtCriticsScore?: number;
   rtAudienceScore?: number;
   rtCertifiedFresh?: boolean; // True if Rotten Tomatoes Certified Fresh
+  rtVerifiedHot?: boolean; // True if Rotten Tomatoes Verified Hot (audience badge)
   plexUserRating?: number; // Plex user rating (0-10 scale where 10 = 5 stars)
   // metacriticScore?: number; // TODO: Implement Metacritic integration
 

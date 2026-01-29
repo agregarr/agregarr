@@ -186,6 +186,44 @@ export const PRESET_TEMPLATES: {
     },
   },
 
+  {
+    name: 'Rotten Tomatoes Verified Hot',
+    description: 'Shows RT Verified Hot logo above Certified Fresh position',
+    type: 'rating',
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            {
+              field: 'rtVerifiedHot',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'rt-verified-hot-logo',
+          layerOrder: 0,
+          type: 'raster',
+          x: 787,
+          y: 1070,
+          width: 200,
+          height: 200,
+          properties: {
+            imagePath: '/api/v1/posters/icons/system/rt_verified_hot.png',
+            opacity: 100,
+          },
+        },
+      ],
+    },
+  },
+
   // ========================================
   // PLACEHOLDER OVERLAY (applies to all placeholder items)
   // ========================================

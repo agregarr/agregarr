@@ -248,12 +248,14 @@ export async function buildRenderContext(
             context.rtAudienceScore = rtRating.audienceScore;
             context.rtCertifiedFresh =
               rtRating.criticsRating === 'Certified Fresh';
+            context.rtVerifiedHot = rtRating.verifiedHot ?? false;
             logger.debug('Fetched RT ratings', {
               label: 'OverlayContextBuilder',
               title: context.title,
               criticsScore: rtRating.criticsScore,
               audienceScore: rtRating.audienceScore,
               certifiedFresh: context.rtCertifiedFresh,
+              verifiedHot: context.rtVerifiedHot,
             });
           } else {
             logger.debug('RT rating not found', {

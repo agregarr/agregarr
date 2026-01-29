@@ -694,6 +694,8 @@ router.get('/:id/preview', async (req, res, next) => {
       imdbRating: tmdbData.imdbRating || 8.5,
       rtCriticsScore: tmdbData.rtCriticsScore || 92,
       rtAudienceScore: tmdbData.rtAudienceScore || 88,
+      rtCertifiedFresh: true,
+      rtVerifiedHot: true,
       studio: tmdbData.studio || 'Warner Bros.',
       mediaType: mediaType === 'movie' ? ('movie' as const) : ('show' as const),
 
@@ -903,6 +905,8 @@ router.post('/combined-preview', async (req, res, next) => {
       imdbRating: tmdbData.imdbRating || 8.5,
       rtCriticsScore: tmdbData.rtCriticsScore || 92,
       rtAudienceScore: tmdbData.rtAudienceScore || 88,
+      rtCertifiedFresh: true,
+      rtVerifiedHot: true,
       studio: tmdbData.studio || 'Warner Bros.',
       mediaType: mediaType === 'movie' ? ('movie' as const) : ('show' as const),
 
