@@ -106,6 +106,7 @@ const BOOLEAN_FIELDS = [
   'dolbyVision',
   'isImdbTop250',
   'rtCertifiedFresh',
+  'rtVerifiedHot',
   'hasSubtitles',
 ];
 
