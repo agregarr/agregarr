@@ -1,4 +1,6 @@
 import OverseerrAPI from '@server/api/overseerr';
+import RadarrAPI from '@server/api/servarr/radarr';
+import SonarrAPI from '@server/api/servarr/sonarr';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { Router } from 'express';
@@ -255,6 +257,154 @@ router.post('/test', async (req, res, next) => {
     return next({
       status,
       message: `${message} (${connectionUrl})`,
+    });
+  }
+});
+
+/**
+ * Create a tag on a Radarr server using credentials from Overseerr
+ * This allows tag creation even when Radarr isn't configured locally in Agregarr
+ */
+router.post('/radarr/:serverId/tags', async (req, res, next) => {
+  try {
+    const serverId = Number(req.params.serverId);
+    const { label } = req.body;
+
+    if (!label || typeof label !== 'string') {
+      return next({
+        status: 400,
+        message: 'Tag label is required',
+      });
+    }
+
+    // Get Overseerr settings
+    const settings = getSettings();
+    const overseerrSettings = settings.overseerr;
+
+    if (!overseerrSettings?.hostname || !overseerrSettings?.apiKey) {
+      return next({
+        status: 400,
+        message: 'Overseerr is not configured',
+      });
+    }
+
+    // Create Overseerr client and get Radarr server config
+    const overseerrClient = new OverseerrAPI(overseerrSettings);
+    const radarrConfig = await overseerrClient.getRadarrServerConfig(serverId);
+
+    if (!radarrConfig) {
+      return next({
+        status: 404,
+        message: `Radarr server with ID ${serverId} not found in Overseerr`,
+      });
+    }
+
+    // Create Radarr client with credentials from Overseerr
+    const radarrClient = new RadarrAPI({
+      url: `${radarrConfig.useSsl ? 'https' : 'http'}://${
+        radarrConfig.hostname
+      }:${radarrConfig.port}${radarrConfig.baseUrl || ''}`,
+      apiKey: radarrConfig.apiKey,
+    });
+
+    // Create the tag
+    const newTag = await radarrClient.createTag({ label });
+
+    logger.info('Created Radarr tag via Overseerr server config', {
+      label: 'API',
+      serverId,
+      serverName: radarrConfig.name,
+      tagId: newTag.id,
+      tagLabel: newTag.label,
+    });
+
+    return res.status(201).json(newTag);
+  } catch (e) {
+    logger.error('Failed to create Radarr tag via Overseerr', {
+      label: 'API',
+      error: e instanceof Error ? e.message : String(e),
+      serverId: req.params.serverId,
+    });
+
+    return next({
+      status: 500,
+      message: `Failed to create tag: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    });
+  }
+});
+
+/**
+ * Create a tag on a Sonarr server using credentials from Overseerr
+ * This allows tag creation even when Sonarr isn't configured locally in Agregarr
+ */
+router.post('/sonarr/:serverId/tags', async (req, res, next) => {
+  try {
+    const serverId = Number(req.params.serverId);
+    const { label } = req.body;
+
+    if (!label || typeof label !== 'string') {
+      return next({
+        status: 400,
+        message: 'Tag label is required',
+      });
+    }
+
+    // Get Overseerr settings
+    const settings = getSettings();
+    const overseerrSettings = settings.overseerr;
+
+    if (!overseerrSettings?.hostname || !overseerrSettings?.apiKey) {
+      return next({
+        status: 400,
+        message: 'Overseerr is not configured',
+      });
+    }
+
+    // Create Overseerr client and get Sonarr server config
+    const overseerrClient = new OverseerrAPI(overseerrSettings);
+    const sonarrConfig = await overseerrClient.getSonarrServerConfig(serverId);
+
+    if (!sonarrConfig) {
+      return next({
+        status: 404,
+        message: `Sonarr server with ID ${serverId} not found in Overseerr`,
+      });
+    }
+
+    // Create Sonarr client with credentials from Overseerr
+    const sonarrClient = new SonarrAPI({
+      url: `${sonarrConfig.useSsl ? 'https' : 'http'}://${
+        sonarrConfig.hostname
+      }:${sonarrConfig.port}${sonarrConfig.baseUrl || ''}`,
+      apiKey: sonarrConfig.apiKey,
+    });
+
+    // Create the tag
+    const newTag = await sonarrClient.createTag({ label });
+
+    logger.info('Created Sonarr tag via Overseerr server config', {
+      label: 'API',
+      serverId,
+      serverName: sonarrConfig.name,
+      tagId: newTag.id,
+      tagLabel: newTag.label,
+    });
+
+    return res.status(201).json(newTag);
+  } catch (e) {
+    logger.error('Failed to create Sonarr tag via Overseerr', {
+      label: 'API',
+      error: e instanceof Error ? e.message : String(e),
+      serverId: req.params.serverId,
+    });
+
+    return next({
+      status: 500,
+      message: `Failed to create tag: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
     });
   }
 });

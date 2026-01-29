@@ -8,7 +8,8 @@ import axios from 'axios';
 import { Field } from 'formik';
 import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
-import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import FilterWithMode from './FilterWithMode';
 
@@ -113,6 +114,9 @@ const messages = defineMessages({
   noTagOptions: 'No tags.',
   selectOverseerrRadarrTags: 'Radarr Tags (Movies)',
   selectOverseerrSonarrTags: 'Sonarr Tags (TV Shows)',
+  createTag: "Add new tag '{tagName}'",
+  tagCreated: 'Tag created successfully',
+  tagCreationFailed: 'Failed to create tag',
   contentProcessing: 'Content Processing',
   enableProcessingForApproval:
     'Enable movie or TV processing above to configure auto-approval options.',
@@ -183,6 +187,7 @@ const AutoRequestSection = ({
   setFieldValue,
 }: AutoRequestSectionProps) => {
   const intl = useIntl();
+  const { addToast } = useToasts();
 
   // Fetch Radarr and Sonarr servers
   const { data: radarrServers, isLoading: radarrLoading } = useSWR<
@@ -424,17 +429,170 @@ const AutoRequestSection = ({
   );
 
   // Fetch tags for selected servers or default/single server
-  const { data: radarrTags } = useSWR<{ id: number; label: string }[]>(
+  const { data: radarrTags, mutate: mutateRadarrTags } = useSWR<
+    { id: number; label: string }[]
+  >(
     effectiveRadarrServerId !== undefined
       ? `/api/v1/settings/radarr/${effectiveRadarrServerId}/tags`
       : null
   );
 
-  const { data: sonarrTags } = useSWR<{ id: number; label: string }[]>(
+  const { data: sonarrTags, mutate: mutateSonarrTags } = useSWR<
+    { id: number; label: string }[]
+  >(
     effectiveSonarrServerId !== undefined
       ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/tags`
       : null
   );
+
+  // Tag creation handlers for direct download mode
+  const handleCreateDirectDownloadRadarrTag = async (inputValue: string) => {
+    if (effectiveRadarrServerId === undefined) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `/api/v1/settings/radarr/${effectiveRadarrServerId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Refresh the tags list
+      await mutateRadarrTags();
+
+      // Add the new tag to the selected tags
+      const currentTags = values.directDownloadRadarrTags || [];
+      setFieldValue?.('directDownloadRadarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
+  const handleCreateDirectDownloadSonarrTag = async (inputValue: string) => {
+    if (effectiveSonarrServerId === undefined) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `/api/v1/settings/sonarr/${effectiveSonarrServerId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Refresh the tags list
+      await mutateSonarrTags();
+
+      // Add the new tag to the selected tags
+      const currentTags = values.directDownloadSonarrTags || [];
+      setFieldValue?.('directDownloadSonarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
+  // Tag creation handlers for Overseerr mode
+  // These use Overseerr's server credentials to create tags on Radarr/Sonarr
+  const handleCreateOverseerrRadarrTag = async (inputValue: string) => {
+    const serverId = values.overseerrRadarrServerId;
+    if (serverId === undefined || serverId === null) {
+      return;
+    }
+
+    try {
+      // Use Overseerr endpoint which fetches credentials from Overseerr
+      const response = await axios.post(
+        `/api/v1/overseerr/radarr/${serverId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Update the local state with the new tag
+      setOverseerrServerOptions((prev) => ({
+        ...prev,
+        radarrServerOptions: {
+          ...prev.radarrServerOptions,
+          [serverId]: {
+            ...prev.radarrServerOptions[serverId],
+            tags: [...(prev.radarrServerOptions[serverId]?.tags || []), newTag],
+          },
+        },
+      }));
+
+      // Add the new tag to the selected tags
+      const currentTags = values.overseerrRadarrTags || [];
+      setFieldValue?.('overseerrRadarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
+  const handleCreateOverseerrSonarrTag = async (inputValue: string) => {
+    const serverId = values.overseerrSonarrServerId;
+    if (serverId === undefined || serverId === null) {
+      return;
+    }
+
+    try {
+      // Use Overseerr endpoint which fetches credentials from Overseerr
+      const response = await axios.post(
+        `/api/v1/overseerr/sonarr/${serverId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Update the local state with the new tag
+      setOverseerrServerOptions((prev) => ({
+        ...prev,
+        sonarrServerOptions: {
+          ...prev.sonarrServerOptions,
+          [serverId]: {
+            ...prev.sonarrServerOptions[serverId],
+            tags: [...(prev.sonarrServerOptions[serverId]?.tags || []), newTag],
+          },
+        },
+      }));
+
+      // Add the new tag to the selected tags
+      const currentTags = values.overseerrSonarrTags || [];
+      setFieldValue?.('overseerrSonarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
 
   if (!isVisible) return null;
 
@@ -1098,7 +1256,7 @@ const AutoRequestSection = ({
                           )}
                         </div>
                         <div className="form-input-field">
-                          <Select<OptionType, true>
+                          <CreatableSelect<OptionType, true>
                             options={
                               overseerrServerOptions.radarrServerOptions[
                                 Number(values.overseerrRadarrServerId)
@@ -1148,6 +1306,12 @@ const AutoRequestSection = ({
                                 value?.map((v) => v.value) || []
                               );
                             }}
+                            onCreateOption={handleCreateOverseerrRadarrTag}
+                            formatCreateLabel={(inputValue) =>
+                              intl.formatMessage(messages.createTag, {
+                                tagName: inputValue,
+                              })
+                            }
                           />
                         </div>
                       </div>
@@ -1297,7 +1461,7 @@ const AutoRequestSection = ({
                           )}
                         </div>
                         <div className="form-input-field">
-                          <Select<OptionType, true>
+                          <CreatableSelect<OptionType, true>
                             options={
                               overseerrServerOptions.sonarrServerOptions[
                                 Number(values.overseerrSonarrServerId)
@@ -1347,6 +1511,12 @@ const AutoRequestSection = ({
                                 value?.map((v) => v.value) || []
                               );
                             }}
+                            onCreateOption={handleCreateOverseerrSonarrTag}
+                            formatCreateLabel={(inputValue) =>
+                              intl.formatMessage(messages.createTag, {
+                                tagName: inputValue,
+                              })
+                            }
                           />
                         </div>
                       </div>
@@ -1478,7 +1648,7 @@ const AutoRequestSection = ({
                         {intl.formatMessage(messages.selectRadarrTags)}
                       </div>
                       <div className="form-input-field">
-                        <Select<OptionType, true>
+                        <CreatableSelect<OptionType, true>
                           options={
                             radarrTags?.map((tag) => ({
                               label: tag.label,
@@ -1517,6 +1687,12 @@ const AutoRequestSection = ({
                               value?.map((v) => v.value) || []
                             );
                           }}
+                          onCreateOption={handleCreateDirectDownloadRadarrTag}
+                          formatCreateLabel={(inputValue) =>
+                            intl.formatMessage(messages.createTag, {
+                              tagName: inputValue,
+                            })
+                          }
                         />
                       </div>
                     </div>
@@ -1666,7 +1842,7 @@ const AutoRequestSection = ({
                         {intl.formatMessage(messages.selectSonarrTags)}
                       </div>
                       <div className="form-input-field">
-                        <Select<OptionType, true>
+                        <CreatableSelect<OptionType, true>
                           options={
                             sonarrTags?.map((tag) => ({
                               label: tag.label,
@@ -1705,6 +1881,12 @@ const AutoRequestSection = ({
                               value?.map((v) => v.value) || []
                             );
                           }}
+                          onCreateOption={handleCreateDirectDownloadSonarrTag}
+                          formatCreateLabel={(inputValue) =>
+                            intl.formatMessage(messages.createTag, {
+                              tagName: inputValue,
+                            })
+                          }
                         />
                       </div>
                     </div>
