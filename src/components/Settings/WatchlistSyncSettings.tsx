@@ -51,6 +51,9 @@ const messages = defineMessages({
   createTag: "Add new tag '{tagName}'",
   tagCreated: 'Tag created successfully',
   tagCreationFailed: 'Failed to create tag',
+  tagWithUsername: 'Tag with Plex username',
+  tagWithUsernameDescription:
+    'Automatically tag downloaded media with the Plex username of the user who added it to their watchlist',
   settingsSaved: 'Watchlist sync settings saved successfully',
   settingsSaveFailed: 'Failed to save watchlist sync settings',
 });
@@ -503,6 +506,40 @@ const WatchlistSyncSettings = () => {
                   </div>
 
                   <div className="form-row">
+                    <label
+                      htmlFor="radarrTagWithUsername"
+                      className="checkbox-label"
+                    >
+                      <span>
+                        {intl.formatMessage(messages.tagWithUsername)}
+                      </span>
+                      <span className="label-tip">
+                        {intl.formatMessage(
+                          messages.tagWithUsernameDescription
+                        )}
+                      </span>
+                    </label>
+                    <div className="form-input-area">
+                      <input
+                        type="checkbox"
+                        id="radarrTagWithUsername"
+                        name="radarrTagWithUsername"
+                        checked={formData.radarr.tagWithUsername ?? false}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            radarr: {
+                              enabled: formData.radarr?.enabled ?? false,
+                              ...formData.radarr,
+                              tagWithUsername: e.target.checked,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-row">
                     <label htmlFor="radarrMonitor" className="checkbox-label">
                       {intl.formatMessage(messages.monitorByDefault)}
                     </label>
@@ -725,6 +762,40 @@ const WatchlistSyncSettings = () => {
                         formatCreateLabel={(inputValue) =>
                           intl.formatMessage(messages.createTag, {
                             tagName: inputValue,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-row">
+                    <label
+                      htmlFor="sonarrTagWithUsername"
+                      className="checkbox-label"
+                    >
+                      <span>
+                        {intl.formatMessage(messages.tagWithUsername)}
+                      </span>
+                      <span className="label-tip">
+                        {intl.formatMessage(
+                          messages.tagWithUsernameDescription
+                        )}
+                      </span>
+                    </label>
+                    <div className="form-input-area">
+                      <input
+                        type="checkbox"
+                        id="sonarrTagWithUsername"
+                        name="sonarrTagWithUsername"
+                        checked={formData.sonarr.tagWithUsername ?? false}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            sonarr: {
+                              enabled: formData.sonarr?.enabled ?? false,
+                              ...formData.sonarr,
+                              tagWithUsername: e.target.checked,
+                            },
                           })
                         }
                       />

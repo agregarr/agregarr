@@ -537,6 +537,7 @@ export interface WatchlistSyncSettings {
     profileId?: number; // Quality profile override
     rootFolder?: string; // Root folder override
     tags?: number[]; // Tags override
+    tagWithUsername?: boolean; // Tag media with the user's Plex username
     monitor?: boolean; // Monitor by default override
     searchOnAdd?: boolean; // Search on add override
   };
@@ -546,6 +547,7 @@ export interface WatchlistSyncSettings {
     profileId?: number; // Quality profile override
     rootFolder?: string; // Root folder override
     tags?: number[]; // Tags override
+    tagWithUsername?: boolean; // Tag media with the user's Plex username
     monitor?: boolean; // Monitor by default override
     searchOnAdd?: boolean; // Search on add override
     seasonFolder?: boolean; // Season folder override
