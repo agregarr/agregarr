@@ -2,6 +2,8 @@ import type PlexAPI from '@server/api/plexapi';
 import TautulliAPI from '@server/api/tautulli';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  extractTmdbIdFromGuids,
+  extractTvdbIdFromGuids,
   getCollectionMediaType,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -102,6 +104,9 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
         return { created: 0, updated: 0 };
       }
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Use the new media type processing strategy
       return await this.processWithMediaTypeStrategy(
         items,
@@ -186,18 +191,8 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     return tautulliStats as TautulliSourceData[];
   }
 
-  /**
-   * Extract TMDB ID from Plex GUID array
-   */
-  private extractTmdbIdFromGuids(guids: { id: string }[]): number | undefined {
-    for (const guid of guids) {
-      const tmdbMatch = guid.id.match(/tmdb:\/\/(\d+)/);
-      if (tmdbMatch) {
-        return parseInt(tmdbMatch[1], 10);
-      }
-    }
-    return undefined;
-  }
+  // GUID extraction uses shared utilities from CollectionUtilities:
+  // extractTmdbIdFromGuids() and extractTvdbIdFromGuids()
 
   /**
    * Map Tautulli source data to standardized collection items with TMDB IDs from Plex
@@ -339,17 +334,19 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       })
       .filter((item) => item.ratingKey && item.title !== 'Unknown');
 
-    // If we have a Plex client, fetch TMDB IDs for items that don't have them
+    // If we have a Plex client, fetch TMDB/TVDB IDs for items that don't have them
     const mappedItems: TautulliCollectionItem[] = [];
     for (const item of basicMappedItems) {
       let tmdbId = item.tmdbId;
+      let tvdbId: number | undefined;
 
       // If no TMDB ID and we have Plex client, try to get it from Plex metadata
       if (!tmdbId && plexClient && item.ratingKey) {
         try {
           const plexMetadata = await plexClient.getMetadata(item.ratingKey);
           if (plexMetadata.Guid && plexMetadata.Guid.length > 0) {
-            tmdbId = this.extractTmdbIdFromGuids(plexMetadata.Guid);
+            tmdbId = extractTmdbIdFromGuids(plexMetadata.Guid);
+            tvdbId = extractTvdbIdFromGuids(plexMetadata.Guid);
             logger.debug(`Extracted TMDB ID from Plex for ${item.title}`, {
               ratingKey: item.ratingKey,
               tmdbId,
@@ -366,6 +363,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       mappedItems.push({
         ...item,
         tmdbId,
+        tvdbId,
       });
     }
 

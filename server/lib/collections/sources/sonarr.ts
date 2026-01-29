@@ -91,6 +91,9 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
       const { items, missingItems, mappingStats, filteringStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
         items,
@@ -423,7 +426,7 @@ export class SonarrTagCollectionSync extends BaseCollectionSync<'sonarrtag'> {
               ratingKey: plexItem.ratingKey,
               title: lookup.title,
               type: 'tv',
-              tvdbId: lookup.tvdbId,
+              tvdbId: lookup.tvdbId ?? plexItem.tvdbId,
               tmdbId: lookup.tmdbId,
               year: lookup.year,
               addedAt: plexItem.addedAt,

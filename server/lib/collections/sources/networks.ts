@@ -102,6 +102,9 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       const { items, missingItems, mappingStats, filteringStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
         items,
@@ -464,6 +467,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
             title: lookup.title,
             type: lookup.mediaType,
             tmdbId: lookup.tmdbId, // Direct property for poster generation
+            tvdbId: plexItem.tvdbId,
             year: lookup.year, // Include year for poster generation
             rank: lookup.rank,
             platform: lookup.platform,

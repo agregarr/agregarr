@@ -10,6 +10,8 @@ import type PlexAPI from '@server/api/plexapi';
 import TheMovieDb from '@server/api/themoviedb';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  extractTmdbIdFromGuids,
+  extractTvdbIdFromGuids,
   getCollectionMediaType,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -237,23 +239,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
     return `${labelPrefix}${suffix}`;
   }
 
-  private extractTmdbIdFromGuids(
-    guids?: { id?: string }[]
-  ): number | undefined {
-    if (!guids || guids.length === 0) {
-      return undefined;
-    }
-
-    const tmdbGuid = guids.find(
-      (guid) => guid.id && guid.id.startsWith('tmdb://')
-    );
-    if (!tmdbGuid?.id) {
-      return undefined;
-    }
-
-    const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
-    return match ? Number(match[1]) : undefined;
-  }
+  // GUID extraction uses shared utilities from CollectionUtilities:
+  // extractTmdbIdFromGuids() and extractTvdbIdFromGuids()
 
   private async buildPersonPosterItems(
     subtype: PersonCollectionSubtype,
@@ -290,13 +277,15 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
             );
 
       const mappedItems = plexItems.map((item, index) => {
-        const tmdbId = this.extractTmdbIdFromGuids(item.Guid);
+        const tmdbId = extractTmdbIdFromGuids(item.Guid);
+        const tvdbId = extractTvdbIdFromGuids(item.Guid);
         return {
           ratingKey: item.ratingKey,
           title: item.title,
           type: mediaType === 'movie' ? 'movie' : 'tv',
           year: item.year,
           tmdbId: tmdbId ?? undefined,
+          tvdbId: tvdbId ?? undefined,
           metadata: {
             libraryKey: config.libraryId,
             originalPosition: index + 1, // CRITICAL: Preserve source order for multi-source interleaving

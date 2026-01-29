@@ -619,6 +619,49 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
   }
 
   /**
+   * Tag existing items in Radarr/Sonarr with the collection's configured tags
+   * Only runs if tagExistingItems is enabled on the target Radarr/Sonarr server
+   *
+   * @param items - Collection items that exist in Plex
+   * @param config - Collection configuration
+   */
+  protected async tagExistingItemsInArr(
+    items: CollectionItem[],
+    config: CollectionConfig
+  ): Promise<void> {
+    // Only proceed if collection has tags configured
+    const downloadMode = config.downloadMode || 'overseerr';
+    const hasRadarrTags =
+      downloadMode === 'direct'
+        ? (config.directDownloadRadarrTags?.length ?? 0) > 0
+        : (config.overseerrRadarrTags?.length ?? 0) > 0;
+    const hasSonarrTags =
+      downloadMode === 'direct'
+        ? (config.directDownloadSonarrTags?.length ?? 0) > 0
+        : (config.overseerrSonarrTags?.length ?? 0) > 0;
+
+    if (!hasRadarrTags && !hasSonarrTags) {
+      return;
+    }
+
+    try {
+      const { existingItemTagService } = await import(
+        '../services/ExistingItemTagService'
+      );
+      await existingItemTagService.tagExistingItems(items, config, this.source);
+    } catch (error) {
+      // Log but don't fail the sync if tagging fails
+      logger.warn(
+        `Failed to tag existing items in Radarr/Sonarr for ${config.name}`,
+        {
+          label: `${this.source} Collections`,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
+  }
+
+  /**
    * Handle placeholder cleanup and process missing items in one step
    * This combines the cleanup phase (remove old placeholders) with creation phase (add new ones)
    *

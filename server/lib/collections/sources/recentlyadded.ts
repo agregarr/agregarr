@@ -15,6 +15,8 @@
 import type PlexAPI from '@server/api/plexapi';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  extractTmdbIdFromGuids,
+  extractTvdbIdFromGuids,
   getCollectionMediaType,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -364,18 +366,15 @@ export class FilteredHubCollectionSync extends BaseCollectionSync<'filtered_hub'
         const items: CollectionItem[] = children.map((item) => {
           const itemWithExtras = item as unknown as PlexMetadataWithExtras;
 
-          // Extract tmdbId from Plex GUID metadata
-          const tmdbGuid = itemWithExtras.Guid?.find((guid) =>
-            guid.id.startsWith('tmdb://')
-          );
-          const tmdbMatch = tmdbGuid?.id.match(/tmdb:\/\/(\d+)/);
-          const tmdbId = tmdbMatch ? parseInt(tmdbMatch[1], 10) : undefined;
+          const tmdbId = extractTmdbIdFromGuids(itemWithExtras.Guid);
+          const tvdbId = extractTvdbIdFromGuids(itemWithExtras.Guid);
 
           return {
             ratingKey: item.ratingKey,
             title: item.title,
             type: mediaType,
             tmdbId,
+            tvdbId,
             year: itemWithExtras.year,
           };
         });

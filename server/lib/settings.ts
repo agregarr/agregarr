@@ -508,6 +508,7 @@ export interface DVRSettings {
   searchOnAdd?: boolean; // Whether to immediately search for items when added (defaults to true)
   tagRequests?: boolean;
   tagRequestsMode?: TagRequestsMode;
+  tagExistingItems?: boolean; // Apply collection tags to items that already exist in Radarr/Sonarr
 }
 
 export interface RadarrSettings extends DVRSettings {

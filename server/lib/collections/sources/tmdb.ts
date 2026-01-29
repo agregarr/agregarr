@@ -12,6 +12,7 @@ import type {
   CollectionSyncOptions,
   MissingItem,
   PlexCollection,
+  PlexLookupResult,
   SyncResult,
   TmdbFranchiseSourceData,
   TmdbSourceData,
@@ -563,16 +564,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     }
 
     // Use direct Plex queries instead of Media table
-    let plexLookup: Map<
-      string,
-      {
-        ratingKey: string;
-        title: string;
-        libraryKey: string;
-        addedAt?: number;
-        releaseDate?: number;
-      }
-    > = new Map();
+    let plexLookup: Map<string, PlexLookupResult> = new Map();
 
     if (plexClient) {
       // Pass target library ID to limit search scope to only the collection's target library
@@ -603,6 +595,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: lookup.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
           metadata: {
@@ -706,6 +699,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         filteringStats,
       });
     }
+
+    // Tag existing items in Radarr/Sonarr (if enabled)
+    await this.tagExistingItemsInArr(items, config);
 
     // Handle placeholder cleanup and process missing items
     const placeholderItems = await this.handlePlaceholdersAndMissingItems(
@@ -1171,6 +1167,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       );
     }
 
+    // Tag existing items in Radarr/Sonarr (if enabled)
+    await this.tagExistingItemsInArr(plexItems, config);
+
     // Handle placeholder cleanup and process missing items
     const placeholderItems = await this.handlePlaceholdersAndMissingItems(
       plexItems,
@@ -1366,6 +1365,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: plexItem.title,
           type: 'movie',
           tmdbId: movie.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
         });
