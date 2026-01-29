@@ -378,6 +378,7 @@ export class RadarrTagCollectionSync extends BaseCollectionSync<'radarrtag'> {
             title: lookup.title,
             type: 'movie',
             tmdbId: lookup.tmdbId,
+            tvdbId: plexItem.tvdbId,
             year: lookup.year,
             addedAt: plexItem.addedAt,
             releaseDate: plexItem.releaseDate,

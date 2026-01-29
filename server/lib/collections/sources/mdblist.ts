@@ -20,6 +20,7 @@ import type {
   MDBListTemplateContext,
   MissingItem,
   PlexCollection,
+  PlexLookupResult,
   SyncResult,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
@@ -358,16 +359,7 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
     }
 
     // Use direct Plex queries instead of Media table
-    let plexLookup: Map<
-      string,
-      {
-        ratingKey: string;
-        title: string;
-        libraryKey: string;
-        addedAt?: number;
-        releaseDate?: number;
-      }
-    > = new Map();
+    let plexLookup: Map<string, PlexLookupResult> = new Map();
 
     if (plexClient) {
       // Pass target library ID to limit search scope to only the collection's target library
@@ -399,6 +391,7 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
           title: plexItem.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
           metadata: {

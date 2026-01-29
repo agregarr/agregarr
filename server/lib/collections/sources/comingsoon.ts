@@ -674,6 +674,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         title: itemData.title,
         type: sourceItem.mediaType || 'movie',
         tmdbId: tmdbId,
+        tvdbId: itemData.tvdbId,
         releaseDateSortValue: sourceItem.releaseDateSortValue,
       } as CollectionItem & { releaseDateSortValue?: string });
     }

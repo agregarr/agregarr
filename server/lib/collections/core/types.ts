@@ -23,6 +23,8 @@ export interface CollectionItem {
   year?: number;
   /** Optional TMDB ID for external identification */
   tmdbId?: number;
+  /** Optional TVDB ID for external identification */
+  tvdbId?: number;
   /** Optional IMDb ID for external identification and rating lookups */
   imdbId?: string;
   /** Optional IMDb rating (0-10 scale) for sorting */
@@ -245,6 +247,19 @@ export interface AutoRequestConfig {
   seasonsPerShowLimit?: number;
   /** Order to grab seasons: first, latest, or airing */
   seasonGrabOrder?: 'first' | 'latest' | 'airing';
+}
+
+/**
+ * Result entry from findPlexItemsByTmdbIds lookup.
+ * Represents a Plex library item matched by TMDB ID.
+ */
+export interface PlexLookupResult {
+  ratingKey: string;
+  title: string;
+  libraryKey: string;
+  addedAt?: number;
+  releaseDate?: number;
+  tvdbId?: number;
 }
 
 /**

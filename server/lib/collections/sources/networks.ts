@@ -464,6 +464,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
             title: lookup.title,
             type: lookup.mediaType,
             tmdbId: lookup.tmdbId, // Direct property for poster generation
+            tvdbId: plexItem.tvdbId,
             year: lookup.year, // Include year for poster generation
             rank: lookup.rank,
             platform: lookup.platform,

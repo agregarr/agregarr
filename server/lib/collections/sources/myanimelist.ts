@@ -1,6 +1,5 @@
 import {
   ensureAnimeIdsLoaded,
-  getAllValues,
   getFirstValue,
   lookupByMal,
 } from '@server/api/animeIds';
@@ -24,20 +23,12 @@ import type {
   PlexCollection,
   SyncResult,
 } from '@server/lib/collections/core/types';
+import {
+  buildProviderIndex,
+  type ProviderIndex,
+} from '@server/lib/collections/utils/AnimeProviderIndex';
 import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
-
-// Type definitions for Plex library items and guid structures
-interface PlexGuid {
-  id: string;
-}
-
-interface PlexLibraryItem {
-  ratingKey: string;
-  title: string;
-  guid?: string | PlexGuid;
-  Guid?: PlexGuid[]; // Capital G to match actual Plex API response
-}
 
 export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'> {
   constructor() {
@@ -201,20 +192,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
 
     // Build library index for early matching checks (if library cache provided)
     // Filter to target library FIRST, same as mapSourceDataToItems does!
-    let libraryIndex: {
-      imdb: Map<
-        string,
-        { ratingKey: string; title: string; libraryKey: string }
-      >;
-      tmdb: Map<
-        string,
-        { ratingKey: string; title: string; libraryKey: string }
-      >;
-      tvdb: Map<
-        string,
-        { ratingKey: string; title: string; libraryKey: string }
-      >;
-    } | null = null;
+    let libraryIndex: ProviderIndex | null = null;
     if (libraryCache) {
       const targetLibraryId = Array.isArray(config.libraryId)
         ? config.libraryId[0]
@@ -228,7 +206,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
       const cacheToUse =
         Object.keys(filteredCache).length > 0 ? filteredCache : libraryCache;
 
-      libraryIndex = this.buildProviderIndex(cacheToUse);
+      libraryIndex = buildProviderIndex(cacheToUse);
     }
 
     // Paginate through results with rate limiting and early matching checks
@@ -338,7 +316,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
       imdb: imdbIdx,
       tmdb: tmdbIdx,
       tvdb: tvdbIdx,
-    } = this.buildProviderIndex(cacheToUse);
+    } = buildProviderIndex(cacheToUse);
     const mediaType = getCollectionMediaType(config);
 
     for (let i = 0; i < sourceData.length; i++) {
@@ -376,6 +354,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                   ratingKey: hit.ratingKey,
                   title: hit.title,
                   type: 'tv',
+                  tvdbId: hit.tvdbId,
                   posterUrl:
                     raw?.main_picture?.large ||
                     raw?.main_picture?.medium ||
@@ -395,6 +374,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                   title: hit.title,
                   type: 'tv',
                   tmdbId: Number(tmdbShow),
+                  tvdbId: hit.tvdbId,
                   posterUrl:
                     raw?.main_picture?.large ||
                     raw?.main_picture?.medium ||
@@ -413,6 +393,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                   ratingKey: hit.ratingKey,
                   title: hit.title,
                   type: 'tv',
+                  tvdbId: hit.tvdbId,
                   posterUrl:
                     raw?.main_picture?.large ||
                     raw?.main_picture?.medium ||
@@ -443,6 +424,7 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
                     title: hit.title,
                     type: chosenType,
                     tmdbId: Number(tid),
+                    tvdbId: hit.tvdbId,
                     posterUrl:
                       raw?.main_picture?.large ||
                       raw?.main_picture?.medium ||
@@ -584,120 +566,6 @@ export class MyAnimeListCollectionSync extends BaseCollectionSync<'myanimelist'>
     }
 
     return matchedCount;
-  }
-
-  // Helper to build provider index from library cache
-  private buildProviderIndex(libraryCache?: LibraryItemsCache) {
-    const imdb = new Map<
-      string,
-      { ratingKey: string; title: string; libraryKey: string }
-    >();
-    const tmdb = new Map<
-      string,
-      { ratingKey: string; title: string; libraryKey: string }
-    >();
-    const tvdb = new Map<
-      string,
-      { ratingKey: string; title: string; libraryKey: string }
-    >();
-
-    if (!libraryCache) return { imdb, tmdb, tvdb };
-
-    const extractGuidString = (
-      g: string | PlexGuid | undefined
-    ): string | null =>
-      typeof g === 'string' ? g : g && typeof g.id === 'string' ? g.id : null;
-
-    const take = (guid: string | null) => (guid ? [guid] : []);
-
-    for (const libKey of Object.keys(libraryCache)) {
-      for (const it of libraryCache[libKey] || []) {
-        const plexItem = it as PlexLibraryItem;
-        const guidField = plexItem.guid;
-        const guidsField = plexItem.Guid; // Capital G!
-
-        const allGuidStrings: string[] = [
-          ...take(extractGuidString(guidField)),
-          ...(Array.isArray(guidsField)
-            ? (guidsField.map(extractGuidString).filter(Boolean) as string[])
-            : []),
-        ];
-
-        for (const g of allGuidStrings) {
-          const mTmdb = g.match(
-            /(?:^|agents\.themoviedb:\/\/|tmdb:\/\/)(\d+)\b/i
-          );
-          if (mTmdb)
-            tmdb.set(mTmdb[1], {
-              ratingKey: it.ratingKey,
-              title: it.title,
-              libraryKey: libKey,
-            });
-
-          const mImdb = g.match(
-            /(?:^|agents\.imdb:\/\/|imdb:\/\/)(tt\d{6,})\b/i
-          );
-          if (mImdb)
-            imdb.set(mImdb[1].toLowerCase(), {
-              ratingKey: it.ratingKey,
-              title: it.title,
-              libraryKey: libKey,
-            });
-
-          const mTvdb = g.match(/(?:^|agents\.thetvdb:\/\/|tvdb:\/\/)(\d+)\b/i);
-          if (mTvdb)
-            tvdb.set(mTvdb[1], {
-              ratingKey: it.ratingKey,
-              title: it.title,
-              libraryKey: libKey,
-            });
-
-          // MyAnimeList Agent: com.plexapp.agents.myanimelist://{mal_id}
-          const mMalAgent = g.match(/myanimelist:\/\/(\d+)/i);
-          if (mMalAgent) {
-            const malId = parseInt(mMalAgent[1]);
-            const map = lookupByMal(malId);
-            if (map) {
-              // Add all available IDs from PlexAniBridge mapping
-              if (map.tvdb_id) {
-                tvdb.set(String(map.tvdb_id), {
-                  ratingKey: it.ratingKey,
-                  title: it.title,
-                  libraryKey: libKey,
-                });
-              }
-              if (map.tmdb_show_id) {
-                tmdb.set(String(map.tmdb_show_id), {
-                  ratingKey: it.ratingKey,
-                  title: it.title,
-                  libraryKey: libKey,
-                });
-              }
-              // tmdb_movie_id can be array - add all values
-              const tmdbMovieIds = getAllValues(map.tmdb_movie_id);
-              for (const mid of tmdbMovieIds) {
-                tmdb.set(String(mid), {
-                  ratingKey: it.ratingKey,
-                  title: it.title,
-                  libraryKey: libKey,
-                });
-              }
-              // imdb_id can be array - add all values
-              const imdbIds = getAllValues(map.imdb_id);
-              for (const iid of imdbIds) {
-                imdb.set(iid.toLowerCase(), {
-                  ratingKey: it.ratingKey,
-                  title: it.title,
-                  libraryKey: libKey,
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return { imdb, tmdb, tvdb };
   }
 }
 
