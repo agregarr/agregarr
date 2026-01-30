@@ -71,7 +71,12 @@ export async function fetchMonitoredMovies(
     config.placeholderDaysAhead || config.comingSoonDays || 360;
   const maxDate = getFutureDateFromToday(maxDaysAway);
 
-  for (const radarrInstance of settings.radarr) {
+  // Filter to specific server if configured
+  const radarrInstances = config.comingSoonRadarrServerId
+    ? settings.radarr.filter((r) => r.id === config.comingSoonRadarrServerId)
+    : settings.radarr;
+
+  for (const radarrInstance of radarrInstances) {
     try {
       const radarrClient = new RadarrAPI({
         url: `${radarrInstance.useSsl ? 'https' : 'http'}://${
@@ -118,6 +123,24 @@ export async function fetchMonitoredMovies(
 
         if (!movie.monitored || movie.hasFile) {
           continue;
+        }
+
+        // Apply tag filtering if configured
+        if (
+          config.comingSoonFilterByTags &&
+          config.comingSoonRadarrTagIds &&
+          config.comingSoonRadarrTagIds.length > 0
+        ) {
+          const movieTags = movie.tags || [];
+          const hasMatchingTag = config.comingSoonRadarrTagIds.some((tagId) =>
+            movieTags.includes(tagId)
+          );
+          if (config.comingSoonTagMode === 'exclude') {
+            if (hasMatchingTag) continue; // Exclude movies with any selected tag
+          } else {
+            // 'include' mode (default)
+            if (!hasMatchingTag) continue; // Only include movies with at least one selected tag
+          }
         }
 
         // Check if movie is actually upcoming (not already released/available)
@@ -262,7 +285,12 @@ export async function fetchMonitoredShows(
   const maxDaysAway =
     config.placeholderDaysAhead || config.comingSoonDays || 360;
 
-  for (const sonarrInstance of settings.sonarr) {
+  // Filter to specific server if configured
+  const sonarrInstances = config.comingSoonSonarrServerId
+    ? settings.sonarr.filter((s) => s.id === config.comingSoonSonarrServerId)
+    : settings.sonarr;
+
+  for (const sonarrInstance of sonarrInstances) {
     try {
       const sonarrClient = new SonarrAPI({
         url: `${sonarrInstance.useSsl ? 'https' : 'http'}://${
@@ -282,6 +310,23 @@ export async function fetchMonitoredShows(
       for (const series of allSeries) {
         if (!series.monitored) {
           continue;
+        }
+
+        // Apply tag filtering if configured
+        if (
+          config.comingSoonFilterByTags &&
+          config.comingSoonSonarrTagIds &&
+          config.comingSoonSonarrTagIds.length > 0
+        ) {
+          const seriesTags = series.tags || [];
+          const hasMatchingTag = config.comingSoonSonarrTagIds.some((tagId) =>
+            seriesTags.includes(tagId)
+          );
+          if (config.comingSoonTagMode === 'exclude') {
+            if (hasMatchingTag) continue;
+          } else {
+            if (!hasMatchingTag) continue;
+          }
         }
 
         // Skip daily shows (soaps, talk shows) - they always have "upcoming" episodes

@@ -29,6 +29,7 @@ import ArrTagConfigSection from '@app/components/Collections/FormSections/ArrTag
 import AutoRequestSection from '@app/components/Collections/FormSections/AutoRequestSection';
 import CollectionExclusionSection from '@app/components/Collections/FormSections/CollectionExclusionSection';
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
+import ComingSoonServerSection from '@app/components/Collections/FormSections/ComingSoonServerSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
 import MultiSourceConfigSection from '@app/components/Collections/FormSections/MultiSourceConfigSection';
@@ -70,6 +71,7 @@ const messages = defineMessages({
     'You have enabled placeholder creation, but no placeholder root folders are configured. Please configure at least one folder to enable this feature.',
   configureDownloads: 'Configure Downloads',
   autoRequestSettings: 'Auto-Request Settings',
+  comingSoonServerSettings: 'Monitored Source Settings',
   timeRestrictions: 'Time Restrictions',
   createCollection: 'Create Collection',
   updateCollection: 'Update Collection',
@@ -1637,6 +1639,21 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig).radarrTagId ?? undefined,
           sonarrTagId:
             (config as CollectionFormConfig).sonarrTagId ?? undefined,
+          // Coming Soon monitored server/tag filtering
+          comingSoonRadarrServerId:
+            (config as CollectionFormConfig).comingSoonRadarrServerId ??
+            undefined,
+          comingSoonSonarrServerId:
+            (config as CollectionFormConfig).comingSoonSonarrServerId ??
+            undefined,
+          comingSoonFilterByTags:
+            (config as CollectionFormConfig).comingSoonFilterByTags ?? false,
+          comingSoonTagMode:
+            (config as CollectionFormConfig).comingSoonTagMode ?? 'include',
+          comingSoonRadarrTagIds:
+            (config as CollectionFormConfig).comingSoonRadarrTagIds ?? [],
+          comingSoonSonarrTagIds:
+            (config as CollectionFormConfig).comingSoonSonarrTagIds ?? [],
           // Direct download server selection
           directDownloadRadarrServerId:
             (config as CollectionFormConfig).directDownloadRadarrServerId ??
@@ -2142,6 +2159,40 @@ const CollectionFormConfigForm = ({
             radarrTagId: values.radarrTagId,
             sonarrInstanceId: values.sonarrInstanceId,
             sonarrTagId: values.sonarrTagId,
+            // Coming Soon monitored server/tag filtering
+            comingSoonRadarrServerId:
+              values.type === 'comingsoon' &&
+              values.subtype === 'monitored'
+                ? values.comingSoonRadarrServerId
+                : undefined,
+            comingSoonSonarrServerId:
+              values.type === 'comingsoon' &&
+              values.subtype === 'monitored'
+                ? values.comingSoonSonarrServerId
+                : undefined,
+            comingSoonFilterByTags:
+              values.type === 'comingsoon' &&
+              values.subtype === 'monitored'
+                ? values.comingSoonFilterByTags
+                : undefined,
+            comingSoonTagMode:
+              values.type === 'comingsoon' &&
+              values.subtype === 'monitored' &&
+              values.comingSoonFilterByTags
+                ? values.comingSoonTagMode
+                : undefined,
+            comingSoonRadarrTagIds:
+              values.type === 'comingsoon' &&
+              values.subtype === 'monitored' &&
+              values.comingSoonFilterByTags
+                ? values.comingSoonRadarrTagIds
+                : undefined,
+            comingSoonSonarrTagIds:
+              values.type === 'comingsoon' &&
+              values.subtype === 'monitored' &&
+              values.comingSoonFilterByTags
+                ? values.comingSoonSonarrTagIds
+                : undefined,
             autoPoster: values.autoPoster,
             autoPosterTemplate: values.autoPosterTemplate,
             useTmdbFranchisePoster: values.useTmdbFranchisePoster,
@@ -3207,6 +3258,26 @@ const CollectionFormConfigForm = ({
                                   allCollectionConfigs || []
                                 }
                               />
+                            )}
+
+                            {/* Coming Soon Monitored Server/Tag Settings */}
+                            {typedValues.type === 'comingsoon' &&
+                              typedValues.subtype === 'monitored' && (
+                                <div className="form-row">
+                                  <label className="text-label">
+                                    {intl.formatMessage(
+                                      messages.comingSoonServerSettings
+                                    )}
+                                  </label>
+                                  <div className="form-input-area">
+                                    <ComingSoonServerSection
+                                      values={
+                                        typedValues as CollectionFormConfig
+                                      }
+                                      setFieldValue={setFieldValue}
+                                    />
+                                  </div>
+                                </div>
                             )}
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}

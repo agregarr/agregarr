@@ -231,6 +231,13 @@ export interface CollectionConfig {
   // Legacy Coming Soon fields (for backward compatibility during migration)
   readonly comingSoonReleasedDays?: number; // @deprecated Use placeholderReleasedDays
   readonly comingSoonDays?: number; // @deprecated Use placeholderDaysAhead
+  // Coming Soon "Monitored" server/tag filtering
+  readonly comingSoonRadarrServerId?: number; // Selected Radarr server for coming soon monitored
+  readonly comingSoonSonarrServerId?: number; // Selected Sonarr server for coming soon monitored
+  readonly comingSoonFilterByTags?: boolean; // Enable tag filtering for coming soon monitored
+  readonly comingSoonTagMode?: 'include' | 'exclude'; // Tag filter mode
+  readonly comingSoonRadarrTagIds?: number[]; // Radarr tag IDs to filter by
+  readonly comingSoonSonarrTagIds?: number[]; // Sonarr tag IDs to filter by
   // Overlay sync option
   readonly applyOverlaysDuringSync?: boolean; // If true, apply overlays to collection items immediately after sync (default: true for Coming Soon, false for others)
   // Time restriction settings

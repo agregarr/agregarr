@@ -476,6 +476,35 @@ components:
           deprecated: true
           example: 7
           nullable: true
+        comingSoonRadarrServerId:
+          type: integer
+          description: 'Selected Radarr server ID for coming soon monitored subtype'
+          nullable: true
+        comingSoonSonarrServerId:
+          type: integer
+          description: 'Selected Sonarr server ID for coming soon monitored subtype'
+          nullable: true
+        comingSoonFilterByTags:
+          type: boolean
+          description: 'Enable tag filtering for coming soon monitored subtype'
+          nullable: true
+        comingSoonTagMode:
+          type: string
+          enum: ['include', 'exclude']
+          description: 'Tag filter mode for coming soon monitored subtype'
+          nullable: true
+        comingSoonRadarrTagIds:
+          type: array
+          items:
+            type: integer
+          description: 'Radarr tag IDs to filter by for coming soon monitored subtype'
+          nullable: true
+        comingSoonSonarrTagIds:
+          type: array
+          items:
+            type: integer
+          description: 'Sonarr tag IDs to filter by for coming soon monitored subtype'
+          nullable: true
         minimumPlays:
           type: integer
           description: 'Minimum play count for Tautulli collections (defaults to 3 if not set, 1-100)'
@@ -1028,6 +1057,35 @@ components:
           type: boolean
           description: 'If true, include all released items regardless of release date (default: true for new configs)'
           example: true
+          nullable: true
+        comingSoonRadarrServerId:
+          type: integer
+          description: 'Selected Radarr server ID for coming soon monitored subtype'
+          nullable: true
+        comingSoonSonarrServerId:
+          type: integer
+          description: 'Selected Sonarr server ID for coming soon monitored subtype'
+          nullable: true
+        comingSoonFilterByTags:
+          type: boolean
+          description: 'Enable tag filtering for coming soon monitored subtype'
+          nullable: true
+        comingSoonTagMode:
+          type: string
+          enum: ['include', 'exclude']
+          description: 'Tag filter mode for coming soon monitored subtype'
+          nullable: true
+        comingSoonRadarrTagIds:
+          type: array
+          items:
+            type: integer
+          description: 'Radarr tag IDs to filter by for coming soon monitored subtype'
+          nullable: true
+        comingSoonSonarrTagIds:
+          type: array
+          items:
+            type: integer
+          description: 'Sonarr tag IDs to filter by for coming soon monitored subtype'
           nullable: true
         minimumPlays:
           type: integer
@@ -1745,6 +1803,35 @@ components:
           type: boolean
           description: 'If true, include all released items regardless of release date (default: true for new configs)'
           example: true
+          nullable: true
+        comingSoonRadarrServerId:
+          type: integer
+          description: 'Selected Radarr server ID for coming soon monitored subtype'
+          nullable: true
+        comingSoonSonarrServerId:
+          type: integer
+          description: 'Selected Sonarr server ID for coming soon monitored subtype'
+          nullable: true
+        comingSoonFilterByTags:
+          type: boolean
+          description: 'Enable tag filtering for coming soon monitored subtype'
+          nullable: true
+        comingSoonTagMode:
+          type: string
+          enum: ['include', 'exclude']
+          description: 'Tag filter mode for coming soon monitored subtype'
+          nullable: true
+        comingSoonRadarrTagIds:
+          type: array
+          items:
+            type: integer
+          description: 'Radarr tag IDs to filter by for coming soon monitored subtype'
+          nullable: true
+        comingSoonSonarrTagIds:
+          type: array
+          items:
+            type: integer
+          description: 'Sonarr tag IDs to filter by for coming soon monitored subtype'
           nullable: true
         minimumPlays:
           type: integer
