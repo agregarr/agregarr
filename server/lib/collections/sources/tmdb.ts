@@ -26,6 +26,21 @@ import logger from '@server/logger';
 
 // TmdbSourceData interface is now imported from types.ts
 
+/** Type for individual filter within a group */
+interface TmdbAdvancedFilter {
+  readonly id: string;
+  readonly field: string;
+  readonly operator: 'and' | 'or';
+  readonly value: string | number | boolean | string[];
+}
+
+/** Type for filter group */
+interface TmdbAdvancedFilterGroup {
+  readonly id: string;
+  readonly operator: 'and' | 'or';
+  readonly filters: readonly TmdbAdvancedFilter[];
+}
+
 /**
  * TMDB Collection Sync - Simple implementation for trending/popular/top-rated content
  */
@@ -460,7 +475,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       }
       case 'advanced': {
         // Handle TMDB Custom Advanced Filters - subtype should be "advanced_custom_tmdb"
-        const groups = config.tmdbAdvancedFilters?.filterGroups ?? [];
+        const groups: readonly TmdbAdvancedFilterGroup[] =
+          (config.tmdbAdvancedFilters
+            ?.filterGroups as readonly TmdbAdvancedFilterGroup[]) ?? [];
 
         const hasNonEmptyValue = (value: unknown): boolean => {
           if (value === undefined || value === null) return false;
@@ -471,20 +488,21 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           return true;
         };
 
-        const hasAdvancedWatchProviders = groups.some((group: any) =>
-          (group?.filters ?? []).some((filter: any) => {
-            const field =
-              typeof filter?.field === 'string' ? filter.field.trim() : '';
-            return (
-              field === 'with_watch_providers' &&
-              hasNonEmptyValue(filter?.value)
-            );
-          })
+        const hasAdvancedWatchProviders = groups.some(
+          (group: TmdbAdvancedFilterGroup) =>
+            (group?.filters ?? []).some((filter: TmdbAdvancedFilter) => {
+              const field =
+                typeof filter?.field === 'string' ? filter.field.trim() : '';
+              return (
+                field === 'with_watch_providers' &&
+                hasNonEmptyValue(filter?.value)
+              );
+            })
         );
 
         const watchRegion = (() => {
-          for (const group of groups as any[]) {
-            for (const filter of (group?.filters ?? []) as any[]) {
+          for (const group of groups) {
+            for (const filter of group?.filters ?? []) {
               const field =
                 typeof filter?.field === 'string' ? filter.field.trim() : '';
               const value = filter?.value;
@@ -684,7 +702,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
             if (!hasNonEmptyValue(filter.value)) continue;
 
             const filterLogicalOperator = normalizeLogicalOperator(
-              (filter as any).operator
+              filter.operator
             );
 
             const field = normalizeDiscoverField(filter.field);
@@ -763,13 +781,17 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               const data =
                 mediaType === 'tv'
                   ? await this.tmdbClient.getAdvancedDiscoverTv({
-                      ...discoverFilters,
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverTv
+                      >[0]),
                       page: currentPage,
-                    } as any)
+                    })
                   : await this.tmdbClient.getAdvancedDiscoverMovies({
-                      ...discoverFilters,
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverMovies
+                      >[0]),
                       page: currentPage,
-                    } as any);
+                    });
 
               if (!data.results || data.results.length === 0) {
                 hasMorePages = false;
@@ -823,9 +845,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           logger.debug('TMDB Advanced discover params (group)', {
             label: 'Collection Sync',
             groupIndex,
-            groupId: (group as any).id,
-            groupOperator:
-              (group as any).groupOperator ?? (group as any).operator,
+            groupId: group.id,
+            groupOperator: group.operator,
             discoverParams,
           });
 
@@ -833,7 +854,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         }
 
         // Combine results
-        const getId = (item: any): number | undefined =>
+        const getId = (item: TmdbSourceData): number | undefined =>
           typeof item?.id === 'number' ? item.id : undefined;
 
         // Start with the first group's ordering
@@ -845,12 +866,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         );
 
         for (let i = 1; i < groupResults.length; i++) {
-          const op =
-            normalizeLogicalOperator(
-              (effectiveGroups[i] as any).groupOperator
-            ) ??
-            normalizeLogicalOperator((effectiveGroups[i] as any).operator) ??
-            'and';
+          const currentGroup = effectiveGroups[i];
+          const op = normalizeLogicalOperator(currentGroup.operator) ?? 'and';
 
           const current = groupResults[i] ?? [];
           const currentIds = new Set<number>(
@@ -937,34 +954,34 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
           switch (sortField) {
             case 'popularity':
-              return typeof (item as any).popularity === 'number'
-                ? (item as any).popularity
+              return typeof item.popularity === 'number'
+                ? item.popularity
                 : undefined;
             case 'vote_average':
-              return typeof (item as any).vote_average === 'number'
-                ? (item as any).vote_average
+              return typeof item.vote_average === 'number'
+                ? item.vote_average
                 : undefined;
             case 'vote_count':
-              return typeof (item as any).vote_count === 'number'
-                ? (item as any).vote_count
+              return typeof item.vote_count === 'number'
+                ? item.vote_count
                 : undefined;
             case 'revenue':
-              return typeof (item as any).revenue === 'number'
-                ? (item as any).revenue
+              return typeof item.revenue === 'number'
+                ? item.revenue
                 : undefined;
             case 'release_date':
             case 'primary_release_date':
-              return toTime((item as any).release_date);
+              return toTime(item.release_date);
             case 'first_air_date':
-              return toTime((item as any).first_air_date);
+              return toTime(item.first_air_date);
             case 'title':
-              return (item as any).title;
+              return item.title;
             case 'original_title':
-              return (item as any).original_title;
+              return item.original_title;
             case 'name':
-              return (item as any).name;
+              return item.name;
             case 'original_name':
-              return (item as any).original_name;
+              return item.original_name;
             default:
               return undefined;
           }
@@ -979,13 +996,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
             // Tie-breakers to avoid starving later OR groups when many values are equal/undefined.
             const ap =
-              typeof (a as any).popularity === 'number'
-                ? (a as any).popularity
-                : undefined;
+              typeof a.popularity === 'number' ? a.popularity : undefined;
             const bp =
-              typeof (b as any).popularity === 'number'
-                ? (b as any).popularity
-                : undefined;
+              typeof b.popularity === 'number' ? b.popularity : undefined;
             const secondary = compareNullable(ap, bp, 'desc');
             if (secondary !== 0) return secondary;
 

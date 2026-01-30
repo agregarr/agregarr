@@ -245,10 +245,10 @@ router.get('/discover/genres/movie', async (req, res, next) => {
     const genres = await tmdb.getMovieGenres({ language });
 
     return res.status(200).json({ genres });
-  } catch (e: any) {
+  } catch (e) {
     logger.debug('Something went wrong retrieving movie genres', {
       label: 'API',
-      errorMessage: e.message,
+      errorMessage: e instanceof Error ? e.message : String(e),
     });
     return next({
       status: 500,
@@ -265,10 +265,10 @@ router.get('/discover/genres/tv', async (req, res, next) => {
     const genres = await tmdb.getTvGenres({ language });
 
     return res.status(200).json({ genres });
-  } catch (e: any) {
+  } catch (e) {
     logger.debug('Something went wrong retrieving TV genres', {
       label: 'API',
-      errorMessage: e.message,
+      errorMessage: e instanceof Error ? e.message : String(e),
     });
     return next({
       status: 500,
@@ -581,6 +581,78 @@ router.get('/keyword/:keywordId', async (req, res, next) => {
     return next({
       status: 500,
       message: 'Unable to retrieve keyword data.',
+    });
+  }
+});
+
+router.get('/search/person', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query ? String(req.query.query) : '';
+    if (!query) {
+      return res
+        .status(200)
+        .json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+    }
+    const results = await tmdb.searchPerson({ query });
+    return res.status(200).json(results);
+  } catch (e) {
+    logger.debug('Something went wrong searching for people', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search for people.',
+    });
+  }
+});
+
+router.get('/search/keyword', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query ? String(req.query.query) : '';
+    if (!query) {
+      return res
+        .status(200)
+        .json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+    }
+    const results = await tmdb.searchKeyword({ query });
+    return res.status(200).json(results);
+  } catch (e) {
+    logger.debug('Something went wrong searching for keywords', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search for keywords.',
+    });
+  }
+});
+
+router.get('/search/company', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query ? String(req.query.query) : '';
+    if (!query) {
+      return res
+        .status(200)
+        .json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+    }
+    const results = await tmdb.searchCompany({ query });
+    return res.status(200).json(results);
+  } catch (e) {
+    logger.debug('Something went wrong searching for companies', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search for companies.',
     });
   }
 });

@@ -345,6 +345,8 @@ const PreviewCollectionModal = ({
     if (forceRefresh) {
       setForceRefresh(false);
     }
+    // runKey is an intentional trigger - we capture current config values at the moment it changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runKey]);
 
   // Poll for status updates

@@ -18,6 +18,7 @@ import type {
   TmdbNetwork,
   TmdbPersonCombinedCredits,
   TmdbPersonDetails,
+  TmdbPersonSearchResponse,
   TmdbProductionCompany,
   TmdbRegion,
   TmdbSearchMovieResponse,
@@ -684,7 +685,7 @@ class TheMovieDb extends ExternalAPI {
   }): Promise<TmdbSearchMovieResponse> => {
     try {
       // Build params object, filtering out undefined values
-      const params: Record<string, any> = {};
+      const params: Record<string, string | number | boolean> = {};
 
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -775,7 +776,7 @@ class TheMovieDb extends ExternalAPI {
     include_null_first_air_dates?: boolean;
   }): Promise<TmdbSearchTvResponse> => {
     try {
-      const params: Record<string, any> = {};
+      const params: Record<string, string | number | boolean> = {};
 
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null && value !== '') {
@@ -1469,6 +1470,31 @@ class TheMovieDb extends ExternalAPI {
       return data;
     } catch (e) {
       throw new Error(`[TMDB] Failed to search companies: ${e.message}`);
+    }
+  }
+
+  public async searchPerson({
+    query,
+    page = 1,
+  }: {
+    query: string;
+    page?: number;
+  }): Promise<TmdbPersonSearchResponse> {
+    try {
+      const data = await this.get<TmdbPersonSearchResponse>(
+        '/search/person',
+        {
+          params: {
+            query,
+            page,
+          },
+        },
+        86400 // 24 hours
+      );
+
+      return data;
+    } catch (e) {
+      throw new Error(`[TMDB] Failed to search people: ${e.message}`);
     }
   }
 

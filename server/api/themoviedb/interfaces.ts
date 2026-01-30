@@ -478,6 +478,20 @@ export interface TmdbCompanySearchResponse extends TmdbPaginatedResponse {
   results: TmdbCompany[];
 }
 
+export interface TmdbPersonSearchResult {
+  id: number;
+  name: string;
+  known_for_department: string;
+  popularity: number;
+  profile_path?: string;
+  adult: boolean;
+  gender: number;
+}
+
+export interface TmdbPersonSearchResponse extends TmdbPaginatedResponse {
+  results: TmdbPersonSearchResult[];
+}
+
 export interface TmdbWatchProviderRegion {
   iso_3166_1: string;
   english_name: string;

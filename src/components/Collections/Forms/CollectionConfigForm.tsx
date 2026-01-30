@@ -2997,8 +2997,8 @@ const CollectionFormConfigForm = ({
                                               id="tmdbMovieSortBy"
                                               name="tmdbMovieSortBy"
                                               value={
-                                                (values as any)
-                                                  .tmdbMovieSortBy ||
+                                                ('tmdbMovieSortBy' in values &&
+                                                  values.tmdbMovieSortBy) ||
                                                 'popularity.desc'
                                               }
                                               onChange={(
@@ -3108,7 +3108,8 @@ const CollectionFormConfigForm = ({
                                               id="tmdbTvSortBy"
                                               name="tmdbTvSortBy"
                                               value={
-                                                (values as any).tmdbTvSortBy ||
+                                                ('tmdbTvSortBy' in values &&
+                                                  values.tmdbTvSortBy) ||
                                                 'popularity.desc'
                                               }
                                               onChange={(

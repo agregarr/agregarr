@@ -2,9 +2,10 @@ import type { CollectionFormConfig } from '@app/types/collections';
 import { MinusIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import useSWR from 'swr';
+import TmdbSearchSelect from './TmdbSearchSelect';
 
 interface TmdbGenre {
   id: number;
@@ -19,6 +20,17 @@ interface TmdbWatchProvider {
   provider_id: number;
   provider_name: string;
   display_priority?: number;
+}
+
+interface TmdbCountry {
+  iso_3166_1: string;
+  english_name: string;
+  native_name: string;
+}
+
+interface TmdbLanguageCombined {
+  code: string;
+  name: string;
 }
 
 interface FilterGroup {
@@ -56,28 +68,6 @@ const messages = defineMessages({
   orOperator: 'OR',
 });
 
-const STREAMING_REGIONS = [
-  { value: 'US', label: 'United States' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'CA', label: 'Canada' },
-  { value: 'AU', label: 'Australia' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'FR', label: 'France' },
-  { value: 'IT', label: 'Italy' },
-  { value: 'ES', label: 'Spain' },
-  { value: 'NL', label: 'Netherlands' },
-  { value: 'SE', label: 'Sweden' },
-  { value: 'NO', label: 'Norway' },
-  { value: 'DK', label: 'Denmark' },
-  { value: 'FI', label: 'Finland' },
-  { value: 'BR', label: 'Brazil' },
-  { value: 'MX', label: 'Mexico' },
-  { value: 'AR', label: 'Argentina' },
-  { value: 'JP', label: 'Japan' },
-  { value: 'KR', label: 'South Korea' },
-  { value: 'IN', label: 'India' },
-];
-
 const MULTIVALUE_SEPARATOR_FIELDS = new Set([
   'with_cast',
   'with_companies',
@@ -90,10 +80,33 @@ const MULTIVALUE_SEPARATOR_FIELDS = new Set([
   'with_watch_monetization_types',
 ]);
 
+// Fields that use TMDB search-as-you-type instead of free-text ID entry
+const TMDB_SEARCH_FIELDS: Record<string, string> = {
+  with_cast: '/api/v1/search/person',
+  with_crew: '/api/v1/search/person',
+  with_people: '/api/v1/search/person',
+  with_companies: '/api/v1/search/company',
+  with_keywords: '/api/v1/search/keyword',
+  without_keywords: '/api/v1/search/keyword',
+};
+
 type FilterScope = 'both' | 'movie' | 'tv';
 
+/** Configuration for a filter field */
+interface FilterFieldConfig {
+  label: string;
+  type: 'select' | 'number' | 'date' | 'text' | 'boolean';
+  scope: FilterScope;
+  api?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  multiple?: boolean;
+  options?: { value: string; label: string }[];
+}
+
 // Available filter fields with their types and descriptions
-const FILTER_FIELDS = {
+const FILTER_FIELDS: Record<string, FilterFieldConfig> = {
   // Streaming (for advanced_custom_tmdb subtype)
   watch_region: {
     label: 'Region/Country',
@@ -123,40 +136,40 @@ const FILTER_FIELDS = {
 
   // People / Companies / Keywords (multi-value)
   with_cast: {
-    label: 'Cast (TMDB person IDs)',
+    label: 'Cast',
     type: 'select',
     scope: 'both' as FilterScope,
   },
   with_crew: {
-    label: 'Crew (TMDB person IDs)',
+    label: 'Crew',
     type: 'select',
     scope: 'both' as FilterScope,
   },
   with_people: {
-    label: 'People (TMDB person IDs)',
+    label: 'People',
     type: 'select',
     scope: 'both' as FilterScope,
   },
   with_companies: {
-    label: 'Companies (TMDB company IDs)',
+    label: 'Companies',
     type: 'select',
     scope: 'both' as FilterScope,
   },
   with_keywords: {
-    label: 'Keywords (TMDB keyword IDs)',
+    label: 'Keywords',
     type: 'select',
     scope: 'both' as FilterScope,
   },
   // Common discover param (supported by both endpoints)
   without_keywords: {
-    label: 'Exclude Keywords (TMDB keyword IDs)',
+    label: 'Exclude Keywords',
     type: 'select',
     scope: 'both' as FilterScope,
   },
 
   // TV-only params
   with_networks: {
-    label: 'Networks (TMDB network IDs)',
+    label: 'Networks (TMDB IDs)',
     type: 'select',
     scope: 'tv' as FilterScope,
   },
@@ -339,35 +352,13 @@ const FILTER_FIELDS = {
     label: 'Original Language',
     type: 'select',
     scope: 'both' as FilterScope,
-    options: [
-      { value: 'en', label: 'English' },
-      { value: 'es', label: 'Spanish' },
-      { value: 'fr', label: 'French' },
-      { value: 'de', label: 'German' },
-      { value: 'it', label: 'Italian' },
-      { value: 'pt', label: 'Portuguese' },
-      { value: 'ja', label: 'Japanese' },
-      { value: 'ko', label: 'Korean' },
-      { value: 'zh', label: 'Chinese' },
-      { value: 'hi', label: 'Hindi' },
-    ],
+    api: '/api/v1/languages/combined', // Dynamic language list from TMDB
   },
   with_origin_country: {
     label: 'Origin Country',
     type: 'select',
     scope: 'both' as FilterScope,
-    options: [
-      { value: 'US', label: 'United States' },
-      { value: 'GB', label: 'United Kingdom' },
-      { value: 'CA', label: 'Canada' },
-      { value: 'AU', label: 'Australia' },
-      { value: 'DE', label: 'Germany' },
-      { value: 'FR', label: 'France' },
-      { value: 'IT', label: 'Italy' },
-      { value: 'ES', label: 'Spain' },
-      { value: 'JP', label: 'Japan' },
-      { value: 'KR', label: 'South Korea' },
-    ],
+    api: '/api/v1/countries', // Dynamic country list from TMDB
   },
 
   // Certification
@@ -434,7 +425,7 @@ const FILTER_FIELDS = {
 };
 
 const formatFieldLabel = (field: string): string => {
-  const cfg = (FILTER_FIELDS as any)[field];
+  const cfg = FILTER_FIELDS[field];
   const label = cfg?.label ?? field;
   const scope: FilterScope | undefined = cfg?.scope;
   if (!scope || scope === 'both') return label;
@@ -903,6 +894,24 @@ const TmdbAdvancedFiltersSection = ({
     '/api/v1/discover/genres/tv'
   );
 
+  // Fetch countries for origin country and watch region filters
+  const { data: countriesData } = useSWR<TmdbCountry[]>('/api/v1/countries');
+  const countries = useMemo(() => {
+    if (!countriesData) return [];
+    return [...countriesData].sort((a, b) =>
+      a.english_name.localeCompare(b.english_name)
+    );
+  }, [countriesData]);
+
+  // Fetch languages for original language filter
+  const { data: languagesData } = useSWR<TmdbLanguageCombined[]>(
+    '/api/v1/languages/combined'
+  );
+  const languages = useMemo(() => {
+    if (!languagesData) return [];
+    return languagesData.filter((l) => l.name && l.code);
+  }, [languagesData]);
+
   const region = (() => {
     const groups = values.tmdbAdvancedFilters?.filterGroups ?? [];
     for (const group of groups) {
@@ -963,20 +972,22 @@ const TmdbAdvancedFiltersSection = ({
   const mergedGenres = Array.from(mergedGenresMap.values());
   const genres = mergedGenres.length ? mergedGenres : fallbackGenres;
 
-  // Get current filter groups or initialize empty
-  const filterGroups: FilterGroup[] = values.tmdbAdvancedFilters?.filterGroups
-    ? values.tmdbAdvancedFilters.filterGroups.map((g) => ({
-        id: g.id,
-        operator: g.operator,
-        groupOperator: (g as any).groupOperator || g.operator,
-        filters: g.filters.map((f) => ({
-          id: f.id,
-          field: f.field,
-          operator: f.operator,
-          value: f.value,
-        })),
-      }))
-    : [];
+  // Get current filter groups or initialize empty - wrapped in useMemo to prevent
+  // useCallback dependency warnings
+  const filterGroups: FilterGroup[] = useMemo(() => {
+    if (!values.tmdbAdvancedFilters?.filterGroups) return [];
+    return values.tmdbAdvancedFilters.filterGroups.map((g) => ({
+      id: g.id,
+      operator: g.operator,
+      groupOperator: g.operator, // Use operator as groupOperator for consistency
+      filters: g.filters.map((f) => ({
+        id: f.id,
+        field: f.field,
+        operator: f.operator,
+        value: f.value,
+      })),
+    }));
+  }, [values.tmdbAdvancedFilters?.filterGroups]);
 
   const updateFilterGroups = useCallback(
     (newGroups: FilterGroup[]) => {
@@ -1091,9 +1102,9 @@ const TmdbAdvancedFiltersSection = ({
         return (
           <input
             type="number"
-            min={(fieldConfig as any).min}
-            max={(fieldConfig as any).max}
-            step={(fieldConfig as any).step || 1}
+            min={fieldConfig.min}
+            max={fieldConfig.max}
+            step={fieldConfig.step || 1}
             value={(filter.value as number) || ''}
             onChange={(e) =>
               updateFilter(groupId, filter.id, {
@@ -1158,9 +1169,9 @@ const TmdbAdvancedFiltersSection = ({
               <option value="">
                 {intl.formatMessage(messages.selectRegion)}
               </option>
-              {STREAMING_REGIONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
+              {countries.map((c) => (
+                <option key={c.iso_3166_1} value={c.iso_3166_1}>
+                  {c.english_name}
                 </option>
               ))}
             </select>
@@ -1196,6 +1207,63 @@ const TmdbAdvancedFiltersSection = ({
           );
         }
 
+        if (filter.field === 'with_origin_country') {
+          const countryOptions = countries.map((c) => ({
+            value: c.iso_3166_1,
+            label: c.english_name,
+          }));
+
+          return (
+            <OptionMultiSelect
+              options={countryOptions}
+              value={
+                filter.value
+                  ? filter.value.toString().split(/[,|]/).filter(Boolean)
+                  : []
+              }
+              onChange={(selected: string[]) => {
+                const separator = filter.operator === 'or' ? '|' : ',';
+                updateFilter(groupId, filter.id, {
+                  value: selected.join(separator),
+                });
+              }}
+              placeholder={
+                countries.length === 0
+                  ? 'Loading countries...'
+                  : 'Select countries...'
+              }
+            />
+          );
+        }
+
+        if (filter.field === 'with_original_language') {
+          const languageOptions = languages.map((l) => ({
+            value: l.code,
+            label: l.name,
+          }));
+
+          return (
+            <select
+              value={(filter.value as string) || ''}
+              onChange={(e) =>
+                updateFilter(groupId, filter.id, { value: e.target.value })
+              }
+              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">
+                {languages.length === 0
+                  ? 'Loading languages...'
+                  : 'Select language...'}
+              </option>
+              {languageOptions.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          );
+        }
+
         if (filter.field.includes('genre')) {
           return (
             <GenreMultiSelect
@@ -1212,10 +1280,7 @@ const TmdbAdvancedFiltersSection = ({
         }
 
         // Option-based multi-select (release type, monetization types)
-        if (
-          (fieldConfig as any).options &&
-          (fieldConfig as any).multiple === false
-        ) {
+        if (fieldConfig.options && fieldConfig.multiple === false) {
           return (
             <select
               value={(filter.value as string) || ''}
@@ -1225,7 +1290,7 @@ const TmdbAdvancedFiltersSection = ({
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               <option value="">Select...</option>
-              {(fieldConfig as any).options.map((opt: any) => (
+              {fieldConfig.options.map((opt) => (
                 <option key={String(opt.value)} value={opt.value}>
                   {opt.label}
                 </option>
@@ -1234,10 +1299,10 @@ const TmdbAdvancedFiltersSection = ({
           );
         }
 
-        if ((fieldConfig as any).options) {
+        if (fieldConfig.options) {
           return (
             <OptionMultiSelect
-              options={(fieldConfig as any).options}
+              options={fieldConfig.options}
               value={filter.value ? filter.value.toString().split(/[,|]/) : []}
               onChange={(selected: string[]) => {
                 const separator = filter.operator === 'or' ? '|' : ',';
@@ -1249,12 +1314,31 @@ const TmdbAdvancedFiltersSection = ({
           );
         }
 
-        // Free-text chip multi-select (IDs)
+        // Search-as-you-type for ID-based fields (cast, crew, companies, keywords)
         {
-          // Allow full TMDB slug tokens like "53714-rachel-mcadams" for display.
-          // Will normalize these back to numeric IDs when calling TMDB.
-          const allowNonNumeric = true;
+          const searchEndpoint = TMDB_SEARCH_FIELDS[filter.field];
+          if (searchEndpoint) {
+            return (
+              <TmdbSearchSelect
+                searchEndpoint={searchEndpoint}
+                value={
+                  filter.value
+                    ? filter.value.toString().split(/[,|]/).filter(Boolean)
+                    : []
+                }
+                onChange={(selected: string[]) => {
+                  const separator = filter.operator === 'or' ? '|' : ',';
+                  updateFilter(groupId, filter.id, {
+                    value: selected.join(separator),
+                  });
+                }}
+              />
+            );
+          }
+        }
 
+        // Free-text chip multi-select for remaining ID fields (e.g. with_networks)
+        {
           return (
             <FreeTextChipInput
               value={
@@ -1262,7 +1346,6 @@ const TmdbAdvancedFiltersSection = ({
                   ? filter.value.toString().split(/[,|]/).filter(Boolean)
                   : []
               }
-              allowNonNumeric={allowNonNumeric}
               onChange={(selected: string[]) => {
                 const separator = filter.operator === 'or' ? '|' : ',';
                 updateFilter(groupId, filter.id, {
