@@ -123,9 +123,15 @@ class WatchlistSync {
         label: 'Watchlist Sync',
       });
 
-      // Fetch Radarr/Sonarr libraries once at the start for efficiency
+      // Fetch Radarr/Sonarr libraries and exclusions once at the start for efficiency
       let radarrMovies: Awaited<ReturnType<RadarrAPI['getMovies']>> = [];
       let sonarrSeries: Awaited<ReturnType<SonarrAPI['getSeries']>> = [];
+      let radarrExclusions: Set<number> = new Set();
+      let sonarrExclusions: Set<number> = new Set();
+
+      // Track items added during this sync run to prevent cross-user duplicates
+      const addedMovieTmdbIds = new Set<number>();
+      const addedShowTvdbIds = new Set<number>();
 
       if (isRadarrConfigured) {
         try {
@@ -146,6 +152,24 @@ class WatchlistSync {
               `Fetched ${radarrMovies.length} movies from Radarr for duplicate checking`,
               { label: 'Watchlist Sync' }
             );
+
+            // Fetch exclusions
+            try {
+              const exclusions = await radarrApi.getExclusions();
+              radarrExclusions = new Set(exclusions.map((e) => e.tmdbId));
+              logger.info(
+                `Fetched ${radarrExclusions.size} exclusions from Radarr`,
+                { label: 'Watchlist Sync' }
+              );
+            } catch (error) {
+              logger.warn(
+                'Failed to fetch Radarr exclusions, will skip exclusion checks',
+                {
+                  label: 'Watchlist Sync',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
           }
         } catch (error) {
           logger.warn(
@@ -177,6 +201,24 @@ class WatchlistSync {
               `Fetched ${sonarrSeries.length} series from Sonarr for duplicate checking`,
               { label: 'Watchlist Sync' }
             );
+
+            // Fetch exclusions
+            try {
+              const exclusions = await sonarrApi.getExclusions();
+              sonarrExclusions = new Set(exclusions.map((e) => e.tvdbId));
+              logger.info(
+                `Fetched ${sonarrExclusions.size} exclusions from Sonarr`,
+                { label: 'Watchlist Sync' }
+              );
+            } catch (error) {
+              logger.warn(
+                'Failed to fetch Sonarr exclusions, will skip exclusion checks',
+                {
+                  label: 'Watchlist Sync',
+                  error: error instanceof Error ? error.message : String(error),
+                }
+              );
+            }
           }
         } catch (error) {
           logger.warn(
@@ -209,7 +251,11 @@ class WatchlistSync {
             syncSettings,
             overseerrApi,
             radarrMovies,
-            sonarrSeries
+            sonarrSeries,
+            radarrExclusions,
+            sonarrExclusions,
+            addedMovieTmdbIds,
+            addedShowTvdbIds
           );
           totalItemsProcessed += result.processed;
           totalItemsAdded += result.added;
@@ -253,7 +299,11 @@ class WatchlistSync {
     syncSettings: WatchlistSyncSettings,
     overseerrApi: OverseerrAPI,
     radarrMovies: Awaited<ReturnType<RadarrAPI['getMovies']>>,
-    sonarrSeries: Awaited<ReturnType<SonarrAPI['getSeries']>>
+    sonarrSeries: Awaited<ReturnType<SonarrAPI['getSeries']>>,
+    radarrExclusions: Set<number>,
+    sonarrExclusions: Set<number>,
+    addedMovieTmdbIds: Set<number>,
+    addedShowTvdbIds: Set<number>
   ): Promise<{ processed: number; added: number }> {
     logger.debug(`Fetching watchlist for ${user.displayName}`, {
       label: 'Watchlist Sync',
@@ -281,6 +331,8 @@ class WatchlistSync {
             item,
             syncSettings,
             radarrMovies,
+            radarrExclusions,
+            addedMovieTmdbIds,
             user.plexUsername
           );
           if (added) itemsAdded++;
@@ -289,6 +341,8 @@ class WatchlistSync {
             item,
             syncSettings,
             sonarrSeries,
+            sonarrExclusions,
+            addedShowTvdbIds,
             user.plexUsername
           );
           if (added) itemsAdded++;
@@ -312,6 +366,8 @@ class WatchlistSync {
     item: OverseerrWatchlistItem,
     syncSettings: WatchlistSyncSettings,
     radarrMovies: Awaited<ReturnType<RadarrAPI['getMovies']>>,
+    radarrExclusions: Set<number>,
+    addedMovieTmdbIds: Set<number>,
     plexUsername?: string
   ): Promise<boolean> {
     const settings = getSettings();
@@ -341,6 +397,26 @@ class WatchlistSync {
         label: 'Watchlist Sync',
         title: item.title,
         radarrId: existingMovie.id,
+      });
+      return false;
+    }
+
+    // Check if movie is in Radarr exclusion list
+    if (radarrExclusions.has(item.tmdbId)) {
+      logger.debug('Movie is in Radarr exclusion list, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tmdbId: item.tmdbId,
+      });
+      return false;
+    }
+
+    // Check if movie was already added during this sync run (cross-user duplicate)
+    if (addedMovieTmdbIds.has(item.tmdbId)) {
+      logger.debug('Movie already added this sync run, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tmdbId: item.tmdbId,
       });
       return false;
     }
@@ -382,6 +458,7 @@ class WatchlistSync {
     };
 
     await radarrApi.addMovie(options);
+    addedMovieTmdbIds.add(item.tmdbId);
     logger.info('Added movie to Radarr from watchlist', {
       label: 'Watchlist Sync',
       title: item.title,
@@ -396,6 +473,8 @@ class WatchlistSync {
     item: OverseerrWatchlistItem,
     syncSettings: WatchlistSyncSettings,
     sonarrSeries: Awaited<ReturnType<SonarrAPI['getSeries']>>,
+    sonarrExclusions: Set<number>,
+    addedShowTvdbIds: Set<number>,
     plexUsername?: string
   ): Promise<boolean> {
     const settings = getSettings();
@@ -431,6 +510,26 @@ class WatchlistSync {
         title: item.title,
         tmdbId: item.tmdbId,
         error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+
+    // Check if show is in Sonarr exclusion list
+    if (sonarrExclusions.has(tvdbId)) {
+      logger.debug('Show is in Sonarr exclusion list, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tvdbId: tvdbId,
+      });
+      return false;
+    }
+
+    // Check if show was already added during this sync run (cross-user duplicate)
+    if (addedShowTvdbIds.has(tvdbId)) {
+      logger.debug('Show already added this sync run, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tvdbId: tvdbId,
       });
       return false;
     }
@@ -497,6 +596,7 @@ class WatchlistSync {
     };
 
     await sonarrApi.addSeries(options);
+    addedShowTvdbIds.add(tvdbId);
     logger.info('Added show to Sonarr from watchlist', {
       label: 'Watchlist Sync',
       title: item.title,
