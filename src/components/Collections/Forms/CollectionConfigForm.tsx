@@ -2161,18 +2161,15 @@ const CollectionFormConfigForm = ({
             sonarrTagId: values.sonarrTagId,
             // Coming Soon monitored server/tag filtering
             comingSoonRadarrServerId:
-              values.type === 'comingsoon' &&
-              values.subtype === 'monitored'
+              values.type === 'comingsoon' && values.subtype === 'monitored'
                 ? values.comingSoonRadarrServerId
                 : undefined,
             comingSoonSonarrServerId:
-              values.type === 'comingsoon' &&
-              values.subtype === 'monitored'
+              values.type === 'comingsoon' && values.subtype === 'monitored'
                 ? values.comingSoonSonarrServerId
                 : undefined,
             comingSoonFilterByTags:
-              values.type === 'comingsoon' &&
-              values.subtype === 'monitored'
+              values.type === 'comingsoon' && values.subtype === 'monitored'
                 ? values.comingSoonFilterByTags
                 : undefined,
             comingSoonTagMode:
@@ -3278,7 +3275,7 @@ const CollectionFormConfigForm = ({
                                     />
                                   </div>
                                 </div>
-                            )}
+                              )}
 
                             {/* Placeholder Creation - show for external sources that can have missing items */}
                             {/* Hide for: overseerr, tautulli, recently_added, plex directors/actors */}

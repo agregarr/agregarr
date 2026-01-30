@@ -1,23 +1,23 @@
 version: 2
 updates:
   # npm packages
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: 'weekly'
+      day: 'monday'
     open-pull-requests-limit: 10
-    rebase-strategy: "auto"
+    rebase-strategy: 'auto'
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       # Group all non-major updates into single PR to reduce noise
       minor-and-patch:
         patterns:
-          - "*"
+          - '*'
         update-types:
-          - "minor"
-          - "patch"
+          - 'minor'
+          - 'patch'
     ignore:
       # Major version updates often have breaking changes - handle manually
       # Uncomment any you want to pin:
@@ -25,26 +25,26 @@ updates:
       #   update-types: ["version-update:semver-major"]
 
   # Docker base images
-  - package-ecosystem: "docker"
-    directory: "/"
+  - package-ecosystem: 'docker'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-    rebase-strategy: "auto"
+      interval: 'weekly'
+      day: 'monday'
+    rebase-strategy: 'auto'
     labels:
-      - "dependencies"
+      - 'dependencies'
 
   # GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "monday"
-    rebase-strategy: "auto"
+      interval: 'weekly'
+      day: 'monday'
+    rebase-strategy: 'auto'
     labels:
-      - "dependencies"
+      - 'dependencies'
     groups:
       # Group all action updates together
       actions:
         patterns:
-          - "*"
+          - '*'
