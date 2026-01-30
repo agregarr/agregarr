@@ -352,6 +352,13 @@ export interface CollectionFormConfig {
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
+  // Coming Soon "Monitored" server/tag filtering
+  readonly comingSoonRadarrServerId?: number; // Selected Radarr server for coming soon monitored
+  readonly comingSoonSonarrServerId?: number; // Selected Sonarr server for coming soon monitored
+  readonly comingSoonFilterByTags?: boolean; // Enable tag filtering for coming soon monitored
+  readonly comingSoonTagMode?: 'include' | 'exclude'; // Tag filter mode
+  readonly comingSoonRadarrTagIds?: number[]; // Radarr tag IDs to filter by
+  readonly comingSoonSonarrTagIds?: number[]; // Sonarr tag IDs to filter by
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Unified person minimum items for plex/actors|directors
@@ -522,6 +529,13 @@ export interface CollectionConfigCreateRequest {
   readonly sonarrInstanceId?: number;
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
+  // Coming Soon "Monitored" server/tag filtering
+  readonly comingSoonRadarrServerId?: number;
+  readonly comingSoonSonarrServerId?: number;
+  readonly comingSoonFilterByTags?: boolean;
+  readonly comingSoonTagMode?: 'include' | 'exclude';
+  readonly comingSoonRadarrTagIds?: number[];
+  readonly comingSoonSonarrTagIds?: number[];
   readonly sortOrder?: CollectionSortOrder;
   // Unified person minimum items for plex actors/directors
   readonly personMinimumItems?: number;
@@ -649,6 +663,12 @@ export const toCollectionCreateRequest = (
     sonarrInstanceId: config.sonarrInstanceId,
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
+    comingSoonRadarrServerId: config.comingSoonRadarrServerId,
+    comingSoonSonarrServerId: config.comingSoonSonarrServerId,
+    comingSoonFilterByTags: config.comingSoonFilterByTags,
+    comingSoonTagMode: config.comingSoonTagMode,
+    comingSoonRadarrTagIds: config.comingSoonRadarrTagIds,
+    comingSoonSonarrTagIds: config.comingSoonSonarrTagIds,
     sortOrder: config.sortOrder,
     personMinimumItems: config.personMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
