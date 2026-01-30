@@ -1,6 +1,5 @@
 import ExternalAPI from '@server/api/externalapi';
 import cacheManager from '@server/lib/cache';
-import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { sortBy } from 'lodash';
 import type {
@@ -144,17 +143,10 @@ class TheMovieDb extends ExternalAPI {
     region,
     originalLanguage,
   }: { region?: string; originalLanguage?: string } = {}) {
-    const settings = getSettings();
-    const apiKey =
-      settings.tmdb?.apiKey ||
-      settings.main?.tmdbApiKey ||
-      process.env.TMDB_API_KEY ||
-      '';
-
     super(
       TMDB_BASE_URL,
       {
-        api_key: apiKey,
+        api_key: '74fc2350fc03cafb0ca5bffbff32e3b5',
       },
       {
         nodeCache: cacheManager.getCache('tmdb').data,

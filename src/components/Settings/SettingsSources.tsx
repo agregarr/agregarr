@@ -11,7 +11,6 @@ import type {
   MDBListSettings,
   MyAnimeListSettings,
   TautulliSettings,
-  TmdbSettings,
   TraktSettings,
 } from '@server/lib/settings';
 import axios from 'axios';
@@ -81,13 +80,6 @@ const messages = defineMessages({
   toastMdblistSettingsSuccess: 'MDBList settings saved successfully!',
   toastMdblistSettingsFailure:
     'Something went wrong while saving MDBList settings.',
-
-  tmdbSettings: 'TMDB Settings',
-  tmdbSettingsDescription:
-    'Configure your TMDB API key to enable TMDB-based collections and advanced TMDB discovery.',
-  tmdbApiKey: 'TMDB API Key',
-  toastTmdbSettingsSuccess: 'TMDB settings saved successfully!',
-  toastTmdbSettingsFailure: 'Something went wrong while saving TMDB settings.',
   testMdblistConnection: 'Test Connection',
   mdblistConnectionSuccess: 'Connected to MDBList successfully!',
   mdblistConnectionFailure: 'Failed to connect to MDBList',
@@ -185,9 +177,6 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
   );
   const { data: dataMdblist, mutate: revalidateMdblist } =
     useSWR<MDBListSettings>('/api/v1/settings/mdblist');
-  const { data: dataTmdb, mutate: revalidateTmdb } = useSWR<TmdbSettings>(
-    '/api/v1/settings/tmdb'
-  );
   const { data: dataMyanimelist, mutate: revalidateMyanimelist } =
     useSWR<MyAnimeListSettings>('/api/v1/settings/myanimelist');
   const { data: dataMaintainerr, mutate: revalidateMaintainerr } =
@@ -294,10 +283,6 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
     myanimelistApiKey: Yup.string().nullable(),
   });
 
-  const TmdbSettingsSchema = Yup.object().shape({
-    tmdbApiKey: Yup.string().nullable(),
-  });
-
   const MaintainerrValidationSchema = Yup.object().shape(
     {
       maintainerrHostname: Yup.string()
@@ -357,86 +342,6 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
           />
         </div>
       </div>
-
-      {/* TMDB Settings */}
-      <div className="section">
-        <div className="mb-6">
-          <h3 className="heading">
-            {intl.formatMessage(messages.tmdbSettings)}
-          </h3>
-          <p className="description">
-            {intl.formatMessage(messages.tmdbSettingsDescription)}
-          </p>
-        </div>
-      </div>
-
-      <Formik
-        initialValues={{
-          tmdbApiKey: dataTmdb?.apiKey || '',
-        }}
-        validationSchema={TmdbSettingsSchema}
-        enableReinitialize
-        onSubmit={async (values) => {
-          try {
-            await axios.post('/api/v1/settings/tmdb', {
-              apiKey: values.tmdbApiKey,
-            });
-            addToast(intl.formatMessage(messages.toastTmdbSettingsSuccess), {
-              appearance: 'success',
-              autoDismiss: true,
-            });
-          } catch (e) {
-            addToast(intl.formatMessage(messages.toastTmdbSettingsFailure), {
-              appearance: 'error',
-              autoDismiss: true,
-            });
-          } finally {
-            revalidateTmdb();
-          }
-        }}
-      >
-        {({ handleSubmit, isSubmitting, isValid }) => (
-          <form className="section" onSubmit={handleSubmit}>
-            <div className="form-row" id="tmdb-api-key">
-              <label htmlFor="tmdbApiKey" className="text-label">
-                {intl.formatMessage(messages.tmdbApiKey)}
-                <span className="label-tip mb-2">
-                  Get your API key from
-                  <code>https://www.themoviedb.org/settings/api</code>.
-                </span>
-              </label>
-              <div className="form-input-area">
-                <div className="form-input-field">
-                  <SensitiveInput
-                    as="field"
-                    id="tmdbApiKey"
-                    name="tmdbApiKey"
-                    autoComplete="one-time-code"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="actions">
-              <div className="flex justify-end">
-                <span className="ml-3 inline-flex rounded-md shadow-sm">
-                  <Button
-                    buttonType="primary"
-                    type="submit"
-                    disabled={isSubmitting || !isValid}
-                  >
-                    <ArrowDownOnSquareIcon />
-                    <span>
-                      {isSubmitting
-                        ? intl.formatMessage(messages.saving)
-                        : intl.formatMessage(messages.save)}
-                    </span>
-                  </Button>
-                </span>
-              </div>
-            </div>
-          </form>
-        )}
-      </Formik>
 
       {/* Trakt Settings */}
       <div className="section">

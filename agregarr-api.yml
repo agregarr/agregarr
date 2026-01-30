@@ -3859,14 +3859,6 @@ components:
           nullable: true
           deprecated: true
           description: 'Legacy Trakt client ID field (deprecated)'
-    TmdbSettings:
-      type: object
-      properties:
-        apiKey:
-          type: string
-          nullable: true
-          description: 'TMDB API key'
-          example: 'your-tmdb-api-key'
     MDBListSettings:
       type: object
       properties:
@@ -9336,37 +9328,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TraktSettings'
-  /settings/tmdb:
-    get:
-      summary: Get TMDB settings
-      description: Retrieves current TMDB settings.
-      tags:
-        - settings-integrations
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TmdbSettings'
-    post:
-      summary: Update TMDB settings
-      description: Updates TMDB settings with the provided values.
-      tags:
-        - settings-integrations
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TmdbSettings'
-      responses:
-        '200':
-          description: 'Values were successfully updated'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TmdbSettings'
   /settings/trakt/test:
     post:
       summary: Test Trakt connection

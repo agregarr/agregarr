@@ -10,7 +10,6 @@ import type {
   RadarrSettings,
   SonarrSettings,
   TautulliSettings,
-  TmdbSettings,
   TraktSettings,
 } from '@server/lib/settings';
 import { Field, type FormikErrors, type FormikTouched } from 'formik';
@@ -79,7 +78,6 @@ const CollectionTypeSection = ({
   // Fetch API settings for validation
   const { data: mainSettings } = useSWR<MainSettings>('/api/v1/settings/main');
   const { data: plexSettings } = useSWR<PlexSettings>('/api/v1/settings/plex');
-  const { data: tmdbSettings } = useSWR<TmdbSettings>('/api/v1/settings/tmdb');
   const { data: traktSettings } = useSWR<TraktSettings>(
     '/api/v1/settings/trakt'
   );
@@ -108,7 +106,6 @@ const CollectionTypeSection = ({
     {
       main: mainSettings,
       plex: plexSettings,
-      tmdb: tmdbSettings,
       trakt: traktSettings,
       mdblist: mdblistSettings,
       tautulli: tautulliSettings,

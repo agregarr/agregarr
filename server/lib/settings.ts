@@ -594,7 +594,6 @@ export interface MainSettings {
   newPlexLogin: boolean;
   trustProxy: boolean;
   locale: string;
-  tmdbApiKey?: string; // API key for TMDB API calls (discover, metadata, etc.)
   tmdbLanguage?: string; // Language for TMDB API calls (poster metadata, etc.) - defaults to 'en'
   enableTmdbPosterCache?: boolean; // Enable 7-day file cache for TMDB posters to reduce API calls - defaults to true
   nextConfigId?: number; // Next sequential ID for collection configs (starts at 10000)
@@ -660,15 +659,10 @@ export interface GlobalExclusions {
   shows: { id: number; type: 'tmdb' | 'tvdb' }[]; // TMDB or TVDB IDs for excluded TV shows
 }
 
-export interface TmdbSettings {
-  apiKey?: string;
-}
-
 interface AllSettings {
   clientId: string;
   main: MainSettings;
   plex: PlexSettings;
-  tmdb: TmdbSettings;
   tautulli: TautulliSettings;
   maintainerr: MaintainerrSettings;
   overseerr: OverseerrSettings;
@@ -705,7 +699,6 @@ class Settings {
         newPlexLogin: true,
         trustProxy: false,
         locale: 'en',
-        tmdbApiKey: '',
         tmdbLanguage: 'en',
         enableTmdbPosterCache: true,
       },
@@ -720,7 +713,6 @@ class Settings {
         preExistingCollectionConfigs: [],
         usersHomeUnlocked: false,
       },
-      tmdb: {},
       tautulli: {},
       maintainerr: {},
       overseerr: {},
@@ -939,14 +931,6 @@ class Settings {
 
   set plex(data: PlexSettings) {
     this.data.plex = data;
-  }
-
-  get tmdb(): TmdbSettings {
-    return this.data.tmdb;
-  }
-
-  set tmdb(data: TmdbSettings) {
-    this.data.tmdb = data;
   }
 
   get tautulli(): TautulliSettings {

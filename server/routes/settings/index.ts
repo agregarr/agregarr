@@ -23,7 +23,6 @@ import cacheManager from '@server/lib/cache';
 import type {
   JobId,
   MainSettings,
-  TmdbSettings,
   WatchlistSyncSettings,
 } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
@@ -97,29 +96,6 @@ settingsRoutes.post('/main/regenerate', (req, res, next) => {
   }
 
   return res.status(200).json(filteredMainSettings(req.user, main));
-});
-
-settingsRoutes.get('/tmdb', (_req, res) => {
-  const settings = getSettings();
-  res.status(200).json(settings.tmdb);
-});
-
-settingsRoutes.post('/tmdb', (req, res) => {
-  const settings = getSettings();
-
-  try {
-    settings.tmdb = merge(settings.tmdb, req.body) as TmdbSettings;
-    settings.save();
-    return res.status(200).json(settings.tmdb);
-  } catch (e) {
-    logger.error('Failed to save TMDB settings', {
-      label: 'Settings',
-      errorMessage: e?.message,
-      errorName: e?.name,
-      errorStack: e?.stack,
-    });
-    return res.status(500).json({ message: 'Failed to save TMDB settings' });
-  }
 });
 
 settingsRoutes.get('/plex', (_req, res) => {
