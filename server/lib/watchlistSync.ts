@@ -350,6 +350,16 @@ class WatchlistSync {
       apiKey: radarrServer.apiKey,
     });
 
+    // Check if movie is excluded in Radarr
+    if (await this.isMovieExcluded(radarrApi, item.tmdbId)) {
+      logger.debug('Movie is excluded in Radarr, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tmdbId: item.tmdbId,
+      });
+      return false;
+    }
+
     // Build tags array
     const tags = [...(radarrSettings.tags ?? radarrServer.tags ?? [])];
 
@@ -464,6 +474,16 @@ class WatchlistSync {
       apiKey: sonarrServer.apiKey,
     });
 
+    // Check if show is excluded in Sonarr
+    if (await this.isShowExcluded(sonarrApi, tvdbId)) {
+      logger.debug('Show is excluded in Sonarr, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tvdbId: tvdbId,
+      });
+      return false;
+    }
+
     // Build tags array
     const tags = [...(sonarrSettings.tags ?? sonarrServer.tags ?? [])];
 
@@ -553,6 +573,46 @@ class WatchlistSync {
         error: error instanceof Error ? error.message : String(error),
       });
       return undefined;
+    }
+  }
+
+  /**
+   * Check if a movie is excluded in Radarr
+   */
+  private async isMovieExcluded(
+    radarrApi: RadarrAPI,
+    tmdbId: number
+  ): Promise<boolean> {
+    try {
+      const exclusions = await radarrApi.getExclusions();
+      return exclusions.some((exclusion) => exclusion.tmdbId === tmdbId);
+    } catch (error) {
+      logger.debug('Could not check Radarr exclusion list', {
+        label: 'Watchlist Sync',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // If we can't check exclusions, allow the item to proceed
+      return false;
+    }
+  }
+
+  /**
+   * Check if a show is excluded in Sonarr
+   */
+  private async isShowExcluded(
+    sonarrApi: SonarrAPI,
+    tvdbId: number
+  ): Promise<boolean> {
+    try {
+      const exclusions = await sonarrApi.getExclusions();
+      return exclusions.some((exclusion) => exclusion.tvdbId === tvdbId);
+    } catch (error) {
+      logger.debug('Could not check Sonarr exclusion list', {
+        label: 'Watchlist Sync',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // If we can't check exclusions, allow the item to proceed
+      return false;
     }
   }
 }
