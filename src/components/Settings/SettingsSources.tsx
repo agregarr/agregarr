@@ -337,7 +337,7 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
         </p>
         <div className="section">
           <Alert
-            title="IMDb and Letterboxd sources do not require any setup"
+            title="IMDb, TMDB, and Letterboxd sources do not require any setup"
             type="info"
           />
         </div>

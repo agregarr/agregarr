@@ -176,6 +176,7 @@ export function validateApiKeysForCollectionType(
 
     // These don't require API keys
     case 'imdb':
+    case 'tmdb':
     case 'letterboxd':
     case 'networks':
     case 'anilist':
