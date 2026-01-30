@@ -1500,6 +1500,35 @@ async function createPlaceholders(
 
   // Check if we have any work to do (created or orphaned placeholders)
   if (createdPlaceholders.length === 0 && orphanedPlaceholders.length === 0) {
+    // No new placeholders to create, but existing DB records may have valid Plex items
+    // Return CollectionItems for items that already have placeholders with rating keys
+    const existingCollectionItems: CollectionItem[] = [];
+    for (const item of itemsWithPosters) {
+      const existingRecord = existingByTmdbId.get(item.tmdbId);
+      if (existingRecord?.plexRatingKey) {
+        const sourceItem = sourceMap.get(item.tmdbId);
+        if (sourceItem) {
+          existingCollectionItems.push({
+            ratingKey: existingRecord.plexRatingKey,
+            title: existingRecord.title,
+            type: sourceItem.mediaType,
+            tmdbId: item.tmdbId,
+          });
+        }
+      }
+    }
+
+    if (existingCollectionItems.length > 0) {
+      logger.info(
+        'Returning existing placeholder items (no new creation needed)',
+        {
+          label: 'PlaceholderService',
+          count: existingCollectionItems.length,
+        }
+      );
+      return existingCollectionItems;
+    }
+
     logger.warn(
       'No placeholder files were created and no orphaned placeholders found',
       {
