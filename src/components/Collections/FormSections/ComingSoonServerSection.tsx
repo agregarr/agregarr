@@ -20,8 +20,7 @@ const messages = defineMessages({
   selectServer: 'Select server...',
   allServers: 'All Servers',
   filterByTags: 'Filter by Tags',
-  filterByTagsHelp:
-    'Filter monitored items by tags assigned in Radarr/Sonarr.',
+  filterByTagsHelp: 'Filter monitored items by tags assigned in Radarr/Sonarr.',
   tagMode: 'Tag Filter Mode',
   includeHelp: 'Only include items with at least one of the selected tags.',
   excludeHelp: 'Exclude items that have any of the selected tags.',
@@ -68,7 +67,12 @@ const ComingSoonServerSection = ({
     ) {
       setFieldValue?.('comingSoonRadarrServerId', radarrServers[0].id);
     }
-  }, [radarrLoading, radarrServers, values.comingSoonRadarrServerId, setFieldValue]);
+  }, [
+    radarrLoading,
+    radarrServers,
+    values.comingSoonRadarrServerId,
+    setFieldValue,
+  ]);
 
   useEffect(() => {
     if (
@@ -78,7 +82,12 @@ const ComingSoonServerSection = ({
     ) {
       setFieldValue?.('comingSoonSonarrServerId', sonarrServers[0].id);
     }
-  }, [sonarrLoading, sonarrServers, values.comingSoonSonarrServerId, setFieldValue]);
+  }, [
+    sonarrLoading,
+    sonarrServers,
+    values.comingSoonSonarrServerId,
+    setFieldValue,
+  ]);
 
   // Effective server IDs (for fetching tags)
   const effectiveRadarrServerId =
@@ -218,10 +227,7 @@ const ComingSoonServerSection = ({
                 className="form-checkbox"
                 checked={values.comingSoonFilterByTags ?? false}
                 onChange={(e) => {
-                  setFieldValue?.(
-                    'comingSoonFilterByTags',
-                    e.target.checked
-                  );
+                  setFieldValue?.('comingSoonFilterByTags', e.target.checked);
                   if (!e.target.checked) {
                     setFieldValue?.('comingSoonRadarrTagIds', []);
                     setFieldValue?.('comingSoonSonarrTagIds', []);

@@ -1,7 +1,7 @@
+import IncludeExcludeToggle from '@app/components/Common/IncludeExcludeToggle';
 import { defineMessages, useIntl } from 'react-intl';
 import Select, { type MultiValue } from 'react-select';
 import useSWR from 'swr';
-import IncludeExcludeToggle from '@app/components/Common/IncludeExcludeToggle';
 
 const messages = defineMessages({
   // Genre messages
