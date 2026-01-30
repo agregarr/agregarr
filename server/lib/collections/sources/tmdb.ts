@@ -1266,8 +1266,19 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       plexClient,
       libraryCache // OPTIMIZATION: Pass library cache to eliminate repeated API calls
     );
+
+    // If TMDB sort is "random", use the general sortOrder mechanism to shuffle
+    // (TMDB API doesn't support random, so we fetch by popularity then shuffle)
+    const mediaType = getCollectionMediaType(config);
+    const tmdbSortBy =
+      mediaType === 'tv' ? config.tmdbTvSortBy : config.tmdbMovieSortBy;
+    const configForFiltering =
+      tmdbSortBy === 'random'
+        ? { ...config, sortOrder: 'random' as const }
+        : config;
+
     const { items, missingItems, mappingStats, filteringStats } =
-      await this.applyFilteringToMappedItems(mappedResult, config);
+      await this.applyFilteringToMappedItems(mappedResult, configForFiltering);
 
     // Log processing stats if available
     if (mappingStats || filteringStats) {
