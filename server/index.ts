@@ -28,7 +28,6 @@ import session from 'express-session';
 import fs from 'fs';
 import next from 'next';
 import path from 'path';
-import sqlite3 from 'sqlite3';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 
@@ -42,36 +41,6 @@ const handle = app.getRequestHandler();
 app
   .prepare()
   .then(async () => {
-    // In dev we use TypeORM `synchronize: true`, which attempts to preserve data
-    // via a temporary table when schemas change. `collection_missing_items` is
-    // ephemeral cache data and safe to drop; doing so prevents NOT NULL
-    // constraint failures during schema sync.
-    if (process.env.NODE_ENV !== 'production') {
-      const dbPath = process.env.CONFIG_DIRECTORY
-        ? `${process.env.CONFIG_DIRECTORY}/db/db.sqlite3`
-        : path.join(process.cwd(), 'config', 'db', 'db.sqlite3');
-
-      await new Promise<void>((resolve) => {
-        const db = new sqlite3.Database(
-          dbPath,
-          // Avoid creating a new DB if it doesn't exist yet
-          sqlite3.OPEN_READWRITE,
-          (err) => {
-            if (err) {
-              resolve();
-              return;
-            }
-
-            db.serialize(() => {
-              db.run('DROP TABLE IF EXISTS collection_missing_items');
-              db.run('DROP TABLE IF EXISTS temporary_collection_missing_items');
-              db.close(() => resolve());
-            });
-          }
-        );
-      });
-    }
-
     const dbConnection = await dataSource.initialize();
 
     // Run migrations in production
