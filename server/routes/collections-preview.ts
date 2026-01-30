@@ -909,7 +909,6 @@ async function processPreviewAsync(
     tmdbAdvancedFilters?: CollectionConfig['tmdbAdvancedFilters'];
     tmdbMovieSortBy?: string;
     tmdbTvSortBy?: string;
-    tmdbOnlyIncludeAvailableOnPlex?: boolean;
     maxItems?: number;
     timePeriod?: string;
     minimumPlays?: number;
@@ -949,7 +948,6 @@ async function processPreviewAsync(
       tmdbAdvancedFilters,
       tmdbMovieSortBy,
       tmdbTvSortBy,
-      tmdbOnlyIncludeAvailableOnPlex,
       maxItems,
       timePeriod,
       minimumPlays,
@@ -1085,8 +1083,6 @@ async function processPreviewAsync(
       previewConfigRecord.tmdbAdvancedFilters = tmdbAdvancedFilters;
       previewConfigRecord.tmdbMovieSortBy = tmdbMovieSortBy;
       previewConfigRecord.tmdbTvSortBy = tmdbTvSortBy;
-      previewConfigRecord.tmdbOnlyIncludeAvailableOnPlex =
-        tmdbOnlyIncludeAvailableOnPlex;
     }
 
     if (type === 'originals') {

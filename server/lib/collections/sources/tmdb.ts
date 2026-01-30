@@ -1143,17 +1143,6 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       });
     }
 
-    const isTmdbStreamingAdvancedDiscover =
-      config.type === 'tmdb' && config.subtype === 'advanced_custom_tmdb';
-    const shouldOnlyIncludeItemsInPlex =
-      isTmdbStreamingAdvancedDiscover &&
-      config.tmdbOnlyIncludeAvailableOnPlex === true;
-    const maxPlexItemsToTake =
-      shouldOnlyIncludeItemsInPlex && config.maxItems && config.maxItems > 0
-        ? config.maxItems
-        : undefined;
-    let plexItemsTaken = 0;
-
     // Process items using the Plex lookup map
     for (const lookup of tmdbLookups) {
       const key = `${lookup.tmdbId}-${lookup.mediaType}`;
@@ -1173,25 +1162,16 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
             originalPosition: lookup.originalPosition, // CRITICAL: Preserve source order for multi-source interleaving
           },
         });
-
-        if (maxPlexItemsToTake !== undefined) {
-          plexItemsTaken++;
-          if (plexItemsTaken >= maxPlexItemsToTake) {
-            break;
-          }
-        }
       } else {
         // Item exists in TMDB but not in Plex
-        if (!shouldOnlyIncludeItemsInPlex) {
-          missingItems.push({
-            tmdbId: lookup.tmdbId,
-            mediaType: lookup.mediaType,
-            title: lookup.title,
-            year: lookup.year,
-            originalPosition: lookup.originalPosition,
-            source: this.source,
-          });
-        }
+        missingItems.push({
+          tmdbId: lookup.tmdbId,
+          mediaType: lookup.mediaType,
+          title: lookup.title,
+          year: lookup.year,
+          originalPosition: lookup.originalPosition,
+          source: this.source,
+        });
       }
     }
 

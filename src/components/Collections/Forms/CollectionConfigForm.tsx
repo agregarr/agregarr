@@ -159,9 +159,6 @@ const messages = defineMessages({
   validationSourcePriorityRequired: 'Source priority is required',
   collectionTitleTemplate: 'Collection Title Template',
   itemOrder: 'Item Order',
-  tmdbOnlyIncludeAvailableOnPlex: 'Only Include Items Available on Plex',
-  tmdbOnlyIncludeAvailableOnPlexHelp:
-    "When enabled, Agregarr will skip items that aren't currently in Plex and keep the first matches (up to Max Items) in the selected TMDB order.",
   tmdbMovieSortOrder: 'Movie Sort Order',
   tmdbTvSortOrder: 'TV Sort Order',
   tmdbSortPopularityDesc: 'Popularity (High to Low)',
@@ -2956,30 +2953,6 @@ const CollectionFormConfigForm = ({
 
                                 return (
                                   <>
-                                    <div className="form-input-area">
-                                      <div className="flex items-center">
-                                        <Field
-                                          type="checkbox"
-                                          id="tmdbOnlyIncludeAvailableOnPlex"
-                                          name="tmdbOnlyIncludeAvailableOnPlex"
-                                          className="form-checkbox"
-                                        />
-                                        <label
-                                          htmlFor="tmdbOnlyIncludeAvailableOnPlex"
-                                          className="ml-2 text-sm text-gray-300"
-                                        >
-                                          {intl.formatMessage(
-                                            messages.tmdbOnlyIncludeAvailableOnPlex
-                                          )}
-                                        </label>
-                                      </div>
-                                      <div className="label-tip mt-2">
-                                        {intl.formatMessage(
-                                          messages.tmdbOnlyIncludeAvailableOnPlexHelp
-                                        )}
-                                      </div>
-                                    </div>
-
                                     {hasMovieLibraries && (
                                       <div className="form-row">
                                         <label
@@ -4463,10 +4436,6 @@ const CollectionFormConfigForm = ({
                         tmdbTvSortBy: valuesRecord.tmdbTvSortBy as
                           | string
                           | undefined,
-                        tmdbOnlyIncludeAvailableOnPlex:
-                          valuesRecord.tmdbOnlyIncludeAvailableOnPlex as
-                            | boolean
-                            | undefined,
                         timePeriod: values.timePeriod,
                         minimumPlays: values.minimumPlays,
                         customDays: values.customDays,

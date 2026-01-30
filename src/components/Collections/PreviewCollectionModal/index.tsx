@@ -91,7 +91,6 @@ interface PreviewCollectionModalProps {
     tmdbAdvancedFilters?: Record<string, unknown>;
     tmdbMovieSortBy?: string;
     tmdbTvSortBy?: string;
-    tmdbOnlyIncludeAvailableOnPlex?: boolean;
     timePeriod?: string;
     minimumPlays?: number;
     customDays?: number;
@@ -208,8 +207,6 @@ const PreviewCollectionModal = ({
     tmdbAdvancedFilters: previewConfig.tmdbAdvancedFilters,
     tmdbMovieSortBy: previewConfig.tmdbMovieSortBy,
     tmdbTvSortBy: previewConfig.tmdbTvSortBy,
-    tmdbOnlyIncludeAvailableOnPlex:
-      previewConfig.tmdbOnlyIncludeAvailableOnPlex,
     maxItems: previewConfig.maxItems
       ? Number(previewConfig.maxItems)
       : undefined,
@@ -291,8 +288,6 @@ const PreviewCollectionModal = ({
           tmdbAdvancedFilters: previewConfig.tmdbAdvancedFilters,
           tmdbMovieSortBy: previewConfig.tmdbMovieSortBy,
           tmdbTvSortBy: previewConfig.tmdbTvSortBy,
-          tmdbOnlyIncludeAvailableOnPlex:
-            previewConfig.tmdbOnlyIncludeAvailableOnPlex,
           maxItems: previewConfig.maxItems
             ? Number(previewConfig.maxItems)
             : undefined,

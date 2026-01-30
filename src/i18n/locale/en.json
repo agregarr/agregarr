@@ -462,8 +462,6 @@
   "components.Collections.Forms.thisLibrary": "this library",
   "components.Collections.Forms.timeRestrictions": "Time Restrictions",
   "components.Collections.Forms.tmdbMovieSortOrder": "Movie Sort Order",
-  "components.Collections.Forms.tmdbOnlyIncludeAvailableOnPlex": "Only Include Items Available on Plex",
-  "components.Collections.Forms.tmdbOnlyIncludeAvailableOnPlexHelp": "When enabled, Agregarr will skip items that aren't currently in Plex and keep the first matches (up to Max Items) in the selected TMDB order.",
   "components.Collections.Forms.tmdbSortMovieReleaseDateAsc": "Release Date (Oldest First)",
   "components.Collections.Forms.tmdbSortMovieReleaseDateDesc": "Release Date (Newest First)",
   "components.Collections.Forms.tmdbSortNameAsc": "Name (A to Z)",

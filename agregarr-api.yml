@@ -679,11 +679,6 @@ components:
             - vote_count.asc
             - vote_count.desc
           nullable: true
-        tmdbOnlyIncludeAvailableOnPlex:
-          type: boolean
-          description: 'When enabled, only include items already available in Plex (keeps the first matches in the selected TMDB order)'
-          example: false
-          nullable: true
         tmdbAdvancedFilters:
           type: object
           description: Advanced TMDB discover filters configuration
@@ -1308,11 +1303,6 @@ components:
             - vote_average.desc
             - vote_count.asc
             - vote_count.desc
-          nullable: true
-        tmdbOnlyIncludeAvailableOnPlex:
-          type: boolean
-          description: 'When enabled, only include items already available in Plex (keeps the first matches in the selected TMDB order)'
-          example: false
           nullable: true
         tmdbAdvancedFilters:
           type: object
@@ -7507,11 +7497,6 @@ paths:
                     - vote_average.desc
                     - vote_count.asc
                     - vote_count.desc
-                  nullable: true
-                tmdbOnlyIncludeAvailableOnPlex:
-                  type: boolean
-                  description: 'When enabled, only include items already available in Plex (keeps the first matches in the selected TMDB order)'
-                  example: false
                   nullable: true
                 isMultiSource:
                   type: boolean

@@ -359,7 +359,6 @@ export interface CollectionFormConfig {
   // TMDB discover sorting (for TMDB advanced_custom_tmdb advanced discover)
   readonly tmdbMovieSortBy?: string; // TMDB /discover/movie sort_by
   readonly tmdbTvSortBy?: string; // TMDB /discover/tv sort_by
-  readonly tmdbOnlyIncludeAvailableOnPlex?: boolean;
   // TMDB advanced discover filters
   readonly tmdbAdvancedFilters?: TmdbAdvancedFilters;
   // IMDb custom list fields
@@ -548,7 +547,6 @@ export interface CollectionConfigCreateRequest {
   readonly tmdbCustomCollectionUrl?: string;
   readonly tmdbMovieSortBy?: string;
   readonly tmdbTvSortBy?: string;
-  readonly tmdbOnlyIncludeAvailableOnPlex?: boolean;
   readonly tmdbAdvancedFilters?: Record<string, unknown>;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
@@ -688,7 +686,6 @@ export const toCollectionCreateRequest = (
     tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
     tmdbMovieSortBy: config.tmdbMovieSortBy,
     tmdbTvSortBy: config.tmdbTvSortBy,
-    tmdbOnlyIncludeAvailableOnPlex: config.tmdbOnlyIncludeAvailableOnPlex,
     tmdbAdvancedFilters: config.tmdbAdvancedFilters as unknown as
       | Record<string, unknown>
       | undefined,

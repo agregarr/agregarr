@@ -128,7 +128,6 @@ export interface CollectionConfig {
   // TMDB discover sorting (for TMDB advanced_custom_tmdb advanced discover)
   readonly tmdbMovieSortBy?: string; // TMDB /discover/movie sort_by
   readonly tmdbTvSortBy?: string; // TMDB /discover/tv sort_by
-  readonly tmdbOnlyIncludeAvailableOnPlex?: boolean; // If true, only include items that exist in Plex
   // TMDB advanced discover filters
   readonly tmdbAdvancedFilters?: {
     readonly filterGroups?: readonly {
