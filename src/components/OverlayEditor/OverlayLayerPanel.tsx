@@ -1683,9 +1683,7 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
       },
       contentRating: {
         label: 'Content Rating',
-        fields: [
-          { field: 'contentRating', label: 'Content Rating' },
-        ],
+        fields: [{ field: 'contentRating', label: 'Content Rating' }],
       },
       // TODO: Add default icon mappings for these categories
       // tags: {
@@ -1855,30 +1853,29 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
         )}
 
         {/* Grid Columns (only shown when grid layout and array field) */}
-        {props.layout === 'grid' &&
-          !isSingleValueField(props.field) && (
-            <div>
-              <label className="mb-1 block text-xs text-stone-300">
-                {intl.formatMessage(messages.gridColumns)} (
-                {props.gridColumns || 3})
-              </label>
-              <input
-                type="range"
-                min="2"
-                max="12"
-                value={props.gridColumns || 3}
-                onChange={(e) =>
-                  handleUpdateElement(element.id, {
-                    properties: {
-                      ...props,
-                      gridColumns: parseInt(e.target.value),
-                    },
-                  })
-                }
-                className="w-full"
-              />
-            </div>
-          )}
+        {props.layout === 'grid' && !isSingleValueField(props.field) && (
+          <div>
+            <label className="mb-1 block text-xs text-stone-300">
+              {intl.formatMessage(messages.gridColumns)} (
+              {props.gridColumns || 3})
+            </label>
+            <input
+              type="range"
+              min="2"
+              max="12"
+              value={props.gridColumns || 3}
+              onChange={(e) =>
+                handleUpdateElement(element.id, {
+                  properties: {
+                    ...props,
+                    gridColumns: parseInt(e.target.value),
+                  },
+                })
+              }
+              className="w-full"
+            />
+          </div>
+        )}
 
         {/* Icon Size */}
         <div>
@@ -1905,7 +1902,8 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
           <>
             <div>
               <label className="mb-1 block text-xs text-stone-300">
-                {intl.formatMessage(messages.spacingX)} ({props.spacingX ?? props.spacing ?? 4}px)
+                {intl.formatMessage(messages.spacingX)} (
+                {props.spacingX ?? props.spacing ?? 4}px)
               </label>
               <input
                 type="range"
@@ -1914,7 +1912,10 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                 value={props.spacingX ?? props.spacing ?? 4}
                 onChange={(e) =>
                   handleUpdateElement(element.id, {
-                    properties: { ...props, spacingX: parseInt(e.target.value) },
+                    properties: {
+                      ...props,
+                      spacingX: parseInt(e.target.value),
+                    },
                   })
                 }
                 className="w-full"
@@ -1922,7 +1923,8 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
             </div>
             <div>
               <label className="mb-1 block text-xs text-stone-300">
-                {intl.formatMessage(messages.spacingY)} ({props.spacingY ?? props.spacing ?? 4}px)
+                {intl.formatMessage(messages.spacingY)} (
+                {props.spacingY ?? props.spacing ?? 4}px)
               </label>
               <input
                 type="range"
@@ -1931,7 +1933,10 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                 value={props.spacingY ?? props.spacing ?? 4}
                 onChange={(e) =>
                   handleUpdateElement(element.id, {
-                    properties: { ...props, spacingY: parseInt(e.target.value) },
+                    properties: {
+                      ...props,
+                      spacingY: parseInt(e.target.value),
+                    },
                   })
                 }
                 className="w-full"
