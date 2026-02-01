@@ -565,6 +565,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               'vote_average.lte',
               'with_runtime.gte',
               'with_runtime.lte',
+              'with_networks', // TMDB requires integer for TV networks
             ]);
 
             const looksNumeric = /^-?\d+(?:\.\d+)?$/.test(value.trim());
@@ -592,6 +593,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           'with_release_type',
           'with_watch_monetization_types',
           'with_watch_providers',
+          'with_status', // TV-only: comma (AND) or pipe (OR) separated
+          'with_type', // TV-only: comma (AND) or pipe (OR) separated
         ]);
 
         type AdvancedDiscoverFilters = NonNullable<
@@ -677,10 +680,18 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
           const isSupportedForMediaType = (field: string): boolean => {
             if (mediaType === 'tv') {
+              // TMDB TV discover does NOT support these filters (movie-only)
+              if (field === 'with_cast') return false;
+              if (field === 'with_crew') return false;
+              if (field === 'with_people') return false;
               if (field === 'include_video') return false;
               if (field === 'with_release_type') return false;
+              if (field === 'year') return false;
+              if (field === 'primary_release_year') return false;
+              if (field === 'region') return false;
               if (field.startsWith('certification')) return false;
               if (field.startsWith('release_date')) return false;
+              if (field.startsWith('primary_release_date')) return false;
               return true;
             }
 

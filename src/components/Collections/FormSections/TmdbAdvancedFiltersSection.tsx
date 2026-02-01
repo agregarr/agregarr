@@ -135,20 +135,21 @@ const FILTER_FIELDS: Record<string, FilterFieldConfig> = {
   },
 
   // People / Companies / Keywords (multi-value)
+  // Note: with_cast, with_crew, with_people are only supported by TMDB Movie discover, not TV discover
   with_cast: {
     label: 'Cast',
     type: 'select',
-    scope: 'both' as FilterScope,
+    scope: 'movie' as FilterScope,
   },
   with_crew: {
     label: 'Crew',
     type: 'select',
-    scope: 'both' as FilterScope,
+    scope: 'movie' as FilterScope,
   },
   with_people: {
     label: 'People',
     type: 'select',
-    scope: 'both' as FilterScope,
+    scope: 'movie' as FilterScope,
   },
   with_companies: {
     label: 'Companies',
@@ -213,14 +214,14 @@ const FILTER_FIELDS: Record<string, FilterFieldConfig> = {
   with_status: {
     label: 'Status',
     type: 'select',
-    multiple: false,
+    multiple: true, // TMDB supports comma/pipe separated for AND/OR logic
     options: [
-      { value: '0', label: 'Returning Series (0)' },
-      { value: '1', label: 'Planned (1)' },
-      { value: '2', label: 'In Production (2)' },
-      { value: '3', label: 'Ended (3)' },
-      { value: '4', label: 'Cancelled (4)' },
-      { value: '5', label: 'Pilot (5)' },
+      { value: '0', label: 'Returning Series' },
+      { value: '1', label: 'Planned' },
+      { value: '2', label: 'In Production' },
+      { value: '3', label: 'Ended' },
+      { value: '4', label: 'Cancelled' },
+      { value: '5', label: 'Pilot' },
     ],
     scope: 'tv' as FilterScope,
   },
@@ -229,13 +230,13 @@ const FILTER_FIELDS: Record<string, FilterFieldConfig> = {
     type: 'select',
     multiple: true,
     options: [
-      { value: '0', label: 'Documentary (0)' },
-      { value: '1', label: 'News (1)' },
-      { value: '2', label: 'Miniseries (2)' },
-      { value: '3', label: 'Reality (3)' },
-      { value: '4', label: 'Scripted (4)' },
-      { value: '5', label: 'Talk Show (5)' },
-      { value: '6', label: 'War & Politics (6)' },
+      { value: '0', label: 'Documentary' },
+      { value: '1', label: 'News' },
+      { value: '2', label: 'Miniseries' },
+      { value: '3', label: 'Reality' },
+      { value: '4', label: 'Scripted' },
+      { value: '5', label: 'Talk Show' },
+      { value: '6', label: 'Video' },
     ],
     scope: 'tv' as FilterScope,
   },
@@ -960,16 +961,32 @@ const TmdbAdvancedFiltersSection = ({
     return a.provider_name.localeCompare(b.provider_name);
   });
 
+  // Build sets of genre IDs for each media type
+  const movieGenreIds = new Set(
+    (movieGenresData?.genres || []).map((g) => g.id)
+  );
+  const tvGenreIds = new Set((tvGenresData?.genres || []).map((g) => g.id));
+
+  // Merge genres with labels indicating which media type they work for
   const mergedGenresMap = new Map<number, TmdbGenre>();
+
+  // Add movie genres with appropriate labels
   for (const g of movieGenresData?.genres || []) {
-    mergedGenresMap.set(g.id, g);
+    const isAlsoTv = tvGenreIds.has(g.id);
+    const label = isAlsoTv ? g.name : `${g.name} (Movie)`;
+    mergedGenresMap.set(g.id, { ...g, name: label });
   }
+
+  // Add TV-only genres with labels
   for (const g of tvGenresData?.genres || []) {
-    if (!mergedGenresMap.has(g.id)) {
-      mergedGenresMap.set(g.id, g);
+    if (!movieGenreIds.has(g.id)) {
+      mergedGenresMap.set(g.id, { ...g, name: `${g.name} (TV)` });
     }
   }
-  const mergedGenres = Array.from(mergedGenresMap.values());
+
+  const mergedGenres = Array.from(mergedGenresMap.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
   const genres = mergedGenres.length ? mergedGenres : fallbackGenres;
 
   // Get current filter groups or initialize empty - wrapped in useMemo to prevent

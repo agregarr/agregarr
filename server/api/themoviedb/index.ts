@@ -658,6 +658,7 @@ class TheMovieDb extends ExternalAPI {
     with_watch_providers?: string; // comma-separated for AND, pipe-separated for OR
     with_watch_monetization_types?: string; // flatrate, free, ads, rent, buy
     watch_region?: string;
+    without_watch_providers?: string;
 
     // Cast and crew
     with_cast?: string; // comma-separated for AND, pipe-separated for OR
@@ -756,20 +757,22 @@ class TheMovieDb extends ExternalAPI {
     with_watch_providers?: string; // comma-separated for AND, pipe-separated for OR
     with_watch_monetization_types?: string; // flatrate, free, ads, rent, buy
     watch_region?: string;
+    without_watch_providers?: string;
 
-    // Cast and crew
-    with_cast?: string; // comma-separated for AND, pipe-separated for OR
-    with_crew?: string;
-    with_people?: string;
-
-    // Companies and keywords
+    // Companies and keywords (NOTE: TV discover does NOT support with_cast, with_crew, with_people)
     with_companies?: string; // comma-separated for AND, pipe-separated for OR
     without_companies?: string;
     with_keywords?: string; // comma-separated for AND, pipe-separated for OR
     without_keywords?: string;
 
     // Networks
-    with_networks?: string;
+    with_networks?: number; // TMDB network ID
+
+    // TV-specific filters
+    with_status?: string; // 0-5: Returning Series, Planned, In Production, Ended, Cancelled, Pilot
+    with_type?: string; // 0-6: Documentary, News, Miniseries, Reality, Scripted, Talk Show, Video
+    timezone?: string;
+    screened_theatrically?: boolean;
 
     // Content flags
     include_adult?: boolean;

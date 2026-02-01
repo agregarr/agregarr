@@ -5,6 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 interface SearchResultItem {
   id: number;
   name: string;
+  profile_path?: string; // For person search
+  logo_path?: string; // For company search
+  known_for_department?: string; // For person search
+  origin_country?: string; // For company search
 }
 
 interface SearchResponse {
@@ -86,6 +90,10 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
             (r: SearchResultItem) => ({
               id: r.id,
               name: r.name,
+              profile_path: r.profile_path,
+              logo_path: r.logo_path,
+              known_for_department: r.known_for_department,
+              origin_country: r.origin_country,
             })
           );
           setResults(items);
@@ -158,6 +166,24 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     return id;
   };
 
+  // Get thumbnail URL for a search result
+  const getThumbnailUrl = (result: SearchResultItem): string | undefined => {
+    const imagePath = result.profile_path || result.logo_path;
+    if (!imagePath) return undefined;
+    return `https://image.tmdb.org/t/p/w45${imagePath}`;
+  };
+
+  // Get subtitle text for a search result
+  const getSubtitle = (result: SearchResultItem): string | undefined => {
+    if (result.known_for_department) {
+      return result.known_for_department;
+    }
+    if (result.origin_country) {
+      return result.origin_country;
+    }
+    return undefined;
+  };
+
   return (
     <div className="relative" ref={containerRef}>
       <div className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white focus-within:border-orange-500">
@@ -228,31 +254,60 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
       {isOpen && results.length > 0 && (
         <div className="absolute z-10 mt-1 w-full rounded-md border border-stone-500 bg-stone-700 shadow-lg">
           <div className="max-h-48 overflow-y-auto">
-            {results.map((result) => (
-              <div
-                key={result.id}
-                className={`flex cursor-pointer items-center px-3 py-2 text-sm hover:bg-stone-600 ${
-                  value.includes(String(result.id))
-                    ? 'bg-orange-900 text-orange-200'
-                    : 'text-white'
-                }`}
-                role="option"
-                tabIndex={0}
-                aria-selected={value.includes(String(result.id))}
-                onClick={() => selectResult(result)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    selectResult(result);
-                  }
-                }}
-              >
-                {result.name}
-                <span className="ml-auto text-xs text-gray-400">
-                  ID: {result.id}
-                </span>
-              </div>
-            ))}
+            {results.map((result) => {
+              const thumbnailUrl = getThumbnailUrl(result);
+              const subtitle = getSubtitle(result);
+              return (
+                <div
+                  key={result.id}
+                  className={`flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-stone-600 ${
+                    value.includes(String(result.id))
+                      ? 'bg-orange-900 text-orange-200'
+                      : 'text-white'
+                  }`}
+                  role="option"
+                  tabIndex={0}
+                  aria-selected={value.includes(String(result.id))}
+                  onClick={() => selectResult(result)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      selectResult(result);
+                    }
+                  }}
+                >
+                  {/* Thumbnail - 2:3 aspect ratio for profile images, flexible for logos */}
+                  <div
+                    className={`flex h-12 w-8 shrink-0 items-center justify-center overflow-hidden rounded ${
+                      thumbnailUrl ? '' : 'bg-stone-800'
+                    }`}
+                  >
+                    {thumbnailUrl ? (
+                      <img
+                        src={thumbnailUrl}
+                        alt=""
+                        className="max-h-full max-w-full object-contain"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-500">—</span>
+                    )}
+                  </div>
+                  {/* Name and subtitle */}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{result.name}</div>
+                    {subtitle && (
+                      <div className="truncate text-xs text-gray-400">
+                        {subtitle}
+                      </div>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-400">
+                    ID: {result.id}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
