@@ -1292,8 +1292,12 @@ class OverlayTemplateRendererService {
     // Scale icon size and spacing to poster size
     // Support both new spacingX/spacingY and legacy spacing field
     const iconSize = Math.round(props.iconSize * posterScale);
-    const spacingX = Math.round((props.spacingX ?? props.spacing ?? 4) * posterScale);
-    const spacingY = Math.round((props.spacingY ?? props.spacing ?? 4) * posterScale);
+    const spacingX = Math.round(
+      (props.spacingX ?? props.spacing ?? 4) * posterScale
+    );
+    const spacingY = Math.round(
+      (props.spacingY ?? props.spacing ?? 4) * posterScale
+    );
 
     // Calculate positions based on layout
     const positions = this.calculateIconPositions(

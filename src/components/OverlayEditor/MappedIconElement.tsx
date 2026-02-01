@@ -135,7 +135,14 @@ export const MappedIconElement: React.FC<MappedIconElementComponentProps> = ({
       default:
         return { width: iconSize, height: iconSize };
     }
-  }, [mappingsToShow.length, iconSize, spacingX, spacingY, layout, gridColumns]);
+  }, [
+    mappingsToShow.length,
+    iconSize,
+    spacingX,
+    spacingY,
+    layout,
+    gridColumns,
+  ]);
 
   // Load icons
   useEffect(() => {
