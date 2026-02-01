@@ -27,6 +27,7 @@ const messages = defineMessages({
   elementVariable: 'Variable',
   elementRaster: 'Image',
   elementSvg: 'Icon',
+  elementMappedIcon: 'Mapped Icon',
   copyingFrom: 'Copying from:',
   noElementsInTemplate: 'No elements in template',
   noTemplatesAvailable: 'No templates available',
@@ -63,6 +64,7 @@ const getElementTypeLabel = (
     variable: messages.elementVariable,
     raster: messages.elementRaster,
     svg: messages.elementSvg,
+    'mapped-icon': messages.elementMappedIcon,
   };
   return intl.formatMessage(typeMessages[type]);
 };

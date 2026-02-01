@@ -599,9 +599,8 @@ router.delete('/:id', async (req, res, next) => {
       });
     }
 
-    // Soft delete
-    template.isActive = false;
-    await templateRepository.save(template);
+    // Hard delete user-created templates
+    await templateRepository.remove(template);
 
     // Clean up orphaned references in library configs
     const libraryConfigRepository = getRepository(OverlayLibraryConfig);

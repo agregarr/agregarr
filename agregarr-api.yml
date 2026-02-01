@@ -3485,6 +3485,48 @@ components:
         - type
         - templateData
 
+    IconMapping:
+      type: object
+      description: 'Maps a field value to an icon path for mapped-icon overlay elements'
+      properties:
+        value:
+          type: string
+          description: 'The value to match (e.g., country code, language name)'
+          example: 'US'
+        iconPath:
+          type: string
+          description: 'Path to the icon file'
+          example: '/assets/mapped-icons/flags/US.svg'
+      required:
+        - value
+        - iconPath
+
+    OverlayMappingsResponse:
+      type: object
+      description: 'Response containing icon mappings for a field'
+      properties:
+        field:
+          type: string
+          description: 'The field name these mappings apply to'
+          example: 'originCountry'
+        mappings:
+          type: array
+          description: 'Array of value-to-icon mappings'
+          items:
+            $ref: '#/components/schemas/IconMapping'
+        hasDefaults:
+          type: boolean
+          description: 'Whether system defaults exist for this field'
+          example: true
+        hasCustomMappings:
+          type: boolean
+          description: 'Whether user has custom mappings for this field'
+          example: false
+        isUsingDefaults:
+          type: boolean
+          description: 'Whether currently using system defaults (hasDefaults && !hasCustomMappings)'
+          example: true
+
     OverlayLibraryConfig:
       type: object
       description: 'Configuration for which overlay templates are applied to a specific library'
@@ -14013,6 +14055,99 @@ paths:
           description: Authentication required
         '500':
           description: Failed to fetch preview poster metadata
+
+  /overlay-mappings/{field}:
+    get:
+      summary: Get icon mappings for a field
+      description: Retrieves merged icon mappings (defaults + user overrides) for a specific field type used in mapped-icon overlay elements.
+      tags:
+        - overlays
+      parameters:
+        - name: field
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Field name (e.g., originCountry, audioLanguages, resolution)
+          example: originCountry
+      responses:
+        '200':
+          description: Mappings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverlayMappingsResponse'
+        '401':
+          description: Authentication required
+    put:
+      summary: Save icon mappings for a field
+      description: Saves user-customized icon mappings for a specific field. Replaces any existing user mappings for this field.
+      tags:
+        - overlays
+      parameters:
+        - name: field
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Field name
+          example: originCountry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mappings
+              properties:
+                mappings:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/IconMapping'
+      responses:
+        '200':
+          description: Mappings saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  field:
+                    type: string
+                    example: originCountry
+                  mappingCount:
+                    type: integer
+                    example: 256
+        '400':
+          description: Invalid request body
+        '401':
+          description: Authentication required
+    delete:
+      summary: Reset mappings to defaults
+      description: Removes user customizations for a field, reverting to system defaults.
+      tags:
+        - overlays
+      parameters:
+        - name: field
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Field name
+          example: originCountry
+      responses:
+        '200':
+          description: Mappings reset to defaults
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverlayMappingsResponse'
+        '401':
+          description: Authentication required
 
   /overlay-library-configs:
     get:

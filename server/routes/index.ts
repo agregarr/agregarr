@@ -30,6 +30,7 @@ import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import myanimelistRoutes from './myanimelist';
 import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
+import overlayMappingsRoutes from './overlayMappings';
 import overlaySettingsRoutes from './overlaySettings';
 import overlayTemplatesRoutes from './overlayTemplates';
 import overlayTestRoutes from './overlayTest';
@@ -163,6 +164,7 @@ router.use(
   overlayLibraryConfigsRoutes
 );
 router.use('/overlay-settings', isAuthenticated(), overlaySettingsRoutes);
+router.use('/overlay-mappings', isAuthenticated(), overlayMappingsRoutes);
 router.use('/overlay-test', isAuthenticated(), overlayTestRoutes);
 router.use('/plex', isAuthenticated(), searchRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);

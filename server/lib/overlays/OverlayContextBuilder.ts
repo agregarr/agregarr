@@ -296,6 +296,22 @@ export async function buildRenderContext(
         context.network = tmdbData.networks[0].name;
       }
 
+      // Country of Origin (ISO codes like "US", "GB", "DE")
+      // Both movies and TV shows have origin_country and production_countries
+      if ('origin_country' in tmdbData && tmdbData.origin_country?.length > 0) {
+        context.originCountry = tmdbData.origin_country[0];
+        context.originCountries = tmdbData.origin_country;
+      }
+      if (
+        'production_countries' in tmdbData &&
+        tmdbData.production_countries?.length > 0
+      ) {
+        context.productionCountry = tmdbData.production_countries[0].iso_3166_1;
+        context.productionCountries = tmdbData.production_countries.map(
+          (c: { iso_3166_1: string }) => c.iso_3166_1
+        );
+      }
+
       // Genre (concatenate all genres for matching)
       if (
         'genres' in tmdbData &&
@@ -397,6 +413,34 @@ export async function buildRenderContext(
         }
 
         context.tmdbStatus = mappedStatus;
+      }
+
+      // Content ratings / certifications (per-country)
+      // Stored as contentRating:{countryCode} for per-element country selection
+      if (mediaType === 'movie' && 'release_dates' in tmdbData) {
+        const releaseResults = tmdbData.release_dates?.results;
+        if (releaseResults && Array.isArray(releaseResults)) {
+          for (const countryEntry of releaseResults) {
+            const countryCode = countryEntry.iso_3166_1;
+            // Find the first non-empty certification for this country
+            const certification = countryEntry.release_dates
+              ?.map((rd: { certification: string }) => rd.certification)
+              .find((cert: string) => cert && cert.trim() !== '');
+            if (certification) {
+              context[`contentRating:${countryCode}`] = certification;
+            }
+          }
+        }
+      } else if (mediaType === 'show' && 'content_ratings' in tmdbData) {
+        const ratingResults = tmdbData.content_ratings?.results;
+        if (ratingResults && Array.isArray(ratingResults)) {
+          for (const ratingEntry of ratingResults) {
+            if (ratingEntry.rating && ratingEntry.rating.trim() !== '') {
+              context[`contentRating:${ratingEntry.iso_3166_1}`] =
+                ratingEntry.rating;
+            }
+          }
+        }
       }
     } catch (error) {
       logger.debug('Failed to fetch external metadata', {
