@@ -311,6 +311,10 @@ export interface CollectionFormConfig {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
     };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
   };
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
@@ -494,6 +498,10 @@ export interface CollectionConfigCreateRequest {
     readonly languages?: {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
     };
   };
   // Direct download server selection (for downloadMode: 'direct')
@@ -1067,6 +1075,10 @@ export interface MultiSourceCollectionConfig {
     readonly languages?: {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
     };
   };
   readonly directDownloadRadarrServerId?: number;

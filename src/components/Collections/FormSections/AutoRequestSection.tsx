@@ -12,6 +12,7 @@ import CreatableSelect from 'react-select/creatable';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import FilterWithMode from './FilterWithMode';
+import KeywordFilterWithMode from './KeywordFilterWithMode';
 
 interface OptionType {
   value: number;
@@ -153,6 +154,10 @@ interface AutoRequestSectionProps {
       languages?: {
         mode: 'exclude' | 'include';
         values: string[];
+      };
+      keywords?: {
+        mode: 'exclude' | 'include';
+        values: number[];
       };
     };
     directDownloadRadarrServerId?: number;
@@ -1105,6 +1110,31 @@ const AutoRequestSection = ({
                 languages: {
                   mode: currentMode,
                   values: selectedValues as string[],
+                },
+              });
+            }}
+          />
+
+          {/* Keyword Filter with Include/Exclude Mode */}
+          <KeywordFilterWithMode
+            mode={values.filterSettings?.keywords?.mode || 'exclude'}
+            selectedValues={values.filterSettings?.keywords?.values || []}
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.keywords?.values || [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                keywords: { mode, values: currentValues },
+              });
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.keywords?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                keywords: {
+                  mode: currentMode,
+                  values: selectedValues,
                 },
               });
             }}

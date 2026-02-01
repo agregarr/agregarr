@@ -38,6 +38,10 @@ export interface FilteredMissingItemsResult {
   includedCountryItems: string[];
   /** Items filtered by included languages (when mode is include) */
   includedLanguageItems: string[];
+  /** Items filtered by excluded keywords */
+  excludedKeywordItems: string[];
+  /** Items filtered by included keywords (when mode is include) */
+  includedKeywordItems: string[];
 }
 
 /**
@@ -77,9 +81,11 @@ export class MissingItemFilterService {
     const excludedGenreItems: string[] = [];
     const excludedCountryItems: string[] = [];
     const excludedLanguageItems: string[] = [];
+    const excludedKeywordItems: string[] = [];
     const includedGenreItems: string[] = [];
     const includedCountryItems: string[] = [];
     const includedLanguageItems: string[] = [];
+    const includedKeywordItems: string[] = [];
 
     // Step 1: Filter by media type and minimum year
     const yearFilteredMissingItems = missingItems.filter((item) => {
@@ -380,6 +386,30 @@ export class MissingItemFilterService {
         }
       }
 
+      // Check keyword filter (supports both include and exclude modes)
+      const keywordFilter = this.getKeywordFilter(config);
+      if (keywordFilter && keywordFilter.values.length > 0) {
+        const itemKeywords = await this.getItemKeywords(
+          item.tmdbId,
+          item.mediaType
+        );
+        const hasMatch = itemKeywords.some((keywordId) =>
+          keywordFilter.values.includes(keywordId)
+        );
+
+        if (keywordFilter.mode === 'exclude' && hasMatch) {
+          // EXCLUDE mode: skip items that have ANY of the selected keywords
+          excludedKeywordItems.push(item.title);
+          continue;
+        }
+
+        if (keywordFilter.mode === 'include' && !hasMatch) {
+          // INCLUDE mode: skip items that DON'T have ANY of the selected keywords
+          includedKeywordItems.push(item.title);
+          continue;
+        }
+      }
+
       // Item passed all filters
       fullyFilteredItems.push(item);
     }
@@ -435,6 +465,16 @@ export class MissingItemFilterService {
           `${includedLanguageItems.length} due to included languages filter`
         );
       }
+      if (excludedKeywordItems.length > 0) {
+        filterReasons.push(
+          `${excludedKeywordItems.length} due to excluded keywords`
+        );
+      }
+      if (includedKeywordItems.length > 0) {
+        filterReasons.push(
+          `${includedKeywordItems.length} due to included keywords filter`
+        );
+      }
 
       logger.info(
         `Filtered ${totalFiltered}/${
@@ -464,6 +504,8 @@ export class MissingItemFilterService {
       includedGenreItems,
       includedCountryItems,
       includedLanguageItems,
+      excludedKeywordItems,
+      includedKeywordItems,
     };
   }
 
@@ -703,6 +745,15 @@ export class MissingItemFilterService {
   }
 
   /**
+   * Get keyword filter config
+   */
+  private getKeywordFilter(
+    config: CollectionConfig
+  ): { mode: 'exclude' | 'include'; values: number[] } | null {
+    return config.filterSettings?.keywords || null;
+  }
+
+  /**
    * Get item genres (for mode-based filtering)
    */
   private async getItemGenres(
@@ -765,6 +816,30 @@ export class MissingItemFilterService {
       }
     } catch (error) {
       return []; // Return empty array if we can't fetch languages
+    }
+  }
+
+  /**
+   * Get item keywords (for mode-based filtering)
+   */
+  private async getItemKeywords(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv'
+  ): Promise<number[]> {
+    try {
+      if (mediaType === 'movie') {
+        const movie = await this.tmdbAPI.getMovie({ movieId: tmdbId });
+        return movie.keywords?.keywords
+          ? movie.keywords.keywords.map((k) => k.id)
+          : [];
+      } else {
+        const tvShow = await this.tmdbAPI.getTvShow({ tvId: tmdbId });
+        return tvShow.keywords?.results
+          ? tvShow.keywords.results.map((k) => k.id)
+          : [];
+      }
+    } catch (error) {
+      return []; // Return empty array if we can't fetch keywords
     }
   }
 
@@ -1026,6 +1101,35 @@ export class MissingItemFilterService {
           titles: result.includedLanguageItems.slice(0, 10),
           ...(result.includedLanguageItems.length > 10 && {
             additionalCount: result.includedLanguageItems.length - 10,
+          }),
+        }
+      );
+    }
+
+    // Log summary of items excluded by keyword
+    if (result.excludedKeywordItems.length > 0) {
+      logger.info(`Items skipped due to excluded keywords`, {
+        label: `${sourceLabel} Collections`,
+        collection: config.name,
+        count: result.excludedKeywordItems.length,
+        titles: result.excludedKeywordItems.slice(0, 10),
+        ...(result.excludedKeywordItems.length > 10 && {
+          additionalCount: result.excludedKeywordItems.length - 10,
+        }),
+      });
+    }
+
+    // Log summary of items filtered by included keywords (INCLUDE mode)
+    if (result.includedKeywordItems.length > 0) {
+      logger.info(
+        `Items skipped - did not match required keywords (include mode)`,
+        {
+          label: `${sourceLabel} Collections`,
+          collection: config.name,
+          count: result.includedKeywordItems.length,
+          titles: result.includedKeywordItems.slice(0, 10),
+          ...(result.includedKeywordItems.length > 10 && {
+            additionalCount: result.includedKeywordItems.length - 10,
           }),
         }
       );
