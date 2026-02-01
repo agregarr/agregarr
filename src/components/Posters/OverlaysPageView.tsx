@@ -17,7 +17,7 @@ import type {
 } from '@server/entity/OverlayTemplate';
 import axios from 'axios';
 import { useRouter } from 'next/router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
 import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
@@ -48,6 +48,7 @@ const messages = defineMessages({
     'Per-library syncs are running. Full sync will start when they complete.',
   overlaySyncError: 'Failed to start overlay sync',
   testItem: 'Test Item',
+  allTags: 'All',
 });
 
 interface OverlayTemplate {
@@ -57,6 +58,7 @@ interface OverlayTemplate {
   type: OverlayTemplateType;
   templateData: OverlayTemplateData;
   isDefault: boolean;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -76,8 +78,31 @@ const OverlaysPageView: React.FC = () => {
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [fullSyncConfirmClicked, setFullSyncConfirmClicked] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [gridSize, setGridSize] = useState<'xs' | 'small' | 'medium' | 'large'>(
+    () => {
+      // Load from localStorage if available
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('overlayGridSize');
+        if (
+          saved === 'xs' ||
+          saved === 'small' ||
+          saved === 'medium' ||
+          saved === 'large'
+        ) {
+          return saved;
+        }
+      }
+      return 'medium';
+    }
+  );
   const fullSyncConfirmTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Save grid size to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('overlayGridSize', gridSize);
+  }, [gridSize]);
 
   const handleTabChange = (tab: TabKey) => {
     router.push({ pathname: router.pathname, query: { tab } }, undefined, {
@@ -127,7 +152,28 @@ const OverlaysPageView: React.FC = () => {
     initialSetupComplete: boolean;
   }>('/api/v1/overlay-settings');
 
-  const templates = templatesData?.templates || [];
+  const templates = useMemo(
+    () => templatesData?.templates || [],
+    [templatesData?.templates]
+  );
+
+  // Extract unique tags from all templates
+  const uniqueTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    templates.forEach((template) => {
+      template.tags?.forEach((tag) => tagsSet.add(tag));
+    });
+    return Array.from(tagsSet).sort();
+  }, [templates]);
+
+  // Count templates per tag
+  const tagCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    uniqueTags.forEach((tag) => {
+      counts[tag] = templates.filter((t) => t.tags?.includes(tag)).length;
+    });
+    return counts;
+  }, [templates, uniqueTags]);
 
   // Show setup modal when navigating to Library Configuration tab if setup not complete
   useEffect(() => {
@@ -208,6 +254,7 @@ const OverlaysPageView: React.FC = () => {
     type?: string;
     templateData: OverlayTemplateData;
     applicationCondition?: ApplicationCondition;
+    tags?: string[];
   }) => {
     const response = await fetch('/api/v1/overlay-templates', {
       method: 'POST',
@@ -220,6 +267,7 @@ const OverlaysPageView: React.FC = () => {
         type: data.type || 'generic',
         templateData: data.templateData,
         applicationCondition: data.applicationCondition,
+        tags: data.tags,
       }),
     });
 
@@ -356,6 +404,35 @@ const OverlaysPageView: React.FC = () => {
 
         {activeTab === 'templates' && (
           <div className="flex items-center space-x-2">
+            {/* Grid size control */}
+            <div className="flex items-center rounded-md border border-stone-600 bg-stone-800 text-xs font-medium">
+              {(['xs', 'small', 'medium', 'large'] as const).map(
+                (size, index) => (
+                  <button
+                    key={size}
+                    onClick={() => setGridSize(size)}
+                    className={`px-2 py-1.5 transition-colors ${
+                      gridSize === size
+                        ? 'bg-orange-600 text-white'
+                        : 'text-stone-400 hover:bg-stone-700 hover:text-white'
+                    } ${index === 0 ? 'rounded-l-md' : ''} ${
+                      index === 3 ? 'rounded-r-md' : ''
+                    }`}
+                    title={`${
+                      size.charAt(0).toUpperCase() + size.slice(1)
+                    } grid`}
+                  >
+                    {size === 'xs'
+                      ? 'XS'
+                      : size === 'small'
+                      ? 'S'
+                      : size === 'medium'
+                      ? 'M'
+                      : 'L'}
+                  </button>
+                )
+              )}
+            </div>
             <Button
               buttonType="ghost"
               onClick={() => setIsTestModalOpen(true)}
@@ -431,6 +508,34 @@ const OverlaysPageView: React.FC = () => {
       {/* Tab content */}
       {activeTab === 'templates' && (
         <>
+          {/* Tag filter tabs */}
+          {uniqueTags.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedTag(null)}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                  selectedTag === null
+                    ? 'bg-orange-600 text-white'
+                    : 'bg-stone-700 text-stone-300 hover:bg-stone-600 hover:text-white'
+                }`}
+              >
+                {intl.formatMessage(messages.allTags)} ({templates.length})
+              </button>
+              {uniqueTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(tag)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    selectedTag === tag
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-stone-700 text-stone-300 hover:bg-stone-600 hover:text-white'
+                  }`}
+                >
+                  {tag} ({tagCounts[tag]})
+                </button>
+              ))}
+            </div>
+          )}
           {!templatesData ? (
             <div className="flex h-96 items-center justify-center">
               <LoadingSpinner />
@@ -439,6 +544,8 @@ const OverlaysPageView: React.FC = () => {
             <OverlayTemplateGrid
               templates={templates}
               onTemplateUpdate={mutateTemplates}
+              selectedTag={selectedTag}
+              gridSize={gridSize}
             />
           )}
         </>

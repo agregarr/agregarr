@@ -302,4 +302,18 @@ export class OverlayTemplate {
   ): void {
     this.applicationCondition = condition ? JSON.stringify(condition) : null;
   }
+
+  // Tags for categorization/filtering
+  @Column({ type: 'text', nullable: true })
+  public tags: string | null;
+
+  // Helper methods for tags
+  public getTags(): string[] {
+    if (!this.tags) return [];
+    return JSON.parse(this.tags);
+  }
+
+  public setTags(tags: string[] | undefined | null): void {
+    this.tags = tags && tags.length > 0 ? JSON.stringify(tags) : null;
+  }
 }
