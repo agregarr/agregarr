@@ -693,6 +693,22 @@ export interface PreviewPosterInfo {
 }
 
 /**
+ * Full overlay template with metadata (as returned from API)
+ */
+export interface OverlayTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  type: 'rating' | 'metadata' | 'technical' | 'status' | 'generic';
+  templateData: OverlayTemplateData;
+  isDefault: boolean;
+  applicationCondition?: ApplicationCondition;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Sample preview context for testing overlay templates (fallback if API fails)
  */
 export const SAMPLE_PREVIEW_CONTEXTS: {

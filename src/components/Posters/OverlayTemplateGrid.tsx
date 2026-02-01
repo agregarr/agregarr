@@ -4,6 +4,7 @@ import { OverlayEditorModal } from '@app/components/OverlayEditor';
 import { AVAILABLE_VARIABLES } from '@app/components/OverlayEditor/types';
 import {
   ArrowDownTrayIcon,
+  ClipboardDocumentListIcon,
   DocumentDuplicateIcon,
   PencilIcon,
   TrashIcon,
@@ -155,6 +156,7 @@ interface OverlayTemplate {
   templateData: OverlayTemplateData;
   isDefault: boolean;
   applicationCondition?: ApplicationCondition;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -162,11 +164,15 @@ interface OverlayTemplate {
 interface OverlayTemplateGridProps {
   templates: OverlayTemplate[];
   onTemplateUpdate: () => void;
+  selectedTag?: string | null;
+  gridSize?: 'xs' | 'small' | 'medium' | 'large';
 }
 
 const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
   templates,
   onTemplateUpdate,
+  selectedTag,
+  gridSize = 'medium',
 }) => {
   const intl = useIntl();
   const { addToast } = useToasts();
@@ -178,6 +184,25 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [copySourceTemplate, setCopySourceTemplate] =
     useState<OverlayTemplate | null>(null);
+
+  // Filter templates by selected tag
+  const filteredTemplates = selectedTag
+    ? templates.filter((t) => t.tags?.includes(selectedTag))
+    : templates;
+
+  // Grid classes based on size
+  const gridClasses = {
+    xs: 'grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8',
+    small:
+      'grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6',
+    medium:
+      'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+    large:
+      'grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3',
+  };
+
+  // Compact mode hides description, condition, and tags
+  const isCompact = gridSize === 'xs' || gridSize === 'small';
 
   const handleEdit = (template: OverlayTemplate) => {
     setSelectedTemplate(template);
@@ -255,6 +280,7 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
     type?: string;
     templateData: OverlayTemplateData;
     applicationCondition?: ApplicationCondition;
+    tags?: string[];
   }) => {
     if (modalMode === 'edit' && selectedTemplate) {
       // Update existing template
@@ -271,6 +297,7 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
             type: data.type || 'generic',
             templateData: data.templateData,
             applicationCondition: data.applicationCondition,
+            tags: data.tags,
           }),
         }
       );
@@ -296,6 +323,7 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
           type: data.type || 'custom',
           templateData: data.templateData,
           applicationCondition: data.applicationCondition,
+          tags: data.tags,
         }),
       });
 
@@ -312,7 +340,7 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
     onTemplateUpdate();
   };
 
-  if (templates.length === 0) {
+  if (filteredTemplates.length === 0) {
     return (
       <div className="py-16 text-center">
         <div className="mx-auto max-w-sm">
@@ -343,8 +371,8 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {templates.map((template) => (
+      <div className={gridClasses[gridSize]}>
+        {filteredTemplates.map((template) => (
           <div
             key={template.id}
             className="hover:bg-stone-750 group relative overflow-hidden rounded-lg bg-stone-800 transition-colors duration-200"
@@ -360,62 +388,98 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
             </div>
 
             {/* Template Info */}
-            <div className="p-4">
+            <div className={isCompact ? 'p-2' : 'p-4'}>
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-sm font-medium text-white">
+                  <h3
+                    className={`truncate font-medium text-white ${
+                      isCompact ? 'text-xs' : 'text-sm'
+                    }`}
+                  >
                     {template.name}
                   </h3>
-                  {template.description && (
+                  {!isCompact && template.description && (
                     <p className="line-clamp-2 mt-1 text-xs text-stone-400">
                       {template.description}
                     </p>
                   )}
-                  {/* Condition */}
-                  <div className="mt-2 inline-block rounded bg-stone-900 px-2 py-1 text-xs text-stone-300">
-                    {(() => {
-                      const formattedCondition = formatCondition(
-                        template.applicationCondition
-                      );
-                      return formattedCondition ? (
-                        <ConditionDisplay condition={formattedCondition} />
-                      ) : (
-                        intl.formatMessage(messages.alwaysApply)
-                      );
-                    })()}
-                  </div>
+                  {/* Condition - hidden in compact mode */}
+                  {!isCompact && (
+                    <div className="mt-2 inline-block rounded bg-stone-900 px-2 py-1 text-xs text-stone-300">
+                      {(() => {
+                        const formattedCondition = formatCondition(
+                          template.applicationCondition
+                        );
+                        return formattedCondition ? (
+                          <ConditionDisplay condition={formattedCondition} />
+                        ) : (
+                          intl.formatMessage(messages.alwaysApply)
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {/* Tags - hidden in compact mode */}
+                  {!isCompact && template.tags && template.tags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {template.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-block rounded-full bg-orange-600/20 px-2 py-0.5 text-xs text-orange-400"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div
+                className={`flex flex-wrap ${
+                  isCompact ? 'mt-1.5 gap-1' : 'mt-3 gap-2'
+                }`}
+              >
                 {!template.isDefault && (
                   <button
                     onClick={() => handleEdit(template)}
-                    className="flex items-center rounded-md bg-stone-700 px-3 py-2 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white"
+                    className={`flex items-center rounded-md bg-stone-700 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white ${
+                      isCompact ? 'p-1.5' : 'px-3 py-2'
+                    }`}
                     title={intl.formatMessage(messages.edit)}
                   >
-                    <PencilIcon className="mr-2 h-3 w-3" />
-                    {intl.formatMessage(messages.edit)}
+                    <PencilIcon
+                      className={isCompact ? 'h-3 w-3' : 'mr-2 h-3 w-3'}
+                    />
+                    {!isCompact && intl.formatMessage(messages.edit)}
                   </button>
                 )}
                 <button
                   onClick={() => handleDuplicate(template)}
-                  className="flex items-center rounded-md bg-stone-700 px-3 py-2 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white"
+                  className={`flex items-center rounded-md bg-stone-700 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white ${
+                    isCompact ? 'p-1.5' : 'px-3 py-2'
+                  }`}
                   title={intl.formatMessage(messages.duplicate)}
                 >
-                  <DocumentDuplicateIcon className="mr-2 h-3 w-3" />
-                  {intl.formatMessage(messages.duplicate)}
+                  <DocumentDuplicateIcon
+                    className={isCompact ? 'h-3 w-3' : 'mr-2 h-3 w-3'}
+                  />
+                  {!isCompact && intl.formatMessage(messages.duplicate)}
                 </button>
                 <button
                   onClick={() => handleCopyElements(template)}
-                  className="flex items-center rounded-md bg-stone-700 px-3 py-2 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white"
+                  className={`flex items-center rounded-md bg-stone-700 text-xs text-stone-200 transition-colors hover:bg-stone-600 hover:text-white ${
+                    isCompact ? 'p-1.5' : 'px-3 py-2'
+                  }`}
                   title={intl.formatMessage(messages.copyOverlayElements)}
                 >
-                  <DocumentDuplicateIcon className="mr-2 h-3 w-3" />
-                  {intl.formatMessage(messages.copyOverlayElements)}
+                  <ClipboardDocumentListIcon
+                    className={isCompact ? 'h-3 w-3' : 'mr-2 h-3 w-3'}
+                  />
+                  {!isCompact &&
+                    intl.formatMessage(messages.copyOverlayElements)}
                 </button>
-                {!template.isDefault && (
+                {!template.isDefault && !isCompact && (
                   <button
                     onClick={() => handleExport(template.id, template.name)}
                     className="flex items-center rounded-md bg-green-900/50 px-3 py-2 text-xs text-green-400 transition-colors hover:bg-green-900 hover:text-green-300"
@@ -428,11 +492,15 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
                 {!template.isDefault && (
                   <button
                     onClick={() => setDeleteConfirmId(template.id)}
-                    className="flex items-center rounded-md bg-red-900/50 px-3 py-2 text-xs text-red-400 transition-colors hover:bg-red-900 hover:text-red-300"
+                    className={`flex items-center rounded-md bg-red-900/50 text-xs text-red-400 transition-colors hover:bg-red-900 hover:text-red-300 ${
+                      isCompact ? 'p-1.5' : 'px-3 py-2'
+                    }`}
                     title={intl.formatMessage(messages.delete)}
                   >
-                    <TrashIcon className="mr-2 h-3 w-3" />
-                    {intl.formatMessage(messages.delete)}
+                    <TrashIcon
+                      className={isCompact ? 'h-3 w-3' : 'mr-2 h-3 w-3'}
+                    />
+                    {!isCompact && intl.formatMessage(messages.delete)}
                   </button>
                 )}
               </div>
@@ -487,6 +555,7 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
         }
         initialDescription={selectedTemplate?.description}
         initialCondition={selectedTemplate?.applicationCondition}
+        initialTags={selectedTemplate?.tags}
         onSave={handleSave}
       />
 
