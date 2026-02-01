@@ -630,6 +630,20 @@ components:
                     type: string
                   description: 'ISO 639-1 language codes'
                   example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -1212,6 +1226,20 @@ components:
                     type: string
                   description: 'ISO 639-1 language codes'
                   example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -1964,6 +1992,20 @@ components:
                     type: string
                   description: 'ISO 639-1 language codes'
                   example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         traktCustomListUrl:
           type: string
@@ -5727,6 +5769,65 @@ paths:
                     name:
                       type: string
                       example: Japanese
+  /keywords/search:
+    get:
+      summary: Search TMDB keywords
+      description: Search for TMDB keywords by name. Returns matching keywords with their IDs.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+          description: Search query for keywords
+      responses:
+        '200':
+          description: Keyword search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 210024
+                    name:
+                      type: string
+                      example: anime
+  /keywords/batch:
+    get:
+      summary: Resolve keyword IDs to names
+      description: Takes a comma-separated list of TMDB keyword IDs and returns their names. Used to display saved keyword selections.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: ids
+          required: true
+          schema:
+            type: string
+          description: Comma-separated list of TMDB keyword IDs
+          example: '210024,818'
+      responses:
+        '200':
+          description: Resolved keywords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 210024
+                    name:
+                      type: string
+                      example: anime
   /movie/{id}:
     get:
       summary: Get movie details

@@ -159,6 +159,10 @@ export interface CollectionConfig {
       readonly mode: 'exclude' | 'include'; // Default: 'exclude'
       readonly values: string[]; // ISO 639-1 language codes
     };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include'; // Default: 'exclude'
+      readonly values: number[]; // TMDB keyword IDs
+    };
   };
 
   // Direct download server selection (for downloadMode: 'direct')

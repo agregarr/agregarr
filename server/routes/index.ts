@@ -390,6 +390,82 @@ router.get('/languages/combined', isAuthenticated(), async (req, res, next) => {
   }
 });
 
+router.get('/keywords/search', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query as string;
+    if (!query || query.trim().length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const results = await tmdb.searchKeyword({ query: query.trim() });
+
+    // Return simplified keyword objects
+    const keywords = results.results.map((keyword) => ({
+      id: keyword.id,
+      name: keyword.name,
+    }));
+
+    return res.status(200).json(keywords);
+  } catch (e) {
+    logger.debug('Something went wrong searching keywords', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search keywords.',
+    });
+  }
+});
+
+router.get('/keywords/batch', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const idsParam = req.query.ids as string;
+    if (!idsParam || idsParam.trim().length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const ids = idsParam
+      .split(',')
+      .map((id) => parseInt(id.trim(), 10))
+      .filter((id) => !isNaN(id));
+
+    if (ids.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Resolve keyword IDs to names in parallel
+    const keywords = await Promise.all(
+      ids.map(async (keywordId) => {
+        try {
+          const keyword = await tmdb.getKeywordDetails({ keywordId });
+          return { id: keyword.id, name: keyword.name };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    // Filter out failed lookups
+    return res
+      .status(200)
+      .json(keywords.filter((k): k is { id: number; name: string } => !!k));
+  } catch (e) {
+    logger.debug('Something went wrong resolving keywords', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to resolve keywords.',
+    });
+  }
+});
+
 router.get('/backdrops', async (req, res, next) => {
   const tmdb = await createTmdbWithRegionLanguage();
 
