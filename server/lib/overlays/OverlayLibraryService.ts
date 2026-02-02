@@ -410,6 +410,7 @@ class OverlayLibraryService {
           const itemWithFullMetadata = {
             ...item,
             Media: fullMetadata.Media,
+            Label: fullMetadata.Label,
           };
 
           await this.applyOverlaysToItem(
@@ -580,6 +581,7 @@ class OverlayLibraryService {
               guid: itemMetadata.guid || '',
               Guid: itemMetadata.Guid,
               Media: itemMetadata.Media,
+              Label: itemMetadata.Label,
               parentIndex: itemMetadata.parentIndex,
               index: itemMetadata.index,
               addedAt: itemMetadata.addedAt || 0,

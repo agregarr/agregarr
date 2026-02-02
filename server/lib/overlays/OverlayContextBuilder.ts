@@ -620,6 +620,13 @@ export async function buildRenderContext(
     }
   }
 
+  // Plex Labels - extract item-level tags
+  if (item.Label && Array.isArray(item.Label)) {
+    context.plexLabels = item.Label.map((l) => l.tag).filter(
+      (tag): tag is string => !!tag
+    );
+  }
+
   // Maintainerr integration - calculate daysUntilAction
   // Use cached collections if provided, otherwise fetch them
   if (

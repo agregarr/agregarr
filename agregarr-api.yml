@@ -15577,6 +15577,31 @@ paths:
         '500':
           description: Failed to search Plex
 
+  /plex/labels:
+    get:
+      summary: Get all Plex labels
+      description: Fetches all unique labels (tags) from all movie and TV show libraries in Plex. Used for the Plex Label condition field in overlay templates.
+      tags:
+        - overlays
+      responses:
+        '200':
+          description: Unique labels across all libraries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  labels:
+                    type: array
+                    description: Array of unique label names sorted alphabetically
+                    items:
+                      type: string
+                    example: ['4K DV', 'HDR', 'Kids']
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to fetch Plex labels
+
   /overlay-test:
     post:
       summary: Test overlay application on a single item

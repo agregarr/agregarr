@@ -444,6 +444,9 @@ export interface OverlayRenderContext {
   // Collection membership (populated at runtime from Plex collection contents)
   collection?: string[]; // Array of collection IDs this item belongs to
 
+  // Plex Labels (item-level tags applied in Plex)
+  plexLabels?: string[]; // Array of Plex label tags on this item
+
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
   mediaType: 'movie' | 'show';

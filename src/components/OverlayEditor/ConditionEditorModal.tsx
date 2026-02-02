@@ -154,6 +154,7 @@ const RuleItem: React.FC<RuleItemProps> = ({
   const isSonarrTags = field === 'sonarrTags';
   const isTagField = isRadarrTags || isSonarrTags;
   const isCollectionField = field === 'collection';
+  const isPlexLabels = field === 'plexLabels';
   const isExistsOperator = operator === 'exists';
 
   // Fetch all tags from all Radarr instances
@@ -166,6 +167,13 @@ const RuleItem: React.FC<RuleItemProps> = ({
   const { data: sonarrTags } = useSWR<ArrTag[]>(
     isSonarrTags ? '/api/v1/settings/sonarr/alltags' : null,
     (url) => fetch(url).then((res) => res.json())
+  );
+
+  // Fetch Plex labels for plexLabels field
+  const { data: plexLabelsData } = useSWR<{
+    labels: string[];
+  }>(isPlexLabels ? '/api/v1/plex/labels' : null, (url) =>
+    fetch(url).then((res) => res.json())
   );
 
   // Fetch collections for collection field (agregarr + pre-existing)
@@ -218,6 +226,15 @@ const RuleItem: React.FC<RuleItemProps> = ({
     (g) => g.options
   );
 
+  // Build flat list of Plex label options
+  const plexLabelsOptions: { value: string; label: string }[] =
+    isPlexLabels && plexLabelsData?.labels
+      ? plexLabelsData.labels.map((labelName) => ({
+          value: labelName,
+          label: labelName,
+        }))
+      : [];
+
   const availableTags = isRadarrTags
     ? Array.isArray(radarrTags)
       ? radarrTags
@@ -239,7 +256,8 @@ const RuleItem: React.FC<RuleItemProps> = ({
     const isInvalid =
       (!isNumeric && numericOnlyOperators.includes(operator)) ||
       (isBoolean && !['eq', 'neq'].includes(operator)) ||
-      (isCollectionField && !['eq', 'neq'].includes(operator));
+      (isCollectionField && !['eq', 'neq'].includes(operator)) ||
+      (isPlexLabels && !['eq', 'neq'].includes(operator));
 
     if (isInvalid) {
       lastSanitizedKey.current = sanitizeKey;
@@ -280,11 +298,13 @@ const RuleItem: React.FC<RuleItemProps> = ({
 
           // Determine if current operator is valid for new field type
           const numericOnlyOperators = ['gt', 'gte', 'lt', 'lte'];
+          const isNewFieldPlexLabels = newField === 'plexLabels';
           const isCurrentOperatorInvalid =
             (!isNewFieldNumeric && numericOnlyOperators.includes(operator)) ||
             (isNewFieldBoolean &&
               !['eq', 'neq', 'exists'].includes(operator)) ||
-            (isNewFieldCollection && !['eq', 'neq'].includes(operator));
+            (isNewFieldCollection && !['eq', 'neq'].includes(operator)) ||
+            (isNewFieldPlexLabels && !['eq', 'neq'].includes(operator));
 
           // Reset to appropriate defaults when changing field
           onChange({
@@ -341,7 +361,7 @@ const RuleItem: React.FC<RuleItemProps> = ({
             </option>
           </>
         )}
-        {!isBoolean && !isCollectionField && (
+        {!isBoolean && !isCollectionField && !isPlexLabels && (
           <>
             <option value="in">{intl.formatMessage(messages.opIn)}</option>
             <option value="contains">
@@ -359,7 +379,7 @@ const RuleItem: React.FC<RuleItemProps> = ({
             <option value="ends">{intl.formatMessage(messages.opEnds)}</option>
           </>
         )}
-        {!isCollectionField && (
+        {!isCollectionField && !isPlexLabels && (
           <option value="exists">
             {intl.formatMessage(messages.opExists)}
           </option>
@@ -399,6 +419,89 @@ const RuleItem: React.FC<RuleItemProps> = ({
             </option>
           ))}
         </select>
+      ) : isPlexLabels ? (
+        <Select
+          options={plexLabelsOptions}
+          value={
+            plexLabelsOptions.find((o) => o.value === String(value)) || null
+          }
+          onChange={(selected) => {
+            onChange({
+              ...rule,
+              value: selected?.value || '',
+            });
+          }}
+          placeholder="Select label..."
+          isClearable
+          className="react-select-container flex-1"
+          classNamePrefix="react-select"
+          menuPlacement="auto"
+          menuPortalTarget={document.body}
+          styles={{
+            control: (base) => ({
+              ...base,
+              minHeight: 'unset',
+              fontSize: '0.875rem',
+            }),
+            valueContainer: (base) => ({
+              ...base,
+              padding: '0 8px',
+            }),
+            input: (base) => ({
+              ...base,
+              margin: 0,
+              padding: 0,
+              fontSize: '0.875rem',
+              color: '#e7e5e4',
+            }),
+            indicatorsContainer: (base) => ({
+              ...base,
+              '> div': { padding: '2px 4px' },
+            }),
+            option: (base, state) => ({
+              ...base,
+              fontSize: '0.75rem',
+              padding: '6px 12px',
+              backgroundColor: state.isFocused ? '#57534e' : '#44403c',
+              color: '#e7e5e4',
+              cursor: 'pointer',
+              ':active': {
+                backgroundColor: '#78716c',
+              },
+            }),
+            singleValue: (base) => ({
+              ...base,
+              fontSize: '0.875rem',
+            }),
+            placeholder: (base) => ({
+              ...base,
+              fontSize: '0.875rem',
+            }),
+            groupHeading: (base) => ({
+              ...base,
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              color: '#fb923c',
+              textTransform: 'uppercase',
+              padding: '4px 12px',
+            }),
+            menu: (base) => ({
+              ...base,
+              fontSize: '0.75rem',
+              backgroundColor: '#44403c',
+              border: '1px solid #57534e',
+            }),
+            menuPortal: (base) => ({
+              ...base,
+              zIndex: 9999,
+            }),
+            noOptionsMessage: (base) => ({
+              ...base,
+              color: '#a8a29e',
+              fontSize: '0.75rem',
+            }),
+          }}
+        />
       ) : isCollectionField ? (
         <Select
           options={collectionOptionsByLibrary}
