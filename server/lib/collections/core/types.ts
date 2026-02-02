@@ -577,11 +577,16 @@ export interface TmdbSourceData {
   id: number;
   title?: string;
   name?: string;
+  original_title?: string;
+  original_name?: string;
   media_type?: 'movie' | 'tv';
   release_date?: string;
   first_air_date?: string;
   overview?: string;
   vote_average?: number;
+  vote_count?: number;
+  popularity?: number;
+  revenue?: number;
 }
 
 export interface TmdbFranchiseSourceData {

@@ -87,6 +87,10 @@ interface PreviewCollectionModalProps {
     libraries: Library[];
     customUrl?: string;
     maxItems?: number;
+    // TMDB advanced discover filters
+    tmdbAdvancedFilters?: Record<string, unknown>;
+    tmdbMovieSortBy?: string;
+    tmdbTvSortBy?: string;
     timePeriod?: string;
     minimumPlays?: number;
     customDays?: number;
@@ -179,6 +183,87 @@ const PreviewCollectionModal = ({
   const [showExclusionsModal, setShowExclusionsModal] = useState(false);
   const [forceRefresh, setForceRefresh] = useState(false);
 
+  const [runKey, setRunKey] = useState(0);
+  const lastRunSignatureRef = useRef<string | null>(null);
+  const lastConfigSignatureRef = useRef<string | null>(null);
+
+  const stableStringify = (value: unknown): string => {
+    if (value === null || value === undefined) return JSON.stringify(value);
+    if (typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) {
+      return `[${value.map((item) => stableStringify(item)).join(',')}]`;
+    }
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `{${keys
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+      .join(',')}}`;
+  };
+
+  const configSignature = stableStringify({
+    type: previewConfig.type,
+    subtype: previewConfig.subtype,
+    customUrl: previewConfig.customUrl,
+    tmdbAdvancedFilters: previewConfig.tmdbAdvancedFilters,
+    tmdbMovieSortBy: previewConfig.tmdbMovieSortBy,
+    tmdbTvSortBy: previewConfig.tmdbTvSortBy,
+    maxItems: previewConfig.maxItems
+      ? Number(previewConfig.maxItems)
+      : undefined,
+    timePeriod: previewConfig.timePeriod,
+    minimumPlays: previewConfig.minimumPlays
+      ? Number(previewConfig.minimumPlays)
+      : undefined,
+    customDays: previewConfig.customDays
+      ? Number(previewConfig.customDays)
+      : undefined,
+    network: previewConfig.network,
+    country: previewConfig.country,
+    provider: previewConfig.provider,
+    radarrTagId: previewConfig.radarrTagId,
+    sonarrTagId: previewConfig.sonarrTagId,
+    radarrInstanceId: previewConfig.radarrInstanceId,
+    sonarrInstanceId: previewConfig.sonarrInstanceId,
+    isMultiSource: previewConfig.isMultiSource,
+    sources: previewConfig.sources,
+    combineMode: previewConfig.combineMode,
+    libraryIds: previewConfig.libraryIds,
+  });
+
+  const runSignature = stableStringify({
+    configSignature,
+    cycleIndex,
+  });
+
+  // When the config changes, automatically run a fresh preview (bypassing cache).
+  // Note: we compare against the last config signature we ran, persisted in localStorage.
+  useEffect(() => {
+    if (lastRunSignatureRef.current === runSignature) return;
+    lastRunSignatureRef.current = runSignature;
+
+    const storageKey = 'preview-last-config-signature';
+    const storedLastConfigSignature =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem(storageKey)
+        : null;
+    const previousConfigSignature =
+      lastConfigSignatureRef.current ?? storedLastConfigSignature;
+
+    const shouldForceRefresh =
+      !!previousConfigSignature && previousConfigSignature !== configSignature;
+
+    // Clear existing sessions/status and start a new run.
+    setSessionIdsByLibrary({});
+    setStatusByLibrary({});
+    setForceRefresh(shouldForceRefresh);
+    setRunKey((prev) => prev + 1);
+
+    lastConfigSignatureRef.current = configSignature;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(storageKey, configSignature);
+    }
+  }, [runSignature, configSignature]);
+
   // Load requested items from localStorage on mount
   useEffect(() => {
     try {
@@ -200,6 +285,9 @@ const PreviewCollectionModal = ({
           subtype: previewConfig.subtype,
           libraryId,
           customUrl: previewConfig.customUrl,
+          tmdbAdvancedFilters: previewConfig.tmdbAdvancedFilters,
+          tmdbMovieSortBy: previewConfig.tmdbMovieSortBy,
+          tmdbTvSortBy: previewConfig.tmdbTvSortBy,
           maxItems: previewConfig.maxItems
             ? Number(previewConfig.maxItems)
             : undefined,
@@ -247,7 +335,14 @@ const PreviewCollectionModal = ({
     previewConfig.libraryIds.forEach((libraryId) => {
       startPreviewForLibrary(libraryId);
     });
-  }, [previewConfig, cycleIndex, forceRefresh]);
+
+    // Reset forceRefresh after kicking off a run (so future runs only bypass cache when needed)
+    if (forceRefresh) {
+      setForceRefresh(false);
+    }
+    // runKey is an intentional trigger - we capture current config values at the moment it changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runKey]);
 
   // Poll for status updates
   useEffect(() => {
@@ -554,8 +649,9 @@ const PreviewCollectionModal = ({
       // Clear existing sessions and status
       setSessionIdsByLibrary({});
       setStatusByLibrary({});
-      // Toggle forceRefresh to trigger the useEffect
-      setForceRefresh((prev) => !prev);
+      // Always bypass cache on manual refresh
+      setForceRefresh(true);
+      setRunKey((prev) => prev + 1);
     }
   };
 
