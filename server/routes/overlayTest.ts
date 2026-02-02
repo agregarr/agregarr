@@ -301,12 +301,48 @@ overlayTestRouter.post('/', async (req, res) => {
       downloaded = true;
     }
 
+    // Build collection membership for condition evaluation
+    // Always build for test route (single item, no performance concern)
+    const collectionIds: string[] = [];
+    const allConfigs: { id: string; collectionRatingKey?: string }[] = [
+      ...(settings.plex.collectionConfigs || []),
+    ];
+
+    const { preExistingCollectionConfigService } = await import(
+      '@server/lib/collections/services/PreExistingCollectionConfigService'
+    );
+    allConfigs.push(...preExistingCollectionConfigService.getConfigs());
+
+    for (const cfg of allConfigs) {
+      if (cfg.collectionRatingKey) {
+        try {
+          const itemKeys = await plexApi.getCollectionItems(
+            cfg.collectionRatingKey
+          );
+          if (itemKeys.includes(ratingKey)) {
+            collectionIds.push(cfg.id);
+          }
+        } catch {
+          // Skip collections that fail to fetch
+        }
+      }
+    }
+
+    logger.debug('Collection membership for test item', {
+      label: 'OverlayTest',
+      ratingKey,
+      collectionIds,
+      totalCollectionsChecked: allConfigs.filter((c) => c.collectionRatingKey)
+        .length,
+    });
+
     const context: OverlayRenderContext = {
       ...baseContext,
       isPlaceholder: actualIsPlaceholder,
       downloaded,
       ...releaseDateContext,
       ...monitoringContext,
+      collection: collectionIds,
     };
 
     // Evaluate all templates with detailed results

@@ -441,6 +441,9 @@ export interface OverlayRenderContext {
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
+  // Collection membership (populated at runtime from Plex collection contents)
+  collection?: string[]; // Array of collection IDs this item belongs to
+
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
   mediaType: 'movie' | 'show';
