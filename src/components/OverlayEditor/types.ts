@@ -283,6 +283,9 @@ export interface OverlayRenderContext {
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
+  // Collection membership (populated at runtime from Plex collection contents)
+  collection?: string[]; // Array of collection IDs this item belongs to
+
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
   mediaType: 'movie' | 'show';
@@ -603,6 +606,13 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
+  Collections: [
+    {
+      field: 'collection',
+      label: 'Collection',
+      example: 'IMDb Top 250',
+    },
+  ],
   Status: [
     { field: 'mediaType', label: 'Media Type (movie/show)', example: 'movie' },
     {
@@ -673,6 +683,8 @@ export function getTemplateTypeFromConditionField(field: string): string {
           return 'technical';
         case 'Ratings':
           return 'rating';
+        case 'Collections':
+          return 'status';
         case 'Status':
           return 'status';
       }
