@@ -80,6 +80,8 @@ const DEFAULT_OVERLAY_DATA: OverlayTemplateData = {
   elements: [],
 };
 
+const DEFAULT_TAGS: string[] = [];
+
 interface PreviewPostersResponse {
   posters: PreviewPosterInfo[];
   count: number;
@@ -100,7 +102,7 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
   initialName = '',
   initialDescription = '',
   initialCondition,
-  initialTags = [],
+  initialTags = DEFAULT_TAGS,
   onSave,
 }) => {
   const intl = useIntl();
