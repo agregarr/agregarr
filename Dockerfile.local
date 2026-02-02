@@ -1,7 +1,13 @@
-FROM node:18.18.2-alpine
+FROM node:20.19.5-alpine
 
 COPY . /app
 WORKDIR /app
+
+# Needed for native Node modules (e.g. `canvas`) when prebuilt binaries
+# are unavailable for Alpine/musl.
+RUN apk add --no-cache \
+	python3 make g++ gcc libc6-compat bash \
+	build-base cairo-dev pango-dev jpeg-dev giflib-dev pixman-dev
 
 RUN yarn
 

@@ -122,6 +122,25 @@ export interface CollectionConfig {
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections
   // Custom URL fields for external collections
   readonly tmdbCustomCollectionUrl?: string;
+  // TMDB streaming service fields
+  readonly watchProviderId?: number; // TMDB watch provider ID (e.g., 337 for Disney+)
+  readonly region?: string; // Country region for streaming services (default: 'US')
+  // TMDB discover sorting (for TMDB advanced_custom_tmdb advanced discover)
+  readonly tmdbMovieSortBy?: string; // TMDB /discover/movie sort_by
+  readonly tmdbTvSortBy?: string; // TMDB /discover/tv sort_by
+  // TMDB advanced discover filters
+  readonly tmdbAdvancedFilters?: {
+    readonly filterGroups?: readonly {
+      readonly id: string;
+      readonly operator: 'and' | 'or'; // How this group combines with previous groups
+      readonly filters: readonly {
+        readonly id: string;
+        readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
+        readonly operator: 'and' | 'or'; // For multi-value fields (comma vs pipe)
+        readonly value: string | number | boolean;
+      }[];
+    }[];
+  };
   // Trakt-specific fields
   readonly timePeriod?: string;
   readonly traktStatType?: 'trending' | 'popular' | 'watched';

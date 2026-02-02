@@ -242,6 +242,12 @@ const CollectionTypeSection = ({
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
           {
+            value: 'advanced_custom_tmdb',
+            label: 'Custom Advanced Filters',
+            description:
+              'Build your own filter based on https://developer.themoviedb.org/reference/discover-movies and https://developer.themoviedb.org/reference/discover-tv-shows',
+          },
+          {
             value: 'auto_franchise',
             label: 'Auto Franchise Collections',
             description:

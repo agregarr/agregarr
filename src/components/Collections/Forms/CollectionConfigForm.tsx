@@ -40,6 +40,7 @@ import TemplateSection from '@app/components/Collections/FormSections/TemplateSe
 import ThemeUploadSection from '@app/components/Collections/FormSections/ThemeUploadSection';
 import TimePeriodSection from '@app/components/Collections/FormSections/TimePeriodSection';
 import TimeRestrictionsSection from '@app/components/Collections/FormSections/TimeRestrictionsSection';
+import TmdbAdvancedFiltersSection from '@app/components/Collections/FormSections/TmdbAdvancedFiltersSection';
 import VisibilitySection from '@app/components/Collections/FormSections/VisibilitySection';
 import WallpaperUploadSection from '@app/components/Collections/FormSections/WallpaperUploadSection';
 import PreviewCollectionModal from '@app/components/Collections/PreviewCollectionModal';
@@ -158,6 +159,29 @@ const messages = defineMessages({
   validationSourcePriorityRequired: 'Source priority is required',
   collectionTitleTemplate: 'Collection Title Template',
   itemOrder: 'Item Order',
+  tmdbMovieSortOrder: 'Movie Sort Order',
+  tmdbTvSortOrder: 'TV Sort Order',
+  tmdbSortPopularityDesc: 'Popularity (High to Low)',
+  tmdbSortPopularityAsc: 'Popularity (Low to High)',
+  tmdbSortRandom: 'Random (from TMDB results)',
+  tmdbSortMovieReleaseDateDesc: 'Release Date (Newest First)',
+  tmdbSortMovieReleaseDateAsc: 'Release Date (Oldest First)',
+  tmdbSortRevenueDesc: 'Revenue (High to Low)',
+  tmdbSortRevenueAsc: 'Revenue (Low to High)',
+  tmdbSortRatingDesc: 'Rating (High to Low)',
+  tmdbSortRatingAsc: 'Rating (Low to High)',
+  tmdbSortVoteCountDesc: 'Vote Count (High to Low)',
+  tmdbSortVoteCountAsc: 'Vote Count (Low to High)',
+  tmdbSortTitleAsc: 'Title (A to Z)',
+  tmdbSortTitleDesc: 'Title (Z to A)',
+  tmdbSortOriginalTitleAsc: 'Original Title (A to Z)',
+  tmdbSortOriginalTitleDesc: 'Original Title (Z to A)',
+  tmdbSortTvFirstAirDateDesc: 'First Air Date (Newest First)',
+  tmdbSortTvFirstAirDateAsc: 'First Air Date (Oldest First)',
+  tmdbSortNameAsc: 'Name (A to Z)',
+  tmdbSortNameDesc: 'Name (Z to A)',
+  tmdbSortOriginalNameAsc: 'Original Name (A to Z)',
+  tmdbSortOriginalNameDesc: 'Original Name (Z to A)',
   defaultOrder: 'Default order (as provided by source)',
   reverseOrder: 'Reverse order',
   randomOrder: 'Random order (shuffled each sync)',
@@ -2636,6 +2660,23 @@ const CollectionFormConfigForm = ({
                         />
                       )}
 
+                      {/* TMDB Advanced Filters Section - show only for TMDB advanced_custom_tmdb subtype */}
+                      {isCollection &&
+                        typedValues.type === 'tmdb' &&
+                        typedValues.subtype === 'advanced_custom_tmdb' && (
+                          <TmdbAdvancedFiltersSection
+                            values={typedValues as CollectionFormConfig}
+                            setFieldValue={setFieldValue}
+                            errors={
+                              errors as FormikErrors<CollectionFormConfig>
+                            }
+                            touched={
+                              touched as FormikTouched<CollectionFormConfig>
+                            }
+                            isVisible={true}
+                          />
+                        )}
+
                       {/* Library Selection - only show for regular collections */}
                       {isCollection && (
                         <LibrarySelectionSection
@@ -2788,95 +2829,344 @@ const CollectionFormConfigForm = ({
 
                             {/* Item Order - available for all collection types except multi-source and recently_added */}
                             {values.type !== 'multi-source' &&
-                              values.type !== 'filtered_hub' && (
-                                <div className="form-row">
-                                  <label
-                                    htmlFor="sortOrder"
-                                    className="text-label"
-                                  >
-                                    {intl.formatMessage(messages.itemOrder)}
-                                  </label>
-                                  <div className="form-input-area">
-                                    <div className="form-input-field">
-                                      <Field
-                                        as="select"
-                                        id="sortOrder"
-                                        name="sortOrder"
-                                        value={
-                                          (values as CollectionFormConfig)
-                                            .sortOrder || 'default'
-                                        }
-                                        onChange={(
-                                          e: React.ChangeEvent<HTMLSelectElement>
-                                        ) => {
-                                          setFieldValue(
-                                            'sortOrder',
-                                            e.target.value
-                                          );
-                                        }}
+                              values.type !== 'filtered_hub' &&
+                              (() => {
+                                const isTmdbAdvancedFilters =
+                                  typedValues.type === 'tmdb' &&
+                                  typedValues.subtype ===
+                                    'advanced_custom_tmdb';
+
+                                if (!isTmdbAdvancedFilters) {
+                                  return (
+                                    <div className="form-row">
+                                      <label
+                                        htmlFor="sortOrder"
+                                        className="text-label"
                                       >
-                                        <>
-                                          <option value="default">
-                                            {intl.formatMessage(
-                                              messages.defaultOrder
-                                            )}
-                                          </option>
-                                          <option value="reverse">
-                                            {intl.formatMessage(
-                                              messages.reverseOrder
-                                            )}
-                                          </option>
-                                          <option value="random">
-                                            {intl.formatMessage(
-                                              messages.randomOrder
-                                            )}
-                                          </option>
-                                          <option value="imdb_rating_desc">
-                                            {intl.formatMessage(
-                                              messages.imdbRatingDesc
-                                            )}
-                                          </option>
-                                          <option value="imdb_rating_asc">
-                                            {intl.formatMessage(
-                                              messages.imdbRatingAsc
-                                            )}
-                                          </option>
-                                          <option value="release_date_desc">
-                                            {intl.formatMessage(
-                                              messages.releaseDateDesc
-                                            )}
-                                          </option>
-                                          <option value="release_date_asc">
-                                            {intl.formatMessage(
-                                              messages.releaseDateAsc
-                                            )}
-                                          </option>
-                                          <option value="date_added_desc">
-                                            {intl.formatMessage(
-                                              messages.dateAddedDesc
-                                            )}
-                                          </option>
-                                          <option value="date_added_asc">
-                                            {intl.formatMessage(
-                                              messages.dateAddedAsc
-                                            )}
-                                          </option>
-                                          <option value="alphabetical_asc">
-                                            {intl.formatMessage(
-                                              messages.alphabeticalAsc
-                                            )}
-                                          </option>
-                                          <option value="alphabetical_desc">
-                                            {intl.formatMessage(
-                                              messages.alphabeticalDesc
-                                            )}
-                                          </option>
-                                        </>
-                                      </Field>
+                                        {intl.formatMessage(messages.itemOrder)}
+                                      </label>
+                                      <div className="form-input-area">
+                                        <div className="form-input-field">
+                                          <Field
+                                            as="select"
+                                            id="sortOrder"
+                                            name="sortOrder"
+                                            value={
+                                              (values as CollectionFormConfig)
+                                                .sortOrder || 'default'
+                                            }
+                                            onChange={(
+                                              e: React.ChangeEvent<HTMLSelectElement>
+                                            ) => {
+                                              setFieldValue(
+                                                'sortOrder',
+                                                e.target.value
+                                              );
+                                            }}
+                                          >
+                                            <>
+                                              <option value="default">
+                                                {intl.formatMessage(
+                                                  messages.defaultOrder
+                                                )}
+                                              </option>
+                                              <option value="reverse">
+                                                {intl.formatMessage(
+                                                  messages.reverseOrder
+                                                )}
+                                              </option>
+                                              <option value="random">
+                                                {intl.formatMessage(
+                                                  messages.randomOrder
+                                                )}
+                                              </option>
+                                              <option value="imdb_rating_desc">
+                                                {intl.formatMessage(
+                                                  messages.imdbRatingDesc
+                                                )}
+                                              </option>
+                                              <option value="imdb_rating_asc">
+                                                {intl.formatMessage(
+                                                  messages.imdbRatingAsc
+                                                )}
+                                              </option>
+                                              <option value="release_date_desc">
+                                                {intl.formatMessage(
+                                                  messages.releaseDateDesc
+                                                )}
+                                              </option>
+                                              <option value="release_date_asc">
+                                                {intl.formatMessage(
+                                                  messages.releaseDateAsc
+                                                )}
+                                              </option>
+                                              <option value="date_added_desc">
+                                                {intl.formatMessage(
+                                                  messages.dateAddedDesc
+                                                )}
+                                              </option>
+                                              <option value="date_added_asc">
+                                                {intl.formatMessage(
+                                                  messages.dateAddedAsc
+                                                )}
+                                              </option>
+                                              <option value="alphabetical_asc">
+                                                {intl.formatMessage(
+                                                  messages.alphabeticalAsc
+                                                )}
+                                              </option>
+                                              <option value="alphabetical_desc">
+                                                {intl.formatMessage(
+                                                  messages.alphabeticalDesc
+                                                )}
+                                              </option>
+                                            </>
+                                          </Field>
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                </div>
-                              )}
+                                  );
+                                }
+
+                                const selectedLibraryIds =
+                                  (typedValues.libraryIds as string[]) || [];
+                                const hasAllLibraries =
+                                  selectedLibraryIds.includes('all');
+
+                                const selectedLibraries = hasAllLibraries
+                                  ? libraries
+                                  : selectedLibraryIds
+                                      .map((libId) =>
+                                        libraries.find((l) => l.key === libId)
+                                      )
+                                      .filter((l): l is NonNullable<typeof l> =>
+                                        Boolean(l)
+                                      );
+
+                                const hasMovieLibraries =
+                                  selectedLibraries.some(
+                                    (l) => l.type === 'movie'
+                                  );
+                                const hasTvLibraries = selectedLibraries.some(
+                                  (l) => l.type === 'show'
+                                );
+
+                                return (
+                                  <>
+                                    {hasMovieLibraries && (
+                                      <div className="form-row">
+                                        <label
+                                          htmlFor="tmdbMovieSortBy"
+                                          className="text-label"
+                                        >
+                                          {intl.formatMessage(
+                                            messages.tmdbMovieSortOrder
+                                          )}
+                                        </label>
+                                        <div className="form-input-area">
+                                          <div className="form-input-field">
+                                            <Field
+                                              as="select"
+                                              id="tmdbMovieSortBy"
+                                              name="tmdbMovieSortBy"
+                                              value={
+                                                ('tmdbMovieSortBy' in values &&
+                                                  values.tmdbMovieSortBy) ||
+                                                'popularity.desc'
+                                              }
+                                              onChange={(
+                                                e: React.ChangeEvent<HTMLSelectElement>
+                                              ) => {
+                                                setFieldValue(
+                                                  'tmdbMovieSortBy',
+                                                  e.target.value
+                                                );
+                                              }}
+                                            >
+                                              <option value="popularity.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortPopularityDesc
+                                                )}
+                                              </option>
+                                              <option value="popularity.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortPopularityAsc
+                                                )}
+                                              </option>
+                                              <option value="random">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRandom
+                                                )}
+                                              </option>
+                                              <option value="primary_release_date.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortMovieReleaseDateDesc
+                                                )}
+                                              </option>
+                                              <option value="primary_release_date.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortMovieReleaseDateAsc
+                                                )}
+                                              </option>
+                                              <option value="revenue.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRevenueDesc
+                                                )}
+                                              </option>
+                                              <option value="revenue.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRevenueAsc
+                                                )}
+                                              </option>
+                                              <option value="vote_average.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRatingDesc
+                                                )}
+                                              </option>
+                                              <option value="vote_average.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRatingAsc
+                                                )}
+                                              </option>
+                                              <option value="vote_count.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortVoteCountDesc
+                                                )}
+                                              </option>
+                                              <option value="vote_count.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortVoteCountAsc
+                                                )}
+                                              </option>
+                                              <option value="title.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortTitleAsc
+                                                )}
+                                              </option>
+                                              <option value="title.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortTitleDesc
+                                                )}
+                                              </option>
+                                              <option value="original_title.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortOriginalTitleAsc
+                                                )}
+                                              </option>
+                                              <option value="original_title.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortOriginalTitleDesc
+                                                )}
+                                              </option>
+                                            </Field>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {hasTvLibraries && (
+                                      <div className="form-row">
+                                        <label
+                                          htmlFor="tmdbTvSortBy"
+                                          className="text-label"
+                                        >
+                                          {intl.formatMessage(
+                                            messages.tmdbTvSortOrder
+                                          )}
+                                        </label>
+                                        <div className="form-input-area">
+                                          <div className="form-input-field">
+                                            <Field
+                                              as="select"
+                                              id="tmdbTvSortBy"
+                                              name="tmdbTvSortBy"
+                                              value={
+                                                ('tmdbTvSortBy' in values &&
+                                                  values.tmdbTvSortBy) ||
+                                                'popularity.desc'
+                                              }
+                                              onChange={(
+                                                e: React.ChangeEvent<HTMLSelectElement>
+                                              ) => {
+                                                setFieldValue(
+                                                  'tmdbTvSortBy',
+                                                  e.target.value
+                                                );
+                                              }}
+                                            >
+                                              <option value="popularity.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortPopularityDesc
+                                                )}
+                                              </option>
+                                              <option value="popularity.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortPopularityAsc
+                                                )}
+                                              </option>
+                                              <option value="random">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRandom
+                                                )}
+                                              </option>
+                                              <option value="first_air_date.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortTvFirstAirDateDesc
+                                                )}
+                                              </option>
+                                              <option value="first_air_date.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortTvFirstAirDateAsc
+                                                )}
+                                              </option>
+                                              <option value="vote_average.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRatingDesc
+                                                )}
+                                              </option>
+                                              <option value="vote_average.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortRatingAsc
+                                                )}
+                                              </option>
+                                              <option value="vote_count.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortVoteCountDesc
+                                                )}
+                                              </option>
+                                              <option value="vote_count.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortVoteCountAsc
+                                                )}
+                                              </option>
+                                              <option value="name.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortNameAsc
+                                                )}
+                                              </option>
+                                              <option value="name.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortNameDesc
+                                                )}
+                                              </option>
+                                              <option value="original_name.asc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortOriginalNameAsc
+                                                )}
+                                              </option>
+                                              <option value="original_name.desc">
+                                                {intl.formatMessage(
+                                                  messages.tmdbSortOriginalNameDesc
+                                                )}
+                                              </option>
+                                            </Field>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
 
                             {/* Collection Visibility */}
                             <div className="form-row">
@@ -4135,6 +4425,17 @@ const CollectionFormConfigForm = ({
                                 | undefined)
                             : undefined,
                         maxItems: values.maxItems,
+                        // TMDB streaming service + advanced discover fields
+                        tmdbAdvancedFilters:
+                          valuesRecord.tmdbAdvancedFilters as
+                            | Record<string, unknown>
+                            | undefined,
+                        tmdbMovieSortBy: valuesRecord.tmdbMovieSortBy as
+                          | string
+                          | undefined,
+                        tmdbTvSortBy: valuesRecord.tmdbTvSortBy as
+                          | string
+                          | undefined,
                         timePeriod: values.timePeriod,
                         minimumPlays: values.minimumPlays,
                         customDays: values.customDays,

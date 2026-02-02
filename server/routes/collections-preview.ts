@@ -905,6 +905,10 @@ async function processPreviewAsync(
     subtype?: string;
     libraryId: string;
     customUrl?: string;
+    // TMDB advanced discover filters
+    tmdbAdvancedFilters?: CollectionConfig['tmdbAdvancedFilters'];
+    tmdbMovieSortBy?: string;
+    tmdbTvSortBy?: string;
     maxItems?: number;
     timePeriod?: string;
     minimumPlays?: number;
@@ -941,6 +945,9 @@ async function processPreviewAsync(
       subtype,
       libraryId,
       customUrl,
+      tmdbAdvancedFilters,
+      tmdbMovieSortBy,
+      tmdbTvSortBy,
       maxItems,
       timePeriod,
       minimumPlays,
@@ -1071,6 +1078,13 @@ async function processPreviewAsync(
       previewConfigRecord.networksCountry = country;
     }
 
+    if (type === 'tmdb' && subtype === 'advanced_custom_tmdb') {
+      // Handle TMDB Custom Advanced Filters collections
+      previewConfigRecord.tmdbAdvancedFilters = tmdbAdvancedFilters;
+      previewConfigRecord.tmdbMovieSortBy = tmdbMovieSortBy;
+      previewConfigRecord.tmdbTvSortBy = tmdbTvSortBy;
+    }
+
     if (type === 'originals') {
       previewConfigRecord.provider = provider;
     }
@@ -1085,6 +1099,7 @@ async function processPreviewAsync(
         libraryId: previewConfig.libraryId,
         network: previewConfigRecord.network,
         country: previewConfigRecord.country,
+        hasAdvancedFilters: !!previewConfigRecord.tmdbAdvancedFilters,
       },
     });
 

@@ -162,6 +162,19 @@ export interface PreExistingCollectionConfig {
 // Form metadata type for identifying config handling behavior
 export type FormConfigType = 'collection' | 'hub' | 'preExisting';
 
+export type TmdbAdvancedFilters = {
+  readonly filterGroups?: readonly {
+    readonly id: string;
+    readonly operator: 'and' | 'or'; // How this group combines with previous groups
+    readonly filters: readonly {
+      readonly id: string;
+      readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
+      readonly operator: 'and' | 'or'; // For multi-value fields (comma vs pipe)
+      readonly value: string | number | boolean;
+    }[];
+  }[];
+};
+
 export interface CollectionFormConfig {
   readonly id: string; // Generated unique identifier
   readonly name: string; // User-entered collection name
@@ -228,6 +241,7 @@ export interface CollectionFormConfig {
     | string[]
     | number[]
     | Record<string, string>
+    | TmdbAdvancedFilters
     | null
     | {
         usersHome: boolean;
@@ -343,6 +357,14 @@ export interface CollectionFormConfig {
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDB custom list fields
   readonly tmdbCustomCollectionUrl?: string; // Custom TMDB list/collection URL
+  // TMDB streaming service fields
+  readonly watchProviderId?: number; // TMDB watch provider ID (e.g., 337 for Disney+)
+  readonly region?: string; // Country region for streaming services (default: 'US')
+  // TMDB discover sorting (for TMDB advanced_custom_tmdb advanced discover)
+  readonly tmdbMovieSortBy?: string; // TMDB /discover/movie sort_by
+  readonly tmdbTvSortBy?: string; // TMDB /discover/tv sort_by
+  // TMDB advanced discover filters
+  readonly tmdbAdvancedFilters?: TmdbAdvancedFilters;
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
@@ -458,8 +480,10 @@ export interface CollectionConfigCreateRequest {
   // Note: isActive is NOT included - backend computes from timeRestriction
   readonly maxItems?: number;
   readonly mediaType?: MediaType;
-  readonly libraryId: string;
-  readonly libraryName: string;
+  readonly libraryId?: string;
+  readonly libraryName?: string;
+  readonly libraryIds?: string[];
+  readonly libraryNames?: string[];
   readonly sortOrderHome?: number;
   readonly sortOrderLibrary?: number;
   readonly randomizeHomeOrder?: boolean;
@@ -529,6 +553,9 @@ export interface CollectionConfigCreateRequest {
   readonly overseerrSonarrTags?: number[];
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomCollectionUrl?: string;
+  readonly tmdbMovieSortBy?: string;
+  readonly tmdbTvSortBy?: string;
+  readonly tmdbAdvancedFilters?: Record<string, unknown>;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
   readonly networksCountry?: string;
@@ -614,6 +641,8 @@ export const toCollectionCreateRequest = (
     mediaType: config.mediaType,
     libraryId: config.libraryId,
     libraryName: config.libraryName,
+    libraryIds: config.libraryIds,
+    libraryNames: config.libraryNames,
     sortOrderHome: config.sortOrderHome,
     sortOrderLibrary: config.sortOrderLibrary,
     randomizeHomeOrder: config.randomizeHomeOrder,
@@ -663,6 +692,11 @@ export const toCollectionCreateRequest = (
     overseerrSonarrTags: config.overseerrSonarrTags,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
+    tmdbMovieSortBy: config.tmdbMovieSortBy,
+    tmdbTvSortBy: config.tmdbTvSortBy,
+    tmdbAdvancedFilters: config.tmdbAdvancedFilters as unknown as
+      | Record<string, unknown>
+      | undefined,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,

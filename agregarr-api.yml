@@ -655,6 +655,49 @@ components:
           description: 'Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)'
           example: 'https://www.themoviedb.org/list/310-my-movie-list'
           nullable: true
+        tmdbMovieSortBy:
+          type: string
+          description: 'TMDB /discover/movie sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - original_title.asc
+            - original_title.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - revenue.asc
+            - revenue.desc
+            - primary_release_date.asc
+            - primary_release_date.desc
+            - title.asc
+            - title.desc
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbTvSortBy:
+          type: string
+          description: 'TMDB /discover/tv sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - first_air_date.asc
+            - first_air_date.desc
+            - name.asc
+            - name.desc
+            - original_name.asc
+            - original_name.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbAdvancedFilters:
+          type: object
+          description: Advanced TMDB discover filters configuration
+          additionalProperties: true
+          nullable: true
         imdbCustomListUrl:
           type: string
           description: 'Custom IMDb list or watchlist URL (e.g., https://www.imdb.com/list/ls123456789/ or https://www.imdb.com/user/ur12345678/watchlist)'
@@ -1250,6 +1293,49 @@ components:
           type: string
           description: 'Custom TMDB collection or list URL (e.g., https://www.themoviedb.org/collection/123456 or https://www.themoviedb.org/list/310)'
           example: 'https://www.themoviedb.org/list/310-my-movie-list'
+          nullable: true
+        tmdbMovieSortBy:
+          type: string
+          description: 'TMDB /discover/movie sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - original_title.asc
+            - original_title.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - revenue.asc
+            - revenue.desc
+            - primary_release_date.asc
+            - primary_release_date.desc
+            - title.asc
+            - title.desc
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbTvSortBy:
+          type: string
+          description: 'TMDB /discover/tv sort_by (only for TMDB Custom Advanced Filters)'
+          enum:
+            - first_air_date.asc
+            - first_air_date.desc
+            - name.asc
+            - name.desc
+            - original_name.asc
+            - original_name.desc
+            - popularity.asc
+            - popularity.desc
+            - random
+            - vote_average.asc
+            - vote_average.desc
+            - vote_count.asc
+            - vote_count.desc
+          nullable: true
+        tmdbAdvancedFilters:
+          type: object
+          description: Advanced TMDB discover filters configuration
+          additionalProperties: true
           nullable: true
         imdbCustomListUrl:
           type: string
@@ -5703,6 +5789,188 @@ components:
       name: X-Api-Key
 
 paths:
+  /discover/genres/movie:
+    get:
+      summary: Get movie genres (discover)
+      description: Returns TMDB movie genres wrapped in an object for discover/advanced filter UIs.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: language
+          required: false
+          schema:
+            type: string
+            example: en-US
+          description: Language to return genres in (TMDB locale).
+      responses:
+        '200':
+          description: Movie genres
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 28
+                        name:
+                          type: string
+                          example: Action
+        '500':
+          description: Unable to retrieve movie genres
+
+  /discover/genres/tv:
+    get:
+      summary: Get TV genres (discover)
+      description: Returns TMDB TV genres wrapped in an object for discover/advanced filter UIs.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: language
+          required: false
+          schema:
+            type: string
+            example: en-US
+          description: Language to return genres in (TMDB locale).
+      responses:
+        '200':
+          description: TV genres
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 10759
+                        name:
+                          type: string
+                          example: Action & Adventure
+        '500':
+          description: Unable to retrieve TV genres
+
+  /countries:
+    get:
+      summary: Get countries
+      description: Returns list of countries from TMDB configuration.
+      tags:
+        - tmdb
+      responses:
+        '200':
+          description: Countries list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    iso_3166_1:
+                      type: string
+                      example: US
+                    english_name:
+                      type: string
+                      example: United States of America
+                    native_name:
+                      type: string
+                      example: United States
+        '500':
+          description: Unable to retrieve countries
+
+  /discover/watch-providers/movie:
+    get:
+      summary: Get movie watch providers (discover)
+      description: Returns TMDB movie watch providers for the specified region.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: region
+          required: false
+          schema:
+            type: string
+            example: US
+          description: ISO 3166-1 region code (defaults to US).
+      responses:
+        '200':
+          description: Movie watch providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    provider_id:
+                      type: integer
+                      example: 8
+                    provider_name:
+                      type: string
+                      example: Netflix
+                    logo_path:
+                      type: string
+                      nullable: true
+                      example: /9A1JSVmSxsyaBK4SUFsYVqbAYfW.jpg
+                    display_priority:
+                      type: integer
+                      nullable: true
+                      example: 1
+        '500':
+          description: Unable to retrieve movie watch providers
+
+  /discover/watch-providers/tv:
+    get:
+      summary: Get TV watch providers (discover)
+      description: Returns TMDB TV watch providers for the specified region.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: region
+          required: false
+          schema:
+            type: string
+            example: US
+          description: ISO 3166-1 region code (defaults to US).
+      responses:
+        '200':
+          description: TV watch providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    provider_id:
+                      type: integer
+                      example: 9
+                    provider_name:
+                      type: string
+                      example: Amazon Prime Video
+                    logo_path:
+                      type: string
+                      nullable: true
+                      example: /emthp39XA2YScoYL1p0sdbAH2WA.jpg
+                    display_priority:
+                      type: integer
+                      nullable: true
+                      example: 1
+        '500':
+          description: Unable to retrieve TV watch providers
+
   /genres/combined:
     get:
       summary: Get combined movie and TV genres
@@ -7331,6 +7599,48 @@ paths:
                   type: string
                   description: Provider name for originals collections
                   example: 'netflix'
+                tmdbAdvancedFilters:
+                  type: object
+                  description: Advanced TMDB discover filters configuration
+                  additionalProperties: true
+                tmdbMovieSortBy:
+                  type: string
+                  description: 'TMDB /discover/movie sort_by (only for TMDB Custom Advanced Filters)'
+                  enum:
+                    - original_title.asc
+                    - original_title.desc
+                    - popularity.asc
+                    - popularity.desc
+                    - random
+                    - revenue.asc
+                    - revenue.desc
+                    - primary_release_date.asc
+                    - primary_release_date.desc
+                    - title.asc
+                    - title.desc
+                    - vote_average.asc
+                    - vote_average.desc
+                    - vote_count.asc
+                    - vote_count.desc
+                  nullable: true
+                tmdbTvSortBy:
+                  type: string
+                  description: 'TMDB /discover/tv sort_by (only for TMDB Custom Advanced Filters)'
+                  enum:
+                    - first_air_date.asc
+                    - first_air_date.desc
+                    - name.asc
+                    - name.desc
+                    - original_name.asc
+                    - original_name.desc
+                    - popularity.asc
+                    - popularity.desc
+                    - random
+                    - vote_average.asc
+                    - vote_average.desc
+                    - vote_count.asc
+                    - vote_count.desc
+                  nullable: true
                 isMultiSource:
                   type: boolean
                   description: Whether this is a multi-source collection
@@ -7400,6 +7710,10 @@ paths:
                         type: string
                         description: Country code for network sources
                         example: 'us'
+                      tmdbAdvancedFilters:
+                        type: object
+                        description: Advanced TMDB discover filters configuration
+                        additionalProperties: true
                 combineMode:
                   type: string
                   description: How to combine items from multiple sources
@@ -11484,6 +11798,140 @@ paths:
                 type: array
                 items:
                   type: string
+  /search/person:
+    get:
+      summary: Search TMDB people
+      description: Search for people (actors, crew, etc.) on TMDB by name.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+            example: Rachel McAdams
+          description: The search query string.
+      responses:
+        '200':
+          description: Person search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: integer
+                  total_results:
+                    type: integer
+                  total_pages:
+                    type: integer
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 53714
+                        name:
+                          type: string
+                          example: Rachel McAdams
+                        known_for_department:
+                          type: string
+                          example: Acting
+                        popularity:
+                          type: number
+                        profile_path:
+                          type: string
+                          nullable: true
+        '500':
+          description: Unable to search for people
+  /search/keyword:
+    get:
+      summary: Search TMDB keywords
+      description: Search for keywords on TMDB by name.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+            example: superhero
+          description: The search query string.
+      responses:
+        '200':
+          description: Keyword search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: integer
+                  total_results:
+                    type: integer
+                  total_pages:
+                    type: integer
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 9715
+                        name:
+                          type: string
+                          example: superhero
+        '500':
+          description: Unable to search for keywords
+  /search/company:
+    get:
+      summary: Search TMDB companies
+      description: Search for production companies on TMDB by name.
+      tags:
+        - tmdb
+      parameters:
+        - in: query
+          name: query
+          required: true
+          schema:
+            type: string
+            example: Marvel
+          description: The search query string.
+      responses:
+        '200':
+          description: Company search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: integer
+                  total_results:
+                    type: integer
+                  total_pages:
+                    type: integer
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 420
+                        name:
+                          type: string
+                          example: Marvel Studios
+                        logo_path:
+                          type: string
+                          nullable: true
+        '500':
+          description: Unable to search for companies
   /keyword/{keywordId}:
     get:
       summary: Get keyword
