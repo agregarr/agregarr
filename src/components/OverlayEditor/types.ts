@@ -286,6 +286,9 @@ export interface OverlayRenderContext {
   // Collection membership (populated at runtime from Plex collection contents)
   collection?: string[]; // Array of collection IDs this item belongs to
 
+  // Plex Labels (item-level tags applied in Plex)
+  plexLabels?: string[]; // Array of Plex label tags on this item
+
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
   mediaType: 'movie' | 'show';
@@ -660,6 +663,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
     { field: 'radarrTags', label: 'Radarr Tags', example: 'english-audio' },
     { field: 'sonarrTags', label: 'Sonarr Tags', example: 'german-audio' },
+    { field: 'plexLabels', label: 'Plex Label', example: '4K DV' },
     {
       field: 'daysUntilAction',
       label: 'Days Until Maintainerr Action',
@@ -779,6 +783,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     inRadarr: true,
     downloaded: false,
     daysUntilAction: 5,
+    plexLabels: ['4K DV', 'HDR'],
     isPlaceholder: true,
     mediaType: 'movie',
     'contentRating:US': 'R',
@@ -843,6 +848,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     inSonarr: true,
     downloaded: true,
     daysUntilAction: 12,
+    plexLabels: ['Kids'],
     isPlaceholder: false,
     mediaType: 'show',
     'contentRating:US': 'TV-MA',
