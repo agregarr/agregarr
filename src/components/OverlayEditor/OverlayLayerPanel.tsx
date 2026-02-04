@@ -1282,15 +1282,15 @@ export const OverlayLayerPanel: React.FC<OverlayLayerPanelProps> = ({
                               <option value="DD/MM/YYYY">20/12/2025</option>
                               <option value="DD-MM-YYYY">20-12-2025</option>
                               <option value="DD/MM">20/12</option>
-                              <option value="D/M">5/1</option>
+                              <option value="D/M">5/12</option>
                               <option value="MM/DD">12/20</option>
-                              <option value="M/D">1/5</option>
+                              <option value="M/D">12/5</option>
                             </optgroup>
                             <optgroup label="With Weekday">
                               <option value="DDD DD/MM">MON 20/12</option>
-                              <option value="DDD D/M">MON 5/1</option>
+                              <option value="DDD D/M">MON 5/12</option>
                               <option value="DDD MM/DD">MON 12/20</option>
-                              <option value="DDD M/D">MON 1/5</option>
+                              <option value="DDD M/D">MON 12/5</option>
                               <option value="DDDD">MONDAY</option>
                               <option value="DDD">MON</option>
                             </optgroup>
