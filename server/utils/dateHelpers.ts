@@ -227,12 +227,24 @@ export function formatDate(date: Date | string, format: string): string {
       return `${pad(month)}/${pad(day)}/${year}`;
     case 'DD/MM':
       return `${pad(day)}/${pad(month)}`;
+    case 'D/M':
+      return `${day}/${month}`;
     case 'MM/DD':
       return `${pad(month)}/${pad(day)}`;
+    case 'M/D':
+      return `${month}/${day}`;
     case 'DDD DD/MM':
       return `${dayName} ${pad(day)}/${pad(month)}`;
+    case 'DDD D/M':
+      return `${dayName} ${day}/${month}`;
+    case 'DDD MM/DD':
+      return `${dayName} ${pad(month)}/${pad(day)}`;
+    case 'DDD M/D':
+      return `${dayName} ${month}/${day}`;
     case 'DDDD':
       return dayNameFull;
+    case 'DDD':
+      return dayName;
     case 'MMM DD':
       return `${monthName} ${pad(day)}`;
     case 'DD MMM':
