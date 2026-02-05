@@ -364,6 +364,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       type?: string;
       subtype?: string;
       mediaType?: 'movie' | 'tv';
+      libraryId?: string;
     }[];
   }>(isOpen ? '/api/v1/collections' : null);
 
@@ -373,8 +374,23 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       id: string;
       name: string;
       mediaType?: 'movie' | 'tv';
+      libraryId?: string;
     }[]
   >(isOpen ? '/api/v1/preexisting' : null);
+
+  // Fetch libraries for grouping
+  const { data: librariesData } = useSWR<{ key: string; name: string }[]>(
+    isOpen ? '/api/v1/settings/plex/libraries' : null
+  );
+
+  // Create a map of libraryId (key) to libraryName
+  const libraryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (librariesData || []).forEach((lib) => {
+      map.set(lib.key, lib.name);
+    });
+    return map;
+  }, [librariesData]);
 
   // Combine both collection types for the dropdown
   const allPreviewCollections = useMemo(() => {
@@ -386,6 +402,7 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
         subtype: c.subtype,
         mediaType: c.mediaType || ('movie' as const),
         source: 'agregarr' as const,
+        libraryId: c.libraryId,
       })
     );
 
@@ -396,10 +413,34 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       subtype: undefined,
       mediaType: c.mediaType || ('movie' as const),
       source: 'preexisting' as const,
+      libraryId: c.libraryId,
     }));
 
     return [...agregarrCollections, ...preExisting];
   }, [collectionsData, preExistingData]);
+
+  // Group collections by library for the dropdown
+  const collectionsByLibrary = useMemo(() => {
+    const grouped = new Map<string, typeof allPreviewCollections>();
+
+    allPreviewCollections.forEach((collection) => {
+      const libraryId = collection.libraryId || 'unknown';
+      if (!grouped.has(libraryId)) {
+        grouped.set(libraryId, []);
+      }
+      const collections = grouped.get(libraryId);
+      if (collections) {
+        collections.push(collection);
+      }
+    });
+
+    // Sort collections within each library by name
+    grouped.forEach((collections) => {
+      collections.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    return grouped;
+  }, [allPreviewCollections]);
 
   // Fetch source colors for background rendering
   const { data: sourceColorsData } = useSWR<{
@@ -429,15 +470,29 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
       setName(initialName);
       setDescription(initialDescription);
       setSelectedElementId(undefined);
+
+      // Reset preview collection selection unless external config is provided
+      if (!externalPreviewConfig) {
+        setInternalPreviewConfig(undefined);
+        setSelectedPreviewCollectionId('');
+        setPreviewPosterUrls([]);
+      }
     }
-  }, [isOpen, initialData, initialName, initialDescription]);
+  }, [
+    isOpen,
+    initialData,
+    initialName,
+    initialDescription,
+    externalPreviewConfig,
+  ]);
 
   // Keep dropdown selection in sync with preview config
+  // Priority: id first (matches dropdown option values), then sourceName, then name
   useEffect(() => {
     if (previewCollectionConfig) {
       setSelectedPreviewCollectionId(
-        previewCollectionConfig.sourceName ||
-          previewCollectionConfig.id ||
+        previewCollectionConfig.id ||
+          previewCollectionConfig.sourceName ||
           previewCollectionConfig.name
       );
     } else {
@@ -677,15 +732,31 @@ export const PosterEditorModal: React.FC<PosterEditorModalProps> = ({
                         <option value="">
                           {intl.formatMessage(messages.selectCollection)}
                         </option>
-                        {allPreviewCollections.map((collection) => (
-                          <option key={collection.id} value={collection.id}>
-                            {buildPreviewCollectionName(collection)} (
-                            {collection.source === 'preexisting'
-                              ? 'Pre-existing'
-                              : collection.type || 'Unknown'}
-                            )
-                          </option>
-                        ))}
+                        {Array.from(collectionsByLibrary.entries()).map(
+                          ([libraryId, collections]) => (
+                            <optgroup
+                              key={libraryId}
+                              label={
+                                libraryNameMap.get(libraryId) ||
+                                libraryId ||
+                                'Unknown Library'
+                              }
+                            >
+                              {collections.map((collection) => (
+                                <option
+                                  key={collection.id}
+                                  value={collection.id}
+                                >
+                                  {buildPreviewCollectionName(collection)} (
+                                  {collection.source === 'preexisting'
+                                    ? 'Pre-existing'
+                                    : collection.type || 'Unknown'}
+                                  )
+                                </option>
+                              ))}
+                            </optgroup>
+                          )
+                        )}
                       </select>
                       <p className="mt-1 text-xs text-stone-500">
                         {intl.formatMessage(messages.sampleCollectionHelp)}
