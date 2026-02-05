@@ -439,6 +439,7 @@ export interface PreExistingCollectionConfig {
   enableCustomWallpaper?: boolean; // Enable custom wallpaper sync to Plex
   enableCustomSummary?: boolean; // Enable custom summary sync to Plex
   enableCustomTheme?: boolean; // Enable custom theme sync to Plex
+  applyOverlaysDuringSync?: boolean; // Apply item overlays during sync
 }
 
 export interface PlexSettings {
