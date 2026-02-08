@@ -329,10 +329,10 @@ class PlexSmartCollectionManager {
           )}`;
         }
       } else if (subtype === 'recently_released') {
-        // Recently Released: Sort by Release Date (originallyAvailableAt), exclude placeholders
+        // Recently Released: Sort by Release Date, exclude placeholders
         if (mediaType === 'tv') {
-          // TV Shows (Episodes): Sort by air date, filter out "Trailer (Placeholder)"
-          const sortParam = 'originallyAvailableAt:desc';
+          // TV Shows: Sort by most recent episode air date, filter out "Trailer (Placeholder)"
+          const sortParam = 'episode.originallyAvailableAt:desc';
           const titleFilter = encodeURIComponent('Trailer (Placeholder)');
           filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
         } else {
@@ -703,10 +703,10 @@ class PlexSmartCollectionManager {
           )}`;
         }
       } else if (subtype === 'recently_released') {
-        // Recently Released: Sort by Release Date (originallyAvailableAt), exclude placeholders
+        // Recently Released: Sort by Release Date, exclude placeholders
         if (mediaType === 'tv') {
-          // TV Shows (Episodes): Sort by air date, filter out "Trailer (Placeholder)"
-          const sortParam = 'originallyAvailableAt:desc';
+          // TV Shows: Sort by most recent episode air date, filter out "Trailer (Placeholder)"
+          const sortParam = 'episode.originallyAvailableAt:desc';
           const titleFilter = encodeURIComponent('Trailer (Placeholder)');
           filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
         } else {
