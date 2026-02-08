@@ -41,13 +41,6 @@ type PersonTmdbInfo = {
   biography?: string;
 };
 
-type TmdbSearchResult = {
-  media_type?: string;
-  name?: string;
-  id?: number | string;
-  profile_path?: string;
-};
-
 type PersonCollectionSubtype = 'directors' | 'actors';
 
 const DEFAULT_SEPARATOR_POSTER = 'generated_separator.jpg';
@@ -153,7 +146,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
   ): Promise<boolean> {
     try {
       const info =
-        personInfo ?? (await this.fetchTmdbPersonInfo(personName, undefined));
+        personInfo ??
+        (await this.fetchTmdbPersonInfo(personName, undefined, subtype));
       const biography = info?.biography;
       const personLabel = this.getPersonTypeLabel(subtype);
 
@@ -351,7 +345,8 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
 
   private async fetchTmdbPersonInfo(
     personName: string,
-    libraryId?: string
+    libraryId?: string,
+    subtype?: PersonCollectionSubtype
   ): Promise<PersonTmdbInfo | null> {
     try {
       const language = await getTmdbLanguage(libraryId);
@@ -359,19 +354,44 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
         originalLanguage: language,
       });
 
-      const searchResults = await tmdbClient.searchMulti({
+      const searchResults = await tmdbClient.searchPerson({
         query: personName,
         language,
       });
 
-      const results = (searchResults.results ?? []) as TmdbSearchResult[];
+      const results = searchResults.results ?? [];
 
-      const personResult =
-        results.find(
-          (result) =>
-            result.media_type === 'person' &&
-            result.name?.toLowerCase() === personName.toLowerCase()
-        ) || results.find((result) => result.media_type === 'person');
+      // Map subtype to TMDB department
+      const preferredDepartment =
+        subtype === 'directors'
+          ? 'Directing'
+          : subtype === 'actors'
+          ? 'Acting'
+          : undefined;
+
+      // Filter to exact name matches first, fall back to all results
+      const normalizedName = personName.trim().toLowerCase();
+      const nameMatches = results.filter(
+        (r) => r.name?.trim().toLowerCase() === normalizedName
+      );
+      const candidates = nameMatches.length > 0 ? nameMatches : results;
+
+      // Re-rank TMDB results: department match > profile image > popularity.
+      // Original API order (relevance) is preserved as final tiebreaker.
+      const personResult = [...candidates].sort((a, b) => {
+        if (preferredDepartment) {
+          const aMatch = a.known_for_department === preferredDepartment ? 1 : 0;
+          const bMatch = b.known_for_department === preferredDepartment ? 1 : 0;
+          if (aMatch !== bMatch) return bMatch - aMatch;
+        }
+        const aImg = a.profile_path ? 1 : 0;
+        const bImg = b.profile_path ? 1 : 0;
+        if (aImg !== bImg) return bImg - aImg;
+        const popDiff = (b.popularity ?? 0) - (a.popularity ?? 0);
+        if (popDiff !== 0) return popDiff;
+        // Preserve TMDB relevance ordering as final tiebreaker
+        return candidates.indexOf(a) - candidates.indexOf(b);
+      })[0];
 
       if (!personResult || personResult.id == null) {
         logger.debug(
@@ -870,8 +890,11 @@ export class PlexLibraryCollectionSync extends BaseCollectionSync<'plex'> {
             mediaType
           );
           const personInfo =
-            (await this.fetchTmdbPersonInfo(person.name, config.libraryId)) ??
-            undefined;
+            (await this.fetchTmdbPersonInfo(
+              person.name,
+              config.libraryId,
+              subtype
+            )) ?? undefined;
           const labelSuffix =
             personInfo?.tmdbPersonId?.toString() ??
             this.sanitizePersonNameForLabel(person.name);

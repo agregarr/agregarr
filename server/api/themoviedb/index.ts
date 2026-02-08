@@ -1479,9 +1479,11 @@ class TheMovieDb extends ExternalAPI {
   public async searchPerson({
     query,
     page = 1,
+    language,
   }: {
     query: string;
     page?: number;
+    language?: string;
   }): Promise<TmdbPersonSearchResponse> {
     try {
       const data = await this.get<TmdbPersonSearchResponse>(
@@ -1490,6 +1492,7 @@ class TheMovieDb extends ExternalAPI {
           params: {
             query,
             page,
+            language,
           },
         },
         86400 // 24 hours
