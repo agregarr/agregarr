@@ -583,8 +583,13 @@ export class CollectionSyncService {
               autoApproveTV: config.autoApproveTV,
               maxSeasonsToRequest: config.maxSeasonsToRequest,
               seasonsPerShowLimit: config.seasonsPerShowLimit,
+              seasonGrabOrder: config.seasonGrabOrder,
               maxPositionToProcess: config.maxPositionToProcess,
               minimumYear: config.minimumYear,
+              minimumImdbRating: config.minimumImdbRating,
+              minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
+              minimumRottenTomatoesAudienceRating:
+                config.minimumRottenTomatoesAudienceRating,
               filterSettings: config.filterSettings,
               directDownloadRadarrServerId: config.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:
