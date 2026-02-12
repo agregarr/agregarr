@@ -205,6 +205,7 @@ export interface OverlayRenderContext {
   runtime?: number;
   runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
+  tvdbStatus?: string; // TV show status sourced from TVDB: 'RETURNING', 'AIRING', 'ENDED', 'PLANNED'
 
   // Plex Media Info (from actual file analysis)
   resolution?: string; // '4K', '1080p', '720p'
@@ -358,6 +359,11 @@ export const AVAILABLE_VARIABLES = {
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
+      example: 'RETURNING',
+    },
+    {
+      field: 'tvdbStatus',
+      label: 'TVDB Status (TV)',
       example: 'RETURNING',
     },
   ],
@@ -521,6 +527,11 @@ export const CONDITION_FIELD_CATEGORIES = {
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
+      example: 'RETURNING',
+    },
+    {
+      field: 'tvdbStatus',
+      label: 'TVDB Status (TV)',
       example: 'RETURNING',
     },
   ],
@@ -812,6 +823,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     runtime: 47,
     runtimeHHMM: '47m',
     tmdbStatus: 'ENDED',
+    tvdbStatus: 'ENDED',
     resolution: '1080p',
     width: 1920,
     height: 1080,

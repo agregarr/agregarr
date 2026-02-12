@@ -15,7 +15,7 @@ import { useToasts } from 'react-toast-notifications';
 import type { IconMapping } from './types';
 
 const messages = defineMessages({
-  editMappings: 'Edit Icon Mappings',
+  editIconMappings: 'Edit Icon Mappings',
   fieldLabel: 'Mappings for "{field}"',
   value: 'Value',
   icon: 'Icon',
@@ -26,7 +26,7 @@ const messages = defineMessages({
   noMappings: 'No mappings configured',
   noMappingsDesc: 'Add mappings to display icons for specific field values',
   valuePlaceholder: 'e.g., US, GB, DE...',
-  selectIcon: 'Select icon',
+  selectIconPrompt: 'Select icon',
   mappingCount: '{count} mapping(s) configured',
   duplicateValue: 'This value already has a mapping',
   loadingMappings: 'Loading mappings...',
@@ -214,7 +214,7 @@ const MappedIconMappingModal: React.FC<MappedIconMappingModalProps> = ({
       <Modal
         onCancel={handleCancel}
         onOk={handleSave}
-        title={intl.formatMessage(messages.editMappings)}
+        title={intl.formatMessage(messages.editIconMappings)}
         cancelText={intl.formatMessage(messages.cancel)}
         okText={intl.formatMessage(messages.save)}
         okDisabled={duplicateIndex !== null || isSaving}

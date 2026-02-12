@@ -6,6 +6,7 @@ import RottenTomatoes from '@server/api/rottentomatoes';
 import type { RadarrMovie } from '@server/api/servarr/radarr';
 import type { SonarrSeries } from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
+import TvdbAPI from '@server/api/tvdb';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import type { OverlayRenderContext } from './OverlayTemplateRenderer';
@@ -23,6 +24,21 @@ function getImdbClient(): ImdbAPI {
     sharedImdbClient = new ImdbAPI();
   }
   return sharedImdbClient;
+}
+
+/**
+ * Shared TVDB client for reuse across overlay operations
+ */
+let sharedTvdbClient: TvdbAPI | undefined;
+
+/**
+ * Get or create shared TVDB client
+ */
+function getTvdbClient(): TvdbAPI {
+  if (!sharedTvdbClient) {
+    sharedTvdbClient = new TvdbAPI();
+  }
+  return sharedTvdbClient;
 }
 
 /**
@@ -413,6 +429,68 @@ export async function buildRenderContext(
         }
 
         context.tmdbStatus = mappedStatus;
+      }
+
+      // TVDB Status (TV shows only)
+      if (mediaType === 'show') {
+        try {
+          // Extract TVDB ID: prefer Plex GUID, fallback to TMDB external_ids
+          let tvdbId: number | undefined;
+
+          if (item.Guid && Array.isArray(item.Guid)) {
+            const tvdbGuid = item.Guid.find((g) => g.id?.includes('tvdb://'));
+            if (tvdbGuid) {
+              const match = tvdbGuid.id.match(/tvdb:\/\/(\d+)/);
+              if (match) {
+                tvdbId = parseInt(match[1]);
+              }
+            }
+          }
+
+          if (!tvdbId && 'external_ids' in tmdbData) {
+            tvdbId = tmdbData.external_ids?.tvdb_id;
+          }
+
+          if (tvdbId) {
+            const tvdbClient = getTvdbClient();
+            const tvdbSeries = await tvdbClient.getSeriesById(tvdbId);
+            const rawTvdbStatus = tvdbSeries.status?.name ?? '';
+
+            let mappedTvdbStatus: string;
+            switch (rawTvdbStatus) {
+              case 'Continuing':
+                mappedTvdbStatus = 'RETURNING';
+                break;
+              case 'Ended':
+                mappedTvdbStatus = 'ENDED';
+                break;
+              case 'Upcoming':
+                mappedTvdbStatus = 'PLANNED';
+                break;
+              default:
+                mappedTvdbStatus = rawTvdbStatus.toUpperCase();
+            }
+
+            // Override to AIRING if an episode aired within the last 15 days
+            if (rawTvdbStatus === 'Continuing' && tvdbSeries.lastAired) {
+              const lastAired = new Date(tvdbSeries.lastAired);
+              const daysSinceAired = Math.floor(
+                (Date.now() - lastAired.getTime()) / (1000 * 60 * 60 * 24)
+              );
+              if (daysSinceAired <= 15) {
+                mappedTvdbStatus = 'AIRING';
+              }
+            }
+
+            context.tvdbStatus = mappedTvdbStatus;
+          }
+        } catch (error) {
+          logger.debug('Failed to fetch TVDB status', {
+            label: 'OverlayContextBuilder',
+            title: context.title,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
 
       // Content ratings / certifications (per-country)
