@@ -1238,20 +1238,41 @@ class PlexAPI {
 
   public async updateCollectionTitle(
     collectionRatingKey: string,
-    title: string
+    title: string,
+    libraryKey?: string
   ): Promise<void> {
     try {
-      const params = {
-        'title.value': title,
-      };
+      // Use the correct Plex API endpoint for editing collection metadata
+      // Collections require PUT /library/sections/{libraryKey}/all with type=18
+      // The old endpoint /library/metadata/{ratingKey} doesn't reliably update collection titles
+      if (libraryKey) {
+        const editUrl = `/library/sections/${libraryKey}/all?type=18&id=${collectionRatingKey}&title.value=${encodeURIComponent(
+          title
+        )}&title.locked=1`;
+        await this.safePutQuery(editUrl);
+      } else {
+        // Fallback to old method if libraryKey not provided (for backwards compatibility)
+        // This may not work reliably for collections
+        const params = {
+          'title.value': title,
+        };
 
-      const queryString = Object.entries(params)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&');
+        const queryString = Object.entries(params)
+          .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+          .join('&');
 
-      const editUrl = `/library/metadata/${collectionRatingKey}?${queryString}`;
+        const editUrl = `/library/metadata/${collectionRatingKey}?${queryString}`;
 
-      await this.safePutQuery(editUrl);
+        await this.safePutQuery(editUrl);
+
+        logger.warn(
+          `updateCollectionTitle called without libraryKey - using legacy endpoint which may not work for collections`,
+          {
+            label: 'Plex API',
+            collectionRatingKey,
+          }
+        );
+      }
     } catch (error) {
       logger.error(
         `Error updating title for collection ${collectionRatingKey}`,
@@ -1260,6 +1281,7 @@ class PlexAPI {
           error,
         }
       );
+      throw error; // Re-throw so callers know the update failed
     }
   }
 
