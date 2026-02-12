@@ -759,6 +759,7 @@ router.get('/:id/preview', async (req, res, next) => {
       genre: 'Action',
       runtime: 148,
       tmdbStatus: 'RETURNING', // Always populate for previews
+      tvdbStatus: 'RETURNING', // Always populate for previews
 
       // Plex Media Info
       resolution: '4K',
@@ -970,6 +971,7 @@ router.post('/combined-preview', async (req, res, next) => {
       genre: 'Action',
       runtime: 148,
       tmdbStatus: 'RETURNING', // Always populate for previews
+      tvdbStatus: 'RETURNING', // Always populate for previews
 
       // Plex Media Info
       resolution: '4K',

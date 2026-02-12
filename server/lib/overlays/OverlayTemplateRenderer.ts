@@ -358,6 +358,7 @@ export interface OverlayRenderContext {
   runtime?: number;
   runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
+  tvdbStatus?: string; // TV show status sourced from TVDB: 'RETURNING', 'AIRING', 'ENDED', 'PLANNED'
 
   // Country/Origin (ISO 3166-1 alpha-2 codes like "US", "GB", "DE")
   originCountry?: string; // Primary country of origin
