@@ -1627,11 +1627,21 @@ async function createPlaceholders(
       if (sourceItem.mediaType === 'tv') {
         // For TV shows: Need to set title on the episode (S00E00)
         // Use retry logic to handle cases where Plex hasn't fully populated episode metadata yet
-        await ensurePlaceholderEpisodeTitle(
+        const titleSet = await ensurePlaceholderEpisodeTitle(
           plexClient,
           plexItem.ratingKey,
           sourceItem.title
         );
+        if (!titleSet) {
+          logger.warn(
+            'Failed to set placeholder episode title - may appear in filtered hubs',
+            {
+              label: 'PlaceholderService',
+              title: sourceItem.title,
+              ratingKey: plexItem.ratingKey,
+            }
+          );
+        }
       } else if (sourceItem.mediaType === 'movie') {
         // For movies: Add label to the movie item
         await plexClient.addLabelToItem(
