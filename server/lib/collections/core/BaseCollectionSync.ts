@@ -1905,6 +1905,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
       isLibraryPromoted,
       customPoster,
       collectionName,
+      libraryKey,
     } = options;
 
     // Add collection label
@@ -1914,7 +1915,8 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     if (collectionName) {
       await plexClient.updateCollectionTitle(
         collectionRatingKey,
-        collectionName
+        collectionName,
+        libraryKey
       );
     }
 
