@@ -45,6 +45,30 @@ export interface FilteredMissingItemsResult {
 }
 
 /**
+ * Build a config with placeholder-specific filter values swapped into
+ * the standard filter fields. MissingItemFilterService reads these fields
+ * generically, so it applies placeholder filters without any changes to
+ * the filtering logic itself.
+ *
+ * When placeholder filters are unset (undefined/0), the engine treats
+ * them as "no filter" — preserving backward compatibility.
+ */
+export function buildPlaceholderFilterConfig(
+  config: CollectionConfig
+): CollectionConfig {
+  return {
+    ...config,
+    minimumYear: config.placeholderMinimumYear ?? 0,
+    minimumImdbRating: config.placeholderMinimumImdbRating ?? 0,
+    minimumRottenTomatoesRating:
+      config.placeholderMinimumRottenTomatoesRating ?? 0,
+    minimumRottenTomatoesAudienceRating:
+      config.placeholderMinimumRottenTomatoesAudienceRating ?? 0,
+    filterSettings: config.placeholderFilterSettings ?? undefined,
+  };
+}
+
+/**
  * Shared filtering service for missing items
  *
  * Provides common filtering logic for both auto-request and direct download services
