@@ -238,7 +238,7 @@ export interface CollectionConfig {
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
-  readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
+  readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, supported for Coming Soon and TMDB auto_franchise collections)
   // Wallpaper, summary, and theme settings
   readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
   readonly customSummary?: string; // Custom summary/description text for the collection

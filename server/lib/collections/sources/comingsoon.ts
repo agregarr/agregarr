@@ -258,6 +258,29 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
       // Update config with rating key if we got one
       this.updateConfigWithRatingKey(config, result.collectionRatingKey);
 
+      // Set collection mode if hideIndividualItems is enabled
+      const collectionRatingKey = result.collectionRatingKey;
+      if (collectionRatingKey && config.hideIndividualItems) {
+        try {
+          await plexClient.updateCollectionMode(collectionRatingKey, 1);
+          logger.debug(
+            `Set collectionMode=1 (hide items) for Coming Soon collection: ${collectionName}`,
+            {
+              label: 'Coming Soon Collections',
+              collectionRatingKey,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to set collection mode for ${collectionName}, continuing`,
+            {
+              label: 'Coming Soon Collections',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
       return {
         created: result.created,
         updated: result.updated,
