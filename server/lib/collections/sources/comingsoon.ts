@@ -233,9 +233,10 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         processedCollectionKeys
       );
 
-      if (result.collectionRatingKey && missingItems.length > 0) {
+      const missingItemsToStore = missingItems ?? [];
+      if (result.collectionRatingKey && missingItemsToStore.length > 0) {
         await this.storeCollectionMissingItems(
-          missingItems,
+          missingItemsToStore,
           result.collectionRatingKey,
           config.libraryId,
           config.id
