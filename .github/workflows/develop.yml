@@ -36,7 +36,7 @@ jobs:
 
   build_and_push:
     name: Build ${{ matrix.platform }}
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && github.repository_owner == 'agregarr'
     permissions:
       packages: write
       contents: read
@@ -89,6 +89,7 @@ jobs:
 
   merge:
     name: Create multi-platform manifest
+    if: github.repository_owner == 'agregarr'
     runs-on: ubuntu-22.04
     needs: build_and_push
     permissions:
@@ -142,7 +143,7 @@ jobs:
   discord:
     name: Send Discord Notification
     needs: merge
-    if: always() && github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[skip ci]')
+    if: always() && github.repository_owner == 'agregarr' && github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-22.04
     steps:
       - name: Get Build Job Status

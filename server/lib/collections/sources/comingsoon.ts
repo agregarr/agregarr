@@ -182,7 +182,7 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
       }
 
       // Use the media type processing strategy
-      return await this.processWithMediaTypeStrategy(
+      const result = await this.processWithMediaTypeStrategy(
         sortedItems,
         config,
         plexClient,
@@ -192,6 +192,46 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         libraryCache,
         missingItems
       );
+
+      // Enforce collection mode on the collection(s) created/updated by this sync.
+      // Note: Coming Soon currently uses BaseCollectionSync.processWithMediaTypeStrategy(),
+      // which bypasses this class's createCollection() override.
+      if (
+        result.collectionKeys.length > 0 &&
+        config.hideIndividualItems !== undefined
+      ) {
+        const collectionMode = config.hideIndividualItems ? 1 : -1;
+
+        for (const collectionRatingKey of result.collectionKeys) {
+          try {
+            await plexClient.updateCollectionMode(
+              collectionRatingKey,
+              collectionMode
+            );
+            logger.debug(
+              `Set collectionMode=${collectionMode} for Coming Soon collection`,
+              {
+                label: 'Coming Soon Collections',
+                collectionRatingKey,
+                configName: config.name,
+                hideIndividualItems: config.hideIndividualItems,
+              }
+            );
+          } catch (error) {
+            logger.warn(
+              `Failed to set collection mode for Coming Soon collection, continuing`,
+              {
+                label: 'Coming Soon Collections',
+                collectionRatingKey,
+                configName: config.name,
+                error: error instanceof Error ? error.message : String(error),
+              }
+            );
+          }
+        }
+      }
+
+      return result;
     } catch (error) {
       logger.error('Coming Soon collection processing failed', {
         label: 'Coming Soon Collections',
