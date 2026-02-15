@@ -36,9 +36,23 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
+  const nameMapRef = useRef<Map<string, string>>(nameMap);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const inflightHydrationRef = useRef<Set<string>>(new Set());
+  const hydrationRunIdRef = useRef(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    nameMapRef.current = nameMap;
+  }, [nameMap]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -133,6 +147,58 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     setIsOpen(false);
   };
 
+  const getDetailsEndpointBase = useCallback((): string | null => {
+    // Keep saving IDs only; hydrate names for display when editing.
+    if (searchEndpoint.includes('/search/person')) return '/api/v1/person';
+    if (searchEndpoint.includes('/search/company')) return '/api/v1/studio';
+    if (searchEndpoint.includes('/search/keyword')) return '/api/v1/keyword';
+    return null;
+  }, [searchEndpoint]);
+
+  const hydrateIds = useCallback(async (ids: string[], base: string) => {
+    const runId = ++hydrationRunIdRef.current;
+
+    const uniqueIds = Array.from(new Set(ids))
+      .map((v) => v.trim())
+      .filter((v) => /^\d+$/.test(v))
+      .filter((id) => !nameMapRef.current.has(id))
+      .filter((id) => !inflightHydrationRef.current.has(id));
+
+    if (uniqueIds.length === 0) return;
+
+    await Promise.all(
+      uniqueIds.map(async (id) => {
+        if (!isMountedRef.current) return;
+        if (hydrationRunIdRef.current !== runId) return;
+        if (!id) return;
+
+        if (nameMapRef.current.has(id)) return;
+        if (inflightHydrationRef.current.has(id)) return;
+
+        inflightHydrationRef.current.add(id);
+        try {
+          const resp = await fetch(`${base}/${encodeURIComponent(id)}`);
+          if (!resp.ok) return;
+          const data = (await resp.json()) as { name?: string; title?: string };
+          const label = data?.name ?? data?.title;
+          if (!label || !isMountedRef.current) return;
+          if (hydrationRunIdRef.current !== runId) return;
+
+          setNameMap((prev) => {
+            if (prev.get(id) === label) return prev;
+            const next = new Map(prev);
+            next.set(id, label);
+            return next;
+          });
+        } catch {
+          // ignore
+        } finally {
+          inflightHydrationRef.current.delete(id);
+        }
+      })
+    );
+  }, []);
+
   const addRawId = () => {
     const raw = searchTerm.trim();
     if (!raw) return;
@@ -152,9 +218,12 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     if (next.length !== value.length) {
       onChange(next);
     }
-    addedIds.forEach((id) => {
-      void resolveAndSetName(id);
-    });
+    if (addedIds.length > 0) {
+      const base = getDetailsEndpointBase();
+      if (base) {
+        void hydrateIds(addedIds, base);
+      }
+    }
     setSearchTerm('');
     setResults([]);
     setIsOpen(false);
@@ -172,45 +241,6 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     return id;
   };
 
-  const getDetailsEndpointBase = useCallback((): string | null => {
-    // Keep saving IDs only; hydrate names for display when editing.
-    if (searchEndpoint.includes('/search/person')) return '/api/v1/person';
-    if (searchEndpoint.includes('/search/company')) return '/api/v1/studio';
-    if (searchEndpoint.includes('/search/keyword')) return '/api/v1/keyword';
-    return null;
-  }, [searchEndpoint]);
-
-  const resolveAndSetName = useCallback(
-    async (id: string) => {
-      const base = getDetailsEndpointBase();
-      if (!base) return;
-      if (!/^\d+$/.test(id)) return;
-      if (nameMap.has(id)) return;
-      if (inflightHydrationRef.current.has(id)) return;
-
-      inflightHydrationRef.current.add(id);
-      try {
-        const resp = await fetch(`${base}/${encodeURIComponent(id)}`);
-        if (!resp.ok) return;
-        const data = (await resp.json()) as { name?: string; title?: string };
-        const label = data?.name ?? data?.title;
-        if (!label) return;
-
-        setNameMap((prev) => {
-          if (prev.get(id) === label) return prev;
-          const next = new Map(prev);
-          next.set(id, label);
-          return next;
-        });
-      } catch {
-        // ignore
-      } finally {
-        inflightHydrationRef.current.delete(id);
-      }
-    },
-    [getDetailsEndpointBase, nameMap]
-  );
-
   useEffect(() => {
     const base = getDetailsEndpointBase();
     if (!base) return;
@@ -218,47 +248,13 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     const idsToHydrate = Array.from(new Set(value))
       .map((v) => v.trim())
       .filter((v) => /^\d+$/.test(v))
-      .filter((id) => !nameMap.has(id))
+      .filter((id) => !nameMapRef.current.has(id))
       .filter((id) => !inflightHydrationRef.current.has(id));
 
-    if (idsToHydrate.length === 0) return;
-
-    const controller = new AbortController();
-    let cancelled = false;
-
-    const hydrateOne = async (id: string) => {
-      inflightHydrationRef.current.add(id);
-      try {
-        const resp = await fetch(`${base}/${encodeURIComponent(id)}`, {
-          signal: controller.signal,
-        });
-        if (!resp.ok) return;
-        const data = (await resp.json()) as { name?: string; title?: string };
-        const label = data?.name ?? data?.title;
-        if (!label || cancelled) return;
-
-        setNameMap((prev) => {
-          if (prev.get(id) === label) return prev;
-          const next = new Map(prev);
-          next.set(id, label);
-          return next;
-        });
-      } catch {
-        // ignore
-      } finally {
-        inflightHydrationRef.current.delete(id);
-      }
-    };
-
-    idsToHydrate.forEach((id) => {
-      void hydrateOne(id);
-    });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [value, nameMap, getDetailsEndpointBase]);
+    if (idsToHydrate.length > 0) {
+      void hydrateIds(idsToHydrate, base);
+    }
+  }, [value, getDetailsEndpointBase, hydrateIds]);
 
   // Get thumbnail URL for a search result
   const getThumbnailUrl = (result: SearchResultItem): string | undefined => {
