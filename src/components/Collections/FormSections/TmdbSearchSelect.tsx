@@ -38,6 +38,7 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const inflightHydrationRef = useRef<Set<string>>(new Set());
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -165,6 +166,63 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     }
     return id;
   };
+
+  const getDetailsEndpointBase = useCallback((): string | null => {
+    // Keep saving IDs only; hydrate names for display when editing.
+    if (searchEndpoint.includes('/search/person')) return '/api/v1/person';
+    if (searchEndpoint.includes('/search/company')) return '/api/v1/studio';
+    if (searchEndpoint.includes('/search/keyword')) return '/api/v1/keyword';
+    return null;
+  }, [searchEndpoint]);
+
+  useEffect(() => {
+    const base = getDetailsEndpointBase();
+    if (!base) return;
+
+    const idsToHydrate = Array.from(new Set(value))
+      .map((v) => v.trim())
+      .filter((v) => /^\d+$/.test(v))
+      .filter((id) => !nameMap.has(id))
+      .filter((id) => !inflightHydrationRef.current.has(id));
+
+    if (idsToHydrate.length === 0) return;
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const hydrateOne = async (id: string) => {
+      inflightHydrationRef.current.add(id);
+      try {
+        const resp = await fetch(`${base}/${encodeURIComponent(id)}`, {
+          signal: controller.signal,
+        });
+        if (!resp.ok) return;
+        const data = (await resp.json()) as { name?: string; title?: string };
+        const label = data?.name ?? data?.title;
+        if (!label || cancelled) return;
+
+        setNameMap((prev) => {
+          if (prev.get(id) === label) return prev;
+          const next = new Map(prev);
+          next.set(id, label);
+          return next;
+        });
+      } catch {
+        // ignore
+      } finally {
+        inflightHydrationRef.current.delete(id);
+      }
+    };
+
+    idsToHydrate.forEach((id) => {
+      void hydrateOne(id);
+    });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [value, nameMap, getDetailsEndpointBase]);
 
   // Get thumbnail URL for a search result
   const getThumbnailUrl = (result: SearchResultItem): string | undefined => {
