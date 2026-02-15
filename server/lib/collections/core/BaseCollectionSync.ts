@@ -619,6 +619,49 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
   }
 
   /**
+   * Tag existing items in Radarr/Sonarr with the collection's configured tags
+   * Only runs if tagExistingItems is enabled on the target Radarr/Sonarr server
+   *
+   * @param items - Collection items that exist in Plex
+   * @param config - Collection configuration
+   */
+  protected async tagExistingItemsInArr(
+    items: CollectionItem[],
+    config: CollectionConfig
+  ): Promise<void> {
+    // Only proceed if collection has tags configured
+    const downloadMode = config.downloadMode || 'overseerr';
+    const hasRadarrTags =
+      downloadMode === 'direct'
+        ? (config.directDownloadRadarrTags?.length ?? 0) > 0
+        : (config.overseerrRadarrTags?.length ?? 0) > 0;
+    const hasSonarrTags =
+      downloadMode === 'direct'
+        ? (config.directDownloadSonarrTags?.length ?? 0) > 0
+        : (config.overseerrSonarrTags?.length ?? 0) > 0;
+
+    if (!hasRadarrTags && !hasSonarrTags) {
+      return;
+    }
+
+    try {
+      const { existingItemTagService } = await import(
+        '../services/ExistingItemTagService'
+      );
+      await existingItemTagService.tagExistingItems(items, config, this.source);
+    } catch (error) {
+      // Log but don't fail the sync if tagging fails
+      logger.warn(
+        `Failed to tag existing items in Radarr/Sonarr for ${config.name}`,
+        {
+          label: `${this.source} Collections`,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+    }
+  }
+
+  /**
    * Handle placeholder cleanup and process missing items in one step
    * This combines the cleanup phase (remove old placeholders) with creation phase (add new ones)
    *
@@ -1392,10 +1435,61 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
           collectionRatingKey = existingCollection.ratingKey;
 
           // Smart update: add new items, remove old ones
-          await plexClient.updateCollectionContents(
+          const updateResult = await plexClient.updateCollectionContents(
             collectionRatingKey,
             plexItems
           );
+
+          // Label items that fell out of the collection as stale
+          if (updateResult.removedKeys.length > 0) {
+            for (const removedKey of updateResult.removedKeys) {
+              try {
+                await plexClient.addLabelToItem(removedKey, 'agregarr-stale');
+              } catch (error) {
+                logger.warn(
+                  `Failed to add agregarr-stale label to item ${removedKey}`,
+                  {
+                    label: 'Collection Update',
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+              }
+            }
+            logger.info(
+              `Labeled ${updateResult.removedKeys.length} removed items as agregarr-stale in collection ${collectionName}`,
+              { label: 'Collection Update' }
+            );
+          }
+
+          // Clean up stale labels for items still in this collection
+          const currentPlexKeys = new Set(
+            plexItems.map((item) => item.ratingKey)
+          );
+          const staleItems = await plexClient.getItemsWithLabel(
+            libraryKey,
+            'agregarr-stale'
+          );
+          for (const staleKey of staleItems) {
+            if (currentPlexKeys.has(staleKey)) {
+              try {
+                await plexClient.removeLabelFromItem(
+                  staleKey,
+                  'agregarr-stale'
+                );
+              } catch (error) {
+                logger.warn(
+                  `Failed to remove agregarr-stale label from item ${staleKey}`,
+                  {
+                    label: 'Collection Update',
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  }
+                );
+              }
+            }
+          }
+
           updated = 1;
         }
       }
@@ -1811,6 +1905,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
       isLibraryPromoted,
       customPoster,
       collectionName,
+      libraryKey,
     } = options;
 
     // Add collection label
@@ -1820,7 +1915,8 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     if (collectionName) {
       await plexClient.updateCollectionTitle(
         collectionRatingKey,
-        collectionName
+        collectionName,
+        libraryKey
       );
     }
 

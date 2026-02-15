@@ -73,7 +73,11 @@ class WatchlistSync {
       }
 
       const overseerrApi = new OverseerrAPI(settings.overseerr);
-      const usersToSync: { id: number; displayName?: string }[] = [];
+      const usersToSync: {
+        id: number;
+        displayName?: string;
+        plexUsername?: string;
+      }[] = [];
 
       // Fetch all users from Overseerr
       const { results: allOverseerrUsers } = await overseerrApi.getUsers({
@@ -87,6 +91,7 @@ class WatchlistSync {
           usersToSync.push({
             id: adminUser.id,
             displayName: adminUser.displayName || 'Admin',
+            plexUsername: adminUser.plexUsername,
           });
         } else {
           logger.warn('Admin user (ID 1) not found in Overseerr', {
@@ -102,6 +107,7 @@ class WatchlistSync {
           .map((u) => ({
             id: u.id,
             displayName: u.displayName || `User ${u.id}`,
+            plexUsername: u.plexUsername,
           }));
         usersToSync.push(...regularUsers);
       }
@@ -243,7 +249,7 @@ class WatchlistSync {
   }
 
   private async syncUserWatchlist(
-    user: { id: number; displayName?: string },
+    user: { id: number; displayName?: string; plexUsername?: string },
     syncSettings: WatchlistSyncSettings,
     overseerrApi: OverseerrAPI,
     radarrMovies: Awaited<ReturnType<RadarrAPI['getMovies']>>,
@@ -274,14 +280,16 @@ class WatchlistSync {
           const added = await this.addMovieToRadarr(
             item,
             syncSettings,
-            radarrMovies
+            radarrMovies,
+            user.plexUsername
           );
           if (added) itemsAdded++;
         } else if (item.mediaType === 'tv' && syncSettings.sonarr?.enabled) {
           const added = await this.addShowToSonarr(
             item,
             syncSettings,
-            sonarrSeries
+            sonarrSeries,
+            user.plexUsername
           );
           if (added) itemsAdded++;
         }
@@ -303,7 +311,8 @@ class WatchlistSync {
   private async addMovieToRadarr(
     item: OverseerrWatchlistItem,
     syncSettings: WatchlistSyncSettings,
-    radarrMovies: Awaited<ReturnType<RadarrAPI['getMovies']>>
+    radarrMovies: Awaited<ReturnType<RadarrAPI['getMovies']>>,
+    plexUsername?: string
   ): Promise<boolean> {
     const settings = getSettings();
     const radarrSettings = syncSettings.radarr;
@@ -341,13 +350,38 @@ class WatchlistSync {
       apiKey: radarrServer.apiKey,
     });
 
+    // Check if movie is excluded in Radarr
+    if (await this.isMovieExcluded(radarrApi, item.tmdbId)) {
+      logger.debug('Movie is excluded in Radarr, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tmdbId: item.tmdbId,
+      });
+      return false;
+    }
+
+    // Build tags array
+    const tags = [...(radarrSettings.tags ?? radarrServer.tags ?? [])];
+
+    // Add username tag if enabled and username is available
+    if (radarrSettings.tagWithUsername && plexUsername) {
+      const usernameTagId = await this.getOrCreateTag(
+        radarrApi,
+        plexUsername,
+        'Radarr'
+      );
+      if (usernameTagId && !tags.includes(usernameTagId)) {
+        tags.push(usernameTagId);
+      }
+    }
+
     // Add movie to Radarr
     const options = {
       title: item.title,
       qualityProfileId:
         radarrSettings.profileId ?? radarrServer.activeProfileId,
       minimumAvailability: radarrServer.minimumAvailability,
-      tags: radarrSettings.tags ?? radarrServer.tags,
+      tags: tags,
       profileId: radarrSettings.profileId ?? radarrServer.activeProfileId,
       year: 0, // Radarr will determine from TMDB
       rootFolderPath: radarrSettings.rootFolder ?? radarrServer.activeDirectory,
@@ -362,6 +396,7 @@ class WatchlistSync {
       label: 'Watchlist Sync',
       title: item.title,
       tmdbId: item.tmdbId,
+      user: plexUsername,
     });
 
     return true;
@@ -370,7 +405,8 @@ class WatchlistSync {
   private async addShowToSonarr(
     item: OverseerrWatchlistItem,
     syncSettings: WatchlistSyncSettings,
-    sonarrSeries: Awaited<ReturnType<SonarrAPI['getSeries']>>
+    sonarrSeries: Awaited<ReturnType<SonarrAPI['getSeries']>>,
+    plexUsername?: string
   ): Promise<boolean> {
     const settings = getSettings();
     const sonarrSettings = syncSettings.sonarr;
@@ -438,6 +474,31 @@ class WatchlistSync {
       apiKey: sonarrServer.apiKey,
     });
 
+    // Check if show is excluded in Sonarr
+    if (await this.isShowExcluded(sonarrApi, tvdbId)) {
+      logger.debug('Show is excluded in Sonarr, skipping', {
+        label: 'Watchlist Sync',
+        title: item.title,
+        tvdbId: tvdbId,
+      });
+      return false;
+    }
+
+    // Build tags array
+    const tags = [...(sonarrSettings.tags ?? sonarrServer.tags ?? [])];
+
+    // Add username tag if enabled and username is available
+    if (sonarrSettings.tagWithUsername && plexUsername) {
+      const usernameTagId = await this.getOrCreateTag(
+        sonarrApi,
+        plexUsername,
+        'Sonarr'
+      );
+      if (usernameTagId && !tags.includes(usernameTagId)) {
+        tags.push(usernameTagId);
+      }
+    }
+
     // Add show to Sonarr
     const options = {
       tvdbid: tvdbId,
@@ -448,7 +509,7 @@ class WatchlistSync {
       seasonFolder:
         sonarrSettings.seasonFolder ?? sonarrServer.enableSeasonFolders,
       rootFolderPath: sonarrSettings.rootFolder ?? sonarrServer.activeDirectory,
-      tags: sonarrSettings.tags ?? sonarrServer.tags,
+      tags: tags,
       seriesType: sonarrServer.seriesType,
       monitored:
         sonarrSettings.monitor ?? sonarrServer.monitorByDefault ?? true,
@@ -461,9 +522,98 @@ class WatchlistSync {
       title: item.title,
       tmdbId: item.tmdbId,
       tvdbId: tvdbId,
+      user: plexUsername,
     });
 
     return true;
+  }
+
+  /**
+   * Get or create a tag in Radarr/Sonarr by label
+   * Returns the tag ID if successful, undefined otherwise
+   */
+  private async getOrCreateTag(
+    api: RadarrAPI | SonarrAPI,
+    tagLabel: string,
+    service: 'Radarr' | 'Sonarr'
+  ): Promise<number | undefined> {
+    try {
+      const existingTags = await api.getTags();
+      const existingTag = existingTags.find(
+        (t) => t.label?.toLowerCase() === tagLabel.toLowerCase()
+      );
+
+      if (existingTag?.id) {
+        return existingTag.id;
+      }
+
+      // Create the tag
+      const newTag = await api.createTag({ label: tagLabel });
+      logger.debug(`Created username tag in ${service}`, {
+        label: 'Watchlist Sync',
+        tagLabel,
+        tagId: newTag.id,
+      });
+      return newTag.id;
+    } catch (error) {
+      // Handle 409 conflict (tag already exists - race condition)
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+      if (status === 409) {
+        const existingTags = await api.getTags();
+        const existingTag = existingTags.find(
+          (t) => t.label?.toLowerCase() === tagLabel.toLowerCase()
+        );
+        return existingTag?.id;
+      }
+
+      logger.warn(`Failed to create username tag in ${service}`, {
+        label: 'Watchlist Sync',
+        tagLabel,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
+  }
+
+  /**
+   * Check if a movie is excluded in Radarr
+   */
+  private async isMovieExcluded(
+    radarrApi: RadarrAPI,
+    tmdbId: number
+  ): Promise<boolean> {
+    try {
+      const exclusions = await radarrApi.getExclusions();
+      return exclusions.some((exclusion) => exclusion.tmdbId === tmdbId);
+    } catch (error) {
+      logger.debug('Could not check Radarr exclusion list', {
+        label: 'Watchlist Sync',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // If we can't check exclusions, allow the item to proceed
+      return false;
+    }
+  }
+
+  /**
+   * Check if a show is excluded in Sonarr
+   */
+  private async isShowExcluded(
+    sonarrApi: SonarrAPI,
+    tvdbId: number
+  ): Promise<boolean> {
+    try {
+      const exclusions = await sonarrApi.getExclusions();
+      return exclusions.some((exclusion) => exclusion.tvdbId === tvdbId);
+    } catch (error) {
+      logger.debug('Could not check Sonarr exclusion list', {
+        label: 'Watchlist Sync',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // If we can't check exclusions, allow the item to proceed
+      return false;
+    }
   }
 }
 

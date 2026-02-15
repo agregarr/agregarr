@@ -410,7 +410,8 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
 
       {/* Overseerr Settings */}
       <div className="mb-6">
-        <h3 className="heading">
+        <h3 className="heading flex items-center">
+          <img src="/services/overseerr.svg" alt="" className="mr-2 h-7 w-7" />
           {intl.formatMessage(messages.overseerrSettings)}
         </h3>
         <p className="description">
@@ -452,7 +453,8 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
 
       {/* Radarr Settings */}
       <div className="mb-6">
-        <h3 className="heading">
+        <h3 className="heading flex items-center">
+          <img src="/services/radarr.svg" alt="" className="mr-2 h-7 w-7" />
           {intl.formatMessage(messages.radarrsettings)}
         </h3>
         <p className="description">
@@ -538,7 +540,8 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
 
       {/* Sonarr Settings */}
       <div className="mt-10 mb-6">
-        <h3 className="heading">
+        <h3 className="heading flex items-center">
+          <img src="/services/sonarr.svg" alt="" className="mr-2 h-7 w-7" />
           {intl.formatMessage(messages.sonarrsettings)}
         </h3>
         <p className="description">

@@ -30,6 +30,7 @@ import mediaRoutes from './media';
 import missingItemsRoutes from './missing-items';
 import myanimelistRoutes from './myanimelist';
 import overlayLibraryConfigsRoutes from './overlayLibraryConfigs';
+import overlayMappingsRoutes from './overlayMappings';
 import overlaySettingsRoutes from './overlaySettings';
 import overlayTemplatesRoutes from './overlayTemplates';
 import overlayTestRoutes from './overlayTest';
@@ -163,6 +164,7 @@ router.use(
   overlayLibraryConfigsRoutes
 );
 router.use('/overlay-settings', isAuthenticated(), overlaySettingsRoutes);
+router.use('/overlay-mappings', isAuthenticated(), overlayMappingsRoutes);
 router.use('/overlay-test', isAuthenticated(), overlayTestRoutes);
 router.use('/plex', isAuthenticated(), searchRoutes);
 router.use('/posters', isAuthenticated(), postersRoutes);
@@ -194,6 +196,149 @@ router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
     });
   }
 });
+
+router.get('/discover/watch-providers/movie', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const region = req.query.region ? String(req.query.region) : 'US';
+    const providers = await tmdb.getMovieWatchProviders({
+      watchRegion: region,
+    });
+
+    return res.status(200).json(providers);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving movie watch providers', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie watch providers.',
+    });
+  }
+});
+
+router.get('/discover/watch-providers/tv', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const region = req.query.region ? String(req.query.region) : 'US';
+    const providers = await tmdb.getTvWatchProviders({ watchRegion: region });
+
+    return res.status(200).json(providers);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TV watch providers', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TV watch providers.',
+    });
+  }
+});
+
+router.get('/discover/genres/movie', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const language = req.query.language ? String(req.query.language) : 'en-US';
+    const genres = await tmdb.getMovieGenres({ language });
+
+    return res.status(200).json({ genres });
+  } catch (e) {
+    logger.debug('Something went wrong retrieving movie genres', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve movie genres.',
+    });
+  }
+});
+
+router.get('/discover/genres/tv', async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const language = req.query.language ? String(req.query.language) : 'en-US';
+    const genres = await tmdb.getTvGenres({ language });
+
+    return res.status(200).json({ genres });
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TV genres', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TV genres.',
+    });
+  }
+});
+
+router.get('/configuration', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const configuration = await tmdb.getConfiguration();
+
+    return res.status(200).json(configuration);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving TMDB configuration', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve TMDB configuration.',
+    });
+  }
+});
+
+router.get('/countries', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const countries = await tmdb.getCountries();
+
+    return res.status(200).json(countries);
+  } catch (e) {
+    logger.debug('Something went wrong retrieving countries', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to retrieve countries.',
+    });
+  }
+});
+
+router.get(
+  '/movie-certifications',
+  isAuthenticated(),
+  async (req, res, next) => {
+    const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+    try {
+      const certifications = await tmdb.getMovieCertifications();
+
+      return res.status(200).json(certifications);
+    } catch (e) {
+      logger.debug('Something went wrong retrieving movie certifications', {
+        label: 'API',
+        errorMessage: e.message,
+      });
+      return next({
+        status: 500,
+        message: 'Unable to retrieve movie certifications.',
+      });
+    }
+  }
+);
 
 router.get<{ id: string }>('/tv/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
@@ -388,6 +533,82 @@ router.get('/languages/combined', isAuthenticated(), async (req, res, next) => {
   }
 });
 
+router.get('/keywords/search', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query as string;
+    if (!query || query.trim().length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const results = await tmdb.searchKeyword({ query: query.trim() });
+
+    // Return simplified keyword objects
+    const keywords = results.results.map((keyword) => ({
+      id: keyword.id,
+      name: keyword.name,
+    }));
+
+    return res.status(200).json(keywords);
+  } catch (e) {
+    logger.debug('Something went wrong searching keywords', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search keywords.',
+    });
+  }
+});
+
+router.get('/keywords/batch', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const idsParam = req.query.ids as string;
+    if (!idsParam || idsParam.trim().length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const ids = idsParam
+      .split(',')
+      .map((id) => parseInt(id.trim(), 10))
+      .filter((id) => !isNaN(id));
+
+    if (ids.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Resolve keyword IDs to names in parallel
+    const keywords = await Promise.all(
+      ids.map(async (keywordId) => {
+        try {
+          const keyword = await tmdb.getKeywordDetails({ keywordId });
+          return { id: keyword.id, name: keyword.name };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    // Filter out failed lookups
+    return res
+      .status(200)
+      .json(keywords.filter((k): k is { id: number; name: string } => !!k));
+  } catch (e) {
+    logger.debug('Something went wrong resolving keywords', {
+      label: 'API',
+      errorMessage: e.message,
+    });
+    return next({
+      status: 500,
+      message: 'Unable to resolve keywords.',
+    });
+  }
+});
+
 router.get('/backdrops', async (req, res, next) => {
   const tmdb = await createTmdbWithRegionLanguage();
 
@@ -438,6 +659,78 @@ router.get('/keyword/:keywordId', async (req, res, next) => {
     return next({
       status: 500,
       message: 'Unable to retrieve keyword data.',
+    });
+  }
+});
+
+router.get('/search/person', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query ? String(req.query.query) : '';
+    if (!query) {
+      return res
+        .status(200)
+        .json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+    }
+    const results = await tmdb.searchPerson({ query });
+    return res.status(200).json(results);
+  } catch (e) {
+    logger.debug('Something went wrong searching for people', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search for people.',
+    });
+  }
+});
+
+router.get('/search/keyword', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query ? String(req.query.query) : '';
+    if (!query) {
+      return res
+        .status(200)
+        .json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+    }
+    const results = await tmdb.searchKeyword({ query });
+    return res.status(200).json(results);
+  } catch (e) {
+    logger.debug('Something went wrong searching for keywords', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search for keywords.',
+    });
+  }
+});
+
+router.get('/search/company', isAuthenticated(), async (req, res, next) => {
+  const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
+
+  try {
+    const query = req.query.query ? String(req.query.query) : '';
+    if (!query) {
+      return res
+        .status(200)
+        .json({ page: 1, results: [], total_pages: 0, total_results: 0 });
+    }
+    const results = await tmdb.searchCompany({ query });
+    return res.status(200).json(results);
+  } catch (e) {
+    logger.debug('Something went wrong searching for companies', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({
+      status: 500,
+      message: 'Unable to search for companies.',
     });
   }
 });

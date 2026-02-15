@@ -143,6 +143,14 @@ export interface SonarrExclusion {
   title: string;
 }
 
+export type ApplyTagsMode = 'add' | 'remove' | 'replace';
+
+export interface SonarrBulkEditOptions {
+  seriesIds: number[];
+  tags?: number[];
+  applyTags?: ApplyTagsMode;
+}
+
 export interface SonarrPagedResponse<T> {
   page: number;
   pageSize: number;
@@ -407,6 +415,41 @@ class SonarrAPI extends ServarrBase<{
           seriesId,
         }
       );
+    }
+  }
+
+  /**
+   * Bulk add tags to multiple series without removing existing tags
+   * Uses the series editor endpoint with applyTags: 'add'
+   */
+  public async bulkAddTags(
+    seriesIds: number[],
+    tagIds: number[]
+  ): Promise<void> {
+    if (seriesIds.length === 0 || tagIds.length === 0) {
+      return;
+    }
+
+    try {
+      await this.axios.put('/series/editor', {
+        seriesIds,
+        tags: tagIds,
+        applyTags: 'add',
+      });
+
+      logger.info(`Bulk added tags to ${seriesIds.length} series`, {
+        label: 'Sonarr API',
+        seriesCount: seriesIds.length,
+        tagIds,
+      });
+    } catch (e) {
+      logger.error('Failed to bulk add tags to series', {
+        label: 'Sonarr API',
+        errorMessage: e.message,
+        seriesCount: seriesIds.length,
+        tagIds,
+      });
+      throw new Error(`[Sonarr] Failed to bulk add tags: ${e.message}`);
     }
   }
 

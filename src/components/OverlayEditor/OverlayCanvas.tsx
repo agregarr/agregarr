@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react';
 import { Layer, Rect, Stage, Transformer } from 'react-konva';
+import { MappedIconElement } from './MappedIconElement';
 import { RasterElement } from './RasterElement';
 import { SVGElement } from './SVGElement';
 import { TextElement } from './TextElement';
@@ -222,6 +223,10 @@ export const OverlayCanvas = forwardRef<OverlayCanvasRef, OverlayCanvasProps>(
           return <RasterElement {...shapeProps} />;
         case 'svg':
           return <SVGElement {...shapeProps} />;
+        case 'mapped-icon':
+          return (
+            <MappedIconElement {...shapeProps} renderContext={renderContext} />
+          );
         default:
           return null;
       }
@@ -257,6 +262,13 @@ export const OverlayCanvas = forwardRef<OverlayCanvasRef, OverlayCanvasProps>(
           return <RasterElement {...previewProps} />;
         case 'svg':
           return <SVGElement {...previewProps} />;
+        case 'mapped-icon':
+          return (
+            <MappedIconElement
+              {...previewProps}
+              renderContext={renderContext}
+            />
+          );
         default:
           return null;
       }

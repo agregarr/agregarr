@@ -1,5 +1,6 @@
 import type { ApplicationCondition } from '@server/entity/OverlayTemplate';
 import { defineMessages, useIntl } from 'react-intl';
+import useSWR from 'swr';
 import { CONDITION_FIELD_CATEGORIES } from './types';
 
 const messages = defineMessages({
@@ -28,6 +29,41 @@ const getFieldLabel = (field: string): string => {
   return allFields.find((v) => v.field === field)?.label || field;
 };
 
+// Resolve collection ID to display name
+const useCollectionName = (
+  condition: ApplicationCondition | undefined
+): Map<string, string> => {
+  // Check if any rules reference the 'collection' field
+  const hasCollectionRules = condition?.sections?.some((s) =>
+    s.rules.some((r) => r.field === 'collection')
+  );
+
+  const { data: agregarrCollections } = useSWR<{
+    collectionConfigs: { id: string; name: string }[];
+  }>(hasCollectionRules ? '/api/v1/collections' : null, (url) =>
+    fetch(url).then((res) => res.json())
+  );
+
+  const { data: preExistingCollections } = useSWR<
+    { id: string; name: string }[]
+  >(hasCollectionRules ? '/api/v1/preexisting' : null, (url) =>
+    fetch(url).then((res) => res.json())
+  );
+
+  const nameMap = new Map<string, string>();
+  if (agregarrCollections?.collectionConfigs) {
+    for (const c of agregarrCollections.collectionConfigs) {
+      nameMap.set(c.id, c.name);
+    }
+  }
+  if (Array.isArray(preExistingCollections)) {
+    for (const c of preExistingCollections) {
+      nameMap.set(c.id, c.name);
+    }
+  }
+  return nameMap;
+};
+
 interface ConditionDisplayProps {
   condition: ApplicationCondition | undefined;
 }
@@ -40,6 +76,7 @@ export const ConditionDisplay: React.FC<ConditionDisplayProps> = ({
   condition,
 }) => {
   const intl = useIntl();
+  const collectionNames = useCollectionName(condition);
 
   if (!condition || !condition.sections || condition.sections.length === 0) {
     return (
@@ -83,7 +120,10 @@ export const ConditionDisplay: React.FC<ConditionDisplayProps> = ({
                       {OPERATOR_LABELS[rule.operator] || rule.operator}
                     </span>
                     <span className="font-mono text-white">
-                      {Array.isArray(rule.value)
+                      {rule.field === 'collection'
+                        ? collectionNames.get(String(rule.value)) ||
+                          String(rule.value)
+                        : Array.isArray(rule.value)
                         ? `[${rule.value.join(', ')}]`
                         : typeof rule.value === 'boolean'
                         ? rule.value

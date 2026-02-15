@@ -130,6 +130,9 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
       const { items, missingItems, mappingStats, filteringStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
         items,
@@ -450,6 +453,7 @@ export class OriginalsCollectionSync extends BaseCollectionSync<'originals'> {
             title: lookup.title,
             type: lookup.mediaType,
             tmdbId: lookup.tmdbId,
+            tvdbId: plexItem.tvdbId,
             year: lookup.year,
             addedAt: plexItem.addedAt,
             releaseDate: plexItem.releaseDate,

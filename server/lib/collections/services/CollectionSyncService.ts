@@ -156,6 +156,7 @@ export class CollectionSyncService {
 
         let cleanedUp = 0;
         let titlesFixes = 0;
+        let titleFixFailures = 0;
 
         for (const { plexItem, needsTitleFix, marker } of tv) {
           if (!plexItem) {
@@ -172,12 +173,24 @@ export class CollectionSyncService {
             cleanedUp++;
           } else if (needsTitleFix) {
             // Still a placeholder - fix episode title
-            await ensurePlaceholderEpisodeTitle(
+            const fixed = await ensurePlaceholderEpisodeTitle(
               plexClient,
               plexItem.ratingKey,
               marker.title
             );
-            titlesFixes++;
+            if (fixed) {
+              titlesFixes++;
+            } else {
+              titleFixFailures++;
+              logger.warn(
+                'Failed to fix placeholder episode title during global discovery - may appear in filtered hubs',
+                {
+                  label: 'Collection Sync Service',
+                  title: marker.title,
+                  ratingKey: plexItem.ratingKey,
+                }
+              );
+            }
           }
         }
 
@@ -185,6 +198,7 @@ export class CollectionSyncService {
           label: 'Collection Sync Service',
           cleanedUp,
           titlesFixes,
+          titleFixFailures,
         });
 
         // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
@@ -268,6 +282,7 @@ export class CollectionSyncService {
         );
 
         let moviesCleanedUp = 0;
+        let labelsFixed = 0;
 
         for (const { plexItem, needsCleanup, movie } of movies) {
           if (plexItem && needsCleanup) {
@@ -278,12 +293,20 @@ export class CollectionSyncService {
               'movie'
             );
             moviesCleanedUp++;
+          } else if (plexItem) {
+            // Still a placeholder - ensure label for filtered hub exclusion
+            await plexClient.addLabelToItem(
+              plexItem.ratingKey,
+              'trailer-placeholder'
+            );
+            labelsFixed++;
           }
         }
 
         logger.info('Global movie placeholder processing complete', {
           label: 'Collection Sync Service',
           cleanedUp: moviesCleanedUp,
+          labelsFixed,
         });
 
         // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
@@ -499,14 +522,11 @@ export class CollectionSyncService {
         const hasCustomSchedule = config.customSyncSchedule?.enabled;
 
         if (hasCustomSchedule) {
-          // Skip content sync for custom scheduled collections - just ensure it's tracked
+          // Skip content sync for custom scheduled collections - cleanup handles them via label matching
           onProgress?.(
             processedCount,
             `Skipping content sync for "${config.name}" (custom scheduled)...`
           );
-
-          const collectionKey = `${config.libraryId}-${config.name}`;
-          processedCollectionKeys.add(collectionKey);
 
           logger.debug(
             `Skipped content sync for custom scheduled collection: ${config.name}`,
@@ -586,8 +606,13 @@ export class CollectionSyncService {
               autoApproveTV: config.autoApproveTV,
               maxSeasonsToRequest: config.maxSeasonsToRequest,
               seasonsPerShowLimit: config.seasonsPerShowLimit,
+              seasonGrabOrder: config.seasonGrabOrder,
               maxPositionToProcess: config.maxPositionToProcess,
               minimumYear: config.minimumYear,
+              minimumImdbRating: config.minimumImdbRating,
+              minimumRottenTomatoesRating: config.minimumRottenTomatoesRating,
+              minimumRottenTomatoesAudienceRating:
+                config.minimumRottenTomatoesAudienceRating,
               filterSettings: config.filterSettings,
               directDownloadRadarrServerId: config.directDownloadRadarrServerId,
               directDownloadRadarrProfileId:

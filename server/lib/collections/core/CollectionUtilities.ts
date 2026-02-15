@@ -11,6 +11,7 @@ import type {
   CollectionSource,
   CollectionSyncError,
   MissingItem,
+  PlexLookupResult,
 } from './types';
 import { CollectionSyncErrorType } from './types';
 
@@ -1458,40 +1459,47 @@ export function validateDownloadModeConfig(config: CollectionConfig): {
 }
 
 /**
- * Extract TMDB ID from Plex GUID array
+ * Extract TVDB ID from Plex GUID array.
+ * Shared utility - use this instead of duplicating extraction logic in sources.
  */
-function extractTmdbIdFromGuids(guids: { id: string }[]): number | null {
+export function extractTvdbIdFromGuids(
+  guids: { id: string }[] | { id?: string }[] | undefined
+): number | undefined {
   if (!guids || guids.length === 0) {
-    return null;
+    return undefined;
   }
 
-  // Log all GUIDs for the first few items to understand the format
-  const sampleGuidLogging = Math.random() < 0.001; // Log 0.1% of items for sampling
-  if (sampleGuidLogging) {
-    logger.debug('Sample Plex GUID analysis', {
-      label: 'Plex Search',
-      allGuids: guids.map((g) => g.id),
-      guidCount: guids.length,
-    });
+  const tvdbGuid = guids.find(
+    (guid) => guid.id && guid.id.startsWith('tvdb://')
+  );
+  if (tvdbGuid?.id) {
+    const match = tvdbGuid.id.match(/tvdb:\/\/(\d+)/);
+    return match ? parseInt(match[1], 10) : undefined;
   }
 
-  const tmdbGuid = guids?.find((guid) => guid.id.startsWith('tmdb://'));
-  if (tmdbGuid) {
+  return undefined;
+}
+
+/**
+ * Extract TMDB ID from Plex GUID array.
+ * Shared utility - use this instead of duplicating extraction logic in sources.
+ */
+export function extractTmdbIdFromGuids(
+  guids: { id: string }[] | { id?: string }[] | undefined
+): number | undefined {
+  if (!guids || guids.length === 0) {
+    return undefined;
+  }
+
+  const tmdbGuid = guids.find(
+    (guid) => guid.id && guid.id.startsWith('tmdb://')
+  );
+  if (tmdbGuid?.id) {
     const match = tmdbGuid.id.match(/tmdb:\/\/(\d+)/);
-    const tmdbId = match ? parseInt(match[1], 10) : null;
-
-    if (sampleGuidLogging && tmdbId) {
-      logger.debug('TMDB GUID extraction successful', {
-        label: 'Plex Search',
-        originalGuid: tmdbGuid.id,
-        extractedTmdbId: tmdbId,
-      });
-    }
-
-    return tmdbId;
+    return match ? parseInt(match[1], 10) : undefined;
   }
 
-  return null;
+  return undefined;
 }
 
 /**
@@ -1663,28 +1671,8 @@ export async function findPlexItemsByTmdbIds(
   targetLibraryId?: string,
   libraryCache?: LibraryItemsCache,
   forDuplicateDetection = false
-): Promise<
-  Map<
-    string,
-    {
-      ratingKey: string;
-      title: string;
-      libraryKey: string;
-      addedAt?: number;
-      releaseDate?: number;
-    }
-  >
-> {
-  const results = new Map<
-    string,
-    {
-      ratingKey: string;
-      title: string;
-      libraryKey: string;
-      addedAt?: number;
-      releaseDate?: number;
-    }
-  >();
+): Promise<Map<string, PlexLookupResult>> {
+  const results = new Map<string, PlexLookupResult>();
 
   if (tmdbLookups.length === 0) {
     logger.debug('No TMDB lookups provided to findPlexItemsByTmdbIds', {
@@ -1816,12 +1804,14 @@ export async function findPlexItemsByTmdbIds(
               const lookup = movieLookups.find((l) => l.tmdbId === tmdbId);
               if (lookup) {
                 const key = `${tmdbId}-movie`;
+                const tvdbId = extractTvdbIdFromGuids(item.Guid);
                 results.set(key, {
                   ratingKey: item.ratingKey,
                   title: item.title,
                   libraryKey: library.key,
                   addedAt: item.addedAt,
                   releaseDate: item.releaseDate,
+                  tvdbId,
                 });
               }
             }
@@ -1922,6 +1912,7 @@ export async function findPlexItemsByTmdbIds(
               if (lookup) {
                 // Regular show found - add it directly
                 const key = `${tmdbId}-tv`;
+                const tvdbId = extractTvdbIdFromGuids(item.Guid);
 
                 results.set(key, {
                   ratingKey: item.ratingKey,
@@ -1929,6 +1920,7 @@ export async function findPlexItemsByTmdbIds(
                   libraryKey: library.key,
                   addedAt: item.addedAt,
                   releaseDate: item.releaseDate,
+                  tvdbId,
                 });
               } else {
                 // Check if this show has episodes we need to find
@@ -1978,12 +1970,16 @@ export async function findPlexItemsByTmdbIds(
                             releaseDate = Math.floor(date.getTime() / 1000);
                           }
 
+                          // Use parent show's TVDB ID for episodes
+                          const showTvdbId = extractTvdbIdFromGuids(item.Guid);
+
                           results.set(key, {
                             ratingKey: episode.ratingKey,
                             title: episode.title,
                             libraryKey: library.key,
                             addedAt: episode.addedAt,
                             releaseDate,
+                            tvdbId: showTvdbId,
                           });
 
                           foundCount++;

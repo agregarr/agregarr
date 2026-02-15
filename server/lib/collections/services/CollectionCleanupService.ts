@@ -566,7 +566,39 @@ export class CollectionCleanupService {
       return { shouldDelete: false, reason: 'user collection still active' };
     }
 
-    // If no ratingKey match and not a user collection, the config must have been removed
+    // Special case for auto franchise collections - they don't store ratingKeys on configs
+    // (one config generates multiple Plex collections). Match by label prefix instead.
+    if (managedLabelText.toLowerCase().startsWith('agregarrautofranchise-')) {
+      // Extract configId from label format: AgregarrAutoFranchise-{configId}-{franchiseId}
+      const parts = managedLabelText.split('-');
+      const configId = parts.length >= 2 ? parts[1] : undefined;
+
+      if (!configId) {
+        return { shouldDelete: true, reason: 'invalid franchise label format' };
+      }
+
+      // Check if the parent auto_franchise config still exists
+      const hasParentConfig = currentConfigs.some(
+        (config) =>
+          config.type === 'tmdb' &&
+          config.subtype === 'auto_franchise' &&
+          config.id === configId
+      );
+
+      if (!hasParentConfig) {
+        return {
+          shouldDelete: true,
+          reason: 'franchise parent config removed',
+        };
+      }
+
+      return {
+        shouldDelete: false,
+        reason: 'franchise collection still active',
+      };
+    }
+
+    // If no ratingKey match and not a special multi-collection type, the config must have been removed
     return { shouldDelete: true, reason: 'configuration removed' };
   }
 }

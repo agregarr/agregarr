@@ -208,4 +208,66 @@ searchRouter.get('/search', async (req, res) => {
   }
 });
 
+/**
+ * Get all unique labels across all movie/show libraries
+ * GET /api/v1/plex/labels
+ * Returns: { labels: string[] }
+ */
+searchRouter.get('/labels', async (_req, res) => {
+  try {
+    // Get admin user for Plex API access
+    const { getAdminUser } = await import(
+      '@server/lib/collections/core/CollectionUtilities'
+    );
+    const admin = await getAdminUser();
+
+    if (!admin) {
+      return res.status(500).json({ error: 'No admin user found' });
+    }
+
+    const plexApi = new PlexAPI({ plexToken: admin.plexToken });
+
+    // Get all libraries
+    const allLibraries = await plexApi.getLibraries();
+
+    // Filter to only movie and show libraries
+    const libraries = allLibraries.filter(
+      (lib) => lib.type === 'movie' || lib.type === 'show'
+    );
+
+    // Fetch labels for each library and collect unique ones
+    const allLabels = new Set<string>();
+
+    for (const library of libraries) {
+      const labels = await plexApi.getLibraryLabels(library.key);
+      for (const label of labels) {
+        allLabels.add(label);
+      }
+    }
+
+    // Sort alphabetically
+    const sortedLabels = Array.from(allLabels).sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
+
+    logger.debug('Fetched unique labels from all libraries', {
+      label: 'PlexLabels',
+      libraryCount: libraries.length,
+      uniqueLabels: sortedLabels.length,
+    });
+
+    return res.status(200).json({ labels: sortedLabels });
+  } catch (error) {
+    logger.error('Failed to fetch Plex labels', {
+      label: 'PlexLabels',
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return res.status(500).json({
+      error: 'Failed to fetch Plex labels',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 export default searchRouter;

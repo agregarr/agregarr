@@ -18,6 +18,7 @@ import type {
   OverseerrUser,
   PlexCollection,
   PlexLabel,
+  PlexLookupResult,
   SyncResult,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
@@ -113,6 +114,9 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
               plexClient,
               libraryCache
             );
+
+          // Tag existing items in Radarr/Sonarr (if enabled)
+          await this.tagExistingItemsInArr(allItems, config);
 
           let result: SyncResult;
           switch (config.subtype) {
@@ -468,16 +472,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     }
 
     // Use standard findPlexItemsByTmdbIds to get items with addedAt/releaseDate
-    let plexLookup: Map<
-      string,
-      {
-        ratingKey: string;
-        title: string;
-        libraryKey: string;
-        addedAt?: number;
-        releaseDate?: number;
-      }
-    > = new Map();
+    let plexLookup: Map<string, PlexLookupResult> = new Map();
 
     if (plexClient) {
       const targetLibraryId = Array.isArray(config.libraryId)
@@ -510,6 +505,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
           requestId: lookup.requestId,
           userId: lookup.userId,
           tmdbId: lookup.tmdbId,
+          tvdbId: plexItem.tvdbId,
           createdAt: lookup.createdAt,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,

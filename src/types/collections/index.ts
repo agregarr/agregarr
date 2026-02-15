@@ -162,6 +162,19 @@ export interface PreExistingCollectionConfig {
 // Form metadata type for identifying config handling behavior
 export type FormConfigType = 'collection' | 'hub' | 'preExisting';
 
+export type TmdbAdvancedFilters = {
+  readonly filterGroups?: readonly {
+    readonly id: string;
+    readonly operator: 'and' | 'or'; // How this group combines with previous groups
+    readonly filters: readonly {
+      readonly id: string;
+      readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
+      readonly operator: 'and' | 'or'; // For multi-value fields (comma vs pipe)
+      readonly value: string | number | boolean;
+    }[];
+  }[];
+};
+
 export interface CollectionFormConfig {
   readonly id: string; // Generated unique identifier
   readonly name: string; // User-entered collection name
@@ -183,7 +196,7 @@ export interface CollectionFormConfig {
     | 'sonarrtag'
     | 'comingsoon'
     | 'filtered_hub';
-  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', etc. - optional for hubs/pre-existing
+  readonly subtype?: string; // Specific option like 'users', 'most_popular_plays', 'most_watched_plays', etc. - optional for hubs/pre-existing
   readonly timePeriod?: 'daily' | 'weekly' | 'monthly' | 'all'; // Time period for Trakt time-based subtypes
   readonly configType?: FormConfigType; // Metadata for form behavior identification
   readonly template?: string; // Collection title template (for preset templates or single media type) - optional for hubs/pre-existing
@@ -228,6 +241,7 @@ export interface CollectionFormConfig {
     | string[]
     | number[]
     | Record<string, string>
+    | TmdbAdvancedFilters
     | null
     | {
         usersHome: boolean;
@@ -311,6 +325,10 @@ export interface CollectionFormConfig {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
     };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
   };
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number; // Selected Radarr server ID for movies
@@ -339,6 +357,14 @@ export interface CollectionFormConfig {
   readonly traktCustomListUrl?: string; // Custom Trakt list URL
   // TMDB custom list fields
   readonly tmdbCustomCollectionUrl?: string; // Custom TMDB list/collection URL
+  // TMDB streaming service fields
+  readonly watchProviderId?: number; // TMDB watch provider ID (e.g., 337 for Disney+)
+  readonly region?: string; // Country region for streaming services (default: 'US')
+  // TMDB discover sorting (for TMDB advanced_custom_tmdb advanced discover)
+  readonly tmdbMovieSortBy?: string; // TMDB /discover/movie sort_by
+  readonly tmdbTvSortBy?: string; // TMDB /discover/tv sort_by
+  // TMDB advanced discover filters
+  readonly tmdbAdvancedFilters?: TmdbAdvancedFilters;
   // IMDb custom list fields
   readonly imdbCustomListUrl?: string; // Custom IMDb list URL
   // Letterboxd custom list fields
@@ -352,6 +378,13 @@ export interface CollectionFormConfig {
   readonly sonarrInstanceId?: number; // Selected Sonarr instance ID for tag-based collections
   readonly radarrTagId?: number; // Selected Radarr tag ID for tag-based collections
   readonly sonarrTagId?: number; // Selected Sonarr tag ID for tag-based collections
+  // Coming Soon "Monitored" server/tag filtering
+  readonly comingSoonRadarrServerId?: number; // Selected Radarr server for coming soon monitored
+  readonly comingSoonSonarrServerId?: number; // Selected Sonarr server for coming soon monitored
+  readonly comingSoonFilterByTags?: boolean; // Enable tag filtering for coming soon monitored
+  readonly comingSoonTagMode?: 'include' | 'exclude'; // Tag filter mode
+  readonly comingSoonRadarrTagIds?: number[]; // Radarr tag IDs to filter by
+  readonly comingSoonSonarrTagIds?: number[]; // Sonarr tag IDs to filter by
   // Generic ordering options (applicable to all collection types)
   readonly sortOrder?: CollectionSortOrder; // Sort order for collection items (default: 'default')
   // Unified person minimum items for plex/actors|directors
@@ -447,8 +480,10 @@ export interface CollectionConfigCreateRequest {
   // Note: isActive is NOT included - backend computes from timeRestriction
   readonly maxItems?: number;
   readonly mediaType?: MediaType;
-  readonly libraryId: string;
-  readonly libraryName: string;
+  readonly libraryId?: string;
+  readonly libraryName?: string;
+  readonly libraryIds?: string[];
+  readonly libraryNames?: string[];
   readonly sortOrderHome?: number;
   readonly sortOrderLibrary?: number;
   readonly randomizeHomeOrder?: boolean;
@@ -488,6 +523,10 @@ export interface CollectionConfigCreateRequest {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
     };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
   };
   // Direct download server selection (for downloadMode: 'direct')
   readonly directDownloadRadarrServerId?: number;
@@ -514,6 +553,9 @@ export interface CollectionConfigCreateRequest {
   readonly overseerrSonarrTags?: number[];
   readonly traktCustomListUrl?: string;
   readonly tmdbCustomCollectionUrl?: string;
+  readonly tmdbMovieSortBy?: string;
+  readonly tmdbTvSortBy?: string;
+  readonly tmdbAdvancedFilters?: Record<string, unknown>;
   readonly imdbCustomListUrl?: string;
   readonly letterboxdCustomListUrl?: string;
   readonly networksCountry?: string;
@@ -522,6 +564,13 @@ export interface CollectionConfigCreateRequest {
   readonly sonarrInstanceId?: number;
   readonly radarrTagId?: number;
   readonly sonarrTagId?: number;
+  // Coming Soon "Monitored" server/tag filtering
+  readonly comingSoonRadarrServerId?: number;
+  readonly comingSoonSonarrServerId?: number;
+  readonly comingSoonFilterByTags?: boolean;
+  readonly comingSoonTagMode?: 'include' | 'exclude';
+  readonly comingSoonRadarrTagIds?: number[];
+  readonly comingSoonSonarrTagIds?: number[];
   readonly sortOrder?: CollectionSortOrder;
   // Unified person minimum items for plex actors/directors
   readonly personMinimumItems?: number;
@@ -592,6 +641,8 @@ export const toCollectionCreateRequest = (
     mediaType: config.mediaType,
     libraryId: config.libraryId,
     libraryName: config.libraryName,
+    libraryIds: config.libraryIds,
+    libraryNames: config.libraryNames,
     sortOrderHome: config.sortOrderHome,
     sortOrderLibrary: config.sortOrderLibrary,
     randomizeHomeOrder: config.randomizeHomeOrder,
@@ -641,6 +692,11 @@ export const toCollectionCreateRequest = (
     overseerrSonarrTags: config.overseerrSonarrTags,
     traktCustomListUrl: config.traktCustomListUrl,
     tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
+    tmdbMovieSortBy: config.tmdbMovieSortBy,
+    tmdbTvSortBy: config.tmdbTvSortBy,
+    tmdbAdvancedFilters: config.tmdbAdvancedFilters as unknown as
+      | Record<string, unknown>
+      | undefined,
     imdbCustomListUrl: config.imdbCustomListUrl,
     letterboxdCustomListUrl: config.letterboxdCustomListUrl,
     networksCountry: config.networksCountry,
@@ -649,6 +705,12 @@ export const toCollectionCreateRequest = (
     sonarrInstanceId: config.sonarrInstanceId,
     radarrTagId: config.radarrTagId,
     sonarrTagId: config.sonarrTagId,
+    comingSoonRadarrServerId: config.comingSoonRadarrServerId,
+    comingSoonSonarrServerId: config.comingSoonSonarrServerId,
+    comingSoonFilterByTags: config.comingSoonFilterByTags,
+    comingSoonTagMode: config.comingSoonTagMode,
+    comingSoonRadarrTagIds: config.comingSoonRadarrTagIds,
+    comingSoonSonarrTagIds: config.comingSoonSonarrTagIds,
     sortOrder: config.sortOrder,
     personMinimumItems: config.personMinimumItems,
     excludeFromCollections: config.excludeFromCollections,
@@ -1047,6 +1109,10 @@ export interface MultiSourceCollectionConfig {
     readonly languages?: {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
     };
   };
   readonly directDownloadRadarrServerId?: number;

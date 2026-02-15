@@ -35,6 +35,7 @@ export interface PlexLibraryItem {
   Guid?: {
     id: string;
   }[];
+  Label?: { tag: string; id?: number }[]; // Item-level labels/tags in Plex
   type: 'movie' | 'show' | 'season' | 'episode';
   Media: Media[];
 }
@@ -69,6 +70,7 @@ export interface PlexMetadata {
   Guid: {
     id: string;
   }[];
+  Label?: { tag: string; id?: number }[]; // Item-level labels/tags in Plex
   Children?: {
     size: 12;
     Metadata: PlexMetadata[];
@@ -1236,20 +1238,41 @@ class PlexAPI {
 
   public async updateCollectionTitle(
     collectionRatingKey: string,
-    title: string
+    title: string,
+    libraryKey?: string
   ): Promise<void> {
     try {
-      const params = {
-        'title.value': title,
-      };
+      // Use the correct Plex API endpoint for editing collection metadata
+      // Collections require PUT /library/sections/{libraryKey}/all with type=18
+      // The old endpoint /library/metadata/{ratingKey} doesn't reliably update collection titles
+      if (libraryKey) {
+        const editUrl = `/library/sections/${libraryKey}/all?type=18&id=${collectionRatingKey}&title.value=${encodeURIComponent(
+          title
+        )}&title.locked=1`;
+        await this.safePutQuery(editUrl);
+      } else {
+        // Fallback to old method if libraryKey not provided (for backwards compatibility)
+        // This may not work reliably for collections
+        const params = {
+          'title.value': title,
+        };
 
-      const queryString = Object.entries(params)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join('&');
+        const queryString = Object.entries(params)
+          .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+          .join('&');
 
-      const editUrl = `/library/metadata/${collectionRatingKey}?${queryString}`;
+        const editUrl = `/library/metadata/${collectionRatingKey}?${queryString}`;
 
-      await this.safePutQuery(editUrl);
+        await this.safePutQuery(editUrl);
+
+        logger.warn(
+          `updateCollectionTitle called without libraryKey - using legacy endpoint which may not work for collections`,
+          {
+            label: 'Plex API',
+            collectionRatingKey,
+          }
+        );
+      }
     } catch (error) {
       logger.error(
         `Error updating title for collection ${collectionRatingKey}`,
@@ -1258,6 +1281,7 @@ class PlexAPI {
           error,
         }
       );
+      throw error; // Re-throw so callers know the update failed
     }
   }
 
@@ -1805,6 +1829,7 @@ class PlexAPI {
   ): Promise<{
     added: number;
     removed: number;
+    removedKeys: string[];
     reordered: boolean;
     errors: string[];
   }> {
@@ -1887,10 +1912,16 @@ class PlexAPI {
         }
       }
 
-      return { added, removed, reordered, errors };
+      return { added, removed, removedKeys: toRemoveKeys, reordered, errors };
     } catch (error) {
       errors.push(`Collection update failed: ${(error as Error).message}`);
-      return { added: 0, removed: 0, reordered: false, errors };
+      return {
+        added: 0,
+        removed: 0,
+        removedKeys: [],
+        reordered: false,
+        errors,
+      };
     }
   }
 
@@ -2805,6 +2836,55 @@ class PlexAPI {
         }
       );
       throw error;
+    }
+  }
+
+  /**
+   * Get all labels for a library
+   * @param libraryId - Library section key
+   * @returns Array of unique label names
+   */
+  public async getLibraryLabels(libraryId: string): Promise<string[]> {
+    try {
+      // Fetch library metadata to determine media type
+      const libraries = await this.getLibraries();
+      const library = libraries.find((lib) => lib.key === libraryId);
+
+      if (!library) {
+        logger.warn(`Library ${libraryId} not found`, {
+          label: 'Plex API',
+        });
+        return [];
+      }
+
+      // Type parameter: 1=movie, 2=show
+      const type = library.type === 'show' ? 2 : 1;
+
+      const response = await this.plexClient.query<{
+        MediaContainer: {
+          Directory?: { key: string; title: string }[];
+        };
+      }>(`/library/sections/${libraryId}/label?type=${type}`);
+
+      const directories = response.MediaContainer?.Directory || [];
+      const labels = directories
+        .map((d) => d.title)
+        .filter((title): title is string => !!title);
+
+      logger.debug(`Found ${labels.length} labels in library ${libraryId}`, {
+        label: 'Plex API',
+        libraryId,
+        labelCount: labels.length,
+      });
+
+      return labels;
+    } catch (error) {
+      logger.error(`Failed to fetch labels from library ${libraryId}`, {
+        label: 'Plex API',
+        libraryId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
     }
   }
 }

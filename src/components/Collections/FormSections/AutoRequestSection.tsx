@@ -8,9 +8,11 @@ import axios from 'axios';
 import { Field } from 'formik';
 import { useEffect, useState } from 'react';
 import { defineMessages, useIntl } from 'react-intl';
-import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
+import { useToasts } from 'react-toast-notifications';
 import useSWR from 'swr';
 import FilterWithMode from './FilterWithMode';
+import KeywordFilterWithMode from './KeywordFilterWithMode';
 
 interface OptionType {
   value: number;
@@ -113,6 +115,9 @@ const messages = defineMessages({
   noTagOptions: 'No tags.',
   selectOverseerrRadarrTags: 'Radarr Tags (Movies)',
   selectOverseerrSonarrTags: 'Sonarr Tags (TV Shows)',
+  createTag: "Add new tag '{tagName}'",
+  tagCreated: 'Tag created successfully',
+  tagCreationFailed: 'Failed to create tag',
   contentProcessing: 'Content Processing',
   enableProcessingForApproval:
     'Enable movie or TV processing above to configure auto-approval options.',
@@ -122,8 +127,15 @@ const messages = defineMessages({
     'Enable movie or TV processing above to configure server and profile options.',
 });
 
+interface AutoTagOptionType extends OptionType {
+  isAutoTag?: boolean;
+}
+
 interface AutoRequestSectionProps {
   values: {
+    type?: string; // Collection source type (e.g., 'trakt', 'tmdb', 'imdb')
+    subtype?: string; // Collection subtype (e.g., 'trending', 'popular')
+    name?: string; // Collection name
     libraryIds?: string[];
     libraryId?: string | string[];
     mediaType?: string;
@@ -142,6 +154,10 @@ interface AutoRequestSectionProps {
       languages?: {
         mode: 'exclude' | 'include';
         values: string[];
+      };
+      keywords?: {
+        mode: 'exclude' | 'include';
+        values: number[];
       };
     };
     directDownloadRadarrServerId?: number;
@@ -183,6 +199,7 @@ const AutoRequestSection = ({
   setFieldValue,
 }: AutoRequestSectionProps) => {
   const intl = useIntl();
+  const { addToast } = useToasts();
 
   // Fetch Radarr and Sonarr servers
   const { data: radarrServers, isLoading: radarrLoading } = useSWR<
@@ -424,17 +441,360 @@ const AutoRequestSection = ({
   );
 
   // Fetch tags for selected servers or default/single server
-  const { data: radarrTags } = useSWR<{ id: number; label: string }[]>(
+  const { data: radarrTags, mutate: mutateRadarrTags } = useSWR<
+    { id: number; label: string }[]
+  >(
     effectiveRadarrServerId !== undefined
       ? `/api/v1/settings/radarr/${effectiveRadarrServerId}/tags`
       : null
   );
 
-  const { data: sonarrTags } = useSWR<{ id: number; label: string }[]>(
+  const { data: sonarrTags, mutate: mutateSonarrTags } = useSWR<
+    { id: number; label: string }[]
+  >(
     effectiveSonarrServerId !== undefined
       ? `/api/v1/settings/sonarr/${effectiveSonarrServerId}/tags`
       : null
   );
+
+  // State for auto-generated collection tags (IDs only, labels fetched from tags list)
+  const [radarrAutoTagId, setRadarrAutoTagId] = useState<number | null>(null);
+  const [sonarrAutoTagId, setSonarrAutoTagId] = useState<number | null>(null);
+
+  // Fetch auto-generated tag label for Radarr
+  useEffect(() => {
+    const fetchRadarrAutoTag = async () => {
+      if (
+        effectiveRadarrServerId === undefined ||
+        !values.type ||
+        values.downloadMode !== 'direct' ||
+        !radarrTags // Wait for tags to load before doing anything
+      ) {
+        if (values.downloadMode !== 'direct') {
+          setRadarrAutoTagId(null);
+        }
+        return;
+      }
+
+      try {
+        const queryParts: string[] = [
+          `source=${encodeURIComponent(values.type)}`,
+        ];
+        if (values.subtype)
+          queryParts.push(`subtype=${encodeURIComponent(values.subtype)}`);
+        if (values.name)
+          queryParts.push(`name=${encodeURIComponent(values.name)}`);
+
+        const response = await axios.get<{ label: string | null }>(
+          `/api/v1/settings/radarr/${effectiveRadarrServerId}/autotag?${queryParts.join(
+            '&'
+          )}`
+        );
+
+        const newLabel = response.data.label;
+
+        // If label is null (tag mode is off), clear auto tag ID
+        if (!newLabel) {
+          setRadarrAutoTagId(null);
+          return;
+        }
+
+        // Check if tag exists in the fetched tags list
+        const existingTag = radarrTags.find(
+          (tag) => tag.label.toLowerCase() === newLabel.toLowerCase()
+        );
+
+        if (existingTag) {
+          setRadarrAutoTagId(existingTag.id);
+          // Ensure the auto tag is included in selected tags
+          const currentTags = values.directDownloadRadarrTags || [];
+          if (!currentTags.includes(existingTag.id)) {
+            setFieldValue?.('directDownloadRadarrTags', [
+              ...currentTags,
+              existingTag.id,
+            ]);
+          }
+        } else {
+          // Create the tag if it doesn't exist
+          try {
+            const createResponse = await axios.post(
+              `/api/v1/settings/radarr/${effectiveRadarrServerId}/tags`,
+              { label: newLabel }
+            );
+            const newTag = createResponse.data;
+            await mutateRadarrTags();
+            setRadarrAutoTagId(newTag.id);
+            // Add to selected tags
+            const currentTags = values.directDownloadRadarrTags || [];
+            if (!currentTags.includes(newTag.id)) {
+              setFieldValue?.('directDownloadRadarrTags', [
+                ...currentTags,
+                newTag.id,
+              ]);
+            }
+          } catch {
+            // Tag creation failed - may already exist due to race condition
+            // Refresh tags and try to find it
+            await mutateRadarrTags();
+          }
+        }
+      } catch {
+        setRadarrAutoTagId(null);
+      }
+    };
+
+    fetchRadarrAutoTag();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    effectiveRadarrServerId,
+    values.type,
+    values.subtype,
+    values.name,
+    values.downloadMode,
+    radarrTags,
+  ]);
+
+  // Fetch auto-generated tag label for Sonarr
+  useEffect(() => {
+    const fetchSonarrAutoTag = async () => {
+      if (
+        effectiveSonarrServerId === undefined ||
+        !values.type ||
+        values.downloadMode !== 'direct' ||
+        !sonarrTags // Wait for tags to load before doing anything
+      ) {
+        if (values.downloadMode !== 'direct') {
+          setSonarrAutoTagId(null);
+        }
+        return;
+      }
+
+      try {
+        const queryParts: string[] = [
+          `source=${encodeURIComponent(values.type)}`,
+        ];
+        if (values.subtype)
+          queryParts.push(`subtype=${encodeURIComponent(values.subtype)}`);
+        if (values.name)
+          queryParts.push(`name=${encodeURIComponent(values.name)}`);
+
+        const response = await axios.get<{ label: string | null }>(
+          `/api/v1/settings/sonarr/${effectiveSonarrServerId}/autotag?${queryParts.join(
+            '&'
+          )}`
+        );
+
+        const newLabel = response.data.label;
+
+        // If label is null (tag mode is off), clear auto tag ID
+        if (!newLabel) {
+          setSonarrAutoTagId(null);
+          return;
+        }
+
+        // Check if tag exists in the fetched tags list
+        const existingTag = sonarrTags.find(
+          (tag) => tag.label.toLowerCase() === newLabel.toLowerCase()
+        );
+
+        if (existingTag) {
+          setSonarrAutoTagId(existingTag.id);
+          // Ensure the auto tag is included in selected tags
+          const currentTags = values.directDownloadSonarrTags || [];
+          if (!currentTags.includes(existingTag.id)) {
+            setFieldValue?.('directDownloadSonarrTags', [
+              ...currentTags,
+              existingTag.id,
+            ]);
+          }
+        } else {
+          // Create the tag if it doesn't exist
+          try {
+            const createResponse = await axios.post(
+              `/api/v1/settings/sonarr/${effectiveSonarrServerId}/tags`,
+              { label: newLabel }
+            );
+            const newTag = createResponse.data;
+            await mutateSonarrTags();
+            setSonarrAutoTagId(newTag.id);
+            // Add to selected tags
+            const currentTags = values.directDownloadSonarrTags || [];
+            if (!currentTags.includes(newTag.id)) {
+              setFieldValue?.('directDownloadSonarrTags', [
+                ...currentTags,
+                newTag.id,
+              ]);
+            }
+          } catch {
+            // Tag creation failed - may already exist due to race condition
+            // Refresh tags and try to find it
+            await mutateSonarrTags();
+          }
+        }
+      } catch {
+        setSonarrAutoTagId(null);
+      }
+    };
+
+    fetchSonarrAutoTag();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    effectiveSonarrServerId,
+    values.type,
+    values.subtype,
+    values.name,
+    values.downloadMode,
+    sonarrTags,
+  ]);
+
+  // Tag creation handlers for direct download mode
+  const handleCreateDirectDownloadRadarrTag = async (inputValue: string) => {
+    if (effectiveRadarrServerId === undefined) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `/api/v1/settings/radarr/${effectiveRadarrServerId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Refresh the tags list
+      await mutateRadarrTags();
+
+      // Add the new tag to the selected tags
+      const currentTags = values.directDownloadRadarrTags || [];
+      setFieldValue?.('directDownloadRadarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
+  const handleCreateDirectDownloadSonarrTag = async (inputValue: string) => {
+    if (effectiveSonarrServerId === undefined) {
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `/api/v1/settings/sonarr/${effectiveSonarrServerId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Refresh the tags list
+      await mutateSonarrTags();
+
+      // Add the new tag to the selected tags
+      const currentTags = values.directDownloadSonarrTags || [];
+      setFieldValue?.('directDownloadSonarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
+  // Tag creation handlers for Overseerr mode
+  // These use Overseerr's server credentials to create tags on Radarr/Sonarr
+  const handleCreateOverseerrRadarrTag = async (inputValue: string) => {
+    const serverId = values.overseerrRadarrServerId;
+    if (serverId === undefined || serverId === null) {
+      return;
+    }
+
+    try {
+      // Use Overseerr endpoint which fetches credentials from Overseerr
+      const response = await axios.post(
+        `/api/v1/overseerr/radarr/${serverId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Update the local state with the new tag
+      setOverseerrServerOptions((prev) => ({
+        ...prev,
+        radarrServerOptions: {
+          ...prev.radarrServerOptions,
+          [serverId]: {
+            ...prev.radarrServerOptions[serverId],
+            tags: [...(prev.radarrServerOptions[serverId]?.tags || []), newTag],
+          },
+        },
+      }));
+
+      // Add the new tag to the selected tags
+      const currentTags = values.overseerrRadarrTags || [];
+      setFieldValue?.('overseerrRadarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
+
+  const handleCreateOverseerrSonarrTag = async (inputValue: string) => {
+    const serverId = values.overseerrSonarrServerId;
+    if (serverId === undefined || serverId === null) {
+      return;
+    }
+
+    try {
+      // Use Overseerr endpoint which fetches credentials from Overseerr
+      const response = await axios.post(
+        `/api/v1/overseerr/sonarr/${serverId}/tags`,
+        { label: inputValue }
+      );
+      const newTag = response.data;
+
+      // Update the local state with the new tag
+      setOverseerrServerOptions((prev) => ({
+        ...prev,
+        sonarrServerOptions: {
+          ...prev.sonarrServerOptions,
+          [serverId]: {
+            ...prev.sonarrServerOptions[serverId],
+            tags: [...(prev.sonarrServerOptions[serverId]?.tags || []), newTag],
+          },
+        },
+      }));
+
+      // Add the new tag to the selected tags
+      const currentTags = values.overseerrSonarrTags || [];
+      setFieldValue?.('overseerrSonarrTags', [...currentTags, newTag.id]);
+
+      addToast(intl.formatMessage(messages.tagCreated), {
+        appearance: 'success',
+        autoDismiss: true,
+      });
+    } catch (error) {
+      addToast(intl.formatMessage(messages.tagCreationFailed), {
+        appearance: 'error',
+        autoDismiss: true,
+      });
+    }
+  };
 
   if (!isVisible) return null;
 
@@ -750,6 +1110,31 @@ const AutoRequestSection = ({
                 languages: {
                   mode: currentMode,
                   values: selectedValues as string[],
+                },
+              });
+            }}
+          />
+
+          {/* Keyword Filter with Include/Exclude Mode */}
+          <KeywordFilterWithMode
+            mode={values.filterSettings?.keywords?.mode || 'exclude'}
+            selectedValues={values.filterSettings?.keywords?.values || []}
+            onModeChange={(mode) => {
+              const currentValues =
+                values.filterSettings?.keywords?.values || [];
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                keywords: { mode, values: currentValues },
+              });
+            }}
+            onValuesChange={(selectedValues) => {
+              const currentMode =
+                values.filterSettings?.keywords?.mode || 'exclude';
+              setFieldValue?.('filterSettings', {
+                ...(values.filterSettings || {}),
+                keywords: {
+                  mode: currentMode,
+                  values: selectedValues,
                 },
               });
             }}
@@ -1098,7 +1483,7 @@ const AutoRequestSection = ({
                           )}
                         </div>
                         <div className="form-input-field">
-                          <Select<OptionType, true>
+                          <CreatableSelect<OptionType, true>
                             options={
                               overseerrServerOptions.radarrServerOptions[
                                 Number(values.overseerrRadarrServerId)
@@ -1148,6 +1533,12 @@ const AutoRequestSection = ({
                                 value?.map((v) => v.value) || []
                               );
                             }}
+                            onCreateOption={handleCreateOverseerrRadarrTag}
+                            formatCreateLabel={(inputValue) =>
+                              intl.formatMessage(messages.createTag, {
+                                tagName: inputValue,
+                              })
+                            }
                           />
                         </div>
                       </div>
@@ -1297,7 +1688,7 @@ const AutoRequestSection = ({
                           )}
                         </div>
                         <div className="form-input-field">
-                          <Select<OptionType, true>
+                          <CreatableSelect<OptionType, true>
                             options={
                               overseerrServerOptions.sonarrServerOptions[
                                 Number(values.overseerrSonarrServerId)
@@ -1347,6 +1738,12 @@ const AutoRequestSection = ({
                                 value?.map((v) => v.value) || []
                               );
                             }}
+                            onCreateOption={handleCreateOverseerrSonarrTag}
+                            formatCreateLabel={(inputValue) =>
+                              intl.formatMessage(messages.createTag, {
+                                tagName: inputValue,
+                              })
+                            }
                           />
                         </div>
                       </div>
@@ -1478,11 +1875,12 @@ const AutoRequestSection = ({
                         {intl.formatMessage(messages.selectRadarrTags)}
                       </div>
                       <div className="form-input-field">
-                        <Select<OptionType, true>
+                        <CreatableSelect<AutoTagOptionType, true>
                           options={
                             radarrTags?.map((tag) => ({
                               label: tag.label,
                               value: tag.id,
+                              isAutoTag: tag.id === radarrAutoTagId,
                             })) || []
                           }
                           isMulti
@@ -1499,6 +1897,7 @@ const AutoRequestSection = ({
                           }
                           className="react-select-container"
                           classNamePrefix="react-select"
+                          isClearable={false}
                           value={
                             radarrTags
                               ?.filter((tag) =>
@@ -1509,13 +1908,47 @@ const AutoRequestSection = ({
                               .map((tag) => ({
                                 label: tag.label,
                                 value: tag.id,
+                                isAutoTag: tag.id === radarrAutoTagId,
                               })) || []
                           }
                           onChange={(value) => {
+                            // Ensure auto tag is always included
+                            const newTags = value?.map((v) => v.value) || [];
+                            if (
+                              radarrAutoTagId &&
+                              !newTags.includes(radarrAutoTagId)
+                            ) {
+                              newTags.push(radarrAutoTagId);
+                            }
                             setFieldValue?.(
                               'directDownloadRadarrTags',
-                              value?.map((v) => v.value) || []
+                              newTags
                             );
+                          }}
+                          onCreateOption={handleCreateDirectDownloadRadarrTag}
+                          formatCreateLabel={(inputValue) =>
+                            intl.formatMessage(messages.createTag, {
+                              tagName: inputValue,
+                            })
+                          }
+                          styles={{
+                            multiValue: (base, state) => {
+                              const isAuto = (state.data as AutoTagOptionType)
+                                .isAutoTag;
+                              return {
+                                ...base,
+                                boxShadow: isAuto
+                                  ? 'inset 0 0 0 1px #f97316'
+                                  : undefined,
+                              };
+                            },
+                            multiValueRemove: (base, state) => ({
+                              ...base,
+                              display: (state.data as AutoTagOptionType)
+                                .isAutoTag
+                                ? 'none'
+                                : base.display,
+                            }),
                           }}
                         />
                       </div>
@@ -1666,11 +2099,12 @@ const AutoRequestSection = ({
                         {intl.formatMessage(messages.selectSonarrTags)}
                       </div>
                       <div className="form-input-field">
-                        <Select<OptionType, true>
+                        <CreatableSelect<AutoTagOptionType, true>
                           options={
                             sonarrTags?.map((tag) => ({
                               label: tag.label,
                               value: tag.id,
+                              isAutoTag: tag.id === sonarrAutoTagId,
                             })) || []
                           }
                           isMulti
@@ -1687,6 +2121,7 @@ const AutoRequestSection = ({
                           }
                           className="react-select-container"
                           classNamePrefix="react-select"
+                          isClearable={false}
                           value={
                             sonarrTags
                               ?.filter((tag) =>
@@ -1697,13 +2132,47 @@ const AutoRequestSection = ({
                               .map((tag) => ({
                                 label: tag.label,
                                 value: tag.id,
+                                isAutoTag: tag.id === sonarrAutoTagId,
                               })) || []
                           }
                           onChange={(value) => {
+                            // Ensure auto tag is always included
+                            const newTags = value?.map((v) => v.value) || [];
+                            if (
+                              sonarrAutoTagId &&
+                              !newTags.includes(sonarrAutoTagId)
+                            ) {
+                              newTags.push(sonarrAutoTagId);
+                            }
                             setFieldValue?.(
                               'directDownloadSonarrTags',
-                              value?.map((v) => v.value) || []
+                              newTags
                             );
+                          }}
+                          onCreateOption={handleCreateDirectDownloadSonarrTag}
+                          formatCreateLabel={(inputValue) =>
+                            intl.formatMessage(messages.createTag, {
+                              tagName: inputValue,
+                            })
+                          }
+                          styles={{
+                            multiValue: (base, state) => {
+                              const isAuto = (state.data as AutoTagOptionType)
+                                .isAutoTag;
+                              return {
+                                ...base,
+                                boxShadow: isAuto
+                                  ? 'inset 0 0 0 1px #f97316'
+                                  : undefined,
+                              };
+                            },
+                            multiValueRemove: (base, state) => ({
+                              ...base,
+                              display: (state.data as AutoTagOptionType)
+                                .isAutoTag
+                                ? 'none'
+                                : base.display,
+                            }),
                           }}
                         />
                       </div>

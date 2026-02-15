@@ -158,6 +158,14 @@ const CollectionTypeSection = ({
             value: 'most_popular_duration',
             label: 'Most Popular (by Watch Duration)',
           },
+          {
+            value: 'most_watched_plays',
+            label: 'Most Watched (by Play Count)',
+          },
+          {
+            value: 'most_watched_duration',
+            label: 'Most Watched (by Watch Duration)',
+          },
         ];
       case 'trakt':
         return [
@@ -233,6 +241,12 @@ const CollectionTypeSection = ({
           { value: 'trending_week', label: 'Trending This Week' },
           { value: 'popular', label: 'Popular' },
           { value: 'top_rated', label: 'Top Rated' },
+          {
+            value: 'advanced_custom_tmdb',
+            label: 'Custom Advanced Filters',
+            description:
+              'Build your own filter based on https://developer.themoviedb.org/reference/discover-movies and https://developer.themoviedb.org/reference/discover-tv-shows',
+          },
           {
             value: 'auto_franchise',
             label: 'Auto Franchise Collections',
@@ -703,24 +717,26 @@ const CollectionTypeSection = ({
               className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
-          <div>
-            <label
-              htmlFor="minimumPlays"
-              className="mb-2 block text-sm text-gray-300"
-            >
-              {intl.formatMessage(messages.minimumPlayCount)}{' '}
-              <span className="text-red-500">*</span>
-            </label>
-            <Field
-              type="number"
-              id="minimumPlays"
-              name="minimumPlays"
-              placeholder="3"
-              min="1"
-              max="100"
-              className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
+          {values.subtype?.startsWith('most_popular_') && (
+            <div>
+              <label
+                htmlFor="minimumPlays"
+                className="mb-2 block text-sm text-gray-300"
+              >
+                {intl.formatMessage(messages.minimumPlayCount)}{' '}
+                <span className="text-red-500">*</span>
+              </label>
+              <Field
+                type="number"
+                id="minimumPlays"
+                name="minimumPlays"
+                placeholder="3"
+                min="1"
+                max="100"
+                className="w-full rounded-md border border-stone-500 bg-stone-700 px-3 py-2 text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

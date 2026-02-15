@@ -12,6 +12,7 @@ import type {
   CollectionSyncOptions,
   MissingItem,
   PlexCollection,
+  PlexLookupResult,
   SyncResult,
   TmdbFranchiseSourceData,
   TmdbSourceData,
@@ -24,6 +25,21 @@ import type { CollectionConfig } from '@server/lib/settings';
 import logger from '@server/logger';
 
 // TmdbSourceData interface is now imported from types.ts
+
+/** Type for individual filter within a group */
+interface TmdbAdvancedFilter {
+  readonly id: string;
+  readonly field: string;
+  readonly operator: 'and' | 'or';
+  readonly value: string | number | boolean | string[];
+}
+
+/** Type for filter group */
+interface TmdbAdvancedFilterGroup {
+  readonly id: string;
+  readonly operator: 'and' | 'or';
+  readonly filters: readonly TmdbAdvancedFilter[];
+}
 
 /**
  * TMDB Collection Sync - Simple implementation for trending/popular/top-rated content
@@ -457,6 +473,561 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         }
         break;
       }
+      case 'advanced': {
+        // Handle TMDB Custom Advanced Filters - subtype should be "advanced_custom_tmdb"
+        const groups: readonly TmdbAdvancedFilterGroup[] =
+          (config.tmdbAdvancedFilters
+            ?.filterGroups as readonly TmdbAdvancedFilterGroup[]) ?? [];
+
+        const hasNonEmptyValue = (value: unknown): boolean => {
+          if (value === undefined || value === null) return false;
+          if (Array.isArray(value)) {
+            return value.map(String).some((v) => v.trim().length > 0);
+          }
+          if (typeof value === 'string') return value.trim().length > 0;
+          return true;
+        };
+
+        const hasAdvancedWatchProviders = groups.some(
+          (group: TmdbAdvancedFilterGroup) =>
+            (group?.filters ?? []).some((filter: TmdbAdvancedFilter) => {
+              const field =
+                typeof filter?.field === 'string' ? filter.field.trim() : '';
+              return (
+                field === 'with_watch_providers' &&
+                hasNonEmptyValue(filter?.value)
+              );
+            })
+        );
+
+        const watchRegion = (() => {
+          for (const group of groups) {
+            for (const filter of group?.filters ?? []) {
+              const field =
+                typeof filter?.field === 'string' ? filter.field.trim() : '';
+              const value = filter?.value;
+              if (field !== 'watch_region') continue;
+              if (!hasNonEmptyValue(value)) continue;
+              const region = Array.isArray(value)
+                ? String(value[0] ?? '').trim()
+                : String(value).trim();
+              if (!region) continue;
+              return region.split(/[|,]/)[0]?.trim();
+            }
+          }
+          return undefined;
+        })();
+
+        const mediaType = getCollectionMediaType(config);
+        if (mediaType !== 'movie' && mediaType !== 'tv') {
+          throw this.createSyncError(
+            CollectionSyncErrorType.CONFIGURATION_ERROR,
+            'Unsupported media type for TMDB Custom Advanced Filters collections'
+          );
+        }
+
+        const normalizeDiscoverField = (field: string): string => {
+          const trimmed = field.trim();
+
+          if (mediaType === 'tv') {
+            const tvAliases: Record<string, string> = {
+              // "Release" year/date equivalents for TV discover
+              release_year: 'first_air_date_year',
+              releaseYear: 'first_air_date_year',
+              primaryReleaseYear: 'first_air_date_year',
+              primary_release_year: 'first_air_date_year',
+              'primary_release_date.gte': 'first_air_date.gte',
+              'primary_release_date.lte': 'first_air_date.lte',
+            };
+            return tvAliases[trimmed] ?? trimmed;
+          }
+
+          const movieAliases: Record<string, string> = {
+            release_year: 'primary_release_year',
+            releaseYear: 'primary_release_year',
+            primaryReleaseYear: 'primary_release_year',
+          };
+          return movieAliases[trimmed] ?? trimmed;
+        };
+
+        const coerceDiscoverValue = (
+          field: string,
+          value: unknown
+        ): unknown => {
+          if (typeof value === 'string') {
+            const numericFields = new Set([
+              'primary_release_year',
+              'year',
+              'first_air_date_year',
+              'vote_count.gte',
+              'vote_count.lte',
+              'vote_average.gte',
+              'vote_average.lte',
+              'with_runtime.gte',
+              'with_runtime.lte',
+              'with_networks', // TMDB requires integer for TV networks
+            ]);
+
+            const looksNumeric = /^-?\d+(?:\.\d+)?$/.test(value.trim());
+            if (
+              (numericFields.has(field) ||
+                field.endsWith('.gte') ||
+                field.endsWith('.lte')) &&
+              looksNumeric
+            ) {
+              const asNumber = Number(value);
+              return Number.isFinite(asNumber) ? asNumber : value;
+            }
+          }
+
+          return value;
+        };
+
+        const MULTIVALUE_SEPARATOR_FIELDS = new Set([
+          'with_cast',
+          'with_companies',
+          'with_crew',
+          'with_genres',
+          'with_keywords',
+          'with_people',
+          'with_release_type',
+          'with_watch_monetization_types',
+          'with_watch_providers',
+          'with_status', // TV-only: comma (AND) or pipe (OR) separated
+          'with_type', // TV-only: comma (AND) or pipe (OR) separated
+        ]);
+
+        type AdvancedDiscoverFilters = NonNullable<
+          CollectionConfig['tmdbAdvancedFilters']
+        >;
+        type AdvancedDiscoverFilterGroup = NonNullable<
+          NonNullable<AdvancedDiscoverFilters['filterGroups']>
+        >[number];
+
+        // Base discover params for this subtype.
+        // If providers are used, TMDB expects watch_region; default to US if omitted.
+        const baseFilters: Record<string, unknown> = {};
+
+        const normalizeLogicalOperator = (
+          op: unknown
+        ): 'and' | 'or' | undefined => {
+          if (typeof op !== 'string') return undefined;
+          const v = op.trim().toLowerCase();
+          if (v === 'and' || v === 'or') return v;
+          return undefined;
+        };
+
+        const sortBySelectionRaw =
+          mediaType === 'tv' ? config.tmdbTvSortBy : config.tmdbMovieSortBy;
+        const sortBySelection =
+          typeof sortBySelectionRaw === 'string'
+            ? sortBySelectionRaw.trim()
+            : undefined;
+        const isRandomSelection = sortBySelection === 'random';
+
+        // Always have an effective sort to apply when combining groups.
+        // Random intentionally uses popularity ordering.
+        const effectiveSortBy =
+          !sortBySelection || isRandomSelection
+            ? 'popularity.desc'
+            : sortBySelection;
+
+        // If random is selected, we intentionally DO NOT set sort_by, letting the TMDB client
+        // default to popularity.desc.
+        if (!isRandomSelection) {
+          baseFilters.sort_by = effectiveSortBy;
+        }
+
+        if (hasAdvancedWatchProviders) {
+          baseFilters.watch_region = watchRegion || 'US';
+        }
+
+        const buildGroupFilters = (
+          group: AdvancedDiscoverFilterGroup
+        ): Record<string, unknown> => {
+          const groupFilters: Record<string, unknown> = {};
+
+          const ID_ONLY_FIELDS = new Set([
+            'with_cast',
+            'with_crew',
+            'with_people',
+            'with_companies',
+            'with_keywords',
+            'with_watch_providers',
+          ]);
+
+          const extractNumericIds = (
+            tokens: unknown[],
+            separator: ',' | '|'
+          ): string | undefined => {
+            const ids: string[] = [];
+            const seen = new Set<string>();
+
+            for (const token of tokens) {
+              const str = String(token).trim();
+              if (!str) continue;
+              const match = str.match(/(\d+)/);
+              const id = match?.[1];
+              if (!id) continue;
+              if (seen.has(id)) continue;
+              seen.add(id);
+              ids.push(id);
+            }
+
+            if (ids.length === 0) return undefined;
+            return ids.join(separator);
+          };
+
+          const isSupportedForMediaType = (field: string): boolean => {
+            if (mediaType === 'tv') {
+              // TMDB TV discover does NOT support these filters (movie-only)
+              if (field === 'with_cast') return false;
+              if (field === 'with_crew') return false;
+              if (field === 'with_people') return false;
+              if (field === 'include_video') return false;
+              if (field === 'with_release_type') return false;
+              if (field === 'year') return false;
+              if (field === 'primary_release_year') return false;
+              if (field === 'region') return false;
+              if (field.startsWith('certification')) return false;
+              if (field.startsWith('release_date')) return false;
+              if (field.startsWith('primary_release_date')) return false;
+              return true;
+            }
+
+            // movie
+            if (field === 'include_null_first_air_dates') return false;
+            if (field === 'screened_theatrically') return false;
+            if (field === 'with_networks') return false;
+            if (field === 'with_status') return false;
+            if (field === 'with_type') return false;
+            if (field === 'timezone') return false;
+            if (field === 'first_air_date_year') return false;
+            if (field.startsWith('first_air_date')) return false;
+            if (field.startsWith('air_date')) return false;
+            return true;
+          };
+
+          for (const filter of group.filters) {
+            if (!filter.field) continue;
+            if (!hasNonEmptyValue(filter.value)) continue;
+
+            const filterLogicalOperator = normalizeLogicalOperator(
+              filter.operator
+            );
+
+            const field = normalizeDiscoverField(filter.field);
+            if (!field) continue;
+            if (!isSupportedForMediaType(field)) continue;
+            let rawValue: unknown = coerceDiscoverValue(field, filter.value);
+
+            // ID-based fields: accept full TMDB slugs (e.g. "53714-rachel-mcadams")
+            // but normalize to numeric IDs for the actual TMDB API call.
+            if (ID_ONLY_FIELDS.has(field)) {
+              const separator: ',' | '|' =
+                filterLogicalOperator === 'or' ? '|' : ',';
+
+              if (Array.isArray(rawValue)) {
+                const numeric = extractNumericIds(rawValue, separator);
+                if (!numeric) continue;
+                rawValue = numeric;
+              } else if (typeof rawValue === 'string') {
+                const parts = rawValue
+                  .split(/[\s,|]+/)
+                  .map((p) => p.trim())
+                  .filter(Boolean);
+                const numeric = extractNumericIds(parts, separator);
+                if (!numeric) continue;
+                rawValue = numeric;
+              } else if (typeof rawValue === 'number') {
+                rawValue = String(rawValue);
+              }
+            }
+
+            // UI chip components may send arrays; serialize to TMDB format.
+            if (Array.isArray(rawValue)) {
+              const parts = rawValue
+                .map((v) => String(v).trim())
+                .filter((v) => v.length > 0);
+              if (parts.length === 0) continue;
+
+              if (MULTIVALUE_SEPARATOR_FIELDS.has(field)) {
+                rawValue = parts.join(
+                  filterLogicalOperator === 'or' ? '|' : ','
+                );
+              } else {
+                rawValue = parts[0];
+              }
+            }
+
+            if (
+              typeof rawValue === 'string' &&
+              MULTIVALUE_SEPARATOR_FIELDS.has(field) &&
+              (rawValue.includes(',') || rawValue.includes('|'))
+            ) {
+              // Only these TMDB fields support comma (AND) / pipe (OR) semantics
+              if (filterLogicalOperator === 'or') {
+                groupFilters[field] = rawValue.replace(/,/g, '|');
+              } else {
+                groupFilters[field] = rawValue.replace(/\|/g, ',');
+              }
+            } else {
+              groupFilters[field] = rawValue;
+            }
+          }
+
+          return groupFilters;
+        };
+
+        const fetchDiscoverResults = async (
+          discoverFilters: Record<string, unknown>
+        ): Promise<TmdbSourceData[]> => {
+          const results: TmdbSourceData[] = [];
+          let currentPage = 1;
+          let hasMorePages = true;
+          const BATCH_SIZE = 5;
+
+          while (hasMorePages) {
+            for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+              const data =
+                mediaType === 'tv'
+                  ? await this.tmdbClient.getAdvancedDiscoverTv({
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverTv
+                      >[0]),
+                      page: currentPage,
+                    })
+                  : await this.tmdbClient.getAdvancedDiscoverMovies({
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverMovies
+                      >[0]),
+                      page: currentPage,
+                    });
+
+              if (!data.results || data.results.length === 0) {
+                hasMorePages = false;
+                break;
+              }
+
+              results.push(
+                ...data.results.map((item) => ({
+                  ...item,
+                  media_type: (mediaType === 'tv' ? 'tv' : 'movie') as
+                    | 'movie'
+                    | 'tv',
+                }))
+              );
+
+              if (data.results.length < 20) {
+                hasMorePages = false;
+              }
+              currentPage++;
+            }
+
+            if (
+              config.maxItems &&
+              config.maxItems > 0 &&
+              results.length >= config.maxItems * 10
+            ) {
+              break;
+            }
+          }
+
+          return results;
+        };
+
+        const effectiveGroups: AdvancedDiscoverFilterGroup[] =
+          groups.length > 0
+            ? (groups as AdvancedDiscoverFilterGroup[])
+            : ([{ filters: [] }] as unknown as AdvancedDiscoverFilterGroup[]);
+
+        // Fetch each group separately and then AND/OR join results between groups
+        const groupResults: TmdbSourceData[][] = [];
+
+        for (
+          let groupIndex = 0;
+          groupIndex < effectiveGroups.length;
+          groupIndex++
+        ) {
+          const group = effectiveGroups[groupIndex];
+          const groupFilters = buildGroupFilters(group);
+          const discoverParams = { ...baseFilters, ...groupFilters };
+
+          logger.debug('TMDB Advanced discover params (group)', {
+            label: 'Collection Sync',
+            groupIndex,
+            groupId: group.id,
+            groupOperator: group.operator,
+            discoverParams,
+          });
+
+          groupResults.push(await fetchDiscoverResults(discoverParams));
+        }
+
+        // Combine results
+        const getId = (item: TmdbSourceData): number | undefined =>
+          typeof item?.id === 'number' ? item.id : undefined;
+
+        // Start with the first group's ordering
+        let combinedOrdered: TmdbSourceData[] = groupResults[0] ?? [];
+        let combinedIds = new Set<number>(
+          combinedOrdered
+            .map(getId)
+            .filter((id): id is number => typeof id === 'number')
+        );
+
+        for (let i = 1; i < groupResults.length; i++) {
+          const currentGroup = effectiveGroups[i];
+          const op = normalizeLogicalOperator(currentGroup.operator) ?? 'and';
+
+          const current = groupResults[i] ?? [];
+          const currentIds = new Set<number>(
+            current
+              .map(getId)
+              .filter((id): id is number => typeof id === 'number')
+          );
+
+          if (op === 'or') {
+            // Union: keep existing order, then append new unique items in current order
+            for (const item of current) {
+              const id = getId(item);
+              if (id === undefined) continue;
+              if (!combinedIds.has(id)) {
+                combinedIds.add(id);
+                combinedOrdered.push(item);
+              }
+            }
+          } else {
+            // AND (default): intersection, preserve existing order
+            combinedOrdered = combinedOrdered.filter((item) => {
+              const id = getId(item);
+              return id !== undefined && currentIds.has(id);
+            });
+            combinedIds = new Set<number>(
+              combinedOrdered
+                .map(getId)
+                .filter((id): id is number => typeof id === 'number')
+            );
+          }
+        }
+
+        const parseSortBy = (
+          sortBy: string | undefined
+        ): { field?: string; direction?: 'asc' | 'desc' } => {
+          if (!sortBy || typeof sortBy !== 'string') return {};
+          const trimmed = sortBy.trim();
+          if (!trimmed) return {};
+          const match = trimmed.match(/^(.*)\.(asc|desc)$/);
+          if (!match) return {};
+          return {
+            field: match[1]?.trim(),
+            direction: match[2] as 'asc' | 'desc',
+          };
+        };
+
+        const toTime = (value: unknown): number | undefined => {
+          if (typeof value !== 'string') return undefined;
+          const trimmed = value.trim();
+          if (!trimmed) return undefined;
+          const t = Date.parse(trimmed);
+          return Number.isFinite(t) ? t : undefined;
+        };
+
+        const compareNullable = (
+          a: number | string | undefined,
+          b: number | string | undefined,
+          direction: 'asc' | 'desc'
+        ): number => {
+          const aU = a === undefined || a === null;
+          const bU = b === undefined || b === null;
+          if (aU && bU) return 0;
+          if (aU) return 1;
+          if (bU) return -1;
+
+          if (typeof a === 'number' && typeof b === 'number') {
+            const diff = a - b;
+            return direction === 'desc' ? -diff : diff;
+          }
+
+          const as = String(a).toLowerCase();
+          const bs = String(b).toLowerCase();
+          const diff = as.localeCompare(bs);
+          return direction === 'desc' ? -diff : diff;
+        };
+
+        const { field: sortField, direction: sortDirection } =
+          parseSortBy(effectiveSortBy);
+
+        const getSortValue = (
+          item: TmdbSourceData
+        ): number | string | undefined => {
+          if (!sortField || !sortDirection) return undefined;
+
+          switch (sortField) {
+            case 'popularity':
+              return typeof item.popularity === 'number'
+                ? item.popularity
+                : undefined;
+            case 'vote_average':
+              return typeof item.vote_average === 'number'
+                ? item.vote_average
+                : undefined;
+            case 'vote_count':
+              return typeof item.vote_count === 'number'
+                ? item.vote_count
+                : undefined;
+            case 'revenue':
+              return typeof item.revenue === 'number'
+                ? item.revenue
+                : undefined;
+            case 'release_date':
+            case 'primary_release_date':
+              return toTime(item.release_date);
+            case 'first_air_date':
+              return toTime(item.first_air_date);
+            case 'title':
+              return item.title;
+            case 'original_title':
+              return item.original_title;
+            case 'name':
+              return item.name;
+            case 'original_name':
+              return item.original_name;
+            default:
+              return undefined;
+          }
+        };
+
+        if (sortField && sortDirection) {
+          combinedOrdered.sort((a, b) => {
+            const av = getSortValue(a);
+            const bv = getSortValue(b);
+            const primary = compareNullable(av, bv, sortDirection);
+            if (primary !== 0) return primary;
+
+            // Tie-breakers to avoid starving later OR groups when many values are equal/undefined.
+            const ap =
+              typeof a.popularity === 'number' ? a.popularity : undefined;
+            const bp =
+              typeof b.popularity === 'number' ? b.popularity : undefined;
+            const secondary = compareNullable(ap, bp, 'desc');
+            if (secondary !== 0) return secondary;
+
+            const aid = getId(a) ?? 0;
+            const bid = getId(b) ?? 0;
+            return aid - bid;
+          });
+        }
+
+        // Keep the same overall cap behavior, but apply it after merge+sort
+        // so later OR groups can contribute.
+        if (config.maxItems && config.maxItems > 0) {
+          combinedOrdered = combinedOrdered.slice(0, config.maxItems * 10);
+        }
+
+        tmdbData.push(...combinedOrdered);
+        break;
+      }
       case 'random': {
         // Get a random URL from RandomListManager with media type validation
         const mediaType = getCollectionMediaType(config);
@@ -563,16 +1134,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     }
 
     // Use direct Plex queries instead of Media table
-    let plexLookup: Map<
-      string,
-      {
-        ratingKey: string;
-        title: string;
-        libraryKey: string;
-        addedAt?: number;
-        releaseDate?: number;
-      }
-    > = new Map();
+    let plexLookup: Map<string, PlexLookupResult> = new Map();
 
     if (plexClient) {
       // Pass target library ID to limit search scope to only the collection's target library
@@ -603,6 +1165,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: lookup.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
           metadata: {
@@ -694,8 +1257,19 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       plexClient,
       libraryCache // OPTIMIZATION: Pass library cache to eliminate repeated API calls
     );
+
+    // If TMDB sort is "random", use the general sortOrder mechanism to shuffle
+    // (TMDB API doesn't support random, so we fetch by popularity then shuffle)
+    const mediaType = getCollectionMediaType(config);
+    const tmdbSortBy =
+      mediaType === 'tv' ? config.tmdbTvSortBy : config.tmdbMovieSortBy;
+    const configForFiltering =
+      tmdbSortBy === 'random'
+        ? { ...config, sortOrder: 'random' as const }
+        : config;
+
     const { items, missingItems, mappingStats, filteringStats } =
-      await this.applyFilteringToMappedItems(mappedResult, config);
+      await this.applyFilteringToMappedItems(mappedResult, configForFiltering);
 
     // Log processing stats if available
     if (mappingStats || filteringStats) {
@@ -706,6 +1280,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         filteringStats,
       });
     }
+
+    // Tag existing items in Radarr/Sonarr (if enabled)
+    await this.tagExistingItemsInArr(items, config);
 
     // Handle placeholder cleanup and process missing items
     const placeholderItems = await this.handlePlaceholdersAndMissingItems(
@@ -1171,6 +1748,9 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       );
     }
 
+    // Tag existing items in Radarr/Sonarr (if enabled)
+    await this.tagExistingItemsInArr(plexItems, config);
+
     // Handle placeholder cleanup and process missing items
     const placeholderItems = await this.handlePlaceholdersAndMissingItems(
       plexItems,
@@ -1366,6 +1946,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           title: plexItem.title,
           type: 'movie',
           tmdbId: movie.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
         });

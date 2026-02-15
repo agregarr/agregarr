@@ -11,6 +11,7 @@ import logger from '@server/logger';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
+import type sharp from 'sharp';
 import {
   buildRenderContext,
   checkMonitoringStatus,
@@ -38,6 +39,8 @@ class OverlayLibraryService {
   private radarrMoviesCache?: Map<string, RadarrMovie[]>;
   private sonarrSeriesCache?: Map<string, SonarrSeries[]>;
   private maintainerrCollectionsCache?: MaintainerrCollection[];
+  // Maps item ratingKey → array of collection IDs the item belongs to
+  private collectionMembershipCache?: Map<string, string[]>;
 
   // Track running libraries with mutex-like behavior
   // Prevents concurrent processing of the same library
@@ -83,6 +86,78 @@ class OverlayLibraryService {
     this.radarrMoviesCache = new Map<string, RadarrMovie[]>();
     this.sonarrSeriesCache = new Map<string, SonarrSeries[]>();
     this.maintainerrCollectionsCache = undefined;
+    this.collectionMembershipCache = undefined;
+  }
+
+  /**
+   * Build a map of item ratingKey → collection IDs for all agregarr and pre-existing collections.
+   * Called once at the start of an overlay job for efficient per-item lookups.
+   */
+  private async buildCollectionMembershipMap(
+    plexApi: PlexAPI
+  ): Promise<Map<string, string[]>> {
+    const membershipMap = new Map<string, string[]>();
+    const settings = getSettings();
+
+    // Gather all collections with ratingKeys: agregarr-created + pre-existing
+    const collectionsToCheck: { id: string; ratingKey: string }[] = [];
+
+    const agregarrConfigs = settings.plex.collectionConfigs || [];
+    for (const config of agregarrConfigs) {
+      if (config.collectionRatingKey) {
+        collectionsToCheck.push({
+          id: config.id,
+          ratingKey: config.collectionRatingKey,
+        });
+      }
+    }
+
+    const { preExistingCollectionConfigService } = await import(
+      '@server/lib/collections/services/PreExistingCollectionConfigService'
+    );
+    const preExistingConfigs = preExistingCollectionConfigService.getConfigs();
+    for (const config of preExistingConfigs) {
+      if (config.collectionRatingKey) {
+        collectionsToCheck.push({
+          id: config.id,
+          ratingKey: config.collectionRatingKey,
+        });
+      }
+    }
+
+    logger.info('Building collection membership map for overlay conditions', {
+      label: 'OverlayLibrary',
+      totalCollections: collectionsToCheck.length,
+    });
+
+    for (const { id, ratingKey } of collectionsToCheck) {
+      try {
+        const itemRatingKeys = await plexApi.getCollectionItems(ratingKey);
+        for (const itemKey of itemRatingKeys) {
+          const existing = membershipMap.get(itemKey);
+          if (existing) {
+            existing.push(id);
+          } else {
+            membershipMap.set(itemKey, [id]);
+          }
+        }
+      } catch (error) {
+        logger.debug('Failed to fetch items for collection', {
+          label: 'OverlayLibrary',
+          collectionId: id,
+          collectionRatingKey: ratingKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    logger.info('Collection membership map built', {
+      label: 'OverlayLibrary',
+      collectionsChecked: collectionsToCheck.length,
+      itemsWithMembership: membershipMap.size,
+    });
+
+    return membershipMap;
   }
 
   /**
@@ -261,6 +336,20 @@ class OverlayLibraryService {
 
       const plexApi = new PlexAPI({ plexToken: admin.plexToken });
 
+      // Build collection membership map for condition evaluation
+      // Only build if any enabled template uses a 'collection' condition field
+      const hasCollectionConditions = sortedTemplates.some((template) => {
+        const condition = template.getApplicationCondition();
+        return condition?.sections?.some((s) =>
+          s.rules.some((r) => r.field === 'collection')
+        );
+      });
+
+      if (hasCollectionConditions) {
+        this.collectionMembershipCache =
+          await this.buildCollectionMembershipMap(plexApi);
+      }
+
       // Fetch all items (handle pagination)
       let allItems: PlexLibraryItem[] = [];
       let offset = 0;
@@ -321,6 +410,7 @@ class OverlayLibraryService {
           const itemWithFullMetadata = {
             ...item,
             Media: fullMetadata.Media,
+            Label: fullMetadata.Label,
           };
 
           await this.applyOverlaysToItem(
@@ -448,6 +538,19 @@ class OverlayLibraryService {
 
       const plexApi = new PlexAPI({ plexToken: admin.plexToken });
 
+      // Build collection membership map if any template uses collection conditions
+      const hasCollectionConditions = sortedTemplates.some((template) => {
+        const condition = template.getApplicationCondition();
+        return condition?.sections?.some((s) =>
+          s.rules.some((r) => r.field === 'collection')
+        );
+      });
+
+      if (hasCollectionConditions) {
+        this.collectionMembershipCache =
+          await this.buildCollectionMembershipMap(plexApi);
+      }
+
       // Determine media type from library config
       const mediaType = config.mediaType || 'movie';
 
@@ -478,6 +581,7 @@ class OverlayLibraryService {
               guid: itemMetadata.guid || '',
               Guid: itemMetadata.Guid,
               Media: itemMetadata.Media,
+              Label: itemMetadata.Label,
               parentIndex: itemMetadata.parentIndex,
               index: itemMetadata.index,
               addedAt: itemMetadata.addedAt || 0,
@@ -719,6 +823,9 @@ class OverlayLibraryService {
         downloaded = true; // Real items not in *arr are assumed downloaded (they exist in Plex)
       }
 
+      // Collection membership for condition evaluation
+      const collection = this.collectionMembershipCache?.get(item.ratingKey);
+
       const context: OverlayRenderContext = {
         ...baseContext,
         isPlaceholder: actualIsPlaceholder,
@@ -726,6 +833,7 @@ class OverlayLibraryService {
         ...contextOverrides,
         ...releaseDateContext,
         ...monitoringContext,
+        ...(collection ? { collection } : {}),
       };
 
       // Filter templates by conditions to get only templates that will actually be applied
@@ -898,9 +1006,15 @@ class OverlayLibraryService {
 
       const posterBuffer = basePosterResult.posterBuffer;
 
-      // Apply each template in order
-      let currentBuffer = posterBuffer;
+      // Batch render: collect overlay elements from all matching templates,
+      // then composite everything in a single sharp operation.
+      // This avoids repeated lossy WebP decode/encode cycles between templates.
       let templatesApplied = 0;
+      const allOverlays: sharp.OverlayOptions[] = [];
+
+      // Get poster dimensions once (shared across all templates)
+      const { width: posterWidth, height: posterHeight } =
+        await overlayTemplateRenderer.getPosterDimensions(posterBuffer);
 
       for (const template of templates) {
         // Check if application condition is met
@@ -910,13 +1024,25 @@ class OverlayLibraryService {
         }
 
         const templateData = template.getTemplateData();
-        currentBuffer = await overlayTemplateRenderer.renderOverlay(
-          currentBuffer,
-          templateData,
-          context
-        );
-        templatesApplied++;
+        const templateOverlays =
+          await overlayTemplateRenderer.renderOverlayElements(
+            posterWidth,
+            posterHeight,
+            templateData,
+            context
+          );
+
+        if (templateOverlays) {
+          allOverlays.push(...templateOverlays);
+          templatesApplied++;
+        }
       }
+
+      // Single composite + WebP encode for all templates
+      const currentBuffer = await overlayTemplateRenderer.compositeOverlays(
+        posterBuffer,
+        allOverlays
+      );
 
       // Save to temporary file
       const tempDir = os.tmpdir();

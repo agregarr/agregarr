@@ -346,7 +346,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
       {/* Trakt Settings */}
       <div className="section">
         <div className="mb-6">
-          <h3 className="heading">
+          <h3 className="heading flex items-center">
+            <img src="/services/trakt.svg" alt="" className="mr-2 h-7 w-7" />
             {intl.formatMessage(messages.traktSettings)}
           </h3>
           <p className="description">
@@ -822,7 +823,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
       {/* MDBList Settings */}
       <div className="section">
         <div className="mt-10 mb-6">
-          <h3 className="heading">
+          <h3 className="heading flex items-center">
+            <img src="/services/mdblist.svg" alt="" className="mr-2 h-7 w-7" />
             {intl.formatMessage(messages.mdblistSettings)}
           </h3>
           <p className="description">
@@ -997,7 +999,8 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
       {/* Tautulli Settings */}
       <div className="section">
         <div className="mt-10 mb-6">
-          <h3 className="heading">
+          <h3 className="heading flex items-center">
+            <img src="/services/tautulli.svg" alt="" className="mr-2 h-7 w-7" />
             {intl.formatMessage(messages.tautulliSettings)}
           </h3>
           <p className="description">
@@ -1295,7 +1298,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
       {/* MyAnimeList Settings */}
       <div className="section">
         <div className="mt-10 mb-6">
-          <h3 className="heading">
+          <h3 className="heading flex items-center">
+            <img
+              src="/services/myanimelist.svg"
+              alt=""
+              className="mr-2 h-7 w-7"
+            />
             {intl.formatMessage(messages.myanimelistSettings)}
           </h3>
           <p className="description">
@@ -1479,7 +1487,12 @@ const SettingsSources = ({ onComplete }: SettingsSourcesProps) => {
       {/* Maintainerr Settings */}
       <div className="section">
         <div className="mt-10 mb-6">
-          <h3 className="heading">
+          <h3 className="heading flex items-center">
+            <img
+              src="/services/maintainerr.svg"
+              alt=""
+              className="mr-2 h-7 w-7"
+            />
             {intl.formatMessage(messages.maintainerrSettings)}
           </h3>
           <p className="description">

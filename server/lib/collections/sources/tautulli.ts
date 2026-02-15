@@ -2,6 +2,8 @@ import type PlexAPI from '@server/api/plexapi';
 import TautulliAPI from '@server/api/tautulli';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  extractTmdbIdFromGuids,
+  extractTvdbIdFromGuids,
   getCollectionMediaType,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
@@ -102,6 +104,9 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
         return { created: 0, updated: 0 };
       }
 
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
+
       // Use the new media type processing strategy
       return await this.processWithMediaTypeStrategy(
         items,
@@ -158,7 +163,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     const tautulli = await this.getTautulliClient();
     const timeRangeDays = this.getTimeRangeDays(config);
     const statType = config.tautulliStatType || 'plays';
-    const collectionType = this.getCollectionTypeFromSubtype();
+    const collectionType = this.getCollectionTypeFromSubtype(config);
 
     // For single media type processing, use the specified mediaType
     const mediaType = getCollectionMediaType(config);
@@ -186,18 +191,8 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     return tautulliStats as TautulliSourceData[];
   }
 
-  /**
-   * Extract TMDB ID from Plex GUID array
-   */
-  private extractTmdbIdFromGuids(guids: { id: string }[]): number | undefined {
-    for (const guid of guids) {
-      const tmdbMatch = guid.id.match(/tmdb:\/\/(\d+)/);
-      if (tmdbMatch) {
-        return parseInt(tmdbMatch[1], 10);
-      }
-    }
-    return undefined;
-  }
+  // GUID extraction uses shared utilities from CollectionUtilities:
+  // extractTmdbIdFromGuids() and extractTvdbIdFromGuids()
 
   /**
    * Map Tautulli source data to standardized collection items with TMDB IDs from Plex
@@ -211,6 +206,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     missingItems?: MissingItem[];
     stats?: FilteringStats;
   }> {
+    const isMostWatched = config.subtype?.startsWith('most_watched') ?? false;
     const minimumPlays = config.minimumPlays ?? 3;
     // If no config provided, accept all media types
     const mediaType = config ? getCollectionMediaType(config) : null;
@@ -249,6 +245,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       const hasRatingKey = !!item.rating_key;
 
       // For most_popular stat types, use users_watched field for unique viewer count
+      // For most_watched stat types, users_watched is empty so skip this filter
       const uniqueViewers =
         typeof item.users_watched === 'number'
           ? item.users_watched
@@ -265,8 +262,10 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
         itemMediaType = 'tv';
       }
 
+      const passesViewerFilter = isMostWatched || uniqueViewers >= minimumPlays;
+
       const passesFilter =
-        uniqueViewers >= minimumPlays &&
+        passesViewerFilter &&
         hasRatingKey &&
         itemMediaType !== null &&
         (!mediaType || itemMediaType === mediaType);
@@ -275,7 +274,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
         const title = item.title || 'Unknown Title';
 
         // Track which reason(s) caused filtering
-        if (uniqueViewers < minimumPlays) {
+        if (!passesViewerFilter) {
           filteredByReason.insufficientViewers.push(title);
         }
         if (!hasRatingKey) {
@@ -335,17 +334,19 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       })
       .filter((item) => item.ratingKey && item.title !== 'Unknown');
 
-    // If we have a Plex client, fetch TMDB IDs for items that don't have them
+    // If we have a Plex client, fetch TMDB/TVDB IDs for items that don't have them
     const mappedItems: TautulliCollectionItem[] = [];
     for (const item of basicMappedItems) {
       let tmdbId = item.tmdbId;
+      let tvdbId: number | undefined;
 
       // If no TMDB ID and we have Plex client, try to get it from Plex metadata
       if (!tmdbId && plexClient && item.ratingKey) {
         try {
           const plexMetadata = await plexClient.getMetadata(item.ratingKey);
           if (plexMetadata.Guid && plexMetadata.Guid.length > 0) {
-            tmdbId = this.extractTmdbIdFromGuids(plexMetadata.Guid);
+            tmdbId = extractTmdbIdFromGuids(plexMetadata.Guid);
+            tvdbId = extractTvdbIdFromGuids(plexMetadata.Guid);
             logger.debug(`Extracted TMDB ID from Plex for ${item.title}`, {
               ratingKey: item.ratingKey,
               tmdbId,
@@ -362,6 +363,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
       mappedItems.push({
         ...item,
         tmdbId,
+        tvdbId,
       });
     }
 
@@ -442,7 +444,8 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
   private isValidTautulliConfig(config: CollectionConfig): boolean {
     return (
       config.type === 'tautulli' &&
-      (config.subtype?.includes('most_popular') ?? false)
+      (config.subtype?.startsWith('most_popular') ||
+        config.subtype?.startsWith('most_watched')) === true
     );
   }
 
@@ -455,8 +458,13 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     return config.subtype || 'most_popular';
   }
 
-  private getCollectionTypeFromSubtype(): 'most_popular' {
-    return 'most_popular'; // Only supporting most_popular now
+  private getCollectionTypeFromSubtype(
+    config: CollectionConfig
+  ): 'most_popular' | 'most_watched' {
+    if (config.subtype?.startsWith('most_watched')) {
+      return 'most_watched';
+    }
+    return 'most_popular';
   }
 
   /**
@@ -474,7 +482,7 @@ export class TautulliCollectionSync extends BaseCollectionSync<'tautulli'> {
     const tautulli = await this.getTautulliClient();
     const timeRangeDays = this.getTimeRangeDays(config);
     const statType = config.tautulliStatType || 'plays';
-    const collectionType = this.getCollectionTypeFromSubtype();
+    const collectionType = this.getCollectionTypeFromSubtype(config);
 
     // Process Movies
     try {

@@ -44,6 +44,14 @@ export interface RadarrExclusion {
   movieYear: number;
 }
 
+export type ApplyTagsMode = 'add' | 'remove' | 'replace';
+
+export interface RadarrBulkEditOptions {
+  movieIds: number[];
+  tags?: number[];
+  applyTags?: ApplyTagsMode;
+}
+
 export interface RadarrPagedResponse<T> {
   page: number;
   pageSize: number;
@@ -200,6 +208,41 @@ class RadarrAPI extends ServarrBase<{ movieId: number }> {
           movieId,
         }
       );
+    }
+  }
+
+  /**
+   * Bulk add tags to multiple movies without removing existing tags
+   * Uses the movie editor endpoint with applyTags: 'add'
+   */
+  public async bulkAddTags(
+    movieIds: number[],
+    tagIds: number[]
+  ): Promise<void> {
+    if (movieIds.length === 0 || tagIds.length === 0) {
+      return;
+    }
+
+    try {
+      await this.axios.put('/movie/editor', {
+        movieIds,
+        tags: tagIds,
+        applyTags: 'add',
+      });
+
+      logger.info(`Bulk added tags to ${movieIds.length} movies`, {
+        label: 'Radarr API',
+        movieCount: movieIds.length,
+        tagIds,
+      });
+    } catch (e) {
+      logger.error('Failed to bulk add tags to movies', {
+        label: 'Radarr API',
+        errorMessage: e.message,
+        movieCount: movieIds.length,
+        tagIds,
+      });
+      throw new Error(`[Radarr] Failed to bulk add tags: ${e.message}`);
     }
   }
 

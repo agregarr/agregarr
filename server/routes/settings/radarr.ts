@@ -1,4 +1,8 @@
 import RadarrAPI from '@server/api/servarr/radarr';
+import {
+  generateCollectionTag,
+  type TagSource,
+} from '@server/lib/collections/services/ArrTagUtils';
 import type { RadarrSettings } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
@@ -211,6 +215,56 @@ radarrRoutes.post<{ id: string }, unknown, { label: string }>(
     }
   }
 );
+
+radarrRoutes.get<
+  { id: string },
+  { label: string | null },
+  unknown,
+  { source?: string; subtype?: string; name?: string }
+>('/:id/autotag', (req, res, next) => {
+  const settings = getSettings();
+
+  const radarrSettings = settings.radarr.find(
+    (r) => r.id === Number(req.params.id)
+  );
+
+  if (!radarrSettings) {
+    return next({ status: '404', message: 'Settings instance not found' });
+  }
+
+  const { source, subtype, name } = req.query;
+
+  // Validate source is a valid TagSource
+  const validSources: TagSource[] = [
+    'trakt',
+    'tmdb',
+    'imdb',
+    'letterboxd',
+    'anilist',
+    'myanimelist',
+    'mdblist',
+    'networks',
+    'originals',
+    'multi-source',
+    'tautulli',
+    'overseerr',
+    'radarrtag',
+    'sonarrtag',
+  ];
+
+  if (!source || !validSources.includes(source as TagSource)) {
+    return res.status(200).json({ label: null });
+  }
+
+  const label = generateCollectionTag(
+    { subtype, name },
+    source as TagSource,
+    radarrSettings.tagRequestsMode,
+    radarrSettings.tagRequests
+  );
+
+  return res.status(200).json({ label });
+});
 
 radarrRoutes.delete<{ id: string }>('/:id', (req, res, next) => {
   const settings = getSettings();

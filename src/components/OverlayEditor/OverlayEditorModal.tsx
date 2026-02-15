@@ -47,6 +47,9 @@ const messages = defineMessages({
   selectOverlaysForPreview: 'Select Overlays for Preview',
   noOtherOverlays: 'No other overlay templates available',
   selectedCount: '{count} selected',
+  // Tags
+  tags: 'Tags',
+  tagsPlaceholder: 'Add tags...',
 });
 
 export type OverlayEditorMode = 'create' | 'edit';
@@ -60,12 +63,14 @@ export interface OverlayEditorModalProps {
   initialName?: string;
   initialDescription?: string;
   initialCondition?: ApplicationCondition;
+  initialTags?: string[];
   onSave: (data: {
     name: string;
     description?: string;
     type?: string;
     templateData: OverlayTemplateData;
     applicationCondition?: ApplicationCondition;
+    tags?: string[];
   }) => Promise<void>;
 }
 
@@ -74,6 +79,8 @@ const DEFAULT_OVERLAY_DATA: OverlayTemplateData = {
   height: 1500,
   elements: [],
 };
+
+const DEFAULT_TAGS: string[] = [];
 
 interface PreviewPostersResponse {
   posters: PreviewPosterInfo[];
@@ -95,6 +102,7 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
   initialName = '',
   initialDescription = '',
   initialCondition,
+  initialTags = DEFAULT_TAGS,
   onSave,
 }) => {
   const intl = useIntl();
@@ -112,6 +120,10 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
   const [condition, setCondition] = useState<ApplicationCondition | undefined>(
     initialCondition
   );
+
+  // Tags state
+  const [tags, setTags] = useState<string[]>(initialTags);
+  const [tagInput, setTagInput] = useState('');
 
   // Poster preview state
   const [currentPosterIndex, setCurrentPosterIndex] = useState(0);
@@ -211,9 +223,18 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
       setSelectedElementId(undefined);
       setCurrentPosterIndex(0);
       setCondition(initialCondition);
+      setTags(initialTags);
+      setTagInput('');
       setSelectedPreviewIds([]);
     }
-  }, [isOpen, initialData, initialName, initialDescription, initialCondition]);
+  }, [
+    isOpen,
+    initialData,
+    initialName,
+    initialDescription,
+    initialCondition,
+    initialTags,
+  ]);
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -254,6 +275,7 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
         type: autoType,
         templateData: overlayData,
         applicationCondition: condition,
+        tags: tags.length > 0 ? tags : undefined,
       });
       onClose();
     } catch (error) {
@@ -264,7 +286,7 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [name, description, overlayData, condition, onSave, onClose]);
+  }, [name, description, overlayData, condition, tags, onSave, onClose]);
 
   const handleCancel = useCallback(() => {
     onClose();
@@ -376,6 +398,65 @@ export const OverlayEditorModal: React.FC<OverlayEditorModalProps> = ({
                           value={description || ''}
                           onChange={(e) => setDescription(e.target.value)}
                         />
+                      </div>
+
+                      {/* Tags */}
+                      <div>
+                        <label
+                          htmlFor="tags"
+                          className="mb-2 block text-sm font-medium text-stone-300"
+                        >
+                          {intl.formatMessage(messages.tags)}
+                        </label>
+                        {/* Tag chips */}
+                        {tags.length > 0 && (
+                          <div className="mb-2 flex flex-wrap gap-1">
+                            {tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center rounded-full bg-orange-600/20 px-2 py-0.5 text-xs text-orange-400"
+                              >
+                                {tag}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setTags(tags.filter((t) => t !== tag))
+                                  }
+                                  className="ml-1 text-orange-400 hover:text-orange-300"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Tag input */}
+                        <input
+                          type="text"
+                          id="tags"
+                          className="w-full rounded-md border border-stone-600 bg-stone-800 px-3 py-2 text-sm text-white placeholder-stone-400 focus:border-orange-500 focus:outline-none"
+                          placeholder={intl.formatMessage(
+                            messages.tagsPlaceholder
+                          )}
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (
+                              (e.key === 'Enter' || e.key === ',') &&
+                              tagInput.trim()
+                            ) {
+                              e.preventDefault();
+                              const newTag = tagInput.trim();
+                              if (!tags.includes(newTag)) {
+                                setTags([...tags, newTag]);
+                              }
+                              setTagInput('');
+                            }
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-stone-500">
+                          Press Enter or comma to add a tag
+                        </p>
                       </div>
 
                       {/* Preview with Other Overlays */}

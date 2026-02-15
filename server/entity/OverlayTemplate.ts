@@ -14,7 +14,7 @@ import {
 export interface OverlayElement {
   id: string;
   layerOrder: number; // 0 = bottom, higher = top (for stacking multiple elements)
-  type: 'text' | 'tile' | 'variable' | 'raster' | 'svg';
+  type: 'text' | 'tile' | 'variable' | 'raster' | 'svg' | 'mapped-icon';
 
   // Common properties (absolute pixels in template canvas)
   x: number; // Absolute pixels (in 1000x1500 template canvas)
@@ -29,7 +29,8 @@ export interface OverlayElement {
     | OverlayTileElementProps
     | OverlayVariableElementProps
     | OverlayRasterElementProps
-    | OverlaySVGElementProps;
+    | OverlaySVGElementProps
+    | OverlayMappedIconElementProps;
 }
 
 /**
@@ -108,6 +109,38 @@ export interface OverlaySVGElementProps {
   iconType: 'service-logo' | 'custom-icon' | 'dynamic-icon';
   iconPath?: string; // For custom/static icons
   dynamicIconField?: string; // For dynamic icons like {studioLogo}
+  grayscale?: boolean;
+  opacity?: number; // 0-100
+}
+
+/**
+ * Icon mapping entry - maps a context value to an icon
+ * Used by mapped-icon elements to display icons based on field values
+ */
+export interface IconMapping {
+  value: string; // e.g., "eng", "1080"
+  iconPath: string; // e.g., "/api/v1/posters/icons/user/flag-en.svg"
+}
+
+/**
+ * Mapped Icon element - displays icons based on context field values
+ * Reads a context field (single value or array), looks up each value
+ * in the mappings table, and renders the corresponding icon(s)
+ */
+export interface OverlayMappedIconElementProps {
+  field: string; // Context field (e.g., 'audioLanguages', 'resolution')
+  mappings: IconMapping[]; // User-defined value → icon mappings
+
+  // Layout configuration
+  layout: 'horizontal' | 'vertical' | 'grid';
+  iconSize: number; // Icon size in pixels
+  spacingX: number; // Horizontal space between icons (can be negative for overlap)
+  spacingY: number; // Vertical space between icons (can be negative for overlap)
+  spacing?: number; // Deprecated: use spacingX/spacingY. Kept for backward compatibility.
+  maxIcons?: number; // Optional limit (0 = unlimited)
+  gridColumns?: number; // For grid layout (default 3)
+
+  // Visual options
   grayscale?: boolean;
   opacity?: number; // 0-100
 }
@@ -268,5 +301,19 @@ export class OverlayTemplate {
     condition: ApplicationCondition | undefined | null
   ): void {
     this.applicationCondition = condition ? JSON.stringify(condition) : null;
+  }
+
+  // Tags for categorization/filtering
+  @Column({ type: 'text', nullable: true })
+  public tags: string | null;
+
+  // Helper methods for tags
+  public getTags(): string[] {
+    if (!this.tags) return [];
+    return JSON.parse(this.tags);
+  }
+
+  public setTags(tags: string[] | undefined | null): void {
+    this.tags = tags && tags.length > 0 ? JSON.stringify(tags) : null;
   }
 }

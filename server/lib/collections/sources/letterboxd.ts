@@ -18,6 +18,7 @@ import type {
   LetterboxdTemplateContext,
   MissingItem,
   PlexCollection,
+  PlexLookupResult,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
@@ -233,6 +234,26 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
       const sourceData: LetterboxdSourceData[] = [];
       const batchSize = 20; // Process 20 items concurrently (well under 40 req/sec limit)
 
+      // Try film page scraping first for exact TMDB IDs
+      logger.info(
+        `Scraping ${letterboxdData.length} Letterboxd film pages for TMDB IDs`,
+        {
+          label: 'Letterboxd Collections',
+          configName: config.name,
+          itemCount: letterboxdData.length,
+        }
+      );
+      const filmPageResults = await this.resolveViaFilmPages(letterboxdData);
+      logger.info(
+        `Film page scraping resolved ${filmPageResults.size}/${letterboxdData.length} items`,
+        {
+          label: 'Letterboxd Collections',
+          configName: config.name,
+          filmPageHits: filmPageResults.size,
+          remaining: letterboxdData.length - filmPageResults.size,
+        }
+      );
+
       // Process items in concurrent batches
       for (let i = 0; i < letterboxdData.length; i += batchSize) {
         const batch = letterboxdData.slice(i, i + batchSize);
@@ -259,35 +280,99 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         // Process batch concurrently
         const batchPromises = batch.map(async (item) => {
           try {
-            // Search using multi-search to find both movies and TV shows
-            // Letterboxd now supports TV shows in lists, so we need to detect the correct type
-            const searchResults = await this.tmdbClient.searchMulti({
-              query: item.title,
-            });
+            // Use film page result if available (exact TMDB ID)
+            const filmPageResult = filmPageResults.get(item.letterboxdUrl);
+            if (filmPageResult) {
+              return {
+                title: item.title,
+                year: item.year,
+                letterboxdUrl: item.letterboxdUrl,
+                tmdbId: filmPageResult.tmdbId,
+                mediaType: filmPageResult.mediaType,
+              };
+            }
 
-            if (searchResults.results && searchResults.results.length > 0) {
-              // Filter to only movies and TV shows (exclude persons and collections)
-              const mediaResults = searchResults.results.filter(
-                (r): r is TmdbMovieResult | TmdbTvResult =>
-                  r.media_type === 'movie' || r.media_type === 'tv'
+            // Fallback: TMDB title search with scoring
+            // Search movies and TV separately with year, year-1, and year+1
+            // TMDB's year param is a hard filter so we search ±1 to handle
+            // festival vs theatrical release date differences
+            const [
+              movieYear,
+              movieYearMinus,
+              movieYearPlus,
+              tvYear,
+              tvYearMinus,
+              tvYearPlus,
+            ] = await Promise.all([
+              this.tmdbClient.searchMovies({
+                query: item.title,
+                year: item.year,
+              }),
+              this.tmdbClient.searchMovies({
+                query: item.title,
+                year: item.year - 1,
+              }),
+              this.tmdbClient.searchMovies({
+                query: item.title,
+                year: item.year + 1,
+              }),
+              this.tmdbClient.searchTvShows({
+                query: item.title,
+                year: item.year,
+              }),
+              this.tmdbClient.searchTvShows({
+                query: item.title,
+                year: item.year - 1,
+              }),
+              this.tmdbClient.searchTvShows({
+                query: item.title,
+                year: item.year + 1,
+              }),
+            ]);
+
+            // Combine all results, tag with media_type, and dedup by ID
+            const allMovies = [
+              ...movieYear.results,
+              ...movieYearMinus.results,
+              ...movieYearPlus.results,
+            ];
+            const allTv = [
+              ...tvYear.results,
+              ...tvYearMinus.results,
+              ...tvYearPlus.results,
+            ];
+
+            const seenIds = new Set<number>();
+            const mediaResults: (TmdbMovieResult | TmdbTvResult)[] = [];
+
+            for (const r of allMovies) {
+              if (!seenIds.has(r.id)) {
+                seenIds.add(r.id);
+                mediaResults.push({ ...r, media_type: 'movie' as const });
+              }
+            }
+            for (const r of allTv) {
+              if (!seenIds.has(r.id)) {
+                seenIds.add(r.id);
+                mediaResults.push({ ...r, media_type: 'tv' as const });
+              }
+            }
+
+            if (mediaResults.length > 0) {
+              const bestMatch = this.findBestTmdbMatch(
+                mediaResults,
+                item.title,
+                item.year
               );
 
-              if (mediaResults.length > 0) {
-                const bestMatch = this.findBestTmdbMatch(
-                  mediaResults,
-                  item.title,
-                  item.year
-                );
-
-                if (bestMatch) {
-                  return {
-                    title: item.title,
-                    year: item.year,
-                    letterboxdUrl: item.letterboxdUrl,
-                    tmdbId: bestMatch.id,
-                    mediaType: bestMatch.media_type,
-                  };
-                }
+              if (bestMatch) {
+                return {
+                  title: item.title,
+                  year: item.year,
+                  letterboxdUrl: item.letterboxdUrl,
+                  tmdbId: bestMatch.id,
+                  mediaType: bestMatch.media_type,
+                };
               }
             }
 
@@ -408,16 +493,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
     }
 
     // Use direct Plex queries instead of Media table
-    let plexLookup: Map<
-      string,
-      {
-        ratingKey: string;
-        title: string;
-        libraryKey: string;
-        addedAt?: number;
-        releaseDate?: number;
-      }
-    > = new Map();
+    let plexLookup: Map<string, PlexLookupResult> = new Map();
 
     if (plexClient) {
       // Pass target library ID to limit search scope to only the collection's target library
@@ -448,6 +524,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
           title: lookup.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
           metadata: {
@@ -595,6 +672,9 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         itemsLength: items.length,
         missingItemsLength: missingItems?.length || 0,
       });
+
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
 
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
@@ -939,6 +1019,93 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
   }
 
   /**
+   * Fetch the TMDB ID directly from a Letterboxd film page.
+   * Letterboxd embeds a link like: <a data-track-action="TMDb" href="https://www.themoviedb.org/movie/496243/">
+   */
+  private async fetchTmdbIdFromFilmPage(
+    letterboxdUrl: string
+  ): Promise<{ tmdbId: number; mediaType: 'movie' | 'tv' } | null> {
+    if (
+      !letterboxdUrl ||
+      !letterboxdUrl.startsWith('https://letterboxd.com/')
+    ) {
+      return null;
+    }
+
+    try {
+      const { CloudflareSolver } = await import(
+        '@server/lib/collections/utils/CloudflareSolver'
+      );
+      const html = await CloudflareSolver.fetchPage(letterboxdUrl);
+
+      // Match: <a href="https://www.themoviedb.org/movie/412579/" ... data-track-action="TMDB">
+      // Letterboxd uses uppercase "TMDB" and href before data-track-action
+      const tmdbLinkPattern =
+        /<a[^>]*href="[^"]*themoviedb\.org\/(movie|tv)\/(\d+)\/?[^"]*"[^>]*data-track-action="TMDB"/;
+      const tmdbLinkPatternAlt =
+        /<a[^>]*data-track-action="TMDB"[^>]*href="[^"]*themoviedb\.org\/(movie|tv)\/(\d+)\/?[^"]*"/;
+
+      const match =
+        html.match(tmdbLinkPattern) || html.match(tmdbLinkPatternAlt);
+      if (match) {
+        const mediaType = match[1] as 'movie' | 'tv';
+        const tmdbId = parseInt(match[2], 10);
+        if (!isNaN(tmdbId)) {
+          return { tmdbId, mediaType };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.debug(
+        `Film page scrape failed for ${letterboxdUrl}: ${
+          error instanceof Error ? error.message : 'Unknown'
+        }`,
+        { label: 'Letterboxd Collections' }
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Batch-resolve TMDB IDs by scraping individual Letterboxd film pages.
+   * Uses concurrency limit to avoid hammering Letterboxd.
+   */
+  private async resolveViaFilmPages(
+    items: LetterboxdListItem[]
+  ): Promise<Map<string, { tmdbId: number; mediaType: 'movie' | 'tv' }>> {
+    const results = new Map<
+      string,
+      { tmdbId: number; mediaType: 'movie' | 'tv' }
+    >();
+    const concurrency = 5;
+
+    for (let i = 0; i < items.length; i += concurrency) {
+      const batch = items.slice(i, i + concurrency);
+
+      const batchResults = await Promise.all(
+        batch.map(async (item) => {
+          const result = await this.fetchTmdbIdFromFilmPage(item.letterboxdUrl);
+          return { url: item.letterboxdUrl, result };
+        })
+      );
+
+      for (const { url, result } of batchResults) {
+        if (result) {
+          results.set(url, result);
+        }
+      }
+
+      // Small delay between batches to be polite
+      if (i + concurrency < items.length) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Find the best TMDB match from search results using intelligent scoring
    * Supports both movies and TV shows from multi-search results
    */
@@ -984,7 +1151,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
     }
 
     // Only return a match if it meets a minimum threshold
-    if (bestScore >= 0.3) {
+    if (bestScore >= 0.4) {
       logger.debug(`Best TMDB match found`, {
         label: 'Letterboxd Collections',
         targetTitle,
@@ -1055,17 +1222,21 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
     );
     score += titleScore * 0.6;
 
-    // Year matching (20% of score)
-    // ±1 year treated equally to handle festival vs. theatrical release date differences
-    if (tmdbYear && Math.abs(tmdbYear - targetYear) <= 1) {
-      score += 0.2; // Exact or ±1 year match
+    // Year matching (30% of score)
+    if (tmdbYear && tmdbYear === targetYear) {
+      score += 0.3; // Exact year match
+    } else if (tmdbYear && Math.abs(tmdbYear - targetYear) === 1) {
+      score += 0.2; // ±1 year — festival vs theatrical release
     } else if (tmdbYear && Math.abs(tmdbYear - targetYear) === 2) {
-      score += 0.05; // ±2 year match
+      score += 0.1; // ±2 year match
+    } else if (tmdbYear) {
+      // Penalize large year differences - wrong year should lose to right year
+      const yearDiff = Math.abs(tmdbYear - targetYear);
+      score -= Math.min(yearDiff * 0.01, 0.3);
     }
 
-    // Popularity boost (20% of score) - normalized by typical TMDB popularity ranges
-    // Increased from 5% to help disambiguate films with same title and close years
-    const popularityScore = Math.min(result.popularity / 100, 1) * 0.2;
+    // Popularity boost (10% of score) - normalized by typical TMDB popularity ranges
+    const popularityScore = Math.min(result.popularity / 100, 1) * 0.1;
     score += popularityScore;
 
     return score;
@@ -1082,8 +1253,11 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
     if (clean1 === clean2) return 1.0;
 
     // Check if one title contains the other (for cases like "Movie" vs "Movie: Subtitle")
-    if (clean1.includes(clean2) || clean2.includes(clean1)) {
-      return 0.9;
+    // Scale by length ratio — "columbus" in "colkatay columbus" scores lower than in "columbus 2017"
+    const shorter = clean1.length <= clean2.length ? clean1 : clean2;
+    const longer = clean1.length <= clean2.length ? clean2 : clean1;
+    if (longer.includes(shorter)) {
+      return (shorter.length / longer.length) * 0.9;
     }
 
     // Simple word-based similarity

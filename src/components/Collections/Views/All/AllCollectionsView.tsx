@@ -498,6 +498,9 @@ const AllCollectionsView: React.FC = () => {
         ...(preExistingConfig.enableCustomTheme !== undefined && {
           enableCustomTheme: preExistingConfig.enableCustomTheme,
         }),
+        ...(preExistingConfig.applyOverlaysDuringSync !== undefined && {
+          applyOverlaysDuringSync: preExistingConfig.applyOverlaysDuringSync,
+        }),
       };
       await axios.put(`/api/v1/preexisting/${config.id}/settings`, payload);
       // Revalidate data

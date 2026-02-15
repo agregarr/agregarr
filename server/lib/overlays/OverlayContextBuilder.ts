@@ -6,9 +6,23 @@ import RottenTomatoes from '@server/api/rottentomatoes';
 import type { RadarrMovie } from '@server/api/servarr/radarr';
 import type { SonarrSeries } from '@server/api/servarr/sonarr';
 import TheMovieDb from '@server/api/themoviedb';
+import TvdbAPI from '@server/api/tvdb';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import type { OverlayRenderContext } from './OverlayTemplateRenderer';
+
+const _langDisplayNames = new Intl.DisplayNames(['en'], { type: 'language' });
+
+/**
+ * Convert an ISO 639-2 language code to its English display name.
+ */
+function resolveLanguageName(code: string, fallback: string): string {
+  try {
+    return _langDisplayNames.of(code) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * Shared IMDb client for reuse across overlay operations
@@ -23,6 +37,21 @@ function getImdbClient(): ImdbAPI {
     sharedImdbClient = new ImdbAPI();
   }
   return sharedImdbClient;
+}
+
+/**
+ * Shared TVDB client for reuse across overlay operations
+ */
+let sharedTvdbClient: TvdbAPI | undefined;
+
+/**
+ * Get or create shared TVDB client
+ */
+function getTvdbClient(): TvdbAPI {
+  if (!sharedTvdbClient) {
+    sharedTvdbClient = new TvdbAPI();
+  }
+  return sharedTvdbClient;
 }
 
 /**
@@ -248,12 +277,14 @@ export async function buildRenderContext(
             context.rtAudienceScore = rtRating.audienceScore;
             context.rtCertifiedFresh =
               rtRating.criticsRating === 'Certified Fresh';
+            context.rtVerifiedHot = rtRating.verifiedHot ?? false;
             logger.debug('Fetched RT ratings', {
               label: 'OverlayContextBuilder',
               title: context.title,
               criticsScore: rtRating.criticsScore,
               audienceScore: rtRating.audienceScore,
               certifiedFresh: context.rtCertifiedFresh,
+              verifiedHot: context.rtVerifiedHot,
             });
           } else {
             logger.debug('RT rating not found', {
@@ -292,6 +323,22 @@ export async function buildRenderContext(
       // Network (TV shows)
       if ('networks' in tmdbData && tmdbData.networks?.[0]) {
         context.network = tmdbData.networks[0].name;
+      }
+
+      // Country of Origin (ISO codes like "US", "GB", "DE")
+      // Both movies and TV shows have origin_country and production_countries
+      if ('origin_country' in tmdbData && tmdbData.origin_country?.length > 0) {
+        context.originCountry = tmdbData.origin_country[0];
+        context.originCountries = tmdbData.origin_country;
+      }
+      if (
+        'production_countries' in tmdbData &&
+        tmdbData.production_countries?.length > 0
+      ) {
+        context.productionCountry = tmdbData.production_countries[0].iso_3166_1;
+        context.productionCountries = tmdbData.production_countries.map(
+          (c: { iso_3166_1: string }) => c.iso_3166_1
+        );
       }
 
       // Genre (concatenate all genres for matching)
@@ -396,6 +443,96 @@ export async function buildRenderContext(
 
         context.tmdbStatus = mappedStatus;
       }
+
+      // TVDB Status (TV shows only)
+      if (mediaType === 'show') {
+        try {
+          // Extract TVDB ID: prefer Plex GUID, fallback to TMDB external_ids
+          let tvdbId: number | undefined;
+
+          if (item.Guid && Array.isArray(item.Guid)) {
+            const tvdbGuid = item.Guid.find((g) => g.id?.includes('tvdb://'));
+            if (tvdbGuid) {
+              const match = tvdbGuid.id.match(/tvdb:\/\/(\d+)/);
+              if (match) {
+                tvdbId = parseInt(match[1]);
+              }
+            }
+          }
+
+          if (!tvdbId && 'external_ids' in tmdbData) {
+            tvdbId = tmdbData.external_ids?.tvdb_id;
+          }
+
+          if (tvdbId) {
+            const tvdbClient = getTvdbClient();
+            const tvdbSeries = await tvdbClient.getSeriesById(tvdbId);
+            const rawTvdbStatus = tvdbSeries.status?.name ?? '';
+
+            let mappedTvdbStatus: string;
+            switch (rawTvdbStatus) {
+              case 'Continuing':
+                mappedTvdbStatus = 'RETURNING';
+                break;
+              case 'Ended':
+                mappedTvdbStatus = 'ENDED';
+                break;
+              case 'Upcoming':
+                mappedTvdbStatus = 'PLANNED';
+                break;
+              default:
+                mappedTvdbStatus = rawTvdbStatus.toUpperCase();
+            }
+
+            // Override to AIRING if an episode aired within the last 15 days
+            if (rawTvdbStatus === 'Continuing' && tvdbSeries.lastAired) {
+              const lastAired = new Date(tvdbSeries.lastAired);
+              const daysSinceAired = Math.floor(
+                (Date.now() - lastAired.getTime()) / (1000 * 60 * 60 * 24)
+              );
+              if (daysSinceAired <= 15) {
+                mappedTvdbStatus = 'AIRING';
+              }
+            }
+
+            context.tvdbStatus = mappedTvdbStatus;
+          }
+        } catch (error) {
+          logger.debug('Failed to fetch TVDB status', {
+            label: 'OverlayContextBuilder',
+            title: context.title,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      // Content ratings / certifications (per-country)
+      // Stored as contentRating:{countryCode} for per-element country selection
+      if (mediaType === 'movie' && 'release_dates' in tmdbData) {
+        const releaseResults = tmdbData.release_dates?.results;
+        if (releaseResults && Array.isArray(releaseResults)) {
+          for (const countryEntry of releaseResults) {
+            const countryCode = countryEntry.iso_3166_1;
+            // Find the first non-empty certification for this country
+            const certification = countryEntry.release_dates
+              ?.map((rd: { certification: string }) => rd.certification)
+              .find((cert: string) => cert && cert.trim() !== '');
+            if (certification) {
+              context[`contentRating:${countryCode}`] = certification;
+            }
+          }
+        }
+      } else if (mediaType === 'show' && 'content_ratings' in tmdbData) {
+        const ratingResults = tmdbData.content_ratings?.results;
+        if (ratingResults && Array.isArray(ratingResults)) {
+          for (const ratingEntry of ratingResults) {
+            if (ratingEntry.rating && ratingEntry.rating.trim() !== '') {
+              context[`contentRating:${ratingEntry.iso_3166_1}`] =
+                ratingEntry.rating;
+            }
+          }
+        }
+      }
     } catch (error) {
       logger.debug('Failed to fetch external metadata', {
         label: 'OverlayContextBuilder',
@@ -492,20 +629,29 @@ export async function buildRenderContext(
         }
 
         // Primary audio language
-        if (primaryAudio.language) {
-          context.audioLanguage = primaryAudio.language;
-        }
         if (primaryAudio.languageCode) {
           context.audioLanguageCode = primaryAudio.languageCode;
+          context.audioLanguage = resolveLanguageName(
+            primaryAudio.languageCode,
+            primaryAudio.language ?? primaryAudio.languageCode
+          );
+        } else if (primaryAudio.language) {
+          context.audioLanguage = primaryAudio.language;
         }
 
         // Collect all audio track languages (unique values only)
-        const allAudioLanguages = audioStreams
-          .map((s) => s.language)
-          .filter((lang): lang is string => !!lang);
         const allAudioLanguageCodes = audioStreams
           .map((s) => s.languageCode)
           .filter((code): code is string => !!code);
+
+        const allAudioLanguages =
+          allAudioLanguageCodes.length > 0
+            ? allAudioLanguageCodes.map((code) =>
+                resolveLanguageName(code, code)
+              )
+            : audioStreams
+                .map((s) => s.language)
+                .filter((lang): lang is string => !!lang);
 
         if (allAudioLanguages.length > 0) {
           context.audioLanguages = [...new Set(allAudioLanguages)];
@@ -521,12 +667,18 @@ export async function buildRenderContext(
 
       if (subtitleStreams.length > 0) {
         // Collect all subtitle languages (unique values only)
-        const allSubtitleLanguages = subtitleStreams
-          .map((s) => s.language)
-          .filter((lang): lang is string => !!lang);
         const allSubtitleLanguageCodes = subtitleStreams
           .map((s) => s.languageCode)
           .filter((code): code is string => !!code);
+
+        const allSubtitleLanguages =
+          allSubtitleLanguageCodes.length > 0
+            ? allSubtitleLanguageCodes.map((code) =>
+                resolveLanguageName(code, code)
+              )
+            : subtitleStreams
+                .map((s) => s.language)
+                .filter((lang): lang is string => !!lang);
 
         if (allSubtitleLanguages.length > 0) {
           context.subtitleLanguages = [...new Set(allSubtitleLanguages)];
@@ -572,6 +724,13 @@ export async function buildRenderContext(
     if (item.index !== undefined) {
       context.episodeNumber = item.index;
     }
+  }
+
+  // Plex Labels - extract item-level tags
+  if (item.Label && Array.isArray(item.Label)) {
+    context.plexLabels = item.Label.map((l) => l.tag).filter(
+      (tag): tag is string => !!tag
+    );
   }
 
   // Maintainerr integration - calculate daysUntilAction

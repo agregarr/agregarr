@@ -16,6 +16,7 @@ import { isAuthenticated } from '@server/middleware/auth';
 import { Router } from 'express';
 import * as fsPromises from 'fs/promises';
 import path from 'path';
+import type sharp from 'sharp';
 
 const router = Router();
 
@@ -397,6 +398,7 @@ router.get('/', async (req, res, next) => {
       isDefault: template.isDefault,
       templateData: template.getTemplateData(),
       applicationCondition: template.getApplicationCondition(),
+      tags: template.getTags(),
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
     }));
@@ -413,6 +415,35 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// GET /api/v1/overlay-templates/tags - Get all unique tags
+router.get('/tags', async (_req, res, next) => {
+  try {
+    const templateRepository = getRepository(OverlayTemplate);
+
+    const templates = await templateRepository.find({
+      where: { isActive: true },
+    });
+
+    // Collect all unique tags from all templates
+    const tagsSet = new Set<string>();
+    templates.forEach((template) => {
+      const templateTags = template.getTags();
+      templateTags.forEach((tag) => tagsSet.add(tag));
+    });
+
+    // Return sorted array of unique tags
+    const tags = Array.from(tagsSet).sort();
+
+    return res.status(200).json({ tags });
+  } catch (error) {
+    logger.error('Failed to fetch overlay template tags:', error);
+    return next({
+      status: 500,
+      message: 'Failed to fetch overlay template tags',
+    });
+  }
+});
+
 // POST /api/v1/overlay-templates - Create new overlay template
 router.post('/', async (req, res, next) => {
   try {
@@ -422,8 +453,14 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    const { name, description, type, templateData, applicationCondition } =
-      req.body;
+    const {
+      name,
+      description,
+      type,
+      templateData,
+      applicationCondition,
+      tags,
+    } = req.body;
 
     if (!name || !templateData) {
       return res.status(400).json({
@@ -456,6 +493,7 @@ router.post('/', async (req, res, next) => {
 
     newTemplate.setTemplateData(templateData);
     newTemplate.setApplicationCondition(applicationCondition);
+    newTemplate.setTags(tags);
 
     const savedTemplate = await templateRepository.save(newTemplate);
 
@@ -474,6 +512,7 @@ router.post('/', async (req, res, next) => {
       isDefault: savedTemplate.isDefault,
       templateData: savedTemplate.getTemplateData(),
       applicationCondition: savedTemplate.getApplicationCondition(),
+      tags: savedTemplate.getTags(),
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
     });
@@ -496,8 +535,14 @@ router.put('/:id', async (req, res, next) => {
     }
 
     const templateId = parseInt(req.params.id);
-    const { name, description, type, templateData, applicationCondition } =
-      req.body;
+    const {
+      name,
+      description,
+      type,
+      templateData,
+      applicationCondition,
+      tags,
+    } = req.body;
 
     const templateRepository = getRepository(OverlayTemplate);
     const template = await templateRepository.findOne({
@@ -541,6 +586,11 @@ router.put('/:id', async (req, res, next) => {
       ? JSON.stringify(applicationCondition)
       : null;
 
+    // Update tags if provided
+    if (tags !== undefined) {
+      template.setTags(tags);
+    }
+
     const savedTemplate = await templateRepository.save(template);
 
     logger.info('Updated overlay template', {
@@ -557,6 +607,7 @@ router.put('/:id', async (req, res, next) => {
       isDefault: savedTemplate.isDefault,
       templateData: savedTemplate.getTemplateData(),
       applicationCondition: savedTemplate.getApplicationCondition(),
+      tags: savedTemplate.getTags(),
       createdAt: savedTemplate.createdAt,
       updatedAt: savedTemplate.updatedAt,
     });
@@ -598,9 +649,8 @@ router.delete('/:id', async (req, res, next) => {
       });
     }
 
-    // Soft delete
-    template.isActive = false;
-    await templateRepository.save(template);
+    // Hard delete user-created templates
+    await templateRepository.remove(template);
 
     // Clean up orphaned references in library configs
     const libraryConfigRepository = getRepository(OverlayLibraryConfig);
@@ -693,6 +743,8 @@ router.get('/:id/preview', async (req, res, next) => {
       imdbRating: tmdbData.imdbRating || 8.5,
       rtCriticsScore: tmdbData.rtCriticsScore || 92,
       rtAudienceScore: tmdbData.rtAudienceScore || 88,
+      rtCertifiedFresh: true,
+      rtVerifiedHot: true,
       studio: tmdbData.studio || 'Warner Bros.',
       mediaType: mediaType === 'movie' ? ('movie' as const) : ('show' as const),
 
@@ -707,6 +759,7 @@ router.get('/:id/preview', async (req, res, next) => {
       genre: 'Action',
       runtime: 148,
       tmdbStatus: 'RETURNING', // Always populate for previews
+      tvdbStatus: 'RETURNING', // Always populate for previews
 
       // Plex Media Info
       resolution: '4K',
@@ -902,6 +955,8 @@ router.post('/combined-preview', async (req, res, next) => {
       imdbRating: tmdbData.imdbRating || 8.5,
       rtCriticsScore: tmdbData.rtCriticsScore || 92,
       rtAudienceScore: tmdbData.rtAudienceScore || 88,
+      rtCertifiedFresh: true,
+      rtVerifiedHot: true,
       studio: tmdbData.studio || 'Warner Bros.',
       mediaType: mediaType === 'movie' ? ('movie' as const) : ('show' as const),
 
@@ -916,6 +971,7 @@ router.post('/combined-preview', async (req, res, next) => {
       genre: 'Action',
       runtime: 148,
       tmdbStatus: 'RETURNING', // Always populate for previews
+      tvdbStatus: 'RETURNING', // Always populate for previews
 
       // Plex Media Info
       resolution: '4K',
@@ -976,7 +1032,11 @@ router.post('/combined-preview', async (req, res, next) => {
       isPlaceholder: false,
     };
 
-    // Apply each template in order
+    // Batch render: collect all overlay elements, then composite once
+    const { width: posterWidth, height: posterHeight } =
+      await overlayTemplateRenderer.getPosterDimensions(posterBuffer);
+    const allOverlays: sharp.OverlayOptions[] = [];
+
     for (const template of orderedTemplates) {
       // Check before each expensive rendering operation
       if (!isLatestRequest()) {
@@ -988,12 +1048,23 @@ router.post('/combined-preview', async (req, res, next) => {
       }
 
       const templateData = template.getTemplateData();
-      posterBuffer = await overlayTemplateRenderer.renderOverlay(
-        posterBuffer,
-        templateData,
-        sampleContext
-      );
+      const templateOverlays =
+        await overlayTemplateRenderer.renderOverlayElements(
+          posterWidth,
+          posterHeight,
+          templateData,
+          sampleContext
+        );
+
+      if (templateOverlays) {
+        allOverlays.push(...templateOverlays);
+      }
     }
+
+    posterBuffer = await overlayTemplateRenderer.compositeOverlays(
+      posterBuffer,
+      allOverlays
+    );
 
     // Final check before sending
     if (!isLatestRequest()) {

@@ -16,6 +16,7 @@ export const PRESET_TEMPLATES: {
   type: 'rating' | 'metadata' | 'technical' | 'status' | 'generic';
   templateData: OverlayTemplateData;
   applicationCondition?: ApplicationCondition;
+  tags?: string[];
 }[] = [
   // ========================================
   // RATING TEMPLATES
@@ -24,6 +25,7 @@ export const PRESET_TEMPLATES: {
     name: 'IMDb Rating',
     description: 'Shows IMDb rating in top-left corner',
     type: 'rating',
+    tags: ['Ratings'],
     // No condition - will automatically skip if imdbRating is undefined
     templateData: {
       width: 1000,
@@ -88,6 +90,7 @@ export const PRESET_TEMPLATES: {
     name: 'Rotten Tomatoes Rating',
     description: 'Shows RT critics score in top-left corner',
     type: 'rating',
+    tags: ['Ratings'],
     // No condition - will automatically skip if rtCriticsScore is undefined
     templateData: {
       width: 1000,
@@ -152,6 +155,7 @@ export const PRESET_TEMPLATES: {
     name: 'Rotten Tomatoes Certified Fresh',
     description: 'Shows RT Certified Fresh logo in bottom-right corner',
     type: 'rating',
+    tags: ['Ratings'],
     applicationCondition: {
       sections: [
         {
@@ -186,6 +190,45 @@ export const PRESET_TEMPLATES: {
     },
   },
 
+  {
+    name: 'Rotten Tomatoes Verified Hot',
+    description: 'Shows RT Verified Hot logo above Certified Fresh position',
+    type: 'rating',
+    tags: ['Ratings'],
+    applicationCondition: {
+      sections: [
+        {
+          rules: [
+            {
+              field: 'rtVerifiedHot',
+              operator: 'eq',
+              value: true,
+            },
+          ],
+        },
+      ],
+    },
+    templateData: {
+      width: 1000,
+      height: 1500,
+      elements: [
+        {
+          id: 'rt-verified-hot-logo',
+          layerOrder: 0,
+          type: 'raster',
+          x: 787,
+          y: 1070,
+          width: 200,
+          height: 200,
+          properties: {
+            imagePath: '/api/v1/posters/icons/system/rt_verified_hot.png',
+            opacity: 100,
+          },
+        },
+      ],
+    },
+  },
+
   // ========================================
   // PLACEHOLDER OVERLAY (applies to all placeholder items)
   // ========================================
@@ -193,6 +236,7 @@ export const PRESET_TEMPLATES: {
     name: 'Placeholder Overlay',
     description: '25% opacity darkening overlay for all placeholder items',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -229,6 +273,7 @@ export const PRESET_TEMPLATES: {
     name: 'Coming Soon',
     description: 'Top banner showing COMING SOON for monitored items',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -304,6 +349,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Top banner showing REQUEST NEEDED for items not downloaded and either not in *arr or not monitored',
     type: 'status',
+    tags: ['Status'],
     applicationCondition: {
       sections: [
         {
@@ -377,6 +423,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Top banner for released monitored content in *arr awaiting download',
     type: 'status',
+    tags: ['Status'],
     applicationCondition: {
       sections: [
         {
@@ -520,6 +567,7 @@ export const PRESET_TEMPLATES: {
     name: '4K Resolution',
     description: 'Shows 4K badge for ultra HD content',
     type: 'technical',
+    tags: ['Technical'],
     applicationCondition: {
       sections: [
         {
@@ -560,6 +608,7 @@ export const PRESET_TEMPLATES: {
     name: 'HDR10',
     description: 'Shows HDR10 logo for HDR content without Dolby Vision',
     type: 'technical',
+    tags: ['Technical'],
     applicationCondition: {
       sections: [
         {
@@ -595,6 +644,7 @@ export const PRESET_TEMPLATES: {
     name: 'Dolby Vision',
     description: 'Shows Dolby Vision logo for any DoVi profile',
     type: 'technical',
+    tags: ['Technical'],
     applicationCondition: {
       sections: [
         {
@@ -650,6 +700,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for returning TV shows (S02+) monitored in Sonarr with countdown',
     type: 'status',
+    tags: ['Status', 'TV Shows', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -734,6 +785,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for returning TV shows (S02+) not monitored or not in Sonarr',
     type: 'status',
+    tags: ['Status', 'TV Shows', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -839,6 +891,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for returning TV shows (S02+) monitored in Sonarr releasing tomorrow',
     type: 'status',
+    tags: ['Status', 'TV Shows', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -921,6 +974,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for returning TV shows (S02+) releasing tomorrow not monitored or not in Sonarr',
     type: 'status',
+    tags: ['Status', 'TV Shows', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1024,6 +1078,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for returning TV shows (S02+) monitored in Sonarr releasing today',
     type: 'status',
+    tags: ['Status', 'TV Shows', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1106,6 +1161,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for returning TV shows (S02+) releasing today not monitored or not in Sonarr',
     type: 'status',
+    tags: ['Status', 'TV Shows', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1213,6 +1269,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner showing formatted date for monitored releases >30 days away in Radarr/Sonarr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1314,6 +1371,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner showing formatted date for releases >30 days away not monitored or not in *arr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1442,6 +1500,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom countdown banner for monitored releases within 30 days in Radarr/Sonarr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1563,6 +1622,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom countdown banner for releases 2-30 days away not monitored or not in *arr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1716,6 +1776,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for monitored releases coming tomorrow in Radarr/Sonarr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1815,6 +1876,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for releases coming tomorrow not monitored or not in *arr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -1940,6 +2002,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for monitored releases downloaded today in Radarr/Sonarr',
     type: 'status',
+    tags: ['Status', 'New Releases'],
     applicationCondition: {
       sections: [
         {
@@ -2051,6 +2114,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for monitored releases releasing today in Radarr/Sonarr (awaiting download)',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -2162,6 +2226,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for releases released today not monitored or not in *arr',
     type: 'status',
+    tags: ['Status', 'Coming Soon'],
     applicationCondition: {
       sections: [
         {
@@ -2291,6 +2356,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for downloaded monitored content released yesterday in Radarr/Sonarr',
     type: 'status',
+    tags: ['Status', 'New Releases'],
     applicationCondition: {
       sections: [
         {
@@ -2390,6 +2456,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner for downloaded content released yesterday not monitored or not in *arr',
     type: 'status',
+    tags: ['Status', 'New Releases'],
     applicationCondition: {
       sections: [
         {
@@ -2515,6 +2582,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Single banner showing days since release for downloaded monitored content in Radarr/Sonarr',
     type: 'status',
+    tags: ['Status', 'New Releases'],
     applicationCondition: {
       sections: [
         {
@@ -2630,6 +2698,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner showing days since release for downloaded content not monitored or not in *arr',
     type: 'status',
+    tags: ['Status', 'New Releases'],
     applicationCondition: {
       sections: [
         {
@@ -2787,6 +2856,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Bottom banner showing countdown for items marked for deletion by Maintainerr',
     type: 'status',
+    tags: ['Status', 'Maintainerr'],
     applicationCondition: {
       sections: [
         {
@@ -2848,6 +2918,7 @@ export const PRESET_TEMPLATES: {
     description:
       'Top banner displaying TV show status (Returning Series, Ended, Cancelled, etc.) - TV shows only, for items already in library',
     type: 'status',
+    tags: ['Status', 'TV Shows'],
     applicationCondition: {
       sections: [
         {
@@ -2982,6 +3053,9 @@ class PresetTemplateServiceClass {
           existingTemplate.applicationCondition = null;
         }
 
+        // Sync tags
+        existingTemplate.setTags(preset.tags);
+
         await templateRepository.save(existingTemplate);
 
         logger.debug(`Updated preset template: ${preset.name}`, {
@@ -3004,6 +3078,11 @@ class PresetTemplateServiceClass {
       // Set application condition if provided
       if (preset.applicationCondition) {
         newTemplate.setApplicationCondition(preset.applicationCondition);
+      }
+
+      // Set tags if provided
+      if (preset.tags) {
+        newTemplate.setTags(preset.tags);
       }
 
       await templateRepository.save(newTemplate);

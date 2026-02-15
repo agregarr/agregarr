@@ -16,6 +16,7 @@ import {
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import { Router } from 'express';
+import type sharp from 'sharp';
 
 const overlayTestRouter = Router();
 
@@ -300,12 +301,48 @@ overlayTestRouter.post('/', async (req, res) => {
       downloaded = true;
     }
 
+    // Build collection membership for condition evaluation
+    // Always build for test route (single item, no performance concern)
+    const collectionIds: string[] = [];
+    const allConfigs: { id: string; collectionRatingKey?: string }[] = [
+      ...(settings.plex.collectionConfigs || []),
+    ];
+
+    const { preExistingCollectionConfigService } = await import(
+      '@server/lib/collections/services/PreExistingCollectionConfigService'
+    );
+    allConfigs.push(...preExistingCollectionConfigService.getConfigs());
+
+    for (const cfg of allConfigs) {
+      if (cfg.collectionRatingKey) {
+        try {
+          const itemKeys = await plexApi.getCollectionItems(
+            cfg.collectionRatingKey
+          );
+          if (itemKeys.includes(ratingKey)) {
+            collectionIds.push(cfg.id);
+          }
+        } catch {
+          // Skip collections that fail to fetch
+        }
+      }
+    }
+
+    logger.debug('Collection membership for test item', {
+      label: 'OverlayTest',
+      ratingKey,
+      collectionIds,
+      totalCollectionsChecked: allConfigs.filter((c) => c.collectionRatingKey)
+        .length,
+    });
+
     const context: OverlayRenderContext = {
       ...baseContext,
       isPlaceholder: actualIsPlaceholder,
       downloaded,
       ...releaseDateContext,
       ...monitoringContext,
+      collection: collectionIds,
     };
 
     // Evaluate all templates with detailed results
@@ -366,19 +403,34 @@ overlayTestRouter.post('/', async (req, res) => {
 
     let posterBuffer = basePosterResult.posterBuffer;
 
-    // Apply matching overlays in order
+    // Apply matching overlays in order via batch rendering
     const matchingTemplates = sortedTemplates.filter(
       (template) => templateResults.find((tr) => tr.id === template.id)?.matched
     );
 
+    const { width: posterWidth, height: posterHeight } =
+      await overlayTemplateRenderer.getPosterDimensions(posterBuffer);
+    const allOverlays: sharp.OverlayOptions[] = [];
+
     for (const template of matchingTemplates) {
       const templateData = template.getTemplateData();
-      posterBuffer = await overlayTemplateRenderer.renderOverlay(
-        posterBuffer,
-        templateData,
-        context
-      );
+      const templateOverlays =
+        await overlayTemplateRenderer.renderOverlayElements(
+          posterWidth,
+          posterHeight,
+          templateData,
+          context
+        );
+
+      if (templateOverlays) {
+        allOverlays.push(...templateOverlays);
+      }
     }
+
+    posterBuffer = await overlayTemplateRenderer.compositeOverlays(
+      posterBuffer,
+      allOverlays
+    );
 
     // Return all context variables as a flat list (no grouping)
     const allContext: Record<string, unknown> = {};

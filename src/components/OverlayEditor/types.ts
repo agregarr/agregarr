@@ -5,7 +5,7 @@
 export interface OverlayElement {
   id: string;
   layerOrder: number;
-  type: 'text' | 'tile' | 'variable' | 'raster' | 'svg';
+  type: 'text' | 'tile' | 'variable' | 'raster' | 'svg' | 'mapped-icon';
   x: number; // Absolute pixels
   y: number; // Absolute pixels
   width: number; // Absolute pixels
@@ -16,7 +16,8 @@ export interface OverlayElement {
     | OverlayTileElementProps
     | OverlayVariableElementProps
     | OverlayRasterElementProps
-    | OverlaySVGElementProps;
+    | OverlaySVGElementProps
+    | OverlayMappedIconElementProps;
 }
 
 export interface OverlayTextElementProps {
@@ -85,6 +86,38 @@ export interface OverlaySVGElementProps {
   dynamicIconField?: string;
   grayscale?: boolean;
   opacity?: number;
+}
+
+/**
+ * Icon mapping entry - maps a context value to an icon
+ * Used by mapped-icon elements to display icons based on field values
+ */
+export interface IconMapping {
+  value: string; // e.g., "English", "German", "4K"
+  iconPath: string; // e.g., "/api/v1/posters/icons/user/flag-en.svg"
+}
+
+/**
+ * Mapped Icon element - displays icons based on context field values
+ * Reads a context field (single value or array), looks up each value
+ * in the mappings table, and renders the corresponding icon(s)
+ */
+export interface OverlayMappedIconElementProps {
+  field: string; // Context field (e.g., 'audioLanguages', 'resolution')
+  mappings: IconMapping[]; // User-defined value → icon mappings
+
+  // Layout configuration
+  layout: 'horizontal' | 'vertical' | 'grid';
+  iconSize: number; // Icon size in pixels
+  spacingX: number; // Horizontal space between icons (can be negative for overlap)
+  spacingY: number; // Vertical space between icons (can be negative for overlap)
+  spacing?: number; // Deprecated: use spacingX/spacingY. Kept for backward compatibility.
+  maxIcons?: number; // Optional limit (0 = unlimited)
+  gridColumns?: number; // For grid layout (default 3)
+
+  // Visual options
+  grayscale?: boolean;
+  opacity?: number; // 0-100
 }
 
 /**
@@ -158,6 +191,7 @@ export interface OverlayRenderContext {
   rtCriticsScore?: number;
   rtAudienceScore?: number;
   rtCertifiedFresh?: boolean; // True if Rotten Tomatoes Certified Fresh
+  rtVerifiedHot?: boolean; // True if Rotten Tomatoes Verified Hot (audience badge)
   plexUserRating?: number; // Plex user rating (0-10 scale where 10 = 5 stars)
   // metacriticScore?: number; // TODO: Implement Metacritic integration
 
@@ -171,6 +205,7 @@ export interface OverlayRenderContext {
   runtime?: number;
   runtimeHHMM?: string; // Runtime formatted as "2h 16m"
   tmdbStatus?: string; // TV show status: 'Returning Series', 'Planned', 'Pilot', 'In Production', 'Ended', 'Cancelled'
+  tvdbStatus?: string; // TV show status sourced from TVDB: 'RETURNING', 'AIRING', 'ENDED', 'PLANNED'
 
   // Plex Media Info (from actual file analysis)
   resolution?: string; // '4K', '1080p', '720p'
@@ -249,15 +284,51 @@ export interface OverlayRenderContext {
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
 
+  // Collection membership (populated at runtime from Plex collection contents)
+  collection?: string[]; // Array of collection IDs this item belongs to
+
+  // Plex Labels (item-level tags applied in Plex)
+  plexLabels?: string[]; // Array of Plex label tags on this item
+
   // Item metadata
   isPlaceholder: boolean; // true = Coming Soon item, false = real item in Plex
   mediaType: 'movie' | 'show';
+
+  // Country/Origin
+  originCountry?: string; // Primary country of origin (ISO code, e.g., "US")
+  originCountries?: string[]; // All countries of origin (ISO codes)
+  productionCountry?: string; // Primary production country (ISO code)
+  productionCountries?: string[]; // All production countries (ISO codes)
 
   // Legacy/Deprecated fields
   status?: string;
 
   // Allow additional fields
   [key: string]: string | number | boolean | Date | string[] | undefined;
+}
+
+/**
+ * Fields that return single values (not arrays) - used to simplify UI for mapped icons
+ * These fields show a single icon in preview instead of multiple, and hide array-related options
+ */
+export const SINGLE_VALUE_FIELDS = [
+  'network',
+  'studio',
+  'originCountry',
+  'productionCountry',
+  'resolution',
+  'audioCodec',
+  'audioLanguageCode',
+];
+
+/**
+ * Check if a field is a single-value field
+ * Handles both static field names and dynamic prefixes (e.g., contentRating:US)
+ */
+export function isSingleValueField(field: string): boolean {
+  if (SINGLE_VALUE_FIELDS.includes(field)) return true;
+  if (field.startsWith('contentRating:')) return true;
+  return false;
 }
 
 /**
@@ -272,6 +343,7 @@ export const AVAILABLE_VARIABLES = {
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
     { field: 'rtCertifiedFresh', label: 'RT Certified Fresh', example: 'true' },
+    { field: 'rtVerifiedHot', label: 'RT Verified Hot', example: 'true' },
     { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
   ],
@@ -287,6 +359,11 @@ export const AVAILABLE_VARIABLES = {
     {
       field: 'tmdbStatus',
       label: 'TMDB Status (TV)',
+      example: 'RETURNING',
+    },
+    {
+      field: 'tvdbStatus',
+      label: 'TVDB Status (TV)',
       example: 'RETURNING',
     },
   ],
@@ -452,6 +529,11 @@ export const CONDITION_FIELD_CATEGORIES = {
       label: 'TMDB Status (TV)',
       example: 'RETURNING',
     },
+    {
+      field: 'tvdbStatus',
+      label: 'TVDB Status (TV)',
+      example: 'RETURNING',
+    },
   ],
   'Plex Data': [
     { field: 'resolution', label: 'Resolution', example: '4K' },
@@ -534,8 +616,16 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'rtCriticsScore', label: 'RT Critics Score', example: '88' },
     { field: 'rtAudienceScore', label: 'RT Audience Score', example: '85' },
     { field: 'rtCertifiedFresh', label: 'RT Certified Fresh', example: 'true' },
+    { field: 'rtVerifiedHot', label: 'RT Verified Hot', example: 'true' },
     { field: 'plexUserRating', label: 'Plex User Rating', example: '8' },
     // { field: 'metacriticScore', label: 'Metacritic Score', example: '73' }, // TODO: Implement Metacritic integration
+  ],
+  Collections: [
+    {
+      field: 'collection',
+      label: 'Collection',
+      example: 'IMDb Top 250',
+    },
   ],
   Status: [
     { field: 'mediaType', label: 'Media Type (movie/show)', example: 'movie' },
@@ -584,6 +674,7 @@ export const CONDITION_FIELD_CATEGORIES = {
     { field: 'downloaded', label: 'Downloaded', example: 'true' },
     { field: 'radarrTags', label: 'Radarr Tags', example: 'english-audio' },
     { field: 'sonarrTags', label: 'Sonarr Tags', example: 'german-audio' },
+    { field: 'plexLabels', label: 'Plex Label', example: '4K DV' },
     {
       field: 'daysUntilAction',
       label: 'Days Until Maintainerr Action',
@@ -607,6 +698,8 @@ export function getTemplateTypeFromConditionField(field: string): string {
           return 'technical';
         case 'Ratings':
           return 'rating';
+        case 'Collections':
+          return 'status';
         case 'Status':
           return 'status';
       }
@@ -627,6 +720,22 @@ export interface PreviewPosterInfo {
 }
 
 /**
+ * Full overlay template with metadata (as returned from API)
+ */
+export interface OverlayTemplate {
+  id: number;
+  name: string;
+  description?: string;
+  type: 'rating' | 'metadata' | 'technical' | 'status' | 'generic';
+  templateData: OverlayTemplateData;
+  isDefault: boolean;
+  applicationCondition?: ApplicationCondition;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
  * Sample preview context for testing overlay templates (fallback if API fails)
  */
 export const SAMPLE_PREVIEW_CONTEXTS: {
@@ -642,6 +751,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     rtCriticsScore: 88,
     rtAudienceScore: 85,
     rtCertifiedFresh: true,
+    rtVerifiedHot: true,
     plexUserRating: 8,
     // metacriticScore: 73, // TODO: Implement Metacritic integration
     director: 'Lana Wachowski',
@@ -684,8 +794,14 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     inRadarr: true,
     downloaded: false,
     daysUntilAction: 5,
+    plexLabels: ['4K DV', 'HDR'],
     isPlaceholder: true,
     mediaType: 'movie',
+    'contentRating:US': 'R',
+    'contentRating:GB': '15',
+    'contentRating:AU': 'MA15+',
+    'contentRating:NZ': 'R16',
+    'contentRating:DE': '16',
   },
   tv: {
     title: 'Breaking Bad',
@@ -696,6 +812,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     rtCriticsScore: 96,
     rtAudienceScore: 98,
     // rtCertifiedFresh not included - TV shows don't have Certified Fresh in RT API
+    rtVerifiedHot: true,
     plexUserRating: 10,
     // metacriticScore: 96, // TODO: Implement Metacritic integration
     seasonNumber: 5,
@@ -706,6 +823,7 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     runtime: 47,
     runtimeHHMM: '47m',
     tmdbStatus: 'ENDED',
+    tvdbStatus: 'ENDED',
     resolution: '1080p',
     width: 1920,
     height: 1080,
@@ -742,7 +860,13 @@ export const SAMPLE_PREVIEW_CONTEXTS: {
     inSonarr: true,
     downloaded: true,
     daysUntilAction: 12,
+    plexLabels: ['Kids'],
     isPlaceholder: false,
     mediaType: 'show',
+    'contentRating:US': 'TV-MA',
+    'contentRating:GB': '18',
+    'contentRating:AU': 'MA15+',
+    'contentRating:NZ': 'R18',
+    'contentRating:DE': '16',
   },
 };

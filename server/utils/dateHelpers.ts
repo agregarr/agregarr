@@ -35,15 +35,17 @@ function getCalendarDateInTimezone(date: Date): Date {
 }
 
 /**
- * Parse ISO date string (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SSZ) as UTC midnight, then convert to server timezone
- * Example: "2025-12-03" = Dec 3 midnight UTC = Dec 3 1PM in NZ = Dec 2 4PM in LA
- * Example: "2025-12-03T15:30:00Z" = Dec 3 midnight UTC (time component stripped)
+ * Parse ISO date string (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SSZ) as UTC noon, then convert to server timezone
+ * Using noon UTC ensures the calendar date is preserved for timezones UTC-12 through UTC+11.
+ * For UTC+12/+13 (NZ, Fiji) it shifts to the next day.
+ * Example: "2025-12-03" = Dec 3 noon UTC = Dec 4 1AM in NZ = Dec 3 4AM in LA
+ * Example: "2025-12-03T15:30:00Z" = Dec 3 noon UTC (time component stripped)
  */
 function parseDate(isoString: string): Date {
   // Extract just the date part (YYYY-MM-DD) if a datetime string is provided
   const dateOnly = isoString.split('T')[0];
-  // Parse as UTC midnight
-  const utcDate = new Date(dateOnly + 'T00:00:00.000Z');
+  // Parse as UTC noon to prevent timezone conversion from shifting the calendar date
+  const utcDate = new Date(dateOnly + 'T12:00:00.000Z');
   // Convert to calendar date in server timezone
   return getCalendarDateInTimezone(utcDate);
 }
@@ -225,12 +227,24 @@ export function formatDate(date: Date | string, format: string): string {
       return `${pad(month)}/${pad(day)}/${year}`;
     case 'DD/MM':
       return `${pad(day)}/${pad(month)}`;
+    case 'D/M':
+      return `${day}/${month}`;
     case 'MM/DD':
       return `${pad(month)}/${pad(day)}`;
+    case 'M/D':
+      return `${month}/${day}`;
     case 'DDD DD/MM':
       return `${dayName} ${pad(day)}/${pad(month)}`;
+    case 'DDD D/M':
+      return `${dayName} ${day}/${month}`;
+    case 'DDD MM/DD':
+      return `${dayName} ${pad(month)}/${pad(day)}`;
+    case 'DDD M/D':
+      return `${dayName} ${month}/${day}`;
     case 'DDDD':
       return dayNameFull;
+    case 'DDD':
+      return dayName;
     case 'MMM DD':
       return `${monthName} ${pad(day)}`;
     case 'DD MMM':

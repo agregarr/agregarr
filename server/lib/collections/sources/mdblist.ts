@@ -20,6 +20,7 @@ import type {
   MDBListTemplateContext,
   MissingItem,
   PlexCollection,
+  PlexLookupResult,
   SyncResult,
 } from '@server/lib/collections/core/types';
 import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
@@ -95,6 +96,9 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
       // Apply filtering safety net (validation, deduplication, maxItems safety check)
       const { items, missingItems, mappingStats, filteringStats } =
         await this.applyFilteringToMappedItems(mappedResult, config);
+
+      // Tag existing items in Radarr/Sonarr (if enabled)
+      await this.tagExistingItemsInArr(items, config);
 
       // Handle placeholder cleanup and process missing items
       const placeholderItems = await this.handlePlaceholdersAndMissingItems(
@@ -358,16 +362,7 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
     }
 
     // Use direct Plex queries instead of Media table
-    let plexLookup: Map<
-      string,
-      {
-        ratingKey: string;
-        title: string;
-        libraryKey: string;
-        addedAt?: number;
-        releaseDate?: number;
-      }
-    > = new Map();
+    let plexLookup: Map<string, PlexLookupResult> = new Map();
 
     if (plexClient) {
       // Pass target library ID to limit search scope to only the collection's target library
@@ -399,6 +394,7 @@ export class MDBListCollectionSync extends BaseCollectionSync<'mdblist'> {
           title: plexItem.title,
           type: lookup.mediaType,
           tmdbId: lookup.tmdbId,
+          tvdbId: plexItem.tvdbId,
           addedAt: plexItem.addedAt,
           releaseDate: plexItem.releaseDate,
           metadata: {
