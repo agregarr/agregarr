@@ -1280,6 +1280,9 @@ const CollectionSettings = ({
       // Make single DELETE request - backend handles linked collection deletion
       await axios.delete(`/api/v1/collections/${configId}`);
 
+      // Revalidate collections data to refresh the cache
+      await revalidateCollections();
+
       // If this was the last collection, trigger final sync to clean up Plex
       if (isLastCollection && data) {
         try {
