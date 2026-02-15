@@ -140,16 +140,21 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     // Split on commas, pipes, spaces
     const parts = raw.split(/[\s,|]+/).filter(Boolean);
     const next = [...value];
+    const addedIds: string[] = [];
     for (const part of parts) {
       const match = part.match(/(\d+)/);
       const id = match?.[1];
       if (id && !next.includes(id)) {
         next.push(id);
+        addedIds.push(id);
       }
     }
     if (next.length !== value.length) {
       onChange(next);
     }
+    addedIds.forEach((id) => {
+      void resolveAndSetName(id);
+    });
     setSearchTerm('');
     setResults([]);
     setIsOpen(false);
@@ -174,6 +179,37 @@ const TmdbSearchSelect: React.FC<TmdbSearchSelectProps> = ({
     if (searchEndpoint.includes('/search/keyword')) return '/api/v1/keyword';
     return null;
   }, [searchEndpoint]);
+
+  const resolveAndSetName = useCallback(
+    async (id: string) => {
+      const base = getDetailsEndpointBase();
+      if (!base) return;
+      if (!/^\d+$/.test(id)) return;
+      if (nameMap.has(id)) return;
+      if (inflightHydrationRef.current.has(id)) return;
+
+      inflightHydrationRef.current.add(id);
+      try {
+        const resp = await fetch(`${base}/${encodeURIComponent(id)}`);
+        if (!resp.ok) return;
+        const data = (await resp.json()) as { name?: string; title?: string };
+        const label = data?.name ?? data?.title;
+        if (!label) return;
+
+        setNameMap((prev) => {
+          if (prev.get(id) === label) return prev;
+          const next = new Map(prev);
+          next.set(id, label);
+          return next;
+        });
+      } catch {
+        // ignore
+      } finally {
+        inflightHydrationRef.current.delete(id);
+      }
+    },
+    [getDetailsEndpointBase, nameMap]
+  );
 
   useEffect(() => {
     const base = getDetailsEndpointBase();
