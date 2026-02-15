@@ -595,6 +595,15 @@ const CollectionSettings = ({
           ...(config.filterSettings !== undefined && {
             filterSettings: config.filterSettings,
           }),
+          ...(config.tmdbAdvancedFilters !== undefined && {
+            tmdbAdvancedFilters: config.tmdbAdvancedFilters,
+          }),
+          ...(config.tmdbMovieSortBy !== undefined && {
+            tmdbMovieSortBy: config.tmdbMovieSortBy,
+          }),
+          ...(config.tmdbTvSortBy !== undefined && {
+            tmdbTvSortBy: config.tmdbTvSortBy,
+          }),
           ...(config.excludeFromCollections !== undefined && {
             excludeFromCollections: config.excludeFromCollections,
           }),
