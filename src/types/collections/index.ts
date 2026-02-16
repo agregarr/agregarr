@@ -521,6 +521,28 @@ export interface CollectionConfigCreateRequest {
   readonly createPlaceholdersForMissing?: boolean;
   readonly placeholderReleasedDays?: number;
   readonly placeholderDaysAhead?: number;
+  readonly placeholderMinimumYear?: number;
+  readonly placeholderMinimumImdbRating?: number;
+  readonly placeholderMinimumRottenTomatoesRating?: number;
+  readonly placeholderMinimumRottenTomatoesAudienceRating?: number;
+  readonly placeholderFilterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+  };
   readonly includeAllReleasedItems?: boolean;
   readonly applyOverlaysDuringSync?: boolean;
   // Download mode settings
@@ -679,6 +701,13 @@ export const toCollectionCreateRequest = (
     createPlaceholdersForMissing: config.createPlaceholdersForMissing,
     placeholderReleasedDays: config.placeholderReleasedDays,
     placeholderDaysAhead: config.placeholderDaysAhead,
+    placeholderMinimumYear: config.placeholderMinimumYear,
+    placeholderMinimumImdbRating: config.placeholderMinimumImdbRating,
+    placeholderMinimumRottenTomatoesRating:
+      config.placeholderMinimumRottenTomatoesRating,
+    placeholderMinimumRottenTomatoesAudienceRating:
+      config.placeholderMinimumRottenTomatoesAudienceRating,
+    placeholderFilterSettings: config.placeholderFilterSettings,
     includeAllReleasedItems: config.includeAllReleasedItems,
     applyOverlaysDuringSync: config.applyOverlaysDuringSync,
     downloadMode: config.downloadMode,

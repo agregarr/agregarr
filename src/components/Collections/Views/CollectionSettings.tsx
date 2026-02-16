@@ -458,6 +458,13 @@ const CollectionSettings = ({
           createPlaceholdersForMissing: config.createPlaceholdersForMissing,
           placeholderDaysAhead: config.placeholderDaysAhead,
           placeholderReleasedDays: config.placeholderReleasedDays,
+          placeholderMinimumYear: config.placeholderMinimumYear,
+          placeholderMinimumImdbRating: config.placeholderMinimumImdbRating,
+          placeholderMinimumRottenTomatoesRating:
+            config.placeholderMinimumRottenTomatoesRating,
+          placeholderMinimumRottenTomatoesAudienceRating:
+            config.placeholderMinimumRottenTomatoesAudienceRating,
+          placeholderFilterSettings: config.placeholderFilterSettings,
           includeAllReleasedItems: config.includeAllReleasedItems,
           tautulliStatType: config.tautulliStatType,
           minimumPlays: config.minimumPlays,

@@ -175,6 +175,26 @@ export const saveIndividualConfigs = async (
         ...(collectionConfig.placeholderReleasedDays !== undefined && {
           placeholderReleasedDays: collectionConfig.placeholderReleasedDays,
         }),
+        ...(collectionConfig.placeholderMinimumYear !== undefined && {
+          placeholderMinimumYear: collectionConfig.placeholderMinimumYear,
+        }),
+        ...(collectionConfig.placeholderMinimumImdbRating !== undefined && {
+          placeholderMinimumImdbRating:
+            collectionConfig.placeholderMinimumImdbRating,
+        }),
+        ...(collectionConfig.placeholderMinimumRottenTomatoesRating !==
+          undefined && {
+          placeholderMinimumRottenTomatoesRating:
+            collectionConfig.placeholderMinimumRottenTomatoesRating,
+        }),
+        ...(collectionConfig.placeholderMinimumRottenTomatoesAudienceRating !==
+          undefined && {
+          placeholderMinimumRottenTomatoesAudienceRating:
+            collectionConfig.placeholderMinimumRottenTomatoesAudienceRating,
+        }),
+        ...(collectionConfig.placeholderFilterSettings !== undefined && {
+          placeholderFilterSettings: collectionConfig.placeholderFilterSettings,
+        }),
         ...(collectionConfig.includeAllReleasedItems !== undefined && {
           includeAllReleasedItems: collectionConfig.includeAllReleasedItems,
         }),
