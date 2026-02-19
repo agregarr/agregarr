@@ -90,7 +90,7 @@ const messages = defineMessages({
   youtubeCookiesConfiguredMessage:
     'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
   overseerrUserCollectionsDescription:
-    "Creates a collection for each Overseerr user based off their Overseerr requests, and uses labels and restrictions to ensure only the requesting user can see their requests. Because server owners can't have restrictions, all collections will be visible to them.",
+    "Creates a collection for each Seerr user based off their Seerr requests, and uses labels and restrictions to ensure only the requesting user can see their requests. Because server owners can't have restrictions, all collections will be visible to them.",
   autoFranchiseDescription:
     'Automatically discovers and creates a collection for each movie franchise in your library (e.g., Die Hard 1, 2, 3 → "Die Hard Collection"). Only franchises with 2+ movies in your library will be created.',
   franchiseTemplateNote:

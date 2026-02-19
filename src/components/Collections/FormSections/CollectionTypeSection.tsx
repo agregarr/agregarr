@@ -118,7 +118,7 @@ const CollectionTypeSection = ({
   );
 
   const collectionTypes = [
-    { value: 'overseerr', label: 'Overseerr Requests' },
+    { value: 'overseerr', label: 'Seerr Requests' },
     { value: 'tautulli', label: 'Tautulli Statistics' },
     { value: 'trakt', label: 'Trakt Lists' },
     { value: 'plex', label: 'Plex Library' },
