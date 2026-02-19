@@ -459,6 +459,96 @@ components:
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
           nullable: true
+        placeholderMinimumYear:
+          type: integer
+          description: 'Only include placeholder items released on or after this year (0 = no limit)'
+          example: 2010
+          nullable: true
+        placeholderMinimumImdbRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with IMDb rating >= this value (0 = no limit)'
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
+        placeholderMinimumRottenTomatoesRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes critics score >= this value (0 = no limit)'
+          example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderMinimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderFilterSettings:
+          type: object
+          description: 'Unified filter settings for placeholders with include/exclude modes'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
+          nullable: true
         includeAllReleasedItems:
           type: boolean
           description: 'If true, include all released items regardless of release date (default: true for new configs)'
@@ -1109,6 +1199,96 @@ components:
           type: integer
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
+          nullable: true
+        placeholderMinimumYear:
+          type: integer
+          description: 'Only include placeholder items released on or after this year (0 = no limit)'
+          example: 2010
+          nullable: true
+        placeholderMinimumImdbRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with IMDb rating >= this value (0 = no limit)'
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
+        placeholderMinimumRottenTomatoesRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes critics score >= this value (0 = no limit)'
+          example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderMinimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderFilterSettings:
+          type: object
+          description: 'Unified filter settings for placeholders with include/exclude modes'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         includeAllReleasedItems:
           type: boolean
@@ -1912,6 +2092,96 @@ components:
           type: integer
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
+          nullable: true
+        placeholderMinimumYear:
+          type: integer
+          description: 'Only include placeholder items released on or after this year (0 = no limit)'
+          example: 2010
+          nullable: true
+        placeholderMinimumImdbRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with IMDb rating >= this value (0 = no limit)'
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
+        placeholderMinimumRottenTomatoesRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes critics score >= this value (0 = no limit)'
+          example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderMinimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderFilterSettings:
+          type: object
+          description: 'Unified filter settings for placeholders with include/exclude modes'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         includeAllReleasedItems:
           type: boolean
