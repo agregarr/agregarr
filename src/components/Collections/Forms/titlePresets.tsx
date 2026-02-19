@@ -210,8 +210,8 @@ export const getTemplatePresets = (
       default:
         return [
           {
-            label: 'Overseerr Collection',
-            value: 'Overseerr Collection',
+            label: 'Seerr Collection',
+            value: 'Seerr Collection',
           },
           { label: 'Custom', value: 'custom' },
         ];
@@ -392,8 +392,8 @@ export const getTemplatePresets = (
       default:
         return [
           {
-            label: 'Overseerr Collection',
-            value: 'Overseerr Collection',
+            label: 'Seerr Collection',
+            value: 'Seerr Collection',
           },
           { label: 'Custom', value: 'custom' },
         ];

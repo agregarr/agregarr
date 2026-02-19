@@ -462,7 +462,7 @@ export const getTypeLabel = (type: string): string => {
     : type === 'sonarrtag'
     ? 'Sonarr Tag'
     : type === 'overseerr'
-    ? 'Overseerr'
+    ? 'Seerr'
     : type === 'networks'
     ? 'Networks'
     : type === 'originals'

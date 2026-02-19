@@ -63,7 +63,7 @@ const messages = defineMessages({
   createPlaceholders: 'Create Placeholders',
   editValues: 'Edit Selected',
   noCollections: 'No collections available',
-  overseerrMode: 'Overseerr',
+  overseerrMode: 'Seerr',
   directMode: 'Direct',
   yes: 'Yes',
   no: 'No',
