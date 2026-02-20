@@ -632,6 +632,13 @@ export class CollectionSyncService {
               placeholderDaysAhead: config.placeholderDaysAhead,
               placeholderReleasedDays: config.placeholderReleasedDays,
               includeAllReleasedItems: config.includeAllReleasedItems,
+              placeholderMinimumYear: config.placeholderMinimumYear,
+              placeholderMinimumImdbRating: config.placeholderMinimumImdbRating,
+              placeholderMinimumRottenTomatoesRating:
+                config.placeholderMinimumRottenTomatoesRating,
+              placeholderMinimumRottenTomatoesAudienceRating:
+                config.placeholderMinimumRottenTomatoesAudienceRating,
+              placeholderFilterSettings: config.placeholderFilterSettings,
               applyOverlaysDuringSync: config.applyOverlaysDuringSync,
             };
 
