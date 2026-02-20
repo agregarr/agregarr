@@ -25,7 +25,7 @@ const messages = defineMessages({
     'Use the official TMDB franchise poster instead of auto-generating. This setting overrules the above auto-poster option if a collection poster is available from TMDB.',
   hideIndividualItems: 'Hide Individual Items in Collection',
   hideIndividualItemsHelp:
-    'Hide the individual movies in this franchise collection. Only the collection itself will be shown in the Library tab. If an item appears in another collection it will still be visible in the Library tab.',
+    'Hide individual items from the Library tab and show only the collection. If an item appears in another collection it may still be visible there.',
   selectLibrariesForPosters: 'Select libraries first to upload custom posters.',
 });
 
@@ -319,33 +319,35 @@ const PosterUploadSection = ({
         </div>
       )}
 
-      {/* TMDB Franchise Poster Toggle - only for TMDB auto_franchise collections */}
+      {/* TMDB Franchise options + Collection Mode toggle (Coming Soon + TMDB auto_franchise) */}
       {isAgregarrCollection &&
-        values.type === 'tmdb' &&
-        values.subtype === 'auto_franchise' && (
+        ((values.type === 'tmdb' && values.subtype === 'auto_franchise') ||
+          values.type === 'comingsoon') && (
           <>
-            <div className="mb-6">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="useTmdbFranchisePoster"
-                  checked={values.useTmdbFranchisePoster ?? false}
-                  onChange={(e) =>
-                    setFieldValue('useTmdbFranchisePoster', e.target.checked)
-                  }
-                  className="form-checkbox"
-                />
-                <label
-                  htmlFor="useTmdbFranchisePoster"
-                  className="ml-2 text-sm text-gray-300"
-                >
-                  {intl.formatMessage(messages.useTmdbFranchisePoster)}
-                </label>
+            {values.type === 'tmdb' && values.subtype === 'auto_franchise' && (
+              <div className="mb-6">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="useTmdbFranchisePoster"
+                    checked={values.useTmdbFranchisePoster ?? false}
+                    onChange={(e) =>
+                      setFieldValue('useTmdbFranchisePoster', e.target.checked)
+                    }
+                    className="form-checkbox"
+                  />
+                  <label
+                    htmlFor="useTmdbFranchisePoster"
+                    className="ml-2 text-sm text-gray-300"
+                  >
+                    {intl.formatMessage(messages.useTmdbFranchisePoster)}
+                  </label>
+                </div>
+                <div className="label-tip">
+                  {intl.formatMessage(messages.useTmdbFranchisePosterHelp)}
+                </div>
               </div>
-              <div className="label-tip">
-                {intl.formatMessage(messages.useTmdbFranchisePosterHelp)}
-              </div>
-            </div>
+            )}
 
             <div className="mb-6">
               <div className="flex items-center">

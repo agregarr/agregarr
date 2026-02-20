@@ -2,6 +2,7 @@ import type PlexAPI from '@server/api/plexapi';
 import type { ComingSoonItem } from '@server/entity/ComingSoonItem';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
 import {
+  applyCollectionExclusions,
   findPlexItemsByTmdbIds,
   getCollectionMediaType,
   type LibraryItemsCache,
@@ -181,17 +182,71 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
         return { created: 0, updated: 0 };
       }
 
-      // Use the media type processing strategy
-      return await this.processWithMediaTypeStrategy(
-        sortedItems,
+      const mediaType = getCollectionMediaType(config);
+      let filteredItems = sortedItems.filter((item) => item.type === mediaType);
+
+      if (filteredItems.length === 0) {
+        logger.debug(`No ${mediaType} items found for collection`, {
+          label: 'Coming Soon Collections',
+          configName: config.name,
+          mediaType,
+          totalItems: sortedItems.length,
+        });
+        return { created: 0, updated: 0 };
+      }
+
+      filteredItems = await applyCollectionExclusions(
+        filteredItems,
         config,
         plexClient,
-        allCollections,
-        processedCollectionKeys,
-        undefined,
-        libraryCache,
-        missingItems
+        this.source
       );
+
+      if (filteredItems.length === 0) {
+        logger.info(
+          `All ${mediaType} items were excluded from collection "${config.name}" based on mutual exclusion rules`,
+          {
+            label: 'Coming Soon Collections',
+            configName: config.name,
+            mediaType,
+          }
+        );
+        return { created: 0, updated: 0 };
+      }
+
+      const collectionName =
+        (await this.generateCollectionNameWithCustom?.(
+          config,
+          mediaType,
+          libraryCache
+        )) ||
+        config.template ||
+        config.name;
+
+      const result = await this.createCollection(
+        filteredItems,
+        mediaType,
+        collectionName,
+        plexClient,
+        allCollections,
+        config,
+        processedCollectionKeys
+      );
+
+      const missingItemsToStore = missingItems ?? [];
+      if (result.collectionRatingKey && missingItemsToStore.length > 0) {
+        await this.storeCollectionMissingItems(
+          missingItemsToStore,
+          result.collectionRatingKey,
+          config.libraryId,
+          config.id
+        );
+      }
+
+      return {
+        created: result.created || 0,
+        updated: result.updated || 0,
+      };
     } catch (error) {
       logger.error('Coming Soon collection processing failed', {
         label: 'Coming Soon Collections',
@@ -257,6 +312,29 @@ export class ComingSoonCollectionSync extends BaseCollectionSync<'comingsoon'> {
 
       // Update config with rating key if we got one
       this.updateConfigWithRatingKey(config, result.collectionRatingKey);
+
+      // Set collection mode if hideIndividualItems is enabled
+      const collectionRatingKey = result.collectionRatingKey;
+      if (collectionRatingKey && config.hideIndividualItems) {
+        try {
+          await plexClient.updateCollectionMode(collectionRatingKey, 1);
+          logger.debug(
+            `Set collectionMode=1 (hide items) for Coming Soon collection: ${collectionName}`,
+            {
+              label: 'Coming Soon Collections',
+              collectionRatingKey,
+            }
+          );
+        } catch (error) {
+          logger.warn(
+            `Failed to set collection mode for ${collectionName}, continuing`,
+            {
+              label: 'Coming Soon Collections',
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
 
       return {
         created: result.created,
