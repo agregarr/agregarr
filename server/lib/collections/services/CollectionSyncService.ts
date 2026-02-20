@@ -96,8 +96,8 @@ export class CollectionSyncService {
       '@server/lib/placeholders/helpers/placeholderPathHelpers'
     );
 
-    let tv: DiscoveredPlaceholder[] = [];
-    let movies: DiscoveredMoviePlaceholder[] = [];
+    const tv: DiscoveredPlaceholder[] = [];
+    const movies: DiscoveredMoviePlaceholder[] = [];
 
     // Only run discovery if there are collections with placeholders enabled
     const hasPlaceholderCollections = collectionConfigs.some(
@@ -117,241 +117,276 @@ export class CollectionSyncService {
       discoverMoviePlaceholdersFromFilenames,
     } = await import('@server/lib/placeholders/services/PlaceholderDiscovery');
 
-    // Find the first TV library ID from placeholder-enabled collections
-    const tvLibraryId = collectionConfigs.find(
-      (c) =>
-        c.createPlaceholdersForMissing && getCollectionMediaType(c) === 'tv'
-    )?.libraryId;
-
-    // Discover TV placeholders
-    const tvLibraryPath = tvLibraryId
-      ? getPlaceholderRootFolder(tvLibraryId, 'tv')
-      : undefined;
-    if (tvLibraryPath && tvLibraryId) {
-      try {
-        logger.info('Running global TV placeholder discovery', {
-          label: 'Collection Sync Service',
-          libraryId: tvLibraryId,
-          libraryPath: tvLibraryPath,
-        });
-
-        tv = await discoverPlaceholdersFromMarkers(
-          plexClient,
-          tvLibraryId,
-          tvLibraryPath
-        );
-
-        logger.info('Global TV placeholder discovery complete', {
-          label: 'Collection Sync Service',
-          discovered: tv.length,
-        });
-
-        // Process discovered placeholders immediately: fix titles, cleanup real content
-        const { cleanupPlaceholderForRealContent } = await import(
-          '@server/lib/placeholders/services/PlaceholderCleanup'
-        );
-        const { ensurePlaceholderEpisodeTitle } = await import(
-          '@server/lib/placeholders/services/PlaceholderTitleFixer'
-        );
-
-        let cleanedUp = 0;
-        let titlesFixes = 0;
-        let titleFixFailures = 0;
-
-        for (const { plexItem, needsTitleFix, marker } of tv) {
-          if (!plexItem) {
-            continue; // Not found in Plex
-          }
-
-          if (!needsTitleFix && marker.tmdbId) {
-            // Real content detected - clean up placeholder
-            await cleanupPlaceholderForRealContent(
-              marker.tmdbId,
-              marker.placeholderPath,
-              'tv'
-            );
-            cleanedUp++;
-          } else if (needsTitleFix) {
-            // Still a placeholder - fix episode title
-            const fixed = await ensurePlaceholderEpisodeTitle(
-              plexClient,
-              plexItem.ratingKey,
-              marker.title
-            );
-            if (fixed) {
-              titlesFixes++;
-            } else {
-              titleFixFailures++;
-              logger.warn(
-                'Failed to fix placeholder episode title during global discovery - may appear in filtered hubs',
-                {
-                  label: 'Collection Sync Service',
-                  title: marker.title,
-                  ratingKey: plexItem.ratingKey,
-                }
-              );
-            }
-          }
-        }
-
-        logger.info('Global TV placeholder processing complete', {
-          label: 'Collection Sync Service',
-          cleanedUp,
-          titlesFixes,
-          titleFixFailures,
-        });
-
-        // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
-        if (cleanedUp > 0 && tvLibraryId) {
-          const libraryId = tvLibraryId;
-          logger.info(
-            'Triggering Plex scan to clean up deleted TV placeholders',
-            {
-              label: 'Collection Sync Service',
-              libraryId,
-              placeholdersDeleted: cleanedUp,
-            }
-          );
-          // Fire-and-forget: don't block sync while Plex processes
-          const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
-          void (async () => {
+    // Collect all unique TV library IDs with placeholder-enabled collections
+    const tvLibraryIds = [
+      ...new Set(
+        collectionConfigs
+          .filter((c) => {
+            if (!c.createPlaceholdersForMissing) return false;
             try {
-              await plexClient.scanLibrary(libraryId);
-              if (autoEmptyTrash) {
-                // Brief delay for scan to detect missing files
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-                await plexClient.emptyTrash(libraryId);
-              }
-              logger.info('Plex placeholder cleanup complete', {
-                label: 'Collection Sync Service',
-                libraryId,
-                trashedEmptied: autoEmptyTrash,
-              });
-            } catch (cleanupError) {
-              logger.warn('Failed to complete Plex placeholder cleanup', {
-                label: 'Collection Sync Service',
-                libraryId,
-                error:
-                  cleanupError instanceof Error
-                    ? cleanupError.message
-                    : String(cleanupError),
-              });
+              return getCollectionMediaType(c) === 'tv';
+            } catch {
+              return false;
             }
-          })();
+          })
+          .map((c) => c.libraryId)
+      ),
+    ];
+
+    if (tvLibraryIds.length > 0) {
+      const { cleanupPlaceholderForRealContent } = await import(
+        '@server/lib/placeholders/services/PlaceholderCleanup'
+      );
+      const { ensurePlaceholderEpisodeTitle } = await import(
+        '@server/lib/placeholders/services/PlaceholderTitleFixer'
+      );
+
+      for (const tvLibraryId of tvLibraryIds) {
+        const tvLibraryPath = getPlaceholderRootFolder(tvLibraryId, 'tv');
+        if (!tvLibraryPath) continue;
+
+        try {
+          logger.info('Running global TV placeholder discovery', {
+            label: 'Collection Sync Service',
+            libraryId: tvLibraryId,
+            libraryPath: tvLibraryPath,
+          });
+
+          const discovered = await discoverPlaceholdersFromMarkers(
+            plexClient,
+            tvLibraryId,
+            tvLibraryPath
+          );
+
+          logger.info('Global TV placeholder discovery complete', {
+            label: 'Collection Sync Service',
+            libraryId: tvLibraryId,
+            discovered: discovered.length,
+          });
+
+          tv.push(...discovered);
+
+          // Process discovered placeholders: fix titles, cleanup real content
+          let cleanedUp = 0;
+          let titlesFixes = 0;
+          let titleFixFailures = 0;
+
+          for (const { plexItem, needsTitleFix, marker } of discovered) {
+            if (!plexItem) {
+              continue; // Not found in Plex
+            }
+
+            if (!needsTitleFix && marker.tmdbId) {
+              // Real content detected - clean up placeholder
+              await cleanupPlaceholderForRealContent(
+                marker.tmdbId,
+                marker.placeholderPath,
+                'tv'
+              );
+              cleanedUp++;
+            } else if (needsTitleFix) {
+              // Still a placeholder - fix episode title
+              const fixed = await ensurePlaceholderEpisodeTitle(
+                plexClient,
+                plexItem.ratingKey,
+                marker.title
+              );
+              if (fixed) {
+                titlesFixes++;
+              } else {
+                titleFixFailures++;
+                logger.warn(
+                  'Failed to fix placeholder episode title during global discovery - may appear in filtered hubs',
+                  {
+                    label: 'Collection Sync Service',
+                    title: marker.title,
+                    ratingKey: plexItem.ratingKey,
+                  }
+                );
+              }
+            }
+          }
+
+          logger.info('Global TV placeholder processing complete', {
+            label: 'Collection Sync Service',
+            libraryId: tvLibraryId,
+            cleanedUp,
+            titlesFixes,
+            titleFixFailures,
+          });
+
+          // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
+          if (cleanedUp > 0) {
+            const libraryId = tvLibraryId;
+            logger.info(
+              'Triggering Plex scan to clean up deleted TV placeholders',
+              {
+                label: 'Collection Sync Service',
+                libraryId,
+                placeholdersDeleted: cleanedUp,
+              }
+            );
+            // Fire-and-forget: don't block sync while Plex processes
+            const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
+            void (async () => {
+              try {
+                await plexClient.scanLibrary(libraryId);
+                if (autoEmptyTrash) {
+                  // Brief delay for scan to detect missing files
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                  await plexClient.emptyTrash(libraryId);
+                }
+                logger.info('Plex placeholder cleanup complete', {
+                  label: 'Collection Sync Service',
+                  libraryId,
+                  trashedEmptied: autoEmptyTrash,
+                });
+              } catch (cleanupError) {
+                logger.warn('Failed to complete Plex placeholder cleanup', {
+                  label: 'Collection Sync Service',
+                  libraryId,
+                  error:
+                    cleanupError instanceof Error
+                      ? cleanupError.message
+                      : String(cleanupError),
+                });
+              }
+            })();
+          }
+        } catch (error) {
+          logger.warn('Failed to run global TV placeholder discovery', {
+            label: 'Collection Sync Service',
+            libraryId: tvLibraryId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error) {
-        logger.warn('Failed to run global TV placeholder discovery', {
-          label: 'Collection Sync Service',
-          error: error instanceof Error ? error.message : String(error),
-        });
       }
     }
 
-    // Find the first movie library ID from placeholder-enabled collections
-    const movieLibraryId = collectionConfigs.find(
-      (c) =>
-        c.createPlaceholdersForMissing && getCollectionMediaType(c) === 'movie'
-    )?.libraryId;
-
-    // Discover movie placeholders
-    const movieLibraryPath = movieLibraryId
-      ? getPlaceholderRootFolder(movieLibraryId, 'movie')
-      : undefined;
-    if (movieLibraryPath && movieLibraryId) {
-      try {
-        logger.info('Running global movie placeholder discovery', {
-          label: 'Collection Sync Service',
-          libraryId: movieLibraryId,
-          libraryPath: movieLibraryPath,
-        });
-
-        movies = await discoverMoviePlaceholdersFromFilenames(
-          plexClient,
-          movieLibraryId,
-          movieLibraryPath
-        );
-
-        logger.info('Global movie placeholder discovery complete', {
-          label: 'Collection Sync Service',
-          discovered: movies.length,
-        });
-
-        // Process discovered movie placeholders: cleanup real content
-        const { cleanupPlaceholderForRealContent } = await import(
-          '@server/lib/placeholders/services/PlaceholderCleanup'
-        );
-
-        let moviesCleanedUp = 0;
-        let labelsFixed = 0;
-
-        for (const { plexItem, needsCleanup, movie } of movies) {
-          if (plexItem && needsCleanup) {
-            // Real content detected - clean up placeholder
-            await cleanupPlaceholderForRealContent(
-              movie.tmdbId,
-              movie.placeholderPath,
-              'movie'
-            );
-            moviesCleanedUp++;
-          } else if (plexItem) {
-            // Still a placeholder - ensure label for filtered hub exclusion
-            await plexClient.addLabelToItem(
-              plexItem.ratingKey,
-              'trailer-placeholder'
-            );
-            labelsFixed++;
-          }
-        }
-
-        logger.info('Global movie placeholder processing complete', {
-          label: 'Collection Sync Service',
-          cleanedUp: moviesCleanedUp,
-          labelsFixed,
-        });
-
-        // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
-        if (moviesCleanedUp > 0 && movieLibraryId) {
-          const libraryId = movieLibraryId;
-          logger.info(
-            'Triggering Plex scan to clean up deleted movie placeholders',
-            {
-              label: 'Collection Sync Service',
-              libraryId,
-              placeholdersDeleted: moviesCleanedUp,
-            }
-          );
-          // Fire-and-forget: don't block sync while Plex processes
-          const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
-          void (async () => {
+    // Collect all unique movie library IDs with placeholder-enabled collections
+    const movieLibraryIds = [
+      ...new Set(
+        collectionConfigs
+          .filter((c) => {
+            if (!c.createPlaceholdersForMissing) return false;
             try {
-              await plexClient.scanLibrary(libraryId);
-              if (autoEmptyTrash) {
-                // Brief delay for scan to detect missing files
-                await new Promise((resolve) => setTimeout(resolve, 3000));
-                await plexClient.emptyTrash(libraryId);
-              }
-              logger.info('Plex placeholder cleanup complete', {
-                label: 'Collection Sync Service',
-                libraryId,
-                trashedEmptied: autoEmptyTrash,
-              });
-            } catch (cleanupError) {
-              logger.warn('Failed to complete Plex placeholder cleanup', {
-                label: 'Collection Sync Service',
-                libraryId,
-                error:
-                  cleanupError instanceof Error
-                    ? cleanupError.message
-                    : String(cleanupError),
-              });
+              return getCollectionMediaType(c) === 'movie';
+            } catch {
+              return false;
             }
-          })();
+          })
+          .map((c) => c.libraryId)
+      ),
+    ];
+
+    if (movieLibraryIds.length > 0) {
+      const { cleanupPlaceholderForRealContent } = await import(
+        '@server/lib/placeholders/services/PlaceholderCleanup'
+      );
+
+      for (const movieLibraryId of movieLibraryIds) {
+        const movieLibraryPath = getPlaceholderRootFolder(
+          movieLibraryId,
+          'movie'
+        );
+        if (!movieLibraryPath) continue;
+
+        try {
+          logger.info('Running global movie placeholder discovery', {
+            label: 'Collection Sync Service',
+            libraryId: movieLibraryId,
+            libraryPath: movieLibraryPath,
+          });
+
+          const discovered = await discoverMoviePlaceholdersFromFilenames(
+            plexClient,
+            movieLibraryId,
+            movieLibraryPath
+          );
+
+          logger.info('Global movie placeholder discovery complete', {
+            label: 'Collection Sync Service',
+            libraryId: movieLibraryId,
+            discovered: discovered.length,
+          });
+
+          movies.push(...discovered);
+
+          // Process discovered movie placeholders: cleanup real content
+          let moviesCleanedUp = 0;
+          let labelsFixed = 0;
+
+          for (const { plexItem, needsCleanup, movie } of discovered) {
+            if (plexItem && needsCleanup) {
+              // Real content detected - clean up placeholder
+              await cleanupPlaceholderForRealContent(
+                movie.tmdbId,
+                movie.placeholderPath,
+                'movie'
+              );
+              moviesCleanedUp++;
+            } else if (plexItem) {
+              // Still a placeholder - ensure label for filtered hub exclusion
+              await plexClient.addLabelToItem(
+                plexItem.ratingKey,
+                'trailer-placeholder'
+              );
+              labelsFixed++;
+            }
+          }
+
+          logger.info('Global movie placeholder processing complete', {
+            label: 'Collection Sync Service',
+            libraryId: movieLibraryId,
+            cleanedUp: moviesCleanedUp,
+            labelsFixed,
+          });
+
+          // Trigger Plex library scan + empty trash to remove ghost entries (fire-and-forget)
+          if (moviesCleanedUp > 0) {
+            const libraryId = movieLibraryId;
+            logger.info(
+              'Triggering Plex scan to clean up deleted movie placeholders',
+              {
+                label: 'Collection Sync Service',
+                libraryId,
+                placeholdersDeleted: moviesCleanedUp,
+              }
+            );
+            // Fire-and-forget: don't block sync while Plex processes
+            const autoEmptyTrash = getSettings().plex.autoEmptyTrash !== false;
+            void (async () => {
+              try {
+                await plexClient.scanLibrary(libraryId);
+                if (autoEmptyTrash) {
+                  // Brief delay for scan to detect missing files
+                  await new Promise((resolve) => setTimeout(resolve, 3000));
+                  await plexClient.emptyTrash(libraryId);
+                }
+                logger.info('Plex placeholder cleanup complete', {
+                  label: 'Collection Sync Service',
+                  libraryId,
+                  trashedEmptied: autoEmptyTrash,
+                });
+              } catch (cleanupError) {
+                logger.warn('Failed to complete Plex placeholder cleanup', {
+                  label: 'Collection Sync Service',
+                  libraryId,
+                  error:
+                    cleanupError instanceof Error
+                      ? cleanupError.message
+                      : String(cleanupError),
+                });
+              }
+            })();
+          }
+        } catch (error) {
+          logger.warn('Failed to run global movie placeholder discovery', {
+            label: 'Collection Sync Service',
+            libraryId: movieLibraryId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-      } catch (error) {
-        logger.warn('Failed to run global movie placeholder discovery', {
-          label: 'Collection Sync Service',
-          error: error instanceof Error ? error.message : String(error),
-        });
       }
     }
 
