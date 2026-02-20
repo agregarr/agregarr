@@ -232,6 +232,14 @@ export const linkCollectionConfig = async (
               masterConfig.createPlaceholdersForMissing,
             placeholderDaysAhead: masterConfig.placeholderDaysAhead,
             placeholderReleasedDays: masterConfig.placeholderReleasedDays,
+            placeholderMinimumYear: masterConfig.placeholderMinimumYear,
+            placeholderMinimumImdbRating:
+              masterConfig.placeholderMinimumImdbRating,
+            placeholderMinimumRottenTomatoesRating:
+              masterConfig.placeholderMinimumRottenTomatoesRating,
+            placeholderMinimumRottenTomatoesAudienceRating:
+              masterConfig.placeholderMinimumRottenTomatoesAudienceRating,
+            placeholderFilterSettings: masterConfig.placeholderFilterSettings,
             includeAllReleasedItems: masterConfig.includeAllReleasedItems,
             tautulliStatType: masterConfig.tautulliStatType,
             isMultiSource: masterConfig.isMultiSource,

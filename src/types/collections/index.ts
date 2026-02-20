@@ -283,6 +283,10 @@ export interface CollectionFormConfig {
           readonly mode: 'exclude' | 'include';
           readonly values: string[];
         };
+        readonly keywords?: {
+          readonly mode: 'exclude' | 'include';
+          readonly values: number[];
+        };
       }
     | readonly CollectionSourceConfig[] // Multi-source configs
     | CustomSyncSchedule // Custom sync schedule
@@ -297,6 +301,29 @@ export interface CollectionFormConfig {
   readonly placeholderReleasedDays?: number; // Days to keep orphaned placeholders after they fall off source list (from release date if released, otherwise from creation date) (default: 7)
   readonly placeholderDaysAhead?: number; // Days to look ahead for release dates (default: 360)
   readonly includeAllReleasedItems?: boolean; // If true, include all released items regardless of release date (default: true for new configs)
+  // Placeholder filter settings (independent of auto-request filters)
+  readonly placeholderMinimumYear?: number;
+  readonly placeholderMinimumImdbRating?: number;
+  readonly placeholderMinimumRottenTomatoesRating?: number;
+  readonly placeholderMinimumRottenTomatoesAudienceRating?: number;
+  readonly placeholderFilterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+  };
   readonly applyOverlaysDuringSync?: boolean; // Apply overlays immediately after sync (default: true for Coming Soon)
   // Download mode settings
   readonly downloadMode?: 'overseerr' | 'direct'; // Download mode: overseerr (requests) or direct (*arr)
@@ -494,6 +521,28 @@ export interface CollectionConfigCreateRequest {
   readonly createPlaceholdersForMissing?: boolean;
   readonly placeholderReleasedDays?: number;
   readonly placeholderDaysAhead?: number;
+  readonly placeholderMinimumYear?: number;
+  readonly placeholderMinimumImdbRating?: number;
+  readonly placeholderMinimumRottenTomatoesRating?: number;
+  readonly placeholderMinimumRottenTomatoesAudienceRating?: number;
+  readonly placeholderFilterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+  };
   readonly includeAllReleasedItems?: boolean;
   readonly applyOverlaysDuringSync?: boolean;
   // Download mode settings
@@ -652,6 +701,13 @@ export const toCollectionCreateRequest = (
     createPlaceholdersForMissing: config.createPlaceholdersForMissing,
     placeholderReleasedDays: config.placeholderReleasedDays,
     placeholderDaysAhead: config.placeholderDaysAhead,
+    placeholderMinimumYear: config.placeholderMinimumYear,
+    placeholderMinimumImdbRating: config.placeholderMinimumImdbRating,
+    placeholderMinimumRottenTomatoesRating:
+      config.placeholderMinimumRottenTomatoesRating,
+    placeholderMinimumRottenTomatoesAudienceRating:
+      config.placeholderMinimumRottenTomatoesAudienceRating,
+    placeholderFilterSettings: config.placeholderFilterSettings,
     includeAllReleasedItems: config.includeAllReleasedItems,
     applyOverlaysDuringSync: config.applyOverlaysDuringSync,
     downloadMode: config.downloadMode,
@@ -1086,6 +1142,29 @@ export interface MultiSourceCollectionConfig {
   readonly placeholderDaysAhead?: number;
   readonly placeholderReleasedDays?: number;
   readonly includeAllReleasedItems?: boolean;
+  // Placeholder filter settings (independent of auto-request filters)
+  readonly placeholderMinimumYear?: number;
+  readonly placeholderMinimumImdbRating?: number;
+  readonly placeholderMinimumRottenTomatoesRating?: number;
+  readonly placeholderMinimumRottenTomatoesAudienceRating?: number;
+  readonly placeholderFilterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+  };
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
