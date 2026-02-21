@@ -19,6 +19,7 @@ type RawAnimeIds = Record<string, AnimeIdsRow>; // keyed by AniList ID
 let _loadedAt = 0;
 let _byAniList = new Map<number, AnimeIdsRow>();
 let _byAniDB = new Map<number, AnimeIdsRow>(); // For AniDB lookups
+let _byMal = new Map<number, AnimeIdsRow>(); // For MAL lookups
 let _loadInFlight: Promise<void> | null = null;
 
 // Normalize array fields to always be arrays for consistent handling
@@ -109,6 +110,7 @@ export async function loadAnimeIds(
 
     const byAniList = new Map<number, AnimeIdsRow>();
     const byAniDB = new Map<number, AnimeIdsRow>();
+    const byMal = new Map<number, AnimeIdsRow>();
 
     // Build indices - keys are now AniList IDs directly!
     for (const [anilistIdStr, row] of Object.entries(json)) {
@@ -131,10 +133,17 @@ export async function loadAnimeIds(
       if (row.anidb_id) {
         byAniDB.set(row.anidb_id, normalized);
       }
+
+      // Also index by MAL ID(s) if present
+      const malIds = normalizeToArray(row.mal_id);
+      for (const malId of malIds) {
+        byMal.set(malId, normalized);
+      }
     }
 
     _byAniList = byAniList;
     _byAniDB = byAniDB;
+    _byMal = byMal;
     _loadedAt = Date.now();
   } finally {
     clearTimeout(timeoutId);
@@ -155,14 +164,10 @@ export function lookupByAniList(anilistId: number): AnimeIdsRow | undefined {
   return _byAniList.get(anilistId);
 }
 
-/** Lookup PlexAniBridge row by MyAnimeList ID (mal_id). Returns first match. */
+/** Lookup PlexAniBridge row by MyAnimeList ID (mal_id). */
 export function lookupByMal(malId: number): AnimeIdsRow | undefined {
   if (!malId) return undefined;
-  for (const row of _byAniList.values()) {
-    const malIds = normalizeToArray(row.mal_id);
-    if (malIds.includes(malId)) return row;
-  }
-  return undefined;
+  return _byMal.get(malId);
 }
 
 /** Lookup PlexAniBridge row by AniDB ID */
