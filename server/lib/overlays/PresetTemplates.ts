@@ -36,7 +36,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: 0,
-          y: 0,
+          y: 311,
           width: 162,
           height: 155,
           properties: {
@@ -54,7 +54,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'variable',
           x: 16,
-          y: 59,
+          y: 369,
           width: 127,
           height: 108,
           properties: {
@@ -72,7 +72,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 2,
           type: 'svg',
           x: 16,
-          y: -18,
+          y: 292,
           width: 130,
           height: 130,
           properties: {
@@ -625,7 +625,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'svg',
           x: 0,
-          y: 310.50617627005715,
+          y: 466,
           width: 163,
           height: 77,
           properties: {
@@ -661,7 +661,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: -5.5246784801583,
-          y: 390.50433315836005,
+          y: 546,
           width: 169,
           height: 85,
           properties: {
@@ -678,7 +678,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'raster',
           x: 5.9753215198417,
-          y: 384.50433315836005,
+          y: 540,
           width: 146,
           height: 97,
           properties: {
