@@ -502,12 +502,13 @@ export class CollectionCleanupService {
     const labels = Array.isArray(collection.labels) ? collection.labels : [];
 
     // Check if this collection has any of our managed labels
-    const managedLabel = labels.find((label: string | PlexLabel) => {
-      const labelText = typeof label === 'string' ? label : label.tag;
-      return labelText.toLowerCase().startsWith('agregarr');
-    });
+    const managedLabels = labels
+      .map((label: string | PlexLabel) =>
+        typeof label === 'string' ? label : label.tag
+      )
+      .filter((labelText) => labelText.toLowerCase().startsWith('agregarr'));
 
-    if (!managedLabel) {
+    if (managedLabels.length === 0) {
       return { shouldDelete: false, reason: 'not managed' };
     }
 
@@ -515,9 +516,6 @@ export class CollectionCleanupService {
     if (processedCollectionKeys.has(collection.ratingKey)) {
       return { shouldDelete: false, reason: 'already processed' };
     }
-
-    const managedLabelText =
-      typeof managedLabel === 'string' ? managedLabel : managedLabel.tag;
 
     // First, try to match by ratingKey (works for all types except user collections)
     const matchingConfig = currentConfigs.find(
@@ -529,9 +527,12 @@ export class CollectionCleanupService {
     }
 
     // Special case for user collections - they don't store ratingKeys, use user validation instead
-    if (managedLabelText.toLowerCase().startsWith('agregarroverseerruser')) {
+    const overseerrUserLabel = managedLabels.find((labelText) =>
+      labelText.toLowerCase().startsWith('agregarroverseerruser')
+    );
+    if (overseerrUserLabel) {
       // Extract user Plex ID from collection labels
-      const userPlexId = managedLabelText.replace(
+      const userPlexId = overseerrUserLabel.replace(
         /^AgregarrOverseerrUser/i,
         ''
       );
@@ -568,9 +569,12 @@ export class CollectionCleanupService {
 
     // Special case for auto franchise collections - they don't store ratingKeys on configs
     // (one config generates multiple Plex collections). Match by label prefix instead.
-    if (managedLabelText.toLowerCase().startsWith('agregarrautofranchise-')) {
+    const autoFranchiseLabel = managedLabels.find((labelText) =>
+      labelText.toLowerCase().startsWith('agregarrautofranchise-')
+    );
+    if (autoFranchiseLabel) {
       // Extract configId from label format: AgregarrAutoFranchise-{configId}-{franchiseId}
-      const parts = managedLabelText.split('-');
+      const parts = autoFranchiseLabel.split('-');
       const configId = parts.length >= 2 ? parts[1] : undefined;
 
       if (!configId) {
