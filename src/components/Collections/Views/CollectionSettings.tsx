@@ -602,6 +602,15 @@ const CollectionSettings = ({
           ...(config.filterSettings !== undefined && {
             filterSettings: config.filterSettings,
           }),
+          ...(config.tmdbAdvancedFilters !== undefined && {
+            tmdbAdvancedFilters: config.tmdbAdvancedFilters,
+          }),
+          ...(config.tmdbMovieSortBy !== undefined && {
+            tmdbMovieSortBy: config.tmdbMovieSortBy,
+          }),
+          ...(config.tmdbTvSortBy !== undefined && {
+            tmdbTvSortBy: config.tmdbTvSortBy,
+          }),
           ...(config.excludeFromCollections !== undefined && {
             excludeFromCollections: config.excludeFromCollections,
           }),
@@ -1277,6 +1286,9 @@ const CollectionSettings = ({
     try {
       // Make single DELETE request - backend handles linked collection deletion
       await axios.delete(`/api/v1/collections/${configId}`);
+
+      // Refresh cached collections list (used for name uniqueness checks, etc.)
+      await revalidateCollections();
 
       // If this was the last collection, trigger final sync to clean up Plex
       if (isLastCollection && data) {
