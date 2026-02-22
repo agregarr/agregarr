@@ -12224,6 +12224,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Keyword'
+  /person/{personId}:
+    get:
+      summary: Get person
+      description: |
+        Returns a single TMDB person in JSON format.
+      tags:
+        - tmdb
+      parameters:
+        - in: path
+          name: personId
+          required: true
+          description: The TMDb person identifier.
+          schema:
+            type: number
+            example: 543530
+      responses:
+        '200':
+          description: Person returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 543530
+                  name:
+                    type: string
+                    example: Dave Bautista
+                required:
+                  - id
+                  - name
   /missing-items:
     get:
       summary: Get missing item requests

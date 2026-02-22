@@ -663,6 +663,30 @@ router.get('/keyword/:keywordId', async (req, res, next) => {
   }
 });
 
+router.get('/person/:personId', isAuthenticated(), async (req, res, next) => {
+  const tmdb = await createTmdbWithRegionLanguage();
+
+  try {
+    const personId = Number(req.params.personId);
+    if (Number.isNaN(personId)) {
+      return next({ status: 400, message: 'Invalid person ID.' });
+    }
+
+    const person = await tmdb.getPerson({
+      personId,
+      language: await getTmdbLanguage(),
+    });
+
+    return res.status(200).json({ id: person.id, name: person.name });
+  } catch (e) {
+    logger.debug('Something went wrong retrieving person data', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({ status: 500, message: 'Unable to retrieve person data.' });
+  }
+});
+
 router.get('/search/person', isAuthenticated(), async (req, res, next) => {
   const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
 
