@@ -72,8 +72,9 @@ export interface PlexMetadata {
   }[];
   Label?: { tag: string; id?: number }[]; // Item-level labels/tags in Plex
   Children?: {
-    size: 12;
-    Metadata: PlexMetadata[];
+    size: number;
+    Directory?: PlexMetadata[];
+    Metadata?: PlexMetadata[];
   };
   index: number;
   parentIndex?: number;
@@ -414,11 +415,18 @@ class PlexAPI {
   }
 
   public async getChildrenMetadata(key: string): Promise<PlexMetadata[]> {
-    const response = await this.plexClient.query<PlexMetadataResponse>(
-      `/library/metadata/${key}/children`
-    );
+    const response = await this.plexClient.query<{
+      MediaContainer: {
+        Metadata?: PlexMetadata[];
+        Directory?: PlexMetadata[];
+      };
+    }>(`/library/metadata/${key}/children`);
 
-    return response.MediaContainer.Metadata;
+    return (
+      response.MediaContainer.Metadata ||
+      response.MediaContainer.Directory ||
+      []
+    );
   }
 
   /**
