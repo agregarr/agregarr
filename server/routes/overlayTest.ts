@@ -253,7 +253,7 @@ overlayTestRouter.post('/', async (req, res) => {
           const daysSince = calculateDaysSince(
             releaseDateInfo.nextSeasonAirDate
           );
-          if (daysSince < 0) {
+          if (daysSince <= 0) {
             daysUntilNextSeason = -daysSince;
           } else {
             daysAgoNextSeason = daysSince;
