@@ -761,7 +761,7 @@ class OverlayLibraryService {
             const daysSince = calculateDaysSince(
               releaseDateInfo.nextEpisodeAirDate
             );
-            if (daysSince < 0) {
+            if (daysSince <= 0) {
               daysUntilNextEpisode = -daysSince;
             }
           }
