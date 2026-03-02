@@ -367,7 +367,7 @@ class CollectionsQuickSync {
       // Cast to extended type to access optional properties used by placeholder detection
       const itemExtended = recentItem as PlexLibraryItem & {
         childCount?: number;
-        Children?: { Metadata?: unknown[] };
+        Children?: { Metadata?: unknown[]; Directory?: unknown[] };
         seasonCount?: number;
         leafCount?: number;
       };

@@ -1034,7 +1034,7 @@ async function createPlaceholders(
       editionTitle?: string;
       Guid?: { id: string }[];
       childCount?: number;
-      Children?: { Metadata?: unknown[] };
+      Children?: { Metadata?: unknown[]; Directory?: unknown[] };
       seasonCount?: number;
       leafCount?: number;
     };
@@ -1108,7 +1108,9 @@ async function createPlaceholders(
           } else {
             // Get TV show file path from Season 00 Episode 01
             const fullMetadata = await plexClient.getMetadata(item.ratingKey);
-            const seasons = fullMetadata.Children?.Metadata;
+            const seasons =
+              fullMetadata.Children?.Metadata ||
+              fullMetadata.Children?.Directory;
             const season00 = seasons?.find(
               (s: { index?: number }) => s.index === 0
             );
@@ -1117,7 +1119,8 @@ async function createPlaceholders(
               const seasonMetadata = await plexClient.getMetadata(
                 String(season00.ratingKey)
               );
-              const firstEpisode = seasonMetadata.Children?.Metadata?.[0];
+              const firstEpisode = (seasonMetadata.Children?.Metadata ||
+                seasonMetadata.Children?.Directory)?.[0];
 
               if (firstEpisode && 'ratingKey' in firstEpisode) {
                 const episodeMetadata = await plexClient.getMetadata(
@@ -1236,17 +1239,20 @@ async function createPlaceholders(
           // Show-level items don't have Media/Part, only episodes do
           const fullMetadata = await plexClient.getMetadata(item.ratingKey);
 
-          // Get children (seasons)
-          if (!fullMetadata.Children?.Metadata) {
-            logger.warn('Could not extract file path - no Children.Metadata', {
-              label: 'PlaceholderService',
-              title: item.title,
-              ratingKey: item.ratingKey,
-            });
+          // Get children (seasons) - Plex returns seasons as Directory, not Metadata
+          const seasons =
+            fullMetadata.Children?.Metadata || fullMetadata.Children?.Directory;
+          if (!seasons) {
+            logger.warn(
+              'Could not extract file path - no Children.Metadata or Directory',
+              {
+                label: 'PlaceholderService',
+                title: item.title,
+                ratingKey: item.ratingKey,
+              }
+            );
             continue;
           }
-
-          const seasons = fullMetadata.Children.Metadata;
 
           // Find Season 00
           const season00 = seasons.find(
@@ -1267,10 +1273,10 @@ async function createPlaceholders(
             String(season00.ratingKey)
           );
 
-          if (
-            !seasonMetadata.Children?.Metadata ||
-            seasonMetadata.Children.Metadata.length === 0
-          ) {
+          const episodes =
+            seasonMetadata.Children?.Metadata ||
+            seasonMetadata.Children?.Directory;
+          if (!episodes || episodes.length === 0) {
             logger.warn(
               'Could not extract file path - Season 00 has no episodes',
               {
@@ -1282,7 +1288,7 @@ async function createPlaceholders(
             continue;
           }
 
-          const firstEpisode = seasonMetadata.Children.Metadata[0];
+          const firstEpisode = episodes[0];
 
           if (!('ratingKey' in firstEpisode)) {
             logger.warn(
