@@ -41,6 +41,7 @@ import reorderRoutes from './reorder';
 import searchRoutes from './search';
 import sourceColorsRoutes from './sourceColors';
 import traktOAuthRoutes from './trakt-oauth';
+import uploadsRoutes from './uploads';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -174,8 +175,9 @@ router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
 router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);
 router.use('/auth', authRoutes);
-router.use('/anilist', anilistRoutes);
-router.use('/myanimelist', myanimelistRoutes);
+router.use('/anilist', isAuthenticated(), anilistRoutes);
+router.use('/myanimelist', isAuthenticated(), myanimelistRoutes);
+router.use('/uploads', isAuthenticated(), uploadsRoutes);
 
 router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });

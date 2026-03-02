@@ -15,7 +15,6 @@ router.get('/test-trending', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: err.message,
-      stack: err.stack,
     });
   }
 });

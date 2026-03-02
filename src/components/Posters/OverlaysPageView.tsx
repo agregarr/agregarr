@@ -215,7 +215,7 @@ const OverlaysPageView: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/overlay-template-import', {
+      const response = await fetch('/api/v1/uploads/overlay-template', {
         method: 'POST',
         body: formData,
       });

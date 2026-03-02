@@ -223,7 +223,9 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
 
   const handleExport = async (templateId: number, templateName: string) => {
     try {
-      const response = await fetch(`/overlay-template-export/${templateId}`);
+      const response = await fetch(
+        `/api/v1/uploads/overlay-template-export/${templateId}`
+      );
 
       if (!response.ok) {
         throw new Error('Failed to export overlay template');

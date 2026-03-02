@@ -312,7 +312,8 @@ overlayTestRouter.post('/', async (req, res) => {
     allConfigs.push(...preExistingCollectionConfigService.getConfigs());
 
     const collectionsWithKeys = allConfigs.filter(
-      (cfg) => cfg.collectionRatingKey
+      (cfg): cfg is typeof cfg & { collectionRatingKey: string } =>
+        !!cfg.collectionRatingKey
     );
     const collectionIds: string[] = [];
     const concurrency = 10;
@@ -323,7 +324,7 @@ overlayTestRouter.post('/', async (req, res) => {
         batch.map(async (cfg) => {
           try {
             const itemKeys = await plexApi.getCollectionItems(
-              cfg.collectionRatingKey!
+              cfg.collectionRatingKey
             );
             return itemKeys.includes(ratingKey) ? cfg.id : null;
           } catch {

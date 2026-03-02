@@ -122,7 +122,7 @@ const WallpaperUploadSection = ({
       const formData = new FormData();
       formData.append('wallpaper', file);
 
-      const response = await axios.post('/upload-wallpaper', formData, {
+      const response = await axios.post('/api/v1/uploads/wallpaper', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
