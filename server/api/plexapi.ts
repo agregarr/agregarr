@@ -1689,7 +1689,9 @@ class PlexAPI {
           moveCount++;
           // Update in-memory tracking: remove from old position and insert at new position
           const oldIndex = currentOrder.indexOf(itemToMove);
-          currentOrder.splice(oldIndex, 1);
+          if (oldIndex !== -1) {
+            currentOrder.splice(oldIndex, 1);
+          }
           currentOrder.splice(i, 0, itemToMove);
         } else {
           failCount++;
