@@ -6,7 +6,8 @@ import axios from 'axios';
 export interface MaintainerrMedia {
   id: number;
   collectionId: number;
-  plexId: number;
+  plexId?: number; // v2 field
+  mediaServerId?: string; // v3 field (renamed from plexId)
   tmdbId: number;
   addDate: string; // ISO 8601 date string
   image_path: string;
@@ -15,7 +16,8 @@ export interface MaintainerrMedia {
 
 export interface MaintainerrCollection {
   id: number;
-  plexId: number;
+  plexId?: number; // v2 field
+  mediaServerId?: string; // v3 field (renamed from plexId)
   libraryId: number;
   title: string;
   description: string;
