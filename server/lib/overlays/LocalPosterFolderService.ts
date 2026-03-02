@@ -1,6 +1,4 @@
-import PlexAPI from '@server/api/plexapi';
-import { getRepository } from '@server/datasource';
-import { OverlayLibraryConfig } from '@server/entity/OverlayLibraryConfig';
+import PlexAPI, { type PlexLibraryItem } from '@server/api/plexapi';
 import logger from '@server/logger';
 import { sanitizeForFilename } from '@server/utils/fileSystemHelpers';
 import fs from 'fs/promises';
@@ -114,8 +112,24 @@ class LocalPosterFolderService {
       libraryName,
     });
 
-    const libraryContents = await plexApi.getLibraryContents(libraryId);
-    const items = libraryContents.items;
+    let allItems: PlexLibraryItem[] = [];
+    let offset = 0;
+    const pageSize = 50;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await plexApi.getLibraryContents(libraryId, {
+        offset,
+        size: pageSize,
+      });
+      allItems = allItems.concat(response.items);
+      if (offset + pageSize >= response.totalSize) {
+        hasMore = false;
+      }
+      offset += pageSize;
+    }
+
+    const items = allItems;
     const stats = { created: 0, skipped: 0, failed: 0 };
 
     // Initialize progress tracking
@@ -232,26 +246,28 @@ class LocalPosterFolderService {
 
       const plexApi = new PlexAPI({ plexToken: admin.plexToken });
 
-      // Get all library configs
-      const configRepository = getRepository(OverlayLibraryConfig);
-      const configs = await configRepository.find();
+      // Get all movie/show libraries from Plex
+      const libraries = await plexApi.getLibraries();
+      const movieShowLibraries = libraries.filter(
+        (lib) => lib.type === 'movie' || lib.type === 'show'
+      );
 
-      if (configs.length === 0) {
-        logger.info('No library configurations found', {
+      if (movieShowLibraries.length === 0) {
+        logger.info('No movie/show libraries found', {
           label: 'LocalPosterFolderService',
         });
         return;
       }
 
-      for (const config of configs) {
+      for (const lib of movieShowLibraries) {
         if (this.cancelled) {
           break;
         }
 
         await this.generateFolderStructureForLibrary(
           plexApi,
-          config.libraryId,
-          config.libraryName
+          lib.key,
+          lib.title
         );
       }
 
@@ -284,8 +300,24 @@ class LocalPosterFolderService {
       libraryName,
     });
 
-    const libraryContents = await plexApi.getLibraryContents(libraryId);
-    const items = libraryContents.items;
+    let allItems: PlexLibraryItem[] = [];
+    let offset = 0;
+    const pageSize = 50;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await plexApi.getLibraryContents(libraryId, {
+        offset,
+        size: pageSize,
+      });
+      allItems = allItems.concat(response.items);
+      if (offset + pageSize >= response.totalSize) {
+        hasMore = false;
+      }
+      offset += pageSize;
+    }
+
+    const items = allItems;
     const stats = { downloaded: 0, skipped: 0, failed: 0 };
 
     // Initialize progress tracking
@@ -463,27 +495,25 @@ class LocalPosterFolderService {
 
       const plexApi = new PlexAPI({ plexToken: admin.plexToken });
 
-      // Get all library configs
-      const configRepository = getRepository(OverlayLibraryConfig);
-      const configs = await configRepository.find();
+      // Get all movie/show libraries from Plex
+      const libraries = await plexApi.getLibraries();
+      const movieShowLibraries = libraries.filter(
+        (lib) => lib.type === 'movie' || lib.type === 'show'
+      );
 
-      if (configs.length === 0) {
-        logger.info('No library configurations found', {
+      if (movieShowLibraries.length === 0) {
+        logger.info('No movie/show libraries found', {
           label: 'LocalPosterFolderService',
         });
         return;
       }
 
-      for (const config of configs) {
+      for (const lib of movieShowLibraries) {
         if (this.cancelled) {
           break;
         }
 
-        await this.populateFromPlexForLibrary(
-          plexApi,
-          config.libraryId,
-          config.libraryName
-        );
+        await this.populateFromPlexForLibrary(plexApi, lib.key, lib.title);
       }
 
       logger.info('Plex poster population complete', {
