@@ -139,7 +139,7 @@ const ThemeUploadSection = ({
       const formData = new FormData();
       formData.append('theme', file);
 
-      const response = await axios.post('/upload-theme', formData, {
+      const response = await axios.post('/api/v1/uploads/theme', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
