@@ -748,9 +748,10 @@ export async function buildRenderContext(
       }[] = [];
 
       for (const collection of maintainerrCollections) {
-        const mediaItem = collection.media.find(
-          (m) => m.plexId === Number(item.ratingKey)
-        );
+        const mediaItem = collection.media.find((m) => {
+          const id = m.mediaServerId || m.plexId?.toString();
+          return id === item.ratingKey;
+        });
 
         if (mediaItem && collection.deleteAfterDays) {
           // Calculate days since item was added to collection
