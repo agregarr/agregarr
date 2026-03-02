@@ -1039,16 +1039,28 @@ async function createPlaceholders(
       leafCount?: number;
     };
 
-    const isPlaceholder = placeholderContextService.isPlaceholderItem({
-      type: itemExtended.type,
-      guid: itemExtended.guid,
-      editionTitle: itemExtended.editionTitle,
-      Guid: itemExtended.Guid,
-      childCount: itemExtended.childCount,
-      Children: itemExtended.Children,
-      seasonCount: itemExtended.seasonCount,
-      leafCount: itemExtended.leafCount,
-    });
+    const isPlaceholder =
+      await placeholderContextService.isPlaceholderItemAsync(
+        {
+          type: itemExtended.type,
+          guid: itemExtended.guid,
+          editionTitle: itemExtended.editionTitle,
+          Guid: itemExtended.Guid,
+          childCount: itemExtended.childCount,
+          Children: itemExtended.Children,
+          seasonCount: itemExtended.seasonCount,
+          leafCount: itemExtended.leafCount,
+          ratingKey: item.ratingKey,
+        },
+        plexClient['plexClient'] as {
+          query: (path: string) => Promise<{
+            MediaContainer?: {
+              Directory?: unknown[];
+              Metadata?: unknown[];
+            };
+          }>;
+        }
+      );
 
     if (!isPlaceholder) {
       continue;
