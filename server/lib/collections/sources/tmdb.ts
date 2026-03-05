@@ -22,6 +22,7 @@ import { CollectionSyncErrorType } from '@server/lib/collections/core/types';
 import { syncCacheService } from '@server/lib/collections/services/SyncCacheService';
 import { RandomListManager } from '@server/lib/collections/utils/RandomListManager';
 import type { CollectionConfig } from '@server/lib/settings';
+import { getTmdbLanguage } from '@server/lib/settings';
 import logger from '@server/logger';
 
 // TmdbSourceData interface is now imported from types.ts
@@ -1391,7 +1392,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     });
 
     // 3. Fetch TMDB movie details and extract franchise info
-    const franchiseMap = await this.discoverFranchises(tmdbIds);
+    const language = await getTmdbLanguage(config.libraryId);
+    const franchiseMap = await this.discoverFranchises(tmdbIds, language);
 
     logger.info(`Discovered ${franchiseMap.size} unique franchises`, {
       label: 'TMDB Franchise',
@@ -1526,7 +1528,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
    * Uses caching to minimize API calls (48h TTL)
    */
   private async discoverFranchises(
-    tmdbIds: number[]
+    tmdbIds: number[],
+    language = 'en'
   ): Promise<Map<number, TmdbFranchiseSourceData>> {
     const franchiseMap = new Map<number, TmdbFranchiseSourceData>();
     const processedTmdbIds = new Set<number>(); // Track which movies we've already handled
@@ -1548,7 +1551,10 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           cacheHits++;
         } else {
           // Fetch from TMDB API
-          movieDetails = await this.tmdbClient.getMovie({ movieId: tmdbId });
+          movieDetails = await this.tmdbClient.getMovie({
+            movieId: tmdbId,
+            language,
+          });
           movieApiCalls++;
 
           // Cache the result with 48h TTL
@@ -1573,6 +1579,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           // Fetch the complete collection (includes all movies in correct order)
           const collectionData = await this.tmdbClient.getCollection({
             collectionId: franchiseId,
+            language,
           });
           collectionApiCalls++;
 

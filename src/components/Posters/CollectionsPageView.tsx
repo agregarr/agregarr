@@ -177,7 +177,7 @@ const CollectionsPageView: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('/template-import', {
+        const response = await fetch('/api/v1/uploads/poster-template', {
           method: 'POST',
           body: formData,
         });

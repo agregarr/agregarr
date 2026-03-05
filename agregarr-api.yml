@@ -74,6 +74,8 @@ tags:
     description: Managing global item exclusions for collections.
   - name: overlays
     description: Unified overlay template system for applying customizable badges, banners, and metadata to library posters. Create reusable templates with ratings, directors, resolution info, and more.
+  - name: uploads
+    description: Authenticated file upload and import/export endpoints for posters, wallpapers, theme music, icons, and template ZIP files.
 servers:
   - url: '{server}/api/v1'
     variables:
@@ -458,6 +460,96 @@ components:
           type: integer
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
+          nullable: true
+        placeholderMinimumYear:
+          type: integer
+          description: 'Only include placeholder items released on or after this year (0 = no limit)'
+          example: 2010
+          nullable: true
+        placeholderMinimumImdbRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with IMDb rating >= this value (0 = no limit)'
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
+        placeholderMinimumRottenTomatoesRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes critics score >= this value (0 = no limit)'
+          example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderMinimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderFilterSettings:
+          type: object
+          description: 'Unified filter settings for placeholders with include/exclude modes'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         includeAllReleasedItems:
           type: boolean
@@ -1109,6 +1201,96 @@ components:
           type: integer
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
+          nullable: true
+        placeholderMinimumYear:
+          type: integer
+          description: 'Only include placeholder items released on or after this year (0 = no limit)'
+          example: 2010
+          nullable: true
+        placeholderMinimumImdbRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with IMDb rating >= this value (0 = no limit)'
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
+        placeholderMinimumRottenTomatoesRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes critics score >= this value (0 = no limit)'
+          example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderMinimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderFilterSettings:
+          type: object
+          description: 'Unified filter settings for placeholders with include/exclude modes'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         includeAllReleasedItems:
           type: boolean
@@ -1912,6 +2094,96 @@ components:
           type: integer
           description: 'Days to keep released items with overlay before cleanup (default: 7)'
           example: 7
+          nullable: true
+        placeholderMinimumYear:
+          type: integer
+          description: 'Only include placeholder items released on or after this year (0 = no limit)'
+          example: 2010
+          nullable: true
+        placeholderMinimumImdbRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with IMDb rating >= this value (0 = no limit)'
+          example: 6.8
+          minimum: 0
+          maximum: 10
+          nullable: true
+        placeholderMinimumRottenTomatoesRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes critics score >= this value (0 = no limit)'
+          example: 70
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderMinimumRottenTomatoesAudienceRating:
+          type: number
+          format: float
+          description: 'Only include placeholder items with Rotten Tomatoes audience score >= this value (0 = no limit)'
+          example: 75
+          minimum: 0
+          maximum: 100
+          nullable: true
+        placeholderFilterSettings:
+          type: object
+          description: 'Unified filter settings for placeholders with include/exclude modes'
+          properties:
+            genres:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these genres, or include only items with these genres'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB genre IDs'
+                  example: [28, 53]
+            countries:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items from these countries, or include only items from these countries'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 3166-1 country codes'
+                  example: ['JP', 'KR']
+            languages:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these languages, or include only items with these languages'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: string
+                  description: 'ISO 639-1 language codes'
+                  example: ['ja', 'ko']
+            keywords:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: ['exclude', 'include']
+                  description: 'Filter mode: exclude items with these keywords, or include only items with these keywords'
+                  example: 'exclude'
+                values:
+                  type: array
+                  items:
+                    type: integer
+                  description: 'TMDB keyword IDs'
+                  example: [210024, 818]
           nullable: true
         includeAllReleasedItems:
           type: boolean
@@ -11954,6 +12226,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Keyword'
+  /person/{personId}:
+    get:
+      summary: Get person
+      description: |
+        Returns a single TMDB person in JSON format.
+      tags:
+        - tmdb
+      parameters:
+        - in: path
+          name: personId
+          required: true
+          description: The TMDb person identifier.
+          schema:
+            type: number
+            example: 543530
+      responses:
+        '200':
+          description: Person returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 543530
+                  name:
+                    type: string
+                    example: Dave Bautista
+                required:
+                  - id
+                  - name
   /missing-items:
     get:
       summary: Get missing item requests
@@ -15736,6 +16040,332 @@ paths:
           description: Item not found in Plex
         '500':
           description: Failed to test overlay
+
+  /uploads/poster:
+    post:
+      summary: Upload a poster image
+      description: Uploads a custom poster image (JPEG, PNG, WebP, max 10MB) for use on a collection.
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - poster
+              properties:
+                poster:
+                  type: string
+                  format: binary
+                  description: 'Poster image file (JPEG, PNG, WebP, max 10MB)'
+      responses:
+        '200':
+          description: Poster uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                    description: Stored filename
+                  url:
+                    type: string
+                    description: URL to access the uploaded poster
+        '400':
+          description: Bad request - invalid file or upload error
+        '401':
+          description: Authentication required
+        '500':
+          description: Internal server error
+
+  /uploads/wallpaper:
+    post:
+      summary: Upload a wallpaper image
+      description: Uploads a wallpaper image (JPEG, PNG, WebP, max 10MB) for use as a collection background.
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - wallpaper
+              properties:
+                wallpaper:
+                  type: string
+                  format: binary
+                  description: 'Wallpaper image file (JPEG, PNG, WebP, max 10MB)'
+      responses:
+        '200':
+          description: Wallpaper uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                  url:
+                    type: string
+        '400':
+          description: Bad request - invalid file or upload error
+        '401':
+          description: Authentication required
+        '500':
+          description: Internal server error
+
+  /uploads/theme:
+    post:
+      summary: Upload a theme music file
+      description: Uploads an audio file for use as a collection theme (max 10MB).
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - theme
+              properties:
+                theme:
+                  type: string
+                  format: binary
+                  description: 'Audio file (MP3, max 10MB)'
+      responses:
+        '200':
+          description: Theme uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+                  url:
+                    type: string
+        '400':
+          description: Bad request - invalid file or upload error
+        '401':
+          description: Authentication required
+        '500':
+          description: Internal server error
+
+  /uploads/icon:
+    post:
+      summary: Upload an icon
+      description: Uploads an icon image (JPEG, PNG, WebP, SVG, max 10MB) for use in poster templates.
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - icon
+              properties:
+                icon:
+                  type: string
+                  format: binary
+                  description: 'Icon file (JPEG, PNG, WebP, SVG, max 10MB)'
+                name:
+                  type: string
+                  description: 'Display name for the icon'
+                category:
+                  type: string
+                  description: 'Category for the icon'
+                description:
+                  type: string
+                  description: 'Description of the icon'
+      responses:
+        '200':
+          description: Icon uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  icon:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      filename:
+                        type: string
+                      category:
+                        type: string
+        '400':
+          description: Bad request - invalid file type or upload error
+        '401':
+          description: Authentication required
+        '500':
+          description: Internal server error
+
+  /uploads/poster-template:
+    post:
+      summary: Import a poster template from ZIP
+      description: Imports a poster template and its assets from an Agregarr-exported ZIP file (max 50MB).
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 'ZIP file containing template.json and assets (max 50MB)'
+      responses:
+        '201':
+          description: Template imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  isDefault:
+                    type: boolean
+                  templateData:
+                    type: object
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Bad request - invalid ZIP, missing template.json, or unsupported version
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to import template
+
+  /uploads/overlay-template-export/{id}:
+    get:
+      summary: Export an overlay template as ZIP
+      description: Exports an overlay template and its bundled assets as a downloadable ZIP file.
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of the overlay template to export
+      responses:
+        '200':
+          description: ZIP archive download
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid template ID
+        '401':
+          description: Authentication required
+        '404':
+          description: Template not found
+        '500':
+          description: Failed to export template
+
+  /uploads/overlay-template:
+    post:
+      summary: Import an overlay template from ZIP
+      description: Imports an overlay template and its assets from an Agregarr-exported ZIP file (max 50MB).
+      tags:
+        - uploads
+      security:
+        - cookieAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 'ZIP file containing template.json and assets (max 50MB)'
+      responses:
+        '201':
+          description: Overlay template imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  type:
+                    type: string
+                  isDefault:
+                    type: boolean
+                  templateData:
+                    type: object
+                  applicationCondition:
+                    type: object
+                    nullable: true
+                  createdAt:
+                    type: string
+                    format: date-time
+                  updatedAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Bad request - invalid ZIP, missing template.json, or unsupported version
+        '401':
+          description: Authentication required
+        '500':
+          description: Failed to import overlay template
 
 security:
   - cookieAuth: []

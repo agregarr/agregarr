@@ -160,7 +160,7 @@ overlayTestRouter.post('/', async (req, res) => {
       editionTitle?: string;
       Guid?: { id: string }[];
       childCount?: number;
-      Children?: { Metadata?: unknown[] };
+      Children?: { Metadata?: unknown[]; Directory?: unknown[] };
       seasonCount?: number;
       leafCount?: number;
       ratingKey?: string;
@@ -244,7 +244,7 @@ overlayTestRouter.post('/', async (req, res) => {
           const daysSince = calculateDaysSince(
             releaseDateInfo.nextEpisodeAirDate
           );
-          if (daysSince < 0) {
+          if (daysSince <= 0) {
             daysUntilNextEpisode = -daysSince;
           }
         }
@@ -253,7 +253,7 @@ overlayTestRouter.post('/', async (req, res) => {
           const daysSince = calculateDaysSince(
             releaseDateInfo.nextSeasonAirDate
           );
-          if (daysSince < 0) {
+          if (daysSince <= 0) {
             daysUntilNextSeason = -daysSince;
           } else {
             daysAgoNextSeason = daysSince;
@@ -302,8 +302,6 @@ overlayTestRouter.post('/', async (req, res) => {
     }
 
     // Build collection membership for condition evaluation
-    // Always build for test route (single item, no performance concern)
-    const collectionIds: string[] = [];
     const allConfigs: { id: string; collectionRatingKey?: string }[] = [
       ...(settings.plex.collectionConfigs || []),
     ];
@@ -313,18 +311,29 @@ overlayTestRouter.post('/', async (req, res) => {
     );
     allConfigs.push(...preExistingCollectionConfigService.getConfigs());
 
-    for (const cfg of allConfigs) {
-      if (cfg.collectionRatingKey) {
-        try {
-          const itemKeys = await plexApi.getCollectionItems(
-            cfg.collectionRatingKey
-          );
-          if (itemKeys.includes(ratingKey)) {
-            collectionIds.push(cfg.id);
+    const collectionsWithKeys = allConfigs.filter(
+      (cfg): cfg is typeof cfg & { collectionRatingKey: string } =>
+        !!cfg.collectionRatingKey
+    );
+    const collectionIds: string[] = [];
+    const concurrency = 10;
+
+    for (let i = 0; i < collectionsWithKeys.length; i += concurrency) {
+      const batch = collectionsWithKeys.slice(i, i + concurrency);
+      const results = await Promise.all(
+        batch.map(async (cfg) => {
+          try {
+            const itemKeys = await plexApi.getCollectionItems(
+              cfg.collectionRatingKey
+            );
+            return itemKeys.includes(ratingKey) ? cfg.id : null;
+          } catch {
+            return null;
           }
-        } catch {
-          // Skip collections that fail to fetch
-        }
+        })
+      );
+      for (const id of results) {
+        if (id) collectionIds.push(id);
       }
     }
 

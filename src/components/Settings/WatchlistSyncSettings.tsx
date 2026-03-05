@@ -24,11 +24,11 @@ interface OptionType {
 const messages = defineMessages({
   watchlistsync: 'Plex Watchlist Sync',
   watchlistsyncDescription:
-    "Automatically sync Plex watchlists from Overseerr users and add items to Radarr and Sonarr. Requires Overseerr to be configured. NOTE: Overseerr has this functionality built in, however it recognises placeholder files as being available, and doesn't request the item.",
+    "Automatically sync Plex watchlists from Seerr users and add items to Radarr and Sonarr. Requires Seerr to be configured. NOTE: Seerr has this functionality built in, however it recognises placeholder files as being available, and doesn't request the item.",
   overseerrNotConfigured:
-    'Overseerr must be configured before you can enable watchlist sync. Please configure Overseerr in the settings above.',
+    'Seerr must be configured before you can enable watchlist sync. Please configure Seerr in the settings above.',
   enableOwner: 'Enable for server owner',
-  enableUsers: 'Enable for all Overseerr users',
+  enableUsers: 'Enable for all Seerr users',
   radarrConfiguration: 'Movie Watchlist (Radarr)',
   sonarrConfiguration: 'TV Show Watchlist (Sonarr)',
   radarrServer: 'Radarr Server',

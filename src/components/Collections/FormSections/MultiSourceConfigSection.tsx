@@ -64,7 +64,7 @@ const messages = defineMessages({
     'No sources configured. Click Add Source to get started.',
   sourceNumber: 'Source {number}',
   remove: 'Remove',
-  overseerrRequests: 'Overseerr Requests',
+  overseerrRequests: 'Seerr Requests',
   tautulliStatistics: 'Tautulli Statistics',
   traktLists: 'Trakt Lists',
   letterboxdLists: 'Letterboxd Lists',

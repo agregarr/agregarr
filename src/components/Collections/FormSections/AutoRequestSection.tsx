@@ -22,7 +22,7 @@ interface OptionType {
 const messages = defineMessages({
   grabMissingItems: 'Grab Missing Items',
   grabMissingItemsHelp:
-    'Automatically grab missing items via Radarr/Sonarr or Overseerr that are in the source but not available in Plex',
+    'Automatically grab missing items via Radarr/Sonarr or Seerr that are in the source but not available in Plex',
 
   // Universal options
   processMovies: 'Grab Missing Movies',
@@ -58,19 +58,19 @@ const messages = defineMessages({
   downloadMethod: 'Download Method',
   downloadMethodHelp:
     'Choose how missing items from this collection should be handled',
-  overseerrMode: 'Request via Overseerr',
+  overseerrMode: 'Request via Seerr',
   overseerrModeHelp:
-    'Create requests in Overseerr (can require approval or be auto-approved)',
+    'Create requests in Seerr (can require approval or be auto-approved)',
   directMode: 'Download via Radarr/Sonarr',
   directModeHelp: 'Send directly to your *arr services for immediate download',
 
   // Overseerr-specific options
-  overseerrOptions: 'Overseerr Request Options',
+  overseerrOptions: 'Seerr Request Options',
   autoApproveMissingMovies: 'Auto-approve movie requests',
   autoApproveMissingTV: 'Auto-approve TV show requests',
   autoApproveHelp:
     'Automatically approve requests instead of requiring manual approval',
-  overseerrServerOptions: 'Overseerr Server Configuration',
+  overseerrServerOptions: 'Seerr Server Configuration',
   selectOverseerrRadarrServer: 'Radarr Server (Movies)',
   selectOverseerrRadarrProfile: 'Radarr Quality Profile (Movies)',
   selectOverseerrRadarrRootFolder: 'Radarr Root Folder (Movies)',

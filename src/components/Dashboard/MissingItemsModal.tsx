@@ -45,7 +45,7 @@ const messages = defineMessages({
   imdb: 'IMDb',
   letterboxd: 'Letterboxd',
   allServices: 'All Services',
-  overseerr: 'Overseerr',
+  overseerr: 'Seerr',
   radarr: 'Radarr',
   sonarr: 'Sonarr',
   noResults: 'No missing items found',

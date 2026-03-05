@@ -187,7 +187,7 @@ const PosterSelectionPopover: React.FC<PosterSelectionPopoverProps> = ({
       const formData = new FormData();
       formData.append('poster', file);
 
-      const response = await axios.post('/upload-poster', formData, {
+      const response = await axios.post('/api/v1/uploads/poster', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

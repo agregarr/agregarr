@@ -179,7 +179,7 @@ export const IconSelector: React.FC<IconSelectorProps> = ({
       formData.append('name', file.name.split('.')[0]); // Remove extension for name
       formData.append('category', 'user-uploads');
 
-      const response = await fetch('/upload-icon', {
+      const response = await fetch('/api/v1/uploads/icon', {
         method: 'POST',
         body: formData,
         // Don't set Content-Type - let browser set it with proper boundary

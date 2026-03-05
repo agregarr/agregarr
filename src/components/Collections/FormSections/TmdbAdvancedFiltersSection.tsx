@@ -1018,6 +1018,7 @@ const TmdbAdvancedFiltersSection = ({
   const addFilterGroup = useCallback(() => {
     const newGroup: FilterGroup = {
       id: `group-${Date.now()}`,
+      operator: 'and',
       groupOperator: 'and',
       filters: [
         {
@@ -1431,7 +1432,7 @@ const TmdbAdvancedFiltersSection = ({
                       value={group.groupOperator || group.operator || 'and'}
                       onChange={(e) => {
                         updateFilterGroup(group.id, {
-                          groupOperator: e.target.value as 'and' | 'or',
+                          operator: e.target.value as 'and' | 'or',
                         });
                       }}
                       className="rounded-md border border-stone-500 bg-stone-700 px-2 py-1 text-sm text-white focus:border-orange-500"

@@ -21,7 +21,7 @@ const messages = defineMessages({
   placeholder: 'Placeholder',
   downloadViaRadarr: 'Download via Radarr',
   downloadViaSonarr: 'Download via Sonarr',
-  downloadViaOverseerr: 'Request via Overseerr',
+  downloadViaOverseerr: 'Request via Seerr',
   downloadSuccess: 'Download request sent successfully',
   downloadError: 'Failed to send download request',
   close: 'Close',
@@ -1181,7 +1181,7 @@ const PreviewCollectionModal = ({
                                     <>
                                       <img
                                         src="/services/overseerr.svg"
-                                        alt="Overseerr"
+                                        alt="Seerr"
                                         className="h-full w-full"
                                       />
                                       {requestedItems.has(
@@ -1285,7 +1285,7 @@ const PreviewCollectionModal = ({
                                       <>
                                         <img
                                           src="/services/overseerr.svg"
-                                          alt="Overseerr"
+                                          alt="Seerr"
                                           className="h-full w-full"
                                         />
                                         {requestedItems.has(

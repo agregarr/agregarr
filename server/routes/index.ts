@@ -41,6 +41,7 @@ import reorderRoutes from './reorder';
 import searchRoutes from './search';
 import sourceColorsRoutes from './sourceColors';
 import traktOAuthRoutes from './trakt-oauth';
+import uploadsRoutes from './uploads';
 
 // Import createTmdbWithRegionLanguage function directly from discover (inline)
 
@@ -174,8 +175,9 @@ router.use('/reorder', isAuthenticated(), reorderRoutes);
 router.use('/service', isAuthenticated(), serviceRoutes);
 router.use('/source-colors', isAuthenticated(), sourceColorsRoutes);
 router.use('/auth', authRoutes);
-router.use('/anilist', anilistRoutes);
-router.use('/myanimelist', myanimelistRoutes);
+router.use('/anilist', isAuthenticated(), anilistRoutes);
+router.use('/myanimelist', isAuthenticated(), myanimelistRoutes);
+router.use('/uploads', isAuthenticated(), uploadsRoutes);
 
 router.get<{ id: string }>('/movie/:id', async (req, res, next) => {
   const tmdb = new TheMovieDb({ originalLanguage: await getTmdbLanguage() });
@@ -660,6 +662,30 @@ router.get('/keyword/:keywordId', async (req, res, next) => {
       status: 500,
       message: 'Unable to retrieve keyword data.',
     });
+  }
+});
+
+router.get('/person/:personId', isAuthenticated(), async (req, res, next) => {
+  const tmdb = await createTmdbWithRegionLanguage();
+
+  try {
+    const personId = Number(req.params.personId);
+    if (Number.isNaN(personId)) {
+      return next({ status: 400, message: 'Invalid person ID.' });
+    }
+
+    const person = await tmdb.getPerson({
+      personId,
+      language: await getTmdbLanguage(),
+    });
+
+    return res.status(200).json({ id: person.id, name: person.name });
+  } catch (e) {
+    logger.debug('Something went wrong retrieving person data', {
+      label: 'API',
+      errorMessage: e instanceof Error ? e.message : String(e),
+    });
+    return next({ status: 500, message: 'Unable to retrieve person data.' });
   }
 });
 

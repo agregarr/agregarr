@@ -748,9 +748,10 @@ export async function buildRenderContext(
       }[] = [];
 
       for (const collection of maintainerrCollections) {
-        const mediaItem = collection.media.find(
-          (m) => m.plexId === Number(item.ratingKey)
-        );
+        const mediaItem = collection.media.find((m) => {
+          const id = m.mediaServerId || m.plexId?.toString();
+          return id === item.ratingKey;
+        });
 
         if (mediaItem && collection.deleteAfterDays) {
           // Calculate days since item was added to collection
@@ -854,31 +855,37 @@ export async function fetchReleaseDateInfo(
       // For TV shows
       const showDetails = await tmdbClient.getTvShow({ tvId: tmdbId });
 
-      // Get next episode info
       const nextEpisode = showDetails.next_episode_to_air;
-      if (nextEpisode?.air_date) {
-        const seasonNumber = nextEpisode.season_number;
-        const episodeNumber = nextEpisode.episode_number;
+      const lastEpisode = showDetails.last_episode_to_air;
 
-        // nextSeasonAirDate is ONLY for season premieres (episode 1)
-        const nextSeasonAirDate =
-          episodeNumber === 1 ? nextEpisode.air_date : undefined;
-
-        return {
-          releaseDate: showDetails.first_air_date || nextEpisode.air_date,
-          nextEpisodeAirDate: nextEpisode.air_date,
-          nextSeasonAirDate,
-          seasonNumber,
-          episodeNumber,
-        };
+      let latestSeasonAirDate: string | undefined;
+      if (lastEpisode) {
+        const currentSeason = showDetails.seasons?.find(
+          (s) => s.season_number === lastEpisode.season_number
+        );
+        latestSeasonAirDate = currentSeason?.air_date ?? undefined;
       }
 
-      // No next episode, use first_air_date if available
-      if (showDetails.first_air_date) {
-        return {
-          releaseDate: showDetails.first_air_date,
-        };
-      }
+      const nextSeasonAirDate =
+        nextEpisode?.episode_number === 1
+          ? nextEpisode.air_date
+          : latestSeasonAirDate;
+
+      return {
+        releaseDate:
+          (showDetails.first_air_date ||
+            nextEpisode?.air_date ||
+            lastEpisode?.air_date) ??
+          undefined,
+        nextEpisodeAirDate: nextEpisode?.air_date ?? undefined,
+        nextSeasonAirDate: nextSeasonAirDate ?? undefined,
+        seasonNumber:
+          nextEpisode?.season_number ?? lastEpisode?.season_number ?? undefined,
+        episodeNumber:
+          nextEpisode?.episode_number ??
+          lastEpisode?.episode_number ??
+          undefined,
+      };
     }
 
     return undefined;

@@ -30,7 +30,7 @@ import useSWR, { mutate } from 'swr';
 const messages = defineMessages({
   downloads: 'Downloads',
   downloadsDescription:
-    'Grab missing items automatically using Radarr, Sonarr, or Overseerr.',
+    'Grab missing items automatically using Radarr, Sonarr, or Seerr.',
   radarrsettings: 'Radarr Settings',
   sonarrsettings: 'Sonarr Settings',
   serviceSettingsDescription:
@@ -41,7 +41,7 @@ const messages = defineMessages({
   default4k: 'Default 4K',
   is4k: '4K',
   address: 'Address',
-  addoverseerr: 'Add Overseerr Connection',
+  addoverseerr: 'Add Seerr Connection',
   addradarr: 'Add Radarr Server',
   addsonarr: 'Add Sonarr Server',
   noDefaultServer:
@@ -53,9 +53,9 @@ const messages = defineMessages({
   mediaTypeMovie: 'movie',
   mediaTypeSeries: 'series',
   deleteServer: 'Delete {serverType} Server',
-  overseerrSettings: 'Overseerr Settings',
+  overseerrSettings: 'Seerr Settings',
   overseerrSettingsDescription:
-    'Configure connection to add missing items as Requests in Overseerr.',
+    'Configure connection to add missing items as Requests in Seerr.',
   save: 'Save Changes',
   saving: 'Saving…',
   placeholderSettings: 'Placeholder Root Folders',
@@ -190,7 +190,7 @@ const ServerInstance = ({
           {isOverseerr ? (
             <img
               src="/services/overseerr.svg"
-              alt="Overseerr"
+              alt="Seerr"
               className="h-10 w-10 flex-shrink-0"
             />
           ) : isSonarr ? (
@@ -331,7 +331,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
         {!!onComplete && (
           <div className="section">
             <Alert
-              title="You only need Overseerr (Recommended) or Radarr/Sonarr to grab missing items, but you can configure both for more flexibility across Collections."
+              title="You only need Seerr (Recommended) or Radarr/Sonarr to grab missing items, but you can configure both for more flexibility across Collections."
               type="info"
             />
           </div>
@@ -388,7 +388,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
                 ? 'Radarr'
                 : deleteServerModal.type === 'sonarr'
                 ? 'Sonarr'
-                : 'Overseerr',
+                : 'Seerr',
           })}
         >
           {intl.formatMessage(messages.deleteserverconfirm)}
@@ -423,7 +423,7 @@ const SettingsDownloads = ({ onComplete }: SettingsDownloadsProps) => {
           {dataOverseerr?.hostname ? (
             <ServerInstance
               key="overseerr-config"
-              name="Overseerr"
+              name="Seerr"
               hostname={dataOverseerr.hostname}
               port={dataOverseerr.port || 5055}
               isOverseerr={true}

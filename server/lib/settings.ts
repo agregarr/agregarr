@@ -238,7 +238,7 @@ export interface CollectionConfig {
   readonly autoPoster?: boolean; // Auto-generate poster during sync (only available for Overseerr user collections)
   readonly autoPosterTemplate?: number | null; // Template ID for auto-generated posters (null for default template)
   readonly useTmdbFranchisePoster?: boolean; // Use TMDB franchise poster instead of auto-generated poster (only for TMDB auto_franchise collections)
-  readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, only for TMDB auto_franchise collections)
+  readonly hideIndividualItems?: boolean; // Hide individual items, show collection (collectionMode = 1, supported for Coming Soon and TMDB auto_franchise collections)
   // Wallpaper, summary, and theme settings
   readonly customWallpaper?: string | Record<string, string>; // Path to custom wallpaper (art) image file, or per-library wallpaper mapping
   readonly customSummary?: string; // Custom summary/description text for the collection
@@ -251,6 +251,29 @@ export interface CollectionConfig {
   readonly placeholderReleasedDays?: number; // Days to keep released items with overlay (default: 7). After this window, original posters are restored.
   readonly placeholderDaysAhead?: number; // Number of days to look ahead for release dates (default: 360)
   readonly includeAllReleasedItems?: boolean; // If true, include all released items regardless of release date (default: true for new configs)
+  // Placeholder filter settings (independent of auto-request filters)
+  readonly placeholderMinimumYear?: number;
+  readonly placeholderMinimumImdbRating?: number;
+  readonly placeholderMinimumRottenTomatoesRating?: number;
+  readonly placeholderMinimumRottenTomatoesAudienceRating?: number;
+  readonly placeholderFilterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+  };
   // Legacy Coming Soon fields (for backward compatibility during migration)
   readonly comingSoonReleasedDays?: number; // @deprecated Use placeholderReleasedDays
   readonly comingSoonDays?: number; // @deprecated Use placeholderDaysAhead
@@ -2210,6 +2233,29 @@ export interface MultiSourceCollectionConfig {
   readonly placeholderDaysAhead?: number; // How many days ahead to create placeholders
   readonly placeholderReleasedDays?: number; // How many days after release to keep placeholders
   readonly includeAllReleasedItems?: boolean; // If true, include all released items regardless of release date
+  // Placeholder filter settings (independent of auto-request filters)
+  readonly placeholderMinimumYear?: number;
+  readonly placeholderMinimumImdbRating?: number;
+  readonly placeholderMinimumRottenTomatoesRating?: number;
+  readonly placeholderMinimumRottenTomatoesAudienceRating?: number;
+  readonly placeholderFilterSettings?: {
+    readonly genres?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+    readonly countries?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly languages?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
+    };
+  };
   // Missing items / auto-download settings (same as CollectionConfig)
   readonly downloadMode?: 'overseerr' | 'direct';
   readonly searchMissingMovies?: boolean;
@@ -2239,6 +2285,10 @@ export interface MultiSourceCollectionConfig {
     readonly languages?: {
       readonly mode: 'exclude' | 'include';
       readonly values: string[];
+    };
+    readonly keywords?: {
+      readonly mode: 'exclude' | 'include';
+      readonly values: number[];
     };
   };
   readonly directDownloadRadarrServerId?: number;

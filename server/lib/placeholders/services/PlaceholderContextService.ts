@@ -74,7 +74,7 @@ export class PlaceholderContextService {
       editionTitle?: string;
       Guid?: { id: string }[];
       childCount?: number;
-      Children?: { Metadata?: unknown[] };
+      Children?: { Metadata?: unknown[]; Directory?: unknown[] };
       seasonCount?: number;
       leafCount?: number;
     }
@@ -130,7 +130,7 @@ export class PlaceholderContextService {
     editionTitle?: string;
     Guid?: { id: string }[];
     childCount?: number;
-    Children?: { Metadata?: unknown[] };
+    Children?: { Metadata?: unknown[]; Directory?: unknown[] };
     seasonCount?: number;
     leafCount?: number;
   }): boolean {
@@ -176,8 +176,10 @@ export class PlaceholderContextService {
       // Real shows will have Season 01+ when content arrives
 
       // Check if children are provided and inspect them
-      if (plexMetadata.Children?.Metadata) {
-        const seasons = plexMetadata.Children.Metadata as {
+      const childSeasons =
+        plexMetadata.Children?.Metadata || plexMetadata.Children?.Directory;
+      if (childSeasons) {
+        const seasons = childSeasons as {
           index?: number;
         }[];
 
@@ -225,7 +227,7 @@ export class PlaceholderContextService {
       editionTitle?: string;
       Guid?: { id: string }[];
       childCount?: number;
-      Children?: { Metadata?: unknown[] };
+      Children?: { Metadata?: unknown[]; Directory?: unknown[] };
       seasonCount?: number;
       leafCount?: number;
       ratingKey?: string;
@@ -277,8 +279,10 @@ export class PlaceholderContextService {
       // TV shows: Check seasons
 
       // If Children metadata is already provided, use it
-      if (plexMetadata.Children?.Metadata) {
-        const seasons = plexMetadata.Children.Metadata as {
+      const childSeasons =
+        plexMetadata.Children?.Metadata || plexMetadata.Children?.Directory;
+      if (childSeasons) {
+        const seasons = childSeasons as {
           index?: number;
         }[];
 
@@ -324,8 +328,10 @@ export class PlaceholderContextService {
             mediaContainerKeys: Object.keys(response?.MediaContainer || {}),
           });
 
-          // Seasons are in Metadata, not Directory
-          const seasons = (response?.MediaContainer?.Metadata || []) as {
+          // Seasons may be in Metadata or Directory depending on Plex version/endpoint
+          const seasons = (response?.MediaContainer?.Metadata ||
+            response?.MediaContainer?.Directory ||
+            []) as {
             index?: number;
           }[];
 
@@ -596,7 +602,7 @@ export class PlaceholderContextService {
       editionTitle?: string;
       Guid?: { id: string }[];
       childCount?: number;
-      Children?: { Metadata?: unknown[] };
+      Children?: { Metadata?: unknown[]; Directory?: unknown[] };
       seasonCount?: number;
       leafCount?: number;
     }

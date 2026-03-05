@@ -15,6 +15,7 @@ import type {
 import { SMART_COLLECTION_SORT_OPTIONS } from '@app/types/collections';
 import { Transition } from '@headlessui/react';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/20/solid';
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
 import { Field, Formik, type FormikErrors, type FormikTouched } from 'formik';
 import type React from 'react';
 import { useMemo, useState } from 'react';
@@ -31,6 +32,8 @@ import CollectionExclusionSection from '@app/components/Collections/FormSections
 import CollectionTypeSection from '@app/components/Collections/FormSections/CollectionTypeSection';
 import ComingSoonServerSection from '@app/components/Collections/FormSections/ComingSoonServerSection';
 import CustomUrlSection from '@app/components/Collections/FormSections/CustomUrlSection';
+import FilterWithMode from '@app/components/Collections/FormSections/FilterWithMode';
+import KeywordFilterWithMode from '@app/components/Collections/FormSections/KeywordFilterWithMode';
 import LibrarySelectionSection from '@app/components/Collections/FormSections/LibrarySelectionSection';
 import MultiSourceConfigSection from '@app/components/Collections/FormSections/MultiSourceConfigSection';
 import NetworksConfigSection from '@app/components/Collections/FormSections/NetworksConfigSection';
@@ -90,7 +93,7 @@ const messages = defineMessages({
   youtubeCookiesConfiguredMessage:
     'The {cookiesPath} file is configured and will be used for YouTube trailer downloads.',
   overseerrUserCollectionsDescription:
-    "Creates a collection for each Overseerr user based off their Overseerr requests, and uses labels and restrictions to ensure only the requesting user can see their requests. Because server owners can't have restrictions, all collections will be visible to them.",
+    "Creates a collection for each Seerr user based off their Seerr requests, and uses labels and restrictions to ensure only the requesting user can see their requests. Because server owners can't have restrictions, all collections will be visible to them.",
   autoFranchiseDescription:
     'Automatically discovers and creates a collection for each movie franchise in your library (e.g., Die Hard 1, 2, 3 → "Die Hard Collection"). Only franchises with 2+ movies in your library will be created.',
   franchiseTemplateNote:
@@ -222,6 +225,21 @@ const messages = defineMessages({
   onlyRecentlyReleasedHelp:
     'Only create placeholders for items released within the specified number of days',
   days: 'days',
+  placeholderFilters: 'Placeholder Filters',
+  placeholderFiltersHelp:
+    'Optional. Filter which missing items get placeholders. Leave empty for all missing items.',
+  placeholderMinimumYear: 'Minimum release year',
+  placeholderMinimumYearHelp:
+    'Only create placeholders for items released on or after this year (0 = no limit)',
+  placeholderMinimumImdbRating: 'Minimum IMDb rating',
+  placeholderMinimumImdbRatingHelp:
+    'Only create placeholders for items with an IMDb rating at or above this value (0 = no limit). Items without ratings will pass.',
+  placeholderMinimumRottenTomatoesRating: 'Minimum Rotten Tomatoes rating',
+  placeholderMinimumRottenTomatoesRatingHelp:
+    'Only create placeholders for items with an RT critics score at or above this value (0 = no limit)',
+  placeholderMinimumRottenTomatoesAudienceRating: 'Minimum RT audience rating',
+  placeholderMinimumRottenTomatoesAudienceRatingHelp:
+    'Only create placeholders for items with an RT audience score at or above this value (0 = no limit)',
   filteredPlexHubInfo:
     'Use Filtered Plex Hubs to keep placeholder items out of Recently Added etc',
   filteredPlexHubDescription:
@@ -339,6 +357,18 @@ const CollectionFormConfigForm = ({
 
   // State for preview modal
   const [showPreview, setShowPreview] = useState(false);
+  const [showPlaceholderFilters, setShowPlaceholderFilters] = useState(
+    () =>
+      !!(
+        (config as CollectionFormConfig).placeholderMinimumYear ||
+        (config as CollectionFormConfig).placeholderMinimumImdbRating ||
+        (config as CollectionFormConfig)
+          .placeholderMinimumRottenTomatoesRating ||
+        (config as CollectionFormConfig)
+          .placeholderMinimumRottenTomatoesAudienceRating ||
+        (config as CollectionFormConfig).placeholderFilterSettings
+      )
+  );
 
   // Generate tooltip showing which other items will be affected - MUST be before early returns
   const linkingTooltip = useMemo(() => {
@@ -1652,6 +1682,19 @@ const CollectionFormConfigForm = ({
             (config as CollectionFormConfig)
               .minimumRottenTomatoesAudienceRating || 0,
           filterSettings: (config as CollectionFormConfig).filterSettings,
+          // Placeholder filter settings (independent of auto-request filters)
+          placeholderMinimumYear:
+            (config as CollectionFormConfig).placeholderMinimumYear || 0,
+          placeholderMinimumImdbRating:
+            (config as CollectionFormConfig).placeholderMinimumImdbRating || 0,
+          placeholderMinimumRottenTomatoesRating:
+            (config as CollectionFormConfig)
+              .placeholderMinimumRottenTomatoesRating || 0,
+          placeholderMinimumRottenTomatoesAudienceRating:
+            (config as CollectionFormConfig)
+              .placeholderMinimumRottenTomatoesAudienceRating || 0,
+          placeholderFilterSettings: (config as CollectionFormConfig)
+            .placeholderFilterSettings,
           excludeFromCollections:
             (config as CollectionFormConfig).excludeFromCollections || [],
           // Radarr/Sonarr tag configuration
@@ -2155,6 +2198,38 @@ const CollectionFormConfigForm = ({
               values.enableGrabMissingItems && values.filterSettings
                 ? values.filterSettings
                 : undefined,
+            // Placeholder filter settings (only when placeholders enabled)
+            placeholderMinimumYear: values.createPlaceholdersForMissing
+              ? values.placeholderMinimumYear
+                ? parseInt(values.placeholderMinimumYear.toString(), 10)
+                : 0
+              : undefined,
+            placeholderMinimumImdbRating: values.createPlaceholdersForMissing
+              ? values.placeholderMinimumImdbRating
+                ? parseFloat(values.placeholderMinimumImdbRating.toString())
+                : 0
+              : undefined,
+            placeholderMinimumRottenTomatoesRating:
+              values.createPlaceholdersForMissing
+                ? values.placeholderMinimumRottenTomatoesRating
+                  ? parseInt(
+                      values.placeholderMinimumRottenTomatoesRating.toString(),
+                      10
+                    )
+                  : 0
+                : undefined,
+            placeholderMinimumRottenTomatoesAudienceRating:
+              values.createPlaceholdersForMissing
+                ? values.placeholderMinimumRottenTomatoesAudienceRating
+                  ? parseInt(
+                      values.placeholderMinimumRottenTomatoesAudienceRating.toString(),
+                      10
+                    )
+                  : 0
+                : undefined,
+            placeholderFilterSettings: values.createPlaceholdersForMissing
+              ? values.placeholderFilterSettings ?? undefined
+              : undefined,
             // Direct download server selection
             directDownloadRadarrServerId: directRadarrServerId,
             directDownloadRadarrProfileId: directRadarrProfileId,
@@ -3974,6 +4049,322 @@ const CollectionFormConfigForm = ({
                                   </div>
                                 </div>
                               )}
+
+                            {/* Placeholder Filters - collapsible */}
+                            {typedValues.createPlaceholdersForMissing && (
+                              <div className="mt-4 border-t border-stone-600 pt-4">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setShowPlaceholderFilters(
+                                      !showPlaceholderFilters
+                                    )
+                                  }
+                                  className="flex w-full items-center justify-between text-sm font-medium text-gray-300"
+                                >
+                                  <span>
+                                    {intl.formatMessage(
+                                      messages.placeholderFilters
+                                    )}
+                                  </span>
+                                  {showPlaceholderFilters ? (
+                                    <ChevronUpIcon className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDownIcon className="h-4 w-4" />
+                                  )}
+                                </button>
+                                <p className="mt-1 text-xs text-gray-400">
+                                  {intl.formatMessage(
+                                    messages.placeholderFiltersHelp
+                                  )}
+                                </p>
+                                {showPlaceholderFilters && (
+                                  <div className="mt-3 space-y-4">
+                                    {/* Minimum Year */}
+                                    <div>
+                                      <label
+                                        htmlFor="placeholderMinimumYear"
+                                        className="mb-1 block text-sm font-medium text-gray-200"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumYear
+                                        )}
+                                      </label>
+                                      <Field
+                                        type="number"
+                                        id="placeholderMinimumYear"
+                                        name="placeholderMinimumYear"
+                                        min="0"
+                                        placeholder="0"
+                                        className="short"
+                                      />
+                                      <div className="label-tip mt-1">
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumYearHelp
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Minimum IMDb Rating */}
+                                    <div>
+                                      <label
+                                        htmlFor="placeholderMinimumImdbRating"
+                                        className="mb-1 block text-sm font-medium text-gray-200"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumImdbRating
+                                        )}
+                                      </label>
+                                      <Field
+                                        type="text"
+                                        inputMode="decimal"
+                                        id="placeholderMinimumImdbRating"
+                                        name="placeholderMinimumImdbRating"
+                                        placeholder="0"
+                                        className="short"
+                                      />
+                                      <div className="label-tip mt-1">
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumImdbRatingHelp
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Minimum Rotten Tomatoes Rating */}
+                                    <div>
+                                      <label
+                                        htmlFor="placeholderMinimumRottenTomatoesRating"
+                                        className="mb-1 block text-sm font-medium text-gray-200"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumRottenTomatoesRating
+                                        )}
+                                      </label>
+                                      <Field
+                                        type="text"
+                                        inputMode="decimal"
+                                        id="placeholderMinimumRottenTomatoesRating"
+                                        name="placeholderMinimumRottenTomatoesRating"
+                                        placeholder="0"
+                                        className="short"
+                                      />
+                                      <div className="label-tip mt-1">
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumRottenTomatoesRatingHelp
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Minimum RT Audience Rating */}
+                                    <div>
+                                      <label
+                                        htmlFor="placeholderMinimumRottenTomatoesAudienceRating"
+                                        className="mb-1 block text-sm font-medium text-gray-200"
+                                      >
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumRottenTomatoesAudienceRating
+                                        )}
+                                      </label>
+                                      <Field
+                                        type="text"
+                                        inputMode="decimal"
+                                        id="placeholderMinimumRottenTomatoesAudienceRating"
+                                        name="placeholderMinimumRottenTomatoesAudienceRating"
+                                        placeholder="0"
+                                        className="short"
+                                      />
+                                      <div className="label-tip mt-1">
+                                        {intl.formatMessage(
+                                          messages.placeholderMinimumRottenTomatoesAudienceRatingHelp
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Genre Filter */}
+                                    <FilterWithMode
+                                      filterType="genres"
+                                      mode={
+                                        typedValues.placeholderFilterSettings
+                                          ?.genres?.mode || 'exclude'
+                                      }
+                                      selectedValues={
+                                        typedValues.placeholderFilterSettings
+                                          ?.genres?.values || []
+                                      }
+                                      onModeChange={(mode) => {
+                                        const currentValues =
+                                          typedValues.placeholderFilterSettings
+                                            ?.genres?.values || [];
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            genres: {
+                                              mode,
+                                              values: currentValues,
+                                            },
+                                          }
+                                        );
+                                      }}
+                                      onValuesChange={(selectedValues) => {
+                                        const currentMode =
+                                          typedValues.placeholderFilterSettings
+                                            ?.genres?.mode || 'exclude';
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            genres: {
+                                              mode: currentMode,
+                                              values:
+                                                selectedValues as number[],
+                                            },
+                                          }
+                                        );
+                                      }}
+                                    />
+
+                                    {/* Country Filter */}
+                                    <FilterWithMode
+                                      filterType="countries"
+                                      mode={
+                                        typedValues.placeholderFilterSettings
+                                          ?.countries?.mode || 'exclude'
+                                      }
+                                      selectedValues={
+                                        typedValues.placeholderFilterSettings
+                                          ?.countries?.values || []
+                                      }
+                                      onModeChange={(mode) => {
+                                        const currentValues =
+                                          typedValues.placeholderFilterSettings
+                                            ?.countries?.values || [];
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            countries: {
+                                              mode,
+                                              values: currentValues,
+                                            },
+                                          }
+                                        );
+                                      }}
+                                      onValuesChange={(selectedValues) => {
+                                        const currentMode =
+                                          typedValues.placeholderFilterSettings
+                                            ?.countries?.mode || 'exclude';
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            countries: {
+                                              mode: currentMode,
+                                              values:
+                                                selectedValues as string[],
+                                            },
+                                          }
+                                        );
+                                      }}
+                                    />
+
+                                    {/* Language Filter */}
+                                    <FilterWithMode
+                                      filterType="languages"
+                                      mode={
+                                        typedValues.placeholderFilterSettings
+                                          ?.languages?.mode || 'exclude'
+                                      }
+                                      selectedValues={
+                                        typedValues.placeholderFilterSettings
+                                          ?.languages?.values || []
+                                      }
+                                      onModeChange={(mode) => {
+                                        const currentValues =
+                                          typedValues.placeholderFilterSettings
+                                            ?.languages?.values || [];
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            languages: {
+                                              mode,
+                                              values: currentValues,
+                                            },
+                                          }
+                                        );
+                                      }}
+                                      onValuesChange={(selectedValues) => {
+                                        const currentMode =
+                                          typedValues.placeholderFilterSettings
+                                            ?.languages?.mode || 'exclude';
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            languages: {
+                                              mode: currentMode,
+                                              values:
+                                                selectedValues as string[],
+                                            },
+                                          }
+                                        );
+                                      }}
+                                    />
+
+                                    {/* Keyword Filter */}
+                                    <KeywordFilterWithMode
+                                      mode={
+                                        typedValues.placeholderFilterSettings
+                                          ?.keywords?.mode || 'exclude'
+                                      }
+                                      selectedValues={
+                                        typedValues.placeholderFilterSettings
+                                          ?.keywords?.values || []
+                                      }
+                                      onModeChange={(mode) => {
+                                        const currentValues =
+                                          typedValues.placeholderFilterSettings
+                                            ?.keywords?.values || [];
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            keywords: {
+                                              mode,
+                                              values: currentValues,
+                                            },
+                                          }
+                                        );
+                                      }}
+                                      onValuesChange={(selectedValues) => {
+                                        const currentMode =
+                                          typedValues.placeholderFilterSettings
+                                            ?.keywords?.mode || 'exclude';
+                                        setFieldValue(
+                                          'placeholderFilterSettings',
+                                          {
+                                            ...(typedValues.placeholderFilterSettings ||
+                                              {}),
+                                            keywords: {
+                                              mode: currentMode,
+                                              values: selectedValues,
+                                            },
+                                          }
+                                        );
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/* Warning when placeholders + overlays enabled but no overlay configs exist */}
                             {typedValues.createPlaceholdersForMissing &&

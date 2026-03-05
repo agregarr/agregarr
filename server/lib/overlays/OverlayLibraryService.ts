@@ -687,7 +687,7 @@ class OverlayLibraryService {
         editionTitle?: string;
         Guid?: { id: string }[];
         childCount?: number;
-        Children?: { Metadata?: unknown[] };
+        Children?: { Metadata?: unknown[]; Directory?: unknown[] };
         seasonCount?: number;
         leafCount?: number;
         ratingKey?: string;
@@ -761,7 +761,7 @@ class OverlayLibraryService {
             const daysSince = calculateDaysSince(
               releaseDateInfo.nextEpisodeAirDate
             );
-            if (daysSince < 0) {
+            if (daysSince <= 0) {
               daysUntilNextEpisode = -daysSince;
             }
           }
@@ -770,7 +770,7 @@ class OverlayLibraryService {
             const daysSince = calculateDaysSince(
               releaseDateInfo.nextSeasonAirDate
             );
-            if (daysSince < 0) {
+            if (daysSince <= 0) {
               daysUntilNextSeason = -daysSince;
             } else {
               daysAgoNextSeason = daysSince;

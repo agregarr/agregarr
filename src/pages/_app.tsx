@@ -24,6 +24,9 @@ import { IntlProvider } from 'react-intl';
 import { ToastProvider } from 'react-toast-notifications';
 import { SWRConfig } from 'swr';
 
+// Configure axios to use the custom CSRF cookie name set by the server
+axios.defaults.xsrfCookieName = 'AGREGARR-XSRF-TOKEN';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const loadLocaleData = (locale: AvailableLocale): Promise<any> => {
   switch (locale) {
