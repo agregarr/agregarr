@@ -1,3 +1,26 @@
+## [2.4.1](https://github.com/agregarr/agregarr/compare/v2.4.0...v2.4.1) (2026-03-05)
+
+
+### Bug Fixes
+
+* **cleanup:** prevent auto-franchise collections from being deleted when custom sync is enabled  ([#470](https://github.com/agregarr/agregarr/issues/470)) ([4a4e1d8](https://github.com/agregarr/agregarr/commit/4a4e1d85c156824610b91d7ec9259ad87a4f6672))
+* **collections:** index MAL IDs for constant-time lookups ([#482](https://github.com/agregarr/agregarr/issues/482)) ([831ccab](https://github.com/agregarr/agregarr/commit/831ccaba9864bd3c07f1569ebb8465e74fa0c63a)), closes [#480](https://github.com/agregarr/agregarr/issues/480)
+* **coming-soon:** makes hideIndividualItems work for Coming Soon collections ([#469](https://github.com/agregarr/agregarr/issues/469)) ([069e58c](https://github.com/agregarr/agregarr/commit/069e58c174a6785ce74c38a267084e7da21ce250))
+* **connections:** correctly handle CSRF cookie name ([843d314](https://github.com/agregarr/agregarr/commit/843d3149846d94be43a1bc09e098f4a3f688de91))
+* guard splice in arrangeCollectionItemsInOrder ([#481](https://github.com/agregarr/agregarr/issues/481)) ([68d832a](https://github.com/agregarr/agregarr/commit/68d832a2bd1cd8acce107a1b95d382305ef50927))
+* **local-posters:** fix pagination and library filtering for local poster folders ([#477](https://github.com/agregarr/agregarr/issues/477)) ([4f11ad1](https://github.com/agregarr/agregarr/commit/4f11ad12601dbfec964fc371a7ffc7c8bd62340f)), closes [#433](https://github.com/agregarr/agregarr/issues/433)
+* **overlays:** correct air date today logic for next episode and season ([#496](https://github.com/agregarr/agregarr/issues/496)) ([207a1ed](https://github.com/agregarr/agregarr/commit/207a1ed905c83fe3228fe12f27dccc2e10146a25))
+* **overlays:** fix days since season premiere logic ([#473](https://github.com/agregarr/agregarr/issues/473)) ([898c300](https://github.com/agregarr/agregarr/commit/898c300d2af46e6afe1d4c43b6def9d00ed0f840))
+* **overlays:** move IMDb rating position out of conflict with top banner tiles ([#408](https://github.com/agregarr/agregarr/issues/408)) ([cb12822](https://github.com/agregarr/agregarr/commit/cb128228726f410d1fd9994878f568e404f10114))
+* **overlays:** parallelise collection membership check in overlay test ([#483](https://github.com/agregarr/agregarr/issues/483)) ([5134db5](https://github.com/agregarr/agregarr/commit/5134db5b9f661023aa9d614b0806d00662084bae)), closes [#468](https://github.com/agregarr/agregarr/issues/468)
+* **overlays:** support Maintainerr v3 API (mediaServerId rename) ([#504](https://github.com/agregarr/agregarr/issues/504)) ([8d85032](https://github.com/agregarr/agregarr/commit/8d850322b994ac76663b3a1491f47c6037fc3a50)), closes [#501](https://github.com/agregarr/agregarr/issues/501)
+* **placeholders:** handle Plex returning TV seasons as Children.Directory ([#491](https://github.com/agregarr/agregarr/issues/491)) ([d8655ca](https://github.com/agregarr/agregarr/commit/d8655cad411247d0f58e0aa0f84125f0a2f6a769)), closes [#414](https://github.com/agregarr/agregarr/issues/414)
+* **Placeholders:** Scan all placeholder-enabled libraries, not just the first ([#467](https://github.com/agregarr/agregarr/issues/467)) ([77c5a91](https://github.com/agregarr/agregarr/commit/77c5a91139cbf0cba1f1051985f385095c548e48))
+* **Placeholders:** Separate placeholder filters independent of auto-request filters ([#456](https://github.com/agregarr/agregarr/issues/456)) ([63b8851](https://github.com/agregarr/agregarr/commit/63b8851a1ae7138780c935e75803adc96c78e585))
+* **tmdb-collections:** respect language setting for TMDB franchise collections ([78842cd](https://github.com/agregarr/agregarr/commit/78842cd050153b564aa4eee7ea49333189c828d4)), closes [#487](https://github.com/agregarr/agregarr/issues/487)
+* **TMDB:** Multiple custom advanced filter fixes  ([#476](https://github.com/agregarr/agregarr/issues/476)) ([863d997](https://github.com/agregarr/agregarr/commit/863d9974be2b42b62c98207e61e013f1e8f14f4f))
+* **uploads:** add authentication to poster export/import, trakt, and anime routes ([aba123f](https://github.com/agregarr/agregarr/commit/aba123fcc5c93ba5842e77b8b31cf67ecc5dc7b1))
+
 # [2.4.0](https://github.com/agregarr/agregarr/compare/v2.3.0...v2.4.0) (2026-02-15)
 
 
