@@ -36,7 +36,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: 0,
-          y: 311,
+          y: 155,
           width: 162,
           height: 155,
           properties: {
@@ -45,7 +45,7 @@ export const PRESET_TEMPLATES: {
             borderRadiusBottomLeft: 0,
             borderRadiusBottomRight: 5,
             borderRadiusTopLeft: 0,
-            borderRadiusTopRight: 0,
+            borderRadiusTopRight: 5,
             lockCorners: false,
           },
         },
@@ -54,7 +54,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'variable',
           x: 16,
-          y: 369,
+          y: 213,
           width: 127,
           height: 108,
           properties: {
@@ -72,7 +72,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 2,
           type: 'svg',
           x: 16,
-          y: 292,
+          y: 136,
           width: 130,
           height: 130,
           properties: {
@@ -101,7 +101,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: 0,
-          y: 155,
+          y: 310,
           width: 162,
           height: 155,
           properties: {
@@ -119,7 +119,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'variable',
           x: 16,
-          y: 220,
+          y: 375,
           width: 127,
           height: 108,
           properties: {
@@ -137,7 +137,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 2,
           type: 'svg',
           x: 26.5,
-          y: 147,
+          y: 302,
           width: 106,
           height: 106,
           properties: {
@@ -625,7 +625,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'svg',
           x: 0,
-          y: 466,
+          y: 465,
           width: 163,
           height: 77,
           properties: {
@@ -661,7 +661,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 0,
           type: 'tile',
           x: -5.5246784801583,
-          y: 546,
+          y: 545,
           width: 169,
           height: 85,
           properties: {
@@ -678,7 +678,7 @@ export const PRESET_TEMPLATES: {
           layerOrder: 1,
           type: 'raster',
           x: 5.9753215198417,
-          y: 540,
+          y: 539,
           width: 146,
           height: 97,
           properties: {
