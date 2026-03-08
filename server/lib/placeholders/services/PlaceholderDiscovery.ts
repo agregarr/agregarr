@@ -135,6 +135,18 @@ export async function discoverPlaceholdersFromMarkers(
       libraryId
     );
 
+    // Batch check *arr download status for all tier 1 markers
+    const arrLookups = tier1Markers
+      .filter((m) => m.tmdbId !== undefined)
+      .map((m) => ({
+        tmdbId: m.tmdbId as number,
+        tvdbId: m.tvdbId,
+        mediaType: 'tv' as const,
+      }));
+
+    const { showsByTvdbId } =
+      await placeholderContextService.batchCheckDownloadStatus(arrLookups);
+
     for (const marker of tier1Markers) {
       if (!marker.tmdbId) {
         continue;
@@ -142,11 +154,39 @@ export async function discoverPlaceholdersFromMarkers(
 
       const plexItem = plexMatches.get(`${marker.tmdbId}-tv`);
 
+      // Check if *arr reports content as downloaded
+      const arrStatus = marker.tvdbId
+        ? showsByTvdbId.get(marker.tvdbId)
+        : undefined;
+      const isDownloadedInArr = arrStatus?.downloaded === true;
+
       // Marker file on disk proves this is an Agregarr-created placeholder.
       // Don't re-verify via isPlaceholderItem — returns false for TV shows
       // when Children metadata is missing from the Plex API response.
+      // Use *arr download status as additional cleanup signal.
       let needsTitleFix = false;
       if (plexItem) {
+        needsTitleFix = !isDownloadedInArr;
+        if (isDownloadedInArr) {
+          logger.info(
+            'Placeholder has content downloaded in Sonarr - triggering cleanup',
+            {
+              label: 'PlaceholderService',
+              title: marker.title,
+              tvdbId: marker.tvdbId,
+            }
+          );
+        }
+      } else if (isDownloadedInArr) {
+        logger.info(
+          'No Plex item but content downloaded in Sonarr - triggering cleanup',
+          {
+            label: 'PlaceholderService',
+            title: marker.title,
+            tvdbId: marker.tvdbId,
+          }
+        );
+      } else {
         needsTitleFix = true;
       }
 
@@ -161,51 +201,116 @@ export async function discoverPlaceholdersFromMarkers(
     }
   }
 
-  // TIER 2 & 3: Process old markers without tmdbId
+  // Batch check *arr download status for all tier 2/3 markers that have DB records
+  // This avoids per-marker full library pulls
+  const tier2DbRecords = new Map<string, { tmdbId: number; tvdbId?: number }>();
   for (const marker of tier2And3Markers) {
-    // TIER 2: Check database for existing record
     const dbRecord = await repository.findOne({
       where: { placeholderPath: marker.placeholderPath },
     });
-
     if (dbRecord) {
+      tier2DbRecords.set(marker.placeholderPath, {
+        tmdbId: dbRecord.tmdbId,
+        tvdbId: dbRecord.tvdbId,
+      });
+    }
+  }
+
+  // Batch *arr check for all tier 2 markers with tvdbIds
+  let tier2ArrShows = new Map<
+    number,
+    { downloaded: boolean; inSonarr: boolean; folderName?: string }
+  >();
+  const tier2ArrLookups = [...tier2DbRecords.values()]
+    .filter((r) => r.tvdbId)
+    .map((r) => ({
+      tmdbId: r.tmdbId,
+      tvdbId: r.tvdbId,
+      mediaType: 'tv' as const,
+    }));
+  if (tier2ArrLookups.length > 0) {
+    const result = await placeholderContextService.batchCheckDownloadStatus(
+      tier2ArrLookups
+    );
+    tier2ArrShows = result.showsByTvdbId;
+  }
+
+  // TIER 2 & 3: Process old markers without tmdbId
+  for (const marker of tier2And3Markers) {
+    // TIER 2: Check database for existing record
+    const dbRecordInfo = tier2DbRecords.get(marker.placeholderPath);
+
+    if (dbRecordInfo) {
       logger.info('Tier 2: Found database record for old marker', {
         label: 'PlaceholderService',
         title: marker.title,
-        tmdbId: dbRecord.tmdbId,
+        tmdbId: dbRecordInfo.tmdbId,
       });
 
       // Upgrade marker file with tmdbId from database
       try {
         await upgradeMarkerFile(
           marker.filePath,
-          dbRecord.tmdbId,
-          dbRecord.tvdbId
+          dbRecordInfo.tmdbId,
+          dbRecordInfo.tvdbId
         );
 
         // Query Plex using tmdbId from database
         const plexMatches = await findPlexItemsByTmdbIds(
           plexClient,
-          [{ tmdbId: dbRecord.tmdbId, mediaType: 'tv', title: marker.title }],
+          [
+            {
+              tmdbId: dbRecordInfo.tmdbId,
+              mediaType: 'tv',
+              title: marker.title,
+            },
+          ],
           libraryId
         );
 
-        const plexItem = plexMatches.get(`${dbRecord.tmdbId}-tv`);
+        const plexItem = plexMatches.get(`${dbRecordInfo.tmdbId}-tv`);
+
+        // Check *arr download status from batched results
+        const arrStatus = dbRecordInfo.tvdbId
+          ? tier2ArrShows.get(dbRecordInfo.tvdbId)
+          : undefined;
+        const isDownloadedInArr = arrStatus?.downloaded === true;
 
         // Marker file on disk proves this is an Agregarr-created placeholder.
         // Don't re-verify via isPlaceholderItem — returns false for TV shows
         // when Children metadata is missing from the Plex API response.
-        // Only *arr download status determines cleanup vs title-fix.
+        // Use *arr download status as additional cleanup signal.
         let needsTitleFix = false;
         if (plexItem) {
+          needsTitleFix = !isDownloadedInArr;
+          if (isDownloadedInArr) {
+            logger.info(
+              'Tier 2: Content downloaded in Sonarr - triggering cleanup',
+              {
+                label: 'PlaceholderService',
+                title: marker.title,
+                tvdbId: dbRecordInfo.tvdbId,
+              }
+            );
+          }
+        } else if (isDownloadedInArr) {
+          logger.info(
+            'Tier 2: No Plex item but content downloaded - triggering cleanup',
+            {
+              label: 'PlaceholderService',
+              title: marker.title,
+              tvdbId: dbRecordInfo.tvdbId,
+            }
+          );
+        } else {
           needsTitleFix = true;
         }
 
         discovered.push({
           marker: {
             ...marker,
-            tmdbId: dbRecord.tmdbId,
-            tvdbId: dbRecord.tvdbId,
+            tmdbId: dbRecordInfo.tmdbId,
+            tvdbId: dbRecordInfo.tvdbId,
           },
           plexItem: plexItem
             ? { ratingKey: plexItem.ratingKey, title: plexItem.title }
@@ -392,9 +497,22 @@ export async function discoverMoviePlaceholdersFromFilenames(
     libraryId
   );
 
+  // Batch check *arr download status for all movies
+  const arrLookups = movies.map((m) => ({
+    tmdbId: m.tmdbId,
+    mediaType: 'movie' as const,
+  }));
+
+  const { moviesByTmdbId } =
+    await placeholderContextService.batchCheckDownloadStatus(arrLookups);
+
   // Step 3: Match filesystem placeholders to Plex items and verify they're still placeholders
   for (const movie of movies) {
     const plexItem = plexMatches.get(`${movie.tmdbId}-movie`);
+
+    // Check if *arr reports content as downloaded
+    const arrStatus = moviesByTmdbId.get(movie.tmdbId);
+    const isDownloadedInArr = arrStatus?.downloaded === true;
 
     // Verify it's still a placeholder (check if real movie was added)
     let needsCleanup = false;
@@ -412,8 +530,29 @@ export async function discoverMoviePlaceholdersFromFilenames(
           title: movie.title,
           ratingKey: plexItem.ratingKey,
         });
-        needsCleanup = true; // Mark for cleanup - real movie exists
+        needsCleanup = true;
+      } else if (isDownloadedInArr) {
+        logger.info(
+          'Movie placeholder has content downloaded in Radarr - triggering cleanup',
+          {
+            label: 'PlaceholderService',
+            title: movie.title,
+            tmdbId: movie.tmdbId,
+          }
+        );
+        needsCleanup = true;
       }
+    } else if (isDownloadedInArr) {
+      // No Plex item but *arr says downloaded - still trigger cleanup
+      logger.info(
+        'No Plex item but content downloaded in Radarr - triggering cleanup',
+        {
+          label: 'PlaceholderService',
+          title: movie.title,
+          tmdbId: movie.tmdbId,
+        }
+      );
+      needsCleanup = true;
     }
 
     discovered.push({
