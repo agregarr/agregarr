@@ -1893,7 +1893,7 @@
   "components.Posters.fileSource": "Fichier",
   "components.Posters.fullOverlaySyncStarted": "Synchronisation complète des overlays démarrée",
   "components.Posters.fullOverlaysSync": "Tout synchroniser",
-  "components.Posters.fullOverlaysSyncConfirm": "Confirmer la synchronisation complète ?",
+  "components.Posters.fullOverlaysSyncConfirm": "Confirmer ?",
   "components.Posters.generateFolders": "Générer l’arborescence de dossiers",
   "components.Posters.generateFoldersDescription": "Créer à l’avance des dossiers vides pour tous les éléments de la bibliothèque. Note : des dossiers sont aussi créés automatiquement lorsque des overlays sont appliqués à de nouveaux éléments.",
   "components.Posters.generatingFoldersTitle": "Génération de l’arborescence de dossiers",
