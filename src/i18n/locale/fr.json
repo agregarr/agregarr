@@ -1485,7 +1485,7 @@
   "components.Collections.FormSections.minimumPlayCount": "Nombre minimum de lectures",
   "components.Collections.FormSections.monthly": "Mensuel",
   "components.Collections.FormSections.myAnimeList": "MyAnimeList",
-  "components.Collections.FormSections.networks": "Chaînes",
+  "components.Collections.FormSections.networks": "Plateformes",
   "components.Collections.FormSections.noLibrariesSelected": "Aucune bibliothèque sélectionnée",
   "components.Collections.FormSections.noSourcesConfigured": "Aucune source configurée. Cliquer sur « Ajouter une source » pour commencer.",
   "components.Collections.FormSections.noVisibilityCollectionWarning": "Aucune option de visibilité sélectionnée. La collection apparaîtra uniquement dans l’onglet Bibliothèque.",
