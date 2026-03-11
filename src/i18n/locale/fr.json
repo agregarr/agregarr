@@ -1555,7 +1555,7 @@
   "components.Collections.Forms.limitCollectionItems": "Limiter la collection à ce nombre d’éléments{smartCollectionNote}",
   "components.Collections.Forms.limitCollectionItemsSmartNote": " (s’applique aux collections intelligentes)",
   "components.Collections.Forms.onlyRecentlyReleased": "Inclure uniquement les éléments diffusés depuis",
-  "components.Collections.Forms.onlyRecentlyReleasedHelp": "Créer des fichiers fictifs uniquement pour les éléments diffusés dans le nombre de jours indiqué",
+  "components.Collections.Forms.onlyRecentlyReleasedHelp": "Créer des fichiers fictifs uniquement pour les éléments diffusés depuis le nombre de jours indiqué",
   "components.Collections.Forms.overseerrUserCollectionsDescription": "Crée une collection pour chaque utilisateur Seerr à partir de ses demandes, et utilise des étiquettes et des restrictions pour que seul l’utilisateur demandeur puisse voir ses demandes. Comme le propriétaire du serveur ne peut pas être restreint, toutes les collections lui seront visibles.",
   "components.Collections.Forms.placeholderCreation": "Création de fichiers fictifs",
   "components.Collections.Forms.placeholderCreationHelp": "Crée des fichiers fictifs dans Plex pour les éléments pas encore disponibles, avec des overlays de compte à rebours indiquant les dates de sortie/diffusion.",
