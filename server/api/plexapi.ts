@@ -2854,6 +2854,29 @@ class PlexAPI {
    * @param libraryId - Library section key
    * @returns Array of unique label names
    */
+  /**
+   * Mark a Plex item as unplayed (reset watched status)
+   * Uses Plex's /:/unscrobble endpoint
+   */
+  public async markItemAsUnplayed(ratingKey: string): Promise<void> {
+    try {
+      await this.plexClient.query(
+        `/:/unscrobble?key=${ratingKey}&identifier=com.plexapp.plugins.library`
+      );
+      logger.debug('Marked item as unplayed', {
+        label: 'Plex API',
+        ratingKey,
+      });
+    } catch (error) {
+      logger.error('Failed to mark item as unplayed', {
+        label: 'Plex API',
+        ratingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
   public async getLibraryLabels(libraryId: string): Promise<string[]> {
     try {
       // Fetch library metadata to determine media type
