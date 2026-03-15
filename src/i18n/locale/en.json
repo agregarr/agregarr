@@ -372,7 +372,7 @@
   "components.Collections.FormSections.useSeparatorHelp": "Create a simple separator collection to group your auto {type} collections.",
   "components.Collections.FormSections.useTmdbFranchisePoster": "Use TMDB Franchise Poster",
   "components.Collections.FormSections.useTmdbFranchisePosterHelp": "Use the official TMDB franchise poster instead of auto-generating. This setting overrules the above auto-poster option if a collection poster is available from TMDB.",
-  "components.Collections.FormSections.userRequestCollectionsRestricted": "Individual user request collections are restricted to Library Tab Only visibility due a Plex bug that doesn't respect label restrictions on the Home/Recommended screens. TMDB Franchise Collections and Plex Library Auto Director Collections are hidden so that you don't clog up your home/recommended screens.",
+  "components.Collections.FormSections.userRequestCollectionsRestricted": "TMDB Franchise Collections and Plex Library Auto Director/Actor Collections are restricted to Library Tab Only visibility to avoid cluttering your Home and Recommended screens.",
   "components.Collections.FormSections.usersHome": "Users Home",
   "components.Collections.FormSections.validateUrl": "Validate URL",
   "components.Collections.FormSections.validatingUrl": "Validating...",

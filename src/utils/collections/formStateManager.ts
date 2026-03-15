@@ -337,10 +337,9 @@ export const FormStateHelpers = {
 
     // For User Requests (overseerr + users), check if Users Home is unlocked
     if (values.type === 'overseerr' && values.subtype === 'users') {
-      const isUsersHomeUnlocked = data?.hasUsersHomeUnlock || false;
       return {
-        usersHome: { enabled: isUsersHomeUnlocked, label: 'Users Home' },
-        serverOwnerHome: { enabled: false, label: 'Server Owner Home' }, // Users collections shouldn't be on server owner home
+        usersHome: { enabled: true, label: 'Users Home' },
+        serverOwnerHome: { enabled: true, label: 'Server Owner Home' },
         libraryRecommended: { enabled: true, label: 'Library Recommended' },
       };
     }

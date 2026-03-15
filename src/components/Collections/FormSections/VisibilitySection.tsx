@@ -14,7 +14,7 @@ const messages = defineMessages({
   serverOwnerHome: 'Server Owner Home',
   libraryRecommended: 'Library Recommended',
   userRequestCollectionsRestricted:
-    "Individual user request collections are restricted to Library Tab Only visibility due a Plex bug that doesn't respect label restrictions on the Home/Recommended screens. TMDB Franchise Collections and Plex Library Auto Director Collections are hidden so that you don't clog up your home/recommended screens.",
+    'TMDB Franchise Collections and Plex Library Auto Director/Actor Collections are restricted to Library Tab Only visibility to avoid cluttering your Home and Recommended screens.',
   serverOwnerOnlyRestricted:
     "Server owner request collections can only appear on the server owner's home screen.",
   noVisibilityHubWarning:
