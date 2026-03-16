@@ -3255,8 +3255,6 @@ const CollectionFormConfigForm = ({
                                   isEnhancedForm={false}
                                   isDefaultPlexHub={isHub}
                                   restrictToLibraryOnly={
-                                    (values.type === 'overseerr' &&
-                                      values.subtype === 'users') ||
                                     (values.type === 'tmdb' &&
                                       values.subtype === 'auto_franchise') ||
                                     (values.type === 'plex' &&

@@ -65,8 +65,6 @@ const messages = defineMessages({
   failedLoadPlexLibraries:
     'Failed to load Plex libraries. Please check your Plex connection.',
   noCollectionsFound: 'No Collections found. Click Discover to get started!',
-  usersHomeUnlocked: 'Users Home collections unlocked!',
-  failedUnlockUsersHome: 'Failed to unlock Users Home collections',
   collectionsSyncStarted: 'Collections sync started successfully!',
   failedStartSync: 'Failed to start collections sync. Please try again.',
   hubConfigSaved: 'Hub configuration saved successfully!',
@@ -272,9 +270,6 @@ const CollectionSettings = ({
   // State to track when an inactive collection was just added (for pulsating button)
   const [showInactiveHelp, setShowInactiveHelp] = useState(false);
 
-  // Badge click tracking (for easter eggs)
-  const [badgeClickCount, setBadgeClickCount] = useState(0);
-
   // Hub discovery state
   const [discoveringHubs, setDiscoveringHubs] = useState(false);
 
@@ -377,55 +372,6 @@ const CollectionSettings = ({
 
   const shouldShowPlaceholderAlert =
     !isFirstTimeUser && libraryIssues.length > 0;
-
-  const checkForUnlockSequence = () => {
-    // Check if there's an Overseerr user collection with 69 items and user has clicked 10 times
-    const overseerrUserCollectionWith69Items = collectionConfigs.find(
-      (config: CollectionFormConfig) =>
-        config.type === 'overseerr' &&
-        config.subtype === 'users' &&
-        config.maxItems === 69
-    );
-
-    if (
-      overseerrUserCollectionWith69Items &&
-      badgeClickCount >= 10 &&
-      !data?.usersHomeUnlocked
-    ) {
-      // Unlock Users Home collections - preserve all existing settings
-      if (data) {
-        const writableSettings = Object.fromEntries(
-          Object.entries(data).filter(
-            ([key]) => !['name', 'machineId', 'libraries'].includes(key)
-          )
-        );
-        fetch('/api/v1/settings/plex', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            ...writableSettings,
-            usersHomeUnlocked: true, // Only change this field
-          }),
-        })
-          .then(() => {
-            revalidate();
-            addToast(`${intl.formatMessage(messages.usersHomeUnlocked)} 🏠✨`, {
-              autoDismiss: true,
-              appearance: 'success',
-            });
-            setBadgeClickCount(0);
-          })
-          .catch(() => {
-            addToast(intl.formatMessage(messages.failedUnlockUsersHome), {
-              autoDismiss: true,
-              appearance: 'error',
-            });
-          });
-      }
-    }
-  };
 
   // Collection configuration handlers
   const saveCollectionConfigs = async (
@@ -2279,9 +2225,6 @@ const CollectionSettings = ({
                   onPromotePreExisting={handlePromotePreExisting}
                   onDemotePreExisting={handleDemotePreExisting}
                   onReorderItems={handleReorderItems}
-                  badgeClickCount={badgeClickCount}
-                  setBadgeClickCount={setBadgeClickCount}
-                  checkForUnlockSequence={checkForUnlockSequence}
                   activeTab={activeTab}
                   onBulkEdit={() => setShowBulkEditModal(true)}
                 />
@@ -2313,9 +2256,6 @@ const CollectionSettings = ({
               onPromotePreExisting={handlePromotePreExisting}
               onDemotePreExisting={handleDemotePreExisting}
               onReorderItems={handleReorderItems}
-              badgeClickCount={badgeClickCount}
-              setBadgeClickCount={setBadgeClickCount}
-              checkForUnlockSequence={checkForUnlockSequence}
               activeTab={activeTab}
               onBulkEdit={() => setShowBulkEditModal(true)}
             />

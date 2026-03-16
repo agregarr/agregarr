@@ -123,9 +123,6 @@ interface LibraryCollectionGroupProps {
     ) & { configType: FormConfigType; position: number })[],
     itemTypeName: string
   ) => Promise<void>;
-  badgeClickCount: number;
-  setBadgeClickCount: (value: number | ((prev: number) => number)) => void;
-  checkForUnlockSequence: () => void;
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
   onBulkEdit?: () => void;
 }
@@ -145,8 +142,6 @@ interface SortableItemProps {
   onDemoteCollection?: (config: CollectionFormConfig) => Promise<void>;
   onPromotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
   onDemotePreExisting?: (config: PreExistingCollectionConfig) => Promise<void>;
-  setBadgeClickCount: (value: number | ((prev: number) => number)) => void;
-  checkForUnlockSequence: () => void;
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
   onIndividualSync?: (collectionId: string) => Promise<void>;
   isSyncing?: boolean;
@@ -164,8 +159,6 @@ const SortableItem = ({
   onDemoteCollection,
   onPromotePreExisting,
   onDemotePreExisting,
-  setBadgeClickCount,
-  checkForUnlockSequence,
   activeTab,
   onIndividualSync,
   isSyncing,
@@ -327,24 +320,7 @@ const SortableItem = ({
                 const maxItems = collectionConfig.maxItems;
                 if (maxItems === undefined) return null;
 
-                return (
-                  <ItemCountBadge
-                    maxItems={maxItems}
-                    onBadgeClick={
-                      maxItems === 69
-                        ? () => {
-                            setBadgeClickCount((prev) => {
-                              const newCount = prev + 1;
-                              if (newCount >= 10) {
-                                checkForUnlockSequence();
-                              }
-                              return newCount;
-                            });
-                          }
-                        : undefined
-                    }
-                  />
-                );
+                return <ItemCountBadge maxItems={maxItems} />;
               })()}
 
             {/* Missing Items Badge - Shows when grab missing is enabled for collections */}
@@ -553,15 +529,9 @@ const LibraryCollectionGroup = ({
   onPromotePreExisting,
   onDemotePreExisting,
   onReorderItems,
-  badgeClickCount,
-  setBadgeClickCount,
-  checkForUnlockSequence,
   activeTab,
   onBulkEdit,
 }: LibraryCollectionGroupProps) => {
-  // Ensure badgeClickCount is "used" to satisfy linter - this is part of easter egg state management
-  void badgeClickCount;
-
   const intl = useIntl();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
@@ -878,8 +848,6 @@ const LibraryCollectionGroup = ({
                       onDemoteCollection={onDemoteCollection}
                       onPromotePreExisting={onPromotePreExisting}
                       onDemotePreExisting={onDemotePreExisting}
-                      setBadgeClickCount={setBadgeClickCount}
-                      checkForUnlockSequence={checkForUnlockSequence}
                       activeTab={activeTab}
                       onIndividualSync={handleIndividualSync}
                       isSyncing={syncingIds.has(config.id)}

@@ -13,8 +13,8 @@ const messages = defineMessages({
   usersHome: 'Users Home',
   serverOwnerHome: 'Server Owner Home',
   libraryRecommended: 'Library Recommended',
-  userRequestCollectionsRestricted:
-    "Individual user request collections are restricted to Library Tab Only visibility due a Plex bug that doesn't respect label restrictions on the Home/Recommended screens. TMDB Franchise Collections and Plex Library Auto Director Collections are hidden so that you don't clog up your home/recommended screens.",
+  libraryOnlyRestricted:
+    'TMDB Franchise Collections and Plex Library Auto Director/Actor Collections are restricted to Library Tab Only visibility to avoid cluttering your home/recommended screens.',
   serverOwnerOnlyRestricted:
     "Server owner request collections can only appear on the server owner's home screen.",
   noVisibilityHubWarning:
@@ -82,7 +82,7 @@ const VisibilitySection = ({
       {/* Show restriction notice for collections restricted to library only */}
       {restrictToLibraryOnly && (
         <div className="mb-3 rounded border border-orange-500/20 bg-orange-500/10 p-3 text-sm text-orange-300">
-          {intl.formatMessage(messages.userRequestCollectionsRestricted)}
+          {intl.formatMessage(messages.libraryOnlyRestricted)}
         </div>
       )}
 
