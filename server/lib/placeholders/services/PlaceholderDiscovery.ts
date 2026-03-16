@@ -142,24 +142,12 @@ export async function discoverPlaceholdersFromMarkers(
 
       const plexItem = plexMatches.get(`${marker.tmdbId}-tv`);
 
-      // Verify it's still a placeholder (check if real content was added)
+      // Marker file on disk proves this is an Agregarr-created placeholder.
+      // Don't re-verify via isPlaceholderItem — returns false for TV shows
+      // when Children metadata is missing from the Plex API response.
       let needsTitleFix = false;
       if (plexItem) {
-        const plexMetadata = await plexClient.getMetadata(
-          plexItem.ratingKey.toString(),
-          { includeChildren: true }
-        );
-        const isStillPlaceholder =
-          placeholderContextService.isPlaceholderItem(plexMetadata);
-        needsTitleFix = isStillPlaceholder;
-
-        if (!isStillPlaceholder) {
-          logger.info('Placeholder has real content now - skipping title fix', {
-            label: 'PlaceholderService',
-            title: marker.title,
-            ratingKey: plexItem.ratingKey,
-          });
-        }
+        needsTitleFix = true;
       }
 
       discovered.push({
@@ -204,27 +192,13 @@ export async function discoverPlaceholdersFromMarkers(
 
         const plexItem = plexMatches.get(`${dbRecord.tmdbId}-tv`);
 
-        // Verify it's still a placeholder (check if real content was added)
+        // Marker file on disk proves this is an Agregarr-created placeholder.
+        // Don't re-verify via isPlaceholderItem — returns false for TV shows
+        // when Children metadata is missing from the Plex API response.
+        // Only *arr download status determines cleanup vs title-fix.
         let needsTitleFix = false;
         if (plexItem) {
-          const plexMetadata = await plexClient.getMetadata(
-            plexItem.ratingKey.toString(),
-            { includeChildren: true }
-          );
-          const isStillPlaceholder =
-            placeholderContextService.isPlaceholderItem(plexMetadata);
-          needsTitleFix = isStillPlaceholder;
-
-          if (!isStillPlaceholder) {
-            logger.info(
-              'Placeholder has real content now - skipping title fix',
-              {
-                label: 'PlaceholderService',
-                title: marker.title,
-                ratingKey: plexItem.ratingKey,
-              }
-            );
-          }
+          needsTitleFix = true;
         }
 
         discovered.push({
