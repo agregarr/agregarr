@@ -147,9 +147,13 @@ const TemplateSection = ({
               detectedMediaTypes
             );
 
-            // Auto-select the first available option if template is empty
-            // This ensures validation passes on initial render
-            if (!values.template && templatePresets.length > 0) {
+            // Auto-select the first available option if template is empty or not in current presets
+            // This handles cases like editing a multi-source collection that was previously
+            // single-source (e.g., template = 'Trending Anime' but multi-source only has 'custom')
+            const isTemplateValid =
+              values.template &&
+              templatePresets.some((p) => p.value === values.template);
+            if (!isTemplateValid && templatePresets.length > 0) {
               setFieldValue('template', templatePresets[0].value);
             }
 
