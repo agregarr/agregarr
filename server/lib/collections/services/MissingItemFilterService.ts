@@ -58,6 +58,10 @@ export function buildPlaceholderFilterConfig(
 ): CollectionConfig {
   return {
     ...config,
+    // Placeholder creation is independent of auto-download; force these true
+    // so filterMissingItems does not gate on download-specific flags.
+    searchMissingMovies: true,
+    searchMissingTV: true,
     minimumYear: config.placeholderMinimumYear ?? 0,
     minimumImdbRating: config.placeholderMinimumImdbRating ?? 0,
     minimumRottenTomatoesRating:
