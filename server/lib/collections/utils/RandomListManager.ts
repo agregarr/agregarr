@@ -1054,67 +1054,38 @@ https://letterboxd.com/cinema/list/criterion-collection/
       const { CloudflareSolver } = await import(
         '@server/lib/collections/utils/CloudflareSolver'
       );
-      const discoveredUrls: string[] = [];
 
       // Pick 3 random pages from the 250 available to get good variety
-      const pagesToScrape = 3;
       const scrapedPages = new Set<number>();
+      while (scrapedPages.size < 3) {
+        scrapedPages.add(Math.floor(Math.random() * 250) + 1);
+      }
 
-      for (let i = 0; i < pagesToScrape; i++) {
-        let randomPage: number;
-        do {
-          randomPage = Math.floor(Math.random() * 250) + 1; // 1-250
-        } while (scrapedPages.has(randomPage));
+      const pageUrls = Array.from(scrapedPages).map((p) =>
+        p === 1
+          ? 'https://letterboxd.com/lists/popular/'
+          : `https://letterboxd.com/lists/popular/page/${p}/`
+      );
 
-        scrapedPages.add(randomPage);
+      logger.debug(`Scraping ${pageUrls.length} Letterboxd discovery pages`, {
+        label: 'RandomListManager',
+        pages: Array.from(scrapedPages),
+      });
 
-        try {
-          const pageUrl =
-            randomPage === 1
-              ? 'https://letterboxd.com/lists/popular/'
-              : `https://letterboxd.com/lists/popular/page/${randomPage}/`;
+      // Fetch all 3 pages with a single shared browser
+      const htmlMap = await CloudflareSolver.fetchPagesBatch(pageUrls, 3);
 
-          logger.debug(`Scraping Letterboxd page ${randomPage}`, {
-            label: 'RandomListManager',
-            pageUrl,
-          });
+      const discoveredUrls: string[] = [];
+      const listUrlRegex = /href="(\/[^/]+\/list\/[^/]+\/)"[^>]*>/g;
 
-          // Use CloudflareSolver to bypass Cloudflare TLS fingerprinting
-          const html = await CloudflareSolver.fetchPage(pageUrl);
-
-          // Look for list URLs in the format: /username/list/list-name/
-          const listUrlRegex = /href="(\/[^/]+\/list\/[^/]+\/)"[^>]*>/g;
-          let match;
-
-          while ((match = listUrlRegex.exec(html)) !== null) {
-            const listPath = match[1];
-            const fullUrl = `https://letterboxd.com${listPath}`;
-
-            if (!discoveredUrls.includes(fullUrl)) {
-              discoveredUrls.push(fullUrl);
-            }
+      for (const [, html] of htmlMap) {
+        let match;
+        const regex = new RegExp(listUrlRegex.source, 'g');
+        while ((match = regex.exec(html)) !== null) {
+          const fullUrl = `https://letterboxd.com${match[1]}`;
+          if (!discoveredUrls.includes(fullUrl)) {
+            discoveredUrls.push(fullUrl);
           }
-
-          logger.debug(
-            `Found ${discoveredUrls.length} total Letterboxd lists so far`,
-            {
-              label: 'RandomListManager',
-              page: randomPage,
-              newFromThisPage: html.match(listUrlRegex)?.length || 0,
-            }
-          );
-        } catch (error) {
-          logger.warn(`Failed to scrape Letterboxd page ${randomPage}`, {
-            label: 'RandomListManager',
-            page: randomPage,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          // Continue with other pages
-        }
-
-        // Small delay between requests to be respectful
-        if (i < pagesToScrape - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
@@ -1714,34 +1685,38 @@ https://letterboxd.com/cinema/list/criterion-collection/
           }
         }
 
-        // For Letterboxd validation, we need to resolve TMDB IDs like the actual sync process does
+        // For Letterboxd validation, resolve TMDB IDs in batches of 25 concurrently
         const { default: TmdbAPI } = await import('@server/api/themoviedb');
         const tmdbClient = new TmdbAPI();
 
+        const batchSize = 25;
         let plexMatchCount = 0;
 
-        for (const item of letterboxdItems) {
-          try {
-            // Search for the movie on TMDB using title and year (same logic as actual sync)
-            const searchResults = await tmdbClient.searchMovies({
-              query: item.title,
-              year: item.year,
-            });
-
-            if (searchResults.results && searchResults.results.length > 0) {
-              const tmdbMovie = searchResults.results[0];
-
-              // Check if this TMDB ID exists in user's Plex library
-              if (tmdbMovie.id && userTmdbIds.has(tmdbMovie.id)) {
-                plexMatchCount++;
-                if (plexMatchCount >= 4) {
-                  return true; // Found enough matches in Plex library!
+        for (let i = 0; i < letterboxdItems.length; i += batchSize) {
+          const batch = letterboxdItems.slice(i, i + batchSize);
+          const batchIds = await Promise.all(
+            batch.map(async (item) => {
+              try {
+                const searchResults = await tmdbClient.searchMovies({
+                  query: item.title,
+                  year: item.year,
+                });
+                if (searchResults.results && searchResults.results.length > 0) {
+                  return searchResults.results[0].id;
                 }
+                return null;
+              } catch {
+                return null;
               }
-            }
-          } catch (error) {
-            // Skip items that fail TMDB lookup
-            continue;
+            })
+          );
+
+          plexMatchCount += batchIds.filter(
+            (id) => id !== null && userTmdbIds.has(id)
+          ).length;
+
+          if (plexMatchCount >= 4) {
+            return true;
           }
         }
 
