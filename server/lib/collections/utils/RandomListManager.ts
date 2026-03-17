@@ -307,15 +307,11 @@ https://letterboxd.com/cinema/list/criterion-collection/
         }
 
         case 'imdb': {
-          const axios = (await import('axios')).default;
-
-          const response = await axios.get(url, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-            timeout: 10000,
-          });
+          const { ImdbAxiosClient } = await import(
+            '@server/lib/collections/utils/ImdbAxiosClient'
+          );
+          const axiosInstance = await ImdbAxiosClient.getInstance();
+          const response = await axiosInstance.get(url, { timeout: 15000 });
 
           // Extract title from HTML using the same logic as fetch-title endpoint
           const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
@@ -344,18 +340,13 @@ https://letterboxd.com/cinema/list/criterion-collection/
         }
 
         case 'letterboxd': {
-          const axios = (await import('axios')).default;
-
-          const response = await axios.get(url, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-            timeout: 10000,
-          });
+          const { CloudflareSolver } = await import(
+            '@server/lib/collections/utils/CloudflareSolver'
+          );
+          const html = await CloudflareSolver.fetchPage(url);
 
           // Extract title from HTML and clean it up using same logic as fetch-title endpoint
-          const titleMatch = response.data.match(/<title>([^<]+)<\/title>/i);
+          const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
           if (titleMatch) {
             let rawTitle = titleMatch[1];
 
@@ -573,12 +564,14 @@ https://letterboxd.com/cinema/list/criterion-collection/
         targetMediaType
       );
 
-      // Cache the results
-      this.discoveryCache.set(cacheKey, {
-        urls: discoveredUrls,
-        lastDiscovered: now,
-        nextRefresh: now + this.DISCOVERY_CACHE_TTL,
-      });
+      // Only cache if we found results — don't cache empty discovery (allows retry on next request)
+      if (discoveredUrls.length > 0) {
+        this.discoveryCache.set(cacheKey, {
+          urls: discoveredUrls,
+          lastDiscovered: now,
+          nextRefresh: now + this.DISCOVERY_CACHE_TTL,
+        });
+      }
 
       logger.info(
         `Discovered ${discoveredUrls.length} lists for ${sourceType}`,
@@ -1058,7 +1051,9 @@ https://letterboxd.com/cinema/list/criterion-collection/
    */
   private static async discoverLetterboxdLists(): Promise<string[]> {
     try {
-      const axios = (await import('axios')).default;
+      const { CloudflareSolver } = await import(
+        '@server/lib/collections/utils/CloudflareSolver'
+      );
       const discoveredUrls: string[] = [];
 
       // Pick 3 random pages from the 250 available to get good variety
@@ -1084,16 +1079,8 @@ https://letterboxd.com/cinema/list/criterion-collection/
             pageUrl,
           });
 
-          const response = await axios.get(pageUrl, {
-            headers: {
-              'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            },
-            timeout: 10000,
-          });
-
-          // Parse HTML to extract list URLs
-          const html = response.data;
+          // Use CloudflareSolver to bypass Cloudflare TLS fingerprinting
+          const html = await CloudflareSolver.fetchPage(pageUrl);
 
           // Look for list URLs in the format: /username/list/list-name/
           const listUrlRegex = /href="(\/[^/]+\/list\/[^/]+\/)"[^>]*>/g;
@@ -1575,27 +1562,27 @@ https://letterboxd.com/cinema/list/criterion-collection/
     try {
       // If library cache is provided, check that we have at least 4 items in Plex library
       if (libraryCache) {
-        // Import axios for web scraping
-        const axios = (await import('axios')).default;
+        // Use ImdbAxiosClient which has WAF token cookies (same as actual sync)
+        const { ImdbAxiosClient } = await import(
+          '@server/lib/collections/utils/ImdbAxiosClient'
+        );
+        const axiosInstance = await ImdbAxiosClient.getInstance();
 
         // Fetch the IMDb list page
-        const response = await axios.get(url, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
-          timeout: 10000,
+        const response = await axiosInstance.get(url, {
+          timeout: 15000,
         });
 
-        // Parse the HTML to extract IMDb items using the proper parser
+        // Parse using __NEXT_DATA__ parser (same as actual sync for custom lists)
         const ImdbCollections = await import(
           '@server/lib/collections/sources/imdb'
         );
         const imdbCollections = new ImdbCollections.default();
-        const imdbItems = imdbCollections.parseImdbListHtml(
+        const pageData = imdbCollections.parseNextDataFromHtml(
           response.data,
-          Math.min(maxItems, 50)
+          'validation'
         );
+        const imdbItems = pageData ? pageData.items : [];
 
         // Filter items by target media type
         const targetItems = imdbItems.filter((item) => {
@@ -1684,17 +1671,11 @@ https://letterboxd.com/cinema/list/criterion-collection/
 
       // If library cache is provided, check that we have at least 4 items in Plex library
       if (libraryCache) {
-        // Import axios for web scraping
-        const axios = (await import('axios')).default;
-
-        // Fetch the Letterboxd list page
-        const response = await axios.get(url, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          },
-          timeout: 10000,
-        });
+        // Use CloudflareSolver (same as actual sync) to bypass Cloudflare TLS fingerprinting
+        const { CloudflareSolver } = await import(
+          '@server/lib/collections/utils/CloudflareSolver'
+        );
+        const html = await CloudflareSolver.fetchPage(url);
 
         // Parse the HTML to extract Letterboxd items using the proper parser
         const LetterboxdCollections = await import(
@@ -1703,7 +1684,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
         const letterboxdCollections =
           new LetterboxdCollections.LetterboxdCollectionSync();
         const letterboxdItems = letterboxdCollections.parseLetterboxdListHtml(
-          response.data,
+          html,
           Math.min(maxItems, 50)
         );
 
