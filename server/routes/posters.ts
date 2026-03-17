@@ -1039,6 +1039,15 @@ router.get('/icons/:type/:filename', async (req, res, next) => {
       });
     }
 
+    // Reject any filename containing path separators to prevent traversal
+    if (
+      filename.includes('/') ||
+      filename.includes('\\') ||
+      filename.includes('..')
+    ) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
     try {
       const iconBuffer = await loadIconFile(
         filename,

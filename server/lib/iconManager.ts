@@ -575,7 +575,11 @@ export function getIconPath(
   type: 'user' | 'system' = 'user'
 ): string {
   const dir = type === 'system' ? SERVICES_ICONS_DIR : ICONS_STORAGE_DIR;
-  return path.join(dir, filename);
+  const resolved = path.resolve(dir, filename);
+  if (!resolved.startsWith(path.resolve(dir) + path.sep)) {
+    throw new Error('Invalid icon path');
+  }
+  return resolved;
 }
 
 /**
