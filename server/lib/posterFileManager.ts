@@ -110,7 +110,8 @@ export async function loadThumbnailFile(
   try {
     if (!filename) return null;
 
-    const thumbnailPath = path.join(POSTER_STORAGE_DIR, filename);
+    // Delegate to getPosterPath which validates the filename against path traversal
+    const thumbnailPath = getPosterPath(filename);
 
     if (!fs.existsSync(thumbnailPath)) {
       logger.debug('Thumbnail file not found', { filename });
