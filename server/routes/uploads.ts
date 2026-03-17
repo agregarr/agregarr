@@ -502,15 +502,22 @@ router.get('/overlay-template-export/:id', async (req, res) => {
             }
           }
         } else {
-          const possiblePaths = [
-            path.join(process.cwd(), 'config', 'uploads', assetPath),
-            path.join(process.cwd(), 'config', 'posters', assetPath),
-            path.join(process.cwd(), assetPath),
+          const allowedDirs = [
+            path.join(process.cwd(), 'config', 'uploads'),
+            path.join(process.cwd(), 'config', 'posters'),
           ];
+          const possiblePaths = allowedDirs.map((dir) =>
+            path.join(dir, assetPath)
+          );
 
           for (const possiblePath of possiblePaths) {
-            if (fs.existsSync(possiblePath)) {
-              archive.file(possiblePath, {
+            const resolvedPath = path.resolve(possiblePath);
+            const isContained = allowedDirs.some((dir) =>
+              resolvedPath.startsWith(path.resolve(dir) + path.sep)
+            );
+            if (!isContained) continue;
+            if (fs.existsSync(resolvedPath)) {
+              archive.file(resolvedPath, {
                 name: `assets/images/${path.basename(assetPath)}`,
               });
               logger.debug(
