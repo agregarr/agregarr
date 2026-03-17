@@ -450,7 +450,7 @@ export class ImdbCollectionSync extends BaseCollectionSync<'imdb'> {
    * Parse __NEXT_DATA__ from IMDb list HTML to extract all items
    * IMDb embeds full list data in __NEXT_DATA__ JSON structure (up to ~250 items per page)
    */
-  private parseNextDataFromHtml(
+  public parseNextDataFromHtml(
     html: string,
     configName: string
   ): {

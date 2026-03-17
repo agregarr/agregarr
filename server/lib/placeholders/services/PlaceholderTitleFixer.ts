@@ -82,8 +82,17 @@ export async function ensurePlaceholderEpisodeTitle(
         return false;
       }
 
-      // Get the first episode (should be S00E00)
-      const episode = episodesData[0];
+      // Find S00E00 by index rather than assuming array order
+      const episode = episodesData.find((ep) => ep.index === 0);
+
+      if (!episode) {
+        logger.debug('No E00 found in Season 00 - cannot fix title', {
+          label: 'PlaceholderService',
+          title: showTitle,
+          episodeIndexes: episodesData.map((ep) => ep.index),
+        });
+        return false;
+      }
 
       // Check if title is already correct
       if (episode.title === 'Trailer (Placeholder)') {

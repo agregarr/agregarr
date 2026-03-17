@@ -1039,6 +1039,15 @@ router.get('/icons/:type/:filename', async (req, res, next) => {
       });
     }
 
+    // Reject any filename containing path separators to prevent traversal
+    if (
+      filename.includes('/') ||
+      filename.includes('\\') ||
+      filename.includes('..')
+    ) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
     try {
       const iconBuffer = await loadIconFile(
         filename,
@@ -1200,17 +1209,23 @@ router.get('/templates/:id/export', async (req, res, next) => {
             }
           }
         } else {
-          // This might be a raster image path - check in different possible locations
-          const possiblePaths = [
-            path.join(process.cwd(), 'config', 'uploads', assetPath),
-            path.join(process.cwd(), 'config', 'posters', assetPath),
-            path.join(process.cwd(), assetPath),
+          const allowedDirs = [
+            path.join(process.cwd(), 'config', 'uploads'),
+            path.join(process.cwd(), 'config', 'posters'),
           ];
+          const possiblePaths = allowedDirs.map((dir) =>
+            path.join(dir, assetPath)
+          );
 
           for (const possiblePath of possiblePaths) {
-            if (fs.existsSync(possiblePath)) {
+            const resolvedPath = path.resolve(possiblePath);
+            const isContained = allowedDirs.some((dir) =>
+              resolvedPath.startsWith(path.resolve(dir) + path.sep)
+            );
+            if (!isContained) continue;
+            if (fs.existsSync(resolvedPath)) {
               const relativeName = `assets/images/${path.basename(assetPath)}`;
-              archive.file(possiblePath, { name: relativeName });
+              archive.file(resolvedPath, { name: relativeName });
               logger.debug(`Added raster image to archive: ${relativeName}`);
               break;
             }

@@ -10,11 +10,27 @@ import { chromium, type BrowserContext } from 'playwright';
  */
 export class CloudflareSolver {
   private static fetchInProgress: Map<string, Promise<string>> = new Map();
+  private static htmlCache: Map<string, { html: string; fetchedAt: number }> =
+    new Map();
+  private static readonly HTML_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   /**
-   * Fetch page content using Playwright, bypassing Cloudflare
+   * Fetch page content using Playwright, bypassing Cloudflare.
+   * Results are cached for 5 minutes — the same URL is often requested
+   * multiple times in quick succession (validate → extractTitle → page 1 fetch).
    */
   static async fetchPage(url: string): Promise<string> {
+    // Return cached content if still fresh
+    const cached = this.htmlCache.get(url);
+    if (cached && Date.now() - cached.fetchedAt < this.HTML_CACHE_TTL) {
+      logger.debug('Returning cached page content', {
+        label: 'Cloudflare Solver',
+        url,
+        ageMs: Date.now() - cached.fetchedAt,
+      });
+      return cached.html;
+    }
+
     // Check if fetch is already in progress for this URL
     const inProgress = this.fetchInProgress.get(url);
     if (inProgress) {
@@ -31,6 +47,7 @@ export class CloudflareSolver {
 
     try {
       const content = await fetchPromise;
+      this.htmlCache.set(url, { html: content, fetchedAt: Date.now() });
       return content;
     } finally {
       this.fetchInProgress.delete(url);
@@ -175,5 +192,122 @@ export class CloudflareSolver {
         }`
       );
     }
+  }
+
+  /**
+   * Fetch multiple pages using a single shared browser context.
+   * More efficient than fetchPage() for batches since browser startup only happens once.
+   */
+  static async fetchPagesBatch(
+    urls: string[],
+    concurrency = 5
+  ): Promise<Map<string, string>> {
+    if (urls.length === 0) return new Map();
+
+    const results = new Map<string, string>();
+    const domain = new URL(urls[0]).hostname;
+
+    logger.info(
+      `Fetching ${urls.length} pages with shared browser (${concurrency} concurrent)`,
+      {
+        label: 'Cloudflare Solver',
+        domain,
+        total: urls.length,
+        concurrency,
+      }
+    );
+
+    const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
+    const browser = await chromium.launch({
+      headless: true,
+      executablePath: executablePath || undefined,
+      args: [
+        '--disable-blink-features=AutomationControlled',
+        '--disable-dev-shm-usage',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+      ],
+    });
+
+    try {
+      const context = await browser.newContext({
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        viewport: { width: 1920, height: 1080 },
+        locale: 'en-US',
+        extraHTTPHeaders: {
+          'Accept-Language': 'en-US,en;q=0.9',
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        },
+      });
+
+      // Apply stealth measures once for all pages from this context
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => undefined,
+        });
+        (window as Window & { chrome?: object }).chrome = { runtime: {} };
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => [1, 2, 3, 4, 5],
+        });
+        Object.defineProperty(navigator, 'languages', {
+          get: () => ['en-US', 'en'],
+        });
+      });
+
+      for (let i = 0; i < urls.length; i += concurrency) {
+        const batch = urls.slice(i, i + concurrency);
+
+        const batchResults = await Promise.all(
+          batch.map(async (url) => {
+            const page = await context.newPage();
+            try {
+              await page.goto(url, {
+                waitUntil: 'domcontentloaded',
+                timeout: 30000,
+              });
+              const content = await page.content();
+              return { url, content };
+            } catch (error) {
+              logger.debug(
+                `Failed to fetch ${url}: ${
+                  error instanceof Error ? error.message : 'Unknown'
+                }`,
+                { label: 'Cloudflare Solver' }
+              );
+              return { url, content: null };
+            } finally {
+              await page.close();
+            }
+          })
+        );
+
+        for (const { url, content } of batchResults) {
+          if (content) {
+            results.set(url, content);
+          }
+        }
+
+        if (i + concurrency < urls.length) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+      }
+
+      logger.info(
+        `Batch fetch complete: ${results.size}/${urls.length} pages fetched`,
+        {
+          label: 'Cloudflare Solver',
+          domain,
+          fetched: results.size,
+          total: urls.length,
+        }
+      );
+    } finally {
+      await browser.close();
+    }
+
+    return results;
   }
 }

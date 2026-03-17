@@ -2,7 +2,6 @@ import type {
   CollectionFormConfig,
   CollectionFormConfigForEditing,
   Library,
-  VisibilityCheckboxState,
 } from '@app/types/collections';
 import { CollectionFormConfigUtils } from '@app/types/collections';
 import { useCallback, useState } from 'react';
@@ -319,72 +318,6 @@ export const FormStateHelpers = {
 
       return true;
     });
-  },
-
-  /**
-   * Get visibility checkbox states based on collection type
-   */
-  getVisibilityCheckboxStates: (
-    values: CollectionFormConfig,
-    data: { hasUsersHomeUnlock?: boolean }
-  ): Record<string, VisibilityCheckboxState> => {
-    if (!values.type)
-      return {
-        usersHome: { enabled: false, label: 'Users Home' },
-        serverOwnerHome: { enabled: false, label: 'Server Owner Home' },
-        libraryRecommended: { enabled: false, label: 'Library Recommended' },
-      };
-
-    // For User Requests (overseerr + users), check if Users Home is unlocked
-    if (values.type === 'overseerr' && values.subtype === 'users') {
-      const isUsersHomeUnlocked = data?.hasUsersHomeUnlock || false;
-      return {
-        usersHome: { enabled: isUsersHomeUnlocked, label: 'Users Home' },
-        serverOwnerHome: { enabled: false, label: 'Server Owner Home' }, // Users collections shouldn't be on server owner home
-        libraryRecommended: { enabled: true, label: 'Library Recommended' },
-      };
-    }
-
-    // For Server Owner requests (overseerr + server_owner), only "Server Owner Home" should be available
-    if (values.type === 'overseerr' && values.subtype === 'server_owner') {
-      return {
-        usersHome: { enabled: false, label: 'Users Home' }, // Server owner collections shouldn't be on users' home
-        serverOwnerHome: { enabled: true, label: 'Server Owner Home' },
-        libraryRecommended: { enabled: true, label: 'Library Recommended' },
-      };
-    }
-
-    // For Hub configs, all options should be available
-    if (values.configType === 'hub') {
-      return {
-        usersHome: { enabled: true, label: 'Users Home' },
-        serverOwnerHome: { enabled: true, label: 'Server Owner Home' },
-        libraryRecommended: { enabled: true, label: 'Library Recommended' },
-      };
-    }
-
-    // For Source collections (Tautulli/Trakt/etc), all options should be available
-    if (
-      values.type === 'tautulli' ||
-      values.type === 'trakt' ||
-      values.type === 'tmdb' ||
-      values.type === 'imdb' ||
-      values.type === 'letterboxd' ||
-      values.type === 'multi-source'
-    ) {
-      return {
-        usersHome: { enabled: true, label: 'Users Home' },
-        serverOwnerHome: { enabled: true, label: 'Server Owner Home' },
-        libraryRecommended: { enabled: true, label: 'Library Recommended' },
-      };
-    }
-
-    // For overseerr global collections, all options should be available
-    return {
-      usersHome: { enabled: true, label: 'Users Home' },
-      serverOwnerHome: { enabled: true, label: 'Server Owner Home' },
-      libraryRecommended: { enabled: true, label: 'Library Recommended' },
-    };
   },
 };
 

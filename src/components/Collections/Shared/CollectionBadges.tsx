@@ -537,24 +537,10 @@ export const SourceSubtypeBadge: React.FC<SourceSubtypeBadgeProps> = ({
 // Item Count Badge
 interface ItemCountBadgeProps {
   maxItems: number;
-  onBadgeClick?: () => void;
 }
 
-export const ItemCountBadge: React.FC<ItemCountBadgeProps> = ({
-  maxItems,
-  onBadgeClick,
-}) => {
+export const ItemCountBadge: React.FC<ItemCountBadgeProps> = ({ maxItems }) => {
   const intl = useIntl();
-  // Easter egg handling for maxItems === 69
-  if (maxItems === 69 && onBadgeClick) {
-    return (
-      <button type="button" onClick={onBadgeClick} className="cursor-pointer">
-        <Badge badgeType="success" className="!bg-opacity-40">
-          {intl.formatMessage(messages.items, { maxItems })}
-        </Badge>
-      </button>
-    );
-  }
 
   return (
     <Badge badgeType="default" className="!bg-opacity-30">
