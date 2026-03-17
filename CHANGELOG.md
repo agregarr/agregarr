@@ -1,3 +1,22 @@
+## [2.4.2](https://github.com/agregarr/agregarr/compare/v2.4.1...v2.4.2) (2026-03-17)
+
+
+### Bug Fixes
+
+* **imdb-letterboxd:** use Playwright clients in random list and title validation for IMDb/Letterboxd ([c2f1179](https://github.com/agregarr/agregarr/commit/c2f11799cfccf63c4ba4a11257ac60a8f1a95b97)), closes [#475](https://github.com/agregarr/agregarr/issues/475)
+* **multi-source:** reset stale title template when changing from single to multi source ([06e962c](https://github.com/agregarr/agregarr/commit/06e962c7ce075f53f9bbc5aa26bb4025b9b351cc)), closes [#521](https://github.com/agregarr/agregarr/issues/521)
+* path traversal in overlay template export ([#513](https://github.com/agregarr/agregarr/issues/513)) ([5ed40a3](https://github.com/agregarr/agregarr/commit/5ed40a38325a7d90e18e70d2adcd41a544d27c58))
+* **placeholders:** add Plex Webhook support to mark placeholders as unwatched ([07f0a14](https://github.com/agregarr/agregarr/commit/07f0a14ef080a9dc9b251d4b4e0513afb63bce4b))
+* **placeholders:** placeholder filters blocking creation when grab missing items was not enabled ([199841f](https://github.com/agregarr/agregarr/commit/199841f3aeae5d2368f5a83585536d66f7d1be2f)), closes [#509](https://github.com/agregarr/agregarr/issues/509)
+* **security:** validate filenames in icon and poster thumbnail routes to prevent path traversal ([cd14951](https://github.com/agregarr/agregarr/commit/cd14951bbc7e2bf6d8200677d60bf300f496e0dd))
+* **seerr:** enable Home/Recommended visibility options for Seerr Individual Requests collections ([95f77d6](https://github.com/agregarr/agregarr/commit/95f77d64a4be651322d950cbd7914c0392848fb6)), closes [#112](https://github.com/agregarr/agregarr/issues/112)
+* TV placeholders leaking into filtered hubs ([#503](https://github.com/agregarr/agregarr/issues/503)) ([404e7c8](https://github.com/agregarr/agregarr/commit/404e7c865eeaed28135e6a69af6f2693b5f223b4)), closes [#414](https://github.com/agregarr/agregarr/issues/414)
+
+
+### Performance Improvements
+
+* **letterboxd:** reduce Playwright usage and parallelise TMDB resolution ([67b8139](https://github.com/agregarr/agregarr/commit/67b813988e4e66a7e30f902dbf4d42e8a655f144))
+
 ## [2.4.1](https://github.com/agregarr/agregarr/compare/v2.4.0...v2.4.1) (2026-03-05)
 
 
