@@ -989,7 +989,7 @@
   "components.PostersView.tmdbOption": "Affiches TMDB",
   "components.Settings.traktConnectFailed": "ossible de démarrer le flux OAuth de Trakt",
   "components.Collections.FormSections.noPosterAvailable": "Aucune affiche disponible",
-  "components.Collections.FormSections.hideIndividualItemsHelp": "Masquer les films individuels de cette franchise. Seule la collection elle-même sera affichée dans l'onglet bibliothèque. Si un élément apparaît dans une autre collection, il restera visible dans l'onglet bibliothèque.",
+  "components.Collections.FormSections.hideIndividualItemsHelp": "Masque les éléments individuels de l'onglet « Bibliothèque » et n'afficher que la collection. Si un élément apparaît dans une autre collection, il peut rester visible là-bas.",
   "components.Settings.overseerrRootFolderTip": "Dossier racine par défaut pour les demandes",
   "components.PosterEditor.lowercase": "Minuscules",
   "components.Collections.PreviewCollectionModal.downloadError": "Échec de l’envoi de la demande de téléchargement",
@@ -1697,7 +1697,7 @@
   "components.Collections.Views.library": "Bibliothèque",
   "components.Collections.Views.noCollectionsFound": "Aucune collection trouvée. Cliquer sur Découvrir pour commencer !",
   "components.Collections.Views.orderingExplanation": "Les collections dans <strong>« Accueil » et « Recommandé »</strong> partagent le même ordre (cela contrôle la position sur l’écran d’accueil Plex), tandis que <strong>« Bibliothèque »</strong> a un ordre indépendant pour les onglets de bibliothèque.",
-  "components.Collections.Views.placeholderWarning": "Au moins une collection a l’option <strong>« Créer des fichiers fictifs pour les éléments manquants »</strong> activée. Les hubs par défaut suivants sont activés, mais afficheront des fichiers fictifs :",
+  "components.Collections.Views.placeholderWarning": "Au moins une collection a l’option <strong>Créer des fichiers fictifs pour les éléments manquants</strong> activée. Les hubs par défaut suivants sont activés, mais afficheront des fichiers fictifs :",
   "components.Collections.Views.preExistingConfigSaved": "Configuration de la collection préexistante enregistrée !",
   "components.Collections.Views.recommended": "Recommandé",
   "components.Collections.Views.usersHomeUnlocked": "Collections Accueil des utilisateurs déverrouillées !",
@@ -2129,5 +2129,8 @@
   "components.Collections.Forms.placeholderMinimumRottenTomatoesRating": "Note Rotten Tomatoes minimale",
   "components.Collections.Forms.placeholderMinimumRottenTomatoesRatingHelp": "Ne créer des éléments fictifs que pour les contenus dont la note des critiques sur RT est supérieure ou égale à cette valeur (0 = sans limite)",
   "components.Collections.Forms.placeholderMinimumYear": "Année de sortie minimale",
-  "components.Collections.Forms.placeholderMinimumYearHelp": "Ne créer des éléments fictifs que pour les contenus sortis à partir de cette année (0 = sans limite)"
+  "components.Collections.Forms.placeholderMinimumYearHelp": "Ne créer des éléments fictifs que pour les contenus sortis à partir de cette année (0 = sans limite)",
+  "components.Settings.plexWebhookTitle": "Webhook Plex",
+  "components.Settings.plexWebhookDescription": "Réinitialise automatiquement le statut visionné quand un fichier fictif de bande-annonce est lu, évitant sa synchronisation vers Trakt ou autres services de scrobbling. Nécessite Plex Pass. Enregistrez le webhook dans Plex sous Paramètres → Webhooks.",
+  "components.Collections.FormSections.libraryOnlyRestricted": "Les collections de franchises TMDB et les collections automatiques par Réalisateur/Acteur de la bibliothèque Plex sont limitées à la visibilité de l'onglet « Bibliothèque » pour éviter d'encombrer vos écrans d'accueil/sections recommandées."
 }
