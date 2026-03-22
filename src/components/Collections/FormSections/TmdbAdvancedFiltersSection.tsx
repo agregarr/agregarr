@@ -35,8 +35,8 @@ interface TmdbLanguageCombined {
 
 interface FilterGroup {
   id: string;
-  operator?: 'and' | 'or'; // For backwards compatibility
-  groupOperator?: 'and' | 'or'; // Operator between this group and the next
+  operator?: 'and' | 'or' | 'not'; // For backwards compatibility
+  groupOperator?: 'and' | 'or' | 'not'; // Operator between this group and the next
   filters: Filter[];
 }
 
@@ -59,6 +59,7 @@ const messages = defineMessages({
   addFilterGroup: 'Add Filter Group',
   matchAllFollowing: 'Match all of the following',
   matchAnyFollowing: 'Match any of the following',
+  excludeFollowing: 'Exclude results matching the following',
   addFilter: 'Add Filter',
   removeFilter: 'Remove Filter',
   removeFilterGroup: 'Remove Filter Group',
@@ -66,6 +67,7 @@ const messages = defineMessages({
   enterValue: 'Enter value...',
   andOperator: 'AND',
   orOperator: 'OR',
+  notOperator: 'NOT',
 });
 
 const MULTIVALUE_SEPARATOR_FIELDS = new Set([
@@ -1432,7 +1434,7 @@ const TmdbAdvancedFiltersSection = ({
                       value={group.groupOperator || group.operator || 'and'}
                       onChange={(e) => {
                         updateFilterGroup(group.id, {
-                          operator: e.target.value as 'and' | 'or',
+                          operator: e.target.value as 'and' | 'or' | 'not',
                         });
                       }}
                       className="rounded-md border border-stone-500 bg-stone-700 px-2 py-1 text-sm text-white focus:border-orange-500"
@@ -1443,10 +1445,15 @@ const TmdbAdvancedFiltersSection = ({
                       <option value="or">
                         {intl.formatMessage(messages.orOperator)}
                       </option>
+                      <option value="not">
+                        {intl.formatMessage(messages.notOperator)}
+                      </option>
                     </select>
                   )}
                   <span className="text-sm text-gray-300">
-                    {intl.formatMessage(messages.matchAllFollowing)}
+                    {(group.groupOperator || group.operator || 'and') === 'not'
+                      ? intl.formatMessage(messages.excludeFollowing)
+                      : intl.formatMessage(messages.matchAllFollowing)}
                   </span>
                 </div>
                 <button
