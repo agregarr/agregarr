@@ -6,7 +6,7 @@
   "components.Layout.UserDropdown.signout": "Se déconnecter",
   "components.Layout.VersionStatus.commitsbehind": "{commitsBehind} {commitsBehind, plural, one {commit} other {commits}} en retard",
   "components.Layout.VersionStatus.outofdate": "Obsolète",
-  "components.Layout.VersionStatus.streamdevelop": "Agregarr Dev",
+  "components.Layout.VersionStatus.streamdevelop": "Agregarr développement",
   "components.Layout.VersionStatus.streamstable": "Agregarr stable",
   "components.Login.signin": "Connexion",
   "components.Login.signinheader": "Connectez-vous pour continuer",
