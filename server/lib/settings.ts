@@ -94,6 +94,8 @@ export interface CollectionConfig {
     serverOwnerHome: boolean;
     libraryRecommended: boolean;
   };
+  readonly targetUserId?: string; // Plex user ID — restricts collection visibility to this user
+  readonly targetUserLabel?: string; // Display name for UI reference
   readonly isActive: boolean; // Whether collection is currently active (time restrictions met)
   readonly missing?: boolean; // True if collection no longer exists in Plex
   // Sync status tracking fields

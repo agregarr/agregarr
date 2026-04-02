@@ -12,6 +12,7 @@ import {
   PreExistingBadge,
   SourceSubtypeBadge,
   SyncStatus,
+  TargetUserBadge,
   TimeRestrictionsBadge,
   UnwatchedBadge,
 } from '@app/components/Collections/Shared/CollectionBadges';
@@ -747,6 +748,20 @@ const AllCollectionsView: React.FC = () => {
                           searchMissingTV={
                             (collection.originalConfig as CollectionFormConfig)
                               .searchMissingTV
+                          }
+                        />
+                      )}
+
+                      {/* Target User Badge - Shows when collection is targeted to a specific user */}
+                      {isCollection && collection.originalConfig && (
+                        <TargetUserBadge
+                          targetUserId={
+                            (collection.originalConfig as CollectionFormConfig)
+                              .targetUserId
+                          }
+                          targetUserLabel={
+                            (collection.originalConfig as CollectionFormConfig)
+                              .targetUserLabel
                           }
                         />
                       )}

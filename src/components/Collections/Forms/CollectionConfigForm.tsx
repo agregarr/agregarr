@@ -247,6 +247,8 @@ const messages = defineMessages({
   randomizeHomeOrder: 'Randomize Home Order',
   shuffleHubCollectionHelp:
     "When enabled, this {itemType}'s position will be randomly shuffled with other collections that have this option enabled during each sync. Custom scheduling for shuffling can be set on the Jobs page.",
+  targetUser: 'Target User',
+  targetUserNone: 'None (visible to all users)',
   pleaseFixErrors: 'Please fix the following errors:',
   failedFetchTraktTitle: 'Failed to fetch Trakt list title',
   failedFetchTmdbTitle: 'Failed to fetch TMDB title',
@@ -313,6 +315,17 @@ const CollectionFormConfigForm = ({
   const { data: youtubeCookiesStatus } = useSWR<{ exists: boolean }>(
     '/api/v1/settings/youtube-cookies-status'
   );
+
+  // Fetch Plex users for target user dropdown
+  const { data: plexUsers } = useSWR<
+    {
+      id: string;
+      title: string;
+      username: string;
+      email: string;
+      thumb: string;
+    }[]
+  >('/api/v1/settings/plex/users');
 
   // State for storing fetched titles and detected media types
   const [fetchedTitles, setFetchedTitles] = useState<{
@@ -1783,6 +1796,9 @@ const CollectionFormConfigForm = ({
             libraryRecommended:
               config.visibilityConfig?.libraryRecommended ?? false,
           },
+          targetUserId: (config as CollectionFormConfig).targetUserId || '',
+          targetUserLabel:
+            (config as CollectionFormConfig).targetUserLabel || '',
           randomizeHomeOrder:
             (config as CollectionFormConfig).randomizeHomeOrder ?? false,
           customPoster: (config as CollectionFormConfig).customPoster || '',
@@ -2309,6 +2325,9 @@ const CollectionFormConfigForm = ({
             excludeFromCollections: isPersonCollection
               ? undefined
               : values.excludeFromCollections,
+            // Target user restriction
+            targetUserId: optionalString(values.targetUserId),
+            targetUserLabel: optionalString(values.targetUserLabel),
             // Remove UI-only fields from the final config
             enableGrabMissingItems: undefined,
           };
@@ -3266,6 +3285,64 @@ const CollectionFormConfigForm = ({
                                     values.subtype === 'server_owner'
                                   }
                                 />
+                              </div>
+                            </div>
+
+                            {/* Target User */}
+                            <div className="form-row">
+                              <label
+                                htmlFor="targetUserId"
+                                className="text-label"
+                              >
+                                {intl.formatMessage(messages.targetUser)}
+                              </label>
+                              <div className="form-input-area">
+                                <div className="form-input-field">
+                                  <Field
+                                    as="select"
+                                    id="targetUserId"
+                                    name="targetUserId"
+                                    value={values.targetUserId || ''}
+                                    onChange={(
+                                      e: React.ChangeEvent<HTMLSelectElement>
+                                    ) => {
+                                      const selectedId = e.target.value;
+                                      if (selectedId) {
+                                        const user = plexUsers?.find(
+                                          (u) => u.id === selectedId
+                                        );
+                                        setFieldValue(
+                                          'targetUserId',
+                                          selectedId
+                                        );
+                                        setFieldValue(
+                                          'targetUserLabel',
+                                          user ? user.title : ''
+                                        );
+                                      } else {
+                                        setFieldValue(
+                                          'targetUserId',
+                                          undefined
+                                        );
+                                        setFieldValue(
+                                          'targetUserLabel',
+                                          undefined
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    <option value="">
+                                      {intl.formatMessage(
+                                        messages.targetUserNone
+                                      )}
+                                    </option>
+                                    {plexUsers?.map((user) => (
+                                      <option key={user.id} value={user.id}>
+                                        {user.title}
+                                      </option>
+                                    ))}
+                                  </Field>
+                                </div>
                               </div>
                             </div>
 
@@ -4507,6 +4584,58 @@ const CollectionFormConfigForm = ({
                                 restrictToLibraryOnly={false}
                                 restrictToServerOwnerOnly={false}
                               />
+                            </div>
+                          </div>
+
+                          {/* Target User */}
+                          <div className="form-row">
+                            <label
+                              htmlFor="targetUserId"
+                              className="text-label"
+                            >
+                              {intl.formatMessage(messages.targetUser)}
+                            </label>
+                            <div className="form-input-area">
+                              <div className="form-input-field">
+                                <Field
+                                  as="select"
+                                  id="targetUserId"
+                                  name="targetUserId"
+                                  value={values.targetUserId || ''}
+                                  onChange={(
+                                    e: React.ChangeEvent<HTMLSelectElement>
+                                  ) => {
+                                    const selectedId = e.target.value;
+                                    if (selectedId) {
+                                      const user = plexUsers?.find(
+                                        (u) => u.id === selectedId
+                                      );
+                                      setFieldValue('targetUserId', selectedId);
+                                      setFieldValue(
+                                        'targetUserLabel',
+                                        user ? user.title : ''
+                                      );
+                                    } else {
+                                      setFieldValue('targetUserId', undefined);
+                                      setFieldValue(
+                                        'targetUserLabel',
+                                        undefined
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <option value="">
+                                    {intl.formatMessage(
+                                      messages.targetUserNone
+                                    )}
+                                  </option>
+                                  {plexUsers?.map((user) => (
+                                    <option key={user.id} value={user.id}>
+                                      {user.title}
+                                    </option>
+                                  ))}
+                                </Field>
+                              </div>
                             </div>
                           </div>
 

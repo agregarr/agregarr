@@ -482,6 +482,8 @@
   "components.Collections.Forms.smartCollectionDescription": "When enabled, creates a smart collection with the unwatched filter to show only unwatched items for the user viewing the collection. The original collection will be pushed to the bottom in the Collections Tab.",
   "components.Collections.Forms.smartCollectionSort": "Smart Collection Sort Order",
   "components.Collections.Forms.smartCollectionSortNote": "Choose how items in the smart collection should be sorted. Due to Plex limitations, the original list order cannot be preserved when using smart collections.",
+  "components.Collections.Forms.targetUser": "Target User",
+  "components.Collections.Forms.targetUserNone": "None (visible to all users)",
   "components.Collections.Forms.theseLibraries": "these libraries",
   "components.Collections.Forms.thisLibrary": "this library",
   "components.Collections.Forms.timeRestrictions": "Time Restrictions",

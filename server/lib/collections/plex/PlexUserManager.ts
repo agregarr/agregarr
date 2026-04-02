@@ -3,6 +3,7 @@ import {
   extractErrorMessage,
   getAdminUser,
 } from '@server/lib/collections/core/CollectionUtilities';
+import type { CollectionConfig } from '@server/lib/settings';
 import { getSettings } from '@server/lib/settings';
 import logger from '@server/logger';
 import xml2js from 'xml2js';
@@ -282,7 +283,8 @@ export async function updateUserFilterSettings(
   targetUserPlexId: string,
   allUserPlexIds: string[],
   activeOverseerrUserIds: string[],
-  hasServerOwnerConfig = false
+  hasServerOwnerConfig = false,
+  targetUserConfigs?: CollectionConfig[]
 ): Promise<void> {
   try {
     const settings = getSettings();
@@ -362,6 +364,20 @@ export async function updateUserFilterSettings(
       adminUser.plexId.toString() !== targetUserPlexId
     ) {
       agregarrLabels.push(`AgregarrOverseerrOwner${adminUser.plexId}`);
+    }
+
+    // Also exclude targeted collection labels for OTHER users
+    if (targetUserConfigs && targetUserConfigs.length > 0) {
+      for (const config of targetUserConfigs) {
+        if (
+          config.targetUserId &&
+          config.targetUserId.toString() !== targetUserPlexId
+        ) {
+          agregarrLabels.push(
+            `AgregarrTargetUser_${config.id}_${config.targetUserId}`
+          );
+        }
+      }
     }
 
     // Combine filters - merge Agregarr labels into existing filter structure for Movies and TV only
@@ -591,7 +607,8 @@ export async function applyPreSyncUserRestrictions(): Promise<void> {
  */
 export async function applySelectivePreSyncUserRestrictions(
   hasUsersConfig: boolean,
-  hasServerOwnerConfig: boolean
+  hasServerOwnerConfig: boolean,
+  targetUserConfigs?: CollectionConfig[]
 ): Promise<void> {
   try {
     logger.info(
@@ -641,7 +658,12 @@ export async function applySelectivePreSyncUserRestrictions(
     }
 
     // Check if we have any active configs that require restrictions
-    if (activeOverseerrUserIds.length === 0 && !hasServerOwnerConfig) {
+    const hasTargetUsers = targetUserConfigs && targetUserConfigs.length > 0;
+    if (
+      activeOverseerrUserIds.length === 0 &&
+      !hasServerOwnerConfig &&
+      !hasTargetUsers
+    ) {
       logger.info(
         'No active Overseerr users found and no server owner config - skipping user restrictions',
         {
@@ -667,7 +689,8 @@ export async function applySelectivePreSyncUserRestrictions(
     await applyUserFiltersToAllUsers(
       allPlexUserIds,
       activeOverseerrUserIds,
-      hasServerOwnerConfig
+      hasServerOwnerConfig,
+      targetUserConfigs
     );
 
     logger.info('Selective pre-sync user restrictions applied successfully', {
@@ -693,7 +716,8 @@ export async function applySelectivePreSyncUserRestrictions(
 export async function applyUserFiltersToAllUsers(
   allPlexUserIds: string[],
   activeOverseerrUserIds: string[],
-  hasServerOwnerConfig = false
+  hasServerOwnerConfig = false,
+  targetUserConfigs?: CollectionConfig[]
 ): Promise<void> {
   logger.info(
     `Applying user filter restrictions to ${allPlexUserIds.length} Plex users (${activeOverseerrUserIds.length} have active collections)`,
@@ -720,7 +744,8 @@ export async function applyUserFiltersToAllUsers(
         userPlexId,
         allPlexUserIds,
         activeOverseerrUserIds,
-        hasServerOwnerConfig
+        hasServerOwnerConfig,
+        targetUserConfigs
       );
 
       // Individual user success logged at info level after batch completion

@@ -422,6 +422,10 @@ export interface CollectionFormConfig {
   // Collection exclusion settings
   readonly excludeFromCollections?: string[]; // Array of collection IDs to exclude items from (mutual exclusion)
 
+  // Target user restriction (restrict collection visibility to a specific Plex user)
+  readonly targetUserId?: string; // Plex user ID to restrict this collection to
+  readonly targetUserLabel?: string; // Display name of the target user (for UI)
+
   // Backend properties (from PlexHubConfig) - Present on hub configs from API
   readonly collectionType?: CollectionType; // Simplified categorization system
   readonly isUnlinked?: boolean; // True if this hub was deliberately unlinked
