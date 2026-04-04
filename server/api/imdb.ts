@@ -62,6 +62,7 @@ class ImdbAPI {
   private top250TvCache: Map<string, number> = new Map();
   private top250LastRefresh: { movies?: number; tv?: number } = {};
   private readonly TOP250_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+  private readonly TOP250_FAILURE_BACKOFF = 5 * 60 * 1000; // 5 minutes
 
   /**
    * Get a predefined IMDb top list
@@ -280,7 +281,9 @@ class ImdbAPI {
         label: 'IMDb API',
         error: error instanceof Error ? error.message : String(error),
       });
-      // Don't throw - fall back to empty cache
+      // Back off on failure to avoid retrying per item (~30s WAF timeout each)
+      this.top250LastRefresh[type === 'movie' ? 'movies' : 'tv'] =
+        Date.now() - this.TOP250_CACHE_TTL + this.TOP250_FAILURE_BACKOFF;
     }
   }
 
