@@ -421,7 +421,7 @@ const TemplateSection = ({
           const baseVars = 'Media Type - {mediaType}';
 
           if (values.type === 'overseerr') {
-            return `Available variables: Plex Username - {username}, Plex Nickname - {nickname}, Seerr Domain - {domain}, Seerr App Title - {appTitle}, ${baseVars}.`;
+            return `Available variables: Plex Username - {username}, Plex Nickname - {nickname}, Seerr Display Name - {displayName}, Seerr Domain - {domain}, Seerr App Title - {appTitle}, ${baseVars}.`;
           }
 
           if (values.type === 'tautulli') {

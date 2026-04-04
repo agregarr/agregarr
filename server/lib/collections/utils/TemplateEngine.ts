@@ -229,6 +229,10 @@ export class TemplateEngine {
       // Include stored admin info for user template examples
       username: this.settings.main.adminUsername || 'username',
       nickname: this.settings.main.adminNickname || 'nickname',
+      displayName:
+        this.settings.main.adminNickname ||
+        this.settings.main.adminUsername ||
+        'displayname',
     };
   }
 
