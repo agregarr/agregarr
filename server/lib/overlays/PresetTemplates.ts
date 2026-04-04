@@ -286,6 +286,12 @@ export const PRESET_TEMPLATES: {
               operator: 'lte',
               value: 30,
             }, // Only ≤30 days
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
@@ -299,6 +305,12 @@ export const PRESET_TEMPLATES: {
               operator: 'lte',
               value: 30,
             }, // Only ≤30 days
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
       ],
@@ -1273,7 +1285,7 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: >30 days, monitored, not a show, in Radarr
+          // Movies: >30 days, monitored, not a show, in Radarr, not yet downloaded
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
             {
@@ -1294,10 +1306,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: true,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR TV S01: >30 days, monitored, season <= 1, in Sonarr
+          // OR TV S01: >30 days, monitored, season <= 1, in Sonarr, not yet downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
@@ -1318,6 +1336,12 @@ export const PRESET_TEMPLATES: {
               field: 'inSonarr',
               operator: 'eq',
               value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1375,7 +1399,7 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: (>30 days AND movie) AND NOT inRadarr
+          // Movies: (>30 days AND movie) AND NOT inRadarr AND not downloaded
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
             {
@@ -1390,10 +1414,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR (>30 days AND movie) AND NOT monitored
+          // OR (>30 days AND movie) AND NOT monitored AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
@@ -1409,10 +1439,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR TV S01: (>30 days AND season <= 1) AND NOT inSonarr
+          // OR TV S01: (>30 days AND season <= 1) AND NOT inSonarr AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
@@ -1428,10 +1464,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR (>30 days AND season <= 1) AND NOT monitored
+          // OR (>30 days AND season <= 1) AND NOT monitored AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 30 },
@@ -1444,6 +1486,12 @@ export const PRESET_TEMPLATES: {
             {
               ruleOperator: 'and',
               field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
               operator: 'eq',
               value: false,
             },
@@ -1505,7 +1553,7 @@ export const PRESET_TEMPLATES: {
       sections: [
         {
           rules: [
-            // Base condition: 2-30 days until release
+            // Base condition: 2-30 days until release, not yet downloaded
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
             {
               ruleOperator: 'and',
@@ -1533,10 +1581,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: true,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR TV Season 1
+          // OR TV Season 1, not yet downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
@@ -1563,6 +1617,12 @@ export const PRESET_TEMPLATES: {
               field: 'inSonarr',
               operator: 'eq',
               value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1626,7 +1686,7 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: (2-30 days AND movie) AND NOT inRadarr
+          // Movies: (2-30 days AND movie) AND NOT inRadarr AND not downloaded
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
             {
@@ -1647,10 +1707,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR (2-30 days AND movie) AND NOT monitored
+          // OR (2-30 days AND movie) AND NOT monitored AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
@@ -1672,10 +1738,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR TV S01: (2-30 days AND season <= 1) AND NOT inSonarr
+          // OR TV S01: (2-30 days AND season <= 1) AND NOT inSonarr AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
@@ -1697,10 +1769,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR (2-30 days AND season <= 1) AND NOT monitored
+          // OR (2-30 days AND season <= 1) AND NOT monitored AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'gt', value: 1 },
@@ -1719,6 +1797,12 @@ export const PRESET_TEMPLATES: {
             {
               ruleOperator: 'and',
               field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
               operator: 'eq',
               value: false,
             },
@@ -1780,7 +1864,7 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: tomorrow, monitored, not a show, in Radarr
+          // Movies: tomorrow, monitored, not a show, in Radarr, not yet downloaded
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
             {
@@ -1801,10 +1885,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: true,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR TV S01: tomorrow, monitored, season <= 1, in Sonarr
+          // OR TV S01: tomorrow, monitored, season <= 1, in Sonarr, not yet downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
@@ -1825,6 +1915,12 @@ export const PRESET_TEMPLATES: {
               field: 'inSonarr',
               operator: 'eq',
               value: true,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
             },
           ],
         },
@@ -1880,7 +1976,7 @@ export const PRESET_TEMPLATES: {
     applicationCondition: {
       sections: [
         {
-          // Movies: (tomorrow AND movie) AND NOT inRadarr
+          // Movies: (tomorrow AND movie) AND NOT inRadarr AND not downloaded
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
             {
@@ -1895,10 +1991,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR (tomorrow AND movie) AND NOT monitored
+          // OR (tomorrow AND movie) AND NOT monitored AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
@@ -1914,10 +2016,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR TV S01: (tomorrow AND season <= 1) AND NOT inSonarr
+          // OR TV S01: (tomorrow AND season <= 1) AND NOT inSonarr AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
@@ -1933,10 +2041,16 @@ export const PRESET_TEMPLATES: {
               operator: 'eq',
               value: false,
             },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
+              operator: 'eq',
+              value: false,
+            },
           ],
         },
         {
-          // OR (tomorrow AND season <= 1) AND NOT monitored
+          // OR (tomorrow AND season <= 1) AND NOT monitored AND not downloaded
           sectionOperator: 'or',
           rules: [
             { field: 'daysUntilRelease', operator: 'eq', value: 1 },
@@ -1949,6 +2063,12 @@ export const PRESET_TEMPLATES: {
             {
               ruleOperator: 'and',
               field: 'isMonitored',
+              operator: 'eq',
+              value: false,
+            },
+            {
+              ruleOperator: 'and',
+              field: 'downloaded',
               operator: 'eq',
               value: false,
             },
