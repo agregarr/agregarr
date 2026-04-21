@@ -165,7 +165,7 @@ export type FormConfigType = 'collection' | 'hub' | 'preExisting';
 export type TmdbAdvancedFilters = {
   readonly filterGroups?: readonly {
     readonly id: string;
-    readonly operator: 'and' | 'or'; // How this group combines with previous groups
+    readonly operator: 'and' | 'or' | 'not'; // How this group combines with previous groups
     readonly filters: readonly {
       readonly id: string;
       readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
