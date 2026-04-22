@@ -431,7 +431,7 @@ export class CollectionSyncService {
       );
 
       try {
-        onProgress?.(0, 'Applying Overseerr user restrictions...');
+        onProgress?.(0, 'Applying Seerr user restrictions...');
         await this.applyPreSyncUserRestrictions(
           hasUsersConfig,
           hasServerOwnerConfig
