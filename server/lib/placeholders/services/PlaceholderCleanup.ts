@@ -314,8 +314,16 @@ export async function cleanupOrphanedPlaceholderFiles(): Promise<number> {
 
               const files = await fs.readdir(folderPath);
               for (const file of files) {
-                // Check if this is a placeholder file (contains edition-Trailer)
-                if (!file.includes('{edition-Trailer}')) continue;
+                // Check if this is a placeholder file. Older Agregarr versions
+                // used {edition-Placeholder} and {edition-Coming Soon} before
+                // the rename to {edition-Trailer}, so legacy files must also
+                // be matched or they accumulate forever.
+                if (
+                  !file.includes('{edition-Trailer}') &&
+                  !file.includes('{edition-Placeholder}') &&
+                  !file.includes('{edition-Coming Soon}')
+                )
+                  continue;
 
                 const filePath = path.join(folderPath, file);
 
