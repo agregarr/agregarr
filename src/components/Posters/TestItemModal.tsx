@@ -7,6 +7,7 @@ import type {
 } from '@app/types/overlayTest';
 import { Transition } from '@headlessui/react';
 import {
+  ArrowPathIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   MagnifyingGlassIcon,
@@ -30,6 +31,11 @@ const messages = defineMessages({
   contextVariables: 'Context Variables ({count})',
   undefined: 'undefined',
   noPoster: 'No Poster',
+  refreshPoster: 'Refresh Poster',
+  refreshPosterSuccess: 'Poster refresh started for {title}',
+  refreshPosterError: 'Failed to start poster refresh',
+  refreshPosterConflict:
+    'A sync is already running. Please wait and try again.',
 });
 
 interface TestItemModalProps {
@@ -51,6 +57,10 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
   );
   const [isSearching, setIsSearching] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshingItems, setRefreshingItems] = useState<Set<string>>(
+    new Set()
+  );
   const [expandedTemplate, setExpandedTemplate] = useState<number | null>(null);
 
   const handleSearch = async () => {
@@ -127,6 +137,68 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
     setExpandedTemplate(null);
   };
 
+  const handleRefreshPoster = async () => {
+    if (!testResults) return;
+
+    setIsRefreshing(true);
+    try {
+      await axios.post(
+        `/api/v1/overlay-library-configs/${testResults.item.libraryId}/apply-items`,
+        { ratingKey: testResults.item.ratingKey }
+      );
+      addToast(
+        intl.formatMessage(messages.refreshPosterSuccess, {
+          title: testResults.item.title,
+        }),
+        { appearance: 'success', autoDismiss: true }
+      );
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : null;
+      const message =
+        status === 409
+          ? intl.formatMessage(messages.refreshPosterConflict)
+          : intl.formatMessage(messages.refreshPosterError);
+      addToast(message, { appearance: 'error', autoDismiss: true });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleRefreshItem = async (
+    e: React.MouseEvent,
+    item: PlexSearchResult
+  ) => {
+    e.stopPropagation();
+    if (refreshingItems.has(item.ratingKey)) return;
+
+    setRefreshingItems((prev) => new Set(prev).add(item.ratingKey));
+    try {
+      await axios.post(
+        `/api/v1/overlay-library-configs/${item.libraryId}/apply-items`,
+        { ratingKey: item.ratingKey }
+      );
+      addToast(
+        intl.formatMessage(messages.refreshPosterSuccess, {
+          title: item.title,
+        }),
+        { appearance: 'success', autoDismiss: true }
+      );
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : null;
+      const message =
+        status === 409
+          ? intl.formatMessage(messages.refreshPosterConflict)
+          : intl.formatMessage(messages.refreshPosterError);
+      addToast(message, { appearance: 'error', autoDismiss: true });
+    } finally {
+      setRefreshingItems((prev) => {
+        const next = new Set(prev);
+        next.delete(item.ratingKey);
+        return next;
+      });
+    }
+  };
+
   const handleClose = () => {
     setStage('search');
     setSearchQuery('');
@@ -193,7 +265,7 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                     <button
                       key={item.ratingKey}
                       onClick={() => setSelectedItem(item)}
-                      className={`relative rounded-lg p-2 transition-all ${
+                      className={`group relative rounded-lg p-2 transition-all ${
                         selectedItem?.ratingKey === item.ratingKey
                           ? 'bg-stone-700 ring-4 ring-orange-500'
                           : 'hover:bg-stone-700/50'
@@ -211,6 +283,20 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                             {intl.formatMessage(messages.noPoster)}
                           </div>
                         )}
+                        <button
+                          onClick={(e) => handleRefreshItem(e, item)}
+                          disabled={refreshingItems.has(item.ratingKey)}
+                          title={intl.formatMessage(messages.refreshPoster)}
+                          className="absolute bottom-2 right-2 rounded-full bg-black/60 p-2.5 text-white opacity-0 transition-opacity hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50 group-hover:opacity-100"
+                        >
+                          <ArrowPathIcon
+                            className={`h-5 w-5 ${
+                              refreshingItems.has(item.ratingKey)
+                                ? 'animate-spin'
+                                : ''
+                            }`}
+                          />
+                        </button>
                       </div>
                       <div className="text-left">
                         <p className="truncate text-sm font-medium text-white">
@@ -275,6 +361,19 @@ const TestItemModal: React.FC<TestItemModalProps> = ({ isOpen, onClose }) => {
                       })}
                     </p>
                   </div>
+                  <Button
+                    buttonType="primary"
+                    onClick={handleRefreshPoster}
+                    disabled={isRefreshing}
+                    className="flex w-full items-center justify-center space-x-2"
+                  >
+                    <ArrowPathIcon
+                      className={`h-4 w-4 ${
+                        isRefreshing ? 'animate-spin' : ''
+                      }`}
+                    />
+                    <span>{intl.formatMessage(messages.refreshPoster)}</span>
+                  </Button>
                 </>
               ) : null}
             </div>

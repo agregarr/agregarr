@@ -165,7 +165,7 @@ export type FormConfigType = 'collection' | 'hub' | 'preExisting';
 export type TmdbAdvancedFilters = {
   readonly filterGroups?: readonly {
     readonly id: string;
-    readonly operator: 'and' | 'or'; // How this group combines with previous groups
+    readonly operator: 'and' | 'or' | 'not'; // How this group combines with previous groups
     readonly filters: readonly {
       readonly id: string;
       readonly field: string; // e.g., 'with_genres', 'vote_average.gte'
@@ -223,7 +223,8 @@ export interface CollectionFormConfig {
   readonly sortOrderLibrary?: number; // Order for Plex library tab (0 for A-Z section, 1+ for promoted section)
   readonly isLibraryPromoted?: boolean; // true = promoted section (uses exclamation marks), false = A-Z section (defaults to true for Agregarr collections)
   readonly randomizeHomeOrder?: boolean; // If true, randomize position amongst other randomized items on home screen
-  readonly collectionRatingKey?: string; // Plex collection rating key for reordering (e.g., "35955")
+  readonly collectionRatingKey?: string; // Plex collection rating key for single-collection configs
+  readonly collectionRatingKeys?: string[]; // Plex rating keys for multi-collection configs (e.g. seerr/users) — populated during sync
   readonly showUnwatchedOnly?: boolean; // Create smart collection that shows only unwatched items
   readonly smartCollectionRatingKey?: string; // LEGACY: Old dual-collection system smart collection rating key (for migration only)
   readonly smartCollectionSort?: SmartCollectionSortOption; // Sort option for smart collections

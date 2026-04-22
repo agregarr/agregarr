@@ -73,7 +73,7 @@ async function unscrobblePlaceholder(
 }
 
 // POST / — receives Plex webhook events (multipart/form-data)
-router.post('/', upload.none(), async (req, res) => {
+router.post('/', upload.single('thumb'), async (req, res) => {
   // Respond immediately — Plex doesn't wait for our processing
   res.sendStatus(200);
 

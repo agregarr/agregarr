@@ -611,10 +611,10 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
         const normalizeLogicalOperator = (
           op: unknown
-        ): 'and' | 'or' | undefined => {
+        ): 'and' | 'or' | 'not' | undefined => {
           if (typeof op !== 'string') return undefined;
           const v = op.trim().toLowerCase();
-          if (v === 'and' || v === 'or') return v;
+          if (v === 'and' || v === 'or' || v === 'not') return v;
           return undefined;
         };
 
@@ -898,6 +898,17 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
                 combinedOrdered.push(item);
               }
             }
+          } else if (op === 'not') {
+            // NOT: set difference — remove items that appear in this group
+            combinedOrdered = combinedOrdered.filter((item) => {
+              const id = getId(item);
+              return id !== undefined && !currentIds.has(id);
+            });
+            combinedIds = new Set<number>(
+              combinedOrdered
+                .map(getId)
+                .filter((id): id is number => typeof id === 'number')
+            );
           } else {
             // AND (default): intersection, preserve existing order
             combinedOrdered = combinedOrdered.filter((item) => {

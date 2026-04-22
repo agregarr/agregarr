@@ -3284,6 +3284,10 @@ const CollectionFormConfigForm = ({
                                     values.type === 'overseerr' &&
                                     values.subtype === 'server_owner'
                                   }
+                                  restrictUsersOnly={
+                                    values.type === 'overseerr' &&
+                                    values.subtype === 'users'
+                                  }
                                 />
                               </div>
                             </div>

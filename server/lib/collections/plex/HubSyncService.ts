@@ -360,101 +360,113 @@ export class HubSyncService {
     for (const collectionConfig of collectionConfigs) {
       if (this.cancelled) return;
 
+      // Gather all rating keys for this config (single or multi-collection)
+      const ratingKeys: string[] = [];
+      if (
+        collectionConfig.collectionRatingKeys &&
+        collectionConfig.collectionRatingKeys.length > 0
+      ) {
+        ratingKeys.push(...collectionConfig.collectionRatingKeys);
+      } else if (collectionConfig.collectionRatingKey) {
+        ratingKeys.push(collectionConfig.collectionRatingKey);
+      }
+
       // Only process collections that have rating keys (i.e., have been created in Plex)
-      if (!collectionConfig.collectionRatingKey) {
+      if (ratingKeys.length === 0) {
         continue;
       }
 
-      // Generate the proper custom collection hub identifier
-      const collectionRatingKey = collectionConfig.collectionRatingKey;
-      const hubIdentifier = `custom.collection.${collectionConfig.libraryId}.${collectionRatingKey}`;
+      for (const collectionRatingKey of ratingKeys) {
+        // Generate the proper custom collection hub identifier
+        const hubIdentifier = `custom.collection.${collectionConfig.libraryId}.${collectionRatingKey}`;
 
-      // Skip malformed hub identifiers
-      if (!this.isValidHubIdentifier(hubIdentifier)) {
-        logger.warn(
-          `Skipping collection with invalid hub identifier: ${hubIdentifier}`,
-          {
-            label: 'Hub Sync Service',
-            collectionId: collectionConfig.id,
-            libraryId: collectionConfig.libraryId,
+        // Skip malformed hub identifiers
+        if (!this.isValidHubIdentifier(hubIdentifier)) {
+          logger.warn(
+            `Skipping collection with invalid hub identifier: ${hubIdentifier}`,
+            {
+              label: 'Hub Sync Service',
+              collectionId: collectionConfig.id,
+              libraryId: collectionConfig.libraryId,
+            }
+          );
+          continue;
+        }
+
+        try {
+          // Calculate current promotion status
+          const shouldBePromotedToHub =
+            this.calculateIsPromotedToHub(collectionConfig);
+          // Assume promoted if any rating key exists (collection exists in Plex)
+          const wasPromotedToHub = ratingKeys.length > 0;
+
+          if (shouldBePromotedToHub) {
+            // Collection should be in hub management - update visibility
+            const plexVisibility =
+              this.convertCollectionToPlexVisibility(collectionConfig);
+
+            await plexClient.updateHubVisibility(
+              collectionConfig.libraryId,
+              hubIdentifier,
+              plexVisibility
+            );
+
+            logger.debug(
+              `Updated hub visibility for collection ${collectionConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: collectionConfig.id,
+                hubIdentifier,
+                plexVisibility,
+              }
+            );
+          } else if (wasPromotedToHub) {
+            // Collection was previously promoted but should NOT be in hub management anymore - delete from hubs
+            await plexClient.deleteHubItem(
+              collectionConfig.libraryId,
+              hubIdentifier
+            );
+
+            logger.debug(
+              `Deleted collection from hub management: ${collectionConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: collectionConfig.id,
+                hubIdentifier,
+                reason: 'was promoted but should no longer be promoted',
+              }
+            );
+          } else {
+            // Collection was never promoted and shouldn't be - skip deletion attempt
+            logger.debug(
+              `Skipping collection (never promoted to hubs): ${collectionConfig.name}`,
+              {
+                label: 'Hub Sync Service',
+                collectionId: collectionConfig.id,
+                hubIdentifier,
+                wasPromotedToHub,
+                shouldBePromotedToHub,
+              }
+            );
           }
-        );
-        continue;
-      }
 
-      try {
-        // Calculate current promotion status
-        const shouldBePromotedToHub =
-          this.calculateIsPromotedToHub(collectionConfig);
-        // For regular collections, we assume they were promoted if they have a collectionRatingKey (exist in Plex)
-        const wasPromotedToHub = !!collectionConfig.collectionRatingKey;
-
-        if (shouldBePromotedToHub) {
-          // Collection should be in hub management - update visibility
-          const plexVisibility =
-            this.convertCollectionToPlexVisibility(collectionConfig);
-
-          await plexClient.updateHubVisibility(
-            collectionConfig.libraryId,
-            hubIdentifier,
-            plexVisibility
-          );
-
-          logger.debug(
-            `Updated hub visibility for collection ${collectionConfig.name}`,
+          // Note: Collection sync status is already handled in CollectionSyncService
+          // This is just visibility sync, so we don't update sync status here
+        } catch (error) {
+          logger.error(
+            `Failed to update visibility for collection ${
+              collectionConfig.name
+            }: ${extractErrorMessage(error)}`,
             {
               label: 'Hub Sync Service',
               collectionId: collectionConfig.id,
               hubIdentifier,
-              plexVisibility,
-            }
-          );
-        } else if (wasPromotedToHub) {
-          // Collection was previously promoted but should NOT be in hub management anymore - delete from hubs
-          await plexClient.deleteHubItem(
-            collectionConfig.libraryId,
-            hubIdentifier
-          );
-
-          logger.debug(
-            `Deleted collection from hub management: ${collectionConfig.name}`,
-            {
-              label: 'Hub Sync Service',
-              collectionId: collectionConfig.id,
-              hubIdentifier,
-              reason: 'was promoted but should no longer be promoted',
-            }
-          );
-        } else {
-          // Collection was never promoted and shouldn't be - skip deletion attempt
-          logger.debug(
-            `Skipping collection (never promoted to hubs): ${collectionConfig.name}`,
-            {
-              label: 'Hub Sync Service',
-              collectionId: collectionConfig.id,
-              hubIdentifier,
-              wasPromotedToHub,
-              shouldBePromotedToHub,
+              libraryId: collectionConfig.libraryId,
+              error: extractErrorMessage(error),
             }
           );
         }
-
-        // Note: Collection sync status is already handled in CollectionSyncService
-        // This is just visibility sync, so we don't update sync status here
-      } catch (error) {
-        logger.error(
-          `Failed to update visibility for collection ${
-            collectionConfig.name
-          }: ${extractErrorMessage(error)}`,
-          {
-            label: 'Hub Sync Service',
-            collectionId: collectionConfig.id,
-            hubIdentifier,
-            libraryId: collectionConfig.libraryId,
-            error: extractErrorMessage(error),
-          }
-        );
-      }
+      } // end for collectionRatingKey of ratingKeys
     }
   }
 
@@ -1158,18 +1170,31 @@ export class HubSyncService {
             return;
           }
 
-          // For collections, we need the collectionRatingKey to create proper Plex identifiers
-          const collectionRatingKey = config.collectionRatingKey;
+          const sortOrder =
+            config.sortOrderHome !== undefined ? config.sortOrderHome : 1;
 
-          // If we have a rating key for this library, include it in ordering
-          if (collectionRatingKey) {
+          // Multi-collection configs (e.g. overseerr/users) store rating keys in collectionRatingKeys[]
+          if (
+            config.collectionRatingKeys &&
+            config.collectionRatingKeys.length > 0
+          ) {
+            for (const ratingKey of config.collectionRatingKeys) {
+              libraryOrderingItems.push({
+                id: `${config.id}-${ratingKey}`,
+                type: 'collection',
+                libraryId,
+                collectionRatingKey: ratingKey,
+                sortOrder,
+              });
+            }
+          } else if (config.collectionRatingKey) {
+            // Single-collection configs store a single rating key
             libraryOrderingItems.push({
               id: config.id,
               type: 'collection',
               libraryId,
-              collectionRatingKey,
-              sortOrder:
-                config.sortOrderHome !== undefined ? config.sortOrderHome : 1,
+              collectionRatingKey: config.collectionRatingKey,
+              sortOrder,
             });
           }
         });

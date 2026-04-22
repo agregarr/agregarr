@@ -1594,14 +1594,6 @@ const CollectionSettings = ({
   // Apply filtering to each config type separately using raw data
   const filteredCollectionConfigs = localCollectionConfigs.filter(
     (config: CollectionFormConfig) => {
-      // For regular collection configs, exclude user collections from Home tab
-      if (
-        activeTab === 'home' &&
-        config.type === 'overseerr' &&
-        config.subtype === 'users'
-      ) {
-        return false;
-      }
       return filterConfigsByTab([config], false).length > 0;
     }
   );

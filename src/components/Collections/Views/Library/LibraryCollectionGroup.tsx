@@ -64,6 +64,8 @@ const messages = defineMessages({
   itemCount: '{count} {count, plural, one {item} other {items}}',
   bulkEdit: 'Bulk Edit',
   collectionSyncStarted: 'Collection sync started successfully',
+  userCollectionPositionWarning:
+    'Library Recommended is enabled. This will show one collection per user on the Recommended screen. To avoid blocking other content, place this at the bottom of the list, or use Users Home only.',
 });
 
 // Frontend collection promotion utilities
@@ -146,11 +148,13 @@ interface SortableItemProps {
   activeTab: 'home' | 'recommended' | 'library' | 'inactive' | 'unmanaged';
   onIndividualSync?: (collectionId: string) => Promise<void>;
   isSyncing?: boolean;
+  isLast?: boolean;
 }
 
 const SortableItem = ({
   config,
   configType,
+  isLast,
   onEditCollection,
   onEditHub,
   onEditPreExisting,
@@ -376,6 +380,19 @@ const SortableItem = ({
               />
             )}
           </div>
+
+          {/* Warning: overseerr/users with Library Recommended enabled and not at the bottom */}
+          {isCollection &&
+            (config as CollectionFormConfig).type === 'overseerr' &&
+            (config as CollectionFormConfig).subtype === 'users' &&
+            (config as CollectionFormConfig).visibilityConfig
+              ?.libraryRecommended &&
+            (activeTab === 'home' || activeTab === 'recommended') &&
+            !isLast && (
+              <div className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-300">
+                ⚠️ {intl.formatMessage(messages.userCollectionPositionWarning)}
+              </div>
+            )}
         </div>
       </div>
 
@@ -850,6 +867,7 @@ const LibraryCollectionGroup = ({
                     <SortableItem
                       config={config}
                       configType={type}
+                      isLast={index === allConfigs.length - 1}
                       onEditCollection={onEditCollection}
                       onEditHub={onEditHub}
                       onEditPreExisting={onEditPreExisting}

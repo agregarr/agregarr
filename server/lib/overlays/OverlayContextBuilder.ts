@@ -260,46 +260,55 @@ export async function buildRenderContext(
             error: error instanceof Error ? error.message : String(error),
           });
         }
+      }
 
-        // Rotten Tomatoes ratings
-        try {
-          const rtClient = new RottenTomatoes();
-          const rtRating =
-            mediaType === 'movie'
-              ? await rtClient.getMovieRatings(
-                  context.title || '',
-                  context.year || 0
-                )
-              : await rtClient.getTVRatings(context.title || '', context.year);
+      // Rotten Tomatoes ratings (independent of IMDb ID — only needs title/year)
+      try {
+        const rtClient = new RottenTomatoes();
+        // Use TMDb title for RT lookup — Plex titles may include year suffixes
+        // (e.g. "Young Sherlock 2026") that break RT fuzzy matching
+        const rtTitle =
+          mediaType === 'movie'
+            ? (tmdbData as { title: string }).title
+            : (tmdbData as { name: string }).name;
+        const rtRating =
+          mediaType === 'movie'
+            ? await rtClient.getMovieRatings(
+                rtTitle || context.title || '',
+                context.year || 0
+              )
+            : await rtClient.getTVRatings(
+                rtTitle || context.title || '',
+                context.year
+              );
 
-          if (rtRating) {
-            context.rtCriticsScore = rtRating.criticsScore;
-            context.rtAudienceScore = rtRating.audienceScore;
-            context.rtCertifiedFresh =
-              rtRating.criticsRating === 'Certified Fresh';
-            context.rtVerifiedHot = rtRating.verifiedHot ?? false;
-            logger.debug('Fetched RT ratings', {
-              label: 'OverlayContextBuilder',
-              title: context.title,
-              criticsScore: rtRating.criticsScore,
-              audienceScore: rtRating.audienceScore,
-              certifiedFresh: context.rtCertifiedFresh,
-              verifiedHot: context.rtVerifiedHot,
-            });
-          } else {
-            logger.debug('RT rating not found', {
-              label: 'OverlayContextBuilder',
-              title: context.title,
-              year: context.year,
-            });
-          }
-        } catch (error) {
-          logger.debug('Failed to fetch RT rating', {
+        if (rtRating) {
+          context.rtCriticsScore = rtRating.criticsScore;
+          context.rtAudienceScore = rtRating.audienceScore;
+          context.rtCertifiedFresh =
+            rtRating.criticsRating === 'Certified Fresh';
+          context.rtVerifiedHot = rtRating.verifiedHot ?? false;
+          logger.debug('Fetched RT ratings', {
             label: 'OverlayContextBuilder',
             title: context.title,
-            error: error instanceof Error ? error.message : String(error),
+            criticsScore: rtRating.criticsScore,
+            audienceScore: rtRating.audienceScore,
+            certifiedFresh: context.rtCertifiedFresh,
+            verifiedHot: context.rtVerifiedHot,
+          });
+        } else {
+          logger.debug('RT rating not found', {
+            label: 'OverlayContextBuilder',
+            title: context.title,
+            year: context.year,
           });
         }
+      } catch (error) {
+        logger.debug('Failed to fetch RT rating', {
+          label: 'OverlayContextBuilder',
+          title: context.title,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
 
       // Movie-specific metadata
