@@ -8,10 +8,13 @@ export type AvailableLocale =
   | 'fr'
   | 'hu'
   | 'it'
+  | 'ja'
   | 'nl'
   | 'pt-BR'
   | 'ru'
-  | 'sv';
+  | 'sv'
+  | 'uk'
+  | 'zh-Hans';
 
 type AvailableLanguageObject = Record<
   string,
@@ -47,6 +50,10 @@ export const availableLanguages: AvailableLanguageObject = {
     code: 'it',
     display: 'Italiano',
   },
+  ja: {
+    code: 'ja',
+    display: '日本語',
+  },
   nl: {
     code: 'nl',
     display: 'Nederlands',
@@ -62,6 +69,14 @@ export const availableLanguages: AvailableLanguageObject = {
   sv: {
     code: 'sv',
     display: 'Svenska',
+  },
+  uk: {
+    code: 'uk',
+    display: 'Українська',
+  },
+  'zh-Hans': {
+    code: 'zh-Hans',
+    display: '中文（简体）',
   },
 };
 
