@@ -481,14 +481,18 @@ const OverlayTemplateGrid: React.FC<OverlayTemplateGridProps> = ({
                   {!isCompact &&
                     intl.formatMessage(messages.copyOverlayElements)}
                 </button>
-                {!template.isDefault && !isCompact && (
+                {!template.isDefault && (
                   <button
                     onClick={() => handleExport(template.id, template.name)}
-                    className="flex items-center rounded-md bg-green-900/50 px-3 py-2 text-xs text-green-400 transition-colors hover:bg-green-900 hover:text-green-300"
+                    className={`flex items-center rounded-md bg-green-900/50 text-xs text-green-400 transition-colors hover:bg-green-900 hover:text-green-300 ${
+                      isCompact ? 'p-1.5' : 'px-3 py-2'
+                    }`}
                     title={intl.formatMessage(messages.export)}
                   >
-                    <ArrowDownTrayIcon className="mr-2 h-3 w-3" />
-                    {intl.formatMessage(messages.export)}
+                    <ArrowDownTrayIcon
+                      className={isCompact ? 'h-3 w-3' : 'mr-2 h-3 w-3'}
+                    />
+                    {!isCompact && intl.formatMessage(messages.export)}
                   </button>
                 )}
                 {!template.isDefault && (
