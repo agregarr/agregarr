@@ -3,6 +3,7 @@ import OverseerrAPI, {
 } from '@server/api/overseerr';
 import type PlexAPI from '@server/api/plexapi';
 import type { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
+import type { LibraryItemsCache } from '@server/lib/collections/core/CollectionUtilities';
 import { getCollectionMediaType } from '@server/lib/collections/core/CollectionUtilities';
 import type {
   CollectionSource,
@@ -87,7 +88,8 @@ export class CollectionSyncService {
    */
   private async prefetchPlaceholderDiscovery(
     plexClient: PlexAPI,
-    collectionConfigs: CollectionConfig[]
+    collectionConfigs: CollectionConfig[],
+    libraryCache?: LibraryItemsCache
   ): Promise<{
     tv: DiscoveredPlaceholder[];
     movies: DiscoveredMoviePlaceholder[];
@@ -155,7 +157,8 @@ export class CollectionSyncService {
           const discovered = await discoverPlaceholdersFromMarkers(
             plexClient,
             tvLibraryId,
-            tvLibraryPath
+            tvLibraryPath,
+            libraryCache
           );
 
           logger.info('Global TV placeholder discovery complete', {
@@ -508,7 +511,8 @@ export class CollectionSyncService {
     onProgress?.(0, 'Discovering placeholders...');
     const placeholderDiscovery = await this.prefetchPlaceholderDiscovery(
       plexClient,
-      collectionConfigs
+      collectionConfigs,
+      libraryCache
     );
 
     // Initialize the global sync cache service for use across all sync operations

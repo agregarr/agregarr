@@ -4,6 +4,7 @@ import { ComingSoonItem } from '@server/entity/ComingSoonItem';
 import {
   findPlexItemsByTitle,
   findPlexItemsByTmdbIds,
+  type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
 import logger from '@server/logger';
 
@@ -83,7 +84,8 @@ export interface DiscoveredMoviePlaceholder {
 export async function discoverPlaceholdersFromMarkers(
   plexClient: PlexAPI,
   libraryId: string,
-  libraryPath: string
+  libraryPath: string,
+  libraryCache?: LibraryItemsCache
 ): Promise<DiscoveredPlaceholder[]> {
   const { scanForMarkerFiles, upgradeMarkerFile } = await import(
     '@server/lib/placeholders/placeholderManager'
@@ -132,7 +134,8 @@ export async function discoverPlaceholdersFromMarkers(
     const plexMatches = await findPlexItemsByTmdbIds(
       plexClient,
       tmdbLookups,
-      libraryId
+      libraryId,
+      libraryCache
     );
 
     for (const marker of tier1Markers) {
@@ -140,7 +143,42 @@ export async function discoverPlaceholdersFromMarkers(
         continue;
       }
 
-      const plexItem = plexMatches.get(`${marker.tmdbId}-tv`);
+      let plexItem: { ratingKey: string; title: string } | undefined =
+        plexMatches.get(`${marker.tmdbId}-tv`);
+
+      // Title fallback for items without TMDB GUID in Plex
+      if (!plexItem) {
+        const titleMatches = await findPlexItemsByTitle(
+          plexClient,
+          marker.title,
+          marker.year,
+          libraryId,
+          'tv',
+          libraryCache
+        );
+        // Prefer candidates without TMDB GUID (more likely the unmatched placeholder)
+        const candidate =
+          titleMatches.find((m) => !m.hasTmdbGuid) || titleMatches[0];
+        if (candidate) {
+          const candidateMetadata = await plexClient.getMetadata(
+            candidate.ratingKey.toString(),
+            { includeChildren: true }
+          );
+          if (placeholderContextService.isPlaceholderItem(candidateMetadata)) {
+            plexItem = {
+              ratingKey: candidate.ratingKey,
+              title: candidate.title,
+            };
+            logger.info('Tier 1: Found Plex item by title fallback', {
+              label: 'PlaceholderService',
+              title: marker.title,
+              year: marker.year,
+              ratingKey: candidate.ratingKey,
+              hasTmdbGuid: candidate.hasTmdbGuid,
+            });
+          }
+        }
+      }
 
       // Marker file on disk proves this is an Agregarr-created placeholder.
       // Don't re-verify via isPlaceholderItem — returns false for TV shows
@@ -187,10 +225,47 @@ export async function discoverPlaceholdersFromMarkers(
         const plexMatches = await findPlexItemsByTmdbIds(
           plexClient,
           [{ tmdbId: dbRecord.tmdbId, mediaType: 'tv', title: marker.title }],
-          libraryId
+          libraryId,
+          libraryCache
         );
 
-        const plexItem = plexMatches.get(`${dbRecord.tmdbId}-tv`);
+        let plexItem: { ratingKey: string; title: string } | undefined =
+          plexMatches.get(`${dbRecord.tmdbId}-tv`);
+
+        // Title fallback for items without TMDB GUID in Plex
+        if (!plexItem) {
+          const titleMatches = await findPlexItemsByTitle(
+            plexClient,
+            marker.title,
+            marker.year,
+            libraryId,
+            'tv',
+            libraryCache
+          );
+          const candidate =
+            titleMatches.find((m) => !m.hasTmdbGuid) || titleMatches[0];
+          if (candidate) {
+            const candidateMetadata = await plexClient.getMetadata(
+              candidate.ratingKey.toString(),
+              { includeChildren: true }
+            );
+            if (
+              placeholderContextService.isPlaceholderItem(candidateMetadata)
+            ) {
+              plexItem = {
+                ratingKey: candidate.ratingKey,
+                title: candidate.title,
+              };
+              logger.info('Tier 2: Found Plex item by title fallback', {
+                label: 'PlaceholderService',
+                title: marker.title,
+                year: marker.year,
+                ratingKey: candidate.ratingKey,
+                hasTmdbGuid: candidate.hasTmdbGuid,
+              });
+            }
+          }
+        }
 
         // Marker file on disk proves this is an Agregarr-created placeholder.
         // Don't re-verify via isPlaceholderItem — returns false for TV shows
@@ -238,7 +313,8 @@ export async function discoverPlaceholdersFromMarkers(
       marker.title,
       marker.year,
       libraryId,
-      'tv'
+      'tv',
+      libraryCache
     );
 
     if (titleMatches.length > 0) {
