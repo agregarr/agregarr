@@ -1114,7 +1114,15 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
               }),
             ]);
 
-            // Check for exact title + exact year match in movies
+            // Collect ALL exact title+year matches across movies and TV.
+            // If there are multiple matches (same title, same year), we can't be
+            // confident which one Letterboxd meant — fall through to film page scraping.
+            let exactMatchCount = 0;
+            let exactMatchResult: {
+              tmdbId: number;
+              mediaType: 'movie' | 'tv';
+            } | null = null;
+
             for (const result of movieResults.results) {
               const resultTitle = (result.title || result.original_title || '')
                 .toLowerCase()
@@ -1123,14 +1131,16 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
                 ? parseInt(result.release_date.substring(0, 4))
                 : undefined;
               if (resultTitle === normalizedTitle && resultYear === item.year) {
-                return {
-                  confident: true as const,
-                  result: { tmdbId: result.id, mediaType: 'movie' as const },
-                };
+                exactMatchCount++;
+                if (exactMatchResult === null) {
+                  exactMatchResult = {
+                    tmdbId: result.id,
+                    mediaType: 'movie' as const,
+                  };
+                }
               }
             }
 
-            // Check for exact title + exact year match in TV
             for (const result of tvResults.results) {
               const resultTitle = (result.name || result.original_name || '')
                 .toLowerCase()
@@ -1139,11 +1149,23 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
                 ? parseInt(result.first_air_date.substring(0, 4))
                 : undefined;
               if (resultTitle === normalizedTitle && resultYear === item.year) {
-                return {
-                  confident: true as const,
-                  result: { tmdbId: result.id, mediaType: 'tv' as const },
-                };
+                exactMatchCount++;
+                if (exactMatchResult === null) {
+                  exactMatchResult = {
+                    tmdbId: result.id,
+                    mediaType: 'tv' as const,
+                  };
+                }
               }
+            }
+
+            // Only confident when exactly one match exists — multiple same-title/year
+            // results require film page scraping to get the correct TMDB ID.
+            if (exactMatchCount === 1 && exactMatchResult !== null) {
+              return {
+                confident: true as const,
+                result: exactMatchResult,
+              };
             }
 
             return { confident: false as const, result: null };
