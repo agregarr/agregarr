@@ -572,6 +572,12 @@ const CollectionSettings = ({
           ...(config.combineMode !== undefined && {
             combineMode: config.combineMode,
           }),
+          ...(config.targetUserId !== undefined && {
+            targetUserId: config.targetUserId,
+          }),
+          ...(config.targetUserLabel !== undefined && {
+            targetUserLabel: config.targetUserLabel,
+          }),
         };
         await axios.put(
           `/api/v1/collections/${config.id}/settings`,

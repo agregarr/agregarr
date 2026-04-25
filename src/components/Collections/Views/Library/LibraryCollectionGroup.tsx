@@ -10,6 +10,7 @@ import {
   PreExistingBadge,
   SourceSubtypeBadge,
   SyncStatus,
+  TargetUserBadge,
   TimeRestrictionsBadge,
   UnwatchedBadge,
 } from '@app/components/Collections/Shared/CollectionBadges';
@@ -335,6 +336,16 @@ const SortableItem = ({
                 }
                 searchMissingTV={
                   (config as CollectionFormConfig).searchMissingTV
+                }
+              />
+            )}
+
+            {/* Target User Badge - Shows when collection is targeted to a specific user */}
+            {isCollection && (
+              <TargetUserBadge
+                targetUserId={(config as CollectionFormConfig).targetUserId}
+                targetUserLabel={
+                  (config as CollectionFormConfig).targetUserLabel
                 }
               />
             )}

@@ -3292,6 +3292,14 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     libraryCache?: LibraryItemsCache,
     missingItems?: MissingItem[]
   ): Promise<MediaProcessingResult> {
+    // Auto-populate userInfo for targeted collections (any source type)
+    if (config.targetUserId && !userInfo) {
+      userInfo = {
+        userId: config.targetUserId,
+        customLabel: `AgregarrTargetUser_${config.id}_${config.targetUserId}`,
+      };
+    }
+
     const mediaType = getCollectionMediaType(config);
 
     try {

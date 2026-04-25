@@ -646,6 +646,25 @@ export const PlaceholdersBadge: React.FC<PlaceholdersBadgeProps> = ({
   );
 };
 
+// Target User Badge - Shows when collection is targeted to a specific user
+interface TargetUserBadgeProps {
+  targetUserId?: string;
+  targetUserLabel?: string;
+}
+
+export const TargetUserBadge: React.FC<TargetUserBadgeProps> = ({
+  targetUserId,
+  targetUserLabel,
+}) => {
+  if (!targetUserId) return null;
+
+  return (
+    <Badge badgeType="default" className="!bg-opacity-30">
+      Target User: {targetUserLabel || targetUserId}
+    </Badge>
+  );
+};
+
 // Missing Indicator - shown when collection no longer exists in Plex
 interface MissingIndicatorProps {
   missing?: boolean;

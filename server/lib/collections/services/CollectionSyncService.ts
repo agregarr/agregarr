@@ -420,13 +420,21 @@ export class CollectionSyncService {
         config.type === 'overseerr' && config.subtype === 'server_owner'
     );
 
-    if (hasUsersConfig || hasServerOwnerConfig) {
+    // Detect configs with targetUserId set (per-user targeted collections)
+    const targetUserConfigs = collectionConfigs.filter(
+      (config) => config.targetUserId !== undefined
+    );
+    const hasTargetUserConfigs = targetUserConfigs.length > 0;
+
+    if (hasUsersConfig || hasServerOwnerConfig || hasTargetUserConfigs) {
       logger.info(
-        `Detected Overseerr collections - applying pre-sync user restrictions (users: ${hasUsersConfig}, server_owner: ${hasServerOwnerConfig})`,
+        `Detected user-scoped collections - applying pre-sync user restrictions (overseerr_users: ${hasUsersConfig}, server_owner: ${hasServerOwnerConfig}, target_user: ${hasTargetUserConfigs})`,
         {
           label: 'Collection Sync Service',
           hasUsersConfig,
           hasServerOwnerConfig,
+          hasTargetUserConfigs,
+          targetUserConfigCount: targetUserConfigs.length,
         }
       );
 
@@ -434,7 +442,8 @@ export class CollectionSyncService {
         onProgress?.(0, 'Applying Seerr user restrictions...');
         await this.applyPreSyncUserRestrictions(
           hasUsersConfig,
-          hasServerOwnerConfig
+          hasServerOwnerConfig,
+          targetUserConfigs
         );
         logger.info('Pre-sync user restrictions applied successfully', {
           label: 'Collection Sync Service',
@@ -776,7 +785,8 @@ export class CollectionSyncService {
    */
   private async applyPreSyncUserRestrictions(
     hasUsersConfig: boolean,
-    hasServerOwnerConfig: boolean
+    hasServerOwnerConfig: boolean,
+    targetUserConfigs?: CollectionConfig[]
   ): Promise<void> {
     try {
       // Import the user management functions
@@ -787,7 +797,8 @@ export class CollectionSyncService {
       // Apply restrictions only for the specific collection types that are active
       await applySelectivePreSyncUserRestrictions(
         hasUsersConfig,
-        hasServerOwnerConfig
+        hasServerOwnerConfig,
+        targetUserConfigs
       );
 
       // Mark labels as applied
