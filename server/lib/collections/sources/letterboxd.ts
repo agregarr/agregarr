@@ -830,7 +830,6 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
       ];
 
-      const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /data-item-name="([^"]+)"/;
@@ -872,9 +871,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         if (count >= maxItems) break;
         const itemHtml = match[1];
 
-        // Extract film ID
-        const filmIdMatch = itemHtml.match(filmIdRegex);
-        if (!filmIdMatch) continue;
+        // Letterboxd list items may no longer include data-film-id.
+        // The parser only needs target link/title/year for TMDB resolution.
 
         // Extract target link (movie slug)
         const targetLinkMatch = itemHtml.match(targetLinkRegex);
