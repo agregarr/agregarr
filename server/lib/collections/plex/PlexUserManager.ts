@@ -219,8 +219,14 @@ export async function getSharedServers(
 /**
  * Get all Plex user IDs from shared servers (V2 API)
  * Returns array of Plex user IDs for all users with access to the server
+ *
+ * @param forceRefresh When true, bypass the shared-server cache and refetch
+ *   from Plex. Batch operations should pass true so that each run starts
+ *   from the user's current Plex state, not a snapshot from the previous run.
  */
-export async function getAllPlexUserIds(): Promise<string[]> {
+export async function getAllPlexUserIds(
+  forceRefresh = false
+): Promise<string[]> {
   try {
     const settings = getSettings();
     const admin = await getAdminUser();
@@ -235,7 +241,8 @@ export async function getAllPlexUserIds(): Promise<string[]> {
 
     const sharedServers = await getSharedServers(
       settings.plex.machineId,
-      admin.plexToken
+      admin.plexToken,
+      forceRefresh
     );
 
     // V2 uses invitedId instead of userID
@@ -528,8 +535,10 @@ export async function applyPreSyncUserRestrictions(): Promise<void> {
       label: 'Plex User Manager',
     });
 
-    // Get all Plex users who need restrictions applied
-    const allPlexUserIds = await getAllPlexUserIds();
+    // Get all Plex users who need restrictions applied. Force a refresh so
+    // this run reads the user's current Plex sharing settings rather than a
+    // snapshot cached from the previous run.
+    const allPlexUserIds = await getAllPlexUserIds(true);
     if (allPlexUserIds.length === 0) {
       logger.warn('No Plex users found - skipping user restrictions', {
         label: 'Plex User Manager',
@@ -603,8 +612,10 @@ export async function applySelectivePreSyncUserRestrictions(
       }
     );
 
-    // Get all Plex users who need restrictions applied
-    const allPlexUserIds = await getAllPlexUserIds();
+    // Get all Plex users who need restrictions applied. Force a refresh so
+    // this run reads the user's current Plex sharing settings rather than a
+    // snapshot cached from the previous run.
+    const allPlexUserIds = await getAllPlexUserIds(true);
     if (allPlexUserIds.length === 0) {
       logger.warn('No Plex users found - skipping user restrictions', {
         label: 'Plex User Manager',

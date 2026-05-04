@@ -298,7 +298,9 @@ export class CollectionCleanupService {
         '@server/lib/collections/plex/PlexUserManager'
       );
 
-      const allPlexUserIds = await getAllPlexUserIds();
+      // Force a refresh so this cleanup pass reads the user's current Plex
+      // sharing settings rather than a stale snapshot from a previous run.
+      const allPlexUserIds = await getAllPlexUserIds(true);
 
       if (allPlexUserIds.length > 0) {
         logger.info(

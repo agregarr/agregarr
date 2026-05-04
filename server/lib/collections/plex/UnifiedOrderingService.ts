@@ -357,14 +357,21 @@ async function rebuildLibraryHubManagement(
     const preExistingCollectionConfigs =
       settings.plex.preExistingCollectionConfigs || [];
 
-    // Build a map of identifier -> config for quick lookup
+    // Build a map of rating key -> config for quick lookup.
+    // Multi-collection configs (e.g. seerr/users) store all their keys in collectionRatingKeys[].
     const configsByRatingKey = new Map<
       string,
       CollectionConfig | PreExistingCollectionConfig
     >();
     for (const config of collectionConfigs) {
-      if (config.collectionRatingKey && config.libraryId === libraryId) {
+      if (config.libraryId !== libraryId) continue;
+      if (config.collectionRatingKey) {
         configsByRatingKey.set(config.collectionRatingKey, config);
+      }
+      if (config.collectionRatingKeys) {
+        for (const ratingKey of config.collectionRatingKeys) {
+          configsByRatingKey.set(ratingKey, config);
+        }
       }
     }
     for (const config of preExistingCollectionConfigs) {
@@ -421,6 +428,15 @@ async function rebuildLibraryHubManagement(
               );
             }
           }
+        } else {
+          logger.debug(
+            `No config found for rating key ${ratingKey} in library ${libraryId}, skipping re-promotion`,
+            {
+              label: 'Unified Ordering Service',
+              libraryId,
+              ratingKey,
+            }
+          );
         }
       } else {
         // This is a default hub - track it for positioning later

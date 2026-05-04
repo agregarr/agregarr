@@ -15199,6 +15199,77 @@ paths:
         '500':
           description: Failed to start overlay application
 
+  /overlay-library-configs/{libraryId}/apply-items:
+    post:
+      summary: Apply overlays to a specific library item
+      description: Applies configured overlay templates to a single poster item in a library (runs asynchronously).
+      tags:
+        - overlays
+      parameters:
+        - name: libraryId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Plex library ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ratingKey:
+                  type: string
+                  example: '12345'
+              required:
+                - ratingKey
+      responses:
+        '202':
+          description: Overlay application started for item (runs in background)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Overlay application started for item'
+                  libraryId:
+                    type: string
+                    example: '1'
+                  ratingKey:
+                    type: string
+                    example: '12345'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'ratingKey is required and must be a string'
+        '401':
+          description: Authentication required
+        '409':
+          description: Conflict - another overlay operation is already running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'Full overlay sync is currently running. Please wait for it to complete or cancel it before syncing individual items.'
+                  conflictType:
+                    type: string
+                    enum: [full-sync-running, library-already-running]
+                    example: 'full-sync-running'
+        '500':
+          description: Failed to start single item overlay application
+
   /overlay-library-configs/{libraryId}/status:
     get:
       summary: Get overlay application status for library

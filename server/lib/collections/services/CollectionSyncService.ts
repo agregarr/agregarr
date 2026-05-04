@@ -431,7 +431,7 @@ export class CollectionSyncService {
       );
 
       try {
-        onProgress?.(0, 'Applying Overseerr user restrictions...');
+        onProgress?.(0, 'Applying Seerr user restrictions...');
         await this.applyPreSyncUserRestrictions(
           hasUsersConfig,
           hasServerOwnerConfig
@@ -813,8 +813,9 @@ export class CollectionSyncService {
         '@server/lib/collections/plex/PlexUserManager'
       );
 
-      // Get all Plex users
-      const allPlexUserIds = await getAllPlexUserIds();
+      // Get all Plex users. Force a refresh so this cleanup pass reads the
+      // user's current Plex sharing settings rather than a stale snapshot.
+      const allPlexUserIds = await getAllPlexUserIds(true);
       if (allPlexUserIds.length === 0) {
         logger.debug('No Plex users found - skipping user filter cleanup', {
           label: 'Collection Sync Service',

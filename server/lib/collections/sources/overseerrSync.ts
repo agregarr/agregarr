@@ -668,6 +668,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
 
     let totalCreated = 0;
     let totalUpdated = 0;
+    const collectedRatingKeys: string[] = [];
 
     // Process each user's collections
     for (const [, userCollections] of Object.entries(userCollectionsMap)) {
@@ -682,6 +683,9 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
 
         totalCreated += result.created;
         totalUpdated += result.updated;
+        if (result.collectionRatingKey) {
+          collectedRatingKeys.push(result.collectionRatingKey);
+        }
       } catch (error) {
         logger.error(
           `Failed to process collection for user ${userCollections.user.displayName}: ${error}`,
@@ -692,6 +696,13 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
           }
         );
       }
+    }
+
+    // Persist rating keys so hub sync can order/manage these collections without label lookups
+    if (collectedRatingKeys.length > 0) {
+      this.updateCollectionConfigField(config.id, {
+        collectionRatingKeys: collectedRatingKeys,
+      });
     }
 
     return { created: totalCreated, updated: totalUpdated };
@@ -821,9 +832,10 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>
-  ): Promise<SyncResult> {
+  ): Promise<SyncResult & { collectionRatingKey?: string }> {
     let totalCreated = 0;
     let totalUpdated = 0;
+    let collectionRatingKey: string | undefined;
 
     // Get the media type for this collection and filter accordingly
     const collectionMediaType = getCollectionMediaType(config);
@@ -878,6 +890,7 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
 
       totalCreated += result.created;
       totalUpdated += result.updated;
+      collectionRatingKey = result.collectionRatingKey;
 
       // Apply sort title to user collection if needed (not handled by base class since no collectionRatingKey in config)
       if (result.collectionRatingKey && !config.showUnwatchedOnly) {
@@ -890,7 +903,11 @@ export class OverseerrCollectionSync extends BaseCollectionSync<'overseerr'> {
       }
     }
 
-    return { created: totalCreated, updated: totalUpdated };
+    return {
+      created: totalCreated,
+      updated: totalUpdated,
+      collectionRatingKey,
+    };
   }
 
   // Helper methods
