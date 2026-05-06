@@ -439,13 +439,15 @@ https://letterboxd.com/cinema/list/criterion-collection/
       return selectedUrl;
     }
 
-    // Early filtering for incompatible source/media type combinations
+    // Early filtering for incompatible source/media type combinations.
+    // Letterboxd is movies-only. TMDB random URLs come from the daily collection
+    // export which only contains movie franchise collections (/collection/\d+).
     if (
       (sourceType === 'letterboxd' || sourceType === 'tmdb') &&
       targetMediaType === 'tv'
     ) {
       logger.warn(
-        `Source ${sourceType} does not support TV content, skipping validation attempts`,
+        `Source ${sourceType} does not support TV content for random selection, skipping`,
         {
           label: 'RandomListManager',
           sourceType,
@@ -869,151 +871,184 @@ https://letterboxd.com/cinema/list/criterion-collection/
   }
 
   /**
-   * Discover IMDb lists using GraphQL API
-   * Strategy: Use IMDb's GraphQL API to access all 3,500+ lists from editors profile
+   * Discover IMDb lists by scraping the user's lists page HTML
+   * Strategy: Scrape paginated list pages from the IMDb user profile directly
    */
   private static async discoverImdbLists(
     targetMediaType?: 'movie' | 'tv'
   ): Promise<string[]> {
+    const userId = 'p.q2u565zo446bvjyjux3gsd5qma';
+    const baseUrl = `https://www.imdb.com/user/${userId}/lists/`;
+
+    // TV-related keywords to filter for when targeting TV media type
+    const tvKeywords = [
+      'tv',
+      'television',
+      'show',
+      'shows',
+      'series',
+      'season',
+      'seasons',
+    ];
+
     try {
-      const axios = (await import('axios')).default;
+      const { ImdbAxiosClient } = await import(
+        '@server/lib/collections/utils/ImdbAxiosClient'
+      );
+      const axiosInstance = await ImdbAxiosClient.getInstance();
       const discoveredUrls: string[] = [];
 
-      // TV-related keywords to filter for when targeting TV media type
-      const tvKeywords = [
-        'tv',
-        'television',
-        'show',
-        'shows',
-        'series',
-        'season',
-        'seasons',
-      ];
+      // Regex to extract list title from nearby anchor text (used for TV filtering)
+      const listTitleRegex =
+        /<a[^>]+href="\/list\/ls\d+\/"[^>]*>([^<]+)<\/a>/g;
 
-      let cursor = null;
-      let pageCount = 0;
-      const maxPages = 15; // Fetch up to 3,750 lists (15 * 250)
+      let page = 1;
+      const maxPages = 15;
 
-      logger.debug('Using IMDb GraphQL API to discover lists', {
+      logger.debug('Discovering IMDb lists by scraping user lists page', {
         label: 'RandomListManager',
+        userId,
         maxPages,
         targetMediaType,
       });
 
-      while (pageCount < maxPages) {
-        const variables: {
-          anyListTypes: string[];
-          first: number;
-          locale: string;
-          sort: { by: string; order: string };
-          urConst: string;
-          after?: string;
-        } = {
-          anyListTypes: ['TITLES', 'PEOPLE', 'IMAGES', 'VIDEOS'],
-          first: 250,
-          locale: 'en-GB',
-          sort: {
-            by: 'DATE_MODIFIED',
-            order: 'DESC',
-          },
-          urConst: 'ur23892615',
-        };
-
-        // Add cursor for pagination if provided
-        if (cursor) {
-          variables.after = cursor;
-        }
-
-        const extensions = {
-          persistedQuery: {
-            sha256Hash:
-              'b4130fe1929cd679b4ede4babde461e41ca4da371938094961f4d453b3002d65',
-            version: 1,
-          },
-        };
-
-        const payload = {
-          operationName: 'ListsPage',
-          variables: variables,
-          extensions: extensions,
-        };
+      while (page <= maxPages) {
+        const pageUrl = page === 1 ? baseUrl : `${baseUrl}?page=${page}`;
 
         try {
-          const response = await axios.post(
-            'https://caching.graphql.imdb.com/',
-            payload,
-            {
-              headers: {
-                'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                Accept: 'application/json',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Content-Type': 'application/json',
-                Referer: 'https://www.imdb.com/user/ur23892615/lists/',
-                Origin: 'https://www.imdb.com',
-              },
-              timeout: 15000,
-            }
+          const response = await axiosInstance.get(pageUrl, {
+            timeout: 15000,
+          });
+          const html: string = response.data;
+
+          // Extract list URLs and titles together from the HTML
+          const listEntries: { url: string; title: string }[] = [];
+          let match: RegExpExecArray | null;
+
+          // Strategy 1: Try __NEXT_DATA__ JSON (IMDb's React/Next.js page data)
+          const nextDataMatch = html.match(
+            /<script id="__NEXT_DATA__"[^>]*>([^<]+)<\/script>/
           );
+          if (nextDataMatch) {
+            try {
+              const nextData = JSON.parse(nextDataMatch[1]);
+              const jsonStr = JSON.stringify(nextData);
+              const listIdRegex = /"(ls\d{9,10})"/g;
+              const titleMap = new Map<string, string>();
 
-          const data = response.data.data;
-          const userListSearch = data.userListSearch;
-
-          const lists = userListSearch.edges.map(
-            (edge: {
-              node: {
-                id: string;
-                name?: { originalText?: string };
-                items?: { total?: number };
-                listType?: { id?: string };
-              };
-            }) => ({
-              id: edge.node.id,
-              name: edge.node.name?.originalText || 'Unknown',
-              itemCount: edge.node.items?.total || 0,
-              listType: edge.node.listType?.id || 'Unknown',
-              url: `https://www.imdb.com/list/${edge.node.id}/`,
-            })
-          );
-
-          // Filter for TV lists if targeting TV media type
-          for (const list of lists) {
-            if (targetMediaType === 'tv' && list.name) {
-              const titleLower = list.name.toLowerCase();
-              const hasTvKeyword = tvKeywords.some((keyword) =>
-                titleLower.includes(keyword)
-              );
-              if (!hasTvKeyword) {
-                continue; // Skip non-TV lists when targeting TV
+              // Extract titles from JSON - try both field orderings
+              const listBlockRegex =
+                /"listId"\s*:\s*"(ls\d+)"[^}]*"name"\s*:\s*"([^"]+)"/g;
+              let blockMatch;
+              while ((blockMatch = listBlockRegex.exec(jsonStr)) !== null) {
+                titleMap.set(blockMatch[1], blockMatch[2]);
               }
-            }
+              const listBlockRegex2 =
+                /"name"\s*:\s*"([^"]+)"[^}]*"listId"\s*:\s*"(ls\d+)"/g;
+              while ((blockMatch = listBlockRegex2.exec(jsonStr)) !== null) {
+                titleMap.set(blockMatch[2], blockMatch[1]);
+              }
 
-            // Only include TITLES lists (not PEOPLE, IMAGES, VIDEOS)
-            if (
-              list.listType === 'TITLES' &&
-              !discoveredUrls.includes(list.url)
-            ) {
-              discoveredUrls.push(list.url);
+              const seenIds = new Set<string>();
+              while ((match = listIdRegex.exec(jsonStr)) !== null) {
+                const listId = match[1];
+                if (!seenIds.has(listId)) {
+                  seenIds.add(listId);
+                  const listUrl = `https://www.imdb.com/list/${listId}/`;
+                  if (!listEntries.some((e) => e.url === listUrl)) {
+                    listEntries.push({
+                      url: listUrl,
+                      title: titleMap.get(listId) ?? '',
+                    });
+                  }
+                }
+              }
+
+              logger.debug(
+                `Extracted ${listEntries.length} IMDb list IDs from __NEXT_DATA__ on page ${page}`,
+                { label: 'RandomListManager' }
+              );
+            } catch (jsonErr) {
+              logger.debug(
+                `Failed to parse __NEXT_DATA__ on page ${page}, falling back to HTML regex`,
+                { label: 'RandomListManager' }
+              );
             }
           }
 
-          pageCount++;
+          // Strategy 2: Plain HTML href patterns (fallback / supplement)
+          if (listEntries.length === 0) {
+            const patterns = [
+              /href="(\/list\/(ls\d+)\/)"/g,
+              /href="(\/list\/(ls\d+))"/g,
+              /"\/list\/(ls\d+)\/?"/g,
+            ];
+            for (const pattern of patterns) {
+              const linkRegex = new RegExp(pattern.source, 'g');
+              while ((match = linkRegex.exec(html)) !== null) {
+                const listId = match[2] ?? match[1];
+                const listUrl = `https://www.imdb.com/list/${listId}/`;
+                if (!listEntries.some((e) => e.url === listUrl)) {
+                  listEntries.push({ url: listUrl, title: '' });
+                }
+              }
+              if (listEntries.length > 0) break;
+            }
 
-          if (!userListSearch.pageInfo.hasNextPage) {
-            logger.debug(`Reached end of IMDb lists at page ${pageCount}`, {
+            // Try to extract titles for TV filtering
+            const titleRegex = new RegExp(listTitleRegex.source, 'g');
+            let titleIndex = 0;
+            while (
+              (match = titleRegex.exec(html)) !== null &&
+              titleIndex < listEntries.length
+            ) {
+              listEntries[titleIndex].title = match[1].trim();
+              titleIndex++;
+            }
+          }
+
+          if (listEntries.length === 0) {
+            logger.debug(`No more IMDb lists found at page ${page}`, {
+              label: 'RandomListManager',
+              htmlSnippet: html.substring(0, 500),
+              hasNextData: html.includes('__NEXT_DATA__'),
+              htmlLength: html.length,
+            });
+            break;
+          }
+
+          for (const entry of listEntries) {
+            if (targetMediaType === 'tv' && entry.title) {
+              const titleLower = entry.title.toLowerCase();
+              const hasTvKeyword = tvKeywords.some((kw) =>
+                titleLower.includes(kw)
+              );
+              if (!hasTvKeyword) {
+                continue;
+              }
+            }
+            if (!discoveredUrls.includes(entry.url)) {
+              discoveredUrls.push(entry.url);
+            }
+          }
+
+          // Check if there's a next page by looking for pagination
+          const hasNextPage =
+            html.includes(`?page=${page + 1}`) ||
+            html.includes(`page=${page + 1}`);
+          if (!hasNextPage) {
+            logger.debug(`Reached last page of IMDb lists at page ${page}`, {
               label: 'RandomListManager',
             });
             break;
           }
 
-          cursor = userListSearch.pageInfo.endCursor;
+          page++;
 
-          // Small delay between requests to be respectful
-          if (pageCount < maxPages) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
+          // Small delay between pages
+          await new Promise((resolve) => setTimeout(resolve, 300));
         } catch (error) {
-          logger.warn(`Failed to fetch IMDb lists page ${pageCount + 1}`, {
+          logger.warn(`Failed to fetch IMDb lists page ${page}`, {
             label: 'RandomListManager',
             error: error instanceof Error ? error.message : String(error),
           });
@@ -1021,23 +1056,19 @@ https://letterboxd.com/cinema/list/criterion-collection/
         }
       }
 
-      const logMessage =
-        targetMediaType === 'tv'
-          ? `Discovered ${discoveredUrls.length} TV-filtered IMDb lists from GraphQL API`
-          : `Discovered ${discoveredUrls.length} IMDb lists from GraphQL API`;
-
-      logger.info(logMessage, {
-        label: 'RandomListManager',
-        count: discoveredUrls.length,
-        source: 'IMDb GraphQL API',
-        pagesProcessed: pageCount,
-        filtered: targetMediaType === 'tv',
-        targetMediaType,
-      });
+      logger.info(
+        `Discovered ${discoveredUrls.length} IMDb lists by scraping user lists page`,
+        {
+          label: 'RandomListManager',
+          count: discoveredUrls.length,
+          pagesProcessed: page,
+          targetMediaType,
+        }
+      );
 
       return discoveredUrls;
     } catch (error) {
-      logger.error('Failed to discover IMDb lists via GraphQL API', {
+      logger.error('Failed to discover IMDb lists via HTML scraping', {
         label: 'RandomListManager',
         error: error instanceof Error ? error.message : String(error),
       });
@@ -1439,86 +1470,68 @@ https://letterboxd.com/cinema/list/criterion-collection/
   private static async validateTmdbUrl(
     url: string,
     targetMediaType: 'movie' | 'tv',
-    maxItems: number,
+    _maxItems: number,
     libraryCache?: LibraryItemsCache
   ): Promise<boolean> {
-    try {
-      // TMDB collections are movie-only by design
-      if (targetMediaType === 'tv') {
-        return false;
-      }
+    const collectionMatch = url.match(/\/collection\/(\d+)/);
+    const listMatch = url.match(/\/list\/(\d+)/);
 
-      // Extract collection ID from URL
-      const collectionIdMatch = url.match(/\/collection\/(\d+)/);
-      if (!collectionIdMatch) {
-        return false;
-      }
+    if (!collectionMatch && !listMatch) return false;
 
-      const collectionId = collectionIdMatch[1];
+    // TMDB /collection/ entries from the daily export are movie franchise collections.
+    // They never contain TV shows, so immediately reject them for TV libraries.
+    if (targetMediaType === 'tv' && collectionMatch) {
+      return false;
+    }
 
-      // Import TMDB API to check the collection
-      const { default: TmdbAPI } = await import('@server/api/themoviedb');
-      const tmdbClient = new TmdbAPI();
+    // For TV target with /list/ URLs, verify the list actually has TV shows.
+    if (targetMediaType === 'tv' && listMatch) {
+      try {
+        const TheMovieDb = (await import('@server/api/themoviedb')).default;
+        const tmdbClient = new TheMovieDb();
+        const listData = await tmdbClient.getList({ listId: listMatch[1] });
+        const tvItems = (listData.items || []).filter(
+          (item) => item.media_type === 'tv'
+        );
 
-      // Get collection details
-      const collectionData: {
-        parts?: { id?: number; release_date?: string }[];
-      } = await tmdbClient.getCollection({
-        collectionId: parseInt(collectionId, 10),
-      });
+        // Need at least 3 TV show entries in the list
+        if (tvItems.length < 3) return false;
 
-      if (!collectionData || !collectionData.parts) {
-        return false;
-      }
-
-      // Count valid movie items (filter out any invalid entries)
-      const validMovieCount = collectionData.parts.filter(
-        (part: { id?: number; release_date?: string }) =>
-          part && part.id && part.release_date
-      ).length;
-
-      // For franchise collections, check we have at least 2 items in Plex library
-      if (libraryCache) {
-        // Build efficient TMDB ID lookup set from library cache
-        const userTmdbIds = new Set<number>();
-        for (const libraryKey in libraryCache) {
-          const libraryItems = libraryCache[libraryKey];
-          for (const item of libraryItems) {
-            if (item.Guid) {
-              for (const guid of item.Guid) {
-                if (guid.id.startsWith('tmdb://')) {
-                  const tmdbId = parseInt(guid.id.replace('tmdb://', ''), 10);
-                  if (!isNaN(tmdbId)) {
-                    userTmdbIds.add(tmdbId);
+        // If library cache is available, require at least 3 to also be in Plex
+        if (libraryCache) {
+          const userTmdbIds = new Set<number>();
+          for (const libraryKey in libraryCache) {
+            for (const item of libraryCache[libraryKey]) {
+              if (item.Guid) {
+                for (const guid of item.Guid) {
+                  if (guid.id.startsWith('tmdb://')) {
+                    const id = parseInt(guid.id.replace('tmdb://', ''), 10);
+                    if (!isNaN(id)) userTmdbIds.add(id);
                   }
                 }
               }
             }
           }
-        }
 
-        let plexMatchCount = 0;
-        for (const part of collectionData.parts) {
-          if (!part || !part.id) continue;
-
-          // Fast O(1) lookup using Set
-          if (userTmdbIds.has(part.id)) {
-            plexMatchCount++;
-            if (plexMatchCount >= 2) {
-              return true; // Found a suitable franchise collection!
+          let matchCount = 0;
+          for (const tvItem of tvItems) {
+            if (tvItem.id && userTmdbIds.has(tvItem.id)) {
+              matchCount++;
+              if (matchCount >= 3) return true;
             }
           }
+          return false;
         }
 
-        // Need at least 2 matches in Plex library for franchise collections
+        return true;
+      } catch {
         return false;
       }
-
-      // Fallback: if no library cache, just check it's a valid movie collection
-      return targetMediaType === 'movie' && validMovieCount >= 2;
-    } catch (error) {
-      return false;
     }
+
+    // For movie target, a valid URL format is sufficient (no expensive API calls
+    // per random attempt — the daily export only contains real franchise collections).
+    return true;
   }
 
   /**
@@ -1631,102 +1644,72 @@ https://letterboxd.com/cinema/list/criterion-collection/
   private static async validateLetterboxdUrl(
     url: string,
     targetMediaType: 'movie' | 'tv',
-    maxItems: number,
+    _maxItems: number,
     libraryCache?: LibraryItemsCache
   ): Promise<boolean> {
+    // Letterboxd is movie-only
+    if (targetMediaType !== 'movie') {
+      return false;
+    }
+
+    if (!libraryCache) {
+      return /letterboxd\.com\/[^/]+\/list\/[^/]+/.test(url);
+    }
+
     try {
-      // Letterboxd is movie-only, so only valid for movie collections
-      if (targetMediaType !== 'movie') {
+      // Fetch page (usually already cached from discovery phase)
+      const { CloudflareSolver } = await import(
+        '@server/lib/collections/utils/CloudflareSolver'
+      );
+      const html = await CloudflareSolver.fetchPage(url);
+
+      // Parse items using the shared parser
+      const { LetterboxdCollectionSync } = await import(
+        '@server/lib/collections/sources/letterboxd'
+      );
+      const parser = new LetterboxdCollectionSync();
+      const letterboxdItems = parser.parseLetterboxdListHtml(html, 30);
+
+      if (letterboxdItems.length === 0) {
         return false;
       }
 
-      // If library cache is provided, check that we have at least 4 items in Plex library
-      if (libraryCache) {
-        // Use CloudflareSolver (same as actual sync) to bypass Cloudflare TLS fingerprinting
-        const { CloudflareSolver } = await import(
-          '@server/lib/collections/utils/CloudflareSolver'
-        );
-        const html = await CloudflareSolver.fetchPage(url);
-
-        // Parse the HTML to extract Letterboxd items using the proper parser
-        const LetterboxdCollections = await import(
-          '@server/lib/collections/sources/letterboxd'
-        );
-        const letterboxdCollections =
-          new LetterboxdCollections.LetterboxdCollectionSync();
-        const letterboxdItems = letterboxdCollections.parseLetterboxdListHtml(
-          html,
-          Math.min(maxItems, 50)
-        );
-
-        // Skip maxItems validation - let the normal collection filtering handle it
-        // This allows smaller lists that would still produce valid collections
-
-        // Build efficient lookup sets from library cache
-        const userTmdbIds = new Set<number>();
-        const userImdbIds = new Set<string>();
-
-        for (const libraryKey in libraryCache) {
-          const libraryItems = libraryCache[libraryKey];
-          for (const item of libraryItems) {
-            if (item.Guid) {
-              for (const guid of item.Guid) {
-                if (guid.id.startsWith('tmdb://')) {
-                  const tmdbId = parseInt(guid.id.replace('tmdb://', ''), 10);
-                  if (!isNaN(tmdbId)) {
-                    userTmdbIds.add(tmdbId);
-                  }
-                } else if (guid.id.startsWith('imdb://')) {
-                  const imdbId = guid.id.replace('imdb://', '');
-                  userImdbIds.add(imdbId);
-                }
+      // Build TMDB ID lookup set from library cache
+      const userTmdbIds = new Set<number>();
+      for (const libraryKey in libraryCache) {
+        for (const item of libraryCache[libraryKey]) {
+          if (item.Guid) {
+            for (const guid of item.Guid) {
+              if (guid.id.startsWith('tmdb://')) {
+                const id = parseInt(guid.id.replace('tmdb://', ''), 10);
+                if (!isNaN(id)) userTmdbIds.add(id);
               }
             }
           }
         }
-
-        // For Letterboxd validation, resolve TMDB IDs in batches of 25 concurrently
-        const { default: TmdbAPI } = await import('@server/api/themoviedb');
-        const tmdbClient = new TmdbAPI();
-
-        const batchSize = 25;
-        let plexMatchCount = 0;
-
-        for (let i = 0; i < letterboxdItems.length; i += batchSize) {
-          const batch = letterboxdItems.slice(i, i + batchSize);
-          const batchIds = await Promise.all(
-            batch.map(async (item) => {
-              try {
-                const searchResults = await tmdbClient.searchMovies({
-                  query: item.title,
-                  year: item.year,
-                });
-                if (searchResults.results && searchResults.results.length > 0) {
-                  return searchResults.results[0].id;
-                }
-                return null;
-              } catch {
-                return null;
-              }
-            })
-          );
-
-          plexMatchCount += batchIds.filter(
-            (id) => id !== null && userTmdbIds.has(id)
-          ).length;
-
-          if (plexMatchCount >= 4) {
-            return true;
-          }
-        }
-
-        // Need at least 4 matches in Plex library for custom lists
-        return false;
       }
 
-      // Fallback: if no library cache, just check it's a movie collection
-      return targetMediaType === 'movie';
-    } catch (error) {
+      // Resolve TMDB IDs for up to 30 items concurrently, stop as soon as we
+      // find 1 match in the user's Plex library
+      const { default: TmdbAPI } = await import('@server/api/themoviedb');
+      const tmdbClient = new TmdbAPI();
+
+      const resolvedIds = await Promise.all(
+        letterboxdItems.map(async (item) => {
+          try {
+            const results = await tmdbClient.searchMovies({
+              query: item.title,
+              year: item.year,
+            });
+            return results.results?.[0]?.id ?? null;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      return resolvedIds.some((id) => id !== null && userTmdbIds.has(id));
+    } catch {
       return false;
     }
   }

@@ -793,17 +793,17 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               const data =
                 mediaType === 'tv'
                   ? await this.tmdbClient.getAdvancedDiscoverTv({
-                      ...(discoverFilters as Parameters<
-                        typeof this.tmdbClient.getAdvancedDiscoverTv
-                      >[0]),
-                      page: currentPage,
-                    })
+                    ...(discoverFilters as Parameters<
+                      typeof this.tmdbClient.getAdvancedDiscoverTv
+                    >[0]),
+                    page: currentPage,
+                  })
                   : await this.tmdbClient.getAdvancedDiscoverMovies({
-                      ...(discoverFilters as Parameters<
-                        typeof this.tmdbClient.getAdvancedDiscoverMovies
-                      >[0]),
-                      page: currentPage,
-                    });
+                    ...(discoverFilters as Parameters<
+                      typeof this.tmdbClient.getAdvancedDiscoverMovies
+                    >[0]),
+                    page: currentPage,
+                  });
 
               if (!data.results || data.results.length === 0) {
                 hasMorePages = false;
@@ -1046,19 +1046,22 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         const randomResult = await RandomListManager.getRandomUrlWithTitle(
           'tmdb',
           9999,
-          mediaType,
-          libraryCache
+          mediaType
         );
         if (!randomResult) {
-          throw this.createSyncError(
-            CollectionSyncErrorType.CONFIGURATION_ERROR,
-            `No random TMDB collections available with ${mediaType} content`
+          logger.warn(
+            `No random TMDB collections available with ${mediaType} content`,
+            {
+              label: 'TMDB Collections',
+              collection: config.name,
+              mediaType,
+            }
           );
+          return tmdbData;
         }
 
         const { url: randomUrl, title: listTitle } = randomResult;
 
-        // Store the dynamic title for use in generateCollectionNameWithCustom
         if (config.template === 'DYNAMIC_RANDOM_TITLE') {
           this.dynamicRandomTitle = listTitle;
           this.updateCollectionConfigField(config.id, { name: listTitle });
@@ -1071,7 +1074,6 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           listTitle,
         });
 
-        // Parse TMDB collection URL to get collection ID (same as custom)
         const urlMatch = randomUrl.match(/themoviedb\.org\/collection\/(\d+)/);
         if (!urlMatch) {
           throw this.createSyncError(
@@ -1632,8 +1634,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     }
 
     logger.info(
-      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${
-        tmdbIds.length - processedTmdbIds.size
+      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${tmdbIds.length - processedTmdbIds.size
       } movies skipped)`,
       {
         label: 'TMDB Franchise',
