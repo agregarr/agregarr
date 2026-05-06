@@ -67,7 +67,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
   public async fetchSourceData(
     config: CollectionConfig,
-    libraryCache?: LibraryItemsCache,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _libraryCache?: LibraryItemsCache,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
   ): Promise<TmdbSourceData[]> {
