@@ -1516,7 +1516,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
           for (const tvItem of tvItems) {
             if (tvItem.id && userTmdbIds.has(tvItem.id)) {
               matchCount++;
-              if (matchCount >= 3) return true;
+              if (matchCount >= 2) return true;
             }
           }
           return false;
