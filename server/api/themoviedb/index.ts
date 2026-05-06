@@ -581,8 +581,8 @@ class TheMovieDb extends ExternalAPI {
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage
               : originalLanguage === 'all'
-                ? undefined
-                : this.originalLanguage,
+              ? undefined
+              : this.originalLanguage,
           // Set our release date values, but check if one is set and not the other,
           // so we can force a past date or a future date. TMDB Requires both values if one is set!
           'primary_release_date.gte':
@@ -864,8 +864,8 @@ class TheMovieDb extends ExternalAPI {
             originalLanguage && originalLanguage !== 'all'
               ? originalLanguage
               : originalLanguage === 'all'
-                ? undefined
-                : this.originalLanguage,
+              ? undefined
+              : this.originalLanguage,
           include_null_first_air_dates: includeEmptyReleaseDate,
           with_genres: genre,
           with_networks: network,
@@ -992,15 +992,15 @@ class TheMovieDb extends ExternalAPI {
     language = 'en',
   }:
     | {
-      externalId: string;
-      type: 'imdb';
-      language?: string;
-    }
+        externalId: string;
+        type: 'imdb';
+        language?: string;
+      }
     | {
-      externalId: number;
-      type: 'tvdb';
-      language?: string;
-    }): Promise<TmdbExternalIdResponse> {
+        externalId: number;
+        type: 'tvdb';
+        language?: string;
+      }): Promise<TmdbExternalIdResponse> {
     try {
       const data = await this.get<TmdbExternalIdResponse>(
         `/find/${externalId}`,
@@ -1132,7 +1132,6 @@ class TheMovieDb extends ExternalAPI {
       throw new Error(`[TMDB] Failed to fetch list: ${e.message}`);
     }
   }
-
 
   /**
    * Get popular collections for discovery

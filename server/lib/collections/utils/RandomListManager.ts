@@ -899,8 +899,7 @@ https://letterboxd.com/cinema/list/criterion-collection/
       const discoveredUrls: string[] = [];
 
       // Regex to extract list title from nearby anchor text (used for TV filtering)
-      const listTitleRegex =
-        /<a[^>]+href="\/list\/ls\d+\/"[^>]*>([^<]+)<\/a>/g;
+      const listTitleRegex = /<a[^>]+href="\/list\/ls\d+\/"[^>]*>([^<]+)<\/a>/g;
 
       let page = 1;
       const maxPages = 15;

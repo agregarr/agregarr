@@ -210,7 +210,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
       }
 
       logger.info(
-        `Successfully fetched ${letterboxdData.length
+        `Successfully fetched ${
+          letterboxdData.length
         } items from Letterboxd custom list (${currentPage - 1} pages)`,
         {
           label: 'Letterboxd Collections',
@@ -457,8 +458,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         error instanceof Error
           ? error.message
           : isCollectionSyncError
-            ? (error as { message: string }).message
-            : 'Unknown error';
+          ? (error as { message: string }).message
+          : 'Unknown error';
 
       logger.error('Error fetching Letterboxd source data:', {
         label: 'Letterboxd Collections',
@@ -1167,7 +1168,8 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
             return { confident: false as const, result: null };
           } catch (error) {
             logger.debug(
-              `TMDB search failed for ${item.title}: ${error instanceof Error ? error.message : 'Unknown'
+              `TMDB search failed for ${item.title}: ${
+                error instanceof Error ? error.message : 'Unknown'
               }`,
               { label: 'Letterboxd Collections', configName }
             );

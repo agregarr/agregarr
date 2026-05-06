@@ -194,7 +194,8 @@ export class AwsWafTokenSolver {
       }
 
       throw new Error(
-        `Failed to solve AWS WAF challenge for ${domain}: ${error instanceof Error ? error.message : String(error)
+        `Failed to solve AWS WAF challenge for ${domain}: ${
+          error instanceof Error ? error.message : String(error)
         }`
       );
     }

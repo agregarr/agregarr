@@ -216,8 +216,9 @@ function getSourceDisplayName(source: {
         watched: 'Most Watched',
         collected: 'Most Collected',
       };
-      const baseName = `Trakt ${subtypeNames[subtype || ''] || subtype || 'List'
-        }`;
+      const baseName = `Trakt ${
+        subtypeNames[subtype || ''] || subtype || 'List'
+      }`;
       if (timePeriod && timePeriod !== 'all') {
         const periods: Record<string, string> = {
           daily: 'Daily',
@@ -275,8 +276,9 @@ function getSourceDisplayName(source: {
         most_watched_plays: 'Most Watched (Plays)',
         most_watched_duration: 'Most Watched (Duration)',
       };
-      const baseName = `Tautulli ${subtypeNames[subtype || ''] || subtype || 'Stats'
-        }`;
+      const baseName = `Tautulli ${
+        subtypeNames[subtype || ''] || subtype || 'Stats'
+      }`;
       if (timePeriod === 'custom' && customDays) {
         return `${baseName} (${customDays} days)`;
       }
@@ -706,8 +708,8 @@ async function processMultiSourcePreview(
             posterUrl: poster
               ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
               : movie.poster_path
-                ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
-                : '',
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
+              : '',
             backdropPath: movie.backdrop_path || undefined,
             title: movie.title || fallbackTitle,
             year: movie.release_date
@@ -730,8 +732,8 @@ async function processMultiSourcePreview(
             posterUrl: poster
               ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
               : show.poster_path
-                ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
-                : '',
+              ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
+              : '',
             backdropPath: show.backdrop_path || undefined,
             title: show.name || fallbackTitle,
             year: show.first_air_date
@@ -1270,8 +1272,8 @@ async function processPreviewAsync(
               posterUrl: poster
                 ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
                 : movie.poster_path
-                  ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
-                  : '',
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${movie.poster_path}`
+                : '',
               backdropPath: movie.backdrop_path || undefined,
               title: movie.title || fallbackTitle,
               year: movie.release_date
@@ -1294,8 +1296,8 @@ async function processPreviewAsync(
               posterUrl: poster
                 ? `https://image.tmdb.org/t/p/w300_and_h450_face${poster.file_path}`
                 : show.poster_path
-                  ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
-                  : '',
+                ? `https://image.tmdb.org/t/p/w300_and_h450_face${show.poster_path}`
+                : '',
               backdropPath: show.backdrop_path || undefined,
               title: show.name || fallbackTitle,
               year: show.first_air_date
@@ -1456,14 +1458,14 @@ async function processPreviewAsync(
         item.tmdbId && item.tmdbId > 0
           ? fetchTmdbDataWithRetry(item.tmdbId, item.mediaType, item.title)
           : Promise.resolve({
-            posterUrl: '',
-            backdropPath: undefined,
-            title: item.title,
-            year: undefined,
-            overview: undefined,
-            imdbId: undefined,
-            tmdbRating: undefined,
-          })
+              posterUrl: '',
+              backdropPath: undefined,
+              title: item.title,
+              year: undefined,
+              overview: undefined,
+              imdbId: undefined,
+              tmdbRating: undefined,
+            })
       )
     );
 
