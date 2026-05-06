@@ -1062,6 +1062,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
         const { url: randomUrl, title: listTitle } = randomResult;
 
+        // Store the dynamic title for use in generateCollectionNameWithCustom
         if (config.template === 'DYNAMIC_RANDOM_TITLE') {
           this.dynamicRandomTitle = listTitle;
           this.updateCollectionConfigField(config.id, { name: listTitle });
@@ -1074,6 +1075,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           listTitle,
         });
 
+        // Parse TMDB collection URL to get collection ID (same as custom)
         const urlMatch = randomUrl.match(/themoviedb\.org\/collection\/(\d+)/);
         if (!urlMatch) {
           throw this.createSyncError(
