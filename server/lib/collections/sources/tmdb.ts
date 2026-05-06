@@ -68,7 +68,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
   public async fetchSourceData(
     config: CollectionConfig,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _libraryCache?: LibraryItemsCache,
+    libraryCache?: LibraryItemsCache,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
   ): Promise<TmdbSourceData[]> {
@@ -794,17 +794,17 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               const data =
                 mediaType === 'tv'
                   ? await this.tmdbClient.getAdvancedDiscoverTv({
-                    ...(discoverFilters as Parameters<
-                      typeof this.tmdbClient.getAdvancedDiscoverTv
-                    >[0]),
-                    page: currentPage,
-                  })
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverTv
+                      >[0]),
+                      page: currentPage,
+                    })
                   : await this.tmdbClient.getAdvancedDiscoverMovies({
-                    ...(discoverFilters as Parameters<
-                      typeof this.tmdbClient.getAdvancedDiscoverMovies
-                    >[0]),
-                    page: currentPage,
-                  });
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverMovies
+                      >[0]),
+                      page: currentPage,
+                    });
 
               if (!data.results || data.results.length === 0) {
                 hasMorePages = false;
@@ -1637,7 +1637,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     }
 
     logger.info(
-      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${tmdbIds.length - processedTmdbIds.size
+      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${
+        tmdbIds.length - processedTmdbIds.size
       } movies skipped)`,
       {
         label: 'TMDB Franchise',
