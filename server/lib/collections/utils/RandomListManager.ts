@@ -1493,10 +1493,10 @@ https://letterboxd.com/cinema/list/criterion-collection/
           (item) => item.media_type === 'tv'
         );
 
-        // Need at least 3 TV show entries in the list
-        if (tvItems.length < 3) return false;
+        // Need at least 2 TV show entries in the list
+        if (tvItems.length < 2) return false;
 
-        // If library cache is available, require at least 3 to also be in Plex
+        // If library cache is available, require at least 2 to also be in Plex
         if (libraryCache) {
           const userTmdbIds = new Set<number>();
           for (const libraryKey in libraryCache) {
