@@ -1,29 +1,33 @@
 # Agregarr
 
-Agregarr keeps your Plex Home and Recommended fresh by frequently updating it with Collections from various sources, including Trakt, IMDb, TMDB, Letterboxd, MDBList, FlixPatrol (Networks Top 10), AniList and MyAnimeList, as well as generated Collections from Tautulli Statistics, and Overseerr Requests. It has various options for downloading missing media, including as requests through Overseerr, or directly through Radarr/Sonarr. Collections can be reordered on the Home/Recommended and Library tabs independently, and can have time periods or days set for their visibility in Plex.
+Agregarr keeps your Plex Home and Recommended sections fresh by automatically syncing collections from sources such as Trakt, IMDb, TMDB, Letterboxd, MDBList, FlixPatrol, AniList, MyAnimeList, Tautulli statistics, and Overseerr requests.
+
+Use it to build dynamic Plex collections, request missing media through Overseerr, Radarr, or Sonarr, and control where and when collections appear across Plex Home, Recommended, and Library views.
 
 ## Features
 
-- **Public Lists**: Add public lists from Trakt, IMDb, TMDB, Letterboxd, MDBList, FlixPatrol (Networks Top 10), AniList and MyAnimeList, with presets and custom list options.
-- **Grab Missing Items**: Missing items from lists can be added via Radarr/Sonarr or Overseerr, with various filters available including release year, season count, list position, genre, and origin country
-- **Coming Soon**: Create Coming Soon Collections based off monitored content in Radarr/Sonarr, or anticipated releases from Trakt, complete with trailers and poster overlays.
-- **Overseerr Requests**: Generate Collections either for each users requests (only visible to that user), or for All Requests
-- **Tautulli Statistics**: Generate Collections based on the Most Popular content on your server
-- **Independent Reordering**: Control the order in which Collections appear across the Home/Recommended screens and the Library tab independently
-- **Keeps Plex Updated**: Collections will be be updated on every sync (default 12 hours, custom scheduling available). Custom sync options available per-collection.
-- **Randomise Home Order**: Keep your home screen dynamic by rotating the order in which collections appear (separate scheduling available)
-- **Template System**: Easily set collection names with flexible templating and title importing from lists.
-- **Time Restrictions**: Schedule collections to be active only during specific time periods
-- **Existing Collection Integration**: Any pre-existing Collections in Plex and Default Hubs (Recently Added etc) can be managed alongside Agregarr Collections
-- **Collection Statistics**: Dashboard showing Most Popular Collections (from Tautulli), and recently added Missing Items
-- **Poster Templates**: Create your own Poster Templates which can be dynamically filled with content per-collection
-- **Preview Collections**: Preview the collection and its matching/missing items, and add them individually via Radarr/Sonarr or Overseerr, or add items to the global exclusions list.
+- **Public lists**: Add public lists from Trakt, IMDb, TMDB, Letterboxd, MDBList, FlixPatrol, AniList, and MyAnimeList, with presets and custom list options.
+- **Missing media requests**: Add missing items via Radarr, Sonarr, or Overseerr, with filters for release year, season count, list position, genre, origin country, and more.
+- **Coming Soon collections**: Build collections from monitored Radarr/Sonarr content or anticipated Trakt releases, including trailers and poster overlays.
+- **Overseerr request collections**: Generate per-user request collections or a combined All Requests collection.
+- **Tautulli statistics**: Create collections from the most popular content on your Plex server.
+- **Independent reordering**: Control collection order independently for Home, Recommended, and Library views.
+- **Automatic Plex updates**: Keep collections updated on every sync, with global and per-collection scheduling options.
+- **Randomized Home order**: Rotate collection order on Plex Home with a separate schedule.
+- **Template system**: Build collection names with flexible templates and imported list titles.
+- **Time restrictions**: Show collections only during specific days or date ranges.
+- **Existing collection support**: Manage pre-existing Plex collections and default hubs, such as Recently Added, alongside Agregarr collections.
+- **Collection statistics**: Review dashboard stats for popular collections and recently added missing items.
+- **Poster templates**: Create reusable poster templates that can be filled dynamically per collection.
+- **Collection previews**: Preview matching and missing items before syncing, request items individually, or add them to global exclusions.
 
 <img width="1902" height="983" alt="agregarr-promo" src="https://github.com/user-attachments/assets/1b744502-30ce-4988-93fc-4588e1207e69" />
 
 ## Installation
 
 ### Docker Compose
+
+Create a `docker-compose.yml` file and update the volume paths for your environment:
 
 ```yaml
 services:
@@ -47,17 +51,19 @@ services:
 
       # And then select your root folders in Settings -> Downloads
     environment:
-      - TZ=Pacific/Auckland # Set to your local timezone for accurate poster overlay release dates/countdowns - see 'TZ Identifier' column here https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      - TZ=Pacific/Auckland # Set to your local timezone for accurate poster overlay release dates/countdowns.
     ports:
       - 7171:7171
     restart: unless-stopped
 ```
 
-Further instructions for basic setup available [**here**](https://agregarr.org/docs/installation) and Placeholder media volumes [**here**](https://agregarr.org/docs/placeholder-volumes)
+Use a valid TZ database name, such as `Europe/Berlin`, `America/New_York`, or `Pacific/Auckland`.
+
+Further instructions are available in the [installation guide](https://agregarr.org/docs/installation) and [placeholder volume guide](https://agregarr.org/docs/placeholder-volumes).
 
 The application will be available at `http://localhost:7171`
 
-> **Note**: Your volume must be set correctly for the your settings to persist. If Agregarr is reset after restart, it is because your volume is not set correctly. The Coming Soon/Placeholder feature requires media volumes to be mounted, these folders should be added to Plex, but not added to Radarr/Sonarr. Without media mounts, Agregarr can run remotely and all other features will work normally.
+> **Note**: The `/app/config` volume must be configured correctly for your settings to persist. If Agregarr resets after a restart, check this volume first. Coming Soon and placeholder media features require media volumes to be mounted. These folders should be added to Plex, but not to Radarr or Sonarr. Without media mounts, Agregarr can still run remotely and all other features will work normally.
 
 ## License
 
@@ -65,12 +71,12 @@ GPL-3.0 License - see [LICENSE](LICENSE) file for details.
 
 ## Credits
 
-Originally built off [**Overseerr**](https://github.com/sct/Overseerr)
+Originally built from [Overseerr](https://github.com/sct/Overseerr).
 
-Inspired by [Kometa](https://github.com/Kometa-Team/Kometa)
+Inspired by [Kometa](https://github.com/Kometa-Team/Kometa).
 
-Code references for Coming Soon feature from [UMTK](https://github.com/netplexflix/Upcoming-Movies-TV-Shows-for-Kometa)
+Code references for the Coming Soon feature from [UMTK](https://github.com/netplexflix/Upcoming-Movies-TV-Shows-for-Kometa).
 
-Anime ID mappings file by [PlexAniBridge](https://github.com/eliasbenb/PlexAniBridge)
+Anime ID mappings file by [PlexAniBridge](https://github.com/eliasbenb/PlexAniBridge).
 
 A massive thanks to the developers and contributors of these projects!
