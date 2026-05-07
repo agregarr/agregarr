@@ -830,7 +830,6 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
       ];
 
-      const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /data-item-name="([^"]+)"/;
@@ -871,10 +870,6 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
       for (const match of matches) {
         if (count >= maxItems) break;
         const itemHtml = match[1];
-
-        // Extract film ID
-        const filmIdMatch = itemHtml.match(filmIdRegex);
-        if (!filmIdMatch) continue;
 
         // Extract target link (movie slug)
         const targetLinkMatch = itemHtml.match(targetLinkRegex);
