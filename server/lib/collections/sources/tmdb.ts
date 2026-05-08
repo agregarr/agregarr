@@ -789,16 +789,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           const BATCH_SIZE = 5;
           const MAX_RETRIES = 3;
 
-          const fetchPage = async (
-            page: number
-          ): Promise<
-            | Awaited<
-                ReturnType<typeof this.tmdbClient.getAdvancedDiscoverTv>
-              >
-            | Awaited<
-                ReturnType<typeof this.tmdbClient.getAdvancedDiscoverMovies>
-              >
-          > => {
+          const fetchPage = async (page: number) => {
             let lastError: unknown;
             for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
               if (attempt > 0) {
@@ -845,15 +836,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
           while (hasMorePages) {
             for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
-              let data:
-                | Awaited<
-                    ReturnType<typeof this.tmdbClient.getAdvancedDiscoverTv>
-                  >
-                | Awaited<
-                    ReturnType<
-                      typeof this.tmdbClient.getAdvancedDiscoverMovies
-                    >
-                  >;
+              let data: Awaited<ReturnType<typeof fetchPage>>;
               try {
                 data = await fetchPage(currentPage);
               } catch (fetchError) {
