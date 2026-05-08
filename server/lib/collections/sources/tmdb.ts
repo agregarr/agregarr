@@ -803,27 +803,27 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
               try {
                 return mediaType === 'tv'
                   ? await this.tmdbClient.getAdvancedDiscoverTv({
-                    ...(discoverFilters as Parameters<
-                      typeof this.tmdbClient.getAdvancedDiscoverTv
-                    >[0]),
-                    page,
-                  })
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverTv
+                      >[0]),
+                      page,
+                    })
                   : await this.tmdbClient.getAdvancedDiscoverMovies({
-                    ...(discoverFilters as Parameters<
-                      typeof this.tmdbClient.getAdvancedDiscoverMovies
-                    >[0]),
-                    page,
-                  });
+                      ...(discoverFilters as Parameters<
+                        typeof this.tmdbClient.getAdvancedDiscoverMovies
+                      >[0]),
+                      page,
+                    });
               } catch (err) {
                 lastError = err;
                 // Only retry on transient server/gateway errors (5xx)
                 const status =
                   err != null &&
-                    typeof err === 'object' &&
-                    'response' in err &&
-                    err.response != null &&
-                    typeof err.response === 'object' &&
-                    'status' in err.response
+                  typeof err === 'object' &&
+                  'response' in err &&
+                  err.response != null &&
+                  typeof err.response === 'object' &&
+                  'status' in err.response
                     ? (err.response as { status: number }).status
                     : undefined;
                 if (status !== undefined && status < 500) {
@@ -1682,7 +1682,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     }
 
     logger.info(
-      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${tmdbIds.length - processedTmdbIds.size
+      `TMDB franchise discovery complete: ${movieApiCalls} movie API calls, ${collectionApiCalls} collection API calls (${
+        tmdbIds.length - processedTmdbIds.size
       } movies skipped)`,
       {
         label: 'TMDB Franchise',
