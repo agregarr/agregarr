@@ -787,23 +787,90 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           let currentPage = 1;
           let hasMorePages = true;
           const BATCH_SIZE = 5;
+          const MAX_RETRIES = 3;
 
-          while (hasMorePages) {
-            for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
-              const data =
-                mediaType === 'tv'
+          const fetchPage = async (
+            page: number
+          ): Promise<
+            | Awaited<
+                ReturnType<typeof this.tmdbClient.getAdvancedDiscoverTv>
+              >
+            | Awaited<
+                ReturnType<typeof this.tmdbClient.getAdvancedDiscoverMovies>
+              >
+          > => {
+            let lastError: unknown;
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+              if (attempt > 0) {
+                const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
+                logger.warn(
+                  `TMDB advanced discover retry ${attempt}/${MAX_RETRIES} for page ${page} after ${delayMs}ms`,
+                  { label: 'Collection Sync', page, attempt }
+                );
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+              }
+              try {
+                return mediaType === 'tv'
                   ? await this.tmdbClient.getAdvancedDiscoverTv({
                       ...(discoverFilters as Parameters<
                         typeof this.tmdbClient.getAdvancedDiscoverTv
                       >[0]),
-                      page: currentPage,
+                      page,
                     })
                   : await this.tmdbClient.getAdvancedDiscoverMovies({
                       ...(discoverFilters as Parameters<
                         typeof this.tmdbClient.getAdvancedDiscoverMovies
                       >[0]),
-                      page: currentPage,
+                      page,
                     });
+              } catch (err) {
+                lastError = err;
+                // Only retry on transient server/gateway errors (5xx)
+                const status =
+                  err != null &&
+                  typeof err === 'object' &&
+                  'response' in err &&
+                  err.response != null &&
+                  typeof err.response === 'object' &&
+                  'status' in err.response
+                    ? (err.response as { status: number }).status
+                    : undefined;
+                if (status !== undefined && status < 500) {
+                  throw err; // 4xx — no point retrying
+                }
+              }
+            }
+            throw lastError;
+          };
+
+          while (hasMorePages) {
+            for (let i = 0; i < BATCH_SIZE && hasMorePages; i++) {
+              let data:
+                | Awaited<
+                    ReturnType<typeof this.tmdbClient.getAdvancedDiscoverTv>
+                  >
+                | Awaited<
+                    ReturnType<
+                      typeof this.tmdbClient.getAdvancedDiscoverMovies
+                    >
+                  >;
+              try {
+                data = await fetchPage(currentPage);
+              } catch (fetchError) {
+                logger.warn(
+                  'TMDB advanced discover request failed after retries, stopping pagination',
+                  {
+                    label: 'Collection Sync',
+                    page: currentPage,
+                    error:
+                      fetchError instanceof Error
+                        ? fetchError.message
+                        : String(fetchError),
+                  }
+                );
+                hasMorePages = false;
+                break;
+              }
 
               if (!data.results || data.results.length === 0) {
                 hasMorePages = false;
