@@ -396,9 +396,16 @@ const SettingsJobs = () => {
                 <div className="form-input-area mt-2 mb-1">
                   <div>
                     {jobModalState.job &&
-                      cronstrue.toString(jobModalState.job.cronSchedule, {
-                        locale,
-                      })}
+                      (() => {
+                        try {
+                          return cronstrue.toString(
+                            jobModalState.job.cronSchedule,
+                            { locale }
+                          );
+                        } catch {
+                          return jobModalState.job.cronSchedule;
+                        }
+                      })()}
                   </div>
                   <div className="text-sm text-gray-500">
                     {jobModalState.job?.cronSchedule}
