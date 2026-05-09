@@ -24,8 +24,11 @@ const POSTER_HEIGHT = 1500; // Standard poster height (2:3 ratio)
 function sanitizeFilename(name: string): string {
   return (
     name
-      // Replace path separators and other unsafe characters
-      .replace(/[/\\:*?"<>|]/g, '_')
+      .normalize('NFC')
+      // Keep only characters allowed by isValidFilename's friendlyPattern
+      .replace(/[^\p{L}0-9_\-\s.()]/gu, '_')
+      // Collapse consecutive dots to prevent path traversal rejection
+      .replace(/\.{2,}/g, '.')
       // Replace multiple spaces/underscores with single underscore
       .replace(/[\s_]+/g, '_')
       // Remove leading/trailing underscores and dots
@@ -57,7 +60,7 @@ function isValidFilename(filename: string): boolean {
   // - Friendly names: any safe characters + extension
   // - Legacy UUID format
   // - Generated patterns (for auto-generated posters)
-  const friendlyPattern = /^[a-zA-Z0-9_\-\s.()]+\.(jpg|jpeg|png|webp)$/i;
+  const friendlyPattern = /^[\p{L}0-9_\-\s.()]+\.(jpg|jpeg|png|webp)$/iu;
   const uuidPattern =
     /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(jpg|jpeg|png|webp)$/i;
   const generatedPattern = /^generated_[a-z0-9]+\.(jpg|jpeg|png|webp)$/i;
