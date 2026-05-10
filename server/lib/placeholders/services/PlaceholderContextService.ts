@@ -175,26 +175,21 @@ export class PlaceholderContextService {
       // TV shows: Check if only Season 00 exists (our trailer placeholder pattern)
       // Real shows will have Season 01+ when content arrives
 
-      // Check if children are provided and inspect them
-      const childSeasons =
-        plexMetadata.Children?.Metadata || plexMetadata.Children?.Directory;
-      if (childSeasons) {
+      // Merge both child arrays (Plex may populate either or both)
+      const childSeasons = [
+        ...(plexMetadata.Children?.Metadata || []),
+        ...(plexMetadata.Children?.Directory || []),
+      ];
+      if (childSeasons.length > 0) {
         const seasons = childSeasons as {
           index?: number;
         }[];
 
-        // If no seasons at all, assume it's not a placeholder (might be corrupted metadata)
-        if (seasons.length === 0) {
-          return false;
-        }
-
-        // Check if all seasons are Season 00 (specials/trailers only)
         const nonZeroSeasons = seasons.filter(
-          (s) => s.index && s.index > 0
+          (s) => s.index !== undefined && s.index > 0
         ).length;
 
-        // Only a placeholder if ALL seasons are Season 00
-        return nonZeroSeasons === 0 && seasons.length > 0;
+        return nonZeroSeasons === 0;
       }
 
       // If no children metadata provided, use leafCount as a heuristic
