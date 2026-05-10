@@ -142,12 +142,38 @@ export async function discoverPlaceholdersFromMarkers(
 
       const plexItem = plexMatches.get(`${marker.tmdbId}-tv`);
 
-      // Marker file on disk proves this is an Agregarr-created placeholder.
-      // Don't re-verify via isPlaceholderItem — returns false for TV shows
-      // when Children metadata is missing from the Plex API response.
+      // Check Plex metadata to detect real content (mirrors the movie path)
       let needsTitleFix = false;
       if (plexItem) {
-        needsTitleFix = true;
+        let isStillPlaceholder = true;
+        try {
+          const plexMetadata = await plexClient.getMetadata(
+            plexItem.ratingKey.toString(),
+            { includeChildren: true }
+          );
+          isStillPlaceholder =
+            placeholderContextService.isPlaceholderItem(plexMetadata);
+        } catch (error) {
+          logger.warn('Failed to fetch Plex metadata for placeholder check', {
+            label: 'PlaceholderService',
+            title: marker.title,
+            ratingKey: plexItem.ratingKey,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        if (!isStillPlaceholder) {
+          logger.info(
+            'TV placeholder has real content now - triggering cleanup',
+            {
+              label: 'PlaceholderService',
+              title: marker.title,
+              ratingKey: plexItem.ratingKey,
+            }
+          );
+        } else {
+          needsTitleFix = true;
+        }
       }
 
       discovered.push({
@@ -192,13 +218,38 @@ export async function discoverPlaceholdersFromMarkers(
 
         const plexItem = plexMatches.get(`${dbRecord.tmdbId}-tv`);
 
-        // Marker file on disk proves this is an Agregarr-created placeholder.
-        // Don't re-verify via isPlaceholderItem — returns false for TV shows
-        // when Children metadata is missing from the Plex API response.
-        // Only *arr download status determines cleanup vs title-fix.
+        // Check Plex metadata to detect real content (mirrors Tier 1)
         let needsTitleFix = false;
         if (plexItem) {
-          needsTitleFix = true;
+          let isStillPlaceholder = true;
+          try {
+            const plexMetadata = await plexClient.getMetadata(
+              plexItem.ratingKey.toString(),
+              { includeChildren: true }
+            );
+            isStillPlaceholder =
+              placeholderContextService.isPlaceholderItem(plexMetadata);
+          } catch (error) {
+            logger.warn('Failed to fetch Plex metadata for placeholder check', {
+              label: 'PlaceholderService',
+              title: marker.title,
+              ratingKey: plexItem.ratingKey,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+
+          if (!isStillPlaceholder) {
+            logger.info(
+              'Tier 2: TV placeholder has real content now - triggering cleanup',
+              {
+                label: 'PlaceholderService',
+                title: marker.title,
+                ratingKey: plexItem.ratingKey,
+              }
+            );
+          } else {
+            needsTitleFix = true;
+          }
         }
 
         discovered.push({
