@@ -67,6 +67,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
 
   public async fetchSourceData(
     config: CollectionConfig,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     libraryCache?: LibraryItemsCache,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     options?: CollectionSyncOptions
@@ -1046,14 +1047,18 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
         const randomResult = await RandomListManager.getRandomUrlWithTitle(
           'tmdb',
           9999,
-          mediaType,
-          libraryCache
+          mediaType
         );
         if (!randomResult) {
-          throw this.createSyncError(
-            CollectionSyncErrorType.CONFIGURATION_ERROR,
-            `No random TMDB collections available with ${mediaType} content`
+          logger.warn(
+            `No random TMDB collections available with ${mediaType} content`,
+            {
+              label: 'TMDB Collections',
+              collection: config.name,
+              mediaType,
+            }
           );
+          return tmdbData;
         }
 
         const { url: randomUrl, title: listTitle } = randomResult;

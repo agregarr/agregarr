@@ -826,12 +826,11 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         /<li[^>]*class="[^"]*posteritem[^"]*"[^>]*>(.*?)<\/li>/gs,
         // Secondary pattern - grid items (watchlists)
         /<li[^>]*class="[^"]*griditem[^"]*"[^>]*>(.*?)<\/li>/gs,
-        // Fallback pattern - any li containing film data
-        /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
+        // Fallback pattern - any li containing film data (data-item-link is current attribute)
+        /<li[^>]*[^>]*>(.*?data-item-link="[^"]*".*?)<\/li>/gs,
       ];
 
-      const filmIdRegex = /data-film-id="([^"]+)"/;
-      const targetLinkRegex = /data-target-link="([^"]+)"/;
+      const itemLinkRegex = /data-item-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /data-item-name="([^"]+)"/;
 
@@ -870,17 +869,15 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
 
       for (const match of matches) {
         if (count >= maxItems) break;
-        const itemHtml = match[1];
+        // Use the full match (match[0]) — Letterboxd puts data-item-link and
+        // data-item-name as attributes on the <li> element itself
+        const itemHtml = match[0];
 
-        // Extract film ID
-        const filmIdMatch = itemHtml.match(filmIdRegex);
-        if (!filmIdMatch) continue;
+        // Extract film link (e.g. "/film/angels-egg/")
+        const itemLinkMatch = itemHtml.match(itemLinkRegex);
+        if (!itemLinkMatch) continue;
 
-        // Extract target link (movie slug)
-        const targetLinkMatch = itemHtml.match(targetLinkRegex);
-        if (!targetLinkMatch) continue;
-
-        // Extract title from img alt text
+        // Extract title
         const titleMatch = itemHtml.match(titleRegex);
         if (!titleMatch) continue;
 
@@ -913,7 +910,7 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
           }
         }
 
-        const slug = targetLinkMatch[1];
+        const slug = itemLinkMatch[1];
         const letterboxdUrl = `https://letterboxd.com${slug}`;
 
         items.push({

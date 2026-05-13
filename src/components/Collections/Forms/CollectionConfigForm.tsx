@@ -2820,6 +2820,12 @@ const CollectionFormConfigForm = ({
                             if (values.type === 'letterboxd') {
                               return 'movie';
                             }
+                            if (
+                              values.type === 'tmdb' &&
+                              values.subtype === 'random'
+                            ) {
+                              return 'movie';
+                            }
                             if (values.type === 'radarrtag') {
                               return 'movie';
                             }
