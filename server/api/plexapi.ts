@@ -2376,14 +2376,16 @@ class PlexAPI {
       | 'recently_added'
       | 'recently_released'
       | 'recently_released_episodes',
-    maxItems?: number
+    maxItems?: number,
+    excludeCollectionTitles?: string[]
   ): Promise<void> {
     return this.smartCollectionManager.updateFilteredHubUri(
       smartCollectionRatingKey,
       libraryKey,
       mediaType,
       subtype,
-      maxItems
+      maxItems,
+      excludeCollectionTitles
     );
   }
 
