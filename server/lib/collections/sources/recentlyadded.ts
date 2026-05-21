@@ -18,6 +18,8 @@ import {
   extractTmdbIdFromGuids,
   extractTvdbIdFromGuids,
   getCollectionMediaType,
+  parseConfigIdFromLabel,
+  updateConfigWithRatingKey,
   type LibraryItemsCache,
 } from '@server/lib/collections/core/CollectionUtilities';
 import type {
@@ -208,16 +210,45 @@ export class FilteredHubCollectionSync extends BaseCollectionSync<'filtered_hub'
         const excludedConfig = settings.plex.collectionConfigs?.find(
           (c) => c.id === excludedId
         );
-        if (!excludedConfig?.collectionRatingKey) {
+        if (!excludedConfig) {
           logger.debug(
-            `Skipping exclusion for config ${excludedId}: no collection rating key`,
+            `Skipping exclusion for config ${excludedId}: config not found`,
             { label: 'Filtered Hub Collections' }
           );
           continue;
         }
-        const plexCol = libraryCollections.find(
-          (c) => c.ratingKey === excludedConfig.collectionRatingKey
-        );
+
+        let plexCol: (typeof libraryCollections)[number] | undefined;
+
+        if (excludedConfig.collectionRatingKey) {
+          plexCol = libraryCollections.find(
+            (c) => c.ratingKey === excludedConfig.collectionRatingKey
+          );
+        }
+
+        // Fallback: ratingKey missing or stale (collection was recreated).
+        // Search by Agregarr label which encodes the config ID.
+        // Only attempt if excluded config is in the same library as this hub.
+        if (!plexCol && excludedConfig.libraryId === config.libraryId) {
+          plexCol = libraryCollections.find((c) =>
+            c.labels?.some((label) => {
+              const labelText = typeof label === 'string' ? label : label.tag;
+              return parseConfigIdFromLabel(labelText) === excludedId;
+            })
+          );
+          if (plexCol) {
+            logger.info(
+              `Exclusion config ${excludedId} (${excludedConfig.name}): resolved via label fallback (ratingKey ${plexCol.ratingKey})`,
+              { label: 'Filtered Hub Collections' }
+            );
+            updateConfigWithRatingKey(
+              excludedId,
+              plexCol.ratingKey,
+              excludedConfig.libraryId
+            );
+          }
+        }
+
         if (plexCol?.title) {
           excludeCollectionTitles.push(plexCol.title);
         } else {
