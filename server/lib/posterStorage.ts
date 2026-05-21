@@ -342,11 +342,6 @@ export async function savePosterFile(
 export async function deletePosterFile(filename: string): Promise<void> {
   if (!filename) return;
 
-  // Security: Validate filename to prevent path traversal
-  if (!isValidFilename(filename)) {
-    throw new Error('Invalid filename');
-  }
-
   const filePath = path.join(POSTER_STORAGE_DIR, filename);
 
   // Security: Ensure the resolved path is within the poster directory
