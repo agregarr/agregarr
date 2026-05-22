@@ -172,10 +172,8 @@ export class CollectionSyncService {
           let titleFixFailures = 0;
 
           for (const { plexItem, needsTitleFix, marker } of discovered) {
-            if (!plexItem) {
-              continue; // Not found in Plex
-            }
-
+            // Cleanup triggers when needsTitleFix is false (real content detected via Plex OR *arr)
+            // This works even without a plexItem (content downloaded to different library)
             if (!needsTitleFix && marker.tmdbId) {
               // Real content detected - clean up placeholder
               await cleanupPlaceholderForRealContent(
@@ -184,7 +182,7 @@ export class CollectionSyncService {
                 'tv'
               );
               cleanedUp++;
-            } else if (needsTitleFix) {
+            } else if (needsTitleFix && plexItem) {
               // Still a placeholder - fix episode title
               const fixed = await ensurePlaceholderEpisodeTitle(
                 plexClient,
@@ -316,8 +314,10 @@ export class CollectionSyncService {
           let moviesCleanedUp = 0;
           let labelsFixed = 0;
 
-          for (const { plexItem, needsCleanup, movie } of discovered) {
-            if (plexItem && needsCleanup) {
+          for (const { needsCleanup, movie, plexItem } of discovered) {
+            // Cleanup triggers when needsCleanup is true (real content detected via Plex OR *arr)
+            // This works even without a plexItem (content downloaded to different library)
+            if (needsCleanup) {
               // Real content detected - clean up placeholder
               await cleanupPlaceholderForRealContent(
                 movie.tmdbId,

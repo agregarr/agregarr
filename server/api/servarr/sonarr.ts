@@ -19,6 +19,7 @@ export interface SonarrSeason {
   seasonNumber: number;
   monitored: boolean;
   statistics?: {
+    nextAiring?: string;
     previousAiring?: string;
     episodeFileCount: number;
     episodeCount: number;
@@ -86,6 +87,8 @@ export interface SonarrSeries {
   tvMazeId: number;
   firstAired: string;
   lastInfoSync?: string;
+  nextAiring?: string;
+  previousAiring?: string;
   seriesType: 'standard' | 'daily' | 'anime';
   cleanTitle: string;
   imdbId: string;

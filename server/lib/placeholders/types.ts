@@ -20,6 +20,8 @@ export interface PlaceholderOptions {
   libraryPath: string;
   /** Path to downloaded trailer file */
   trailerPath: string;
+  /** Folder name from Sonarr (for TV shows to match Sonarr's naming convention) */
+  sonarrFolderName?: string;
 }
 
 /**

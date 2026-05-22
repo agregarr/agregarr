@@ -89,12 +89,25 @@ async function createMoviePlaceholder(
 async function createTVPlaceholder(
   options: PlaceholderOptions
 ): Promise<PlaceholderResult> {
-  const { title, year, libraryPath, trailerPath } = options;
+  const { title, year, libraryPath, trailerPath, sonarrFolderName } = options;
 
   // Directory format: ShowName (Year)/Season 00/S00E00.Trailer.mp4
-  const sanitizedTitle = sanitizeFilename(title);
-  const yearStr = year ? ` (${year})` : '';
-  const showDir = path.join(libraryPath, `${sanitizedTitle}${yearStr}`);
+  // If Sonarr folder name is provided, use it to match Sonarr's naming convention
+  // This prevents Plex from merging placeholder folders with real content folders
+  let folderName: string;
+  if (sonarrFolderName) {
+    folderName = sonarrFolderName;
+    logger.debug('Using Sonarr folder name for TV placeholder', {
+      label: 'PlaceholderService',
+      title,
+      sonarrFolderName,
+    });
+  } else {
+    const sanitizedTitle = sanitizeFilename(title);
+    const yearStr = year ? ` (${year})` : '';
+    folderName = `${sanitizedTitle}${yearStr}`;
+  }
+  const showDir = path.join(libraryPath, folderName);
   const seasonDir = path.join(showDir, 'Season 00');
 
   logger.debug('Creating TV show placeholder', {

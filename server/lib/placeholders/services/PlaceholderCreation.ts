@@ -187,12 +187,98 @@ export async function processPlaceholdersForMissingItems(
     tmdbIdsWithSourceData.has(item.tmdbId)
   );
 
+  // Check *arr download status before creating placeholders
+  // This prevents re-creating placeholders when content has been downloaded
+  // but Plex hasn't scanned it yet (race condition fix for issue #390)
+  const { placeholderContextService } = await import(
+    '@server/lib/placeholders/services/PlaceholderContextService'
+  );
+
+  const { moviesByTmdbId, showsByTvdbId } =
+    await placeholderContextService.batchCheckDownloadStatus(
+      filteredMissingItems.map((item) => ({
+        tmdbId: item.tmdbId,
+        tvdbId: item.tvdbId,
+        mediaType: item.mediaType,
+      }))
+    );
+
+  const itemsNotDownloaded: MissingItem[] = [];
+  let skippedAlreadyDownloaded = 0;
+
+  for (const item of filteredMissingItems) {
+    let isDownloaded = false;
+
+    if (item.mediaType === 'movie') {
+      const radarrStatus = moviesByTmdbId.get(item.tmdbId);
+      isDownloaded = radarrStatus?.downloaded ?? false;
+    } else if (item.mediaType === 'tv' && item.tvdbId) {
+      const sonarrStatus = showsByTvdbId.get(item.tvdbId);
+      isDownloaded = sonarrStatus?.downloaded ?? false;
+    }
+
+    if (isDownloaded) {
+      skippedAlreadyDownloaded++;
+      logger.debug(
+        'Skipping placeholder creation - content already downloaded in *arr',
+        {
+          label: 'PlaceholderService',
+          title: item.title,
+          tmdbId: item.tmdbId,
+          mediaType: item.mediaType,
+        }
+      );
+    } else {
+      itemsNotDownloaded.push(item);
+    }
+  }
+
+  if (skippedAlreadyDownloaded > 0) {
+    logger.info(
+      'Skipped placeholder creation for items already downloaded in *arr',
+      {
+        label: 'PlaceholderService',
+        configName: config.name,
+        skippedCount: skippedAlreadyDownloaded,
+        remainingCount: itemsNotDownloaded.length,
+      }
+    );
+  }
+
+  if (itemsNotDownloaded.length === 0) {
+    logger.info('No items need placeholders after *arr download check', {
+      label: 'PlaceholderService',
+      configName: config.name,
+      originalCount: missingItems.length,
+      skippedAlreadyDownloaded,
+    });
+    return [];
+  }
+
+  // Filter sourceData to match remaining items
+  const remainingTmdbIds = new Set(itemsNotDownloaded.map((i) => i.tmdbId));
+  const remainingSourceData = filteredSourceData.filter((s) =>
+    remainingTmdbIds.has(s.tmdbId)
+  );
+
+  // Build a map of TVDB ID -> Sonarr folder name for TV shows
+  const sonarrFolderNames = new Map<number, string>();
+  for (const item of itemsNotDownloaded) {
+    if (item.mediaType === 'tv' && item.tvdbId) {
+      const sonarrStatus = showsByTvdbId.get(item.tvdbId);
+      if (sonarrStatus?.folderName) {
+        sonarrFolderNames.set(item.tvdbId, sonarrStatus.folderName);
+      }
+    }
+  }
+
   // Call the internal placeholder creation logic
   return createPlaceholders(
-    filteredMissingItems,
-    filteredSourceData,
+    itemsNotDownloaded,
+    remainingSourceData,
     config,
-    plexClient
+    plexClient,
+    sonarrFolderNames
   );
 }
 
@@ -273,7 +359,8 @@ function missingItemsToPlaceholderSourceData(
  */
 async function createPlaceholderFile(
   sourceItem: ComingSoonSourceData,
-  libraryKey: string
+  libraryKey: string,
+  sonarrFolderName?: string
 ): Promise<string> {
   const { downloadTrailer } = await import(
     '@server/lib/placeholders/trailerDownload'
@@ -331,6 +418,7 @@ async function createPlaceholderFile(
     mediaType: sourceItem.mediaType,
     libraryPath,
     trailerPath,
+    sonarrFolderName,
   });
 
   return result.placeholderPath;
@@ -917,7 +1005,8 @@ async function createPlaceholders(
   missingItems: MissingItem[],
   sourceData: ComingSoonSourceData[],
   config: CollectionConfig,
-  plexClient: PlexAPI
+  plexClient: PlexAPI,
+  sonarrFolderNames?: Map<number, string>
 ): Promise<CollectionItem[]> {
   if (missingItems.length === 0) {
     return [];
@@ -1495,9 +1584,15 @@ async function createPlaceholders(
     }
 
     try {
+      // Pass Sonarr folder name for TV shows to prevent Plex merge conflicts
+      const folderName =
+        sourceItem.mediaType === 'tv' && sourceItem.tvdbId
+          ? sonarrFolderNames?.get(sourceItem.tvdbId)
+          : undefined;
       const placeholderPath = await createPlaceholderFile(
         sourceItem,
-        config.libraryId
+        config.libraryId,
+        folderName
       );
 
       createdPlaceholders.push({ sourceItem, placeholderPath });
