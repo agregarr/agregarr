@@ -560,6 +560,9 @@ class CollectionsQuickSync {
       matchesByCollection.get(collectionRatingKey)?.push(match);
     }
 
+    // Cache excluded collection items across groups to avoid redundant Plex calls
+    const excludedItemsCache = new Map<string, Set<string>>();
+
     // Process each collection
     for (const [
       collectionRatingKey,
@@ -568,9 +571,41 @@ class CollectionsQuickSync {
       if (this.cancelled) break;
 
       try {
+        // Filter out items excluded by excludeFromCollections
+        const filteredMatches = await this.filterExcludedItems(
+          collectionMatches,
+          plexClient,
+          excludedItemsCache
+        );
+
+        // Clean up DB records for excluded items so they aren't re-attempted
+        if (filteredMatches.length < collectionMatches.length) {
+          const excludedMatches = collectionMatches.filter(
+            (m) => !filteredMatches.includes(m)
+          );
+          if (excludedMatches.length > 0) {
+            try {
+              const repository = getRepository(CollectionMissingItems);
+              const excludedIds = excludedMatches.map((m) => m.missingItem.id);
+              await repository.delete(excludedIds);
+            } catch (cleanupError) {
+              logger.warn('Failed to clean up excluded missing item records', {
+                label: 'Collections Quick Sync',
+                collectionRatingKey,
+                error:
+                  cleanupError instanceof Error
+                    ? cleanupError.message
+                    : String(cleanupError),
+              });
+            }
+          }
+        }
+
+        if (filteredMatches.length === 0) continue;
+
         const added = await this.addItemsToCollection(
           collectionRatingKey,
-          collectionMatches,
+          filteredMatches,
           plexClient
         );
 
@@ -579,7 +614,7 @@ class CollectionsQuickSync {
           itemsAdded += added;
         }
       } catch (error) {
-        logger.error('Failed to add items to collection', {
+        logger.error('Failed to process collection in quick sync', {
           label: 'Collections Quick Sync',
           collectionRatingKey,
           error: error instanceof Error ? error.message : String(error),
@@ -693,6 +728,113 @@ class CollectionsQuickSync {
     }
 
     return undefined;
+  }
+
+  /**
+   * Filter out items that belong to excluded collections (excludeFromCollections)
+   */
+  private async filterExcludedItems(
+    matches: MissingItemMatch[],
+    plexClient: PlexAPI,
+    cache: Map<string, Set<string>>
+  ): Promise<MissingItemMatch[]> {
+    if (matches.length === 0) return matches;
+
+    const firstMatch = matches[0]?.missingItem;
+    if (!firstMatch?.configId) return matches;
+
+    // Warn if matches have mixed configIds (shouldn't happen, but surface it)
+    const mixedConfigs = matches.some(
+      (m) => m.missingItem.configId !== firstMatch.configId
+    );
+    if (mixedConfigs) {
+      logger.warn('Mixed configIds in collection group, using first match', {
+        label: 'Collections Quick Sync',
+        configId: firstMatch.configId,
+        collectionRatingKey: firstMatch.collectionRatingKey,
+      });
+    }
+
+    try {
+      const settings = getSettings();
+      const config = settings.plex.collectionConfigs?.find(
+        (c) => c.id === firstMatch.configId
+      );
+
+      if (
+        !config?.excludeFromCollections ||
+        config.excludeFromCollections.length === 0
+      ) {
+        return matches;
+      }
+
+      const excludedRatingKeys = new Set<string>();
+
+      for (const excludedCollectionId of config.excludeFromCollections) {
+        const excludedConfig = settings.plex.collectionConfigs?.find(
+          (c) => c.id === excludedCollectionId
+        );
+
+        if (!excludedConfig?.collectionRatingKey) continue;
+
+        const cacheKey = excludedConfig.collectionRatingKey;
+
+        const cached = cache.get(cacheKey);
+        if (cached) {
+          for (const key of cached) {
+            excludedRatingKeys.add(key);
+          }
+          continue;
+        }
+
+        try {
+          const itemKeys = await plexClient.getCollectionItems(cacheKey);
+          const keySet = new Set(itemKeys);
+          cache.set(cacheKey, keySet);
+          for (const key of keySet) {
+            excludedRatingKeys.add(key);
+          }
+        } catch (error) {
+          logger.warn(
+            `Failed to fetch items from excluded collection "${excludedConfig.name}"`,
+            {
+              label: 'Collections Quick Sync',
+              configName: config.name,
+              excludedCollection: excludedConfig.name,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
+
+      if (excludedRatingKeys.size === 0) return matches;
+
+      const filtered = matches.filter(
+        (m) => !excludedRatingKeys.has(m.plexItem.ratingKey)
+      );
+
+      const excludedCount = matches.length - filtered.length;
+      if (excludedCount > 0) {
+        logger.info(
+          `Excluded ${excludedCount} items from quick sync for "${config.name}"`,
+          {
+            label: 'Collections Quick Sync',
+            configName: config.name,
+            excludedCount,
+            remainingCount: filtered.length,
+          }
+        );
+      }
+
+      return filtered;
+    } catch (error) {
+      logger.warn('Failed to apply collection exclusions in quick sync', {
+        label: 'Collections Quick Sync',
+        configId: firstMatch.configId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return matches;
+    }
   }
 
   /**
