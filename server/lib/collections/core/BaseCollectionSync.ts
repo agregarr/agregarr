@@ -1638,7 +1638,9 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
           const existingByRatingKey = await plexClient.getCollectionMetadata(
             config.collectionRatingKey
           );
-          if (existingByRatingKey) {
+          if (!existingByRatingKey) {
+            ratingKeyWasStale = true;
+          } else {
             // CRITICAL: Validate that the found collection is in the correct library
             // This prevents linked configs from stealing each other's rating keys
             const collectionLibraryKey =
