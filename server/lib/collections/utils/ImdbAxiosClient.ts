@@ -86,7 +86,9 @@ export class ImdbAxiosClient {
           });
 
           try {
-            // Solve the challenge
+            // Clear any cached token — we just proved it's invalid by getting 202
+            AwsWafTokenSolver.clearCache(new URL(response.config.url).hostname);
+
             const cookies = await AwsWafTokenSolver.getCookies(
               response.config.url
             );
@@ -180,7 +182,7 @@ export class ImdbAxiosClient {
     this.isInitialized = false;
     this.instance = null;
     this.cookieJar = null;
-    AwsWafTokenSolver.clearCache('www.imdb.com');
+    AwsWafTokenSolver.resetAll('www.imdb.com');
 
     logger.debug('IMDb axios client reset', {
       label: 'IMDb Axios Client',
