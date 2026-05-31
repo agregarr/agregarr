@@ -1594,13 +1594,23 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           });
           collectionApiCalls++;
 
-          // Extract movies from collection (already sorted by TMDB)
+          // Extract movies from collection and sort by release date
+          // (TMDB parts order is not guaranteed to be release-date order)
           const movies =
             collectionData.parts?.map((part) => ({
               tmdbId: part.id,
               title: part.title || 'Unknown',
               releaseDate: part.release_date,
             })) || [];
+
+          movies.sort((a, b) => {
+            const dateA = a.releaseDate || '';
+            const dateB = b.releaseDate || '';
+            if (!dateA && !dateB) return 0;
+            if (!dateA) return 1;
+            if (!dateB) return -1;
+            return dateA.localeCompare(dateB);
+          });
 
           // Mark all movies in this franchise as processed to avoid redundant API calls
           for (const movie of movies) {
@@ -1612,7 +1622,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
             franchiseName: collectionData.name,
             franchisePosterPath: collectionData.poster_path,
             franchiseBackdropPath: collectionData.backdrop_path,
-            movies, // Already in TMDB's order (release order)
+            movies,
           });
 
           logger.debug(
@@ -1951,8 +1961,7 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       false
     );
 
-    // Convert to CollectionItem array, preserving TMDB franchise order
-    // CRITICAL: We must maintain the order from franchiseData.movies (release order)
+    // Convert to CollectionItem array, preserving franchiseData.movies order
     const items: CollectionItem[] = [];
     for (const movie of franchiseData.movies) {
       const key = `${movie.tmdbId}-movie`;
