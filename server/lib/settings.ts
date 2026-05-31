@@ -216,7 +216,7 @@ export interface CollectionConfig {
   readonly letterboxdCustomListUrl?: string; // Custom Letterboxd list URL (e.g., https://letterboxd.com/username/list/list-name/)
   // MDBList custom list fields
   readonly mdblistCustomListUrl?: string; // Custom MDBList list URL (e.g., https://mdblist.com/lists/123456 or https://mdblist.com/lists/username/list-name)
-  // Networks (FlixPatrol) fields
+  // Networks streaming chart fields
   readonly networksCountry?: string; // Country/region for Networks collections (e.g., 'world', 'us', 'uk')
   // AniList custom list fields
   readonly anilistCustomListUrl?: string; // Custom AniList list URL

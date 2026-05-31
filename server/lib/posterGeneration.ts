@@ -477,7 +477,7 @@ async function loadServiceLogo(serviceType: string): Promise<string | null> {
 }
 
 /**
- * Load dynamic logo from FlixPatrol extraction (PNG file)
+ * Load dynamic logo from provider extraction (PNG file)
  */
 async function loadDynamicLogo(
   dynamicLogoPath: string

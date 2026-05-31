@@ -8,6 +8,7 @@ export type AvailableCacheIds =
   | 'rt'
   | 'imdb'
   | 'flixpatrol'
+  | 'justwatch'
   | 'github'
   | 'plexguid'
   | 'plextv'
@@ -75,6 +76,10 @@ class CacheManager {
       checkPeriod: 60 * 30,
     }),
     flixpatrol: new Cache('flixpatrol', 'FlixPatrol API', {
+      stdTtl: 3600, // 1 hour cache for streaming top 10 data
+      checkPeriod: 60 * 15,
+    }),
+    justwatch: new Cache('justwatch', 'JustWatch API', {
       stdTtl: 3600, // 1 hour cache for streaming top 10 data
       checkPeriod: 60 * 15,
     }),

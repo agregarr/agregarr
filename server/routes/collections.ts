@@ -2303,16 +2303,10 @@ collectionsRoutes.get('/networks/countries', async (_req, res) => {
       label: 'Collections API',
     });
 
-    const { default: FlixPatrolAPI } = await import('@server/api/flixpatrol');
-    const flixpatrolClient = new FlixPatrolAPI();
+    const { default: JustWatchAPI } = await import('@server/api/justwatch');
+    const justwatchClient = new JustWatchAPI();
 
-    const countryStrings = await flixpatrolClient.getAvailableCountries();
-
-    // Convert to the format expected by frontend dropdowns
-    const countries = countryStrings.map((country) => ({
-      value: country,
-      label: country.charAt(0).toUpperCase() + country.slice(1), // Capitalize first letter
-    }));
+    const countries = await justwatchClient.getAvailableCountries();
 
     logger.debug(`Retrieved ${countries.length} countries for Networks`, {
       label: 'Collections API',
@@ -2350,10 +2344,10 @@ collectionsRoutes.get('/networks/platforms', async (req, res) => {
       country,
     });
 
-    const { default: FlixPatrolAPI } = await import('@server/api/flixpatrol');
-    const flixpatrolClient = new FlixPatrolAPI();
+    const { default: JustWatchAPI } = await import('@server/api/justwatch');
+    const justwatchClient = new JustWatchAPI();
 
-    const platforms = await flixpatrolClient.getAvailablePlatformsForCountry(
+    const platforms = await justwatchClient.getAvailablePlatformsForCountry(
       country
     );
 

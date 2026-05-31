@@ -1,5 +1,4 @@
-import type { FlixPatrolListItem } from '@server/api/flixpatrol';
-import FlixPatrolAPI from '@server/api/flixpatrol';
+import JustWatchAPI, { type JustWatchListItem } from '@server/api/justwatch';
 import type PlexAPI from '@server/api/plexapi';
 import TmdbAPI from '@server/api/themoviedb';
 import { BaseCollectionSync } from '@server/lib/collections/core/BaseCollectionSync';
@@ -46,20 +45,20 @@ interface NetworksCollectionItem extends CollectionItem {
  * Networks Collection Sync - Implementation for streaming platform top 10 lists
  *
  * Supports Netflix, HBO, Disney+, Amazon Prime, and other streaming platforms.
- * Uses web scraping via FlixPatrol since most platforms don't provide public APIs.
+ * Uses JustWatch's public streaming charts data since most platforms don't provide public APIs.
  */
 export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
-  private flixpatrolClient: FlixPatrolAPI;
+  private justwatchClient: JustWatchAPI;
   private tmdbClient: TmdbAPI;
 
   constructor() {
     super('networks');
-    this.flixpatrolClient = new FlixPatrolAPI();
+    this.justwatchClient = new JustWatchAPI();
     this.tmdbClient = new TmdbAPI();
   }
 
   protected async validateConfiguration(): Promise<void> {
-    // Networks/FlixPatrol data is public and doesn't require API keys
+    // Networks/JustWatch data is public and doesn't require API keys
     // Any connectivity issues will be caught during actual fetching
   }
 
@@ -83,7 +82,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
         );
       }
 
-      // Fetch data from FlixPatrol
+      // Fetch streaming chart data
       const sourceData = await this.fetchSourceData(
         config,
         options,
@@ -175,7 +174,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
   }
 
   /**
-   * Fetch data from FlixPatrol API
+   * Fetch data from JustWatch
    */
   public async fetchSourceData(
     config: CollectionConfig,
@@ -201,7 +200,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
 
       const country = config.networksCountry || 'global';
       const mediaType = getCollectionMediaType(config);
-      const platformData = await this.flixpatrolClient.getPlatformTop10(
+      const platformData = await this.justwatchClient.getPlatformTop10(
         config.subtype || '', // Pass the full subtype (e.g., "neon-tv_top_10")
         country,
         mediaType
@@ -210,7 +209,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       const networksData: NetworksSourceData[] = [];
 
       // Get the appropriate list based on media type
-      let sourceItems: FlixPatrolListItem[] = [];
+      let sourceItems: JustWatchListItem[] = [];
       if (mediaType === 'movie') {
         sourceItems = platformData.movies;
       } else if (mediaType === 'tv') {
@@ -250,7 +249,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
     } catch (error) {
       throw this.createSyncError(
         CollectionSyncErrorType.API_ERROR,
-        `Failed to fetch data from FlixPatrol`,
+        `Failed to fetch data from JustWatch`,
         { subtype: config.subtype },
         error instanceof Error ? error : new Error(String(error))
       );
@@ -286,7 +285,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       }
     );
 
-    // Step 1: Resolve FlixPatrol titles to TMDB IDs
+    // Step 1: Resolve JustWatch titles to TMDB IDs
     const tmdbLookups: {
       tmdbId: number;
       mediaType: 'movie' | 'tv';
@@ -328,7 +327,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
 
         if (bestMatch) {
           // CRITICAL FIX: Skip items that don't match the library type
-          // When using "Overall" FlixPatrol lists in a specific library (movie or TV),
+          // When using mixed streaming chart lists in a specific library (movie or TV),
           // only include items that match that library type.
           // Example: "Shrek" (movie) in an overall list should be skipped in a TV library
           if (bestMatch.mediaType !== mediaType) {
@@ -579,8 +578,8 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       return false;
     }
 
-    // Dynamic validation - any subtype ending with "_top_10" is valid
-    // This allows for the full range of platforms that FlixPatrol supports
+    // Keep subtype validation loose so saved configs continue to load; the
+    // JustWatch client validates concrete provider support when fetching.
     return config.subtype.endsWith('_top_10');
   }
 
@@ -746,7 +745,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
   }
 
   /**
-   * Override autoPoster generation to use dynamic platform logos from FlixPatrol
+   * Override autoPoster generation to use dynamic platform logos when available
    */
   protected async generateAutoPoster(
     collectionName: string,
@@ -845,7 +844,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
   }
 
   /**
-   * Extract individual platform logo from FlixPatrol sprite sheet
+   * Extract individual platform logo from a provider sprite sheet
    */
   public async extractPlatformLogoFromSprite(
     spriteUrl: string,
@@ -884,7 +883,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
           ? parseFloat(positionParts[1].replace('%', ''))
           : parseFloat(positionPercent.replace('%', ''));
 
-      // KISS approach: FlixPatrol sprites are likely just vertically arranged logos
+      // Provider sprites are usually vertically arranged logos
       // Use the percentage to directly calculate position in the sprite
 
       // CSS background-position calculation:
@@ -904,7 +903,7 @@ export class NetworksCollectionSync extends BaseCollectionSync<'networks'> {
       const cropX = Math.max(0, -xPosition);
       const cropY = Math.max(0, -yPosition);
 
-      // FlixPatrol uses 50x50px logos
+      // Existing dynamic provider logos are rendered at 50x50px
       const logoWidth = 50;
       const logoHeight = 50;
 
