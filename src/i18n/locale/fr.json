@@ -2132,5 +2132,7 @@
   "components.Collections.Forms.placeholderMinimumYearHelp": "Ne créer des éléments fictifs que pour les contenus sortis à partir de cette année (0 = sans limite)",
   "components.Settings.plexWebhookTitle": "Webhook Plex",
   "components.Settings.plexWebhookDescription": "Réinitialise automatiquement le statut visionné quand un fichier fictif de bande-annonce est lu, évitant sa synchronisation vers Trakt ou autres services de scrobbling. Nécessite Plex Pass. Enregistrez le webhook dans Plex sous Paramètres → Webhooks.",
-  "components.Collections.FormSections.libraryOnlyRestricted": "Les collections de franchises TMDB et les collections automatiques par Réalisateur/Acteur de la bibliothèque Plex sont limitées à la visibilité de l'onglet « Bibliothèque » pour éviter d'encombrer vos écrans d'accueil/sections recommandées."
+  "components.Collections.FormSections.libraryOnlyRestricted": "Les collections de franchises TMDB et les collections automatiques par Réalisateur/Acteur de la bibliothèque Plex sont limitées à la visibilité de l'onglet « Bibliothèque » pour éviter d'encombrer vos écrans d'accueil/sections recommandées.",
+  "components.Collections.FormSections.excludeFollowing": "Exclure les résultats contenant",
+  "components.Collections.FormSections.notOperator": "SAUF"
 }
