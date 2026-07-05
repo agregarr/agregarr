@@ -70,34 +70,28 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
     parentRef
   ) => {
     const intl = useIntl();
-    const modalRef = useRef<HTMLDivElement>(null);
     const mouseDownTargetRef = useRef<EventTarget | null>(null);
     useLockBodyScroll(true, disableScrollLock);
 
     const handleBackdropMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-      // Track where the mouse down occurred - store the actual target
-      mouseDownTargetRef.current = e.target;
+      // Only track mouse downs that start on the backdrop element itself.
+      // Children rendered through portals (dropdowns, tooltips) live outside
+      // the modal's DOM subtree but their events still bubble here through
+      // the React tree, so a contains() check would misread them as
+      // backdrop clicks and dismiss the modal.
+      mouseDownTargetRef.current =
+        e.target === e.currentTarget ? e.currentTarget : null;
     };
 
     const handleBackdropMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
-      // Only close if both mousedown and mouseup occurred on the backdrop itself (not on children)
-      // Check if the modal content contains either the mousedown or mouseup target
-      const modalContent = modalRef.current;
-      const mouseDownTarget = mouseDownTargetRef.current as Node | null;
-      const mouseUpTarget = e.target as Node;
-
-      // Don't close if mousedown or mouseup happened inside the modal content
+      // Close only when both mousedown and mouseup landed on the backdrop
+      // itself - not on modal content, not on portaled children
       if (
-        modalContent &&
-        (modalContent.contains(mouseDownTarget) ||
-          modalContent.contains(mouseUpTarget))
+        mouseDownTargetRef.current === e.currentTarget &&
+        e.target === e.currentTarget &&
+        onCancel &&
+        backgroundClickable
       ) {
-        mouseDownTargetRef.current = null;
-        return;
-      }
-
-      // Only close if both events were outside the modal content
-      if (onCancel && backgroundClickable) {
         onCancel();
       }
 
@@ -156,7 +150,6 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
           show={!loading}
-          ref={modalRef}
         >
           {backdrop && (
             <div className="absolute inset-0 z-0 w-full">
