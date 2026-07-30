@@ -151,6 +151,7 @@ interface PreviewPosterMetadata {
   releaseDate?: string;
   runtime?: number;
   daysUntilAction?: number;
+  seasonsLeavingCount?: number;
 }
 
 // Apply authentication to all routes
