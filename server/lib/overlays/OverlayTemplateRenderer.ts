@@ -441,6 +441,7 @@ export interface OverlayRenderContext {
 
   // Maintainerr integration
   daysUntilAction?: number; // Days until Maintainerr takes action (negative = overdue)
+  seasonsLeavingCount?: number; // Number of this show's seasons/episodes queued for action
 
   // Collection membership (populated at runtime from Plex collection contents)
   collection?: string[]; // Array of collection IDs this item belongs to

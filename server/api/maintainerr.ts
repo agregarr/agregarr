@@ -30,7 +30,7 @@ export interface MaintainerrCollection {
   manualCollectionName: string;
   listExclusions: boolean;
   forceOverseerr: boolean;
-  type: number;
+  type: number | 'movie' | 'show' | 'season' | 'episode';
   keepLogsForMonths: number;
   addDate: string;
   handledMediaAmount: number;

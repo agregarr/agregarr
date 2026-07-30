@@ -756,13 +756,36 @@ export async function buildRenderContext(
         daysUntilAction: number;
       }[] = [];
 
+      // Number of child items (seasons/episodes) matched via the tmdbId
+      // fallback below, so templates can distinguish "this whole show is
+      // leaving" from "2 of its seasons are leaving".
+      let childItemsMatched = 0;
+
       for (const collection of maintainerrCollections) {
-        const mediaItem = collection.media.find((m) => {
+        if (!collection.deleteAfterDays) {
+          continue;
+        }
+
+        // Primary match: the collection member is this exact Plex item.
+        // Applies to movie-type collections and show-type collections.
+        let mediaItems = collection.media.filter((m) => {
           const id = m.mediaServerId || m.plexId?.toString();
           return id === item.ratingKey;
         });
 
-        if (mediaItem && collection.deleteAfterDays) {
+        // Fallback for season- and episode-type Maintainerr collections.
+        // Their members are season/episode ratingKeys, which can never equal
+        // the show's ratingKey, so the primary match always misses and
+        // daysUntilAction is never calculated for TV. Maintainerr reports the
+        // parent series' tmdbId on those rows, so match the show to its queued
+        // children that way. A show may have several queued seasons; collect
+        // them all and let the existing lowest-daysUntilAction selection win.
+        if (mediaItems.length === 0 && mediaType === 'show' && tmdbId) {
+          mediaItems = collection.media.filter((m) => m.tmdbId === tmdbId);
+          childItemsMatched += mediaItems.length;
+        }
+
+        for (const mediaItem of mediaItems) {
           // Calculate days since item was added to collection
           const addedDate = new Date(mediaItem.addDate);
           const now = new Date();
@@ -786,11 +809,16 @@ export async function buildRenderContext(
 
         context.daysUntilAction = selected.daysUntilAction;
 
+        if (childItemsMatched > 0) {
+          context.seasonsLeavingCount = childItemsMatched;
+        }
+
         logger.debug('Calculated Maintainerr daysUntilAction', {
           label: 'OverlayContextBuilder',
           ratingKey: item.ratingKey,
           title: item.title,
           matchingCollections: matchingCollections.length,
+          childItemsMatched,
           selectedCollection: selected.collection.title,
           daysUntilAction: selected.daysUntilAction,
         });
