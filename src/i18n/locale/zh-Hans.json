@@ -1,1 +1,5 @@
-{}
+{
+  "components.Collections.BulkEditModal.close": "关闭",
+  "collections.library.alphabetical_divider": "按A-Z排列收藏",
+  "components.Collections.BulkEditModal.deselectAll": "取消全选"
+}
