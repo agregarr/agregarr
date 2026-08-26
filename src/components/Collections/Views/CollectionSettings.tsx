@@ -425,6 +425,7 @@ const CollectionSettings = ({
           tmdbCustomCollectionUrl: config.tmdbCustomCollectionUrl,
           imdbCustomListUrl: config.imdbCustomListUrl,
           letterboxdCustomListUrl: config.letterboxdCustomListUrl,
+          mdblistCustomListUrl: config.mdblistCustomListUrl,
           radarrInstanceId: config.radarrInstanceId,
           radarrTagId: config.radarrTagId,
           sonarrInstanceId: config.sonarrInstanceId,
