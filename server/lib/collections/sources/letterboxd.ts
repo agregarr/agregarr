@@ -827,10 +827,11 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
         // Secondary pattern - grid items (watchlists)
         /<li[^>]*class="[^"]*griditem[^"]*"[^>]*>(.*?)<\/li>/gs,
         // Fallback pattern - any li containing film data
-        /<li[^>]*[^>]*>(.*?data-film-id="[^"]*".*?)<\/li>/gs,
+        // Note: Letterboxd removed the data-film-id attribute from list pages;
+        // key off data-target-link instead, which is still present.
+        /<li[^>]*[^>]*>(.*?data-target-link="[^"]*".*?)<\/li>/gs,
       ];
 
-      const filmIdRegex = /data-film-id="([^"]+)"/;
       const targetLinkRegex = /data-target-link="([^"]+)"/;
       const fullDisplayNameRegex = /data-item-full-display-name="([^"]+)"/;
       const titleRegex = /data-item-name="([^"]+)"/;
@@ -871,10 +872,6 @@ export class LetterboxdCollectionSync extends BaseCollectionSync<'letterboxd'> {
       for (const match of matches) {
         if (count >= maxItems) break;
         const itemHtml = match[1];
-
-        // Extract film ID
-        const filmIdMatch = itemHtml.match(filmIdRegex);
-        if (!filmIdMatch) continue;
 
         // Extract target link (movie slug)
         const targetLinkMatch = itemHtml.match(targetLinkRegex);
