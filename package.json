@@ -52,7 +52,7 @@
     "axios-rate-limit": "1.3.0",
     "bcrypt": "5.1.0",
     "bowser": "2.11.0",
-    "canvas": "^3.2.0",
+    "canvas": "^3.2.3",
     "connect-typeorm": "1.1.4",
     "cookie-parser": "1.4.6",
     "copy-to-clipboard": "3.3.3",
@@ -114,7 +114,6 @@
     "winston-daily-rotate-file": "4.7.1",
     "xml2js": "0.6.2",
     "yamljs": "0.3.0",
-    "youtube-search-without-api-key": "^2.0.7",
     "yup": "0.32.11",
     "zod": "3.20.6"
   },

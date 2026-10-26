@@ -5,38 +5,66 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 import type { TrailerDownloadOptions } from './types';
 
-// Polyfill Intl.ListFormat if not available (needed for @sindresorhus/is in ts-node/CommonJS context)
-// This must be done BEFORE any dynamic imports that might use it
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-if (!(global as any).Intl.ListFormat) {
-  // Simple polyfill that returns a basic formatter
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (global as any).Intl.ListFormat = class ListFormat {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    constructor() {}
-    format(list: string[]): string {
-      return list.join(', ');
-    }
-  };
-}
-
-interface YoutubeSearchResult {
-  id: { videoId: string };
-  snippet: { title: string };
-}
-
-// Cache the YouTube search module to avoid ES Module race conditions
-let youtubeSearchModule: {
-  search: (query: string) => Promise<YoutubeSearchResult[]>;
-} | null = null;
-
-async function getYoutubeSearch() {
-  if (!youtubeSearchModule) {
-    const imported = await import('youtube-search-without-api-key');
-    // Handle both ESM and CommonJS module loading
-    youtubeSearchModule = imported.default || imported;
+/**
+ * yt-dlp cookie arguments, if config/youtube-cookies.txt exists
+ */
+function youtubeCookieArgs(): string[] {
+  const cookiesPath = path.join(process.cwd(), 'config', 'youtube-cookies.txt');
+  try {
+    fs.accessSync(cookiesPath);
+    logger.debug('Using YouTube cookies', {
+      label: 'PlaceholderService',
+      cookiesPath,
+    });
+    return ['--cookies', cookiesPath];
+  } catch {
+    // Cookies file doesn't exist, continue without it
+    logger.debug('No YouTube cookies file found, proceeding without cookies', {
+      label: 'PlaceholderService',
+      expectedPath: cookiesPath,
+    });
+    return [];
   }
-  return youtubeSearchModule;
+}
+
+/**
+ * Find the first YouTube result for a query with yt-dlp's search
+ */
+function searchYouTube(
+  query: string
+): Promise<{ videoId: string; title: string } | null> {
+  return new Promise((resolve, reject) => {
+    const ytdlp = spawn(
+      'yt-dlp',
+      [
+        '--flat-playlist',
+        '--no-warnings',
+        '--print',
+        '%(id)s\t%(title)s',
+        ...youtubeCookieArgs(),
+        `ytsearch1:${query}`,
+      ],
+      { timeout: 30000 }
+    );
+    let stdout = '';
+    let stderr = '';
+    ytdlp.stdout.on('data', (data) => (stdout += data.toString()));
+    ytdlp.stderr.on('data', (data) => (stderr += data.toString()));
+    ytdlp.on('error', reject);
+    ytdlp.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`yt-dlp search exited with code ${code}: ${stderr}`));
+        return;
+      }
+      const line = stdout.trim().split('\n')[0];
+      if (!line) {
+        resolve(null);
+        return;
+      }
+      const [videoId, ...rest] = line.split('\t');
+      resolve({ videoId, title: rest.join('\t') });
+    });
+  });
 }
 
 /**
@@ -104,31 +132,7 @@ async function downloadWithYtDlp(
       outputPath,
     ];
 
-    // Auto-detect cookies file in config directory
-    const cookiesPath = path.join(
-      process.cwd(),
-      'config',
-      'youtube-cookies.txt'
-    );
-    try {
-      fs.accessSync(cookiesPath);
-      args.push('--cookies', cookiesPath);
-      logger.debug('Using YouTube cookies for download', {
-        label: 'PlaceholderService',
-        cookiesPath,
-      });
-    } catch {
-      // Cookies file doesn't exist, continue without it
-      logger.debug(
-        'No YouTube cookies file found, proceeding without cookies',
-        {
-          label: 'PlaceholderService',
-          expectedPath: cookiesPath,
-        }
-      );
-    }
-
-    args.push(videoUrl);
+    args.push(...youtubeCookieArgs(), videoUrl);
 
     // yt-dlp command with 1080p max resolution, duration filter, and automatic merging
     const ytdlp = spawn('yt-dlp', args);
@@ -214,11 +218,9 @@ async function searchAndDownloadTrailer(
       query: searchQuery,
     });
 
-    // Get cached YouTube search module to avoid ES Module race condition
-    const youtubeSearchModule = await getYoutubeSearch();
-    const searchResults = await youtubeSearchModule.search(searchQuery);
+    const firstResult = await searchYouTube(searchQuery);
 
-    if (!searchResults || searchResults.length === 0) {
+    if (!firstResult) {
       logger.warn('No YouTube trailers found, using fallback', {
         label: 'PlaceholderService',
         title,
@@ -227,15 +229,13 @@ async function searchAndDownloadTrailer(
       return;
     }
 
-    // Get the first result (usually the official trailer)
-    const firstResult = searchResults[0];
-    const videoId = firstResult.id.videoId;
+    const videoId = firstResult.videoId;
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     logger.info('Found YouTube trailer', {
       label: 'PlaceholderService',
       title,
-      videoTitle: firstResult.snippet.title,
+      videoTitle: firstResult.title,
       videoId,
     });
 
