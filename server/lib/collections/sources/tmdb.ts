@@ -1427,6 +1427,14 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       return { created: 0, updated: 0 };
     }
 
+    // All franchise collections share this config's placeholders, so each franchise's
+    // cleanup must see every franchise's movies, not just its own
+    const allFranchiseTmdbIds = new Set(
+      [...validFranchises.values()].flatMap((franchise) =>
+        franchise.movies.map((movie) => movie.tmdbId)
+      )
+    );
+
     // 5. Create Plex collection for each franchise
     let created = 0;
     let updated = 0;
@@ -1439,7 +1447,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
           plexClient,
           allCollections,
           processedCollectionKeys,
-          libraryCache
+          libraryCache,
+          allFranchiseTmdbIds
         );
         created += result.created;
         updated += result.updated;
@@ -1674,7 +1683,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
     plexClient: PlexAPI,
     allCollections: PlexCollection[],
     processedCollectionKeys?: Set<string>,
-    libraryCache?: LibraryItemsCache
+    libraryCache?: LibraryItemsCache,
+    allFranchiseTmdbIds?: Set<number>
   ): Promise<SyncResult> {
     // Generate collection name using template engine
     const context = this.templateEngine.createFranchiseContext(franchiseData);
@@ -1778,7 +1788,8 @@ export class TmdbCollectionSync extends BaseCollectionSync<'tmdb'> {
       libraryCache,
       missingItems.length > 0
         ? () => this.handleAutoRequests(missingItems, config)
-        : undefined
+        : undefined,
+      allFranchiseTmdbIds
     );
 
     // Combine Plex items with any placeholder items

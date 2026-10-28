@@ -671,6 +671,8 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
    * @param plexClient - Plex API client
    * @param libraryCache - Optional library cache for optimization
    * @param autoRequestHandler - Optional function to call for auto-requests
+   * @param extraSourceTmdbIds - TMDB IDs that other collections of the same config still need,
+   *   so their placeholders are not cleaned up as orphaned (one config, many collections)
    * @returns Collection items created from placeholders
    */
   protected async handlePlaceholdersAndMissingItems(
@@ -679,7 +681,8 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
     config: CollectionConfig,
     plexClient: PlexAPI,
     libraryCache?: LibraryItemsCache,
-    autoRequestHandler?: () => Promise<void>
+    autoRequestHandler?: () => Promise<void>,
+    extraSourceTmdbIds?: Set<number>
   ): Promise<CollectionItem[]> {
     // Phase 1: Cleanup old placeholders (or delete all if setting disabled)
     const sourceTmdbIds = new Set([
@@ -689,6 +692,7 @@ export abstract class BaseCollectionSync<TSource extends CollectionSource>
       ...(missingItems
         ?.map((item) => item.tmdbId)
         .filter((id): id is number => typeof id === 'number') || []),
+      ...(extraSourceTmdbIds ?? []),
     ]);
 
     const { handlePlaceholderCleanup } = await import(
