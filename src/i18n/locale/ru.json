@@ -1,5 +1,5 @@
 {
-  "components.AppDataWarning.dockerVolumeMissingDescription": "Подключение тома <code>{appDataPath}</code> настроено неправильно. Все данные будут удалены при остановке или перезапуске контейнера.",
+  "components.AppDataWarning.dockerVolumeMissingDescription": "Точка монтирования тома не настроена",
   "components.Layout.LanguagePicker.displaylanguage": "Язык интерфейса",
   "components.Layout.Sidebar.dashboard": "Панель управления",
   "components.Layout.Sidebar.settings": "Настройки",
@@ -415,7 +415,7 @@
   "components.Settings.enableOwner": "Включить для владельца сервера",
   "components.Settings.OverseerrModal.profileIdTip": "",
   "components.OverlayEditor.addTile": "Плашка",
-  "collections.library.alphabetical_divider": "Коллекции от А до Я",
+  "collections.library.alphabetical_divider": "Точка монтирования тома не настроена",
   "components.Collections.BulkEditModal.usersHome": "Главная пользователей",
   "components.Settings.OverseerrModal.selectProfile": "Выберите профиль качества",
   "components.PosterEditor.contentGrid": "Сетка содержимого",
