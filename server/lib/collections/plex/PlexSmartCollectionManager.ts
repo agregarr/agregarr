@@ -318,8 +318,10 @@ class PlexSmartCollectionManager {
         if (mediaType === 'tv') {
           // TV Shows: Filter out "Trailer (Placeholder)" episode titles
           const sortParam = 'addedAt:desc';
-          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
-          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+          // Placeholders only live in Season 00 (S00E00.Trailer.mp4). With the show addedAt sort,
+          // episode.title!=Trailer (Placeholder) costs seconds per load; season.index>=1 gives the same
+          // result cheaply. (The episode.* sorts below stay on the title filter: it is fast there.)
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&season.index>=1`;
         } else {
           // Movies: Filter out "trailer-placeholder" label
           const sortParam = 'addedAt:desc';
@@ -692,8 +694,10 @@ class PlexSmartCollectionManager {
         if (mediaType === 'tv') {
           // TV Shows: Filter out "Trailer (Placeholder)" episode titles
           const sortParam = 'addedAt:desc';
-          const titleFilter = encodeURIComponent('Trailer (Placeholder)');
-          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&episode.title!=${titleFilter}`;
+          // Placeholders only live in Season 00 (S00E00.Trailer.mp4). With the show addedAt sort,
+          // episode.title!=Trailer (Placeholder) costs seconds per load; season.index>=1 gives the same
+          // result cheaply. (The episode.* sorts below stay on the title filter: it is fast there.)
+          filterUri = `/library/sections/${libraryKey}/all?type=${type}&sort=${sortParam}&season.index>=1`;
         } else {
           // Movies: Filter out "trailer-placeholder" label
           const sortParam = 'addedAt:desc';
