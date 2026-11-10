@@ -1645,7 +1645,30 @@ class PlexAPI {
 
     // Fetch current order once
     const currentOrder = await this.getCollectionItems(collectionRatingKey);
-    const desiredOrder = orderedItems.map((item) => item.ratingKey);
+
+    // Only arrange items that are actually in the collection. Source items that are not
+    // (yet) in Plex used to be passed through: "move X after <non-member>" makes Plex put
+    // X at the front, so every gap flipped the following block to the start of the
+    // collection (reversed / scrambled order).
+    const inCollection = new Set(currentOrder.map((rk) => String(rk)));
+    const desiredOrder = orderedItems
+      .map((item) => item.ratingKey)
+      .filter((ratingKey) => inCollection.has(String(ratingKey)));
+
+    if (desiredOrder.length < orderedItems.length) {
+      logger.debug(
+        `Skipping ${
+          orderedItems.length - desiredOrder.length
+        } item(s) not in collection ${collectionRatingKey} while arranging`,
+        {
+          label: 'Plex API',
+          collectionRatingKey,
+          skipped: orderedItems
+            .filter((item) => !inCollection.has(String(item.ratingKey)))
+            .map((item) => item.title || item.ratingKey),
+        }
+      );
+    }
 
     // Early return optimization: Check if already in correct order
     if (
