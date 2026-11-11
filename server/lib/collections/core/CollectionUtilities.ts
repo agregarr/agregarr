@@ -1213,6 +1213,17 @@ export async function applyCollectionExclusions(
           excludedRatingKeys.add(ratingKey);
         }
 
+        // Excluding a Coming Soon collection also excludes every placeholder in its library.
+        // A placeholder that has left the collection (released, real file not there yet) is
+        // still only a trailer, and would otherwise be matched by TMDB ID like a real item.
+        if (excludedConfig.type === 'comingsoon' && excludedConfig.libraryId) {
+          const placeholderRatingKeys =
+            await plexClient.getPlaceholderRatingKeys(excludedConfig.libraryId);
+          for (const ratingKey of placeholderRatingKeys) {
+            excludedRatingKeys.add(ratingKey);
+          }
+        }
+
         logger.debug(
           `Loaded ${collectionItemRatingKeys.length} items from excluded collection "${excludedConfig.name}"`,
           {
