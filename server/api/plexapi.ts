@@ -989,6 +989,29 @@ class PlexAPI {
   }
 
   /**
+   * Get the rating keys of every movie placeholder in a library (items labelled "trailer-placeholder")
+   */
+  public async getPlaceholderRatingKeys(libraryId: string): Promise<string[]> {
+    try {
+      const response = await this.plexClient.query({
+        uri: `/library/sections/${libraryId}/all?type=1&label=trailer-placeholder`,
+        extraHeaders: {
+          'X-Plex-Container-Start': `0`,
+          'X-Plex-Container-Size': `5000`,
+        },
+      });
+      const items = response.MediaContainer?.Metadata || [];
+      return items.map((item: PlexCollectionItem) => String(item.ratingKey));
+    } catch (error) {
+      logger.warn(`Error listing placeholders in library ${libraryId}`, {
+        label: 'Plex API',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  /**
    * Get items in a collection
    */
   public async getCollectionItems(
