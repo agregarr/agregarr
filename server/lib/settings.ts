@@ -710,6 +710,7 @@ interface AllSettings {
 const SETTINGS_PATH = process.env.CONFIG_DIRECTORY
   ? `${process.env.CONFIG_DIRECTORY}/settings.json`
   : path.join(__dirname, '../../config/settings.json');
+const SETTINGS_BACKUP_PATH = `${SETTINGS_PATH}.last-good`;
 
 class Settings {
   private data: AllSettings;
@@ -1136,17 +1137,58 @@ class Settings {
     if (!fs.existsSync(SETTINGS_PATH)) {
       this.save();
     }
-    const data = fs.readFileSync(SETTINGS_PATH, 'utf-8');
+    let data = fs.readFileSync(SETTINGS_PATH, 'utf-8');
+    let parsed: AllSettings | undefined;
 
-    if (data) {
-      this.data = merge(this.data, JSON.parse(data));
+    // A settings file that is empty or cut short (interrupted write, lost on shutdown) must
+    // not silently turn into a fresh install: fall back to the last copy that loaded.
+    try {
+      parsed = data.trim() ? JSON.parse(data) : undefined;
+    } catch (e) {
+      parsed = undefined;
+    }
+    if (!parsed && fs.existsSync(SETTINGS_BACKUP_PATH)) {
+      logger.error(
+        'settings.json is empty or unreadable - restoring the last good copy',
+        { label: 'Settings', backup: SETTINGS_BACKUP_PATH }
+      );
+      data = fs.readFileSync(SETTINGS_BACKUP_PATH, 'utf-8');
+      parsed = JSON.parse(data);
+    } else if (!parsed && data.trim()) {
+      throw new Error(
+        `settings.json is not valid JSON and no ${SETTINGS_BACKUP_PATH} exists - refusing to overwrite it`
+      );
+    }
+
+    if (parsed) {
+      this.data = merge(this.data, parsed);
       this.save();
+      try {
+        fs.writeFileSync(SETTINGS_BACKUP_PATH, data);
+      } catch (e) {
+        logger.warn('Could not write the settings backup copy', {
+          label: 'Settings',
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
     return this;
   }
 
+  /**
+   * Write to a temporary file, flush it, then rename it over settings.json. A plain
+   * writeFileSync truncates the file first, so an interrupted save leaves it empty.
+   */
   public save(): void {
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(this.data, undefined, ' '));
+    const tmpPath = `${SETTINGS_PATH}.tmp`;
+    const fd = fs.openSync(tmpPath, 'w');
+    try {
+      fs.writeSync(fd, JSON.stringify(this.data, undefined, ' '));
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tmpPath, SETTINGS_PATH);
   }
 
   /**
