@@ -718,21 +718,49 @@ class CollectionsQuickSync {
     );
 
     // Add items to collection
-    const newItems = sortedMatches.map((m) => ({
+    const matchedItems = sortedMatches.map((m) => ({
       ratingKey: m.plexItem.ratingKey,
       title: m.plexItem.title,
     }));
 
-    await plexClient.addItemsToCollection(collectionRatingKey, newItems);
+    // Never re-add an item that is already in the collection: Plex moves a re-added
+    // item to the end, which breaks the order the full sync arranged.
+    let existingRatingKeys = new Set<string>();
+    try {
+      existingRatingKeys = new Set(
+        (await plexClient.getCollectionItems(collectionRatingKey)).map(String)
+      );
+    } catch (error) {
+      logger.warn('Could not check existing collection members', {
+        label: 'Collections Quick Sync',
+        collectionRatingKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    const newItems = matchedItems.filter(
+      (item) => !existingRatingKeys.has(String(item.ratingKey))
+    );
 
-    logger.info('Added items to collection', {
-      label: 'Collections Quick Sync',
-      collectionName: config?.name || 'Unknown Collection',
-      collectionRatingKey,
-      configId: firstMatch?.configId,
-      itemsAdded: newItems.length,
-      titles: sortedMatches.map((m) => m.missingItem.title),
-    });
+    if (newItems.length > 0) {
+      await plexClient.addItemsToCollection(collectionRatingKey, newItems);
+
+      logger.info('Added items to collection', {
+        label: 'Collections Quick Sync',
+        collectionName: config?.name || 'Unknown Collection',
+        collectionRatingKey,
+        configId: firstMatch?.configId,
+        itemsAdded: newItems.length,
+        titles: newItems.map((item) => item.title),
+      });
+    }
+    if (newItems.length < matchedItems.length) {
+      logger.debug('Skipped items already in collection', {
+        label: 'Collections Quick Sync',
+        collectionName: config?.name || 'Unknown Collection',
+        collectionRatingKey,
+        skipped: matchedItems.length - newItems.length,
+      });
+    }
 
     // Delete matched missing items from database (they're no longer missing)
     const repository = getRepository(CollectionMissingItems);
